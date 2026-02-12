@@ -1,0 +1,115 @@
+import { readdir, lstat } from "fs/promises";
+import { join, resolve } from "path";
+import { existsSync } from "fs";
+import { adapters } from "../adapters/registry.ts";
+import { rebuildIndex, search as fuseSearch } from "./search.ts";
+import type { Plan } from "../adapters/types.ts";
+
+const store = new Map<string, Plan>();
+const MAX_DEPTH = 6;
+
+async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promise<string[]> {
+  if (depth > MAX_DEPTH) return [];
+  if (!existsSync(dir)) return [];
+
+  const real = resolve(dir);
+  if (seen.has(real)) return [];
+  seen.add(real);
+
+  const files: string[] = [];
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      try {
+        const stats = await lstat(full);
+        if (stats.isSymbolicLink()) continue;
+        if (stats.isDirectory()) {
+          files.push(...(await walkDir(full, depth + 1, seen)));
+        } else {
+          files.push(full);
+        }
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // permission denied or similar
+  }
+  return files;
+}
+
+export async function scan() {
+  store.clear();
+  for (const adapter of adapters) {
+    for (const searchPath of adapter.getSearchPaths()) {
+      const files = await walkDir(searchPath);
+      for (const file of files) {
+        if (!adapter.matches(file)) continue;
+        const plans = await adapter.parse(file);
+        for (const plan of plans) {
+          store.set(plan.id, plan);
+        }
+      }
+    }
+  }
+  rebuildIndex(Array.from(store.values()));
+  console.log(`[planfig] indexed ${store.size} plans from ${adapters.length} adapters`);
+}
+
+export function getAll(): Plan[] {
+  return Array.from(store.values());
+}
+
+export function getById(id: string): Plan | undefined {
+  return store.get(id);
+}
+
+export function search(query: string): Plan[] {
+  return fuseSearch(query);
+}
+
+export async function update(id: string, content: string): Promise<boolean> {
+  const plan = store.get(id);
+  if (!plan) return false;
+
+  const adapter = adapters.find((a) => a.agent === plan.agent);
+  if (!adapter?.writable) return false;
+
+  const ok = await adapter.write(plan, content);
+  if (ok) {
+    plan.content = content;
+    plan.updatedAt = new Date();
+    rebuildIndex(Array.from(store.values()));
+  }
+  return ok;
+}
+
+export function getAgentStats() {
+  const stats = new Map<string, { count: number; writable: boolean }>();
+  for (const adapter of adapters) {
+    stats.set(adapter.agent, { count: 0, writable: adapter.writable });
+  }
+  for (const plan of store.values()) {
+    const s = stats.get(plan.agent);
+    if (s) s.count++;
+  }
+  return Array.from(stats.entries()).map(([agent, s]) => ({
+    agent,
+    planCount: s.count,
+    writable: s.writable,
+  }));
+}
+
+export async function rescanFile(filePath: string) {
+  for (const adapter of adapters) {
+    if (!adapter.matches(filePath)) continue;
+    const plans = await adapter.parse(filePath);
+    for (const plan of plans) {
+      store.set(plan.id, plan);
+    }
+    rebuildIndex(Array.from(store.values()));
+    return plans;
+  }
+  return [];
+}
