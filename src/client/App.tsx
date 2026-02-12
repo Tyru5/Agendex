@@ -6,6 +6,7 @@ import { AgentSelect } from './components/AgentSelect.tsx';
 import { PlanList } from './components/PlanList.tsx';
 import { PlanViewer } from './components/PlanViewer.tsx';
 import { PlanEditor } from './components/PlanEditor.tsx';
+import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { filterPlans } from './lib/plan-search.ts';
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
@@ -84,11 +85,22 @@ function Dashboard() {
 
   const { plans, loading, error, refresh } = usePlans(filters);
   const agents = useAgents();
+  const backendStatus = useBackendStatus();
   const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
 
   const totalPlans = useMemo(() => agents.reduce((sum, a) => sum + a.planCount, 0), [agents]);
 
   const activeAgents = useMemo(() => agents.filter((a) => a.planCount > 0).length, [agents]);
+  const backendIndicator = useMemo(() => {
+    if (backendStatus === 'online') {
+      return { label: 'Live', color: '#22c55e' };
+    }
+    if (backendStatus === 'checking') {
+      return { label: 'Checking', color: '#f59e0b' };
+    }
+    return { label: 'Offline', color: '#ef4444' };
+  }, [backendStatus]);
+
   const sidebarPinnedOpen = !sidebarHidden;
   const sidebarPeekOpen = sidebarHidden && sidebarPeek;
   const sidebarVisible = sidebarPinnedOpen || sidebarPeekOpen;
@@ -259,11 +271,13 @@ function Dashboard() {
               style={{
                 width: '6px',
                 height: '6px',
-                background: '#22c55e',
+                background: backendIndicator.color,
                 boxShadow: '0 0 0 2px var(--surface)',
               }}
             />
-            <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>Live</span>
+            <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
+              {backendIndicator.label}
+            </span>
           </div>
         </div>
       </div>

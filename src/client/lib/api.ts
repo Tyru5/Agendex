@@ -62,6 +62,8 @@ export interface AgentStats {
 }
 
 export const api = {
+  getHealth: () => request<{ ok: boolean }>('/health'),
+
   getPlans: (params?: { agent?: string; q?: string; sort?: string }) => {
     const qs = new URLSearchParams();
     if (params?.agent) qs.set('agent', params.agent);

@@ -3,6 +3,10 @@ import { getAll, getById, search, update, getAgentStats, scan } from '../service
 
 const plans = new Hono();
 
+plans.get('/health', (c) => {
+  return c.json({ ok: true });
+});
+
 plans.get('/plans', (c) => {
   const agent = c.req.query('agent');
   const q = c.req.query('q');

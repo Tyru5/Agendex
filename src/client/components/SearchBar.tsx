@@ -18,9 +18,13 @@ export function SearchBar({
   onSelectPlan: (plan: Plan) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [isMac, setIsMac] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | undefined>(undefined);
   const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
+  const modalExitMs = 220;
 
   useEffect(() => {
     setIsMac(/Mac|iPhone|iPad/i.test(navigator.platform));
@@ -30,10 +34,10 @@ export function SearchBar({
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setOpen(true);
+        openModal();
       }
       if (e.key === 'Escape') {
-        setOpen(false);
+        closeModal();
       }
     }
 
@@ -47,11 +51,43 @@ export function SearchBar({
     return () => clearTimeout(timerId);
   }, [open]);
 
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
+    };
+  }, []);
+
+  function clearCloseTimer() {
+    if (!closeTimerRef.current) return;
+    clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = undefined;
+  }
+
+  function openModal() {
+    clearCloseTimer();
+    if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
+    setMounted(true);
+    openFrameRef.current = requestAnimationFrame(() => {
+      setOpen(true);
+    });
+  }
+
+  function closeModal() {
+    if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
+    setOpen(false);
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => {
+      setMounted(false);
+      closeTimerRef.current = undefined;
+    }, modalExitMs);
+  }
+
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openModal}
         className="flex items-center gap-2 rounded-lg"
         style={{
           padding: '5px 8px',
@@ -96,16 +132,18 @@ export function SearchBar({
         </kbd>
       </button>
 
-      {open && (
+      {mounted && (
         <div
           className="fixed inset-0 z-[120] flex justify-center px-4"
           style={{
             background: 'rgba(0,0,0,0.44)',
-            backdropFilter: 'blur(3px)',
+            opacity: open ? 1 : 0,
+            backdropFilter: open ? 'blur(3px)' : 'blur(0px)',
             paddingTop: '84px',
+            transition: 'opacity 220ms ease, backdrop-filter 260ms ease',
           }}
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setOpen(false);
+            if (e.target === e.currentTarget) closeModal();
           }}
         >
           <div
@@ -117,6 +155,10 @@ export function SearchBar({
               background: 'var(--surface)',
               boxShadow: '0 24px 50px rgba(0,0,0,0.22)',
               overflow: 'hidden',
+              opacity: open ? 1 : 0,
+              transform: open ? 'translateY(0px) scale(1)' : 'translateY(-10px) scale(0.98)',
+              transition: 'opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
+              willChange: 'opacity, transform',
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -136,7 +178,7 @@ export function SearchBar({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && filteredPlans[0]) {
                     onSelectPlan(filteredPlans[0]);
-                    setOpen(false);
+                    closeModal();
                   }
                 }}
                 placeholder="Search plans..."
@@ -151,7 +193,7 @@ export function SearchBar({
               />
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={closeModal}
                 style={{
                   fontFamily: 'inherit',
                   fontSize: '11px',
@@ -203,7 +245,7 @@ export function SearchBar({
                     type="button"
                     onClick={() => {
                       onSelectPlan(plan);
-                      setOpen(false);
+                      closeModal();
                     }}
                     className="w-full text-left block"
                     style={{
