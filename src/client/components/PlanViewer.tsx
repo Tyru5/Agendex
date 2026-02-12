@@ -8,49 +8,175 @@ function isMarkdownPlan(plan: Plan): boolean {
   return /\.mdx?$/i.test(plan.filePath);
 }
 
+function extractWorkspace(plan: Plan): string | undefined {
+  return plan.workspace || undefined;
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs !== 1 ? 's' : ''} ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} day${days !== 1 ? 's' : ''} ago`;
+}
+
 export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void }) {
   const isMarkdown = isMarkdownPlan(plan);
   const markdown = isMarkdown ? normalizePlanMarkdown(plan.content) : '';
+  const workspace = extractWorkspace(plan);
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-zinc-800">
+    <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 32px 80px' }}>
+      {/* Header */}
+      <div
+        style={{
+          marginBottom: '32px',
+          paddingBottom: '24px',
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        <div
+          className="flex items-center gap-1"
+          style={{
+            fontSize: '12px',
+            color: 'var(--tertiary)',
+            marginBottom: '10px',
+            fontWeight: 450,
+          }}
+        >
+          <span>{plan.agent}</span>
+          {workspace && (
+            <>
+              <span style={{ opacity: 0.5 }}>/</span>
+              <span>{workspace}</span>
+            </>
+          )}
+        </div>
+
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold leading-tight text-balance">{plan.title}</h1>
-            <p className="text-xs text-gray-500 mt-1 break-all">{plan.filePath}</p>
-            <div className="mt-2 flex items-center gap-2 text-xs">
-              <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-zinc-200">
-                {plan.agent}
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                {plan.format.toUpperCase()}
-              </span>
-            </div>
-          </div>
+          <h1
+            style={{
+              fontSize: '26px',
+              fontWeight: 600,
+              letterSpacing: '-0.03em',
+              lineHeight: 1.25,
+              color: 'var(--text)',
+              marginBottom: '12px',
+            }}
+          >
+            {plan.title}
+          </h1>
           {isMarkdown && (
             <button
               onClick={onEdit}
-              className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors shrink-0"
+              className="shrink-0"
+              style={{
+                padding: '5px 12px',
+                fontSize: '12.5px',
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                borderRadius: '7px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--secondary)',
+                cursor: 'pointer',
+              }}
             >
               Edit
             </button>
           )}
         </div>
-      </div>
-      <div className="flex-1 overflow-auto px-6 py-6">
-        <div className="plan-surface">
-          <div className="plan-content">
-            {isMarkdown ? (
-              <article className="plan-markdown">
-                <Markdown remarkPlugins={[remarkGfm]}>{markdown}</Markdown>
-              </article>
-            ) : (
-              <pre className="plan-plain">{plan.content}</pre>
-            )}
-          </div>
+
+        <div
+          className="flex items-center gap-5"
+          style={{ fontSize: '12.5px', color: 'var(--secondary)' }}
+        >
+          <span className="flex items-center gap-1.5">
+            <ClockIcon />
+            Updated {timeAgo(plan.updatedAt)}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <DocIcon />
+            {plan.format.toUpperCase()}
+          </span>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 550,
+              padding: '2px 7px',
+              borderRadius: '5px',
+              background: 'rgba(34,197,94,0.1)',
+              color: '#16a34a',
+            }}
+          >
+            Writable
+          </span>
         </div>
       </div>
+
+      {/* Body */}
+      {isMarkdown ? (
+        <article className="plan-markdown">
+          <Markdown remarkPlugins={[remarkGfm]}>{markdown}</Markdown>
+        </article>
+      ) : (
+        <pre className="plan-plain">{plan.content}</pre>
+      )}
+
+      {/* File path footer */}
+      <div
+        style={{
+          marginTop: '40px',
+          paddingTop: '16px',
+          borderTop: '1px solid var(--border)',
+          fontSize: '11.5px',
+          color: 'var(--tertiary)',
+          fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
+          wordBreak: 'break-all',
+        }}
+      >
+        {plan.filePath}
+      </div>
     </div>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      style={{ width: '13px', height: '13px', opacity: 0.4 }}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  );
+}
+
+function DocIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      style={{ width: '13px', height: '13px', opacity: 0.4 }}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+      />
+    </svg>
   );
 }

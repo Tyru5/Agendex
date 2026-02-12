@@ -11,12 +11,43 @@ export function SearchBar({ onSearch }: { onSearch: (q: string) => void }) {
   }, [value]);
 
   return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      placeholder="Search plans..."
-      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-    />
+    <div
+      className="flex items-center gap-2 rounded-lg"
+      style={{
+        padding: '6px 12px',
+        border: '1px solid var(--border)',
+        background: 'transparent',
+        minWidth: '220px',
+      }}
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={2}
+        stroke="currentColor"
+        style={{ width: '14px', height: '14px', opacity: 0.3, flexShrink: 0 }}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+        />
+      </svg>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search plans..."
+        className="flex-1 outline-none"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          fontFamily: 'inherit',
+          fontSize: '13px',
+          color: 'var(--text)',
+        }}
+      />
+    </div>
   );
 }

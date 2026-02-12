@@ -19,21 +19,42 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <form onSubmit={submit} className="w-80 space-y-4">
-        <h1 className="text-2xl font-bold text-center">planfig</h1>
-        <p className="text-sm text-gray-500 text-center">Enter your auth token</p>
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: 'var(--bg)' }}
+    >
+      <form onSubmit={submit} className="w-72 space-y-3">
+        <h1
+          className="text-center font-semibold tracking-tight"
+          style={{ fontSize: '14px', color: 'var(--text)' }}
+        >
+          planfig
+        </h1>
+        <p className="text-center" style={{ fontSize: '12.5px', color: 'var(--tertiary)' }}>
+          Enter your auth token
+        </p>
         <input
           type="password"
           value={token}
           onChange={(e) => setTokenValue(e.target.value)}
           placeholder="Token"
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
+            fontSize: '13px',
+          }}
           autoFocus
         />
         <button
           type="submit"
-          className="w-full px-3 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+          className="w-full px-3 py-2 text-sm rounded-lg font-medium transition-colors"
+          style={{
+            background: 'var(--text)',
+            color: 'var(--bg)',
+            fontSize: '13px',
+          }}
         >
           Connect
         </button>
@@ -56,6 +77,10 @@ function Dashboard() {
   const { plans, loading, error, refresh } = usePlans(filters);
   const agents = useAgents();
 
+  const totalPlans = useMemo(() => agents.reduce((sum, a) => sum + a.planCount, 0), [agents]);
+
+  const activeAgents = useMemo(() => agents.filter((a) => a.planCount > 0).length, [agents]);
+
   useEffect(() => {
     if (plans.length === 0) {
       setSelectedPlan(undefined);
@@ -75,23 +100,91 @@ function Dashboard() {
   }
 
   return (
-    <div className="h-screen flex">
-      {/* Sidebar */}
-      <div className="w-72 border-r border-gray-200 dark:border-zinc-800 flex flex-col shrink-0">
-        <div className="p-4 border-b border-gray-200 dark:border-zinc-800">
-          <h1 className="text-lg font-bold mb-3">planfig</h1>
-          <SearchBar onSearch={setSearch} />
+    <div
+      className="h-screen grid overflow-hidden"
+      style={{
+        gridTemplateColumns: '260px 1fr',
+        gridTemplateRows: '53px 1fr',
+      }}
+    >
+      {/* Topbar */}
+      <div
+        className="flex items-center px-5 gap-4"
+        style={{
+          gridColumn: '1 / -1',
+          borderBottom: '1px solid var(--border)',
+          background: 'var(--surface)',
+          zIndex: 50,
+        }}
+      >
+        <span
+          className="font-semibold text-sm"
+          style={{ letterSpacing: '-0.02em', color: 'var(--text)' }}
+        >
+          planfig
+        </span>
+        <div style={{ width: '1px', height: '18px', background: 'var(--border)' }} />
+        <SearchBar onSearch={setSearch} />
+        <div className="flex-1" />
+        <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
+          <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{totalPlans}</strong> plans
+        </span>
+        <div style={{ width: '1px', height: '18px', background: 'var(--border)' }} />
+        <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
+          <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{activeAgents}</strong>{' '}
+          agents
+        </span>
+        <div style={{ width: '1px', height: '18px', background: 'var(--border)' }} />
+        <div className="flex items-center gap-1.5">
+          <div
+            className="rounded-full"
+            style={{
+              width: '6px',
+              height: '6px',
+              background: '#22c55e',
+              boxShadow: '0 0 0 2px var(--surface)',
+            }}
+          />
+          <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>Live</span>
         </div>
-        <div className="p-3 border-b border-gray-200 dark:border-zinc-800">
+      </div>
+
+      {/* Sidebar */}
+      <div
+        className="flex flex-col overflow-hidden"
+        style={{
+          borderRight: '1px solid var(--border)',
+          background: 'var(--surface)',
+        }}
+      >
+        <div className="p-3">
           <AgentFilter agents={agents} selected={agentFilter} onSelect={setAgentFilter} />
         </div>
-        <div className="flex-1 overflow-auto p-2">
+
+        <div className="px-3">
+          <div
+            style={{
+              fontSize: '11px',
+              fontWeight: 550,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: 'var(--tertiary)',
+              padding: '0 8px',
+              marginBottom: '4px',
+            }}
+          >
+            Recent
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto px-3 pb-3 sidebar-scroll">
           {loading ? (
-            <div className="p-4 text-sm text-gray-500">Loading plans...</div>
+            <div className="p-4" style={{ fontSize: '13px', color: 'var(--tertiary)' }}>
+              Loading...
+            </div>
           ) : error ? (
-            <div className="p-4 text-sm text-red-600 dark:text-red-400">
-              Failed to load plans ({error}). Verify the server is running and the auth token is
-              valid.
+            <div className="p-4" style={{ fontSize: '13px', color: '#ef4444' }}>
+              Failed to load plans.
             </div>
           ) : (
             <PlanList plans={plans} selectedId={selectedPlan?.id} onSelect={setSelectedPlan} />
@@ -100,7 +193,7 @@ function Dashboard() {
       </div>
 
       {/* Main */}
-      <div className="flex-1 min-w-0">
+      <div className="overflow-auto main-scroll" style={{ background: 'var(--bg)' }}>
         {selectedPlan ? (
           editing ? (
             <PlanEditor
@@ -112,7 +205,10 @@ function Dashboard() {
             <PlanViewer plan={selectedPlan} onEdit={() => setEditing(true)} />
           )
         ) : (
-          <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+          <div
+            className="h-full flex items-center justify-center"
+            style={{ fontSize: '13px', color: 'var(--tertiary)' }}
+          >
             Select a plan to view
           </div>
         )}

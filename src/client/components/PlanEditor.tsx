@@ -61,23 +61,58 @@ export function PlanEditor({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-zinc-800">
+      <div
+        className="flex items-center justify-between px-6 py-3"
+        style={{ borderBottom: '1px solid var(--border)' }}
+      >
         <div>
-          <h1 className="text-lg font-semibold">Editing: {plan.title}</h1>
-          <p className="text-xs text-gray-500 mt-0.5">{plan.filePath}</p>
+          <h1 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+            Editing: {plan.title}
+          </h1>
+          <p
+            style={{
+              fontSize: '11.5px',
+              color: 'var(--tertiary)',
+              marginTop: '2px',
+              fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
+            }}
+          >
+            {plan.filePath}
+          </p>
         </div>
-        <div className="flex gap-2">
-          {error && <span className="text-red-500 text-sm self-center">{error}</span>}
+        <div className="flex items-center gap-2">
+          {error && <span style={{ fontSize: '12px', color: '#ef4444' }}>{error}</span>}
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+            style={{
+              padding: '5px 12px',
+              fontSize: '12.5px',
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              borderRadius: '7px',
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: 'var(--secondary)',
+              cursor: 'pointer',
+            }}
           >
             Cancel
           </button>
           <button
             onClick={save}
             disabled={saving}
-            className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            style={{
+              padding: '5px 12px',
+              fontSize: '12.5px',
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              borderRadius: '7px',
+              border: 'none',
+              background: 'var(--text)',
+              color: 'var(--bg)',
+              cursor: saving ? 'default' : 'pointer',
+              opacity: saving ? 0.5 : 1,
+            }}
           >
             {saving ? 'Saving...' : 'Save'}
           </button>

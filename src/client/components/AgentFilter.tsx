@@ -1,17 +1,17 @@
 import type { AgentStats } from '../lib/api.ts';
 
 const AGENT_COLORS: Record<string, string> = {
-  'claude-code': 'bg-orange-500',
-  'codex-cli': 'bg-green-500',
-  'continue-ide': 'bg-purple-500',
-  cursor: 'bg-blue-500',
-  amp: 'bg-pink-500',
-  cline: 'bg-cyan-500',
-  'copilot-chat': 'bg-gray-500',
-  droid: 'bg-red-500',
-  'kilo-cli': 'bg-yellow-500',
-  windsurf: 'bg-teal-500',
-  aider: 'bg-indigo-500',
+  'claude-code': '#8b5cf6',
+  'codex-cli': '#f97316',
+  'continue-ide': '#3b82f6',
+  cursor: '#22c55e',
+  amp: '#ec4899',
+  cline: '#06b6d4',
+  'copilot-chat': '#6b7280',
+  droid: '#ef4444',
+  'kilo-cli': '#eab308',
+  windsurf: '#14b8a6',
+  aider: '#6366f1',
 };
 
 export function AgentFilter({
@@ -26,32 +26,85 @@ export function AgentFilter({
   const withPlans = agents.filter((a) => a.planCount > 0);
 
   return (
-    <div className="space-y-1">
-      <button
-        onClick={() => onSelect(undefined)}
-        className={`w-full text-left px-3 py-1.5 rounded text-sm ${
-          !selected
-            ? 'bg-blue-100 dark:bg-blue-900/40 font-medium'
-            : 'hover:bg-gray-100 dark:hover:bg-zinc-800'
-        }`}
+    <div>
+      <div
+        style={{
+          fontSize: '11px',
+          fontWeight: 550,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: 'var(--tertiary)',
+          padding: '0 8px',
+          marginBottom: '4px',
+        }}
       >
-        All agents
-      </button>
+        Agents
+      </div>
+      <AgentButton
+        label="All plans"
+        dotColor="var(--text)"
+        count={agents.reduce((s, a) => s + a.planCount, 0)}
+        active={!selected}
+        onClick={() => onSelect(undefined)}
+      />
       {withPlans.map((a) => (
-        <button
+        <AgentButton
           key={a.agent}
+          label={a.agent}
+          dotColor={AGENT_COLORS[a.agent] ?? '#6b7280'}
+          count={a.planCount}
+          active={a.agent === selected}
           onClick={() => onSelect(a.agent === selected ? undefined : a.agent)}
-          className={`w-full text-left px-3 py-1.5 rounded text-sm flex items-center gap-2 ${
-            a.agent === selected
-              ? 'bg-blue-100 dark:bg-blue-900/40 font-medium'
-              : 'hover:bg-gray-100 dark:hover:bg-zinc-800'
-          }`}
-        >
-          <span className={`w-2 h-2 rounded-full ${AGENT_COLORS[a.agent] ?? 'bg-gray-400'}`} />
-          <span className="flex-1">{a.agent}</span>
-          <span className="text-xs text-gray-500">{a.planCount}</span>
-        </button>
+        />
       ))}
     </div>
+  );
+}
+
+function AgentButton({
+  label,
+  dotColor,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  dotColor: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 w-full text-left"
+      style={{
+        padding: '6px 8px',
+        borderRadius: '7px',
+        border: 'none',
+        background: active ? 'var(--active)' : 'transparent',
+        fontFamily: 'inherit',
+        fontSize: '13px',
+        fontWeight: active ? 550 : 450,
+        color: 'var(--text)',
+        cursor: 'pointer',
+      }}
+    >
+      <span
+        className="rounded-full"
+        style={{ width: '7px', height: '7px', background: dotColor, flexShrink: 0 }}
+      />
+      <span className="flex-1">{label}</span>
+      <span
+        style={{
+          fontSize: '11.5px',
+          color: 'var(--tertiary)',
+          fontWeight: 400,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {count}
+      </span>
+    </button>
   );
 }
