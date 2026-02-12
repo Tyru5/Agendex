@@ -1,7 +1,10 @@
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Plan } from '../lib/api.ts';
+import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
+import { AgentIcon } from './AgentIcon.tsx';
+import { getAgentLabel } from '../lib/agent-colors.ts';
 
 function isMarkdownPlan(plan: Plan): boolean {
   if (plan.format.toLowerCase() === 'md') return true;
@@ -46,7 +49,10 @@ export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void })
             fontWeight: 450,
           }}
         >
-          <span>{plan.agent}</span>
+          <span className="flex items-center gap-1.5">
+            <AgentIcon agent={plan.agent} size={13} />
+            <span>{getAgentLabel(plan.agent)}</span>
+          </span>
           {workspace && (
             <>
               <span style={{ opacity: 0.5 }}>/</span>
@@ -119,7 +125,28 @@ export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void })
       {/* Body */}
       {isMarkdown ? (
         <article className="plan-markdown">
-          <Markdown remarkPlugins={[remarkGfm]}>{markdown}</Markdown>
+          <Markdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              code({ className, children, node: _node, ...props }) {
+                const code = String(children).replace(/\n$/, '');
+                const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
+                const isBlock = Boolean(language) || code.includes('\n');
+
+                if (!isBlock) {
+                  return (
+                    <code className={className} {...props}>
+                      {children}
+                    </code>
+                  );
+                }
+
+                return <MarkdownCodeBlock className={className} code={code} language={language} />;
+              },
+            }}
+          >
+            {markdown}
+          </Markdown>
         </article>
       ) : (
         <pre className="plan-plain">{plan.content}</pre>

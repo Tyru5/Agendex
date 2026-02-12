@@ -1,11 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { hasToken, setToken, type Plan } from './lib/api.ts';
 import { usePlans, useAgents } from './hooks/usePlans.ts';
 import { SearchBar } from './components/SearchBar.tsx';
-import { AgentFilter } from './components/AgentFilter.tsx';
+import { AgentSelect } from './components/AgentSelect.tsx';
 import { PlanList } from './components/PlanList.tsx';
 import { PlanViewer } from './components/PlanViewer.tsx';
 import { PlanEditor } from './components/PlanEditor.tsx';
+import { filterPlans } from './lib/plan-search.ts';
+
+const SIDEBAR_EXPANDED_WIDTH = 260;
+const SIDEBAR_PREF_KEY = 'planfig_sidebar_hidden';
+const SIDEBAR_HOVER_ZONE_WIDTH = 14;
+const TOPBAR_HEIGHT = 70;
 
 function Login() {
   const [token, setTokenValue] = useState('');
@@ -68,100 +74,248 @@ function Dashboard() {
   const [agentFilter, setAgentFilter] = useState<string | undefined>();
   const [selectedPlan, setSelectedPlan] = useState<Plan | undefined>();
   const [editing, setEditing] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
+    return localStorage.getItem(SIDEBAR_PREF_KEY) === 'true';
+  });
+  const [sidebarPeek, setSidebarPeek] = useState(false);
+  const hoverCloseTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const filters = useMemo(
-    () => ({ agent: agentFilter, q: search || undefined }),
-    [agentFilter, search],
-  );
+  const filters = useMemo(() => ({ agent: agentFilter }), [agentFilter]);
 
   const { plans, loading, error, refresh } = usePlans(filters);
   const agents = useAgents();
+  const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
 
   const totalPlans = useMemo(() => agents.reduce((sum, a) => sum + a.planCount, 0), [agents]);
 
   const activeAgents = useMemo(() => agents.filter((a) => a.planCount > 0).length, [agents]);
+  const sidebarPinnedOpen = !sidebarHidden;
+  const sidebarPeekOpen = sidebarHidden && sidebarPeek;
+  const sidebarVisible = sidebarPinnedOpen || sidebarPeekOpen;
+  const sidebarWidth = sidebarPinnedOpen ? SIDEBAR_EXPANDED_WIDTH : 0;
 
   useEffect(() => {
-    if (plans.length === 0) {
+    localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
+  }, [sidebarHidden]);
+
+  useEffect(() => {
+    if (!sidebarHidden) setSidebarPeek(false);
+  }, [sidebarHidden]);
+
+  useEffect(() => {
+    return () => {
+      if (hoverCloseTimer.current) clearTimeout(hoverCloseTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (filteredPlans.length === 0) {
       setSelectedPlan(undefined);
       setEditing(false);
       return;
     }
 
     setSelectedPlan((current) => {
-      if (!current) return plans[0];
-      return plans.find((plan) => plan.id === current.id) ?? plans[0];
+      if (!current) return filteredPlans[0];
+      return filteredPlans.find((plan) => plan.id === current.id) ?? filteredPlans[0];
     });
-  }, [plans]);
+  }, [filteredPlans]);
 
   function handleSaved() {
     setEditing(false);
     refresh();
   }
 
+  function clearHoverCloseTimer() {
+    if (!hoverCloseTimer.current) return;
+    clearTimeout(hoverCloseTimer.current);
+    hoverCloseTimer.current = undefined;
+  }
+
+  function schedulePeekClose() {
+    if (!sidebarHidden) return;
+    clearHoverCloseTimer();
+    hoverCloseTimer.current = setTimeout(() => {
+      setSidebarPeek(false);
+    }, 140);
+  }
+
+  function revealSidebarOnHover() {
+    if (!sidebarHidden) return;
+    clearHoverCloseTimer();
+    setSidebarPeek(true);
+  }
+
+  function toggleSidebar() {
+    clearHoverCloseTimer();
+    setSidebarPeek(false);
+    setSidebarHidden((current) => !current);
+  }
+
   return (
     <div
       className="h-screen grid overflow-hidden"
       style={{
-        gridTemplateColumns: '260px 1fr',
-        gridTemplateRows: '53px 1fr',
+        position: 'relative',
+        gridTemplateColumns: `${sidebarWidth}px 1fr`,
+        gridTemplateRows: `${TOPBAR_HEIGHT}px 1fr`,
+        transition: 'grid-template-columns 180ms ease',
       }}
     >
       {/* Topbar */}
       <div
-        className="flex items-center px-5 gap-4"
+        className="grid items-center min-w-0"
         style={{
           gridColumn: '1 / -1',
+          height: `${TOPBAR_HEIGHT}px`,
+          columnGap: '12px',
+          gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+          boxSizing: 'border-box',
           borderBottom: '1px solid var(--border)',
           background: 'var(--surface)',
           zIndex: 50,
         }}
       >
-        <span
-          className="font-semibold text-sm"
-          style={{ letterSpacing: '-0.02em', color: 'var(--text)' }}
+        <div
+          className="flex items-center gap-3 min-w-0 h-full overflow-hidden"
+          style={{
+            boxSizing: 'border-box',
+            paddingLeft: '16px',
+            width: sidebarPinnedOpen ? `${SIDEBAR_EXPANDED_WIDTH}px` : undefined,
+            flex: sidebarPinnedOpen ? '0 0 auto' : '1 1 auto',
+            paddingRight: sidebarPinnedOpen ? '12px' : undefined,
+            borderRight: sidebarPinnedOpen ? '1px solid var(--border)' : 'none',
+          }}
         >
-          planfig
-        </span>
-        <div style={{ width: '1px', height: '18px', background: 'var(--border)' }} />
-        <SearchBar onSearch={setSearch} />
-        <div className="flex-1" />
-        <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
-          <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{totalPlans}</strong> plans
-        </span>
-        <div style={{ width: '1px', height: '18px', background: 'var(--border)' }} />
-        <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
-          <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{activeAgents}</strong>{' '}
-          agents
-        </span>
-        <div style={{ width: '1px', height: '18px', background: 'var(--border)' }} />
-        <div className="flex items-center gap-1.5">
-          <div
-            className="rounded-full"
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+            title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+            className="shrink-0"
             style={{
-              width: '6px',
-              height: '6px',
-              background: '#22c55e',
-              boxShadow: '0 0 0 2px var(--surface)',
+              width: '30px',
+              height: '30px',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              background: sidebarHidden ? 'var(--hover)' : 'transparent',
+              color: 'var(--text)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
+          >
+            <SidebarToggleIcon hidden={sidebarHidden} />
+          </button>
+          <span
+            className="font-semibold text-sm"
+            style={{ letterSpacing: '-0.02em', color: 'var(--text)', whiteSpace: 'nowrap' }}
+          >
+            planfig
+          </span>
+          <div
+            className="hidden md:block"
+            style={{ width: '1px', height: '18px', background: 'var(--border)' }}
           />
-          <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>Live</span>
+          <div className="hidden md:flex min-w-0 flex-1">
+            <SearchBar
+              search={search}
+              onSearch={setSearch}
+              plans={plans}
+              selectedId={selectedPlan?.id}
+              onSelectPlan={setSelectedPlan}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-center min-w-0 shrink-0 justify-self-center">
+          <AgentSelect agents={agents} selected={agentFilter} onSelect={setAgentFilter} />
+        </div>
+
+        <div
+          className="flex items-center justify-end gap-3 min-w-0 justify-self-end"
+          style={{ paddingRight: '16px' }}
+        >
+          <span className="hidden lg:inline" style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
+            <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{totalPlans}</strong>{' '}
+            plans
+          </span>
+          <div
+            className="hidden lg:block"
+            style={{ width: '1px', height: '18px', background: 'var(--border)' }}
+          />
+          <span className="hidden lg:inline" style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
+            <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{activeAgents}</strong>{' '}
+            agents
+          </span>
+          <div
+            className="hidden lg:block"
+            style={{ width: '1px', height: '18px', background: 'var(--border)' }}
+          />
+          <div className="hidden lg:flex items-center gap-1.5">
+            <div
+              className="rounded-full"
+              style={{
+                width: '6px',
+                height: '6px',
+                background: '#22c55e',
+                boxShadow: '0 0 0 2px var(--surface)',
+              }}
+            />
+            <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>Live</span>
+          </div>
         </div>
       </div>
+
+      {sidebarHidden && (
+        <div
+          onMouseEnter={revealSidebarOnHover}
+          onMouseLeave={schedulePeekClose}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: `${TOPBAR_HEIGHT}px`,
+            height: `calc(100% - ${TOPBAR_HEIGHT}px)`,
+            width: `${SIDEBAR_HOVER_ZONE_WIDTH}px`,
+            zIndex: 40,
+          }}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Sidebar */}
       <div
         className="flex flex-col overflow-hidden"
+        onMouseEnter={revealSidebarOnHover}
+        onMouseLeave={schedulePeekClose}
         style={{
-          borderRight: '1px solid var(--border)',
+          gridColumn: '1 / 2',
+          gridRow: '2 / 3',
+          position: sidebarHidden ? 'absolute' : 'relative',
+          top: sidebarHidden ? 0 : undefined,
+          left: sidebarHidden ? 0 : undefined,
+          height: sidebarHidden ? '100%' : undefined,
+          width: `${SIDEBAR_EXPANDED_WIDTH}px`,
+          zIndex: sidebarHidden ? 45 : undefined,
+          borderRight: sidebarVisible ? '1px solid var(--border)' : 'none',
           background: 'var(--surface)',
+          minWidth: 0,
+          opacity: sidebarHidden ? (sidebarPeekOpen ? 1 : 0) : 1,
+          transform: sidebarHidden
+            ? sidebarPeekOpen
+              ? 'translateX(0)'
+              : 'translateX(calc(-100% - 1px))'
+            : 'none',
+          willChange: sidebarHidden ? 'transform, opacity' : undefined,
+          pointerEvents: sidebarVisible ? 'auto' : 'none',
+          boxShadow: sidebarPeekOpen ? '0 18px 40px rgba(0,0,0,0.20)' : 'none',
+          transition: sidebarHidden
+            ? 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease'
+            : 'opacity 120ms ease',
         }}
       >
-        <div className="p-3">
-          <AgentFilter agents={agents} selected={agentFilter} onSelect={setAgentFilter} />
-        </div>
-
-        <div className="px-3">
+        <div className="px-3 pt-3">
           <div
             style={{
               fontSize: '11px',
@@ -171,13 +325,14 @@ function Dashboard() {
               color: 'var(--tertiary)',
               padding: '0 8px',
               marginBottom: '4px',
+              whiteSpace: 'nowrap',
             }}
           >
             Recent
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto px-3 pb-3 sidebar-scroll">
+        <div className="flex-1 overflow-auto sidebar-scroll px-3 pb-3">
           {loading ? (
             <div className="p-4" style={{ fontSize: '13px', color: 'var(--tertiary)' }}>
               Loading...
@@ -187,13 +342,24 @@ function Dashboard() {
               Failed to load plans.
             </div>
           ) : (
-            <PlanList plans={plans} selectedId={selectedPlan?.id} onSelect={setSelectedPlan} />
+            <PlanList
+              plans={filteredPlans}
+              selectedId={selectedPlan?.id}
+              onSelect={setSelectedPlan}
+            />
           )}
         </div>
       </div>
 
       {/* Main */}
-      <div className="overflow-auto main-scroll" style={{ background: 'var(--bg)' }}>
+      <div
+        className="overflow-auto main-scroll"
+        style={{
+          gridColumn: '2 / 3',
+          gridRow: '2 / 3',
+          background: 'var(--bg)',
+        }}
+      >
         {selectedPlan ? (
           editing ? (
             <PlanEditor
@@ -220,4 +386,23 @@ function Dashboard() {
 export default function App() {
   if (!hasToken()) return <Login />;
   return <Dashboard />;
+}
+
+function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2.2}
+      stroke="currentColor"
+      style={{ width: '14px', height: '14px', opacity: 0.9 }}
+    >
+      {hidden ? (
+        <path strokeLinecap="round" strokeLinejoin="round" d="m9.5 6.5 5 5.5-5 5.5" />
+      ) : (
+        <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 6.5-5 5.5 5 5.5" />
+      )}
+    </svg>
+  );
 }

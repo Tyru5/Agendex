@@ -11,6 +11,16 @@
   --hover: rgba(0, 0, 0, 0.03);
   --active: rgba(0, 0, 0, 0.06);
   --radius: 10px;
+  --code-bg: #f6f8fa;
+  --code-border: rgba(27, 31, 36, 0.12);
+  --code-fg: #24292f;
+  --code-comment: #6e7781;
+  --code-keyword: #8250df;
+  --code-string: #0a3069;
+  --code-number: #0550ae;
+  --code-title: #953800;
+  --code-builtin: #6639ba;
+  --code-variable: #953800;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +33,16 @@
     --border: rgba(255, 255, 255, 0.06);
     --hover: rgba(255, 255, 255, 0.04);
     --active: rgba(255, 255, 255, 0.07);
+    --code-bg: #0d1117;
+    --code-border: rgba(240, 246, 252, 0.15);
+    --code-fg: #c9d1d9;
+    --code-comment: #8b949e;
+    --code-keyword: #ff7b72;
+    --code-string: #a5d6ff;
+    --code-number: #79c0ff;
+    --code-title: #d2a8ff;
+    --code-builtin: #ffa657;
+    --code-variable: #e6edf3;
   }
 }
 
@@ -181,8 +201,8 @@ body {
 }
 
 .plan-markdown pre {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
   border-radius: var(--radius);
   padding: 16px;
   margin: 16px 0;
@@ -197,6 +217,67 @@ body {
   border: none;
   font-size: inherit;
   color: inherit;
+}
+
+.plan-markdown .hljs {
+  display: block;
+  color: var(--code-fg);
+}
+
+.plan-markdown .hljs-comment,
+.plan-markdown .hljs-quote {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.plan-markdown .hljs-keyword,
+.plan-markdown .hljs-selector-tag,
+.plan-markdown .hljs-meta .hljs-keyword,
+.plan-markdown .hljs-doctag {
+  color: var(--code-keyword);
+}
+
+.plan-markdown .hljs-string,
+.plan-markdown .hljs-regexp,
+.plan-markdown .hljs-attribute,
+.plan-markdown .hljs-template-tag,
+.plan-markdown .hljs-template-variable {
+  color: var(--code-string);
+}
+
+.plan-markdown .hljs-number,
+.plan-markdown .hljs-literal,
+.plan-markdown .hljs-symbol,
+.plan-markdown .hljs-bullet {
+  color: var(--code-number);
+}
+
+.plan-markdown .hljs-title,
+.plan-markdown .hljs-title.class_,
+.plan-markdown .hljs-title.function_,
+.plan-markdown .hljs-section {
+  color: var(--code-title);
+}
+
+.plan-markdown .hljs-built_in,
+.plan-markdown .hljs-type,
+.plan-markdown .hljs-class .hljs-title {
+  color: var(--code-builtin);
+}
+
+.plan-markdown .hljs-name,
+.plan-markdown .hljs-selector-id,
+.plan-markdown .hljs-selector-class,
+.plan-markdown .hljs-variable {
+  color: var(--code-variable);
+}
+
+.plan-markdown .hljs-emphasis {
+  font-style: italic;
+}
+
+.plan-markdown .hljs-strong {
+  font-weight: 700;
 }
 
 .plan-markdown table {

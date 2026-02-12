@@ -1,18 +1,6 @@
 import type { AgentStats } from '../lib/api.ts';
-
-const AGENT_COLORS: Record<string, string> = {
-  'claude-code': '#8b5cf6',
-  'codex-cli': '#f97316',
-  'continue-ide': '#3b82f6',
-  cursor: '#22c55e',
-  amp: '#ec4899',
-  cline: '#06b6d4',
-  'copilot-chat': '#6b7280',
-  droid: '#ef4444',
-  'kilo-cli': '#eab308',
-  windsurf: '#14b8a6',
-  aider: '#6366f1',
-};
+import { getAgentLabel } from '../lib/agent-colors.ts';
+import { AgentIcon } from './AgentIcon.tsx';
 
 export function AgentFilter({
   agents,
@@ -41,8 +29,8 @@ export function AgentFilter({
         Agents
       </div>
       <AgentButton
+        agent={undefined}
         label="All plans"
-        dotColor="var(--text)"
         count={agents.reduce((s, a) => s + a.planCount, 0)}
         active={!selected}
         onClick={() => onSelect(undefined)}
@@ -50,8 +38,8 @@ export function AgentFilter({
       {withPlans.map((a) => (
         <AgentButton
           key={a.agent}
-          label={a.agent}
-          dotColor={AGENT_COLORS[a.agent] ?? '#6b7280'}
+          agent={a.agent}
+          label={getAgentLabel(a.agent)}
           count={a.planCount}
           active={a.agent === selected}
           onClick={() => onSelect(a.agent === selected ? undefined : a.agent)}
@@ -62,14 +50,14 @@ export function AgentFilter({
 }
 
 function AgentButton({
+  agent,
   label,
-  dotColor,
   count,
   active,
   onClick,
 }: {
+  agent?: string;
   label: string;
-  dotColor: string;
   count: number;
   active: boolean;
   onClick: () => void;
@@ -90,10 +78,14 @@ function AgentButton({
         cursor: 'pointer',
       }}
     >
-      <span
-        className="rounded-full"
-        style={{ width: '7px', height: '7px', background: dotColor, flexShrink: 0 }}
-      />
+      {agent ? (
+        <AgentIcon agent={agent} size={12} />
+      ) : (
+        <span
+          className="rounded-full"
+          style={{ width: '7px', height: '7px', background: 'var(--text)', flexShrink: 0 }}
+        />
+      )}
       <span className="flex-1">{label}</span>
       <span
         style={{

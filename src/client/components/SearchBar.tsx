@@ -1,53 +1,280 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Plan } from '../lib/api.ts';
+import { getAgentLabel } from '../lib/agent-colors.ts';
+import { filterPlans } from '../lib/plan-search.ts';
+import { AgentIcon } from './AgentIcon.tsx';
 
-export function SearchBar({ onSearch }: { onSearch: (q: string) => void }) {
-  const [value, setValue] = useState('');
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+export function SearchBar({
+  search,
+  onSearch,
+  plans,
+  selectedId,
+  onSelectPlan,
+}: {
+  search: string;
+  onSearch: (q: string) => void;
+  plans: Plan[];
+  selectedId: string | undefined;
+  onSelectPlan: (plan: Plan) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [isMac, setIsMac] = useState(true);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
 
   useEffect(() => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => onSearch(value), 250);
-    return () => clearTimeout(timer.current);
-  }, [value]);
+    setIsMac(/Mac|iPhone|iPad/i.test(navigator.platform));
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setOpen(true);
+      }
+      if (e.key === 'Escape') {
+        setOpen(false);
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const timerId = setTimeout(() => inputRef.current?.focus(), 0);
+    return () => clearTimeout(timerId);
+  }, [open]);
 
   return (
-    <div
-      className="flex items-center gap-2 rounded-lg"
-      style={{
-        padding: '6px 12px',
-        border: '1px solid var(--border)',
-        background: 'transparent',
-        minWidth: '220px',
-      }}
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={2}
-        stroke="currentColor"
-        style={{ width: '14px', height: '14px', opacity: 0.3, flexShrink: 0 }}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-        />
-      </svg>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Search plans..."
-        className="flex-1 outline-none"
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-2 rounded-lg"
         style={{
+          padding: '5px 8px',
+          border: '1px solid var(--border)',
           background: 'transparent',
-          border: 'none',
-          fontFamily: 'inherit',
-          fontSize: '13px',
-          color: 'var(--text)',
+          minWidth: 0,
+          width: '100%',
+          maxWidth: '150px',
+          overflow: 'hidden',
+          color: 'var(--secondary)',
+          cursor: 'pointer',
         }}
+      >
+        <SearchIcon />
+        <span
+          style={{
+            fontSize: '12px',
+            flex: 1,
+            minWidth: 0,
+            textAlign: 'left',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          Search
+        </span>
+        <kbd
+          style={{
+            fontFamily: 'inherit',
+            fontSize: '10px',
+            lineHeight: 1,
+            flexShrink: 0,
+            color: 'var(--tertiary)',
+            border: '1px solid var(--border)',
+            borderRadius: '4px',
+            padding: '3px 4px',
+            background: 'var(--hover)',
+          }}
+        >
+          {isMac ? '⌘K' : 'Ctrl+K'}
+        </kbd>
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-[120] flex justify-center px-4"
+          style={{
+            background: 'rgba(0,0,0,0.44)',
+            backdropFilter: 'blur(3px)',
+            paddingTop: '84px',
+          }}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setOpen(false);
+          }}
+        >
+          <div
+            style={{
+              width: 'min(720px, 100%)',
+              height: 'fit-content',
+              border: '1px solid var(--border)',
+              borderRadius: '14px',
+              background: 'var(--surface)',
+              boxShadow: '0 24px 50px rgba(0,0,0,0.22)',
+              overflow: 'hidden',
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center gap-3"
+              style={{
+                padding: '12px 14px',
+                borderBottom: '1px solid var(--border)',
+              }}
+            >
+              <SearchIcon />
+              <input
+                ref={inputRef}
+                type="text"
+                value={search}
+                onChange={(e) => onSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && filteredPlans[0]) {
+                    onSelectPlan(filteredPlans[0]);
+                    setOpen(false);
+                  }
+                }}
+                placeholder="Search plans..."
+                className="flex-1 outline-none"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontFamily: 'inherit',
+                  fontSize: '14px',
+                  color: 'var(--text)',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                style={{
+                  fontFamily: 'inherit',
+                  fontSize: '11px',
+                  color: 'var(--tertiary)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--hover)',
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  cursor: 'pointer',
+                }}
+              >
+                Esc
+              </button>
+            </div>
+            <div
+              style={{
+                maxHeight: '380px',
+                overflowY: 'auto',
+                padding: '8px',
+              }}
+            >
+              <div
+                style={{
+                  padding: '4px 8px 8px',
+                  fontSize: '11px',
+                  color: 'var(--tertiary)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {search.trim().length > 0
+                  ? `${filteredPlans.length} of ${plans.length} plans`
+                  : `${plans.length} plans`}
+              </div>
+
+              {filteredPlans.length === 0 ? (
+                <div
+                  style={{
+                    padding: '8px',
+                    fontSize: '12px',
+                    color: 'var(--tertiary)',
+                  }}
+                >
+                  No matching plans
+                </div>
+              ) : (
+                filteredPlans.map((plan) => (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectPlan(plan);
+                      setOpen(false);
+                    }}
+                    className="w-full text-left block"
+                    style={{
+                      padding: '10px 8px',
+                      borderRadius: '8px',
+                      background: plan.id === selectedId ? 'var(--active)' : 'transparent',
+                      cursor: 'pointer',
+                      border: 'none',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 500,
+                        fontSize: '13px',
+                        lineHeight: 1.35,
+                        color: 'var(--text)',
+                        letterSpacing: '-0.01em',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical' as const,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {plan.title}
+                    </div>
+                    <div
+                      className="flex items-center gap-1.5"
+                      style={{ marginTop: '4px', fontSize: '11.5px', color: 'var(--tertiary)' }}
+                    >
+                      <AgentIcon agent={plan.agent} size={11} />
+                      <span>{getAgentLabel(plan.agent)}</span>
+                      <span>&middot;</span>
+                      <span>{timeAgo(plan.updatedAt)}</span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      style={{ width: '14px', height: '14px', opacity: 0.5, flexShrink: 0 }}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
       />
-    </div>
+    </svg>
   );
 }

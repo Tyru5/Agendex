@@ -1,18 +1,6 @@
 import type { Plan } from '../lib/api.ts';
-
-const AGENT_COLORS: Record<string, string> = {
-  'claude-code': '#8b5cf6',
-  'codex-cli': '#f97316',
-  'continue-ide': '#3b82f6',
-  cursor: '#22c55e',
-  amp: '#ec4899',
-  cline: '#06b6d4',
-  'copilot-chat': '#6b7280',
-  droid: '#ef4444',
-  'kilo-cli': '#eab308',
-  windsurf: '#14b8a6',
-  aider: '#6366f1',
-};
+import { getAgentLabel } from '../lib/agent-colors.ts';
+import { AgentIcon } from './AgentIcon.tsx';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -76,16 +64,8 @@ export function PlanList({
             className="flex items-center gap-1.5"
             style={{ marginTop: '4px', fontSize: '11.5px', color: 'var(--tertiary)' }}
           >
-            <span
-              className="rounded-full"
-              style={{
-                width: '5px',
-                height: '5px',
-                background: AGENT_COLORS[plan.agent] ?? '#6b7280',
-                flexShrink: 0,
-              }}
-            />
-            <span>{plan.agent}</span>
+            <AgentIcon agent={plan.agent} size={11} />
+            <span>{getAgentLabel(plan.agent)}</span>
             <span>&middot;</span>
             <span>{timeAgo(plan.updatedAt)}</span>
           </div>
