@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from 'react';
 
 export function SearchBar({ onSearch }: { onSearch: (q: string) => void }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {

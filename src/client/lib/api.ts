@@ -1,15 +1,15 @@
-const BASE = "/api/v1";
+const BASE = '/api/v1';
 
 function getToken(): string | null {
-  return localStorage.getItem("planfig_token");
+  return localStorage.getItem('planfig_token');
 }
 
 export function setToken(token: string) {
-  localStorage.setItem("planfig_token", token);
+  localStorage.setItem('planfig_token', token);
 }
 
 export function clearToken() {
-  localStorage.removeItem("planfig_token");
+  localStorage.removeItem('planfig_token');
 }
 
 export function hasToken(): boolean {
@@ -23,13 +23,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: {
       ...init?.headers,
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
   if (res.status === 401) {
     clearToken();
     window.location.reload();
-    throw new Error("unauthorized");
+    throw new Error('unauthorized');
   }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
@@ -64,22 +64,22 @@ export interface AgentStats {
 export const api = {
   getPlans: (params?: { agent?: string; q?: string; sort?: string }) => {
     const qs = new URLSearchParams();
-    if (params?.agent) qs.set("agent", params.agent);
-    if (params?.q) qs.set("q", params.q);
-    if (params?.sort) qs.set("sort", params.sort);
+    if (params?.agent) qs.set('agent', params.agent);
+    if (params?.q) qs.set('q', params.q);
+    if (params?.sort) qs.set('sort', params.sort);
     const query = qs.toString();
-    return request<PlansResponse>(`/plans${query ? `?${query}` : ""}`);
+    return request<PlansResponse>(`/plans${query ? `?${query}` : ''}`);
   },
 
   getPlan: (id: string) => request<Plan>(`/plans/${id}`),
 
   updatePlan: (id: string, content: string) =>
     request<{ ok: boolean }>(`/plans/${id}`, {
-      method: "PUT",
+      method: 'PUT',
       body: JSON.stringify({ content }),
     }),
 
-  getAgents: () => request<AgentStats[]>("/agents"),
+  getAgents: () => request<AgentStats[]>('/agents'),
 
-  rescan: () => request<{ ok: boolean }>("/rescan", { method: "POST" }),
+  rescan: () => request<{ ok: boolean }>('/rescan', { method: 'POST' }),
 };

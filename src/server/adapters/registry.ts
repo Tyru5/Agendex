@@ -1,8 +1,8 @@
-import type { AgentAdapter } from "./types.ts";
-import { claudeCodeAdapter } from "./claude-code.ts";
-import { codexCliAdapter } from "./codex-cli.ts";
-import { continueIdeAdapter } from "./continue-ide.ts";
-import { cursorAdapter } from "./cursor.ts";
+import type { AgentAdapter } from './types.ts';
+import { claudeCodeAdapter } from './claude-code.ts';
+import { codexCliAdapter } from './codex-cli.ts';
+import { continueIdeAdapter } from './continue-ide.ts';
+import { cursorAdapter } from './cursor.ts';
 import {
   ampAdapter,
   clineAdapter,
@@ -11,7 +11,7 @@ import {
   kiloCliAdapter,
   windsurfAdapter,
   aiderAdapter,
-} from "./stub.ts";
+} from './stub.ts';
 
 export const adapters: AgentAdapter[] = [
   claudeCodeAdapter,

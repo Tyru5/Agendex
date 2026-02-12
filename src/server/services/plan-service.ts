@@ -1,9 +1,9 @@
-import { readdir, lstat } from "fs/promises";
-import { join, resolve } from "path";
-import { existsSync } from "fs";
-import { adapters } from "../adapters/registry.ts";
-import { rebuildIndex, search as fuseSearch } from "./search.ts";
-import type { Plan } from "../adapters/types.ts";
+import { readdir, lstat } from 'fs/promises';
+import { join, resolve } from 'path';
+import { existsSync } from 'fs';
+import { adapters } from '../adapters/registry.ts';
+import { rebuildIndex, search as fuseSearch } from './search.ts';
+import type { Plan } from '../adapters/types.ts';
 
 const store = new Map<string, Plan>();
 const MAX_DEPTH = 6;

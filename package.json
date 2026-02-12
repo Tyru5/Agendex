@@ -5,14 +5,17 @@
   "private": true,
   "scripts": {
     "dev": "bun run --hot src/server/index.ts",
-    "dev:client": "bunx --bun vite src/client",
-    "build": "bunx --bun vite build src/client",
-    "start": "bun run src/server/index.ts"
+    "dev:client": "bunx --bun vite",
+    "build": "bunx --bun vite build",
+    "start": "bun run src/server/index.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@types/bun": "^1.3.9",
     "@vitejs/plugin-react": "^5.1.4",
+    "prettier": "^3.8.1",
     "tailwindcss": "^4.1.18",
     "vite": "^7.3.1"
   },

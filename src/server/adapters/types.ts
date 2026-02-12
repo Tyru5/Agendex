@@ -4,7 +4,7 @@ export interface Plan {
   title: string;
   content: string;
   filePath: string;
-  format: "md" | "json" | "jsonl" | "sqlite";
+  format: 'md' | 'json' | 'jsonl' | 'sqlite';
   createdAt: Date;
   updatedAt: Date;
   workspace?: string;

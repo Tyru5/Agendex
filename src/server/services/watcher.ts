@@ -1,8 +1,8 @@
-import { watch } from "fs";
-import { join } from "path";
-import { existsSync } from "fs";
-import { adapters } from "../adapters/registry.ts";
-import { rescanFile } from "./plan-service.ts";
+import { watch } from 'fs';
+import { join } from 'path';
+import { existsSync } from 'fs';
+import { adapters } from '../adapters/registry.ts';
+import { rescanFile } from './plan-service.ts';
 
 type ChangeCallback = (plans: unknown[]) => void;
 

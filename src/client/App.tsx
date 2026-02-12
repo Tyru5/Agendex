@@ -1,14 +1,14 @@
-import { useState, useMemo } from "react";
-import { hasToken, setToken, type Plan } from "./lib/api.ts";
-import { usePlans, useAgents } from "./hooks/usePlans.ts";
-import { SearchBar } from "./components/SearchBar.tsx";
-import { AgentFilter } from "./components/AgentFilter.tsx";
-import { PlanList } from "./components/PlanList.tsx";
-import { PlanViewer } from "./components/PlanViewer.tsx";
-import { PlanEditor } from "./components/PlanEditor.tsx";
+import { useEffect, useMemo, useState } from 'react';
+import { hasToken, setToken, type Plan } from './lib/api.ts';
+import { usePlans, useAgents } from './hooks/usePlans.ts';
+import { SearchBar } from './components/SearchBar.tsx';
+import { AgentFilter } from './components/AgentFilter.tsx';
+import { PlanList } from './components/PlanList.tsx';
+import { PlanViewer } from './components/PlanViewer.tsx';
+import { PlanEditor } from './components/PlanEditor.tsx';
 
 function Login() {
-  const [token, setTokenValue] = useState("");
+  const [token, setTokenValue] = useState('');
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,18 +43,31 @@ function Login() {
 }
 
 function Dashboard() {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const [agentFilter, setAgentFilter] = useState<string | undefined>();
   const [selectedPlan, setSelectedPlan] = useState<Plan | undefined>();
   const [editing, setEditing] = useState(false);
 
   const filters = useMemo(
     () => ({ agent: agentFilter, q: search || undefined }),
-    [agentFilter, search]
+    [agentFilter, search],
   );
 
-  const { plans, refresh } = usePlans(filters);
+  const { plans, loading, error, refresh } = usePlans(filters);
   const agents = useAgents();
+
+  useEffect(() => {
+    if (plans.length === 0) {
+      setSelectedPlan(undefined);
+      setEditing(false);
+      return;
+    }
+
+    setSelectedPlan((current) => {
+      if (!current) return plans[0];
+      return plans.find((plan) => plan.id === current.id) ?? plans[0];
+    });
+  }, [plans]);
 
   function handleSaved() {
     setEditing(false);
@@ -73,7 +86,16 @@ function Dashboard() {
           <AgentFilter agents={agents} selected={agentFilter} onSelect={setAgentFilter} />
         </div>
         <div className="flex-1 overflow-auto p-2">
-          <PlanList plans={plans} selectedId={selectedPlan?.id} onSelect={setSelectedPlan} />
+          {loading ? (
+            <div className="p-4 text-sm text-gray-500">Loading plans...</div>
+          ) : error ? (
+            <div className="p-4 text-sm text-red-600 dark:text-red-400">
+              Failed to load plans ({error}). Verify the server is running and the auth token is
+              valid.
+            </div>
+          ) : (
+            <PlanList plans={plans} selectedId={selectedPlan?.id} onSelect={setSelectedPlan} />
+          )}
         </div>
       </div>
 
@@ -81,7 +103,11 @@ function Dashboard() {
       <div className="flex-1 min-w-0">
         {selectedPlan ? (
           editing ? (
-            <PlanEditor plan={selectedPlan} onClose={() => setEditing(false)} onSaved={handleSaved} />
+            <PlanEditor
+              plan={selectedPlan}
+              onClose={() => setEditing(false)}
+              onSaved={handleSaved}
+            />
           ) : (
             <PlanViewer plan={selectedPlan} onEdit={() => setEditing(true)} />
           )

@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
-import { EditorView, keymap } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
-import { markdown } from "@codemirror/lang-markdown";
-import { oneDark } from "@codemirror/theme-one-dark";
-import { defaultKeymap } from "@codemirror/commands";
-import { api, type Plan } from "../lib/api.ts";
+import { useState, useEffect, useRef } from 'react';
+import { EditorView, keymap } from '@codemirror/view';
+import { EditorState } from '@codemirror/state';
+import { markdown } from '@codemirror/lang-markdown';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { defaultKeymap } from '@codemirror/commands';
+import { api, type Plan } from '../lib/api.ts';
 
 export function PlanEditor({
   plan,
@@ -23,7 +23,7 @@ export function PlanEditor({
   useEffect(() => {
     if (!editorRef.current) return;
 
-    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
     const state = EditorState.create({
       doc: plan.content,
@@ -53,7 +53,7 @@ export function PlanEditor({
       await api.updatePlan(plan.id, content);
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "save failed");
+      setError(e instanceof Error ? e.message : 'save failed');
     } finally {
       setSaving(false);
     }
@@ -79,7 +79,7 @@ export function PlanEditor({
             disabled={saving}
             className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>

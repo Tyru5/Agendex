@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   color-scheme: light dark;
@@ -6,7 +6,10 @@
 
 body {
   @apply bg-white text-gray-900 dark:bg-zinc-950 dark:text-gray-100;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
   margin: 0;
 }
 
@@ -17,4 +20,120 @@ body {
 
 .cm-editor .cm-scroller {
   overflow: auto;
+}
+
+.plan-surface {
+  @apply w-full max-w-5xl mx-auto rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900;
+}
+
+.plan-content {
+  @apply px-6 py-6 md:px-10 md:py-8;
+}
+
+.plan-markdown {
+  @apply text-[15px] leading-7 text-gray-800 dark:text-gray-100;
+}
+
+.plan-markdown h1,
+.plan-markdown h2,
+.plan-markdown h3,
+.plan-markdown h4 {
+  @apply text-balance text-gray-950 dark:text-white font-semibold;
+}
+
+.plan-markdown h1 {
+  @apply text-3xl mt-2 mb-5;
+}
+
+.plan-markdown h2 {
+  @apply text-2xl mt-10 mb-4;
+}
+
+.plan-markdown h3 {
+  @apply text-xl mt-8 mb-3;
+}
+
+.plan-markdown h4 {
+  @apply text-lg mt-6 mb-2;
+}
+
+.plan-markdown p,
+.plan-markdown li,
+.plan-markdown blockquote {
+  @apply text-pretty;
+}
+
+.plan-markdown p + p {
+  @apply mt-4;
+}
+
+.plan-markdown ul,
+.plan-markdown ol {
+  @apply my-4 pl-6 space-y-2;
+}
+
+.plan-markdown ul {
+  @apply list-disc;
+}
+
+.plan-markdown ol {
+  @apply list-decimal;
+}
+
+.plan-markdown hr {
+  @apply my-8 border-0 border-t border-gray-200 dark:border-zinc-700;
+}
+
+.plan-markdown blockquote {
+  @apply my-5 border-l-4 border-blue-500/60 pl-4 text-gray-700 dark:text-zinc-200 italic;
+}
+
+.plan-markdown a {
+  @apply text-blue-700 dark:text-blue-300 underline underline-offset-2;
+}
+
+.plan-markdown code {
+  font-family:
+    'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.plan-markdown :not(pre) > code {
+  @apply rounded-md bg-gray-100 px-1.5 py-0.5 text-[0.88em] text-gray-900 dark:bg-zinc-800 dark:text-gray-100;
+}
+
+.plan-markdown pre {
+  @apply my-5 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm leading-6 text-zinc-100;
+}
+
+.plan-markdown pre code {
+  @apply bg-transparent p-0 text-inherit;
+}
+
+.plan-markdown table {
+  @apply my-6 w-full border-collapse overflow-hidden rounded-xl border border-gray-200 dark:border-zinc-700;
+  display: block;
+  overflow-x: auto;
+}
+
+.plan-markdown th,
+.plan-markdown td {
+  @apply border-b border-gray-200 px-3 py-2 text-left align-top dark:border-zinc-700;
+}
+
+.plan-markdown th {
+  @apply bg-gray-50 text-sm font-semibold text-gray-900 dark:bg-zinc-800 dark:text-zinc-100;
+}
+
+.plan-markdown td {
+  @apply text-sm text-gray-700 dark:text-zinc-200;
+}
+
+.plan-markdown tbody tr:last-child td {
+  @apply border-b-0;
+}
+
+.plan-plain {
+  @apply m-0 whitespace-pre-wrap break-words rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm leading-6 text-gray-800 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100;
+  font-family:
+    'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
