@@ -1,15 +1,15 @@
 const BASE = '/api/v1';
 
 function getToken(): string | null {
-  return localStorage.getItem('planfig_token');
+  return localStorage.getItem('agendex_token');
 }
 
 export function setToken(token: string) {
-  localStorage.setItem('planfig_token', token);
+  localStorage.setItem('agendex_token', token);
 }
 
 export function clearToken() {
-  localStorage.removeItem('planfig_token');
+  localStorage.removeItem('agendex_token');
 }
 
 export function hasToken(): boolean {

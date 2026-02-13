@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-`planfig` is split between a Bun server and a React client:
+`Agendex` is split between a Bun server and a React client:
 
 - `src/server/`: Hono API, auth, plan indexing/search services, file watchers, and agent adapters.
 - `src/server/adapters/`: one adapter per agent source (`claude-code.ts`, `cursor.ts`, etc.) plus `registry.ts`.
@@ -52,6 +52,6 @@ Git history is minimal (currently a single `initial commit`), so follow a clear 
 
 ## Security & Configuration Tips
 
-- Auth token is read from `PLANFIG_TOKEN` or generated in `~/.planfig/config.json`.
+- Auth token is read from `AGENDEX_TOKEN` or generated in `~/.agendex/config.json`.
 - Never commit tokens, local session data, or machine-specific paths.
 - Keep secrets in local environment files (`.env*` is gitignored).
