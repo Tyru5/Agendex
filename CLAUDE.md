@@ -31,7 +31,7 @@ Planfig is a local dashboard that indexes and displays AI agent plans/sessions f
 
 Core abstraction: `AgentAdapter` interface (`types.ts`) — each adapter defines search/watch paths, file matching, parsing, and optional write support. Registry (`registry.ts`) exports the full adapter list.
 
-Implemented adapters: `claude-code` (md, writable), `cursor` (sqlite via bun:sqlite, read-only), `codex-cli` (jsonl), `continue-ide` (json). Remaining agents are stubs (`stub.ts`) — `createStub()` factory returns no-op adapters ready for implementation.
+Implemented adapters: `claude-code` (md, writable), `cursor` (sqlite via bun:sqlite, read-only), `codex-cli` (jsonl), `continue-ide` (json), `oh-my-opencode` (indexes `.sisyphus/plans/*.md` discovered from OpenCode session storage, writable). Remaining agents are stubs (`stub.ts`) — `createStub()` factory returns no-op adapters ready for implementation.
 
 **Client** (`src/client/`) — React 19 + Vite + Tailwind v4
 

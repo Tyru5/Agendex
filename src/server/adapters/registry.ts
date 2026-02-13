@@ -3,6 +3,7 @@ import { claudeCodeAdapter } from './claude-code.ts';
 import { codexCliAdapter } from './codex-cli.ts';
 import { continueIdeAdapter } from './continue-ide.ts';
 import { cursorAdapter } from './cursor.ts';
+import { ohMyOpencodeAdapter } from './oh-my-opencode.ts';
 import {
   ampAdapter,
   clineAdapter,
@@ -18,6 +19,7 @@ export const adapters: AgentAdapter[] = [
   codexCliAdapter,
   continueIdeAdapter,
   cursorAdapter,
+  ohMyOpencodeAdapter,
   ampAdapter,
   clineAdapter,
   copilotChatAdapter,

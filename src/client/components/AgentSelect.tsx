@@ -108,12 +108,33 @@ function AllAgentsIcon() {
       height={13}
       fill="none"
       aria-hidden="true"
-      style={{ color: 'var(--secondary)', flexShrink: 0 }}
+      style={{ flexShrink: 0 }}
     >
+      <circle cx="12" cy="3.5" r="0.9" fill="currentColor" opacity={0.9} />
+      <path d="M12 4.75V6.25" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <rect
+        x="5.25"
+        y="6.75"
+        width="13.5"
+        height="10.75"
+        rx="3.1"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <circle cx="9.6" cy="11.1" r="1" fill="currentColor" />
+      <circle cx="14.4" cy="11.1" r="1" fill="currentColor" />
       <path
-        d="M7.5 10.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm9 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM4.25 17.5a3.25 3.25 0 0 1 6.5 0v.25h-6.5v-.25Zm9 0a3.25 3.25 0 0 1 6.5 0v.25h-6.5v-.25Z"
-        fill="currentColor"
-        opacity={0.7}
+        d="M9.5 14.2H14.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        opacity={0.75}
+      />
+      <path
+        d="M8 17.9V19.25M16 17.9V19.25"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
       />
     </svg>
   );

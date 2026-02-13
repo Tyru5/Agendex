@@ -6,8 +6,9 @@ export function AgentIcon({ agent, size = 14 }: { agent: string; size?: number }
   const icon = getAgentIcon(agent);
   const dimension = `${size}px`;
 
-  if (icon) {
-    const fill = DARK_ICON_HEX.has(icon.hex.toUpperCase()) ? 'currentColor' : `#${icon.hex}`;
+  if (icon && (icon.path || icon.paths?.length)) {
+    const iconHex = icon.hex.toUpperCase();
+    const fill = DARK_ICON_HEX.has(iconHex) ? 'currentColor' : `#${icon.hex}`;
     return (
       <span
         aria-hidden="true"
@@ -23,8 +24,21 @@ export function AgentIcon({ agent, size = 14 }: { agent: string; size?: number }
           flexShrink: 0,
         }}
       >
-        <svg viewBox="0 0 24 24" width={size} height={size} fill="none">
-          <path d={icon.path} fill={fill} />
+        <svg viewBox={icon.viewBox ?? '0 0 24 24'} width={size} height={size} fill="none">
+          {icon.paths?.length ? (
+            icon.paths.map((segment, index) => (
+              <path
+                key={`${agent}-${index}`}
+                d={segment.d}
+                fill={segment.fill ?? fill}
+                fillRule={segment.fillRule}
+                clipRule={segment.clipRule}
+                fillOpacity={segment.fillOpacity}
+              />
+            ))
+          ) : icon.path ? (
+            <path d={icon.path} fill={fill} />
+          ) : null}
         </svg>
       </span>
     );
