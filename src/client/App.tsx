@@ -9,6 +9,8 @@ import { PlanEditor } from './components/PlanEditor.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { filterPlans } from './lib/plan-search.ts';
 import { LandingPage } from './components/LandingPage.tsx';
+import { AuthButton } from './components/AuthButton.tsx';
+import { SharedPlanView } from './components/SharedPlanView.tsx';
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
@@ -250,6 +252,11 @@ function Dashboard() {
           className="flex items-center justify-end gap-3 min-w-0 justify-self-end"
           style={{ paddingRight: '16px' }}
         >
+          <AuthButton />
+          <div
+            className="hidden lg:block"
+            style={{ width: '1px', height: '18px', background: 'var(--border)' }}
+          />
           <span className="hidden lg:inline" style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
             <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{totalPlans}</strong>{' '}
             plans
@@ -398,7 +405,26 @@ function Dashboard() {
   );
 }
 
+function useRoute() {
+  const [path, setPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  return path;
+}
+
 export default function App() {
+  const path = useRoute();
+
+  const sharedMatch = path.match(/^\/shared\/([^/]+)/);
+  if (sharedMatch) {
+    return <SharedPlanView token={sharedMatch[1]!} />;
+  }
+
   if (!hasToken()) return <LandingPage />;
   return <Dashboard />;
 }

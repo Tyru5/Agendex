@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 const ngrokAllowedHosts = ['.ngrok-free.app', '.ngrok.io', '.ngrok.app', '.ngrok.dev'];
 const extraAllowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? '')
@@ -10,6 +11,11 @@ const extraAllowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? '')
 export default defineConfig({
   root: 'src/client',
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@convex': path.resolve(__dirname, 'convex'),
+    },
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

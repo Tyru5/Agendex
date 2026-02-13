@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Plan } from '../lib/api.ts';
@@ -5,6 +6,8 @@ import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { getAgentLabel } from '../lib/agent-colors.ts';
+import { SharePlanDialog } from './SharePlanDialog.tsx';
+import { useAuth } from '../hooks/useAuth.ts';
 
 function isMarkdownPlan(plan: Plan): boolean {
   if (plan.format.toLowerCase() === 'md') return true;
@@ -26,6 +29,8 @@ function timeAgo(dateStr: string): string {
 }
 
 export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void }) {
+  const [showShare, setShowShare] = useState(false);
+  const { isAuthenticated } = useAuth();
   const isMarkdown = isMarkdownPlan(plan);
   const markdown = isMarkdown ? normalizePlanMarkdown(plan.content) : '';
   const workspace = extractWorkspace(plan);
@@ -74,25 +79,44 @@ export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void })
           >
             {plan.title}
           </h1>
-          {isMarkdown && (
-            <button
-              onClick={onEdit}
-              className="shrink-0"
-              style={{
-                padding: '5px 12px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              Edit
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {isAuthenticated && (
+              <button
+                onClick={() => setShowShare(true)}
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                }}
+              >
+                Share
+              </button>
+            )}
+            {isMarkdown && (
+              <button
+                onClick={onEdit}
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                }}
+              >
+                Edit
+              </button>
+            )}
+          </div>
         </div>
 
         <div
@@ -166,6 +190,8 @@ export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void })
       >
         {plan.filePath}
       </div>
+
+      {showShare && <SharePlanDialog plan={plan} onClose={() => setShowShare(false)} />}
     </div>
   );
 }
