@@ -319,6 +319,40 @@ body {
   padding: 16px;
 }
 
+/* WIP marquee banner */
+.wip-marquee {
+  overflow: hidden;
+  white-space: nowrap;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  height: 28px;
+  display: flex;
+  align-items: center;
+}
+
+.landing-page .wip-marquee {
+  background: var(--landing-accent);
+  color: #0a0a0a;
+}
+
+.wip-marquee-track {
+  display: inline-block;
+  animation: marquee 40s linear infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
 /* Scrollbar styling */
 .sidebar-scroll::-webkit-scrollbar {
   width: 0;

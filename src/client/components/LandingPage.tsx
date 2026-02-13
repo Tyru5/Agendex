@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { setToken } from '../lib/api.ts';
+import { WipMarquee } from './WipMarquee.tsx';
 
 const AGENTS = [
   'Claude Code',
@@ -22,13 +23,18 @@ const AGENTS = [
 const STEPS = [
   {
     number: '1',
-    title: 'Install & Run',
-    code: `bun install\nbun run dev`,
+    title: 'Install & Start',
+    code: `bun install\nbun run dev          # API server :4890\nbun run dev:client   # Vite HMR  :5173`,
   },
   {
     number: '2',
-    title: 'Open the Dashboard',
-    code: `# visit\nhttp://localhost:4890`,
+    title: 'Grab Your Token',
+    code: `# printed on server start\n[agendex] token: abc123...`,
+  },
+  {
+    number: '3',
+    title: 'Open Dashboard',
+    code: `# visit\nhttp://localhost:5173`,
   },
 ];
 
@@ -92,6 +98,8 @@ export function LandingPage() {
 
   return (
     <div className="landing-page">
+      <WipMarquee />
+
       {/* Hero — two-column */}
       <section className="landing-hero">
         <div className="landing-hero-left">
