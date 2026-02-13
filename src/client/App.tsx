@@ -10,7 +10,7 @@ import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { filterPlans } from './lib/plan-search.ts';
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
-const SIDEBAR_PREF_KEY = 'planfig_sidebar_hidden';
+const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
 
@@ -35,7 +35,7 @@ function Login() {
           className="text-center font-semibold tracking-tight"
           style={{ fontSize: '14px', color: 'var(--text)' }}
         >
-          planfig
+          Agendex
         </h1>
         <p className="text-center" style={{ fontSize: '12.5px', color: 'var(--tertiary)' }}>
           Enter your auth token
@@ -224,7 +224,7 @@ function Dashboard() {
             className="font-semibold text-sm"
             style={{ letterSpacing: '-0.02em', color: 'var(--text)', whiteSpace: 'nowrap' }}
           >
-            planfig
+            Agendex
           </span>
           <div
             className="hidden md:block"

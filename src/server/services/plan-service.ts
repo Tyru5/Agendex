@@ -55,7 +55,7 @@ export async function scan() {
     }
   }
   rebuildIndex(Array.from(store.values()));
-  console.log(`[planfig] indexed ${store.size} plans from ${adapters.length} adapters`);
+  console.log(`[agendex] indexed ${store.size} plans from ${adapters.length} adapters`);
 }
 
 export function getAll(): Plan[] {

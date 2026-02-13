@@ -16,12 +16,12 @@ Run both `dev` and `dev:client` simultaneously during development.
 
 ## Architecture
 
-Planfig is a local dashboard that indexes and displays AI agent plans/sessions from multiple coding tools (Claude Code, Cursor, Codex CLI, Continue IDE, etc.).
+Agendex is a local dashboard that indexes and displays AI agent plans/sessions from multiple coding tools (Claude Code, Cursor, Codex CLI, Continue IDE, etc.).
 
 **Server** (`src/server/`) — Bun + Hono
 
 - `index.ts` — entry point, mounts routes, serves static build, WebSocket broadcast for live updates
-- `auth.ts` — bearer token auth, auto-generates token to `~/.planfig/config.json` (override: `PLANFIG_TOKEN` env)
+- `auth.ts` — bearer token auth, auto-generates token to `~/.agendex/config.json` (override: `AGENDEX_TOKEN` env)
 - `routes/plans.ts` — REST API under `/api/v1` (GET/PUT plans, GET agents, POST rescan)
 - `services/plan-service.ts` — in-memory `Map<string, Plan>` store, scan/rescan/search/update
 - `services/search.ts` — Fuse.js full-text search over plans

@@ -6,10 +6,10 @@ import { type AdapterId } from './adapters/catalog.ts';
 import { getDefaultAdapterIds, sanitizeEnabledAdapterIds } from './adapters/registry.ts';
 import { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 
-const configDir = join(homedir(), '.planfig');
+const configDir = join(homedir(), '.agendex');
 const configPath = join(configDir, 'config.json');
 
-export interface PlanfigConfig {
+export interface AgendexConfig {
   configVersion: 2;
   token?: string;
   enabledAdapters: AdapterId[];
@@ -43,7 +43,7 @@ function normalizeAdapterIds(input: unknown): AdapterId[] {
   );
 }
 
-function normalizeStoredConfig(raw: StoredConfig | null): PlanfigConfig | null {
+function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
   if (!raw) return null;
   const token = typeof raw.token === 'string' && raw.token.trim() ? raw.token : undefined;
   return {
@@ -53,13 +53,13 @@ function normalizeStoredConfig(raw: StoredConfig | null): PlanfigConfig | null {
   };
 }
 
-export function loadConfig(): PlanfigConfig | null {
+export function loadConfig(): AgendexConfig | null {
   return normalizeStoredConfig(readStoredConfig());
 }
 
-export function saveConfig(config: PlanfigConfig) {
+export function saveConfig(config: AgendexConfig) {
   ensureConfigDir();
-  const payload: PlanfigConfig = {
+  const payload: AgendexConfig = {
     configVersion: 2,
     token: config.token,
     enabledAdapters: sanitizeEnabledAdapterIds(config.enabledAdapters),
@@ -72,7 +72,7 @@ function generateToken(): string {
 }
 
 export function loadOrCreateToken(): string {
-  if (process.env.PLANFIG_TOKEN) return process.env.PLANFIG_TOKEN;
+  if (process.env.AGENDEX_TOKEN) return process.env.AGENDEX_TOKEN;
 
   const existing = loadConfig();
   if (existing?.token) return existing.token;
@@ -83,8 +83,8 @@ export function loadOrCreateToken(): string {
     token,
     enabledAdapters: existing?.enabledAdapters ?? [],
   });
-  console.log(`\n[planfig] generated auth token: ${token}`);
-  console.log(`[planfig] saved to ${configPath}\n`);
+  console.log(`\n[agendex] generated auth token: ${token}`);
+  console.log(`[agendex] saved to ${configPath}\n`);
   return token;
 }
 
@@ -96,10 +96,10 @@ export interface InitConfigOptions {
   configureAdapters?: boolean;
 }
 
-export async function loadOrInitConfig(options: InitConfigOptions = {}): Promise<PlanfigConfig> {
+export async function loadOrInitConfig(options: InitConfigOptions = {}): Promise<AgendexConfig> {
   const configureAdapters = Boolean(options.configureAdapters);
   const existing = loadConfig();
-  const tokenFromEnv = process.env.PLANFIG_TOKEN;
+  const tokenFromEnv = process.env.AGENDEX_TOKEN;
   const currentToken = tokenFromEnv || existing?.token || loadOrCreateToken();
 
   const storedAdapterIds = existing?.enabledAdapters ?? [];
@@ -119,7 +119,7 @@ export async function loadOrInitConfig(options: InitConfigOptions = {}): Promise
     } else {
       enabledAdapters = getDefaultAdapterIds();
       console.log(
-        `[planfig] non-interactive environment detected; auto-enabling defaults: ${enabledAdapters.join(', ')}`,
+        `[agendex] non-interactive environment detected; auto-enabling defaults: ${enabledAdapters.join(', ')}`,
       );
     }
   } else {
@@ -127,7 +127,7 @@ export async function loadOrInitConfig(options: InitConfigOptions = {}): Promise
     if (enabledAdapters.length === 0) enabledAdapters = getDefaultAdapterIds();
   }
 
-  const nextConfig: PlanfigConfig = {
+  const nextConfig: AgendexConfig = {
     configVersion: 2,
     token: tokenFromEnv ? existing?.token : currentToken,
     enabledAdapters,

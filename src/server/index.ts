@@ -17,7 +17,7 @@ const configureAdapters = process.argv.includes('--configure-adapters');
 
 if (configureAdapters && !(process.stdin.isTTY && process.stdout.isTTY)) {
   console.error(
-    '[planfig] startup failed Error: Cannot run --configure-adapters without an interactive TTY. Run this command in a terminal.',
+    '[agendex] startup failed Error: Cannot run --configure-adapters without an interactive TTY. Run this command in a terminal.',
   );
   process.exit(1);
 }
@@ -28,7 +28,7 @@ const startup = loadOrInitConfig({ configureAdapters })
     const activeAdapters = resolveAdapters(config.enabledAdapters);
     setActiveAdapters(activeAdapters);
     console.log(
-      `[planfig] enabled adapters (${config.enabledAdapters.length}): ${config.enabledAdapters.join(', ')}`,
+      `[agendex] enabled adapters (${config.enabledAdapters.length}): ${config.enabledAdapters.join(', ')}`,
     );
     return scan();
   })
@@ -36,7 +36,7 @@ const startup = loadOrInitConfig({ configureAdapters })
     startWatching((plans) => broadcast('plan:updated', plans));
   })
   .catch((err) => {
-    console.error('[planfig] startup failed', err);
+    console.error('[agendex] startup failed', err);
     process.exit(1);
   });
 
@@ -75,8 +75,8 @@ app.get('/*', serveStatic({ path: './src/client/dist/index.html' }));
 
 const PORT = parseInt(process.env.PORT ?? '4890');
 
-console.log(`[planfig] http://localhost:${PORT}`);
-console.log(`[planfig] token: ${AUTH_TOKEN}`);
+console.log(`[agendex] http://localhost:${PORT}`);
+console.log(`[agendex] token: ${AUTH_TOKEN}`);
 
 Bun.serve({
   port: PORT,

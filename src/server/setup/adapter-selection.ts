@@ -1,4 +1,4 @@
-import { autocompleteMultiselect, cancel, intro, isCancel, outro } from '@clack/prompts';
+import { autocompleteMultiselect, cancel, isCancel } from '@clack/prompts';
 import {
   getCatalog,
   getDefaultAdapterIds,
@@ -10,6 +10,8 @@ export interface AdapterSelectionOptions {
   currentIds?: string[];
   configureAdapters?: boolean;
 }
+
+const MAX_VISIBLE_OPTIONS = 7;
 
 function isInteractiveTTY(): boolean {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
@@ -58,18 +60,14 @@ export async function promptForAdapterSelection(
         disabled: Boolean(entry.locked),
       }));
 
-  intro('planfig adapter setup');
-  if (!options.configureAdapters) {
-    console.log('[planfig] First run detected. Select adapters to enable:');
-  } else {
-    console.log('[planfig] Reconfiguring enabled adapters:');
-  }
-
   const selected = await autocompleteMultiselect<string>({
-    message: 'Which adapters do you want to enable?',
+    message: options.configureAdapters
+      ? 'Which adapters do you want to enable? (reconfigure)'
+      : 'Which adapters do you want to enable?',
     options: promptOptions,
     initialValues,
     required: true,
+    maxItems: MAX_VISIBLE_OPTIONS,
     placeholder: 'Type to filter adapters...',
   });
 
@@ -84,6 +82,5 @@ export async function promptForAdapterSelection(
     process.exit(1);
   }
 
-  outro(`Selected ${sanitized.length} adapters.`);
   return sanitized;
 }

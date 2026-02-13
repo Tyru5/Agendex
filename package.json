@@ -1,5 +1,5 @@
 {
-  "name": "planfig",
+  "name": "agendex",
   "module": "src/server/index.ts",
   "type": "module",
   "private": true,

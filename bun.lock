@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "planfig",
+      "name": "agendex",
       "dependencies": {
         "@clack/prompts": "^1.0.1",
         "@codemirror/commands": "^6.10.2",

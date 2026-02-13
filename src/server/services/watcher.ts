@@ -25,7 +25,7 @@ export function startWatching(onChange?: ChangeCallback) {
             onChange?.(plans);
           }, 300);
         });
-        console.log(`[planfig] watching ${watchPath}`);
+        console.log(`[agendex] watching ${watchPath}`);
       } catch {
         // dir doesn't exist or can't be watched
       }
