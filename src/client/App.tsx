@@ -8,6 +8,7 @@ import { PlanViewer } from './components/PlanViewer.tsx';
 import { PlanEditor } from './components/PlanEditor.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { filterPlans } from './lib/plan-search.ts';
+import { LandingPage } from './components/LandingPage.tsx';
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
@@ -398,7 +399,7 @@ function Dashboard() {
 }
 
 export default function App() {
-  if (!hasToken()) return <Login />;
+  if (!hasToken()) return <LandingPage />;
   return <Dashboard />;
 }
 
