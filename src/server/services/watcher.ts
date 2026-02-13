@@ -1,7 +1,7 @@
 import { watch } from 'fs';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { adapters } from '../adapters/registry.ts';
+import { getActiveAdapters } from '../adapters/registry.ts';
 import { rescanFile } from './plan-service.ts';
 
 type ChangeCallback = (plans: unknown[]) => void;
@@ -9,6 +9,7 @@ type ChangeCallback = (plans: unknown[]) => void;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function startWatching(onChange?: ChangeCallback) {
+  const adapters = getActiveAdapters();
   for (const adapter of adapters) {
     for (const watchPath of adapter.getWatchPaths()) {
       if (!existsSync(watchPath)) continue;

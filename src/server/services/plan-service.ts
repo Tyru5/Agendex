@@ -1,7 +1,7 @@
 import { readdir, lstat } from 'fs/promises';
 import { join, resolve } from 'path';
 import { existsSync } from 'fs';
-import { adapters } from '../adapters/registry.ts';
+import { getActiveAdapters } from '../adapters/registry.ts';
 import { rebuildIndex, search as fuseSearch } from './search.ts';
 import type { Plan } from '../adapters/types.ts';
 
@@ -40,6 +40,7 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
 }
 
 export async function scan() {
+  const adapters = getActiveAdapters();
   store.clear();
   for (const adapter of adapters) {
     for (const searchPath of adapter.getSearchPaths()) {
@@ -70,6 +71,7 @@ export function search(query: string): Plan[] {
 }
 
 export async function update(id: string, content: string): Promise<boolean> {
+  const adapters = getActiveAdapters();
   const plan = store.get(id);
   if (!plan) return false;
 
@@ -86,6 +88,7 @@ export async function update(id: string, content: string): Promise<boolean> {
 }
 
 export function getAgentStats() {
+  const adapters = getActiveAdapters();
   const stats = new Map<string, { count: number; writable: boolean }>();
   for (const adapter of adapters) {
     stats.set(adapter.agent, { count: 0, writable: adapter.writable });
@@ -102,6 +105,7 @@ export function getAgentStats() {
 }
 
 export async function rescanFile(filePath: string) {
+  const adapters = getActiveAdapters();
   for (const adapter of adapters) {
     if (!adapter.matches(filePath)) continue;
     const plans = await adapter.parse(filePath);
