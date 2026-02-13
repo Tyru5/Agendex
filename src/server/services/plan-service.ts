@@ -1,5 +1,5 @@
 import { readdir, lstat } from 'fs/promises';
-import { join, resolve } from 'path';
+import { join, resolve, sep } from 'path';
 import { existsSync } from 'fs';
 import { getActiveAdapters } from '../adapters/registry.ts';
 import { rebuildIndex, search as fuseSearch } from './search.ts';
@@ -106,8 +106,19 @@ export function getAgentStats() {
 
 export async function rescanFile(filePath: string) {
   const adapters = getActiveAdapters();
+  const normalized = resolve(filePath);
+
+  // Find owning adapter: file must be within adapter's search paths
   for (const adapter of adapters) {
     if (!adapter.matches(filePath)) continue;
+
+    const isInSearchPath = adapter.getSearchPaths().some((sp) => {
+      const searchNormalized = resolve(sp);
+      return normalized.startsWith(searchNormalized + sep);
+    });
+
+    if (!isInSearchPath) continue;
+
     const plans = await adapter.parse(filePath);
     for (const plan of plans) {
       store.set(plan.id, plan);
@@ -115,5 +126,6 @@ export async function rescanFile(filePath: string) {
     rebuildIndex(Array.from(store.values()));
     return plans;
   }
+
   return [];
 }

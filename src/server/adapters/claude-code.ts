@@ -1,5 +1,5 @@
 import { homedir } from 'os';
-import { join, basename } from 'path';
+import { join, basename, resolve, sep } from 'path';
 import { stat, readdir, readFile, writeFile } from 'fs/promises';
 import { createHash } from 'crypto';
 import type { AgentAdapter, Plan } from './types.ts';
@@ -32,7 +32,10 @@ export const claudeCodeAdapter: AgentAdapter = {
   },
 
   matches(filePath: string) {
-    return filePath.endsWith('.md');
+    if (!filePath.endsWith('.md')) return false;
+    const normalized = resolve(filePath);
+    const baseDir = resolve(plansDir);
+    return normalized.startsWith(baseDir + sep);
   },
 
   async parse(filePath: string): Promise<Plan[]> {
