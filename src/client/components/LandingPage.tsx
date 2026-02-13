@@ -179,33 +179,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="landing-footer">
-        <div className="landing-footer-inner">
-          <div className="landing-nav-left">
-            <Logo />
-            <span className="landing-wordmark">Agendex</span>
-          </div>
-          <div className="landing-nav-right">
-            <a
-              href="https://github.com/Tyru5/planfig"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="landing-nav-link"
-            >
-              <GitHubIcon />
-            </a>
-            <button
-              type="button"
-              className="landing-btn-primary"
-              onClick={() => setShowLogin(true)}
-            >
-              Open Dashboard <ArrowRight />
-            </button>
-          </div>
-        </div>
-      </footer>
-
       {/* Login modal */}
       {showLogin && (
         <div className="landing-modal-overlay" onClick={() => setShowLogin(false)}>
