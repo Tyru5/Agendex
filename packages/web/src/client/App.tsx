@@ -13,6 +13,7 @@ import { LandingPage } from './components/LandingPage.tsx';
 import { AuthButton } from './components/AuthButton.tsx';
 import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
+import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
@@ -278,6 +279,7 @@ function Dashboard() {
           className="flex items-center justify-end gap-3 min-w-0 justify-self-end"
           style={{ paddingRight: '16px' }}
         >
+          <SubscriptionBadge />
           <AuthButton />
           <div
             className="hidden lg:block"

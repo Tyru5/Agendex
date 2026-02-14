@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { query, mutation } from './_generated/server';
 import { authComponent } from './auth';
+import { hasActiveSubscription } from './subscriptions';
 
 export const publishPlan = mutation({
   args: {
@@ -17,6 +18,11 @@ export const publishPlan = mutation({
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
       throw new ConvexError('Unauthenticated');
+    }
+
+    const hasSubscription = await hasActiveSubscription(ctx);
+    if (!hasSubscription) {
+      throw new ConvexError('Cloud Pro subscription required');
     }
 
     const ownerId = user._id;

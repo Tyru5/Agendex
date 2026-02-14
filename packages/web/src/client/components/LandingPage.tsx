@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { setToken } from '../lib/api.ts';
+import { useAuth } from '../hooks/useAuth.ts';
+import { PricingModal } from './PricingModal.tsx';
 
 const FAQ_ITEMS = [
   {
@@ -234,14 +236,26 @@ function PkgManagerInstall() {
 export function LandingPage() {
   const [token, setTokenValue] = useState('');
   const [showLogin, setShowLogin] = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
   const [activeTab, setActiveTab] = useState<'cloud' | 'local'>('local');
   const [pricingPeriod, setPricingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const { isAuthenticated } = useAuth();
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (token.trim()) {
       setToken(token.trim());
       window.location.reload();
+    }
+  }
+
+  function handleGetStarted() {
+    if (isAuthenticated) {
+      // Already authenticated, redirect to dashboard
+      window.location.href = '/dashboard';
+    } else {
+      // Show pricing modal for unauthenticated users
+      setShowPricing(true);
     }
   }
 
@@ -264,7 +278,7 @@ export function LandingPage() {
             <button
               type="button"
               className="landing-btn-primary landing-btn-lg"
-              onClick={() => setShowLogin(true)}
+              onClick={handleGetStarted}
             >
               Get Started <ArrowRight />
             </button>
@@ -538,6 +552,9 @@ export function LandingPage() {
           </div>
         </div>
       )}
+
+      {/* Pricing modal */}
+      {showPricing && <PricingModal onClose={() => setShowPricing(false)} />}
     </div>
   );
 }
