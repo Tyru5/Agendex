@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery, useAction } from 'convex/react';
 import { api } from '@convex/_generated/api';
 
 export interface Subscription {
@@ -15,9 +15,9 @@ export interface Subscription {
 }
 
 export function useSubscription() {
-  const subscription = useQuery(api.subscriptions.getMySubscriptionQuery);
-  const createCheckout = useMutation(api.subscriptions.createCheckoutSession);
-  const createPortal = useMutation(api.subscriptions.createPortalSession);
+  const subscription = useQuery((api as any).subscriptions.getMySubscriptionQuery);
+  const createCheckout = useAction((api as any).subscriptions.createCheckoutSession);
+  const createPortal = useAction((api as any).subscriptions.createPortalSession);
 
   return {
     subscription: subscription as Subscription | null | undefined,
