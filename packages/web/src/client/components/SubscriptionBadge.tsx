@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { useSubscription } from '../hooks/useSubscription';
 import { useAuth } from '../hooks/useAuth';
 import { PricingModal } from './PricingModal';
+import { Skeleton } from './Skeleton';
 
 export function SubscriptionBadge() {
-  const { subscription, isActive, isLoading, createPortal, createCheckout } = useSubscription();
+  const { subscription, isActive, isLoading, createPortal, reactivate } = useSubscription();
   const { isAuthenticated } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
@@ -20,7 +21,8 @@ export function SubscriptionBadge() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (!isAuthenticated || isLoading) return null;
+  if (!isAuthenticated) return null;
+  if (isLoading) return <Skeleton width="96px" height="34px" borderRadius="var(--radius)" />;
 
   if (isActive && subscription) {
     const cancelAtPeriodEnd = subscription.cancelAtPeriodEnd;
@@ -125,7 +127,7 @@ export function SubscriptionBadge() {
               <button
                 onClick={async () => {
                   setShowMenu(false);
-                  await createCheckout(subscription.plan);
+                  await reactivate();
                 }}
                 style={{
                   width: '100%',

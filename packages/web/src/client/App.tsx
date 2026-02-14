@@ -14,6 +14,7 @@ import { AuthButton } from './components/AuthButton.tsx';
 import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
+import { SkeletonBlock } from './components/Skeleton.tsx';
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
@@ -408,8 +409,8 @@ function Dashboard() {
 
         <div className="flex-1 overflow-auto sidebar-scroll px-3 pb-3">
           {loading ? (
-            <div className="p-4" style={{ fontSize: '13px', color: 'var(--tertiary)' }}>
-              Loading...
+            <div className="p-4">
+              <SkeletonBlock lines={5} />
             </div>
           ) : error ? (
             <div className="p-4" style={{ fontSize: '13px', color: '#ef4444' }}>

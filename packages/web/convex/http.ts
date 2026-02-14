@@ -18,14 +18,19 @@ registerRoutes(http, stripeComponent, {
 
       const userId = subscription.metadata?.userId;
       const plan = subscription.metadata?.plan as 'monthly' | 'yearly' | undefined;
-      if (!userId || !plan) return;
+      if (!userId || !plan) {
+        console.error(
+          `[stripe webhook] subscription.created missing metadata: userId=${userId}, plan=${plan}, subId=${subscription.id}`,
+        );
+        return;
+      }
 
       await ctx.runMutation((internal as any).subscriptions.fulfillCheckout, {
         userId,
         stripeCustomerId: subscription.customer as string,
         stripeSubscriptionId: subscription.id,
         plan,
-        currentPeriodEnd: item?.current_period_end || 0,
+        currentPeriodEnd: (item?.current_period_end ?? 0) * 1000,
       });
     },
     'customer.subscription.updated': async (ctx, event) => {
@@ -35,7 +40,7 @@ registerRoutes(http, stripeComponent, {
       await ctx.runMutation((internal as any).subscriptions.syncSubscriptionUpdate, {
         stripeSubscriptionId: subscription.id,
         status: subscription.status,
-        currentPeriodEnd: item?.current_period_end || 0,
+        currentPeriodEnd: (item?.current_period_end ?? 0) * 1000,
         cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
       });
     },

@@ -18,6 +18,7 @@ export function useSubscription() {
   const subscription = useQuery((api as any).subscriptions.getMySubscriptionQuery);
   const createCheckout = useAction((api as any).subscriptions.createCheckoutSession);
   const createPortal = useAction((api as any).subscriptions.createPortalSession);
+  const reactivate = useAction((api as any).subscriptions.reactivateSubscription);
 
   return {
     subscription: subscription as Subscription | null | undefined,
@@ -42,6 +43,14 @@ export function useSubscription() {
         }
       } catch (err) {
         console.error('Portal error:', err);
+        throw err;
+      }
+    },
+    reactivate: async () => {
+      try {
+        await reactivate();
+      } catch (err) {
+        console.error('Reactivation error:', err);
         throw err;
       }
     },

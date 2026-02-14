@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
+import { Skeleton } from './Skeleton.tsx';
 
 interface CliAuthPageProps {
   callbackUrl: string;
@@ -57,7 +58,7 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
         </h1>
         {status === 'authenticating' && (
           <p style={{ fontSize: '13px', color: 'var(--tertiary)' }}>
-            {isLoading ? 'Loading...' : 'Redirecting to GitHub...'}
+            {isLoading ? <Skeleton width="140px" height="14px" /> : 'Redirecting to GitHub...'}
           </p>
         )}
         {status === 'redirecting' && (

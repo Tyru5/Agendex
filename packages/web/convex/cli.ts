@@ -1,7 +1,5 @@
 import { v } from 'convex/values';
-import { httpAction } from './_generated/server';
-import { internalMutation, internalQuery } from './_generated/server';
-import { ConvexError } from 'convex/values';
+import { httpAction, internalMutation, internalQuery } from './_generated/server';
 import { createAuth } from './auth';
 import { internal } from './_generated/api';
 
@@ -73,7 +71,7 @@ export const hasUserSubscription = internalQuery({
       .query('subscriptions')
       .withIndex('by_user', (q) => q.eq('userId', args.userId))
       .first();
-    return sub?.status === 'active' || false;
+    return (sub?.status === 'active' && sub.currentPeriodEnd > Date.now()) || false;
   },
 });
 

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useSubscription } from '../hooks/useSubscription';
 import { PricingModal } from './PricingModal';
+import { SkeletonBlock } from './Skeleton';
 
 interface PaywallGuardProps {
   children: ReactNode;
@@ -13,7 +14,11 @@ export function PaywallGuard({ children, fallback }: PaywallGuardProps) {
   const [showModal, setShowModal] = useState(false);
 
   if (isLoading) {
-    return null;
+    return (
+      <div style={{ padding: '24px' }}>
+        <SkeletonBlock lines={4} />
+      </div>
+    );
   }
 
   if (!isActive) {

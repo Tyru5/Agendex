@@ -1,8 +1,9 @@
 import { ConvexError, v } from 'convex/values';
 import { action, internalMutation, query } from './_generated/server';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import { authComponent } from './auth';
 import { stripe } from './stripe';
+import Stripe from 'stripe';
 
 export const getMySubscriptionQuery = query({
   handler: async (ctx) => {
@@ -25,7 +26,7 @@ export async function hasActiveSubscription(ctx: any): Promise<boolean> {
     .withIndex('by_user', (q: any) => q.eq('userId', user._id))
     .first();
 
-  return sub ? sub.status === 'active' : false;
+  return sub ? sub.status === 'active' && sub.currentPeriodEnd > Date.now() : false;
 }
 
 export const createCheckoutSession = action({
@@ -58,6 +59,30 @@ export const createCheckoutSession = action({
     });
 
     return { url: session.url };
+  },
+});
+
+export const reactivateSubscription = action({
+  handler: async (ctx) => {
+    const user = await ctx.runQuery(api.auth.getCurrentUser);
+    if (!user) throw new ConvexError('Not authenticated');
+
+    const sub = await ctx.runQuery((api as any).subscriptions.getMySubscriptionQuery);
+    if (!sub?.stripeSubscriptionId) throw new ConvexError('No subscription found');
+
+    const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    await stripeClient.subscriptions.update(sub.stripeSubscriptionId, {
+      cancel_at_period_end: false,
+    });
+
+    await ctx.runMutation((internal as any).subscriptions.syncSubscriptionUpdate, {
+      stripeSubscriptionId: sub.stripeSubscriptionId,
+      status: 'active',
+      currentPeriodEnd: sub.currentPeriodEnd,
+      cancelAtPeriodEnd: false,
+    });
+
+    return { ok: true };
   },
 });
 

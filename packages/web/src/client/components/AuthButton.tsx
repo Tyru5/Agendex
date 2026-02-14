@@ -1,10 +1,11 @@
 import { useAuth } from '../hooks/useAuth.ts';
+import { Skeleton } from './Skeleton';
 
 export function AuthButton() {
   const { user, isLoading, isAuthenticated, signIn, signOut } = useAuth();
 
   if (isLoading) {
-    return <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>…</span>;
+    return <Skeleton width="72px" height="28px" borderRadius="6px" />;
   }
 
   if (!isAuthenticated) {
