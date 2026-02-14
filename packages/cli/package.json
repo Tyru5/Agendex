@@ -1,0 +1,14 @@
+{
+  "name": "@agendex/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "agendex": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@agendex/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.9"
+  }
+}
