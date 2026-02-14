@@ -25,7 +25,7 @@ registerRoutes(http, stripeComponent, {
         stripeCustomerId: subscription.customer as string,
         stripeSubscriptionId: subscription.id,
         plan,
-        currentPeriodEnd: item?.current_period_end || 0,
+        currentPeriodEnd: subscription.current_period_end * 1000,
       });
     },
     'customer.subscription.updated': async (ctx, event) => {
