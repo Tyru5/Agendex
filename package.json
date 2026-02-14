@@ -9,6 +9,11 @@
     "dev": "bun run --filter @agendex/web dev",
     "dev:client": "bun run --filter @agendex/web dev:client",
     "build": "bun run --filter @agendex/web build",
+    "cli": "bun run --filter @agendex/cli",
+    "cli:start": "bun run packages/cli/src/cli.ts start",
+    "cli:login": "bun run packages/cli/src/cli.ts login",
+    "cli:sync": "bun run packages/cli/src/cli.ts sync",
+    "cli:status": "bun run packages/cli/src/cli.ts status",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

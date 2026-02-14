@@ -64,10 +64,8 @@ export const publishPlan = mutation({
 export const getMyPublishedPlans = query({
   args: {},
   handler: async (ctx) => {
-    const user = await authComponent.getAuthUser(ctx);
-    if (!user) {
-      throw new ConvexError('Unauthenticated');
-    }
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return [];
 
     return await ctx.db
       .query('plans')
