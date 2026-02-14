@@ -48,7 +48,7 @@ export default defineSchema({
       v.literal('canceled'),
       v.literal('past_due'),
       v.literal('incomplete'),
-      v.literal('trialing')
+      v.literal('trialing'),
     ),
     plan: v.union(v.literal('monthly'), v.literal('yearly')),
     currentPeriodEnd: v.number(),

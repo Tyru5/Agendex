@@ -39,9 +39,7 @@ export const createCheckoutSession = mutation({
     if (!user) throw new ConvexError('Not authenticated');
 
     const priceId =
-      plan === 'monthly'
-        ? process.env.STRIPE_MONTHLY_PRICE_ID
-        : process.env.STRIPE_YEARLY_PRICE_ID;
+      plan === 'monthly' ? process.env.STRIPE_MONTHLY_PRICE_ID : process.env.STRIPE_YEARLY_PRICE_ID;
 
     if (!priceId) {
       throw new ConvexError('Price ID not configured');

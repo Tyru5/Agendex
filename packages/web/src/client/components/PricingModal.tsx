@@ -149,7 +149,15 @@ export function PricingModal({ onClose }: PricingModalProps) {
 
         {/* Features */}
         <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+          <h3
+            style={{
+              margin: '0 0 16px 0',
+              fontSize: '14px',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              color: 'var(--text-secondary)',
+            }}
+          >
             Includes
           </h3>
           <ul

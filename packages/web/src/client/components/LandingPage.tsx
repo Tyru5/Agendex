@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { setToken } from '../lib/api.ts';
 import { useAuth } from '../hooks/useAuth.ts';
 import { PricingModal } from './PricingModal.tsx';
@@ -179,13 +179,20 @@ function CheckIcon() {
   );
 }
 
-function FaqItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false);
-  const toggle = useCallback(() => setOpen((o) => !o), []);
-
+function FaqItem({
+  q,
+  a,
+  open,
+  onToggle,
+}: {
+  q: string;
+  a: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
   return (
     <div className={`landing-faq-item ${open ? 'landing-faq-item-open' : ''}`}>
-      <button type="button" className="landing-faq-q" onClick={toggle} aria-expanded={open}>
+      <button type="button" className="landing-faq-q" onClick={onToggle} aria-expanded={open}>
         {q}
         <span className="landing-faq-icon" aria-hidden="true" />
       </button>
@@ -239,6 +246,7 @@ export function LandingPage() {
   const [showPricing, setShowPricing] = useState(false);
   const [activeTab, setActiveTab] = useState<'cloud' | 'local'>('local');
   const [pricingPeriod, setPricingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { isAuthenticated } = useAuth();
 
   function submit(e: React.FormEvent) {
@@ -514,8 +522,14 @@ export function LandingPage() {
       <section className="landing-faq-section">
         <h2 className="landing-section-title">Frequently asked questions.</h2>
         <div className="landing-faq-list">
-          {FAQ_ITEMS.map((item) => (
-            <FaqItem key={item.q} q={item.q} a={item.a} />
+          {FAQ_ITEMS.map((item, i) => (
+            <FaqItem
+              key={item.q}
+              q={item.q}
+              a={item.a}
+              open={openFaq === i}
+              onToggle={() => setOpenFaq(openFaq === i ? null : i)}
+            />
           ))}
         </div>
       </section>
