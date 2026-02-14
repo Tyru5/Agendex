@@ -122,14 +122,17 @@ export function LandingPage() {
             >
               Get Started <ArrowRight />
             </button>
-            <a
-              href="https://github.com/Tyru5/planfig"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="landing-btn-ghost landing-btn-lg"
-            >
-              <GitHubIcon /> GitHub
-            </a>
+            <div className="landing-gh-wrapper">
+              <a
+                href="https://github.com/Tyru5/planfig"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="landing-btn-ghost landing-btn-lg"
+              >
+                <GitHubIcon /> GitHub
+              </a>
+              <span className="landing-coming-soon">Coming Soon</span>
+            </div>
           </div>
         </div>
 
