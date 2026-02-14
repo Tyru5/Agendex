@@ -12,20 +12,20 @@ authComponent.registerRoutes(http, createAuth, { cors: true });
 
 registerRoutes(http, stripeComponent, {
   events: {
-    'checkout.session.completed': async (ctx, event) => {
-      const session = event.data.object as Stripe.Checkout.Session;
-      if (session.mode !== 'subscription' || !session.subscription) return;
+    'customer.subscription.created': async (ctx, event) => {
+      const subscription = event.data.object as Stripe.Subscription;
+      const item = subscription.items.data[0];
 
-      const userId = session.metadata?.userId;
-      const plan = session.metadata?.plan as 'monthly' | 'yearly' | undefined;
+      const userId = subscription.metadata?.userId;
+      const plan = subscription.metadata?.plan as 'monthly' | 'yearly' | undefined;
       if (!userId || !plan) return;
 
       await ctx.runMutation((internal as any).subscriptions.fulfillCheckout, {
         userId,
-        stripeCustomerId: session.customer as string,
-        stripeSubscriptionId: session.subscription as string,
+        stripeCustomerId: subscription.customer as string,
+        stripeSubscriptionId: subscription.id,
         plan,
-        currentPeriodEnd: Math.floor(Date.now() / 1000) + (plan === 'yearly' ? 365 : 30) * 86400,
+        currentPeriodEnd: item?.current_period_end || 0,
       });
     },
     'customer.subscription.updated': async (ctx, event) => {
