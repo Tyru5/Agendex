@@ -13,7 +13,7 @@ export function PaywallGuard({ children, fallback }: PaywallGuardProps) {
   const [showModal, setShowModal] = useState(false);
 
   if (isLoading) {
-    return <>{children}</>;
+    return null;
   }
 
   if (!isActive) {
