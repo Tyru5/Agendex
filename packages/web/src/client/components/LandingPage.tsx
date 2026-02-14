@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { setToken } from '../lib/api.ts';
-import { WipMarquee } from './WipMarquee.tsx';
 
 const FAQ_ITEMS = [
   {
@@ -236,6 +235,7 @@ export function LandingPage() {
   const [token, setTokenValue] = useState('');
   const [showLogin, setShowLogin] = useState(false);
   const [activeTab, setActiveTab] = useState<'cloud' | 'local'>('local');
+  const [pricingPeriod, setPricingPeriod] = useState<'monthly' | 'yearly'>('monthly');
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -247,8 +247,6 @@ export function LandingPage() {
 
   return (
     <div className="landing-page">
-      <WipMarquee />
-
       {/* Hero — two-column */}
       <section className="landing-hero">
         <div className="landing-hero-left">
@@ -379,6 +377,57 @@ export function LandingPage() {
           Self-host for free or use our managed infrastructure for cloud sync, sharing, and
           collaboration.
         </p>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              backgroundColor: 'var(--landing-surface)',
+              border: '1px solid var(--landing-border)',
+              borderRadius: '8px',
+              padding: '4px',
+              gap: '4px',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setPricingPeriod('monthly')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor:
+                  pricingPeriod === 'monthly' ? 'var(--landing-accent)' : 'transparent',
+                color: pricingPeriod === 'monthly' ? '#000' : 'var(--landing-text)',
+                fontWeight: pricingPeriod === 'monthly' ? 600 : 500,
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 200ms ease',
+              }}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setPricingPeriod('yearly')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor:
+                  pricingPeriod === 'yearly' ? 'var(--landing-accent)' : 'transparent',
+                color: pricingPeriod === 'yearly' ? '#000' : 'var(--landing-text)',
+                fontWeight: pricingPeriod === 'yearly' ? 600 : 500,
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 200ms ease',
+              }}
+            >
+              Yearly
+            </button>
+          </div>
+        </div>
+
         <div className="landing-pricing-grid">
           <div className="landing-pricing-card">
             <div className="landing-pricing-badge">Free</div>
@@ -409,10 +458,21 @@ export function LandingPage() {
             <div className="landing-pricing-badge landing-pricing-badge-accent">Pro</div>
             <h3 className="landing-pricing-name">Cloud</h3>
             <div className="landing-pricing-price">
-              <span className="landing-pricing-amount">$7</span>
-              <span className="landing-pricing-period">/month</span>
+              {pricingPeriod === 'monthly' ? (
+                <>
+                  <span className="landing-pricing-amount">$7</span>
+                  <span className="landing-pricing-period">/month</span>
+                </>
+              ) : (
+                <>
+                  <span className="landing-pricing-amount">$69</span>
+                  <span className="landing-pricing-period">/year</span>
+                </>
+              )}
             </div>
-            <p className="landing-pricing-annual">or $69/year (save 18%)</p>
+            {pricingPeriod === 'yearly' && (
+              <p className="landing-pricing-annual">Save 18% vs monthly</p>
+            )}
             <p className="landing-pricing-desc">
               Ready to go — no setup, no servers. Just install the CLI and start syncing.
             </p>
