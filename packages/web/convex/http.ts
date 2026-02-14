@@ -35,7 +35,7 @@ registerRoutes(http, stripeComponent, {
       await ctx.runMutation((internal as any).subscriptions.syncSubscriptionUpdate, {
         stripeSubscriptionId: subscription.id,
         status: subscription.status,
-        currentPeriodEnd: item?.current_period_end || 0,
+        currentPeriodEnd: subscription.current_period_end * 1000,
         cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
       });
     },
