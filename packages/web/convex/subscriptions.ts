@@ -62,8 +62,8 @@ export const createCheckoutSession = mutation({
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      success_url: `${process.env.VITE_CONVEX_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.VITE_CONVEX_URL}/pricing`,
+      success_url: `${process.env.SITE_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.SITE_URL}/pricing`,
     });
 
     return { url: session.url };
@@ -80,7 +80,7 @@ export const createPortalSession = mutation({
 
     const session = await (stripeComponent as any).portal.create(ctx, {
       customer: sub.stripeCustomerId,
-      return_url: `${process.env.VITE_CONVEX_URL}/dashboard`,
+      return_url: `${process.env.SITE_URL}/dashboard`,
     });
 
     return { url: session.url };
