@@ -7,6 +7,7 @@ import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import { CommentThread } from './CommentThread.tsx';
+import { SkeletonBlock } from './Skeleton.tsx';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -33,7 +34,9 @@ export function SharedPlanView({ token }: { token: string }) {
         className="min-h-screen flex items-center justify-center"
         style={{ background: 'var(--bg)' }}
       >
-        <div style={{ fontSize: '13px', color: 'var(--tertiary)' }}>Loading…</div>
+        <div style={{ width: '100%', maxWidth: '600px', padding: '24px' }}>
+          <SkeletonBlock lines={5} />
+        </div>
       </div>
     );
   }

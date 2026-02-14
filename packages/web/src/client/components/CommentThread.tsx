@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { useAuth } from '../hooks/useAuth.ts';
+import { SkeletonBlock } from './Skeleton.tsx';
 
 function timeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -146,7 +147,7 @@ export function CommentThread({ planId, isOwner }: { planId: string; isOwner?: b
 
       {/* Comments list */}
       {comments === undefined ? (
-        <div style={{ fontSize: '12.5px', color: 'var(--tertiary)' }}>Loading comments…</div>
+        <SkeletonBlock lines={2} />
       ) : comments.length === 0 ? (
         <div style={{ fontSize: '12.5px', color: 'var(--tertiary)' }}>No comments yet.</div>
       ) : (

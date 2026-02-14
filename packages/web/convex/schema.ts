@@ -38,4 +38,35 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   }).index('by_plan', ['planId']),
+
+  subscriptions: defineTable({
+    userId: v.string(),
+    stripeCustomerId: v.string(),
+    stripeSubscriptionId: v.string(),
+    status: v.union(
+      v.literal('active'),
+      v.literal('canceled'),
+      v.literal('past_due'),
+      v.literal('incomplete'),
+      v.literal('trialing'),
+    ),
+    plan: v.union(v.literal('monthly'), v.literal('yearly')),
+    currentPeriodEnd: v.number(),
+    cancelAtPeriodEnd: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_stripe_customer', ['stripeCustomerId'])
+    .index('by_stripe_subscription', ['stripeSubscriptionId']),
+
+  workspaceMembers: defineTable({
+    workspaceOwnerId: v.string(),
+    memberId: v.string(),
+    email: v.string(),
+    role: v.union(v.literal('owner'), v.literal('member')),
+    addedAt: v.number(),
+  })
+    .index('by_workspace', ['workspaceOwnerId'])
+    .index('by_member', ['memberId']),
 });

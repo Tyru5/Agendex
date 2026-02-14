@@ -1,6 +1,5 @@
 import { v } from 'convex/values';
-import { httpAction } from './_generated/server';
-import { internalMutation, internalQuery } from './_generated/server';
+import { httpAction, internalMutation, internalQuery } from './_generated/server';
 import { createAuth } from './auth';
 import { internal } from './_generated/api';
 
@@ -65,6 +64,17 @@ export const upsertPlan = internalMutation({
   },
 });
 
+export const hasUserSubscription = internalQuery({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const sub = await ctx.db
+      .query('subscriptions')
+      .withIndex('by_user', (q) => q.eq('userId', args.userId))
+      .first();
+    return (sub?.status === 'active' && sub.currentPeriodEnd > Date.now()) || false;
+  },
+});
+
 export const sync = httpAction(async (ctx, request) => {
   if (request.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
@@ -86,6 +96,16 @@ export const sync = httpAction(async (ctx, request) => {
   const ownerId = session.user.id;
 
   try {
+    const hasSub = await ctx.runQuery(internal.cli.hasUserSubscription, {
+      userId: ownerId,
+    });
+    if (!hasSub) {
+      return new Response(JSON.stringify({ error: 'Cloud Pro subscription required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const body = await request.json();
 
     const existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndLocalId, {

@@ -1,4 +1,3 @@
 {
-  "rootDirectory": "packages/web",
   "outputDirectory": "src/client/dist"
 }
