@@ -43,7 +43,7 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
   }
 
   async function handleRevoke(linkId: string) {
-    await revokeShareLink({ linkId });
+    await revokeShareLink({ shareLinkId: linkId });
   }
 
   const hasLinks = shareLinks && shareLinks.length > 0;
