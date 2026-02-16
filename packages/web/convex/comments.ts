@@ -44,6 +44,16 @@ export const addComment = mutation({
       throw new ConvexError('Plan not found');
     }
 
+    const isOwner = plan.ownerId === user._id;
+    if (!isOwner) {
+      const activeShareLink = await ctx.db
+        .query('shareLinks')
+        .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+        .filter((q) => q.eq(q.field('revokedAt'), undefined))
+        .first();
+      if (!activeShareLink) throw new ConvexError('Access denied');
+    }
+
     return await ctx.db.insert('comments', {
       planId: args.planId,
       authorId: user._id,

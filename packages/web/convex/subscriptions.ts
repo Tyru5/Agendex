@@ -150,7 +150,13 @@ export const fulfillCheckout = internalMutation({
 export const syncSubscriptionUpdate = internalMutation({
   args: {
     stripeSubscriptionId: v.string(),
-    status: v.string(),
+    status: v.union(
+      v.literal('active'),
+      v.literal('canceled'),
+      v.literal('past_due'),
+      v.literal('incomplete'),
+      v.literal('trialing'),
+    ),
     currentPeriodEnd: v.number(),
     cancelAtPeriodEnd: v.boolean(),
   },
@@ -164,7 +170,7 @@ export const syncSubscriptionUpdate = internalMutation({
 
     if (sub) {
       await ctx.db.patch(sub._id, {
-        status: args.status as any,
+        status: args.status,
         currentPeriodEnd: args.currentPeriodEnd,
         cancelAtPeriodEnd: args.cancelAtPeriodEnd,
         updatedAt: Date.now(),

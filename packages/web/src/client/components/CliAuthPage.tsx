@@ -38,6 +38,10 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
         }
 
         const url = new URL(callbackUrl);
+        if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
+          setStatus('error');
+          return;
+        }
         url.searchParams.set('token', token);
         url.searchParams.set('convexUrl', convexSiteUrl);
         window.location.href = url.toString();
