@@ -1,0 +1,178 @@
+import { v } from 'convex/values';
+import { httpAction, internalMutation, internalQuery } from './_generated/server';
+import { createAuth } from './auth';
+import { internal } from './_generated/api';
+
+export const findPlanByOwnerAndLocalId = internalQuery({
+  args: { ownerId: v.string(), localPlanId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('plans')
+      .withIndex('by_owner_localPlanId', (q) =>
+        q.eq('ownerId', args.ownerId).eq('localPlanId', args.localPlanId),
+      )
+      .first();
+  },
+});
+
+export const upsertPlan = internalMutation({
+  args: {
+    ownerId: v.string(),
+    localPlanId: v.string(),
+    agent: v.string(),
+    title: v.string(),
+    content: v.string(),
+    format: v.string(),
+    filePath: v.optional(v.string()),
+    workspace: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    existingId: v.optional(v.id('plans')),
+    existingVersion: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    if (args.existingId && args.existingVersion !== undefined) {
+      await ctx.db.patch(args.existingId, {
+        agent: args.agent,
+        title: args.title,
+        content: args.content,
+        format: args.format,
+        filePath: args.filePath,
+        workspace: args.workspace,
+        metadata: args.metadata,
+        version: args.existingVersion + 1,
+        updatedAt: now,
+      });
+      return args.existingId;
+    }
+
+    return await ctx.db.insert('plans', {
+      ownerId: args.ownerId,
+      localPlanId: args.localPlanId,
+      agent: args.agent,
+      title: args.title,
+      content: args.content,
+      format: args.format,
+      filePath: args.filePath,
+      workspace: args.workspace,
+      metadata: args.metadata,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const hasUserSubscription = internalQuery({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const sub = await ctx.db
+      .query('subscriptions')
+      .withIndex('by_user', (q) => q.eq('userId', args.userId))
+      .first();
+    return (sub?.status === 'active' && sub.currentPeriodEnd > Date.now()) || false;
+  },
+});
+
+export const sync = httpAction(async (ctx, request) => {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const auth = createAuth(ctx);
+  const session = await auth.api.getSession({ headers: request.headers });
+
+  if (!session?.user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const ownerId = session.user.id;
+
+  try {
+    const hasSub = await ctx.runQuery(internal.cli.hasUserSubscription, {
+      userId: ownerId,
+    });
+    if (!hasSub) {
+      return new Response(JSON.stringify({ error: 'Cloud Pro subscription required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const body = await request.json();
+
+    const existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndLocalId, {
+      ownerId,
+      localPlanId: body.localPlanId,
+    });
+
+    const planId = await ctx.runMutation(internal.cli.upsertPlan, {
+      ownerId,
+      localPlanId: body.localPlanId,
+      agent: body.agent,
+      title: body.title,
+      content: body.content,
+      format: body.format,
+      filePath: body.filePath,
+      workspace: body.workspace,
+      metadata: body.metadata,
+      existingId: existing?._id,
+      existingVersion: existing?.version,
+    });
+
+    return new Response(JSON.stringify({ ok: true, planId }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+});
+
+export const refresh = httpAction(async (ctx, request) => {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const auth = createAuth(ctx);
+  const session = await auth.api.getSession({ headers: request.headers });
+
+  if (!session?.session) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  try {
+    return new Response(
+      JSON.stringify({
+        token: session.session.token,
+        expiresAt: session.session.expiresAt ? new Date(session.session.expiresAt).getTime() : 0,
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  } catch {
+    return new Response(JSON.stringify({ error: 'Failed to refresh' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+});
