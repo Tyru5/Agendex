@@ -21,63 +21,26 @@ const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
 
-function Login() {
-  const [token, setTokenValue] = useState('');
+type DashboardMode = 'local' | 'cloud';
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (token.trim()) {
-      setToken(token.trim());
-      window.location.reload();
-    }
-  }
-
+function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
   return (
-    <div
-      className="min-h-screen flex items-center justify-center"
-      style={{ background: 'var(--bg)' }}
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2.2}
+      stroke="currentColor"
+      style={{ width: '14px', height: '14px', opacity: 0.9 }}
     >
-      <form onSubmit={submit} className="w-72 space-y-3">
-        <h1
-          className="text-center font-semibold tracking-tight"
-          style={{ fontSize: '14px', color: 'var(--text)' }}
-        >
-          Agendex
-        </h1>
-        <p className="text-center" style={{ fontSize: '12.5px', color: 'var(--tertiary)' }}>
-          Enter your auth token
-        </p>
-        <input
-          type="password"
-          value={token}
-          onChange={(e) => setTokenValue(e.target.value)}
-          placeholder="Token"
-          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-          style={{
-            background: 'transparent',
-            border: '1px solid var(--border)',
-            color: 'var(--text)',
-            fontSize: '13px',
-          }}
-          autoFocus
-        />
-        <button
-          type="submit"
-          className="w-full px-3 py-2 text-sm rounded-lg font-medium transition-colors"
-          style={{
-            background: 'var(--text)',
-            color: 'var(--bg)',
-            fontSize: '13px',
-          }}
-        >
-          Connect
-        </button>
-      </form>
-    </div>
+      {hidden ? (
+        <path strokeLinecap="round" strokeLinejoin="round" d="m9.5 6.5 5 5.5-5 5.5" />
+      ) : (
+        <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 6.5-5 5.5 5 5.5" />
+      )}
+    </svg>
   );
 }
-
-type DashboardMode = 'local' | 'cloud';
 
 function Dashboard() {
   const [search, setSearch] = useState('');
@@ -89,7 +52,7 @@ function Dashboard() {
     return localStorage.getItem(SIDEBAR_PREF_KEY) === 'true';
   });
   const [sidebarPeek, setSidebarPeek] = useState(false);
-  const hoverCloseTimer = useRef<ReturnType<typeof setTimeout>>();
+  const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const filters = useMemo(() => ({ agent: agentFilter }), [agentFilter]);
 
@@ -171,12 +134,14 @@ function Dashboard() {
 
   function clearHoverCloseTimer() {
     if (!hoverCloseTimer.current) return;
+
     clearTimeout(hoverCloseTimer.current);
     hoverCloseTimer.current = undefined;
   }
 
   function schedulePeekClose() {
     if (!sidebarHidden) return;
+
     clearHoverCloseTimer();
     hoverCloseTimer.current = setTimeout(() => {
       setSidebarPeek(false);
@@ -470,12 +435,16 @@ function useRoute() {
   return path;
 }
 
+/**
+ * Main entry point of the application.
+ */
 export default function App() {
   const path = useRoute();
 
   if (path === '/auth/cli') {
     const params = new URLSearchParams(window.location.search);
     const callback = params.get('callback');
+
     if (callback) return <CliAuthPage callbackUrl={callback} />;
   }
 
@@ -485,24 +454,6 @@ export default function App() {
   }
 
   if (!hasToken()) return <LandingPage />;
-  return <Dashboard />;
-}
 
-function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2.2}
-      stroke="currentColor"
-      style={{ width: '14px', height: '14px', opacity: 0.9 }}
-    >
-      {hidden ? (
-        <path strokeLinecap="round" strokeLinejoin="round" d="m9.5 6.5 5 5.5-5 5.5" />
-      ) : (
-        <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 6.5-5 5.5 5 5.5" />
-      )}
-    </svg>
-  );
+  return <Dashboard />;
 }
