@@ -34,7 +34,7 @@ export function SkeletonBlock({ lines = 3 }: { lines?: number }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       {Array.from({ length: lines }, (_, i) => (
-        <SkeletonLine key={i} width={widths[i % widths.length]} />
+        <SkeletonLine key={widths[i % widths.length]} width={widths[i % widths.length]} />
       ))}
     </div>
   );

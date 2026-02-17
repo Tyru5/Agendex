@@ -26,6 +26,8 @@ export function PricingModal({ onClose }: PricingModalProps) {
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       style={{
         position: 'fixed',
         inset: 0,
@@ -38,6 +40,9 @@ export function PricingModal({ onClose }: PricingModalProps) {
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget && onClose) onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && onClose) onClose();
       }}
     >
       <div

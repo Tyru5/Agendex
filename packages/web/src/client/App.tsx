@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { hasToken, setToken, type Plan } from './lib/api.ts';
 import { usePlans, useAgents } from './hooks/usePlans.ts';
 import { SearchBar } from './components/SearchBar.tsx';
 import { AgentSelect } from './components/AgentSelect.tsx';
 import { PlanList } from './components/PlanList.tsx';
 import { PlanViewer } from './components/PlanViewer.tsx';
-import { PlanEditor } from './components/PlanEditor.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { filterPlans } from './lib/plan-search.ts';
@@ -15,6 +14,10 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
 import { SkeletonBlock } from './components/Skeleton.tsx';
+
+const PlanEditor = lazy(() =>
+  import('./components/PlanEditor.tsx').then((m) => ({ default: m.PlanEditor })),
+);
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
@@ -84,7 +87,7 @@ function Dashboard() {
     return agents.reduce((sum, a) => sum + a.planCount, 0);
   }, [agents, plans, mode]);
 
-  const activeAgents = useMemo(() => agents.filter((a) => a.planCount > 0).length, [agents]);
+  const activeAgents = agents.filter((a) => a.planCount > 0).length;
   const backendIndicator = useMemo(() => {
     if (backendStatus === 'online') {
       return { label: 'Live', color: '#22c55e' };
@@ -347,7 +350,7 @@ function Dashboard() {
               ? 'translateX(0)'
               : 'translateX(calc(-100% - 1px))'
             : 'none',
-          willChange: sidebarHidden ? 'transform, opacity' : undefined,
+          willChange: sidebarPeek ? 'transform, opacity' : undefined,
           pointerEvents: sidebarVisible ? 'auto' : 'none',
           boxShadow: sidebarPeekOpen ? '0 18px 40px rgba(0,0,0,0.20)' : 'none',
           transition: sidebarHidden
@@ -402,11 +405,19 @@ function Dashboard() {
       >
         {selectedPlan ? (
           editing ? (
-            <PlanEditor
-              plan={selectedPlan}
-              onClose={() => setEditing(false)}
-              onSaved={handleSaved}
-            />
+            <Suspense
+              fallback={
+                <div className="p-4">
+                  <SkeletonBlock lines={5} />
+                </div>
+              }
+            >
+              <PlanEditor
+                plan={selectedPlan}
+                onClose={() => setEditing(false)}
+                onSaved={handleSaved}
+              />
+            </Suspense>
           ) : (
             <PlanViewer plan={selectedPlan} onEdit={() => setEditing(true)} />
           )

@@ -19,15 +19,15 @@ export function SearchBar({
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [isMac, setIsMac] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | undefined>(undefined);
   const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
   const modalExitMs = 220;
 
-  useEffect(() => {
-    setIsMac(/Mac|iPhone|iPad/i.test(navigator.platform));
+  const isMac = useMemo(() => {
+    if (typeof navigator === 'undefined') return true;
+    return /Mac|iPhone|iPad/i.test(navigator.platform);
   }, []);
 
   useEffect(() => {
@@ -134,6 +134,8 @@ export function SearchBar({
 
       {mounted && (
         <div
+          role="dialog"
+          aria-modal="true"
           className="fixed inset-0 z-[120] flex justify-center px-4"
           style={{
             background: 'rgba(0,0,0,0.44)',
@@ -158,8 +160,9 @@ export function SearchBar({
               opacity: open ? 1 : 0,
               transform: open ? 'translateY(0px) scale(1)' : 'translateY(-10px) scale(0.98)',
               transition: 'opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
-              willChange: 'opacity, transform',
+              willChange: open ? 'opacity, transform' : undefined,
             }}
+            role="document"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div

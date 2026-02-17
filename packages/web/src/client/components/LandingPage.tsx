@@ -424,7 +424,7 @@ export function LandingPage() {
                 fontWeight: pricingPeriod === 'monthly' ? 600 : 500,
                 fontSize: '14px',
                 cursor: 'pointer',
-                transition: 'all 200ms ease',
+                transition: 'background-color 200ms ease, color 200ms ease, font-weight 200ms ease',
               }}
             >
               Monthly
@@ -442,7 +442,7 @@ export function LandingPage() {
                 fontWeight: pricingPeriod === 'yearly' ? 600 : 500,
                 fontSize: '14px',
                 cursor: 'pointer',
-                transition: 'all 200ms ease',
+                transition: 'background-color 200ms ease, color 200ms ease, font-weight 200ms ease',
               }}
             >
               Yearly
@@ -536,8 +536,21 @@ export function LandingPage() {
 
       {/* Login modal */}
       {showLogin && (
-        <div className="landing-modal-overlay" onClick={() => setShowLogin(false)}>
-          <div className="landing-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="landing-modal-overlay"
+          onClick={() => setShowLogin(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowLogin(false);
+          }}
+        >
+          <div
+            className="landing-modal"
+            role="document"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
             <button
               type="button"
               className="landing-modal-close"
@@ -557,7 +570,7 @@ export function LandingPage() {
                 onChange={(e) => setTokenValue(e.target.value)}
                 placeholder="Paste your token"
                 className="landing-modal-input"
-                autoFocus
+                ref={(el) => el?.focus()}
               />
               <button type="submit" className="landing-btn-primary landing-btn-lg landing-btn-full">
                 Connect <ArrowRight />

@@ -208,7 +208,7 @@ export function MarkdownCodeBlock({
 }) {
   const plainHtml = useMemo(() => escapeHtml(code), [code]);
   const [highlightedHtml, setHighlightedHtml] = useState(plainHtml);
-  const [resolvedLanguage, setResolvedLanguage] = useState<string | undefined>(
+  const [resolvedLanguage, setResolvedLanguage] = useState<string | undefined>(() =>
     resolveLanguageName(language),
   );
 

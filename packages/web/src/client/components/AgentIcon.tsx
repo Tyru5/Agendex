@@ -26,9 +26,9 @@ export function AgentIcon({ agent, size = 14 }: { agent: string; size?: number }
       >
         <svg viewBox={icon.viewBox ?? '0 0 24 24'} width={size} height={size} fill="none">
           {icon.paths?.length ? (
-            icon.paths.map((segment, index) => (
+            icon.paths.map((segment) => (
               <path
-                key={`${agent}-${index}`}
+                key={segment.d}
                 d={segment.d}
                 fill={segment.fill ?? fill}
                 fillRule={segment.fillRule}
