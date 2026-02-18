@@ -2140,7 +2140,7 @@ body {
 
 .offline-hint {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   font-size: 12.5px;
   color: var(--offline-muted);
@@ -2148,6 +2148,7 @@ body {
   border-radius: 8px;
   border: 1px dashed var(--border);
   background: var(--hover);
+  line-height: 1.7;
 }
 
 .offline-hint-icon {
@@ -2155,6 +2156,7 @@ body {
   align-items: center;
   color: var(--offline-accent);
   flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .offline-hint code {
@@ -2165,6 +2167,7 @@ body {
   border-radius: 4px;
   color: var(--text);
   border: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 @media (prefers-color-scheme: light) {

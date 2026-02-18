@@ -64,18 +64,13 @@ export function OfflineView() {
         <h2 className="offline-title">Local server unreachable</h2>
 
         <p className="offline-desc">
-          The Agendex daemon isn't responding. Switched to <strong>cloud mode</strong>{' '}
-          automatically.
+          The Agendex daemon isn't responding. Plans will reload automatically when it reconnects.
         </p>
 
         <div className="offline-diagnostics">
           <div className="offline-diag-row">
             <span className="offline-diag-label">STATUS</span>
             <span className="offline-diag-value offline-diag-alert">Disconnected</span>
-          </div>
-          <div className="offline-diag-row">
-            <span className="offline-diag-label">FALLBACK</span>
-            <span className="offline-diag-value offline-diag-ok">Cloud active</span>
           </div>
           <div className="offline-diag-row">
             <span className="offline-diag-label">POLLING</span>
@@ -99,7 +94,9 @@ export function OfflineView() {
               />
             </svg>
           </span>
-          Run <code>agendex start</code> or <code>bun run dev</code> to reconnect
+          <span>
+            Run <code>agendex start</code> or <code>bun run dev</code> to reconnect
+          </span>
         </div>
       </div>
     </div>

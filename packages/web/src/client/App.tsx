@@ -100,10 +100,12 @@ function Dashboard() {
     return result;
   }, [plans, search, dateBucket, sortBy]);
 
+  const prevBackendStatus = useRef(backendStatus);
   useEffect(() => {
-    if (backendStatus === 'offline' && mode === 'local') {
-      setMode('cloud');
+    if (prevBackendStatus.current === 'offline' && backendStatus === 'online') {
+      localPlans.refresh();
     }
+    prevBackendStatus.current = backendStatus;
   }, [backendStatus]);
 
   const totalPlans = useMemo(() => {
@@ -497,7 +499,9 @@ function Dashboard() {
           viewTransitionName: 'main-content',
         }}
       >
-        {creating ? (
+        {backendStatus === 'offline' ? (
+          <OfflineView />
+        ) : creating ? (
           <Suspense
             fallback={
               <div className="p-4">
@@ -540,8 +544,6 @@ function Dashboard() {
               onEdit={() => startViewTransition(() => setEditing(true))}
             />
           )
-        ) : backendStatus === 'offline' ? (
-          <OfflineView />
         ) : (
           <div
             className="h-full flex items-center justify-center"
