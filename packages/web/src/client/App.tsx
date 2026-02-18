@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { hasToken, setToken, type Plan } from './lib/api.ts';
 import { usePlans, useAgents } from './hooks/usePlans.ts';
 import { SearchBar } from './components/SearchBar.tsx';
-import { AgentSelect } from './components/AgentSelect.tsx';
+import { SidebarFilters } from './components/SidebarFilters.tsx';
 import { PlanList } from './components/PlanList.tsx';
 import { PlanViewer } from './components/PlanViewer.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
@@ -55,9 +55,11 @@ function Dashboard() {
     return localStorage.getItem(SIDEBAR_PREF_KEY) === 'true';
   });
   const [sidebarPeek, setSidebarPeek] = useState(false);
+  const [sortBy, setSortBy] = useState<'updatedAt' | 'createdAt' | 'title'>('updatedAt');
+  const [dateBucket, setDateBucket] = useState<'all' | 'today' | '7d' | '30d'>('all');
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const filters = useMemo(() => ({ agent: agentFilter }), [agentFilter]);
+  const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
 
   const localPlans = usePlans(filters);
   const cloudPlans = useCloudPlans();
@@ -74,7 +76,16 @@ function Dashboard() {
         }
       : localPlans;
 
-  const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
+  const filteredPlans = useMemo(() => {
+    let result = filterPlans(plans, search);
+    if (dateBucket !== 'all') {
+      const cutoffs = { today: 86400000, '7d': 604800000, '30d': 2592000000 };
+      const cutoff = Date.now() - cutoffs[dateBucket];
+      const field = sortBy === 'createdAt' ? 'createdAt' : 'updatedAt';
+      result = result.filter((p) => new Date(p[field]).getTime() >= cutoff);
+    }
+    return result;
+  }, [plans, search, dateBucket, sortBy]);
 
   useEffect(() => {
     if (backendStatus === 'offline' && mode === 'local') {
@@ -240,9 +251,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="flex justify-center min-w-0 shrink-0 justify-self-center">
-          <AgentSelect agents={agents} selected={agentFilter} onSelect={setAgentFilter} />
-        </div>
+        <div />
 
         <div
           className="flex items-center justify-end gap-3 min-w-0 justify-self-end"
@@ -358,21 +367,16 @@ function Dashboard() {
             : 'opacity 120ms ease',
         }}
       >
-        <div className="px-3 pt-3">
-          <div
-            style={{
-              fontSize: '11px',
-              fontWeight: 550,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              color: 'var(--tertiary)',
-              padding: '0 8px',
-              marginBottom: '4px',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Recent
-          </div>
+        <div className="px-3 pt-3 pb-2">
+          <SidebarFilters
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            dateBucket={dateBucket}
+            onDateBucketChange={setDateBucket}
+            agents={agents}
+            selectedAgent={agentFilter}
+            onAgentSelect={setAgentFilter}
+          />
         </div>
 
         <div className="flex-1 overflow-auto sidebar-scroll px-3 pb-3">

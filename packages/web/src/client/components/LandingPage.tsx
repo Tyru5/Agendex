@@ -3,6 +3,8 @@ import { setToken } from '../lib/api.ts';
 import { useAuth } from '../hooks/useAuth.ts';
 import { PricingModal } from './PricingModal.tsx';
 
+const DEBUG = true;
+
 const FAQ_ITEMS = [
   {
     q: 'What is Agendex?',
@@ -247,6 +249,7 @@ export function LandingPage() {
   const [activeTab, setActiveTab] = useState<'cloud' | 'local'>('local');
   const [pricingPeriod, setPricingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
   const { isAuthenticated } = useAuth();
 
   function submit(e: React.FormEvent) {
@@ -259,10 +262,10 @@ export function LandingPage() {
 
   function handleGetStarted() {
     if (isAuthenticated) {
-      // Already authenticated, redirect to dashboard
       window.location.href = '/dashboard';
+    } else if (activeTab === 'local') {
+      setShowLogin(true);
     } else {
-      // Show pricing modal for unauthenticated users
       setShowPricing(true);
     }
   }

@@ -19,7 +19,8 @@
   },
   "devDependencies": {
     "@types/bun": "^1.3.9",
-    "prettier": "^3.8.1"
+    "prettier": "^3.8.1",
+    "tidewave": "^0.6.0"
   },
   "peerDependencies": {
     "typescript": "^5"

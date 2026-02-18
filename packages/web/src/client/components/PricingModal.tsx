@@ -5,6 +5,39 @@ interface PricingModalProps {
   onClose?: () => void;
 }
 
+const FREE_FEATURES = [
+  'Local plan indexing & search',
+  'All agent adapters',
+  'Full source access',
+  'No accounts required',
+];
+
+const PRO_FEATURES = [
+  'Everything in Self-Hosted',
+  'Cloud sync via CLI daemon',
+  'Shareable plan links',
+  'Comment threads',
+  'Up to 5 workspace members',
+  'Access from any device',
+];
+
+function ArrowRight() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12h14M12 5l7 7-7 7" />
+    </svg>
+  );
+}
+
 export function PricingModal({ onClose }: PricingModalProps) {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [loading, setLoading] = useState(false);
@@ -18,26 +51,16 @@ export function PricingModal({ onClose }: PricingModalProps) {
     setLoading(true);
     try {
       await createCheckout(billingPeriod);
-    } catch (err) {
-      console.error('Checkout failed:', err);
+    } catch {
       setLoading(false);
     }
   }
 
   return (
     <div
+      className="pricing-overlay"
       role="dialog"
       aria-modal="true"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0, 0, 0, 0.5)',
-        backdropFilter: 'blur(4px)',
-      }}
       onClick={(e) => {
         if (e.target === e.currentTarget && onClose) onClose();
       }}
@@ -45,170 +68,107 @@ export function PricingModal({ onClose }: PricingModalProps) {
         if (e.key === 'Escape' && onClose) onClose();
       }}
     >
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: '500px',
-          margin: '0 16px',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: '32px',
-        }}
-      >
-        {/* Close button */}
+      <div className="pricing-modal">
         {onClose && (
-          <button
-            onClick={onClose}
-            style={{
-              position: 'absolute',
-              top: '16px',
-              right: '16px',
-              background: 'none',
-              border: 'none',
-              fontSize: '20px',
-              cursor: 'pointer',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            ×
+          <button className="pricing-modal-close" onClick={onClose} aria-label="Close">
+            ✕
           </button>
         )}
 
-        <h2 style={{ margin: '0 0 24px 0', fontSize: '24px', fontWeight: 600 }}>
-          Upgrade to Cloud Pro
-        </h2>
+        <div className="pricing-modal-header">
+          <h2 className="pricing-modal-title">Run it your way.</h2>
+          <p className="pricing-modal-subtitle">
+            Self-host for free or upgrade for cloud sync, sharing & collaboration.
+          </p>
+        </div>
 
-        {/* Billing toggle */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '8px',
-            marginBottom: '32px',
-            background: 'var(--background)',
-            padding: '4px',
-            borderRadius: 'var(--radius)',
-          }}
-        >
-          {(['monthly', 'yearly'] as const).map((period) => (
+        <div className="pricing-toggle-wrap">
+          <div className="pricing-toggle">
+            <div className="pricing-toggle-pill" data-active={billingPeriod} />
             <button
-              key={period}
-              onClick={() => setBillingPeriod(period)}
-              style={{
-                flex: 1,
-                padding: '10px 16px',
-                border: 'none',
-                borderRadius: 'calc(var(--radius) - 2px)',
-                background: billingPeriod === period ? 'var(--surface)' : 'transparent',
-                color: 'var(--text)',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'background 200ms',
-              }}
+              className="pricing-toggle-btn"
+              data-selected={billingPeriod === 'monthly' ? 'true' : 'false'}
+              onClick={() => setBillingPeriod('monthly')}
+              type="button"
             >
-              {period === 'monthly' ? 'Monthly' : 'Yearly'}
-              {period === 'yearly' && (
-                <span
-                  style={{
-                    marginLeft: '8px',
-                    background: 'var(--primary)',
-                    color: 'white',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                  }}
-                >
-                  Save {yearlySavings}%
-                </span>
-              )}
+              Monthly
             </button>
-          ))}
-        </div>
-
-        {/* Pricing display */}
-        <div
-          style={{
-            background: 'var(--background)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '24px',
-            marginBottom: '24px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <span style={{ fontSize: '40px', fontWeight: 700 }}>
-              ${billingPeriod === 'monthly' ? monthlyPrice : yearlyPrice}
-            </span>
-            <span style={{ fontSize: '16px', color: 'var(--text-secondary)' }}>
-              /{billingPeriod === 'monthly' ? 'month' : 'year'}
-            </span>
+            <button
+              className="pricing-toggle-btn"
+              data-selected={billingPeriod === 'yearly' ? 'true' : 'false'}
+              onClick={() => setBillingPeriod('yearly')}
+              type="button"
+            >
+              Yearly
+              <span className="pricing-toggle-save">-{yearlySavings}%</span>
+            </button>
           </div>
-          {billingPeriod === 'yearly' && (
-            <div style={{ marginTop: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-              ${(yearlyPrice / 12).toFixed(2)}/month billed annually
+        </div>
+
+        <div className="pricing-cards">
+          {/* Free tier */}
+          <div className="pricing-card">
+            <span className="pricing-card-badge">Free</span>
+            <h3 className="pricing-card-name">Self-Hosted</h3>
+            <div className="pricing-card-price">
+              <span className="pricing-card-amount">$0</span>
+              <span className="pricing-card-period">/forever</span>
             </div>
-          )}
-        </div>
+            <div className="pricing-card-annual-note" />
+            <p className="pricing-card-desc">
+              Clone the repo, run locally. Full control over your data.
+            </p>
+            <ul className="pricing-card-features">
+              {FREE_FEATURES.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+            <a
+              href="https://github.com/Tyru5/agendex"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="pricing-card-cta pricing-card-cta-ghost"
+            >
+              GitHub
+            </a>
+          </div>
 
-        {/* Features */}
-        <div style={{ marginBottom: '24px' }}>
-          <h3
-            style={{
-              margin: '0 0 16px 0',
-              fontSize: '14px',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            Includes
-          </h3>
-          <ul
-            style={{
-              listStyle: 'none',
-              margin: 0,
-              padding: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-            }}
-          >
-            {[
-              'Cloud plan sync from CLI',
-              'Plan sharing & collaboration',
-              'Comments & notes',
-              'Web dashboard access',
-            ].map((feature) => (
-              <li key={feature} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ color: 'var(--primary)', fontWeight: 600 }}>✓</span>
-                <span>{feature}</span>
-              </li>
-            ))}
-          </ul>
+          {/* Pro tier */}
+          <div className="pricing-card pricing-card-pro">
+            <span className="pricing-card-badge pricing-card-badge-accent">Pro</span>
+            <h3 className="pricing-card-name">Cloud</h3>
+            <div className="pricing-card-price">
+              <span className="pricing-card-amount">
+                ${billingPeriod === 'monthly' ? monthlyPrice : yearlyPrice}
+              </span>
+              <span className="pricing-card-period">
+                /{billingPeriod === 'monthly' ? 'mo' : 'yr'}
+              </span>
+            </div>
+            <div className="pricing-card-annual-note">
+              {billingPeriod === 'yearly'
+                ? `$${(yearlyPrice / 12).toFixed(2)}/mo billed annually`
+                : '\u00A0'}
+            </div>
+            <p className="pricing-card-desc">
+              No setup, no servers. Install the CLI and start syncing.
+            </p>
+            <ul className="pricing-card-features">
+              {PRO_FEATURES.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+            <button
+              className="pricing-card-cta pricing-card-cta-primary"
+              onClick={handleCheckout}
+              disabled={loading}
+              type="button"
+            >
+              {loading ? 'Redirecting…' : 'Get Started'}
+              {!loading && <ArrowRight />}
+            </button>
+          </div>
         </div>
-
-        {/* CTA */}
-        <button
-          onClick={handleCheckout}
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: '12px 16px',
-            background: 'var(--primary)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius)',
-            fontWeight: 600,
-            cursor: loading ? 'not-allowed' : 'pointer',
-            opacity: loading ? 0.7 : 1,
-            fontSize: '16px',
-            transition: 'opacity 200ms',
-          }}
-        >
-          {loading ? 'Redirecting to Stripe...' : 'Get Started'}
-        </button>
       </div>
     </div>
   );
