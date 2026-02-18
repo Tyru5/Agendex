@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Plan } from '../lib/api.ts';
@@ -242,7 +242,78 @@ export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void })
       </div>
 
       {showShare && <SharePlanDialog plan={plan} onClose={() => setShowShare(false)} />}
+
+      <ScrollToTop />
     </div>
+  );
+}
+
+function ScrollToTop() {
+  const [visible, setVisible] = useState(false);
+  const containerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const wrapper = document.querySelector('.main-scroll') as HTMLElement | null;
+    if (!wrapper) return;
+    containerRef.current = wrapper;
+
+    const onScroll = () => setVisible(wrapper.scrollTop > 400);
+    wrapper.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => wrapper.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  return (
+    <button
+      onClick={scrollToTop}
+      aria-label="Scroll to top"
+      className="scroll-to-top"
+      data-visible={visible}
+      style={{
+        position: 'fixed',
+        bottom: '28px',
+        right: '28px',
+        width: '38px',
+        height: '38px',
+        borderRadius: '10px',
+        border: '1px solid var(--border)',
+        background: 'var(--surface)',
+        color: 'var(--secondary)',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.02)',
+        opacity: visible ? 1 : 0,
+        pointerEvents: visible ? 'auto' : 'none',
+        transform: visible ? 'translateY(0)' : 'translateY(8px)',
+        transition: 'opacity 0.2s ease, transform 0.2s ease, border-color 0.15s, background 0.15s',
+        zIndex: 50,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'var(--tertiary)';
+        e.currentTarget.style.color = 'var(--text)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'var(--border)';
+        e.currentTarget.style.color = 'var(--secondary)';
+      }}
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={2}
+        stroke="currentColor"
+        style={{ width: '15px', height: '15px' }}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+      </svg>
+    </button>
   );
 }
 
