@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { getAll, getById, update, getAgentStats, scan } from '@agendex/shared';
+import { getAll, getById, update, create, getAgentStats, scan } from '@agendex/shared';
 import { search } from '../services/search.ts';
 
 const plans = new Hono();
@@ -56,6 +56,19 @@ plans.put('/plans/:id', async (c) => {
   if (!ok) return c.json({ error: 'not writable' }, 403);
 
   return c.json({ ok: true });
+});
+
+plans.post('/plans', async (c) => {
+  const body = await c.req.json<{ agent: string; title: string; content: string }>();
+  if (!body.agent || !body.title || !body.content) {
+    return c.json({ error: 'agent, title, and content are required' }, 400);
+  }
+  try {
+    const plan = await create(body.agent, body.title, body.content);
+    return c.json(plan, 201);
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : 'create failed' }, 500);
+  }
 });
 
 plans.get('/agents', (c) => {

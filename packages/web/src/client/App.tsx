@@ -15,9 +15,15 @@ import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
 import { SkeletonBlock } from './components/Skeleton.tsx';
 import { useSubscription } from './hooks/useSubscription.ts';
+import { PricingModal } from './components/PricingModal.tsx';
+import { PaywallGuard } from './components/PaywallGuard.tsx';
 
 const PlanEditor = lazy(() =>
   import('./components/PlanEditor.tsx').then((m) => ({ default: m.PlanEditor })),
+);
+
+const PlanCreator = lazy(() =>
+  import('./components/PlanCreator.tsx').then((m) => ({ default: m.PlanCreator })),
 );
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
@@ -51,6 +57,8 @@ function Dashboard() {
   const [agentFilter, setAgentFilter] = useState<string | undefined>();
   const [selectedPlan, setSelectedPlan] = useState<Plan | undefined>();
   const [editing, setEditing] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
   const [mode, setMode] = useState<DashboardMode>('local');
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     return localStorage.getItem(SIDEBAR_PREF_KEY) === 'true';
@@ -239,6 +247,49 @@ function Dashboard() {
           >
             Agendex
           </span>
+          {mode === 'local' && backendStatus === 'online' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (isPro) {
+                  setCreating(true);
+                  setEditing(false);
+                } else {
+                  setShowPricingModal(true);
+                }
+              }}
+              aria-label="Create new plan"
+              title="Create new plan"
+              style={{
+                marginLeft: '8px',
+                width: '28px',
+                height: '28px',
+                borderRadius: '7px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--secondary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.8}
+                stroke="currentColor"
+                style={{ width: '15px', height: '15px' }}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+                />
+              </svg>
+            </button>
+          )}
         </div>
 
         <div className="hidden md:flex min-w-0 justify-center">
@@ -367,6 +418,38 @@ function Dashboard() {
         }}
       >
         <div className="px-3 pt-3 pb-2">
+          {mode === 'local' && backendStatus === 'online' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (isPro) {
+                  setCreating(true);
+                  setEditing(false);
+                } else {
+                  setShowPricingModal(true);
+                }
+              }}
+              style={{
+                width: '100%',
+                padding: '6px 10px',
+                marginBottom: '8px',
+                fontSize: '12.5px',
+                fontWeight: 550,
+                fontFamily: 'inherit',
+                borderRadius: '7px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--text)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+              }}
+            >
+              <span style={{ fontSize: '15px', lineHeight: 1 }}>+</span> New
+            </button>
+          )}
           <SidebarFilters
             sortBy={sortBy}
             onSortChange={setSortBy}
@@ -407,7 +490,27 @@ function Dashboard() {
           background: 'var(--bg)',
         }}
       >
-        {selectedPlan ? (
+        {creating ? (
+          <Suspense
+            fallback={
+              <div className="p-4">
+                <SkeletonBlock lines={5} />
+              </div>
+            }
+          >
+            <PaywallGuard>
+              <PlanCreator
+                agents={agents}
+                onClose={() => setCreating(false)}
+                onCreated={(plan) => {
+                  setCreating(false);
+                  refresh();
+                  setSelectedPlan(plan);
+                }}
+              />
+            </PaywallGuard>
+          </Suspense>
+        ) : selectedPlan ? (
           editing ? (
             <Suspense
               fallback={
@@ -434,6 +537,8 @@ function Dashboard() {
           </div>
         )}
       </div>
+
+      {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
     </div>
   );
 }

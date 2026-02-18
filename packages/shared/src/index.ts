@@ -26,6 +26,7 @@ export {
   getAll,
   getById,
   update,
+  create,
   getAgentStats,
   rescanFile,
   setOnPlansChanged,

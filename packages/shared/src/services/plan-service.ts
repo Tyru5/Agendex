@@ -1,8 +1,12 @@
-import { readdir, lstat } from 'fs/promises';
+import { readdir, lstat, stat, readFile, writeFile, mkdir } from 'fs/promises';
 import { join, resolve, sep } from 'path';
+import { homedir } from 'os';
 import { existsSync } from 'fs';
 import { getActiveAdapters } from '../adapters/registry.ts';
+import { hashPath } from '../hash.ts';
 import type { Plan } from '../types.ts';
+
+const USER_PLANS_DIR = join(homedir(), '.agendex', 'plans');
 
 const store = new Map<string, Plan>();
 const MAX_DEPTH = 6;
@@ -48,6 +52,45 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
   return files;
 }
 
+async function scanUserPlans() {
+  if (!existsSync(USER_PLANS_DIR)) return;
+  const files = await walkDir(USER_PLANS_DIR);
+  for (const file of files) {
+    if (!file.endsWith('.md')) continue;
+    try {
+      const content = await readFile(file, 'utf-8');
+      const stats = await stat(file);
+
+      let agent = 'unknown';
+      const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
+      if (fmMatch) {
+        const agentLine = fmMatch[1].match(/^agent:\s*(.+)$/m);
+        if (agentLine) agent = agentLine[1].trim();
+      }
+
+      const bodyContent = fmMatch ? content.slice(fmMatch[0].length) : content;
+      const titleMatch = bodyContent.match(/^#\s+(.+)/m);
+      const title =
+        titleMatch?.[1]?.trim() || file.split('/').pop()?.replace('.md', '') || 'Untitled';
+
+      const plan: Plan = {
+        id: hashPath(file),
+        agent,
+        title,
+        content: bodyContent,
+        filePath: file,
+        format: 'md',
+        createdAt: stats.birthtime,
+        updatedAt: stats.mtime,
+        metadata: { userCreated: true },
+      };
+      store.set(plan.id, plan);
+    } catch {
+      continue;
+    }
+  }
+}
+
 export async function scan() {
   const adapters = getActiveAdapters();
   store.clear();
@@ -63,6 +106,7 @@ export async function scan() {
       }
     }
   }
+  await scanUserPlans();
   notifyPlansChanged();
   console.log(`[agendex] indexed ${store.size} plans from ${adapters.length} adapters`);
 }
@@ -75,11 +119,30 @@ export function getById(id: string): Plan | undefined {
   return store.get(id);
 }
 
+function isUserPlan(plan: Plan): boolean {
+  return resolve(plan.filePath).startsWith(resolve(USER_PLANS_DIR) + sep);
+}
+
 export async function update(id: string, content: string): Promise<boolean> {
-  const adapters = getActiveAdapters();
   const plan = store.get(id);
   if (!plan) return false;
 
+  if (isUserPlan(plan)) {
+    try {
+      const raw = await readFile(plan.filePath, 'utf-8');
+      const fmMatch = raw.match(/^---\s*\n[\s\S]*?\n---\s*\n/);
+      const prefix = fmMatch ? fmMatch[0] : '';
+      await writeFile(plan.filePath, prefix + content, 'utf-8');
+      plan.content = content;
+      plan.updatedAt = new Date();
+      notifyPlansChanged();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const adapters = getActiveAdapters();
   const adapter = adapters.find((a) => a.agent === plan.agent);
   if (!adapter?.writable) return false;
 
@@ -90,6 +153,57 @@ export async function update(id: string, content: string): Promise<boolean> {
     notifyPlansChanged();
   }
   return ok;
+}
+
+function slugify(title: string): string {
+  return (
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 60) || 'plan'
+  );
+}
+
+export async function create(agentName: string, title: string, content: string): Promise<Plan> {
+  const adapters = getActiveAdapters();
+  const adapter = adapters.find((a) => a.agent === agentName);
+  const slug = slugify(title);
+  const timestamp = Date.now();
+  const filename = `${slug}-${timestamp}.md`;
+
+  let filePath: string;
+  let fileContent: string;
+
+  if (adapter?.writable) {
+    const dir = adapter.getSearchPaths()[0];
+    await mkdir(dir, { recursive: true });
+    filePath = join(dir, filename);
+    fileContent = `# ${title}\n\n${content}`;
+  } else {
+    await mkdir(USER_PLANS_DIR, { recursive: true });
+    filePath = join(USER_PLANS_DIR, filename);
+    fileContent = `---\nagent: ${agentName}\n---\n# ${title}\n\n${content}`;
+  }
+
+  await writeFile(filePath, fileContent, 'utf-8');
+
+  const now = new Date();
+  const plan: Plan = {
+    id: hashPath(filePath),
+    agent: agentName,
+    title,
+    content: `# ${title}\n\n${content}`,
+    filePath,
+    format: 'md',
+    createdAt: now,
+    updatedAt: now,
+    metadata: adapter?.writable ? {} : { userCreated: true },
+  };
+
+  store.set(plan.id, plan);
+  notifyPlansChanged();
+  return plan;
 }
 
 export function getAgentStats() {
