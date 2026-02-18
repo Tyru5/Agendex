@@ -46,6 +46,30 @@
   }
 }
 
+/* ─── View Transitions ─── */
+
+::view-transition-old(main-content) {
+  animation: vt-fadeOut 0.15s ease both;
+}
+
+::view-transition-new(main-content) {
+  animation: vt-fadeIn 0.2s ease 0.05s both;
+}
+
+@keyframes vt-fadeOut {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes vt-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
 @keyframes skeleton-pulse {
   0%,
   100% {
@@ -1221,6 +1245,202 @@ body {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+/* ─── Paywall Guard ─── */
+
+.paywall-guard {
+  --pw-accent: #c8ff32;
+  --pw-bg: #0c0c0c;
+  --pw-surface: #151515;
+  --pw-border: rgba(255, 255, 255, 0.07);
+  --pw-text: #e8e8e8;
+  --pw-muted: #777;
+
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 420px;
+  padding: 48px 24px;
+  overflow: hidden;
+}
+
+.paywall-guard-back {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--pw-border);
+  background: transparent;
+  color: var(--pw-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.paywall-guard-back:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--pw-text);
+}
+
+.paywall-guard-glow {
+  position: absolute;
+  top: -40%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200, 255, 50, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  animation: pw-glowPulse 4s ease-in-out infinite;
+}
+
+.paywall-guard-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 360px;
+  animation: pw-fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.paywall-guard-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: var(--pw-accent);
+  color: #0a0a0a;
+  margin-bottom: 20px;
+}
+
+.paywall-guard-title {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  color: var(--pw-text);
+  margin: 0 0 10px;
+  line-height: 1.2;
+}
+
+.paywall-guard-desc {
+  font-size: 14px;
+  color: var(--pw-muted);
+  margin: 0 0 28px;
+  line-height: 1.55;
+  max-width: 300px;
+}
+
+.paywall-guard-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+  margin-bottom: 32px;
+  width: 100%;
+}
+
+.paywall-guard-feature {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--pw-text);
+  white-space: nowrap;
+}
+
+.paywall-guard-feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: rgba(200, 255, 50, 0.08);
+  color: var(--pw-accent);
+  flex-shrink: 0;
+}
+
+.paywall-guard-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 28px;
+  border-radius: 10px;
+  border: none;
+  background: var(--pw-accent);
+  color: #0a0a0a;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition:
+    opacity 0.15s,
+    transform 0.1s;
+}
+
+.paywall-guard-cta::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  animation: pm-shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.paywall-guard-cta:hover {
+  opacity: 0.9;
+}
+
+.paywall-guard-cta:active {
+  transform: scale(0.97);
+}
+
+@keyframes pw-fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pw-glowPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translateX(-50%) scale(1.08);
   }
 }
 

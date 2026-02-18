@@ -17,6 +17,7 @@ import { SkeletonBlock } from './components/Skeleton.tsx';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { PricingModal } from './components/PricingModal.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
+import { startViewTransition } from './lib/view-transition.ts';
 
 const PlanEditor = lazy(() =>
   import('./components/PlanEditor.tsx').then((m) => ({ default: m.PlanEditor })),
@@ -252,8 +253,10 @@ function Dashboard() {
               type="button"
               onClick={() => {
                 if (isPro) {
-                  setCreating(true);
-                  setEditing(false);
+                  startViewTransition(() => {
+                    setCreating(true);
+                    setEditing(false);
+                  });
                 } else {
                   setShowPricingModal(true);
                 }
@@ -423,8 +426,10 @@ function Dashboard() {
               type="button"
               onClick={() => {
                 if (isPro) {
-                  setCreating(true);
-                  setEditing(false);
+                  startViewTransition(() => {
+                    setCreating(true);
+                    setEditing(false);
+                  });
                 } else {
                   setShowPricingModal(true);
                 }
@@ -474,7 +479,7 @@ function Dashboard() {
             <PlanList
               plans={filteredPlans}
               selectedId={selectedPlan?.id}
-              onSelect={setSelectedPlan}
+              onSelect={(plan) => startViewTransition(() => setSelectedPlan(plan))}
               isPro={isPro}
             />
           )}
@@ -488,6 +493,7 @@ function Dashboard() {
           gridColumn: '2 / 3',
           gridRow: '2 / 3',
           background: 'var(--bg)',
+          viewTransitionName: 'main-content',
         }}
       >
         {creating ? (
@@ -498,14 +504,16 @@ function Dashboard() {
               </div>
             }
           >
-            <PaywallGuard>
+            <PaywallGuard onBack={() => startViewTransition(() => setCreating(false))}>
               <PlanCreator
                 agents={agents}
-                onClose={() => setCreating(false)}
+                onClose={() => startViewTransition(() => setCreating(false))}
                 onCreated={(plan) => {
-                  setCreating(false);
-                  refresh();
-                  setSelectedPlan(plan);
+                  startViewTransition(() => {
+                    setCreating(false);
+                    refresh();
+                    setSelectedPlan(plan);
+                  });
                 }}
               />
             </PaywallGuard>
@@ -521,12 +529,15 @@ function Dashboard() {
             >
               <PlanEditor
                 plan={selectedPlan}
-                onClose={() => setEditing(false)}
+                onClose={() => startViewTransition(() => setEditing(false))}
                 onSaved={handleSaved}
               />
             </Suspense>
           ) : (
-            <PlanViewer plan={selectedPlan} onEdit={() => setEditing(true)} />
+            <PlanViewer
+              plan={selectedPlan}
+              onEdit={() => startViewTransition(() => setEditing(true))}
+            />
           )
         ) : (
           <div
