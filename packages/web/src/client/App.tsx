@@ -14,6 +14,7 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
 import { SkeletonBlock } from './components/Skeleton.tsx';
+import { OfflineView } from './components/OfflineView.tsx';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { PricingModal } from './components/PricingModal.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
@@ -539,6 +540,8 @@ function Dashboard() {
               onEdit={() => startViewTransition(() => setEditing(true))}
             />
           )
+        ) : backendStatus === 'offline' ? (
+          <OfflineView />
         ) : (
           <div
             className="h-full flex items-center justify-center"
