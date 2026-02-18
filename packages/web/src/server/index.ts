@@ -51,11 +51,14 @@ app.use('/api/*', async (_c, next) => {
   await startup;
   await next();
 });
-app.use('/api/*', authMiddleware);
-app.route('/api/v1', plans);
 
 app.get(
   '/api/v1/ws',
+  (c, next) => {
+    const token = new URL(c.req.url).searchParams.get('token');
+    if (token !== AUTH_TOKEN) return c.json({ error: 'unauthorized' }, 401);
+    return next();
+  },
   upgradeWebSocket(() => ({
     onOpen(_event, ws) {
       clients.add(ws);
@@ -65,6 +68,9 @@ app.get(
     },
   })),
 );
+
+app.use('/api/*', authMiddleware);
+app.route('/api/v1', plans);
 
 function broadcast(event: string, data: unknown) {
   const msg = JSON.stringify({ event, data });

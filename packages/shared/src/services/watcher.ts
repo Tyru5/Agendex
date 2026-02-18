@@ -7,6 +7,7 @@ import { rescanFile } from './plan-service.ts';
 type ChangeCallback = (plans: unknown[]) => void;
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const pendingFiles = new Set<string>();
 
 export function startWatching(onChange?: ChangeCallback) {
   const adapters = getActiveAdapters();
@@ -19,10 +20,17 @@ export function startWatching(onChange?: ChangeCallback) {
           const fullPath = join(watchPath, filename);
           if (!adapter.matches(fullPath)) return;
 
+          pendingFiles.add(fullPath);
           if (debounceTimer) clearTimeout(debounceTimer);
           debounceTimer = setTimeout(async () => {
-            const plans = await rescanFile(fullPath);
-            onChange?.(plans);
+            const files = [...pendingFiles];
+            pendingFiles.clear();
+            let allPlans: unknown[] = [];
+            for (const file of files) {
+              const plans = await rescanFile(file);
+              allPlans = allPlans.concat(plans);
+            }
+            onChange?.(allPlans);
           }, 300);
         });
         console.log(`[agendex] watching ${watchPath}`);

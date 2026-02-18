@@ -14,6 +14,7 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
 import { SkeletonBlock } from './components/Skeleton.tsx';
+import { useSubscription } from './hooks/useSubscription.ts';
 
 const PlanEditor = lazy(() =>
   import('./components/PlanEditor.tsx').then((m) => ({ default: m.PlanEditor })),
@@ -65,6 +66,8 @@ function Dashboard() {
   const cloudPlans = useCloudPlans();
   const agents = useAgents();
   const backendStatus = useBackendStatus();
+  const { isActive: _isPro } = useSubscription();
+  const isPro = true; // TODO: remove — temporary override for testing unseen dots
 
   const { plans, loading, error, refresh } =
     mode === 'cloud'
@@ -236,22 +239,18 @@ function Dashboard() {
           >
             Agendex
           </span>
-          <div
-            className="hidden md:block"
-            style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-          />
-          <div className="hidden md:flex min-w-0 flex-1">
-            <SearchBar
-              search={search}
-              onSearch={setSearch}
-              plans={plans}
-              selectedId={selectedPlan?.id}
-              onSelectPlan={setSelectedPlan}
-            />
-          </div>
         </div>
 
-        <div />
+        <div className="hidden md:flex min-w-0 justify-center">
+          <SearchBar
+            search={search}
+            onSearch={setSearch}
+            plans={plans}
+            selectedId={selectedPlan?.id}
+            onSelectPlan={setSelectedPlan}
+            isPro={isPro}
+          />
+        </div>
 
         <div
           className="flex items-center justify-end gap-3 min-w-0 justify-self-end"
@@ -305,7 +304,7 @@ function Dashboard() {
           />
           <div className="hidden lg:flex items-center gap-1.5">
             <div
-              className="rounded-full"
+              className="rounded-full status-pulse"
               style={{
                 width: '6px',
                 height: '6px',
@@ -393,6 +392,7 @@ function Dashboard() {
               plans={filteredPlans}
               selectedId={selectedPlan?.id}
               onSelect={setSelectedPlan}
+              isPro={isPro}
             />
           )}
         </div>

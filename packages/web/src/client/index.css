@@ -60,6 +60,36 @@
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
 
+@keyframes unseen-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: translateY(-50%) scale(0.75);
+  }
+}
+
+.unseen-dot {
+  animation: unseen-pulse 2s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.status-pulse {
+  animation: status-pulse 2.5s ease-in-out infinite;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
