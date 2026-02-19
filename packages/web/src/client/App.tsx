@@ -28,6 +28,10 @@ const PlanCreator = lazy(() =>
   import('./components/PlanCreator.tsx').then((m) => ({ default: m.PlanCreator })),
 );
 
+const PlanUploader = lazy(() =>
+  import('./components/PlanUploader.tsx').then((m) => ({ default: m.PlanUploader })),
+);
+
 const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
@@ -60,6 +64,7 @@ function Dashboard() {
   const [selectedPlan, setSelectedPlan] = useState<Plan | undefined>();
   const [editing, setEditing] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [mode, setMode] = useState<DashboardMode>('local');
   const [sidebarHidden, setSidebarHidden] = useState(() => {
@@ -252,49 +257,91 @@ function Dashboard() {
             Agendex
           </span>
           {mode === 'local' && backendStatus === 'online' && (
-            <button
-              type="button"
-              onClick={() => {
-                if (isPro) {
-                  startViewTransition(() => {
-                    setCreating(true);
-                    setEditing(false);
-                  });
-                } else {
-                  setShowPricingModal(true);
-                }
-              }}
-              aria-label="Create new plan"
-              title="Create new plan"
-              style={{
-                marginLeft: '8px',
-                width: '28px',
-                height: '28px',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.8}
-                stroke="currentColor"
-                style={{ width: '15px', height: '15px' }}
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isPro) {
+                    startViewTransition(() => {
+                      setCreating(true);
+                      setEditing(false);
+                      setUploading(false);
+                    });
+                  } else {
+                    setShowPricingModal(true);
+                  }
+                }}
+                aria-label="Create new plan"
+                title="Create new plan"
+                style={{
+                  marginLeft: '8px',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-                />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.8}
+                  stroke="currentColor"
+                  style={{ width: '15px', height: '15px' }}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  startViewTransition(() => {
+                    setUploading(true);
+                    setCreating(false);
+                    setEditing(false);
+                  })
+                }
+                aria-label="Upload plan"
+                title="Upload plan"
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.8}
+                  stroke="currentColor"
+                  style={{ width: '15px', height: '15px' }}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13"
+                  />
+                </svg>
+              </button>
+            </>
           )}
         </div>
 
@@ -425,38 +472,80 @@ function Dashboard() {
       >
         <div className="px-3 pt-3 pb-2">
           {mode === 'local' && backendStatus === 'online' && (
-            <button
-              type="button"
-              onClick={() => {
-                if (isPro) {
+            <div className="flex gap-1.5" style={{ marginBottom: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isPro) {
+                    startViewTransition(() => {
+                      setCreating(true);
+                      setEditing(false);
+                      setUploading(false);
+                    });
+                  } else {
+                    setShowPricingModal(true);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  fontSize: '12.5px',
+                  fontWeight: 550,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                }}
+              >
+                <span style={{ fontSize: '15px', lineHeight: 1 }}>+</span> New
+              </button>
+              <button
+                type="button"
+                onClick={() =>
                   startViewTransition(() => {
-                    setCreating(true);
+                    setUploading(true);
+                    setCreating(false);
                     setEditing(false);
-                  });
-                } else {
-                  setShowPricingModal(true);
+                  })
                 }
-              }}
-              style={{
-                width: '100%',
-                padding: '6px 10px',
-                marginBottom: '8px',
-                fontSize: '12.5px',
-                fontWeight: 550,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--text)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '5px',
-              }}
-            >
-              <span style={{ fontSize: '15px', lineHeight: 1 }}>+</span> New
-            </button>
+                aria-label="Upload plan"
+                title="Upload plan"
+                style={{
+                  padding: '6px 10px',
+                  fontSize: '12.5px',
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  style={{ width: '14px', height: '14px' }}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13"
+                  />
+                </svg>
+              </button>
+            </div>
           )}
           <SidebarFilters
             sortBy={sortBy}
@@ -501,6 +590,26 @@ function Dashboard() {
       >
         {backendStatus === 'offline' ? (
           <OfflineView />
+        ) : uploading ? (
+          <Suspense
+            fallback={
+              <div className="p-4">
+                <SkeletonBlock lines={5} />
+              </div>
+            }
+          >
+            <PlanUploader
+              agents={agents}
+              onClose={() => startViewTransition(() => setUploading(false))}
+              onCreated={(plan) => {
+                startViewTransition(() => {
+                  setUploading(false);
+                  refresh();
+                  setSelectedPlan(plan);
+                });
+              }}
+            />
+          </Suspense>
         ) : creating ? (
           <Suspense
             fallback={
