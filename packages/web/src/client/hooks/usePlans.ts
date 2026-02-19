@@ -27,7 +27,7 @@ export function usePlans(filters: { agent?: string; q?: string; sort?: string })
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, filters.agent, filters.q, filters.sort]);
 
   useSocketEvent('plan:updated', refresh);
 

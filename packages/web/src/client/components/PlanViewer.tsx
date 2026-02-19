@@ -98,127 +98,22 @@ export function PlanViewer({
           )}
         </div>
 
-        <div className="flex items-start justify-between gap-4">
-          <h1
-            style={{
-              fontSize: '26px',
-              fontWeight: 600,
-              letterSpacing: '-0.03em',
-              lineHeight: 1.25,
-              color: 'var(--text)',
-              marginBottom: '12px',
-            }}
-          >
-            {plan.title}
-          </h1>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleCopy}
-              title={copied ? 'Copied!' : 'Copy plan'}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: copied ? '#16a34a' : 'var(--secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
-            >
-              {copied ? <CheckIcon /> : <CopyIcon />}
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-            {isAuthenticated && (
-              <button
-                type="button"
-                onClick={() => setShowShare(true)}
-                style={{
-                  padding: '5px 12px',
-                  fontSize: '12.5px',
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                  borderRadius: '7px',
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--secondary)',
-                  cursor: 'pointer',
-                }}
-              >
-                Share
-              </button>
-            )}
-            {isMarkdown && (
-              <button
-                type="button"
-                onClick={onEdit}
-                style={{
-                  padding: '5px 12px',
-                  fontSize: '12.5px',
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                  borderRadius: '7px',
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--secondary)',
-                  cursor: 'pointer',
-                }}
-              >
-                Edit
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                if (isPro) {
-                  startViewTransition(() => setShowTechGraph((v) => !v));
-                }
-              }}
-              title={!isPro ? 'Pro feature' : showTechGraph ? 'Hide tech graph' : 'Show tech graph'}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: showTechGraph ? 'rgba(139,92,246,0.1)' : 'transparent',
-                color: showTechGraph ? '#8b5cf6' : isPro ? 'var(--secondary)' : 'var(--tertiary)',
-                cursor: isPro ? 'pointer' : 'default',
-                opacity: isPro ? 1 : 0.5,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
-            >
-              <GraphIcon />
-              {showTechGraph ? 'Hide Graph' : 'Tech Graph'}
-              {!isPro && (
-                <span
-                  style={{
-                    fontSize: '9px',
-                    fontWeight: 600,
-                    padding: '1px 4px',
-                    borderRadius: '3px',
-                    background: 'rgba(139,92,246,0.15)',
-                    color: '#8b5cf6',
-                  }}
-                >
-                  PRO
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
+        <h1
+          style={{
+            fontSize: '26px',
+            fontWeight: 600,
+            letterSpacing: '-0.03em',
+            lineHeight: 1.25,
+            color: 'var(--text)',
+            marginBottom: '12px',
+          }}
+        >
+          {plan.title}
+        </h1>
 
         <div
           className="flex items-center gap-5"
-          style={{ fontSize: '12.5px', color: 'var(--secondary)' }}
+          style={{ fontSize: '12.5px', color: 'var(--secondary)', marginBottom: '16px' }}
         >
           <span className="flex items-center gap-1.5">
             <ClockIcon />
@@ -240,6 +135,110 @@ export function PlanViewer({
           >
             Writable
           </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCopy}
+            title={copied ? 'Copied!' : 'Copy plan'}
+            style={{
+              padding: '5px 12px',
+              fontSize: '12.5px',
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              borderRadius: '7px',
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: copied ? '#16a34a' : 'var(--secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+            }}
+          >
+            {copied ? <CheckIcon /> : <CopyIcon />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          {isAuthenticated && (
+            <button
+              type="button"
+              onClick={() => setShowShare(true)}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12.5px',
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                borderRadius: '7px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              Share
+            </button>
+          )}
+          {isMarkdown && (
+            <button
+              type="button"
+              onClick={onEdit}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12.5px',
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                borderRadius: '7px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              Edit
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (isPro) {
+                startViewTransition(() => setShowTechGraph((v) => !v));
+              }
+            }}
+            title={!isPro ? 'Pro feature' : showTechGraph ? 'Hide tech graph' : 'Show tech graph'}
+            style={{
+              padding: '5px 12px',
+              fontSize: '12.5px',
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              borderRadius: '7px',
+              border: '1px solid var(--border)',
+              background: showTechGraph ? 'rgba(139,92,246,0.1)' : 'transparent',
+              color: showTechGraph ? '#8b5cf6' : isPro ? 'var(--secondary)' : 'var(--tertiary)',
+              cursor: isPro ? 'pointer' : 'default',
+              opacity: isPro ? 1 : 0.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+            }}
+          >
+            <GraphIcon />
+            {showTechGraph ? 'Hide Graph' : 'Tech Graph'}
+            {!isPro && (
+              <span
+                style={{
+                  fontSize: '9px',
+                  fontWeight: 600,
+                  padding: '1px 4px',
+                  borderRadius: '3px',
+                  background: 'rgba(139,92,246,0.15)',
+                  color: '#8b5cf6',
+                }}
+              >
+                PRO
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
