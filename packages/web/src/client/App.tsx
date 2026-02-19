@@ -15,6 +15,7 @@ import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useAgents, usePlans } from './hooks/usePlans.ts';
+import { useSeenPlans } from './hooks/useSeenPlans.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { hasToken, type Plan } from './lib/api.ts';
 import { filterPlans } from './lib/plan-search.ts';
@@ -75,6 +76,7 @@ function Dashboard() {
   const [sortBy, setSortBy] = useState<'updatedAt' | 'createdAt' | 'title'>('updatedAt');
   const [dateBucket, setDateBucket] = useState<'all' | 'today' | '7d' | '30d'>('all');
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const sidebarBeforeWide = useRef<boolean | null>(null);
 
   const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
 
@@ -94,6 +96,12 @@ function Dashboard() {
           refresh: async () => {},
         }
       : localPlans;
+
+  const { isUnseen } = useSeenPlans();
+  const hasUnseenPlans = useMemo(
+    () => plans.some((p) => isUnseen(p.id, p.updatedAt)),
+    [plans, isUnseen],
+  );
 
   const filteredPlans = useMemo(() => {
     let result = filterPlans(plans, search);
@@ -195,6 +203,16 @@ function Dashboard() {
     setSidebarHidden((current) => !current);
   }
 
+  function handleChartWideChange(wide: boolean) {
+    if (wide) {
+      sidebarBeforeWide.current = !sidebarHidden;
+      if (!sidebarHidden) setSidebarHidden(true);
+    } else {
+      if (sidebarBeforeWide.current) setSidebarHidden(false);
+      sidebarBeforeWide.current = null;
+    }
+  }
+
   return (
     <div
       className="h-screen grid overflow-hidden"
@@ -230,27 +248,43 @@ function Dashboard() {
             borderRight: sidebarPinnedOpen ? '1px solid var(--border)' : 'none',
           }}
         >
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
-            title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
-            className="shrink-0"
-            style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              background: sidebarHidden ? 'var(--hover)' : 'transparent',
-              color: 'var(--text)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <SidebarToggleIcon hidden={sidebarHidden} />
-          </button>
+          <div className="shrink-0" style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+              title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+              style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: sidebarHidden ? 'var(--hover)' : 'transparent',
+                color: 'var(--text)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <SidebarToggleIcon hidden={sidebarHidden} />
+            </button>
+            {sidebarHidden && hasUnseenPlans && (
+              <span
+                className="sidebar-dot"
+                style={{
+                  position: 'absolute',
+                  top: '-2px',
+                  right: '-2px',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: '#3b82f6',
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </div>
           <span
             className="font-semibold text-sm"
             style={{ letterSpacing: '-0.02em', color: 'var(--text)', whiteSpace: 'nowrap' }}
@@ -656,6 +690,7 @@ function Dashboard() {
             <PlanViewer
               plan={selectedPlan}
               onEdit={() => startViewTransition(() => setEditing(true))}
+              onChartWideChange={handleChartWideChange}
             />
           )
         ) : (

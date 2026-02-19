@@ -350,9 +350,10 @@ function GraphContent({
 
 interface TechDependencyChartProps {
   plan: Plan;
+  onWideChange?: (wide: boolean) => void;
 }
 
-export function TechDependencyChart({ plan }: TechDependencyChartProps) {
+export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [wide, setWide] = useState(false);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
@@ -571,7 +572,11 @@ export function TechDependencyChart({ plan }: TechDependencyChartProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button
             type="button"
-            onClick={() => setWide((v) => !v)}
+            onClick={() => {
+              const next = !wide;
+              setWide(next);
+              onWideChange?.(next);
+            }}
             title={wide ? 'Collapse width' : 'Expand width'}
             style={{
               padding: '5px 12px',

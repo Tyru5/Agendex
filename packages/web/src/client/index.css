@@ -124,6 +124,31 @@
   animation: unseen-pulse 2s ease-in-out infinite;
 }
 
+@keyframes sidebar-dot-ping {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  75%,
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+.sidebar-dot {
+  position: relative;
+}
+
+.sidebar-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #3b82f6;
+  animation: sidebar-dot-ping 1.5s ease-out infinite;
+}
+
 @keyframes status-pulse {
   0%,
   100% {

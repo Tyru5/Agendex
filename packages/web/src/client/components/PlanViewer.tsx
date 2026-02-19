@@ -33,7 +33,15 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
-export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void }) {
+export function PlanViewer({
+  plan,
+  onEdit,
+  onChartWideChange,
+}: {
+  plan: Plan;
+  onEdit: () => void;
+  onChartWideChange?: (wide: boolean) => void;
+}) {
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
   const [pathCopied, setPathCopied] = useState(false);
@@ -254,7 +262,7 @@ export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void })
               </div>
             }
           >
-            <TechDependencyChart plan={plan} />
+            <TechDependencyChart plan={plan} onWideChange={onChartWideChange} />
           </Suspense>
         </div>
       )}
