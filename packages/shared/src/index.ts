@@ -17,8 +17,10 @@ export {
   saveConfig,
 } from './config.ts';
 export { hashPath } from './hash.ts';
+export type { DiscoveredPlanDir } from './services/plan-service.ts';
 export {
   create,
+  discoverProjectPlanDirs,
   getAgentStats,
   getAll,
   getById,

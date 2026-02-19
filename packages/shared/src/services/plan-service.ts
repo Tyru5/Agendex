@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { lstat, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
@@ -10,6 +10,87 @@ const USER_PLANS_DIR = join(homedir(), '.agendex', 'plans');
 
 const store = new Map<string, Plan>();
 const MAX_DEPTH = 6;
+const DISCOVERY_MAX_DEPTH = 4;
+
+const PROJECT_PLAN_MARKERS = [{ marker: '.sisyphus/plans', agent: 'oh-my-opencode' }];
+
+const SKIP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  '.cache',
+  'vendor',
+  'venv',
+  '__pycache__',
+  'target',
+  '.next',
+  '.nuxt',
+  // macOS
+  'Library',
+  'Applications',
+  'Music',
+  'Movies',
+  'Pictures',
+  'Public',
+  // Windows
+  'AppData',
+  'Application Data',
+  'Program Files',
+  'Program Files (x86)',
+  'Windows',
+  'ProgramData',
+  // Linux
+  'snap',
+  // Common non-dev
+  'Downloads',
+  'Desktop',
+  'Dropbox',
+  'OneDrive',
+  'Google Drive',
+  'iCloud Drive',
+]);
+
+export interface DiscoveredPlanDir {
+  dir: string;
+  agent: string;
+}
+
+export function discoverProjectPlanDirs(): DiscoveredPlanDir[] {
+  const home = homedir();
+  const results: DiscoveredPlanDir[] = [];
+
+  function walk(dir: string, depth: number) {
+    if (depth > DISCOVERY_MAX_DEPTH) return;
+
+    for (const { marker, agent } of PROJECT_PLAN_MARKERS) {
+      const candidate = join(dir, marker);
+      if (existsSync(candidate)) {
+        results.push({ dir: candidate, agent });
+        return;
+      }
+    }
+
+    let names: string[];
+    try {
+      names = readdirSync(dir);
+    } catch {
+      return;
+    }
+
+    for (const name of names) {
+      if (name.startsWith('.') && name !== '.sisyphus') continue;
+      if (SKIP_DIRS.has(name)) continue;
+      const full = join(dir, name);
+      try {
+        if (statSync(full).isDirectory()) walk(full, depth + 1);
+      } catch {}
+    }
+  }
+
+  walk(home, 0);
+  return results;
+}
 
 let onPlansChangedCallback: ((plans: Plan[]) => void) | undefined;
 
@@ -90,8 +171,11 @@ async function scanUserPlans() {
 export async function scan() {
   const adapters = getActiveAdapters();
   store.clear();
+
+  const coveredPaths = new Set<string>();
   for (const adapter of adapters) {
     for (const searchPath of adapter.getSearchPaths()) {
+      coveredPaths.add(resolve(searchPath));
       const files = await walkDir(searchPath);
       for (const file of files) {
         if (!adapter.matches(file)) continue;
@@ -102,6 +186,23 @@ export async function scan() {
       }
     }
   }
+
+  const discovered = discoverProjectPlanDirs();
+  for (const { dir, agent } of discovered) {
+    if (coveredPaths.has(resolve(dir))) continue;
+    const adapter = adapters.find((a) => a.agent === agent);
+    if (!adapter) continue;
+    const files = await walkDir(dir);
+    for (const file of files) {
+      if (!adapter.matches(file)) continue;
+      const plans = await adapter.parse(file);
+      for (const plan of plans) {
+        store.set(plan.id, plan);
+      }
+    }
+    console.log(`[agendex] discovered project plans: ${dir}`);
+  }
+
   await scanUserPlans();
   notifyPlansChanged();
   console.log(`[agendex] indexed ${store.size} plans from ${adapters.length} adapters`);
@@ -226,10 +327,18 @@ export async function rescanFile(filePath: string) {
   for (const adapter of adapters) {
     if (!adapter.matches(filePath)) continue;
 
-    const isInSearchPath = adapter.getSearchPaths().some((sp) => {
-      const searchNormalized = resolve(sp);
-      return normalized.startsWith(searchNormalized + sep);
-    });
+    const discoveredDirs = discoverProjectPlanDirs()
+      .filter((d) => d.agent === adapter.agent)
+      .map((d) => resolve(d.dir));
+
+    const allSearchPaths = [
+      ...adapter.getSearchPaths().map((sp) => resolve(sp)),
+      ...discoveredDirs,
+    ];
+
+    const isInSearchPath = allSearchPaths.some(
+      (sp) => normalized.startsWith(sp + sep) || normalized === sp,
+    );
 
     if (!isInSearchPath) continue;
 
