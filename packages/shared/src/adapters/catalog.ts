@@ -1,5 +1,5 @@
-import { homedir } from 'os';
-import { join } from 'path';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type { AgentAdapter } from '../types.ts';
 import { claudeCodeAdapter } from './claude-code.ts';
 import { codexCliAdapter } from './codex-cli.ts';

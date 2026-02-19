@@ -69,6 +69,7 @@ export const api = {
     if (params?.agent) qs.set('agent', params.agent);
     if (params?.q) qs.set('q', params.q);
     if (params?.sort) qs.set('sort', params.sort);
+    qs.set('limit', '10000');
     const query = qs.toString();
     return request<PlansResponse>(`/plans${query ? `?${query}` : ''}`);
   },
@@ -82,6 +83,12 @@ export const api = {
     }),
 
   getAgents: () => request<AgentStats[]>('/agents'),
+
+  createPlan: (agent: string, title: string, content: string) =>
+    request<Plan>('/plans', {
+      method: 'POST',
+      body: JSON.stringify({ agent, title, content }),
+    }),
 
   rescan: () => request<{ ok: boolean }>('/rescan', { method: 'POST' }),
 };

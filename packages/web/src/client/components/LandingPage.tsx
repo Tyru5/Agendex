@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { setToken } from '../lib/api.ts';
 import { useAuth } from '../hooks/useAuth.ts';
+import { setToken } from '../lib/api.ts';
 import { PricingModal } from './PricingModal.tsx';
 
 const FAQ_ITEMS = [
@@ -22,7 +22,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Do I need to pay to use Agendex?',
-    a: 'Self-hosted is completely free and open source. Cloud Pro is $7/month ($69/year) and includes cloud sync, sharing, comments, workspace collaboration for up to 5 members, and access from any device.',
+    a: 'Self-hosted is completely free and open source. Cloud Pro is $7/month ($69/year) and includes cloud sync, sharing, comments, technology dependency charts, new plan tracking, plan creation from the dashboard, workspace collaboration for up to 5 members, and access from any device.',
   },
   {
     q: 'How does Cloud sync work?',
@@ -98,30 +98,10 @@ const CLOUD_STEPS: CloudStep[] = [
   },
 ];
 
-function Logo() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      <rect
-        x="2"
-        y="2"
-        width="24"
-        height="24"
-        rx="6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        opacity="0.5"
-      />
-      <rect x="7" y="7" width="6" height="6" rx="1.5" fill="currentColor" />
-      <rect x="15" y="7" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.4" />
-      <rect x="7" y="15" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.4" />
-      <rect x="15" y="15" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.15" />
-    </svg>
-  );
-}
-
 function ArrowRight() {
   return (
     <svg
+      aria-hidden="true"
       width="14"
       height="14"
       viewBox="0 0 24 24"
@@ -147,6 +127,7 @@ function GitHubIcon() {
 function CopyIcon() {
   return (
     <svg
+      aria-hidden="true"
       width="14"
       height="14"
       viewBox="0 0 24 24"
@@ -165,6 +146,7 @@ function CopyIcon() {
 function CheckIcon() {
   return (
     <svg
+      aria-hidden="true"
       width="14"
       height="14"
       viewBox="0 0 24 24"
@@ -208,7 +190,7 @@ function FaqItem({
 function PkgManagerInstall() {
   const [activePkg, setActivePkg] = useState(PKG_MANAGERS[0].id);
   const [copied, setCopied] = useState(false);
-  const cmd = PKG_MANAGERS.find((p) => p.id === activePkg)!.cmd;
+  const cmd = PKG_MANAGERS.find((p) => p.id === activePkg)?.cmd;
 
   function copy() {
     navigator.clipboard.writeText(cmd);
@@ -247,6 +229,7 @@ export function LandingPage() {
   const [activeTab, setActiveTab] = useState<'cloud' | 'local'>('local');
   const [pricingPeriod, setPricingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
   const { isAuthenticated } = useAuth();
 
   function submit(e: React.FormEvent) {
@@ -259,10 +242,10 @@ export function LandingPage() {
 
   function handleGetStarted() {
     if (isAuthenticated) {
-      // Already authenticated, redirect to dashboard
       window.location.href = '/dashboard';
+    } else if (activeTab === 'local') {
+      setShowLogin(true);
     } else {
-      // Show pricing modal for unauthenticated users
       setShowPricing(true);
     }
   }
@@ -389,6 +372,30 @@ export function LandingPage() {
               config.
             </p>
           </div>
+          <div className="landing-feature-card">
+            <div className="landing-feature-icon">🧬</div>
+            <h3>Tech Dependency Charts</h3>
+            <p>
+              Visualize technology relationships extracted from your plans as interactive dependency
+              graphs.
+            </p>
+          </div>
+          <div className="landing-feature-card">
+            <div className="landing-feature-icon">🔔</div>
+            <h3>New Plan Tracking</h3>
+            <p>
+              Unseen plan indicators highlight what changed since your last visit. Never miss an
+              agent update.
+            </p>
+          </div>
+          <div className="landing-feature-card">
+            <div className="landing-feature-icon">📝</div>
+            <h3>Plan Creation</h3>
+            <p>
+              Create and upload plans directly from the dashboard. Draft plans in Markdown with live
+              preview.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -503,6 +510,9 @@ export function LandingPage() {
               <li>Cloud sync via CLI daemon</li>
               <li>Shareable plan links</li>
               <li>Comment threads</li>
+              <li>Technology dependency charts</li>
+              <li>New plan tracking &amp; indicators</li>
+              <li>Plan creation from dashboard</li>
               <li>Up to 5 workspace members</li>
               <li>Access from any device</li>
             </ul>

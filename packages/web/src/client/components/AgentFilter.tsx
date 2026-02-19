@@ -1,5 +1,5 @@
-import type { AgentStats } from '../lib/api.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
+import type { AgentStats } from '../lib/api.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
 export function AgentFilter({
@@ -64,6 +64,7 @@ function AgentButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className="flex items-center gap-2 w-full text-left"
       style={{

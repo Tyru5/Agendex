@@ -1,22 +1,40 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { hasToken, setToken, type Plan } from './lib/api.ts';
-import { usePlans, useAgents } from './hooks/usePlans.ts';
-import { SearchBar } from './components/SearchBar.tsx';
-import { AgentSelect } from './components/AgentSelect.tsx';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { parseAsString, parseAsStringLiteral, useQueryState, useQueryStates } from 'nuqs';
+import { throttle } from 'nuqs';
+import { AuthButton } from './components/AuthButton.tsx';
+import { CliAuthPage } from './components/CliAuthPage.tsx';
+import { CloudUpgrade } from './components/CloudUpgrade.tsx';
+import { LandingPage } from './components/LandingPage.tsx';
+import { OfflineView } from './components/OfflineView.tsx';
+import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { PlanList } from './components/PlanList.tsx';
 import { PlanViewer } from './components/PlanViewer.tsx';
+import { PricingModal } from './components/PricingModal.tsx';
+import { SearchBar } from './components/SearchBar.tsx';
+import { SharedPlanView } from './components/SharedPlanView.tsx';
+import { SidebarFilters } from './components/SidebarFilters.tsx';
+import { SkeletonBlock } from './components/Skeleton.tsx';
+import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
+import { ThemeToggle } from './components/ThemeToggle.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
+import { useAgents, usePlans } from './hooks/usePlans.ts';
+import { useSeenPlans } from './hooks/useSeenPlans.ts';
+import { useSubscription } from './hooks/useSubscription.ts';
+import { hasToken, type Plan } from './lib/api.ts';
 import { filterPlans } from './lib/plan-search.ts';
-import { LandingPage } from './components/LandingPage.tsx';
-import { AuthButton } from './components/AuthButton.tsx';
-import { SharedPlanView } from './components/SharedPlanView.tsx';
-import { CliAuthPage } from './components/CliAuthPage.tsx';
-import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
-import { SkeletonBlock } from './components/Skeleton.tsx';
+import { startViewTransition } from './lib/view-transition.ts';
 
 const PlanEditor = lazy(() =>
   import('./components/PlanEditor.tsx').then((m) => ({ default: m.PlanEditor })),
+);
+
+const PlanCreator = lazy(() =>
+  import('./components/PlanCreator.tsx').then((m) => ({ default: m.PlanCreator })),
+);
+
+const PlanUploader = lazy(() =>
+  import('./components/PlanUploader.tsx').then((m) => ({ default: m.PlanUploader })),
 );
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
@@ -29,6 +47,7 @@ type DashboardMode = 'local' | 'cloud';
 function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"
@@ -45,24 +64,62 @@ function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
   );
 }
 
+const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
+const dateOptions = ['all', 'today', '7d', '30d'] as const;
+
 function Dashboard() {
-  const [search, setSearch] = useState('');
-  const [agentFilter, setAgentFilter] = useState<string | undefined>();
-  const [selectedPlan, setSelectedPlan] = useState<Plan | undefined>();
+  const [search, setSearch] = useQueryState(
+    'q',
+    parseAsString
+      .withDefault('')
+      .withOptions({ clearOnDefault: true, limitUrlUpdates: throttle(500) }),
+  );
+  const [{ agent: agentFilterRaw, sort: sortBy, date: dateBucket }, setFilters] = useQueryStates(
+    {
+      agent: parseAsString,
+      sort: parseAsStringLiteral(sortOptions).withDefault('updatedAt'),
+      date: parseAsStringLiteral(dateOptions).withDefault('all'),
+    },
+    { clearOnDefault: true },
+  );
+  const [selectedPlanId, setSelectedPlanId] = useQueryState(
+    'plan',
+    parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
+  );
+
+  const agentFilter = agentFilterRaw ?? undefined;
+  const setAgentFilter = useCallback(
+    (agent: string | undefined) => setFilters({ agent: agent ?? null }),
+    [setFilters],
+  );
+  const setSortBy = useCallback(
+    (sort: 'updatedAt' | 'createdAt' | 'title') => setFilters({ sort }),
+    [setFilters],
+  );
+  const setDateBucket = useCallback(
+    (date: 'all' | 'today' | '7d' | '30d') => setFilters({ date }),
+    [setFilters],
+  );
+
   const [editing, setEditing] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
   const [mode, setMode] = useState<DashboardMode>('local');
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     return localStorage.getItem(SIDEBAR_PREF_KEY) === 'true';
   });
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const sidebarBeforeWide = useRef<boolean | null>(null);
 
-  const filters = useMemo(() => ({ agent: agentFilter }), [agentFilter]);
+  const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
 
   const localPlans = usePlans(filters);
   const cloudPlans = useCloudPlans();
   const agents = useAgents();
   const backendStatus = useBackendStatus();
+  const { isActive: isPro } = useSubscription();
 
   const { plans, loading, error, refresh } =
     mode === 'cloud'
@@ -74,13 +131,30 @@ function Dashboard() {
         }
       : localPlans;
 
-  const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
+  const { isUnseen } = useSeenPlans();
+  const hasUnseenPlans = useMemo(
+    () => plans.some((p) => isUnseen(p.id, p.updatedAt)),
+    [plans, isUnseen],
+  );
 
-  useEffect(() => {
-    if (backendStatus === 'offline' && mode === 'local') {
-      setMode('cloud');
+  const filteredPlans = useMemo(() => {
+    let result = filterPlans(plans, search);
+    if (dateBucket !== 'all') {
+      const cutoffs = { today: 86400000, '7d': 604800000, '30d': 2592000000 };
+      const cutoff = Date.now() - cutoffs[dateBucket];
+      const field = sortBy === 'createdAt' ? 'createdAt' : 'updatedAt';
+      result = result.filter((p) => new Date(p[field]).getTime() >= cutoff);
     }
-  }, [backendStatus]);
+    return result;
+  }, [plans, search, dateBucket, sortBy]);
+
+  const prevBackendStatus = useRef(backendStatus);
+  useEffect(() => {
+    if (prevBackendStatus.current === 'offline' && backendStatus === 'online') {
+      localPlans.refresh();
+    }
+    prevBackendStatus.current = backendStatus;
+  }, [backendStatus, localPlans.refresh]);
 
   const totalPlans = useMemo(() => {
     if (mode === 'cloud') return plans.length;
@@ -117,18 +191,25 @@ function Dashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    if (filteredPlans.length === 0) {
-      setSelectedPlan(undefined);
-      setEditing(false);
-      return;
+  const selectedPlan = useMemo(() => {
+    if (filteredPlans.length === 0) return undefined;
+    if (selectedPlanId) {
+      return filteredPlans.find((p) => p.id === selectedPlanId) ?? filteredPlans[0];
     }
+    return filteredPlans[0];
+  }, [filteredPlans, selectedPlanId]);
 
-    setSelectedPlan((current) => {
-      if (!current) return filteredPlans[0];
-      return filteredPlans.find((plan) => plan.id === current.id) ?? filteredPlans[0];
-    });
-  }, [filteredPlans]);
+  const setSelectedPlan = useCallback(
+    (plan: Plan | undefined) => setSelectedPlanId(plan?.id ?? null),
+    [setSelectedPlanId],
+  );
+
+  useEffect(() => {
+    if (filteredPlans.length === 0 && selectedPlanId) {
+      setSelectedPlanId(null);
+      setEditing(false);
+    }
+  }, [filteredPlans, selectedPlanId, setSelectedPlanId]);
 
   function handleSaved() {
     setEditing(false);
@@ -161,6 +242,16 @@ function Dashboard() {
     clearHoverCloseTimer();
     setSidebarPeek(false);
     setSidebarHidden((current) => !current);
+  }
+
+  function handleChartWideChange(wide: boolean) {
+    if (wide) {
+      sidebarBeforeWide.current = !sidebarHidden;
+      if (!sidebarHidden) setSidebarHidden(true);
+    } else {
+      if (sidebarBeforeWide.current) setSidebarHidden(false);
+      sidebarBeforeWide.current = null;
+    }
   }
 
   return (
@@ -198,56 +289,156 @@ function Dashboard() {
             borderRight: sidebarPinnedOpen ? '1px solid var(--border)' : 'none',
           }}
         >
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
-            title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
-            className="shrink-0"
-            style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              background: sidebarHidden ? 'var(--hover)' : 'transparent',
-              color: 'var(--text)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <SidebarToggleIcon hidden={sidebarHidden} />
-          </button>
+          <div className="shrink-0" style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+              title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+              style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: sidebarHidden ? 'var(--hover)' : 'transparent',
+                color: 'var(--text)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <SidebarToggleIcon hidden={sidebarHidden} />
+            </button>
+            {sidebarHidden && isPro && hasUnseenPlans && (
+              <span
+                className="sidebar-dot"
+                style={{
+                  position: 'absolute',
+                  top: '-2px',
+                  right: '-2px',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: '#3b82f6',
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </div>
           <span
             className="font-semibold text-sm"
             style={{ letterSpacing: '-0.02em', color: 'var(--text)', whiteSpace: 'nowrap' }}
           >
             Agendex
           </span>
-          <div
-            className="hidden md:block"
-            style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-          />
-          <div className="hidden md:flex min-w-0 flex-1">
-            <SearchBar
-              search={search}
-              onSearch={setSearch}
-              plans={plans}
-              selectedId={selectedPlan?.id}
-              onSelectPlan={setSelectedPlan}
-            />
-          </div>
+          {mode === 'local' && backendStatus === 'online' && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isPro) {
+                    startViewTransition(() => {
+                      setCreating(true);
+                      setEditing(false);
+                      setUploading(false);
+                    });
+                  } else {
+                    setShowPricingModal(true);
+                  }
+                }}
+                aria-label="Create new plan"
+                title="Create new plan"
+                style={{
+                  marginLeft: '8px',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.8}
+                  stroke="currentColor"
+                  style={{ width: '15px', height: '15px' }}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  startViewTransition(() => {
+                    setUploading(true);
+                    setCreating(false);
+                    setEditing(false);
+                  })
+                }
+                aria-label="Upload plan"
+                title="Upload plan"
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.8}
+                  stroke="currentColor"
+                  style={{ width: '15px', height: '15px' }}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13"
+                  />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
 
-        <div className="flex justify-center min-w-0 shrink-0 justify-self-center">
-          <AgentSelect agents={agents} selected={agentFilter} onSelect={setAgentFilter} />
+        <div className="hidden md:flex min-w-0 justify-center">
+          <SearchBar
+            search={search}
+            onSearch={setSearch}
+            plans={plans}
+            selectedId={selectedPlan?.id}
+            onSelectPlan={setSelectedPlan}
+            isPro={isPro}
+          />
         </div>
 
         <div
           className="flex items-center justify-end gap-3 min-w-0 justify-self-end"
           style={{ paddingRight: '16px' }}
         >
+          <ThemeToggle />
           <SubscriptionBadge />
           <AuthButton />
           <div
@@ -296,7 +487,7 @@ function Dashboard() {
           />
           <div className="hidden lg:flex items-center gap-1.5">
             <div
-              className="rounded-full"
+              className="rounded-full status-pulse"
               style={{
                 width: '6px',
                 height: '6px',
@@ -328,6 +519,7 @@ function Dashboard() {
       )}
 
       {/* Sidebar */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: hover-reveal sidebar container */}
       <div
         className="flex flex-col overflow-hidden"
         onMouseEnter={revealSidebarOnHover}
@@ -358,21 +550,93 @@ function Dashboard() {
             : 'opacity 120ms ease',
         }}
       >
-        <div className="px-3 pt-3">
-          <div
-            style={{
-              fontSize: '11px',
-              fontWeight: 550,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              color: 'var(--tertiary)',
-              padding: '0 8px',
-              marginBottom: '4px',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Recent
-          </div>
+        <div className="px-3 pt-3 pb-2">
+          {mode === 'local' && backendStatus === 'online' && (
+            <div className="flex gap-1.5" style={{ marginBottom: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isPro) {
+                    startViewTransition(() => {
+                      setCreating(true);
+                      setEditing(false);
+                      setUploading(false);
+                    });
+                  } else {
+                    setShowPricingModal(true);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  fontSize: '12.5px',
+                  fontWeight: 550,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                }}
+              >
+                <span style={{ fontSize: '15px', lineHeight: 1 }}>+</span> New
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  startViewTransition(() => {
+                    setUploading(true);
+                    setCreating(false);
+                    setEditing(false);
+                  })
+                }
+                aria-label="Upload plan"
+                title="Upload plan"
+                style={{
+                  padding: '6px 10px',
+                  fontSize: '12.5px',
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  style={{ width: '14px', height: '14px' }}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
+          <SidebarFilters
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            dateBucket={dateBucket}
+            onDateBucketChange={setDateBucket}
+            agents={agents}
+            selectedAgent={agentFilter}
+            onAgentSelect={setAgentFilter}
+          />
         </div>
 
         <div className="flex-1 overflow-auto sidebar-scroll px-3 pb-3">
@@ -388,7 +652,8 @@ function Dashboard() {
             <PlanList
               plans={filteredPlans}
               selectedId={selectedPlan?.id}
-              onSelect={setSelectedPlan}
+              onSelect={(plan) => startViewTransition(() => setSelectedPlan(plan))}
+              isPro={isPro}
             />
           )}
         </div>
@@ -401,9 +666,56 @@ function Dashboard() {
           gridColumn: '2 / 3',
           gridRow: '2 / 3',
           background: 'var(--bg)',
+          viewTransitionName: 'main-content',
         }}
       >
-        {selectedPlan ? (
+        {mode === 'cloud' && !isPro ? (
+          <CloudUpgrade onSwitchLocal={() => setMode('local')} />
+        ) : backendStatus === 'offline' ? (
+          <OfflineView />
+        ) : uploading ? (
+          <Suspense
+            fallback={
+              <div className="p-4">
+                <SkeletonBlock lines={5} />
+              </div>
+            }
+          >
+            <PlanUploader
+              agents={agents}
+              onClose={() => startViewTransition(() => setUploading(false))}
+              onCreated={(plan) => {
+                startViewTransition(() => {
+                  setUploading(false);
+                  refresh();
+                  setSelectedPlan(plan);
+                });
+              }}
+            />
+          </Suspense>
+        ) : creating ? (
+          <Suspense
+            fallback={
+              <div className="p-4">
+                <SkeletonBlock lines={5} />
+              </div>
+            }
+          >
+            <PaywallGuard onBack={() => startViewTransition(() => setCreating(false))}>
+              <PlanCreator
+                agents={agents}
+                onClose={() => startViewTransition(() => setCreating(false))}
+                onCreated={(plan) => {
+                  startViewTransition(() => {
+                    setCreating(false);
+                    refresh();
+                    setSelectedPlan(plan);
+                  });
+                }}
+              />
+            </PaywallGuard>
+          </Suspense>
+        ) : selectedPlan ? (
           editing ? (
             <Suspense
               fallback={
@@ -414,12 +726,16 @@ function Dashboard() {
             >
               <PlanEditor
                 plan={selectedPlan}
-                onClose={() => setEditing(false)}
+                onClose={() => startViewTransition(() => setEditing(false))}
                 onSaved={handleSaved}
               />
             </Suspense>
           ) : (
-            <PlanViewer plan={selectedPlan} onEdit={() => setEditing(true)} />
+            <PlanViewer
+              plan={selectedPlan}
+              onEdit={() => startViewTransition(() => setEditing(true))}
+              onChartWideChange={handleChartWideChange}
+            />
           )
         ) : (
           <div
@@ -430,6 +746,8 @@ function Dashboard() {
           </div>
         )}
       </div>
+
+      {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
     </div>
   );
 }
@@ -461,7 +779,7 @@ export default function App() {
 
   const sharedMatch = path.match(/^\/shared\/([^/]+)/);
   if (sharedMatch) {
-    return <SharedPlanView token={sharedMatch[1]!} />;
+    return <SharedPlanView token={sharedMatch[1] as string} />;
   }
 
   if (!hasToken()) return <LandingPage />;

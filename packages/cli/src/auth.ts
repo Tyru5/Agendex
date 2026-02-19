@@ -1,4 +1,4 @@
-import { loadConfig, saveConfig, type AgendexConfig } from '@agendex/shared';
+import { type AgendexConfig, loadConfig, saveConfig } from '@agendex/shared';
 
 const DEFAULT_SITE_URL = 'https://agendex.dev';
 

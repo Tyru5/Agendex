@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
 import { httpAction, internalMutation, internalQuery } from './_generated/server';
 import { createAuth } from './auth';
-import { internal } from './_generated/api';
 
 export const findPlanByOwnerAndLocalId = internalQuery({
   args: { ownerId: v.string(), localPlanId: v.string() },

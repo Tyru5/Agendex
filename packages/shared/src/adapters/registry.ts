@@ -1,10 +1,10 @@
 import type { AgentAdapter } from '../types.ts';
 import {
+  type AdapterCatalogEntry,
+  type AdapterId,
   getAdapterCatalog,
   getCatalogDefaultAdapterIds,
   resolveAdapterId,
-  type AdapterCatalogEntry,
-  type AdapterId,
 } from './catalog.ts';
 
 const catalog = getAdapterCatalog();

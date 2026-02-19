@@ -1,5 +1,5 @@
-import { createMiddleware } from 'hono/factory';
 import { loadOrCreateToken } from '@agendex/shared';
+import { createMiddleware } from 'hono/factory';
 
 const AUTH_TOKEN = loadOrCreateToken();
 

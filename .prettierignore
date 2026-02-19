@@ -1,4 +1,0 @@
-node_modules
-bun.lock
-packages/web/src/client/dist
-packages/web/convex/_generated/

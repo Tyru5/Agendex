@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import hljs from 'highlight.js/lib/core';
 import type { LanguageFn } from 'highlight.js';
+import hljs from 'highlight.js/lib/core';
+import { useEffect, useMemo, useState } from 'react';
 import supportedLanguagesTable from '../../../node_modules/highlight.js/SUPPORTED_LANGUAGES.md?raw';
 
 type LanguageModule = {
@@ -237,5 +237,6 @@ export function MarkdownCodeBlock({
     .filter(Boolean)
     .join(' ');
 
+  // biome-ignore lint/security/noDangerouslySetInnerHtml: syntax-highlighted HTML from highlight.js
   return <code className={mergedClassName} dangerouslySetInnerHTML={{ __html: highlightedHtml }} />;
 }

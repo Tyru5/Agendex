@@ -1,10 +1,10 @@
 import { autocompleteMultiselect, cancel, isCancel } from '@clack/prompts';
+import type { AdapterId } from '../adapters/catalog.ts';
 import {
   getCatalog,
   getDefaultAdapterIds,
   sanitizeEnabledAdapterIds,
 } from '../adapters/registry.ts';
-import { type AdapterId } from '../adapters/catalog.ts';
 
 export interface AdapterSelectionOptions {
   currentIds?: string[];

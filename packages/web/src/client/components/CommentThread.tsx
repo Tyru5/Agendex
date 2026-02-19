@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
+import { useMutation, useQuery } from 'convex/react';
+import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
 import { SkeletonBlock } from './Skeleton.tsx';
 
@@ -96,6 +96,7 @@ export function CommentThread({ planId, isOwner }: { planId: string; isOwner?: b
           <div className="flex items-center justify-between" style={{ marginTop: '8px' }}>
             <span style={{ fontSize: '11px', color: 'var(--tertiary)' }}>⌘+Enter to post</span>
             <button
+              type="button"
               onClick={handlePost}
               disabled={posting || !body.trim()}
               style={{
@@ -127,6 +128,7 @@ export function CommentThread({ planId, isOwner }: { planId: string; isOwner?: b
         >
           <span style={{ fontSize: '12.5px', color: 'var(--tertiary)' }}>Sign in to comment</span>
           <button
+            type="button"
             onClick={() => signIn.social({ provider: 'github' })}
             style={{
               padding: '4px 12px',
@@ -215,6 +217,7 @@ export function CommentThread({ planId, isOwner }: { planId: string; isOwner?: b
                   </div>
                   {(isOwner || user?.id === comment.authorId) && (
                     <button
+                      type="button"
                       onClick={() => deleteComment({ commentId: comment._id })}
                       style={{
                         padding: '2px 8px',

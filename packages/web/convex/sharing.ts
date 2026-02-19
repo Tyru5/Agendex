@@ -1,5 +1,5 @@
 import { ConvexError, v } from 'convex/values';
-import { query, mutation } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 
 export const createShareLink = mutation({
@@ -19,7 +19,7 @@ export const createShareLink = mutation({
       throw new ConvexError('Access denied');
     }
 
-    const token = crypto.randomUUID() + '-' + Date.now().toString(36);
+    const token = `${crypto.randomUUID()}-${Date.now().toString(36)}`;
 
     await ctx.db.insert('shareLinks', {
       planId: args.planId,

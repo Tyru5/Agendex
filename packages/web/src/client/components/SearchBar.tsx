@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Plan } from '../lib/api.ts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSeenPlans } from '../hooks/useSeenPlans.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
+import type { Plan } from '../lib/api.ts';
 import { filterPlans } from '../lib/plan-search.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
@@ -10,12 +11,14 @@ export function SearchBar({
   plans,
   selectedId,
   onSelectPlan,
+  isPro,
 }: {
   search: string;
   onSearch: (q: string) => void;
   plans: Plan[];
   selectedId: string | undefined;
   onSelectPlan: (plan: Plan) => void;
+  isPro: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -23,12 +26,52 @@ export function SearchBar({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | undefined>(undefined);
   const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
+  const { isUnseen, markSeen } = useSeenPlans();
   const modalExitMs = 220;
+
+  const { unseenFiltered, restFiltered } = useMemo(() => {
+    if (!isPro) return { unseenFiltered: [] as Plan[], restFiltered: filteredPlans };
+    const unseen: Plan[] = [];
+    const rest: Plan[] = [];
+    for (const p of filteredPlans) {
+      if (isUnseen(p.id, p.updatedAt) && p.id !== selectedId) {
+        unseen.push(p);
+      } else {
+        rest.push(p);
+      }
+    }
+    return { unseenFiltered: unseen, restFiltered: rest };
+  }, [filteredPlans, isPro, isUnseen, selectedId]);
 
   const isMac = useMemo(() => {
     if (typeof navigator === 'undefined') return true;
     return /Mac|iPhone|iPad/i.test(navigator.platform);
   }, []);
+
+  const clearCloseTimer = useCallback(() => {
+    if (!closeTimerRef.current) return;
+    clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = undefined;
+  }, []);
+
+  const openModal = useCallback(() => {
+    clearCloseTimer();
+    if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
+    setMounted(true);
+    openFrameRef.current = requestAnimationFrame(() => {
+      setOpen(true);
+    });
+  }, [clearCloseTimer]);
+
+  const closeModal = useCallback(() => {
+    if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
+    setOpen(false);
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => {
+      setMounted(false);
+      closeTimerRef.current = undefined;
+    }, modalExitMs);
+  }, [clearCloseTimer]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -43,7 +86,7 @@ export function SearchBar({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [closeModal, openModal]);
 
   useEffect(() => {
     if (!open) return;
@@ -57,31 +100,6 @@ export function SearchBar({
       if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
     };
   }, []);
-
-  function clearCloseTimer() {
-    if (!closeTimerRef.current) return;
-    clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = undefined;
-  }
-
-  function openModal() {
-    clearCloseTimer();
-    if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
-    setMounted(true);
-    openFrameRef.current = requestAnimationFrame(() => {
-      setOpen(true);
-    });
-  }
-
-  function closeModal() {
-    if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
-    setOpen(false);
-    clearCloseTimer();
-    closeTimerRef.current = setTimeout(() => {
-      setMounted(false);
-      closeTimerRef.current = undefined;
-    }, modalExitMs);
-  }
 
   return (
     <>
@@ -242,56 +260,133 @@ export function SearchBar({
                   No matching plans
                 </div>
               ) : (
-                filteredPlans.map((plan) => (
-                  <button
-                    key={plan.id}
-                    type="button"
-                    onClick={() => {
-                      onSelectPlan(plan);
-                      closeModal();
-                    }}
-                    className="w-full text-left block"
-                    style={{
-                      padding: '10px 8px',
-                      borderRadius: '8px',
-                      background: plan.id === selectedId ? 'var(--active)' : 'transparent',
-                      cursor: 'pointer',
-                      border: 'none',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontWeight: 500,
-                        fontSize: '13px',
-                        lineHeight: 1.35,
-                        color: 'var(--text)',
-                        letterSpacing: '-0.01em',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical' as const,
-                        overflow: 'hidden',
+                <>
+                  {unseenFiltered.length > 0 && (
+                    <div style={{ marginBottom: '4px' }}>
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: '#3b82f6',
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                          padding: '6px 8px 4px',
+                        }}
+                      >
+                        Updated ({unseenFiltered.length})
+                      </div>
+                      {unseenFiltered.map((plan) => (
+                        <SearchPlanRow
+                          key={plan.id}
+                          plan={plan}
+                          selected={plan.id === selectedId}
+                          unseen
+                          onClick={() => {
+                            if (isPro) markSeen(plan.id, plan.updatedAt);
+                            onSelectPlan(plan);
+                            closeModal();
+                          }}
+                        />
+                      ))}
+                      <div
+                        style={{
+                          height: '1px',
+                          background: 'var(--border)',
+                          margin: '6px 8px',
+                        }}
+                      />
+                    </div>
+                  )}
+                  {restFiltered.map((plan) => (
+                    <SearchPlanRow
+                      key={plan.id}
+                      plan={plan}
+                      selected={plan.id === selectedId}
+                      unseen={false}
+                      onClick={() => {
+                        if (isPro) markSeen(plan.id, plan.updatedAt);
+                        onSelectPlan(plan);
+                        closeModal();
                       }}
-                    >
-                      {plan.title}
-                    </div>
-                    <div
-                      className="flex items-center gap-1.5"
-                      style={{ marginTop: '4px', fontSize: '11.5px', color: 'var(--tertiary)' }}
-                    >
-                      <AgentIcon agent={plan.agent} size={11} />
-                      <span>{getAgentLabel(plan.agent)}</span>
-                      <span>&middot;</span>
-                      <span>{timeAgo(plan.updatedAt)}</span>
-                    </div>
-                  </button>
-                ))
+                    />
+                  ))}
+                </>
               )}
             </div>
           </div>
         </div>
       )}
     </>
+  );
+}
+
+function SearchPlanRow({
+  plan,
+  selected,
+  unseen,
+  onClick,
+}: {
+  plan: Plan;
+  selected: boolean;
+  unseen: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left block"
+      style={{
+        padding: '10px 8px',
+        borderRadius: '8px',
+        background: selected ? 'var(--active)' : 'transparent',
+        cursor: 'pointer',
+        border: 'none',
+        fontFamily: 'inherit',
+      }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          fontWeight: 500,
+          fontSize: '13px',
+          lineHeight: 1.35,
+          color: 'var(--text)',
+          letterSpacing: '-0.01em',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical' as const,
+          overflow: 'hidden',
+          paddingLeft: unseen ? '14px' : undefined,
+        }}
+      >
+        {unseen && (
+          <span
+            className="unseen-dot"
+            style={{
+              position: 'absolute',
+              left: '2px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: '#3b82f6',
+            }}
+          />
+        )}
+        {plan.title}
+      </div>
+      <div
+        className="flex items-center gap-1.5"
+        style={{ marginTop: '4px', fontSize: '11.5px', color: 'var(--tertiary)' }}
+      >
+        <AgentIcon agent={plan.agent} size={11} />
+        <span>{getAgentLabel(plan.agent)}</span>
+        <span>&middot;</span>
+        <span>{timeAgo(plan.updatedAt)}</span>
+      </div>
+    </button>
   );
 }
 
@@ -308,6 +403,7 @@ function timeAgo(dateStr: string): string {
 function SearchIcon() {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

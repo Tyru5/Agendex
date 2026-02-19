@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
-import { randomBytes } from 'crypto';
-import { type AdapterId } from './adapters/catalog.ts';
+import { randomBytes } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import type { AdapterId } from './adapters/catalog.ts';
 import { getDefaultAdapterIds, sanitizeEnabledAdapterIds } from './adapters/registry.ts';
 import { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 

@@ -1,5 +1,5 @@
-import { useQuery, useAction } from 'convex/react';
 import { api } from '@convex/_generated/api';
+import { useAction, useQuery } from 'convex/react';
 
 export interface Subscription {
   _id: string;
@@ -15,9 +15,13 @@ export interface Subscription {
 }
 
 export function useSubscription() {
+  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
   const subscription = useQuery((api as any).subscriptions.getMySubscriptionQuery);
+  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
   const createCheckout = useAction((api as any).subscriptions.createCheckoutSession);
+  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
   const createPortal = useAction((api as any).subscriptions.createPortalSession);
+  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
   const reactivate = useAction((api as any).subscriptions.reactivateSubscription);
 
   return {

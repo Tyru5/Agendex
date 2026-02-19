@@ -1,10 +1,10 @@
-import { httpRouter } from 'convex/server';
 import { registerRoutes } from '@convex-dev/stripe';
-import { authComponent, createAuth } from './auth';
-import { stripeComponent } from './stripe';
-import { internal } from './_generated/api';
-import { sync, refresh } from './cli';
+import { httpRouter } from 'convex/server';
 import type Stripe from 'stripe';
+import { internal } from './_generated/api';
+import { authComponent, createAuth } from './auth';
+import { refresh, sync } from './cli';
+import { stripeComponent } from './stripe';
 
 const http = httpRouter();
 

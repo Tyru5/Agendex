@@ -1,5 +1,5 @@
-import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
+import { useQuery } from 'convex/react';
 import type { Plan } from '../lib/api.ts';
 
 export function useCloudPlans(): {
@@ -14,7 +14,7 @@ export function useCloudPlans(): {
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: Convex query returns untyped documents
     const plans: Plan[] = result.map((p: any) => ({
       id: p._id,
       agent: p.agent,

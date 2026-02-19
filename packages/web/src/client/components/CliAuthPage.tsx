@@ -49,7 +49,7 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
       .catch(() => {
         setStatus('error');
       });
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, callbackUrl, signIn.social]);
 
   return (
     <div

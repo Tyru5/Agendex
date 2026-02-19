@@ -1,5 +1,5 @@
-import Fuse from 'fuse.js';
 import type { Plan } from '@agendex/shared';
+import Fuse from 'fuse.js';
 
 const fuse = new Fuse<Plan>([], {
   keys: [

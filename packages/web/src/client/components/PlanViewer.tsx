@@ -1,13 +1,22 @@
-import { useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
+import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
-import type { Plan } from '../lib/api.ts';
-import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
-import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
-import { AgentIcon } from './AgentIcon.tsx';
-import { getAgentLabel } from '../lib/agent-colors.ts';
-import { SharePlanDialog } from './SharePlanDialog.tsx';
 import { useAuth } from '../hooks/useAuth.ts';
+import { useSubscription } from '../hooks/useSubscription.ts';
+import { getAgentLabel } from '../lib/agent-colors.ts';
+import type { Plan } from '../lib/api.ts';
+import { extractHeadings } from '../lib/extract-headings.ts';
+import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
+import { startViewTransition } from '../lib/view-transition.ts';
+import { AgentIcon } from './AgentIcon.tsx';
+import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
+import { PlanOutline } from './PlanOutline.tsx';
+import { SharePlanDialog } from './SharePlanDialog.tsx';
+
+const TechDependencyChart = lazy(() =>
+  import('./TechDependencyChart.tsx').then((m) => ({ default: m.TechDependencyChart })),
+);
 
 function isMarkdownPlan(plan: Plan): boolean {
   if (plan.format.toLowerCase() === 'md') return true;
@@ -28,45 +37,79 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
-export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void }) {
+export function PlanViewer({
+  plan,
+  onEdit,
+  onChartWideChange,
+}: {
+  plan: Plan;
+  onEdit: () => void;
+  onChartWideChange?: (wide: boolean) => void;
+}) {
   const [showShare, setShowShare] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [pathCopied, setPathCopied] = useState(false);
+
   const { isAuthenticated } = useAuth();
+
+  const { isActive: isPro } = useSubscription();
+  const [showTechGraph, setShowTechGraph] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(plan.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const handleCopyPath = async () => {
+    await navigator.clipboard.writeText(plan.filePath);
+    setPathCopied(true);
+    setTimeout(() => setPathCopied(false), 1500);
+  };
   const isMarkdown = isMarkdownPlan(plan);
   const markdown = isMarkdown ? normalizePlanMarkdown(plan.content) : '';
   const workspace = extractWorkspace(plan);
 
+  const headings = useMemo(
+    () => (isMarkdown ? extractHeadings(markdown) : []),
+    [markdown, isMarkdown],
+  );
+
+  const showOutline = isMarkdown && headings.length >= 2;
+
   return (
-    <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 32px 80px' }}>
-      {/* Header */}
-      <div
-        style={{
-          marginBottom: '32px',
-          paddingBottom: '24px',
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
+    <>
+      {showOutline && <PlanOutline headings={headings} />}
+      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 32px 80px' }}>
+        {/* Header */}
         <div
-          className="flex items-center gap-1"
           style={{
-            fontSize: '12px',
-            color: 'var(--tertiary)',
-            marginBottom: '10px',
-            fontWeight: 450,
+            marginBottom: '32px',
+            paddingBottom: '24px',
+            borderBottom: '1px solid var(--border)',
           }}
         >
-          <span className="flex items-center gap-1.5">
-            <AgentIcon agent={plan.agent} size={13} />
-            <span>{getAgentLabel(plan.agent)}</span>
-          </span>
-          {workspace && (
-            <>
-              <span style={{ opacity: 0.5 }}>/</span>
-              <span>{workspace}</span>
-            </>
-          )}
-        </div>
+          <div
+            className="flex items-center gap-1"
+            style={{
+              fontSize: '12px',
+              color: 'var(--tertiary)',
+              marginBottom: '10px',
+              fontWeight: 450,
+            }}
+          >
+            <span className="flex items-center gap-1.5">
+              <AgentIcon agent={plan.agent} size={13} />
+              <span>{getAgentLabel(plan.agent)}</span>
+            </span>
+            {workspace && (
+              <>
+                <span style={{ opacity: 0.5 }}>/</span>
+                <span>{workspace}</span>
+              </>
+            )}
+          </div>
 
-        <div className="flex items-start justify-between gap-4">
           <h1
             style={{
               fontSize: '26px',
@@ -79,9 +122,59 @@ export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void })
           >
             {plan.title}
           </h1>
-          <div className="flex items-center gap-2 shrink-0">
+
+          <div
+            className="flex items-center gap-5"
+            style={{ fontSize: '12.5px', color: 'var(--secondary)', marginBottom: '16px' }}
+          >
+            <span className="flex items-center gap-1.5">
+              <ClockIcon />
+              Updated {timeAgo(plan.updatedAt)}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <DocIcon />
+              {plan.format.toUpperCase()}
+            </span>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 550,
+                padding: '2px 7px',
+                borderRadius: '5px',
+                background: 'rgba(34,197,94,0.1)',
+                color: '#16a34a',
+              }}
+            >
+              Writable
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopy}
+              title={copied ? 'Copied!' : 'Copy plan'}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12.5px',
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                borderRadius: '7px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: copied ? '#16a34a' : 'var(--secondary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              {copied ? <CheckIcon /> : <CopyIcon />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
             {isAuthenticated && (
               <button
+                type="button"
                 onClick={() => setShowShare(true)}
                 style={{
                   padding: '5px 12px',
@@ -100,6 +193,7 @@ export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void })
             )}
             {isMarkdown && (
               <button
+                type="button"
                 onClick={onEdit}
                 style={{
                   padding: '5px 12px',
@@ -116,89 +210,220 @@ export function PlanViewer({ plan, onEdit }: { plan: Plan; onEdit: () => void })
                 Edit
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                if (isPro) {
+                  startViewTransition(() => setShowTechGraph((v) => !v));
+                }
+              }}
+              title={!isPro ? 'Pro feature' : showTechGraph ? 'Hide tech graph' : 'Show tech graph'}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12.5px',
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                borderRadius: '7px',
+                border: '1px solid var(--border)',
+                background: showTechGraph ? 'rgba(139,92,246,0.1)' : 'transparent',
+                color: showTechGraph ? '#8b5cf6' : isPro ? 'var(--secondary)' : 'var(--tertiary)',
+                cursor: isPro ? 'pointer' : 'default',
+                opacity: isPro ? 1 : 0.5,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <GraphIcon />
+              {showTechGraph ? 'Hide Graph' : 'Tech Graph'}
+              {!isPro && (
+                <span
+                  style={{
+                    fontSize: '9px',
+                    fontWeight: 600,
+                    padding: '1px 4px',
+                    borderRadius: '3px',
+                    background: 'rgba(139,92,246,0.15)',
+                    color: '#8b5cf6',
+                  }}
+                >
+                  PRO
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
-        <div
-          className="flex items-center gap-5"
-          style={{ fontSize: '12.5px', color: 'var(--secondary)' }}
-        >
-          <span className="flex items-center gap-1.5">
-            <ClockIcon />
-            Updated {timeAgo(plan.updatedAt)}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <DocIcon />
-            {plan.format.toUpperCase()}
-          </span>
-          <span
-            style={{
-              fontSize: '11px',
-              fontWeight: 550,
-              padding: '2px 7px',
-              borderRadius: '5px',
-              background: 'rgba(34,197,94,0.1)',
-              color: '#16a34a',
-            }}
-          >
-            Writable
-          </span>
-        </div>
-      </div>
+        {showTechGraph && (
+          <div style={{ marginBottom: '32px', viewTransitionName: 'tech-graph' }}>
+            <Suspense
+              fallback={
+                <div
+                  style={{
+                    height: '200px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '13px',
+                    color: 'var(--tertiary)',
+                  }}
+                >
+                  Loading tech graph…
+                </div>
+              }
+            >
+              <TechDependencyChart plan={plan} onWideChange={onChartWideChange} />
+            </Suspense>
+          </div>
+        )}
 
-      {/* Body */}
-      {isMarkdown ? (
-        <article className="plan-markdown">
-          <Markdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code({ className, children, node: _node, ...props }) {
-                const code = String(children).replace(/\n$/, '');
-                const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
-                const isBlock = Boolean(language) || code.includes('\n');
+        {/* Body */}
+        {isMarkdown ? (
+          <article className="plan-markdown">
+            <Markdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeSlug]}
+              components={{
+                code({ className, children, node: _node, ...props }) {
+                  const code = String(children).replace(/\n$/, '');
+                  const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
+                  const isBlock = Boolean(language) || code.includes('\n');
 
-                if (!isBlock) {
+                  if (!isBlock) {
+                    return (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  }
+
                   return (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
+                    <MarkdownCodeBlock className={className} code={code} language={language} />
                   );
-                }
+                },
+              }}
+            >
+              {markdown}
+            </Markdown>
+          </article>
+        ) : (
+          <pre className="plan-plain">{plan.content}</pre>
+        )}
 
-                return <MarkdownCodeBlock className={className} code={code} language={language} />;
-              },
+        {/* File path footer */}
+        <div
+          className="flex items-center justify-between gap-2"
+          style={{
+            marginTop: '40px',
+            paddingTop: '16px',
+            borderTop: '1px solid var(--border)',
+            fontSize: '11.5px',
+            color: 'var(--tertiary)',
+            fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
+          }}
+        >
+          <span style={{ wordBreak: 'break-all' }}>{plan.filePath}</span>
+          <button
+            type="button"
+            onClick={handleCopyPath}
+            title={pathCopied ? 'Copied!' : 'Copy path'}
+            style={{
+              padding: '3px',
+              borderRadius: '5px',
+              border: 'none',
+              background: 'transparent',
+              color: pathCopied ? '#16a34a' : 'var(--tertiary)',
+              cursor: 'pointer',
+              flexShrink: 0,
             }}
           >
-            {markdown}
-          </Markdown>
-        </article>
-      ) : (
-        <pre className="plan-plain">{plan.content}</pre>
-      )}
+            {pathCopied ? <CheckIcon /> : <CopyIcon />}
+          </button>
+        </div>
 
-      {/* File path footer */}
-      <div
-        style={{
-          marginTop: '40px',
-          paddingTop: '16px',
-          borderTop: '1px solid var(--border)',
-          fontSize: '11.5px',
-          color: 'var(--tertiary)',
-          fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
-          wordBreak: 'break-all',
-        }}
-      >
-        {plan.filePath}
+        {showShare && <SharePlanDialog plan={plan} onClose={() => setShowShare(false)} />}
+
+        <ScrollToTop />
       </div>
+    </>
+  );
+}
 
-      {showShare && <SharePlanDialog plan={plan} onClose={() => setShowShare(false)} />}
-    </div>
+function ScrollToTop() {
+  const [visible, setVisible] = useState(false);
+  const containerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const wrapper = document.querySelector('.main-scroll') as HTMLElement | null;
+    if (!wrapper) return;
+    containerRef.current = wrapper;
+
+    const onScroll = () => setVisible(wrapper.scrollTop > 400);
+    wrapper.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => wrapper.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={scrollToTop}
+      aria-label="Scroll to top"
+      className="scroll-to-top"
+      data-visible={visible}
+      style={{
+        position: 'fixed',
+        bottom: '28px',
+        right: '28px',
+        width: '38px',
+        height: '38px',
+        borderRadius: '10px',
+        border: '1px solid var(--border)',
+        background: 'var(--surface)',
+        color: 'var(--secondary)',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.02)',
+        opacity: visible ? 1 : 0,
+        pointerEvents: visible ? 'auto' : 'none',
+        transform: visible ? 'translateY(0)' : 'translateY(8px)',
+        transition: 'opacity 0.2s ease, transform 0.2s ease, border-color 0.15s, background 0.15s',
+        zIndex: 50,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'var(--tertiary)';
+        e.currentTarget.style.color = 'var(--text)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'var(--border)';
+        e.currentTarget.style.color = 'var(--secondary)';
+      }}
+    >
+      <svg
+        aria-hidden="true"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={2}
+        stroke="currentColor"
+        style={{ width: '15px', height: '15px' }}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+      </svg>
+    </button>
   );
 }
 
 function ClockIcon() {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"
@@ -215,9 +440,66 @@ function ClockIcon() {
   );
 }
 
+function CopyIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      style={{ width: '13px', height: '13px' }}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.334a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      style={{ width: '13px', height: '13px' }}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+  );
+}
+
+function GraphIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      style={{ width: '13px', height: '13px' }}
+    >
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="5" r="2" />
+      <circle cx="19" cy="12" r="2" />
+      <line x1="7" y1="11" x2="10" y2="6" />
+      <line x1="14" y1="5" x2="17" y2="11" />
+    </svg>
+  );
+}
+
 function DocIcon() {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

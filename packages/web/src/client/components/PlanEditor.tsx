@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { EditorView, keymap } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
-import { markdown } from '@codemirror/lang-markdown';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { defaultKeymap } from '@codemirror/commands';
+import { markdown } from '@codemirror/lang-markdown';
+import { EditorState } from '@codemirror/state';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { EditorView, keymap } from '@codemirror/view';
+import { useEffect, useRef, useState } from 'react';
 import { api, type Plan } from '../lib/api.ts';
 
 export function PlanEditor({
@@ -42,7 +42,7 @@ export function PlanEditor({
 
     viewRef.current = view;
     return () => view.destroy();
-  }, [plan.id]);
+  }, [plan.content]);
 
   async function save() {
     if (!viewRef.current) return;
@@ -83,6 +83,7 @@ export function PlanEditor({
         <div className="flex items-center gap-2">
           {error && <span style={{ fontSize: '12px', color: '#ef4444' }}>{error}</span>}
           <button
+            type="button"
             onClick={onClose}
             style={{
               padding: '5px 12px',
@@ -99,6 +100,7 @@ export function PlanEditor({
             Cancel
           </button>
           <button
+            type="button"
             onClick={save}
             disabled={saving}
             style={{

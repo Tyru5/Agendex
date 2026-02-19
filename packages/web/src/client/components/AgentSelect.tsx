@@ -1,6 +1,6 @@
+import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { AgentStats } from '../lib/api.ts';
 import { AgentIcon } from './AgentIcon.tsx';
-import { getAgentLabel } from '../lib/agent-colors.ts';
 
 export function AgentSelect({
   agents,

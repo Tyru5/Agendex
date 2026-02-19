@@ -1,12 +1,12 @@
-import { homedir } from 'os';
-import { join } from 'path';
-import { stat } from 'fs/promises';
-import { existsSync } from 'fs';
 import { Database } from 'bun:sqlite';
+import { existsSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
-const dbPath = join(homedir(), '.cursor', 'ai-tracking', 'ai-code-tracking.db');
+const _dbPath = join(homedir(), '.cursor', 'ai-tracking', 'ai-code-tracking.db');
 
 export const cursorAdapter: AgentAdapter = {
   agent: 'cursor',

@@ -1,13 +1,18 @@
 import { ConvexError, v } from 'convex/values';
-import { action, internalMutation, query } from './_generated/server';
+import Stripe from 'stripe';
 import { api, internal } from './_generated/api';
+import { action, internalMutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { stripe } from './stripe';
-import Stripe from 'stripe';
 
 export const getMySubscriptionQuery = query({
   handler: async (ctx) => {
-    const user = await authComponent.getAuthUser(ctx);
+    let user;
+    try {
+      user = await authComponent.getAuthUser(ctx);
+    } catch {
+      return null;
+    }
     if (!user) return null;
 
     return await ctx.db
@@ -18,7 +23,12 @@ export const getMySubscriptionQuery = query({
 });
 
 export async function hasActiveSubscription(ctx: any): Promise<boolean> {
-  const user = await (await import('./auth')).authComponent.getAuthUser(ctx);
+  let user;
+  try {
+    user = await (await import('./auth')).authComponent.getAuthUser(ctx);
+  } catch {
+    return false;
+  }
   if (!user) return false;
 
   const sub = await ctx.db

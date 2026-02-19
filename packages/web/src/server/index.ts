@@ -1,17 +1,16 @@
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { serveStatic } from 'hono/bun';
-import { createBunWebSocket } from 'hono/bun';
-import { authMiddleware, AUTH_TOKEN } from './auth.ts';
-import { plans } from './routes/plans.ts';
 import {
-  scan,
-  startWatching,
   loadOrInitConfig,
   resolveAdapters,
+  scan,
   setActiveAdapters,
   setOnPlansChanged,
+  startWatching,
 } from '@agendex/shared';
+import { Hono } from 'hono';
+import { createBunWebSocket, serveStatic } from 'hono/bun';
+import { cors } from 'hono/cors';
+import { AUTH_TOKEN, authMiddleware } from './auth.ts';
+import { plans } from './routes/plans.ts';
 import { rebuildIndex } from './services/search.ts';
 
 const app = new Hono();
@@ -51,11 +50,14 @@ app.use('/api/*', async (_c, next) => {
   await startup;
   await next();
 });
-app.use('/api/*', authMiddleware);
-app.route('/api/v1', plans);
 
 app.get(
   '/api/v1/ws',
+  (c, next) => {
+    const token = new URL(c.req.url).searchParams.get('token');
+    if (token !== AUTH_TOKEN) return c.json({ error: 'unauthorized' }, 401);
+    return next();
+  },
   upgradeWebSocket(() => ({
     onOpen(_event, ws) {
       clients.add(ws);
@@ -65,6 +67,9 @@ app.get(
     },
   })),
 );
+
+app.use('/api/*', authMiddleware);
+app.route('/api/v1', plans);
 
 function broadcast(event: string, data: unknown) {
   const msg = JSON.stringify({ event, data });
@@ -80,7 +85,7 @@ function broadcast(event: string, data: unknown) {
 app.use('/*', serveStatic({ root: './src/client/dist' }));
 app.get('/*', serveStatic({ path: './src/client/dist/index.html' }));
 
-const PORT = parseInt(process.env.PORT ?? '4890');
+const PORT = parseInt(process.env.PORT ?? '4890', 10);
 
 console.log(`[agendex] http://localhost:${PORT}`);
 console.log(`[agendex] token: ${AUTH_TOKEN}`);

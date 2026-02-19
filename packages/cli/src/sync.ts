@@ -1,11 +1,11 @@
 import {
+  getAll,
   loadOrInitConfig,
   resolveAdapters,
-  setActiveAdapters,
   scan,
-  getAll,
+  setActiveAdapters,
 } from '@agendex/shared';
-import { syncPlan, type SyncPlanPayload } from './api.ts';
+import { type SyncPlanPayload, syncPlan } from './api.ts';
 
 export async function syncAll(): Promise<void> {
   const config = await loadOrInitConfig();
