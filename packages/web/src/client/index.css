@@ -1482,6 +1482,311 @@ body {
   }
 }
 
+/* ─── Cloud Upgrade Paywall ─── */
+
+.cloud-upgrade {
+  --cu-accent: #c8ff32;
+  --cu-accent-dim: rgba(200, 255, 50, 0.08);
+  --cu-bg: #0a0a0a;
+  --cu-surface: #141414;
+  --cu-text: #e4e4e4;
+  --cu-muted: #707070;
+  --cu-border: rgba(255, 255, 255, 0.06);
+
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 48px 24px;
+  overflow: hidden;
+  background: var(--cu-bg);
+}
+
+.cloud-upgrade-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--cu-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--cu-border) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 40%, black 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 40%, black 20%, transparent 70%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.cloud-upgrade-glow {
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  width: 520px;
+  height: 520px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200, 255, 50, 0.05) 0%, transparent 65%);
+  pointer-events: none;
+  animation: cu-glowDrift 6s ease-in-out infinite;
+}
+
+.cloud-upgrade-glow-b {
+  position: absolute;
+  bottom: -30%;
+  right: -10%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200, 255, 50, 0.03) 0%, transparent 60%);
+  pointer-events: none;
+  animation: cu-glowDrift 8s ease-in-out infinite reverse;
+}
+
+.cloud-upgrade-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 440px;
+  width: 100%;
+  animation: cu-fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cloud-upgrade-icon-wrap {
+  position: relative;
+  width: 72px;
+  height: 56px;
+  margin-bottom: 20px;
+  color: var(--cu-muted);
+  animation: cu-float 4s ease-in-out infinite;
+}
+
+.cloud-upgrade-cloud {
+  width: 100%;
+  height: 100%;
+}
+
+.cloud-upgrade-lock {
+  position: absolute;
+  bottom: 2px;
+  right: -4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--cu-surface);
+  border: 1px solid var(--cu-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cu-accent);
+}
+
+.cloud-upgrade-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 5px;
+  background: var(--cu-accent);
+  color: #0a0a0a;
+  margin-bottom: 18px;
+}
+
+.cloud-upgrade-title {
+  font-family: "Unbounded", sans-serif;
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  color: var(--cu-text);
+  margin: 0 0 10px;
+  line-height: 1.25;
+}
+
+.cloud-upgrade-desc {
+  font-size: 13.5px;
+  color: var(--cu-muted);
+  margin: 0 0 32px;
+  line-height: 1.6;
+  max-width: 340px;
+}
+
+.cloud-upgrade-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+  margin-bottom: 36px;
+  text-align: left;
+}
+
+@media (max-width: 520px) {
+  .cloud-upgrade-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cloud-upgrade-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--cu-surface);
+  border: 1px solid var(--cu-border);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.cloud-upgrade-feature:hover {
+  border-color: rgba(200, 255, 50, 0.12);
+  background: rgba(200, 255, 50, 0.03);
+}
+
+.cloud-upgrade-feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--cu-accent-dim);
+  color: var(--cu-accent);
+  flex-shrink: 0;
+}
+
+.cloud-upgrade-feature-title {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cu-text);
+  margin-bottom: 2px;
+  letter-spacing: -0.01em;
+}
+
+.cloud-upgrade-feature-desc {
+  display: block;
+  font-size: 11.5px;
+  color: var(--cu-muted);
+  line-height: 1.4;
+}
+
+.cloud-upgrade-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.cloud-upgrade-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 32px;
+  border-radius: 10px;
+  border: none;
+  background: var(--cu-accent);
+  color: #0a0a0a;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.cloud-upgrade-cta::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  animation: cu-shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.cloud-upgrade-cta:hover {
+  opacity: 0.9;
+}
+
+.cloud-upgrade-cta:active {
+  transform: scale(0.97);
+}
+
+.cloud-upgrade-back {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--cu-muted);
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.cloud-upgrade-back:hover {
+  color: var(--cu-text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cloud-upgrade-price-hint {
+  font-size: 11.5px;
+  color: var(--cu-muted);
+  letter-spacing: 0.01em;
+}
+
+.cloud-upgrade-price-hint strong {
+  color: var(--cu-text);
+  font-weight: 550;
+}
+
+@keyframes cu-fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cu-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes cu-glowDrift {
+  0%, 100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: translateX(-50%) scale(1.1);
+  }
+}
+
+@keyframes cu-shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 200%;
+  }
+}
+
 /* ─── Pricing Modal ─── */
 
 .pricing-overlay {

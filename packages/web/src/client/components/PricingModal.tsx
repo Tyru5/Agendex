@@ -17,6 +17,9 @@ const PRO_FEATURES = [
   'Cloud sync via CLI daemon',
   'Shareable plan links',
   'Comment threads',
+  'Technology dependency charts',
+  'New plan tracking & indicators',
+  'Plan creation from dashboard',
   'Up to 5 workspace members',
   'Access from any device',
 ];

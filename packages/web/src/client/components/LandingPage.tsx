@@ -22,7 +22,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Do I need to pay to use Agendex?',
-    a: 'Self-hosted is completely free and open source. Cloud Pro is $7/month ($69/year) and includes cloud sync, sharing, comments, workspace collaboration for up to 5 members, and access from any device.',
+    a: 'Self-hosted is completely free and open source. Cloud Pro is $7/month ($69/year) and includes cloud sync, sharing, comments, technology dependency charts, new plan tracking, plan creation from the dashboard, workspace collaboration for up to 5 members, and access from any device.',
   },
   {
     q: 'How does Cloud sync work?',
@@ -372,6 +372,30 @@ export function LandingPage() {
               config.
             </p>
           </div>
+          <div className="landing-feature-card">
+            <div className="landing-feature-icon">🧬</div>
+            <h3>Tech Dependency Charts</h3>
+            <p>
+              Visualize technology relationships extracted from your plans as interactive dependency
+              graphs.
+            </p>
+          </div>
+          <div className="landing-feature-card">
+            <div className="landing-feature-icon">🔔</div>
+            <h3>New Plan Tracking</h3>
+            <p>
+              Unseen plan indicators highlight what changed since your last visit. Never miss an
+              agent update.
+            </p>
+          </div>
+          <div className="landing-feature-card">
+            <div className="landing-feature-icon">📝</div>
+            <h3>Plan Creation</h3>
+            <p>
+              Create and upload plans directly from the dashboard. Draft plans in Markdown with live
+              preview.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -486,6 +510,9 @@ export function LandingPage() {
               <li>Cloud sync via CLI daemon</li>
               <li>Shareable plan links</li>
               <li>Comment threads</li>
+              <li>Technology dependency charts</li>
+              <li>New plan tracking &amp; indicators</li>
+              <li>Plan creation from dashboard</li>
               <li>Up to 5 workspace members</li>
               <li>Access from any device</li>
             </ul>

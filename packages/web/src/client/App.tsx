@@ -3,6 +3,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState, useQueryStates } fr
 import { throttle } from 'nuqs';
 import { AuthButton } from './components/AuthButton.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
+import { CloudUpgrade } from './components/CloudUpgrade.tsx';
 import { LandingPage } from './components/LandingPage.tsx';
 import { OfflineView } from './components/OfflineView.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
@@ -668,7 +669,9 @@ function Dashboard() {
           viewTransitionName: 'main-content',
         }}
       >
-        {backendStatus === 'offline' ? (
+        {mode === 'cloud' && !isPro ? (
+          <CloudUpgrade onSwitchLocal={() => setMode('local')} />
+        ) : backendStatus === 'offline' ? (
           <OfflineView />
         ) : uploading ? (
           <Suspense
