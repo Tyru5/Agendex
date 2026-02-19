@@ -14,3 +14,20 @@ export function normalizePlanMarkdown(markdown: string): string {
   if (!markdown) return '';
   return stripProposedPlanTags(unescapeFencedCodeMarkers(markdown.replace(/\r\n?/g, '\n'))).trim();
 }
+
+const MD_HEADING = /^#{1,6}\s+\S/m;
+const MD_BOLD = /\*\*[^*]+\*\*/;
+const MD_LIST = /^[ \t]*[-*+]\s+\S/m;
+const MD_ORDERED_LIST = /^[ \t]*\d+\.\s+\S/m;
+const MD_FENCE = /^[ \t]*```/m;
+
+export function looksLikeMarkdown(content: string): boolean {
+  if (!content) return false;
+  let signals = 0;
+  if (MD_HEADING.test(content)) signals++;
+  if (MD_BOLD.test(content)) signals++;
+  if (MD_LIST.test(content)) signals++;
+  if (MD_ORDERED_LIST.test(content)) signals++;
+  if (MD_FENCE.test(content)) signals++;
+  return signals >= 2;
+}

@@ -3,7 +3,7 @@ import { useQuery } from 'convex/react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getAgentLabel } from '../lib/agent-colors.ts';
-import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
+import { looksLikeMarkdown, normalizePlanMarkdown } from '../lib/plan-markdown.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { CommentThread } from './CommentThread.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
@@ -19,10 +19,10 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
-function isMarkdownFormat(format: string, filePath?: string): boolean {
+function isMarkdownFormat(format: string, content: string, filePath?: string): boolean {
   if (format.toLowerCase() === 'md') return true;
   if (filePath && /\.mdx?$/i.test(filePath)) return true;
-  return false;
+  return looksLikeMarkdown(content);
 }
 
 export function SharedPlanView({ token }: { token: string }) {
@@ -67,7 +67,11 @@ export function SharedPlanView({ token }: { token: string }) {
     );
   }
 
-  const isMarkdown = isMarkdownFormat(plan.format, plan.filePath as string | undefined);
+  const isMarkdown = isMarkdownFormat(
+    plan.format,
+    plan.content,
+    plan.filePath as string | undefined,
+  );
   const markdown = isMarkdown ? normalizePlanMarkdown(plan.content) : '';
 
   return (

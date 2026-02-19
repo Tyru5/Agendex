@@ -7,7 +7,7 @@ import { useSubscription } from '../hooks/useSubscription.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import { extractHeadings } from '../lib/extract-headings.ts';
-import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
+import { looksLikeMarkdown, normalizePlanMarkdown } from '../lib/plan-markdown.ts';
 import { startViewTransition } from '../lib/view-transition.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
@@ -20,7 +20,8 @@ const TechDependencyChart = lazy(() =>
 
 function isMarkdownPlan(plan: Plan): boolean {
   if (plan.format.toLowerCase() === 'md') return true;
-  return /\.mdx?$/i.test(plan.filePath);
+  if (/\.mdx?$/i.test(plan.filePath)) return true;
+  return looksLikeMarkdown(plan.content);
 }
 
 function extractWorkspace(plan: Plan): string | undefined {
