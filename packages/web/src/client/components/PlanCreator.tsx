@@ -34,7 +34,8 @@ export function PlanCreator({
   useEffect(() => {
     if (!editorRef.current) return;
 
-    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const { resolvedTheme } = useTheme();
+    const isDark = resolvedTheme === 'dark';
 
     const state = EditorState.create({
       doc: '',
