@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '../hooks/useAuth.ts';
+import { useSubscription } from '../hooks/useSubscription.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
@@ -48,10 +49,8 @@ export function PlanViewer({
 
   const { isAuthenticated } = useAuth();
 
-  // const { isActive: isPro } = useSubscription();
+  const { isActive: isPro } = useSubscription();
   const [showTechGraph, setShowTechGraph] = useState(false);
-
-  const isPro = true;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(plan.content);
