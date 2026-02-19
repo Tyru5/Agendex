@@ -1,4 +1,6 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { parseAsString, parseAsStringLiteral, useQueryState, useQueryStates } from 'nuqs';
+import { throttle } from 'nuqs';
 import { AuthButton } from './components/AuthButton.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { LandingPage } from './components/LandingPage.tsx';
@@ -61,10 +63,43 @@ function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
   );
 }
 
+const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
+const dateOptions = ['all', 'today', '7d', '30d'] as const;
+
 function Dashboard() {
-  const [search, setSearch] = useState('');
-  const [agentFilter, setAgentFilter] = useState<string | undefined>();
-  const [selectedPlan, setSelectedPlan] = useState<Plan | undefined>();
+  const [search, setSearch] = useQueryState(
+    'q',
+    parseAsString
+      .withDefault('')
+      .withOptions({ clearOnDefault: true, limitUrlUpdates: throttle(500) }),
+  );
+  const [{ agent: agentFilterRaw, sort: sortBy, date: dateBucket }, setFilters] = useQueryStates(
+    {
+      agent: parseAsString,
+      sort: parseAsStringLiteral(sortOptions).withDefault('updatedAt'),
+      date: parseAsStringLiteral(dateOptions).withDefault('all'),
+    },
+    { clearOnDefault: true },
+  );
+  const [selectedPlanId, setSelectedPlanId] = useQueryState(
+    'plan',
+    parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
+  );
+
+  const agentFilter = agentFilterRaw ?? undefined;
+  const setAgentFilter = useCallback(
+    (agent: string | undefined) => setFilters({ agent: agent ?? null }),
+    [setFilters],
+  );
+  const setSortBy = useCallback(
+    (sort: 'updatedAt' | 'createdAt' | 'title') => setFilters({ sort }),
+    [setFilters],
+  );
+  const setDateBucket = useCallback(
+    (date: 'all' | 'today' | '7d' | '30d') => setFilters({ date }),
+    [setFilters],
+  );
+
   const [editing, setEditing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -74,8 +109,6 @@ function Dashboard() {
     return localStorage.getItem(SIDEBAR_PREF_KEY) === 'true';
   });
   const [sidebarPeek, setSidebarPeek] = useState(false);
-  const [sortBy, setSortBy] = useState<'updatedAt' | 'createdAt' | 'title'>('updatedAt');
-  const [dateBucket, setDateBucket] = useState<'all' | 'today' | '7d' | '30d'>('all');
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const sidebarBeforeWide = useRef<boolean | null>(null);
 
@@ -157,18 +190,25 @@ function Dashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    if (filteredPlans.length === 0) {
-      setSelectedPlan(undefined);
-      setEditing(false);
-      return;
+  const selectedPlan = useMemo(() => {
+    if (filteredPlans.length === 0) return undefined;
+    if (selectedPlanId) {
+      return filteredPlans.find((p) => p.id === selectedPlanId) ?? filteredPlans[0];
     }
+    return filteredPlans[0];
+  }, [filteredPlans, selectedPlanId]);
 
-    setSelectedPlan((current) => {
-      if (!current) return filteredPlans[0];
-      return filteredPlans.find((plan) => plan.id === current.id) ?? filteredPlans[0];
-    });
-  }, [filteredPlans]);
+  const setSelectedPlan = useCallback(
+    (plan: Plan | undefined) => setSelectedPlanId(plan?.id ?? null),
+    [setSelectedPlanId],
+  );
+
+  useEffect(() => {
+    if (filteredPlans.length === 0 && selectedPlanId) {
+      setSelectedPlanId(null);
+      setEditing(false);
+    }
+  }, [filteredPlans, selectedPlanId, setSelectedPlanId]);
 
   function handleSaved() {
     setEditing(false);

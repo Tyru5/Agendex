@@ -2602,3 +2602,142 @@ body {
 .light .upload-noise {
   opacity: 0.012;
 }
+
+/* ─── Plan Outline (TOC) — right-edge dock ─── */
+
+.plan-outline-dock {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.plan-outline-dock > * {
+  pointer-events: auto;
+}
+
+/* Hint ticks — visible idle state */
+.plan-outline-hint {
+  position: absolute;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.plan-outline-hint-tick {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--tertiary);
+  opacity: 0.3;
+  transition: opacity 0.2s, width 0.2s, background 0.2s;
+}
+
+.plan-outline-hint-tick[data-level="2"] { width: 12px; }
+.plan-outline-hint-tick[data-level="3"] { width: 8px; }
+.plan-outline-hint-tick[data-level="4"] { width: 5px; }
+
+.plan-outline-hint-tick[data-active] {
+  opacity: 0.7;
+  background: var(--text);
+}
+
+/* Slide-in panel */
+.plan-outline-panel {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translate(calc(100% + 4px), -50%);
+  width: 200px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.02);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark .plan-outline-panel {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.plan-outline-panel::-webkit-scrollbar { width: 0; }
+
+/* Hover interaction — expand dock, show panel, hide hint */
+.plan-outline-dock:hover {
+  width: 240px;
+  pointer-events: auto;
+}
+
+.plan-outline-dock:hover .plan-outline-hint {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.plan-outline-dock:hover .plan-outline-panel {
+  transform: translate(0, -50%);
+  right: 12px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Items */
+.plan-outline-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 450;
+  font-family: inherit;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+  color: var(--tertiary);
+  background: none;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s, background 0.15s;
+}
+
+.plan-outline-item[data-level="3"] { padding-left: 22px; }
+.plan-outline-item[data-level="4"] { padding-left: 34px; }
+
+.plan-outline-item:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.plan-outline-item[data-active] {
+  color: var(--text);
+  font-weight: 550;
+  background: var(--hover);
+}
+
+@media (max-width: 1100px) {
+  .plan-outline-dock { display: none; }
+}

@@ -1,14 +1,17 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
+import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '../hooks/useAuth.ts';
 import { useSubscription } from '../hooks/useSubscription.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
+import { extractHeadings } from '../lib/extract-headings.ts';
 import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
 import { startViewTransition } from '../lib/view-transition.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
+import { PlanOutline } from './PlanOutline.tsx';
 import { SharePlanDialog } from './SharePlanDialog.tsx';
 
 const TechDependencyChart = lazy(() =>
@@ -67,269 +70,282 @@ export function PlanViewer({
   const markdown = isMarkdown ? normalizePlanMarkdown(plan.content) : '';
   const workspace = extractWorkspace(plan);
 
+  const headings = useMemo(
+    () => (isMarkdown ? extractHeadings(markdown) : []),
+    [markdown, isMarkdown],
+  );
+
+  const showOutline = isMarkdown && headings.length >= 2;
+
   return (
-    <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 32px 80px' }}>
-      {/* Header */}
-      <div
-        style={{
-          marginBottom: '32px',
-          paddingBottom: '24px',
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
+    <>
+      {showOutline && <PlanOutline headings={headings} />}
+      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 32px 80px' }}>
+        {/* Header */}
         <div
-          className="flex items-center gap-1"
           style={{
-            fontSize: '12px',
-            color: 'var(--tertiary)',
-            marginBottom: '10px',
-            fontWeight: 450,
+            marginBottom: '32px',
+            paddingBottom: '24px',
+            borderBottom: '1px solid var(--border)',
           }}
         >
-          <span className="flex items-center gap-1.5">
-            <AgentIcon agent={plan.agent} size={13} />
-            <span>{getAgentLabel(plan.agent)}</span>
-          </span>
-          {workspace && (
-            <>
-              <span style={{ opacity: 0.5 }}>/</span>
-              <span>{workspace}</span>
-            </>
-          )}
-        </div>
-
-        <h1
-          style={{
-            fontSize: '26px',
-            fontWeight: 600,
-            letterSpacing: '-0.03em',
-            lineHeight: 1.25,
-            color: 'var(--text)',
-            marginBottom: '12px',
-          }}
-        >
-          {plan.title}
-        </h1>
-
-        <div
-          className="flex items-center gap-5"
-          style={{ fontSize: '12.5px', color: 'var(--secondary)', marginBottom: '16px' }}
-        >
-          <span className="flex items-center gap-1.5">
-            <ClockIcon />
-            Updated {timeAgo(plan.updatedAt)}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <DocIcon />
-            {plan.format.toUpperCase()}
-          </span>
-          <span
+          <div
+            className="flex items-center gap-1"
             style={{
-              fontSize: '11px',
-              fontWeight: 550,
-              padding: '2px 7px',
-              borderRadius: '5px',
-              background: 'rgba(34,197,94,0.1)',
-              color: '#16a34a',
+              fontSize: '12px',
+              color: 'var(--tertiary)',
+              marginBottom: '10px',
+              fontWeight: 450,
             }}
           >
-            Writable
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCopy}
-            title={copied ? 'Copied!' : 'Copy plan'}
-            style={{
-              padding: '5px 12px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-              color: copied ? '#16a34a' : 'var(--secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-            }}
-          >
-            {copied ? <CheckIcon /> : <CopyIcon />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-          {isAuthenticated && (
-            <button
-              type="button"
-              onClick={() => setShowShare(true)}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              Share
-            </button>
-          )}
-          {isMarkdown && (
-            <button
-              type="button"
-              onClick={onEdit}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              Edit
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              if (isPro) {
-                startViewTransition(() => setShowTechGraph((v) => !v));
-              }
-            }}
-            title={!isPro ? 'Pro feature' : showTechGraph ? 'Hide tech graph' : 'Show tech graph'}
-            style={{
-              padding: '5px 12px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
-              background: showTechGraph ? 'rgba(139,92,246,0.1)' : 'transparent',
-              color: showTechGraph ? '#8b5cf6' : isPro ? 'var(--secondary)' : 'var(--tertiary)',
-              cursor: isPro ? 'pointer' : 'default',
-              opacity: isPro ? 1 : 0.5,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-            }}
-          >
-            <GraphIcon />
-            {showTechGraph ? 'Hide Graph' : 'Tech Graph'}
-            {!isPro && (
-              <span
-                style={{
-                  fontSize: '9px',
-                  fontWeight: 600,
-                  padding: '1px 4px',
-                  borderRadius: '3px',
-                  background: 'rgba(139,92,246,0.15)',
-                  color: '#8b5cf6',
-                }}
-              >
-                PRO
-              </span>
+            <span className="flex items-center gap-1.5">
+              <AgentIcon agent={plan.agent} size={13} />
+              <span>{getAgentLabel(plan.agent)}</span>
+            </span>
+            {workspace && (
+              <>
+                <span style={{ opacity: 0.5 }}>/</span>
+                <span>{workspace}</span>
+              </>
             )}
-          </button>
-        </div>
-      </div>
+          </div>
 
-      {showTechGraph && (
-        <div style={{ marginBottom: '32px', viewTransitionName: 'tech-graph' }}>
-          <Suspense
-            fallback={
-              <div
-                style={{
-                  height: '200px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '13px',
-                  color: 'var(--tertiary)',
-                }}
-              >
-                Loading tech graph…
-              </div>
-            }
-          >
-            <TechDependencyChart plan={plan} onWideChange={onChartWideChange} />
-          </Suspense>
-        </div>
-      )}
-
-      {/* Body */}
-      {isMarkdown ? (
-        <article className="plan-markdown">
-          <Markdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code({ className, children, node: _node, ...props }) {
-                const code = String(children).replace(/\n$/, '');
-                const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
-                const isBlock = Boolean(language) || code.includes('\n');
-
-                if (!isBlock) {
-                  return (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
-                  );
-                }
-
-                return <MarkdownCodeBlock className={className} code={code} language={language} />;
-              },
+          <h1
+            style={{
+              fontSize: '26px',
+              fontWeight: 600,
+              letterSpacing: '-0.03em',
+              lineHeight: 1.25,
+              color: 'var(--text)',
+              marginBottom: '12px',
             }}
           >
-            {markdown}
-          </Markdown>
-        </article>
-      ) : (
-        <pre className="plan-plain">{plan.content}</pre>
-      )}
+            {plan.title}
+          </h1>
 
-      {/* File path footer */}
-      <div
-        className="flex items-center justify-between gap-2"
-        style={{
-          marginTop: '40px',
-          paddingTop: '16px',
-          borderTop: '1px solid var(--border)',
-          fontSize: '11.5px',
-          color: 'var(--tertiary)',
-          fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
-        }}
-      >
-        <span style={{ wordBreak: 'break-all' }}>{plan.filePath}</span>
-        <button
-          type="button"
-          onClick={handleCopyPath}
-          title={pathCopied ? 'Copied!' : 'Copy path'}
+          <div
+            className="flex items-center gap-5"
+            style={{ fontSize: '12.5px', color: 'var(--secondary)', marginBottom: '16px' }}
+          >
+            <span className="flex items-center gap-1.5">
+              <ClockIcon />
+              Updated {timeAgo(plan.updatedAt)}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <DocIcon />
+              {plan.format.toUpperCase()}
+            </span>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 550,
+                padding: '2px 7px',
+                borderRadius: '5px',
+                background: 'rgba(34,197,94,0.1)',
+                color: '#16a34a',
+              }}
+            >
+              Writable
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopy}
+              title={copied ? 'Copied!' : 'Copy plan'}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12.5px',
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                borderRadius: '7px',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: copied ? '#16a34a' : 'var(--secondary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              {copied ? <CheckIcon /> : <CopyIcon />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={() => setShowShare(true)}
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                }}
+              >
+                Share
+              </button>
+            )}
+            {isMarkdown && (
+              <button
+                type="button"
+                onClick={onEdit}
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                }}
+              >
+                Edit
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (isPro) {
+                  startViewTransition(() => setShowTechGraph((v) => !v));
+                }
+              }}
+              title={!isPro ? 'Pro feature' : showTechGraph ? 'Hide tech graph' : 'Show tech graph'}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12.5px',
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                borderRadius: '7px',
+                border: '1px solid var(--border)',
+                background: showTechGraph ? 'rgba(139,92,246,0.1)' : 'transparent',
+                color: showTechGraph ? '#8b5cf6' : isPro ? 'var(--secondary)' : 'var(--tertiary)',
+                cursor: isPro ? 'pointer' : 'default',
+                opacity: isPro ? 1 : 0.5,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <GraphIcon />
+              {showTechGraph ? 'Hide Graph' : 'Tech Graph'}
+              {!isPro && (
+                <span
+                  style={{
+                    fontSize: '9px',
+                    fontWeight: 600,
+                    padding: '1px 4px',
+                    borderRadius: '3px',
+                    background: 'rgba(139,92,246,0.15)',
+                    color: '#8b5cf6',
+                  }}
+                >
+                  PRO
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {showTechGraph && (
+          <div style={{ marginBottom: '32px', viewTransitionName: 'tech-graph' }}>
+            <Suspense
+              fallback={
+                <div
+                  style={{
+                    height: '200px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '13px',
+                    color: 'var(--tertiary)',
+                  }}
+                >
+                  Loading tech graph…
+                </div>
+              }
+            >
+              <TechDependencyChart plan={plan} onWideChange={onChartWideChange} />
+            </Suspense>
+          </div>
+        )}
+
+        {/* Body */}
+        {isMarkdown ? (
+          <article className="plan-markdown">
+            <Markdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeSlug]}
+              components={{
+                code({ className, children, node: _node, ...props }) {
+                  const code = String(children).replace(/\n$/, '');
+                  const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
+                  const isBlock = Boolean(language) || code.includes('\n');
+
+                  if (!isBlock) {
+                    return (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  }
+
+                  return (
+                    <MarkdownCodeBlock className={className} code={code} language={language} />
+                  );
+                },
+              }}
+            >
+              {markdown}
+            </Markdown>
+          </article>
+        ) : (
+          <pre className="plan-plain">{plan.content}</pre>
+        )}
+
+        {/* File path footer */}
+        <div
+          className="flex items-center justify-between gap-2"
           style={{
-            padding: '3px',
-            borderRadius: '5px',
-            border: 'none',
-            background: 'transparent',
-            color: pathCopied ? '#16a34a' : 'var(--tertiary)',
-            cursor: 'pointer',
-            flexShrink: 0,
+            marginTop: '40px',
+            paddingTop: '16px',
+            borderTop: '1px solid var(--border)',
+            fontSize: '11.5px',
+            color: 'var(--tertiary)',
+            fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
           }}
         >
-          {pathCopied ? <CheckIcon /> : <CopyIcon />}
-        </button>
+          <span style={{ wordBreak: 'break-all' }}>{plan.filePath}</span>
+          <button
+            type="button"
+            onClick={handleCopyPath}
+            title={pathCopied ? 'Copied!' : 'Copy path'}
+            style={{
+              padding: '3px',
+              borderRadius: '5px',
+              border: 'none',
+              background: 'transparent',
+              color: pathCopied ? '#16a34a' : 'var(--tertiary)',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            {pathCopied ? <CheckIcon /> : <CopyIcon />}
+          </button>
+        </div>
+
+        {showShare && <SharePlanDialog plan={plan} onClose={() => setShowShare(false)} />}
+
+        <ScrollToTop />
       </div>
-
-      {showShare && <SharePlanDialog plan={plan} onClose={() => setShowShare(false)} />}
-
-      <ScrollToTop />
-    </div>
+    </>
   );
 }
 
