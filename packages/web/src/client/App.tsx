@@ -12,6 +12,7 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SidebarFilters } from './components/SidebarFilters.tsx';
 import { SkeletonBlock } from './components/Skeleton.tsx';
 import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
+import { ThemeToggle } from './components/ThemeToggle.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useAgents, usePlans } from './hooks/usePlans.ts';
@@ -268,7 +269,7 @@ function Dashboard() {
             >
               <SidebarToggleIcon hidden={sidebarHidden} />
             </button>
-            {sidebarHidden && hasUnseenPlans && (
+            {sidebarHidden && isPro && hasUnseenPlans && (
               <span
                 className="sidebar-dot"
                 style={{
@@ -396,6 +397,7 @@ function Dashboard() {
           className="flex items-center justify-end gap-3 min-w-0 justify-self-end"
           style={{ paddingRight: '16px' }}
         >
+          <ThemeToggle />
           <SubscriptionBadge />
           <AuthButton />
           <div

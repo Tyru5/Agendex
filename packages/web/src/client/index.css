@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: light dark;
   --bg: #fafafa;
   --surface: #fff;
   --text: #111;
@@ -23,27 +22,25 @@
   --code-variable: #953800;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111;
-    --surface: #161616;
-    --text: #e8e8e8;
-    --secondary: #888;
-    --tertiary: #555;
-    --border: rgba(255, 255, 255, 0.06);
-    --hover: rgba(255, 255, 255, 0.04);
-    --active: rgba(255, 255, 255, 0.07);
-    --code-bg: #0d1117;
-    --code-border: rgba(240, 246, 252, 0.15);
-    --code-fg: #c9d1d9;
-    --code-comment: #8b949e;
-    --code-keyword: #ff7b72;
-    --code-string: #a5d6ff;
-    --code-number: #79c0ff;
-    --code-title: #d2a8ff;
-    --code-builtin: #ffa657;
-    --code-variable: #e6edf3;
-  }
+.dark {
+  --bg: #111;
+  --surface: #161616;
+  --text: #e8e8e8;
+  --secondary: #888;
+  --tertiary: #555;
+  --border: rgba(255, 255, 255, 0.06);
+  --hover: rgba(255, 255, 255, 0.04);
+  --active: rgba(255, 255, 255, 0.07);
+  --code-bg: #0d1117;
+  --code-border: rgba(240, 246, 252, 0.15);
+  --code-fg: #c9d1d9;
+  --code-comment: #8b949e;
+  --code-keyword: #ff7b72;
+  --code-string: #a5d6ff;
+  --code-number: #79c0ff;
+  --code-title: #d2a8ff;
+  --code-builtin: #ffa657;
+  --code-variable: #e6edf3;
 }
 
 /* ─── View Transitions ─── */
@@ -2207,16 +2204,14 @@ body {
   white-space: nowrap;
 }
 
-@media (prefers-color-scheme: light) {
-  .offline-view {
-    background:
-      radial-gradient(ellipse 70% 50% at 50% 40%, rgba(239, 68, 68, 0.04), transparent 70%),
-      var(--bg);
-  }
+.light .offline-view {
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 40%, rgba(239, 68, 68, 0.04), transparent 70%),
+    var(--bg);
+}
 
-  .offline-noise {
-    opacity: 0.015;
-  }
+.light .offline-noise {
+  opacity: 0.015;
 }
 
 /* ─── Plan Uploader ─── */
@@ -2598,14 +2593,12 @@ body {
   }
 }
 
-@media (prefers-color-scheme: light) {
-  .upload-view {
-    background:
-      radial-gradient(ellipse 60% 45% at 50% 38%, rgba(139, 92, 246, 0.05), transparent 70%),
-      var(--bg);
-  }
+.light .upload-view {
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 38%, rgba(139, 92, 246, 0.05), transparent 70%),
+    var(--bg);
+}
 
-  .upload-noise {
-    opacity: 0.012;
-  }
+.light .upload-noise {
+  opacity: 0.012;
 }
