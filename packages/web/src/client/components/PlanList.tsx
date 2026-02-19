@@ -1,8 +1,8 @@
 import { useEffect, useMemo } from 'react';
-import type { Plan } from '../lib/api.ts';
-import { getAgentLabel } from '../lib/agent-colors.ts';
-import { AgentIcon } from './AgentIcon.tsx';
 import { useSeenPlans } from '../hooks/useSeenPlans.ts';
+import { getAgentLabel } from '../lib/agent-colors.ts';
+import type { Plan } from '../lib/api.ts';
+import { AgentIcon } from './AgentIcon.tsx';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -28,6 +28,7 @@ function PlanRow({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className="w-full text-left block"
       style={{

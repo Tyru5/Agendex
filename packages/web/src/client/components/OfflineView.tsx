@@ -7,7 +7,7 @@ export function OfflineView() {
   useEffect(() => {
     const interval = setInterval(() => {
       setElapsed((e) => e + 1);
-      setDots((d) => (d.length >= 3 ? '' : d + '.'));
+      setDots((d) => (d.length >= 3 ? '' : `${d}.`));
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -23,7 +23,7 @@ export function OfflineView() {
 
       <div className="offline-content">
         <div className="offline-signal">
-          <svg viewBox="0 0 48 48" fill="none" className="offline-signal-icon">
+          <svg aria-hidden="true" viewBox="0 0 48 48" fill="none" className="offline-signal-icon">
             <path d="M24 36h.02" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
             <path
               d="M18.36 30.36a8 8 0 0 1 11.28 0"
@@ -84,7 +84,7 @@ export function OfflineView() {
 
         <div className="offline-hint">
           <span className="offline-hint-icon">
-            <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" width="14" height="14">
               <path
                 d="M8 1.33a6.67 6.67 0 1 0 0 13.34A6.67 6.67 0 0 0 8 1.33ZM8 5v3.33M8 10.67h.007"
                 stroke="currentColor"

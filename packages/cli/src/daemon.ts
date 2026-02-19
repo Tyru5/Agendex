@@ -1,13 +1,13 @@
 import {
+  getAll,
   loadOrInitConfig,
   resolveAdapters,
-  setActiveAdapters,
   scan,
-  getAll,
-  startWatching,
+  setActiveAdapters,
   setOnPlansChanged,
+  startWatching,
 } from '@agendex/shared';
-import { syncPlan, type SyncPlanPayload } from './api.ts';
+import { type SyncPlanPayload, syncPlan } from './api.ts';
 
 function planToPayload(plan: {
   id: string;
@@ -38,7 +38,7 @@ export async function startDaemon(): Promise<void> {
 
   console.log(`[agendex] daemon starting with ${config.enabledAdapters.length} adapters`);
 
-  let syncQueue: SyncPlanPayload[] = [];
+  const syncQueue: SyncPlanPayload[] = [];
   let syncing = false;
 
   async function processSyncQueue() {

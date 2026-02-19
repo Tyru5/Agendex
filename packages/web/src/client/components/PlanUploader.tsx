@@ -1,8 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api, type Plan, type AgentStats } from '../lib/api.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
+import { type AgentStats, api, type Plan } from '../lib/api.ts';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 
 interface UploadFile {
@@ -131,7 +131,10 @@ export function PlanUploader({
         <div className="upload-noise" />
 
         <div className="upload-content">
+          {/* biome-ignore lint/a11y/useSemanticElements: dropzone requires div for drag/drop */}
           <div
+            role="button"
+            tabIndex={0}
             className={`upload-dropzone${dragOver ? ' upload-dropzone-active' : ''}`}
             onDragOver={(e) => {
               e.preventDefault();
@@ -140,9 +143,13 @@ export function PlanUploader({
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             onClick={() => inputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click();
+            }}
           >
             <div className="upload-dropzone-ring">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -176,7 +183,7 @@ export function PlanUploader({
 
           {error && <div className="upload-error">{error}</div>}
 
-          <button onClick={onClose} className="upload-cancel-link">
+          <button type="button" onClick={onClose} className="upload-cancel-link">
             Cancel
           </button>
         </div>
@@ -191,6 +198,7 @@ export function PlanUploader({
         <div className="upload-confirm-header-left">
           <div className="upload-file-chip">
             <svg
+              aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -227,6 +235,7 @@ export function PlanUploader({
         <div className="flex items-center gap-2 shrink-0">
           {error && <span style={{ fontSize: '12px', color: '#ef4444' }}>{error}</span>}
           <button
+            type="button"
             onClick={() => {
               setStep('pick');
               setFiles([]);
@@ -236,10 +245,15 @@ export function PlanUploader({
           >
             Back
           </button>
-          <button onClick={onClose} className="upload-btn-ghost">
+          <button type="button" onClick={onClose} className="upload-btn-ghost">
             Cancel
           </button>
-          <button onClick={handleUpload} disabled={!canUpload} className="upload-btn-primary">
+          <button
+            type="button"
+            onClick={handleUpload}
+            disabled={!canUpload}
+            className="upload-btn-primary"
+          >
             {uploading
               ? `Uploading ${uploadProgress}/${files.length}...`
               : files.length === 1
@@ -257,9 +271,15 @@ export function PlanUploader({
             const lines = f.content.split('\n').length;
             return (
               <div
+                role="option"
+                aria-selected={i === previewIdx}
+                tabIndex={0}
                 key={`${f.name}-${i}`}
                 className={`upload-file-row${i === previewIdx ? ' upload-file-row-active' : ''}`}
                 onClick={() => setPreviewIdx(i)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') setPreviewIdx(i);
+                }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <input
@@ -276,6 +296,7 @@ export function PlanUploader({
                 </div>
                 {files.length > 1 && (
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       removeFile(i);
@@ -284,6 +305,7 @@ export function PlanUploader({
                     aria-label="Remove file"
                   >
                     <svg
+                      aria-hidden="true"
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
                       viewBox="0 0 24 24"

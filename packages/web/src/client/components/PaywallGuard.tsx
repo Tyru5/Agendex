@@ -15,6 +15,7 @@ const PRO_HIGHLIGHTS = [
   { icon: 'share', label: 'Shareable plan links' },
   { icon: 'comment', label: 'Comment threads' },
   { icon: 'devices', label: 'Access from any device' },
+  { icon: 'graph', label: 'Technology dependency charts' },
 ];
 
 function FeatureIcon({ type }: { type: string }) {
@@ -32,13 +33,13 @@ function FeatureIcon({ type }: { type: string }) {
   switch (type) {
     case 'cloud':
       return (
-        <svg {...props}>
+        <svg aria-hidden="true" {...props}>
           <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
         </svg>
       );
     case 'share':
       return (
-        <svg {...props}>
+        <svg aria-hidden="true" {...props}>
           <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
           <polyline points="16 6 12 2 8 6" />
           <line x1="12" x2="12" y1="2" y2="15" />
@@ -46,16 +47,29 @@ function FeatureIcon({ type }: { type: string }) {
       );
     case 'comment':
       return (
-        <svg {...props}>
+        <svg aria-hidden="true" {...props}>
           <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
         </svg>
       );
     case 'devices':
       return (
-        <svg {...props}>
+        <svg aria-hidden="true" {...props}>
           <rect width="20" height="14" x="2" y="3" rx="2" />
           <line x1="8" x2="16" y1="21" y2="21" />
           <line x1="12" x2="12" y1="17" y2="21" />
+        </svg>
+      );
+    case 'graph':
+      return (
+        <svg aria-hidden="true" {...props}>
+          <circle cx="5" cy="12" r="2" />
+          <circle cx="12" cy="5" r="2" />
+          <circle cx="12" cy="19" r="2" />
+          <circle cx="19" cy="12" r="2" />
+          <line x1="7" y1="11" x2="10" y2="6" />
+          <line x1="7" y1="13" x2="10" y2="18" />
+          <line x1="14" y1="5" x2="17" y2="11" />
+          <line x1="14" y1="19" x2="17" y2="13" />
         </svg>
       );
     default:
@@ -88,6 +102,7 @@ export function PaywallGuard({ children, fallback, onBack }: PaywallGuardProps) 
                 aria-label="Go back"
               >
                 <svg
+                  aria-hidden="true"
                   width="15"
                   height="15"
                   viewBox="0 0 24 24"
@@ -131,6 +146,7 @@ export function PaywallGuard({ children, fallback, onBack }: PaywallGuardProps) 
               >
                 <span>Upgrade to Pro</span>
                 <svg
+                  aria-hidden="true"
                   width="14"
                   height="14"
                   viewBox="0 0 24 24"

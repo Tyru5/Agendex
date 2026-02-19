@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 type Listener = (data: unknown) => void;
 
@@ -74,7 +74,7 @@ export function useSocketEvent(event: string, handler: () => void) {
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
 
-  const stableHandler = useCallback((data: unknown) => {
+  const stableHandler = useCallback((_data: unknown) => {
     handlerRef.current();
   }, []);
 
@@ -90,8 +90,8 @@ export function useSocketEvent(event: string, handler: () => void) {
     set.add(stableHandler);
 
     return () => {
-      set!.delete(stableHandler);
-      if (set!.size === 0) listeners.delete(event);
+      set?.delete(stableHandler);
+      if (set?.size === 0) listeners.delete(event);
       refCount--;
       if (refCount === 0) disconnect();
     };

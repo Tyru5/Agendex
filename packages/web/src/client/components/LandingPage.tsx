@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { setToken } from '../lib/api.ts';
 import { useAuth } from '../hooks/useAuth.ts';
+import { setToken } from '../lib/api.ts';
 import { PricingModal } from './PricingModal.tsx';
 
-const DEBUG = true;
+const _DEBUG = true;
 
 const FAQ_ITEMS = [
   {
@@ -100,7 +100,7 @@ const CLOUD_STEPS: CloudStep[] = [
   },
 ];
 
-function Logo() {
+function _Logo() {
   return (
     <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
       <rect
@@ -124,6 +124,7 @@ function Logo() {
 function ArrowRight() {
   return (
     <svg
+      aria-hidden="true"
       width="14"
       height="14"
       viewBox="0 0 24 24"
@@ -149,6 +150,7 @@ function GitHubIcon() {
 function CopyIcon() {
   return (
     <svg
+      aria-hidden="true"
       width="14"
       height="14"
       viewBox="0 0 24 24"
@@ -167,6 +169,7 @@ function CopyIcon() {
 function CheckIcon() {
   return (
     <svg
+      aria-hidden="true"
       width="14"
       height="14"
       viewBox="0 0 24 24"
@@ -210,7 +213,7 @@ function FaqItem({
 function PkgManagerInstall() {
   const [activePkg, setActivePkg] = useState(PKG_MANAGERS[0].id);
   const [copied, setCopied] = useState(false);
-  const cmd = PKG_MANAGERS.find((p) => p.id === activePkg)!.cmd;
+  const cmd = PKG_MANAGERS.find((p) => p.id === activePkg)?.cmd;
 
   function copy() {
     navigator.clipboard.writeText(cmd);

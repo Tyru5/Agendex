@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
-import { useSubscription } from '../hooks/useSubscription';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useSubscription } from '../hooks/useSubscription';
 import { PricingModal } from './PricingModal';
 import { Skeleton } from './Skeleton';
 
@@ -35,6 +35,7 @@ export function SubscriptionBadge() {
     return (
       <div style={{ position: 'relative' }}>
         <button
+          type="button"
           onClick={() => setShowMenu(!showMenu)}
           style={{
             background: 'var(--primary)',
@@ -98,6 +99,7 @@ export function SubscriptionBadge() {
             </div>
 
             <button
+              type="button"
               onClick={async () => {
                 setShowMenu(false);
                 await createPortal();
@@ -125,6 +127,7 @@ export function SubscriptionBadge() {
 
             {cancelAtPeriodEnd && (
               <button
+                type="button"
                 onClick={async () => {
                   setShowMenu(false);
                   await reactivate();
@@ -161,6 +164,7 @@ export function SubscriptionBadge() {
   return (
     <>
       <button
+        type="button"
         onClick={() => setShowPricing(true)}
         style={{
           background: 'var(--border)',

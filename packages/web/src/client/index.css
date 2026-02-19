@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 :root {
   color-scheme: light dark;
@@ -70,6 +70,30 @@
   }
 }
 
+::view-transition-old(tech-graph) {
+  animation: vt-graph-out 0.2s ease both;
+}
+
+::view-transition-new(tech-graph) {
+  animation: vt-graph-in 0.25s ease both;
+}
+
+@keyframes vt-graph-out {
+  to {
+    opacity: 0;
+    transform: scaleY(0.95);
+    transform-origin: top;
+  }
+}
+
+@keyframes vt-graph-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.95);
+    transform-origin: top;
+  }
+}
+
 @keyframes skeleton-pulse {
   0%,
   100% {
@@ -117,12 +141,8 @@
 body {
   background: var(--bg);
   color: var(--text);
-  font-family:
-    'Inter',
-    -apple-system,
-    system-ui,
-    sans-serif;
-  font-feature-settings: 'cv01', 'cv02', 'cv11';
+  font-family: "Inter", -apple-system, system-ui, sans-serif;
+  font-feature-settings: "cv01", "cv02", "cv11";
   -webkit-font-smoothing: antialiased;
   margin: 0;
   font-size: 13.5px;
@@ -206,7 +226,7 @@ body {
 }
 
 .plan-markdown ul > li::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 2px;
   top: 9px;
@@ -222,7 +242,7 @@ body {
 }
 
 .plan-markdown ol > li::before {
-  content: counter(ol-counter) '.';
+  content: counter(ol-counter) ".";
   position: absolute;
   left: 0;
   color: var(--tertiary);
@@ -256,7 +276,7 @@ body {
 }
 
 .plan-markdown code {
-  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
   font-size: 0.88em;
 }
 
@@ -377,7 +397,7 @@ body {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: 'SF Mono', 'JetBrains Mono', monospace;
+  font-family: "SF Mono", "JetBrains Mono", monospace;
   font-size: 13px;
   line-height: 1.6;
   color: var(--secondary);
@@ -452,11 +472,7 @@ body {
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 36px 36px;
   color: var(--landing-text);
-  font-family:
-    'Inter',
-    -apple-system,
-    system-ui,
-    sans-serif;
+  font-family: "Inter", -apple-system, system-ui, sans-serif;
   overflow-x: hidden;
 }
 
@@ -596,7 +612,7 @@ body {
 }
 
 .landing-hero-title {
-  font-family: 'Unbounded', sans-serif;
+  font-family: "Unbounded", sans-serif;
   font-size: clamp(36px, 4.5vw, 56px);
   font-weight: 400;
   line-height: 1.08;
@@ -712,7 +728,7 @@ body {
   border-radius: 5px;
   background: transparent;
   color: var(--landing-muted);
-  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
@@ -738,7 +754,7 @@ body {
 }
 
 .landing-pkg-cmd code {
-  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
   font-size: 13px;
   line-height: 1.7;
   color: var(--landing-accent);
@@ -778,7 +794,7 @@ body {
 .landing-step-bar {
   background: var(--landing-accent);
   color: #0a0a0a;
-  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -790,7 +806,7 @@ body {
   margin: 0;
   padding: 16px;
   background: #0d0d0d;
-  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
   font-size: 13px;
   line-height: 1.7;
   color: var(--landing-accent);
@@ -821,7 +837,7 @@ body {
 }
 
 .landing-section-title {
-  font-family: 'Unbounded', sans-serif;
+  font-family: "Unbounded", sans-serif;
   font-size: clamp(28px, 4vw, 38px);
   font-weight: 400;
   letter-spacing: -0.025em;
@@ -964,7 +980,7 @@ body {
 }
 
 .landing-pricing-list li::before {
-  content: '✓';
+  content: "✓";
   position: absolute;
   left: 0;
   color: var(--landing-accent);
@@ -979,7 +995,7 @@ body {
 }
 
 .landing-pricing-amount {
-  font-family: 'Unbounded', sans-serif;
+  font-family: "Unbounded", sans-serif;
   font-size: 36px;
   font-weight: 400;
   letter-spacing: -0.03em;
@@ -1059,7 +1075,7 @@ body {
 
 .landing-faq-icon::before,
 .landing-faq-icon::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1333,7 +1349,7 @@ body {
 }
 
 .paywall-guard-title {
-  font-family: 'Unbounded', sans-serif;
+  font-family: "Unbounded", sans-serif;
   font-size: 22px;
   font-weight: 400;
   letter-spacing: -0.03em;
@@ -1402,7 +1418,7 @@ body {
 }
 
 .paywall-guard-cta::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
@@ -1478,17 +1494,13 @@ body {
   background: var(--pm-bg);
   padding: 40px 36px 36px;
   color: var(--pm-text);
-  font-family:
-    'Inter',
-    -apple-system,
-    system-ui,
-    sans-serif;
+  font-family: "Inter", -apple-system, system-ui, sans-serif;
   overflow: hidden;
   animation: pm-scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .pricing-modal::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   border-radius: 20px;
@@ -1534,7 +1546,7 @@ body {
 }
 
 .pricing-modal-title {
-  font-family: 'Unbounded', sans-serif;
+  font-family: "Unbounded", sans-serif;
   font-size: 24px;
   font-weight: 400;
   letter-spacing: -0.03em;
@@ -1579,11 +1591,11 @@ body {
   pointer-events: none;
 }
 
-.pricing-toggle-pill[data-active='monthly'] {
+.pricing-toggle-pill[data-active="monthly"] {
   left: 4px;
 }
 
-.pricing-toggle-pill[data-active='yearly'] {
+.pricing-toggle-pill[data-active="yearly"] {
   left: 50%;
 }
 
@@ -1605,15 +1617,15 @@ body {
   text-align: center;
 }
 
-.pricing-toggle-btn[data-selected='true'] {
+.pricing-toggle-btn[data-selected="true"] {
   color: #0a0a0a;
 }
 
-.pricing-toggle-btn[data-selected='false'] {
+.pricing-toggle-btn[data-selected="false"] {
   color: var(--pm-muted);
 }
 
-.pricing-toggle-btn[data-selected='false']:hover {
+.pricing-toggle-btn[data-selected="false"]:hover {
   color: var(--pm-text);
 }
 
@@ -1634,7 +1646,7 @@ body {
     color 0.2s;
 }
 
-.pricing-toggle-btn[data-selected='true'] .pricing-toggle-save {
+.pricing-toggle-btn[data-selected="true"] .pricing-toggle-save {
   background: rgba(0, 0, 0, 0.15);
   color: #0a0a0a;
 }
@@ -1711,7 +1723,7 @@ body {
 }
 
 .pricing-card-amount {
-  font-family: 'Unbounded', sans-serif;
+  font-family: "Unbounded", sans-serif;
   font-size: 32px;
   font-weight: 400;
   letter-spacing: -0.04em;
@@ -1759,7 +1771,7 @@ body {
 }
 
 .pricing-card-features li::before {
-  content: '✓';
+  content: "✓";
   position: absolute;
   left: 0;
   font-size: 11px;
@@ -1816,7 +1828,7 @@ body {
 }
 
 .pricing-card-cta-primary::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: -100%;
@@ -1905,7 +1917,7 @@ body {
   --offline-surface: #0c0c0c;
   --offline-text: #c4c4c4;
   --offline-muted: #555;
-  --offline-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  --offline-mono: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
 
   position: relative;
   height: 100%;
@@ -1926,7 +1938,7 @@ body {
 }
 
 .offline-scan-line::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   right: 0;

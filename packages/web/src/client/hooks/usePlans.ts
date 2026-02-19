@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { api, type Plan, type AgentStats } from '../lib/api.ts';
-import { useSocketEvent } from './useSocket.ts';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { type AgentStats, api, type Plan } from '../lib/api.ts';
 import { seedSeen } from './useSeenPlans.ts';
+import { useSocketEvent } from './useSocket.ts';
 
 export function usePlans(filters: { agent?: string; q?: string; sort?: string }) {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -27,7 +27,7 @@ export function usePlans(filters: { agent?: string; q?: string; sort?: string })
 
   useEffect(() => {
     refresh();
-  }, [filters.agent, filters.q, filters.sort]);
+  }, [refresh]);
 
   useSocketEvent('plan:updated', refresh);
 

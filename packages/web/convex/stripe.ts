@@ -1,5 +1,5 @@
-import { components } from './_generated/api';
 import StripeSubscriptions from '@convex-dev/stripe';
+import { components } from './_generated/api';
 
 export const stripeComponent = (components as any).stripe;
 

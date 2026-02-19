@@ -1,6 +1,6 @@
-import { homedir } from 'os';
-import { join, basename, resolve, sep } from 'path';
-import { stat, readFile, writeFile } from 'fs/promises';
+import { readFile, stat, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, join, resolve, sep } from 'node:path';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 

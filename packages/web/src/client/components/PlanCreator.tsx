@@ -1,14 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { EditorView, keymap } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
-import { markdown } from '@codemirror/lang-markdown';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { defaultKeymap } from '@codemirror/commands';
+import { markdown } from '@codemirror/lang-markdown';
+import { EditorState } from '@codemirror/state';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { EditorView, keymap } from '@codemirror/view';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api, type Plan, type AgentStats } from '../lib/api.ts';
-import { AgentIcon } from './AgentIcon.tsx';
 import { getAgentLabel } from '../lib/agent-colors.ts';
+import { type AgentStats, api, type Plan } from '../lib/api.ts';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 
 export function PlanCreator({
@@ -143,6 +142,7 @@ export function PlanCreator({
         <div className="flex items-center gap-2 shrink-0">
           {error && <span style={{ fontSize: '12px', color: '#ef4444' }}>{error}</span>}
           <button
+            type="button"
             onClick={onClose}
             style={{
               padding: '5px 12px',
@@ -159,6 +159,7 @@ export function PlanCreator({
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleCreate}
             disabled={creating || !title.trim() || !content.trim()}
             style={{
@@ -189,6 +190,7 @@ export function PlanCreator({
         />
 
         {/* Drag handle */}
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: resize drag handle */}
         <div
           onMouseDown={handleMouseDown}
           style={{

@@ -1,8 +1,7 @@
-import { defineConfig } from 'vite';
+import path from 'node:path';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-
 import tidewave from 'tidewave/vite-plugin';
+import { defineConfig } from 'vite';
 
 const ngrokAllowedHosts = ['.ngrok-free.app', '.ngrok.io', '.ngrok.app', '.ngrok.dev'];
 const extraAllowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? '')

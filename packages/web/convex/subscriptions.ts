@@ -1,9 +1,9 @@
 import { ConvexError, v } from 'convex/values';
-import { action, internalMutation, query } from './_generated/server';
+import Stripe from 'stripe';
 import { api, internal } from './_generated/api';
+import { action, internalMutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { stripe } from './stripe';
-import Stripe from 'stripe';
 
 export const getMySubscriptionQuery = query({
   handler: async (ctx) => {

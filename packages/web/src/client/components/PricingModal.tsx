@@ -24,6 +24,7 @@ const PRO_FEATURES = [
 function ArrowRight() {
   return (
     <svg
+      aria-hidden="true"
       width="13"
       height="13"
       viewBox="0 0 24 24"
@@ -70,7 +71,12 @@ export function PricingModal({ onClose }: PricingModalProps) {
     >
       <div className="pricing-modal">
         {onClose && (
-          <button className="pricing-modal-close" onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            className="pricing-modal-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
             ✕
           </button>
         )}

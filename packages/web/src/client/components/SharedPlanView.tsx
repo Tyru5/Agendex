@@ -1,12 +1,12 @@
+import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api } from '@convex/_generated/api';
-import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
+import { getAgentLabel } from '../lib/agent-colors.ts';
 import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
 import { AgentIcon } from './AgentIcon.tsx';
-import { getAgentLabel } from '../lib/agent-colors.ts';
 import { CommentThread } from './CommentThread.tsx';
+import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 import { SkeletonBlock } from './Skeleton.tsx';
 
 function timeAgo(dateStr: string): string {
@@ -180,6 +180,7 @@ export function SharedPlanView({ token }: { token: string }) {
 function ClockIcon() {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"
@@ -199,6 +200,7 @@ function ClockIcon() {
 function DocIcon() {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

@@ -1,7 +1,7 @@
-import { readdir, lstat, stat, readFile, writeFile, mkdir } from 'fs/promises';
-import { join, resolve, sep } from 'path';
-import { homedir } from 'os';
-import { existsSync } from 'fs';
+import { existsSync } from 'node:fs';
+import { lstat, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join, resolve, sep } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
 import { hashPath } from '../hash.ts';
 import type { Plan } from '../types.ts';
@@ -42,9 +42,7 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
         } else {
           files.push(full);
         }
-      } catch {
-        continue;
-      }
+      } catch {}
     }
   } catch {
     // permission denied or similar
@@ -85,9 +83,7 @@ async function scanUserPlans() {
         metadata: { userCreated: true },
       };
       store.set(plan.id, plan);
-    } catch {
-      continue;
-    }
+    } catch {}
   }
 }
 

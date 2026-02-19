@@ -28,7 +28,7 @@ function snapshot() {
 function write(next: SeenMap) {
   cached = next;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  listeners.forEach((cb) => cb());
+  for (const cb of listeners) cb();
 }
 
 export function seedSeen(plans: { id: string; updatedAt: string }[]) {

@@ -70,6 +70,7 @@ export function SidebarFilters({
             ] as const
           ).map(([value, label]) => (
             <button
+              type="button"
               key={value}
               onClick={() => onDateBucketChange(value)}
               style={{

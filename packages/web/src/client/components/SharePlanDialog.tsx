@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
-import type { Plan } from '../lib/api.ts';
+import { useMutation, useQuery } from 'convex/react';
+import { useState } from 'react';
 import { usePublishing } from '../hooks/usePublishing.ts';
+import type { Plan } from '../lib/api.ts';
 
 const appUrl = (import.meta.env.VITE_APP_URL as string) || window.location.origin;
 
@@ -83,6 +83,7 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
       >
         {/* Close button */}
         <button
+          type="button"
           onClick={onClose}
           style={{
             position: 'absolute',
@@ -158,6 +159,7 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
                     {url}
                   </span>
                   <button
+                    type="button"
                     onClick={() => handleCopy(link.token)}
                     style={{
                       padding: '3px 10px',
@@ -175,6 +177,7 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
                     {copiedToken === link.token ? 'Copied' : 'Copy'}
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleRevoke(link._id)}
                     style={{
                       padding: '3px 10px',
@@ -199,6 +202,7 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
 
         {/* Publish & Share button */}
         <button
+          type="button"
           onClick={handlePublishAndShare}
           disabled={publishing}
           style={{

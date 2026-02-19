@@ -1,23 +1,23 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { hasToken, setToken, type Plan } from './lib/api.ts';
-import { usePlans, useAgents } from './hooks/usePlans.ts';
-import { SearchBar } from './components/SearchBar.tsx';
-import { SidebarFilters } from './components/SidebarFilters.tsx';
+import { AuthButton } from './components/AuthButton.tsx';
+import { CliAuthPage } from './components/CliAuthPage.tsx';
+import { LandingPage } from './components/LandingPage.tsx';
+import { OfflineView } from './components/OfflineView.tsx';
+import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { PlanList } from './components/PlanList.tsx';
 import { PlanViewer } from './components/PlanViewer.tsx';
+import { PricingModal } from './components/PricingModal.tsx';
+import { SearchBar } from './components/SearchBar.tsx';
+import { SharedPlanView } from './components/SharedPlanView.tsx';
+import { SidebarFilters } from './components/SidebarFilters.tsx';
+import { SkeletonBlock } from './components/Skeleton.tsx';
+import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
-import { filterPlans } from './lib/plan-search.ts';
-import { LandingPage } from './components/LandingPage.tsx';
-import { AuthButton } from './components/AuthButton.tsx';
-import { SharedPlanView } from './components/SharedPlanView.tsx';
-import { CliAuthPage } from './components/CliAuthPage.tsx';
-import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
-import { SkeletonBlock } from './components/Skeleton.tsx';
-import { OfflineView } from './components/OfflineView.tsx';
+import { useAgents, usePlans } from './hooks/usePlans.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
-import { PricingModal } from './components/PricingModal.tsx';
-import { PaywallGuard } from './components/PaywallGuard.tsx';
+import { hasToken, type Plan } from './lib/api.ts';
+import { filterPlans } from './lib/plan-search.ts';
 import { startViewTransition } from './lib/view-transition.ts';
 
 const PlanEditor = lazy(() =>
@@ -42,6 +42,7 @@ type DashboardMode = 'local' | 'cloud';
 function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"
@@ -111,7 +112,7 @@ function Dashboard() {
       localPlans.refresh();
     }
     prevBackendStatus.current = backendStatus;
-  }, [backendStatus]);
+  }, [backendStatus, localPlans.refresh]);
 
   const totalPlans = useMemo(() => {
     if (mode === 'cloud') return plans.length;
@@ -288,6 +289,7 @@ function Dashboard() {
                 }}
               >
                 <svg
+                  aria-hidden="true"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -327,6 +329,7 @@ function Dashboard() {
                 }}
               >
                 <svg
+                  aria-hidden="true"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -440,6 +443,7 @@ function Dashboard() {
       )}
 
       {/* Sidebar */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: hover-reveal sidebar container */}
       <div
         className="flex flex-col overflow-hidden"
         onMouseEnter={revealSidebarOnHover}
@@ -531,6 +535,7 @@ function Dashboard() {
                 }}
               >
                 <svg
+                  aria-hidden="true"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -695,7 +700,7 @@ export default function App() {
 
   const sharedMatch = path.match(/^\/shared\/([^/]+)/);
   if (sharedMatch) {
-    return <SharedPlanView token={sharedMatch[1]!} />;
+    return <SharedPlanView token={sharedMatch[1] as string} />;
   }
 
   if (!hasToken()) return <LandingPage />;

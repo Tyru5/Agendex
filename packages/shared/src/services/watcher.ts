@@ -1,6 +1,5 @@
-import { watch } from 'fs';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, watch } from 'node:fs';
+import { join } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
 import { rescanFile } from './plan-service.ts';
 

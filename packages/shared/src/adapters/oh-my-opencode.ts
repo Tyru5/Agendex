@@ -1,7 +1,7 @@
-import { homedir } from 'os';
-import { basename, join } from 'path';
-import { readdirSync, existsSync, readFileSync } from 'fs';
-import { stat, readdir, readFile, writeFile } from 'fs/promises';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, join } from 'node:path';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
@@ -93,9 +93,7 @@ function discoverPlanDirectories(): string[] {
           if (session.parentID) continue;
 
           dirs.add(join(session.directory, '.sisyphus', 'plans'));
-        } catch {
-          continue;
-        }
+        } catch {}
       }
     }
   } catch {

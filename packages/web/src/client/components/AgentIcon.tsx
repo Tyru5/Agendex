@@ -24,7 +24,13 @@ export function AgentIcon({ agent, size = 14 }: { agent: string; size?: number }
           flexShrink: 0,
         }}
       >
-        <svg viewBox={icon.viewBox ?? '0 0 24 24'} width={size} height={size} fill="none">
+        <svg
+          aria-hidden="true"
+          viewBox={icon.viewBox ?? '0 0 24 24'}
+          width={size}
+          height={size}
+          fill="none"
+        >
           {icon.paths?.length ? (
             icon.paths.map((segment) => (
               <path

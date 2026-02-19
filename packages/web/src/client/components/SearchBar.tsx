@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Plan } from '../lib/api.ts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSeenPlans } from '../hooks/useSeenPlans.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
+import type { Plan } from '../lib/api.ts';
 import { filterPlans } from '../lib/plan-search.ts';
 import { AgentIcon } from './AgentIcon.tsx';
-import { useSeenPlans } from '../hooks/useSeenPlans.ts';
 
 export function SearchBar({
   search,
@@ -48,6 +48,31 @@ export function SearchBar({
     return /Mac|iPhone|iPad/i.test(navigator.platform);
   }, []);
 
+  const clearCloseTimer = useCallback(() => {
+    if (!closeTimerRef.current) return;
+    clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = undefined;
+  }, []);
+
+  const openModal = useCallback(() => {
+    clearCloseTimer();
+    if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
+    setMounted(true);
+    openFrameRef.current = requestAnimationFrame(() => {
+      setOpen(true);
+    });
+  }, [clearCloseTimer]);
+
+  const closeModal = useCallback(() => {
+    if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
+    setOpen(false);
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => {
+      setMounted(false);
+      closeTimerRef.current = undefined;
+    }, modalExitMs);
+  }, [clearCloseTimer]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -61,7 +86,7 @@ export function SearchBar({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [closeModal, openModal]);
 
   useEffect(() => {
     if (!open) return;
@@ -75,31 +100,6 @@ export function SearchBar({
       if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
     };
   }, []);
-
-  function clearCloseTimer() {
-    if (!closeTimerRef.current) return;
-    clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = undefined;
-  }
-
-  function openModal() {
-    clearCloseTimer();
-    if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
-    setMounted(true);
-    openFrameRef.current = requestAnimationFrame(() => {
-      setOpen(true);
-    });
-  }
-
-  function closeModal() {
-    if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
-    setOpen(false);
-    clearCloseTimer();
-    closeTimerRef.current = setTimeout(() => {
-      setMounted(false);
-      closeTimerRef.current = undefined;
-    }, modalExitMs);
-  }
 
   return (
     <>
@@ -403,6 +403,7 @@ function timeAgo(dateStr: string): string {
 function SearchIcon() {
   return (
     <svg
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

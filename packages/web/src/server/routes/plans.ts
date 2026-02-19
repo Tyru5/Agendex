@@ -1,5 +1,5 @@
+import { create, getAgentStats, getAll, getById, scan, update } from '@agendex/shared';
 import { Hono } from 'hono';
-import { getAll, getById, update, create, getAgentStats, scan } from '@agendex/shared';
 import { search } from '../services/search.ts';
 
 const plans = new Hono();
@@ -13,8 +13,8 @@ plans.get('/plans', (c) => {
   const q = c.req.query('q');
   const workspace = c.req.query('workspace');
   const sort = c.req.query('sort') ?? 'updatedAt';
-  const limit = parseInt(c.req.query('limit') ?? '50');
-  const offset = parseInt(c.req.query('offset') ?? '0');
+  const limit = parseInt(c.req.query('limit') ?? '50', 10);
+  const offset = parseInt(c.req.query('offset') ?? '0', 10);
 
   let results = q ? search(q) : getAll();
 

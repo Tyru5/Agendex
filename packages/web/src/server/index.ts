@@ -1,17 +1,16 @@
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { serveStatic } from 'hono/bun';
-import { createBunWebSocket } from 'hono/bun';
-import { authMiddleware, AUTH_TOKEN } from './auth.ts';
-import { plans } from './routes/plans.ts';
 import {
-  scan,
-  startWatching,
   loadOrInitConfig,
   resolveAdapters,
+  scan,
   setActiveAdapters,
   setOnPlansChanged,
+  startWatching,
 } from '@agendex/shared';
+import { Hono } from 'hono';
+import { createBunWebSocket, serveStatic } from 'hono/bun';
+import { cors } from 'hono/cors';
+import { AUTH_TOKEN, authMiddleware } from './auth.ts';
+import { plans } from './routes/plans.ts';
 import { rebuildIndex } from './services/search.ts';
 
 const app = new Hono();
@@ -86,7 +85,7 @@ function broadcast(event: string, data: unknown) {
 app.use('/*', serveStatic({ root: './src/client/dist' }));
 app.get('/*', serveStatic({ path: './src/client/dist/index.html' }));
 
-const PORT = parseInt(process.env.PORT ?? '4890');
+const PORT = parseInt(process.env.PORT ?? '4890', 10);
 
 console.log(`[agendex] http://localhost:${PORT}`);
 console.log(`[agendex] token: ${AUTH_TOKEN}`);
