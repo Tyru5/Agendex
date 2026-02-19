@@ -3,8 +3,6 @@ import { useAuth } from '../hooks/useAuth.ts';
 import { setToken } from '../lib/api.ts';
 import { PricingModal } from './PricingModal.tsx';
 
-const _DEBUG = true;
-
 const FAQ_ITEMS = [
   {
     q: 'What is Agendex?',
@@ -99,27 +97,6 @@ const CLOUD_STEPS: CloudStep[] = [
     code: `agendex start        # watches + syncs plans`,
   },
 ];
-
-function _Logo() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-      <rect
-        x="2"
-        y="2"
-        width="24"
-        height="24"
-        rx="6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        opacity="0.5"
-      />
-      <rect x="7" y="7" width="6" height="6" rx="1.5" fill="currentColor" />
-      <rect x="15" y="7" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.4" />
-      <rect x="7" y="15" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.4" />
-      <rect x="15" y="15" width="6" height="6" rx="1.5" fill="currentColor" opacity="0.15" />
-    </svg>
-  );
-}
 
 function ArrowRight() {
   return (

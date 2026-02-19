@@ -1,6 +1,8 @@
 export function startViewTransition(callback: () => void) {
-  if (document.startViewTransition) {
-    document.startViewTransition(callback);
+  if ('startViewTransition' in document) {
+    (document as unknown as { startViewTransition: (cb: () => void) => void }).startViewTransition(
+      callback,
+    );
   } else {
     callback();
   }

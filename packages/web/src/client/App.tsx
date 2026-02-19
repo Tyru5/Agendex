@@ -84,8 +84,7 @@ function Dashboard() {
   const cloudPlans = useCloudPlans();
   const agents = useAgents();
   const backendStatus = useBackendStatus();
-  const { isActive: _isPro } = useSubscription();
-  const isPro = true; // TODO: remove — temporary override for testing unseen dots
+  const { isActive: isPro } = useSubscription();
 
   const { plans, loading, error, refresh } =
     mode === 'cloud'
