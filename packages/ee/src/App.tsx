@@ -4,37 +4,43 @@ import { throttle } from 'nuqs';
 import { AuthButton } from './components/AuthButton.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudUpgrade } from './components/CloudUpgrade.tsx';
-import { LandingPage } from './components/LandingPage.tsx';
-import { OfflineView } from './components/OfflineView.tsx';
+import { LandingPage } from '@agendex/app/src/client/components/LandingPage.tsx';
+import { OfflineView } from '@agendex/app/src/client/components/OfflineView.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
-import { PlanList } from './components/PlanList.tsx';
-import { PlanViewer } from './components/PlanViewer.tsx';
+import { PlanList } from '@agendex/app/src/client/components/PlanList.tsx';
+import { PlanViewer } from '@agendex/app/src/client/components/PlanViewer.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
-import { SearchBar } from './components/SearchBar.tsx';
+import { SearchBar } from '@agendex/app/src/client/components/SearchBar.tsx';
 import { SharedPlanView } from './components/SharedPlanView.tsx';
-import { SidebarFilters } from './components/SidebarFilters.tsx';
-import { SkeletonBlock } from './components/Skeleton.tsx';
+import { SidebarFilters } from '@agendex/app/src/client/components/SidebarFilters.tsx';
+import { SkeletonBlock } from '@agendex/app/src/client/components/Skeleton.tsx';
 import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
-import { ThemeToggle } from './components/ThemeToggle.tsx';
-import { useBackendStatus } from './hooks/useBackendStatus.ts';
+import { ThemeToggle } from '@agendex/app/src/client/components/ThemeToggle.tsx';
+import { useBackendStatus } from '@agendex/app/src/client/hooks/useBackendStatus.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
-import { useAgents, usePlans } from './hooks/usePlans.ts';
-import { useSeenPlans } from './hooks/useSeenPlans.ts';
+import { useAgents, usePlans } from '@agendex/app/src/client/hooks/usePlans.ts';
+import { useSeenPlans } from '@agendex/app/src/client/hooks/useSeenPlans.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
-import { hasToken, type Plan } from './lib/api.ts';
-import { filterPlans } from './lib/plan-search.ts';
-import { startViewTransition } from './lib/view-transition.ts';
+import { hasToken, type Plan } from '@agendex/app/src/client/lib/api.ts';
+import { filterPlans } from '@agendex/app/src/client/lib/plan-search.ts';
+import { startViewTransition } from '@agendex/app/src/client/lib/view-transition.ts';
 
 const PlanEditor = lazy(() =>
-  import('./components/PlanEditor.tsx').then((m) => ({ default: m.PlanEditor })),
+  import('@agendex/app/src/client/components/PlanEditor.tsx').then((m) => ({
+    default: m.PlanEditor,
+  })),
 );
 
 const PlanCreator = lazy(() =>
-  import('./components/PlanCreator.tsx').then((m) => ({ default: m.PlanCreator })),
+  import('@agendex/app/src/client/components/PlanCreator.tsx').then((m) => ({
+    default: m.PlanCreator,
+  })),
 );
 
 const PlanUploader = lazy(() =>
-  import('./components/PlanUploader.tsx').then((m) => ({ default: m.PlanUploader })),
+  import('@agendex/app/src/client/components/PlanUploader.tsx').then((m) => ({
+    default: m.PlanUploader,
+  })),
 );
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
@@ -218,14 +224,12 @@ function Dashboard() {
 
   function clearHoverCloseTimer() {
     if (!hoverCloseTimer.current) return;
-
     clearTimeout(hoverCloseTimer.current);
     hoverCloseTimer.current = undefined;
   }
 
   function schedulePeekClose() {
     if (!sidebarHidden) return;
-
     clearHoverCloseTimer();
     hoverCloseTimer.current = setTimeout(() => {
       setSidebarPeek(false);
@@ -765,7 +769,7 @@ function useRoute() {
 }
 
 /**
- * Main entry point of the application.
+ * Main entry point of the Pro Cloud application.
  */
 export default function App() {
   const path = useRoute();

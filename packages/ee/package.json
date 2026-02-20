@@ -1,0 +1,19 @@
+{
+  "name": "@agendex/ee",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/server.ts",
+    "dev:client": "bunx --bun vite",
+    "build": "bunx --bun vite build"
+  },
+  "dependencies": {
+    "@agendex/shared": "workspace:*",
+    "@agendex/app": "workspace:*",
+    "@convex-dev/better-auth": "^0.10.10",
+    "@convex-dev/stripe": "^0.1.3",
+    "better-auth": "^1.4.18",
+    "convex": "^1.31.7",
+    "stripe": "^20.3.1"
+  }
+}
