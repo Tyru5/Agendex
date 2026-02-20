@@ -7,3 +7,10 @@ export async function requirePro(ctx: any): Promise<void> {
     throw new ConvexError('Cloud Pro subscription required');
   }
 }
+
+export async function requireFeature(ctx: any, feature: string): Promise<void> {
+  const active = await hasActiveSubscription(ctx);
+  if (!active) {
+    throw new ConvexError(`Cloud Pro subscription required for feature: ${feature}`);
+  }
+}

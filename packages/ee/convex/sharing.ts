@@ -1,7 +1,8 @@
+import { ProFeature } from '@agendex/shared';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
-import { requirePro } from './entitlements';
+import { requireFeature } from './entitlements';
 
 export const createShareLink = mutation({
   args: { planId: v.id('plans') },
@@ -11,7 +12,7 @@ export const createShareLink = mutation({
       throw new ConvexError('Unauthenticated');
     }
 
-    await requirePro(ctx);
+    await requireFeature(ctx, ProFeature.SHARE_LINKS);
 
     const plan = await ctx.db.get(args.planId);
     if (!plan) {
@@ -43,7 +44,7 @@ export const revokeShareLink = mutation({
       throw new ConvexError('Unauthenticated');
     }
 
-    await requirePro(ctx);
+    await requireFeature(ctx, ProFeature.SHARE_LINKS);
 
     const shareLink = await ctx.db.get(args.shareLinkId);
     if (!shareLink) {
@@ -69,7 +70,7 @@ export const getShareLinks = query({
       throw new ConvexError('Unauthenticated');
     }
 
-    await requirePro(ctx);
+    await requireFeature(ctx, ProFeature.SHARE_LINKS);
 
     const plan = await ctx.db.get(args.planId);
     if (!plan) {

@@ -1,7 +1,8 @@
+import { ProFeature } from '@agendex/shared';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
-import { requirePro } from './entitlements';
+import { requireFeature } from './entitlements';
 
 async function validateShareToken(
   ctx: any,
@@ -28,7 +29,7 @@ export const getComments = query({
     const isOwner = user && plan.ownerId === user._id;
 
     if (isOwner) {
-      await requirePro(ctx);
+      await requireFeature(ctx, ProFeature.COMMENTS);
     } else {
       if (!args.token) throw new ConvexError('Share token required');
       await validateShareToken(ctx, args.planId, args.token);
@@ -61,7 +62,7 @@ export const addComment = mutation({
 
     const isOwner = plan.ownerId === user._id;
     if (isOwner) {
-      await requirePro(ctx);
+      await requireFeature(ctx, ProFeature.COMMENTS);
     } else {
       if (!args.token) throw new ConvexError('Share token required');
       await validateShareToken(ctx, args.planId, args.token);
@@ -98,7 +99,7 @@ export const deleteComment = mutation({
 
     const isOwner = plan.ownerId === user._id;
     if (isOwner) {
-      await requirePro(ctx);
+      await requireFeature(ctx, ProFeature.COMMENTS);
     } else if (comment.authorId !== user._id) {
       throw new ConvexError('Access denied');
     }
