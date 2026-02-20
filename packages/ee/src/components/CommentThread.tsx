@@ -19,7 +19,11 @@ export function CommentThread({
   planId,
   isOwner,
   shareToken,
-}: { planId: string; isOwner?: boolean; shareToken?: string }) {
+}: {
+  planId: string;
+  isOwner?: boolean;
+  shareToken?: string;
+}) {
   const { user, isAuthenticated, signIn } = useAuth();
   const comments = useQuery(api.comments.getComments, {
     planId,

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getAgentLabel } from '../lib/agent-colors.ts';
+import { useTheme } from '../hooks/useTheme.ts';
 import { type AgentStats, api, type Plan } from '../lib/api.ts';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 
@@ -30,11 +31,11 @@ export function PlanCreator({
   const viewRef = useRef<EditorView>();
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     if (!editorRef.current) return;
 
-    const { resolvedTheme } = useTheme();
     const isDark = resolvedTheme === 'dark';
 
     const state = EditorState.create({
@@ -55,7 +56,7 @@ export function PlanCreator({
     const view = new EditorView({ state, parent: editorRef.current });
     viewRef.current = view;
     return () => view.destroy();
-  }, []);
+  }, [resolvedTheme]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

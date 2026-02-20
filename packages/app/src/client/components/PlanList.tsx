@@ -89,12 +89,12 @@ export function PlanList({
   plans,
   selectedId,
   onSelect,
-  isPro,
+  isPro = false,
 }: {
   plans: Plan[];
   selectedId: string | undefined;
   onSelect: (plan: Plan) => void;
-  isPro: boolean;
+  isPro?: boolean;
 }) {
   const { isUnseen, markSeen } = useSeenPlans();
 

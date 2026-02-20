@@ -11,14 +11,14 @@ export function SearchBar({
   plans,
   selectedId,
   onSelectPlan,
-  isPro,
+  isPro = false,
 }: {
   search: string;
   onSearch: (q: string) => void;
   plans: Plan[];
   selectedId: string | undefined;
   onSelectPlan: (plan: Plan) => void;
-  isPro: boolean;
+  isPro?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);

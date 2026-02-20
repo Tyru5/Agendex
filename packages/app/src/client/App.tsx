@@ -380,7 +380,6 @@ function Dashboard() {
             plans={plans}
             selectedId={selectedPlan?.id}
             onSelectPlan={setSelectedPlan}
-            isPro={false}
           />
         </div>
 
@@ -573,7 +572,6 @@ function Dashboard() {
               plans={filteredPlans}
               selectedId={selectedPlan?.id}
               onSelect={(plan) => startViewTransition(() => setSelectedPlan(plan))}
-              isPro={false}
             />
           )}
         </div>

@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '../hooks/useAuth.ts';
 import { setToken } from '../lib/api.ts';
-import { PricingModal } from './PricingModal.tsx';
 
 const FAQ_ITEMS = [
   {
@@ -225,12 +223,9 @@ function PkgManagerInstall() {
 export function LandingPage() {
   const [token, setTokenValue] = useState('');
   const [showLogin, setShowLogin] = useState(false);
-  const [showPricing, setShowPricing] = useState(false);
   const [activeTab, setActiveTab] = useState<'cloud' | 'local'>('local');
   const [pricingPeriod, setPricingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-
-  const { isAuthenticated } = useAuth();
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -241,13 +236,7 @@ export function LandingPage() {
   }
 
   function handleGetStarted() {
-    if (isAuthenticated) {
-      window.location.href = '/dashboard';
-    } else if (activeTab === 'local') {
-      setShowLogin(true);
-    } else {
-      setShowPricing(true);
-    }
+    setShowLogin(true);
   }
 
   return (
@@ -589,9 +578,6 @@ export function LandingPage() {
           </div>
         </div>
       )}
-
-      {/* Pricing modal */}
-      {showPricing && <PricingModal onClose={() => setShowPricing(false)} />}
     </div>
   );
 }

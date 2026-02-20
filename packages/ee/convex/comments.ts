@@ -4,11 +4,7 @@ import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
-async function validateShareToken(
-  ctx: any,
-  planId: string,
-  token: string,
-): Promise<void> {
+async function validateShareToken(ctx: any, planId: string, token: string): Promise<void> {
   const shareLink = await ctx.db
     .query('shareLinks')
     .withIndex('by_token', (q: any) => q.eq('token', token))
