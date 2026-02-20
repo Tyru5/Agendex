@@ -175,7 +175,7 @@ export function SharedPlanView({ token }: { token: string }) {
         )}
 
         {/* Comments */}
-        <CommentThread planId={plan._id} />
+        <CommentThread planId={plan._id} shareToken={token} />
       </div>
     </div>
   );

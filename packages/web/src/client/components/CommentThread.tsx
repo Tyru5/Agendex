@@ -15,9 +15,16 @@ function timeAgo(timestamp: number): string {
   return `${days}d ago`;
 }
 
-export function CommentThread({ planId, isOwner }: { planId: string; isOwner?: boolean }) {
+export function CommentThread({
+  planId,
+  isOwner,
+  shareToken,
+}: { planId: string; isOwner?: boolean; shareToken?: string }) {
   const { user, isAuthenticated, signIn } = useAuth();
-  const comments = useQuery(api.comments.getComments, { planId });
+  const comments = useQuery(api.comments.getComments, {
+    planId,
+    ...(shareToken ? { token: shareToken } : {}),
+  });
   const addComment = useMutation(api.comments.addComment);
   const deleteComment = useMutation(api.comments.deleteComment);
 
@@ -29,7 +36,7 @@ export function CommentThread({ planId, isOwner }: { planId: string; isOwner?: b
     if (!trimmed) return;
     setPosting(true);
     try {
-      await addComment({ planId, body: trimmed });
+      await addComment({ planId, body: trimmed, ...(shareToken ? { token: shareToken } : {}) });
       setBody('');
     } finally {
       setPosting(false);
