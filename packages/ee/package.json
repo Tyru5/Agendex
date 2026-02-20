@@ -3,7 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --hot src/server.ts",
     "dev:client": "bunx --bun vite",
     "build": "bunx --bun vite build"
   },
@@ -15,5 +14,9 @@
     "better-auth": "^1.4.18",
     "convex": "^1.31.7",
     "stripe": "^20.3.1"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }
