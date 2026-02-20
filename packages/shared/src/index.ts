@@ -31,4 +31,5 @@ export {
 } from './services/plan-service.ts';
 export { startWatching } from './services/watcher.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
+export { ProFeature } from './types.ts';
 export type { AgentAdapter, Plan } from './types.ts';

@@ -1,26 +1,16 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseAsString, parseAsStringLiteral, useQueryState, useQueryStates } from 'nuqs';
 import { throttle } from 'nuqs';
-import { AuthButton } from './components/AuthButton.tsx';
-import { CliAuthPage } from './components/CliAuthPage.tsx';
-import { CloudUpgrade } from './components/CloudUpgrade.tsx';
 import { LandingPage } from './components/LandingPage.tsx';
 import { OfflineView } from './components/OfflineView.tsx';
-import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { PlanList } from './components/PlanList.tsx';
 import { PlanViewer } from './components/PlanViewer.tsx';
-import { PricingModal } from './components/PricingModal.tsx';
 import { SearchBar } from './components/SearchBar.tsx';
-import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SidebarFilters } from './components/SidebarFilters.tsx';
 import { SkeletonBlock } from './components/Skeleton.tsx';
-import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
 import { ThemeToggle } from './components/ThemeToggle.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
-import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useAgents, usePlans } from './hooks/usePlans.ts';
-import { useSeenPlans } from './hooks/useSeenPlans.ts';
-import { useSubscription } from './hooks/useSubscription.ts';
 import { hasToken, type Plan } from './lib/api.ts';
 import { filterPlans } from './lib/plan-search.ts';
 import { startViewTransition } from './lib/view-transition.ts';
@@ -41,8 +31,6 @@ const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
-
-type DashboardMode = 'local' | 'cloud';
 
 function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
   return (
@@ -104,8 +92,6 @@ function Dashboard() {
   const [editing, setEditing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [showPricingModal, setShowPricingModal] = useState(false);
-  const [mode, setMode] = useState<DashboardMode>('local');
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     return localStorage.getItem(SIDEBAR_PREF_KEY) === 'true';
   });
@@ -116,26 +102,10 @@ function Dashboard() {
   const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
 
   const localPlans = usePlans(filters);
-  const cloudPlans = useCloudPlans();
   const agents = useAgents();
   const backendStatus = useBackendStatus();
-  const { isActive: isPro } = useSubscription();
 
-  const { plans, loading, error, refresh } =
-    mode === 'cloud'
-      ? {
-          plans: cloudPlans.plans,
-          loading: cloudPlans.loading,
-          error: cloudPlans.error,
-          refresh: async () => {},
-        }
-      : localPlans;
-
-  const { isUnseen } = useSeenPlans();
-  const hasUnseenPlans = useMemo(
-    () => plans.some((p) => isUnseen(p.id, p.updatedAt)),
-    [plans, isUnseen],
-  );
+  const { plans, loading, error, refresh } = localPlans;
 
   const filteredPlans = useMemo(() => {
     let result = filterPlans(plans, search);
@@ -157,9 +127,8 @@ function Dashboard() {
   }, [backendStatus, localPlans.refresh]);
 
   const totalPlans = useMemo(() => {
-    if (mode === 'cloud') return plans.length;
     return agents.reduce((sum, a) => sum + a.planCount, 0);
-  }, [agents, plans, mode]);
+  }, [agents]);
 
   const activeAgents = agents.filter((a) => a.planCount > 0).length;
   const backendIndicator = useMemo(() => {
@@ -289,7 +258,7 @@ function Dashboard() {
             borderRight: sidebarPinnedOpen ? '1px solid var(--border)' : 'none',
           }}
         >
-          <div className="shrink-0" style={{ position: 'relative' }}>
+          <div className="shrink-0">
             <button
               type="button"
               onClick={toggleSidebar}
@@ -310,21 +279,6 @@ function Dashboard() {
             >
               <SidebarToggleIcon hidden={sidebarHidden} />
             </button>
-            {sidebarHidden && isPro && hasUnseenPlans && (
-              <span
-                className="sidebar-dot"
-                style={{
-                  position: 'absolute',
-                  top: '-2px',
-                  right: '-2px',
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  background: '#3b82f6',
-                  pointerEvents: 'none',
-                }}
-              />
-            )}
           </div>
           <span
             className="font-semibold text-sm"
@@ -332,20 +286,16 @@ function Dashboard() {
           >
             Agendex
           </span>
-          {mode === 'local' && backendStatus === 'online' && (
+          {backendStatus === 'online' && (
             <>
               <button
                 type="button"
                 onClick={() => {
-                  if (isPro) {
-                    startViewTransition(() => {
-                      setCreating(true);
-                      setEditing(false);
-                      setUploading(false);
-                    });
-                  } else {
-                    setShowPricingModal(true);
-                  }
+                  startViewTransition(() => {
+                    setCreating(true);
+                    setEditing(false);
+                    setUploading(false);
+                  });
                 }}
                 aria-label="Create new plan"
                 title="Create new plan"
@@ -430,7 +380,6 @@ function Dashboard() {
             plans={plans}
             selectedId={selectedPlan?.id}
             onSelectPlan={setSelectedPlan}
-            isPro={isPro}
           />
         </div>
 
@@ -439,8 +388,6 @@ function Dashboard() {
           style={{ paddingRight: '16px' }}
         >
           <ThemeToggle />
-          <SubscriptionBadge />
-          <AuthButton />
           <div
             className="hidden lg:block"
             style={{ width: '1px', height: '18px', background: 'var(--border)' }}
@@ -457,30 +404,6 @@ function Dashboard() {
             <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{activeAgents}</strong>{' '}
             agents
           </span>
-          <div
-            className="hidden lg:block"
-            style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-          />
-          <div className="hidden lg:flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setMode(mode === 'local' ? 'cloud' : 'local')}
-              style={{
-                fontSize: '11px',
-                fontWeight: 550,
-                padding: '2px 8px',
-                borderRadius: '4px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--secondary)',
-                cursor: 'pointer',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}
-            >
-              {mode}
-            </button>
-          </div>
           <div
             className="hidden lg:block"
             style={{ width: '1px', height: '18px', background: 'var(--border)' }}
@@ -551,20 +474,16 @@ function Dashboard() {
         }}
       >
         <div className="px-3 pt-3 pb-2">
-          {mode === 'local' && backendStatus === 'online' && (
+          {backendStatus === 'online' && (
             <div className="flex gap-1.5" style={{ marginBottom: '8px' }}>
               <button
                 type="button"
                 onClick={() => {
-                  if (isPro) {
-                    startViewTransition(() => {
-                      setCreating(true);
-                      setEditing(false);
-                      setUploading(false);
-                    });
-                  } else {
-                    setShowPricingModal(true);
-                  }
+                  startViewTransition(() => {
+                    setCreating(true);
+                    setEditing(false);
+                    setUploading(false);
+                  });
                 }}
                 style={{
                   flex: 1,
@@ -653,7 +572,6 @@ function Dashboard() {
               plans={filteredPlans}
               selectedId={selectedPlan?.id}
               onSelect={(plan) => startViewTransition(() => setSelectedPlan(plan))}
-              isPro={isPro}
             />
           )}
         </div>
@@ -669,9 +587,7 @@ function Dashboard() {
           viewTransitionName: 'main-content',
         }}
       >
-        {mode === 'cloud' && !isPro ? (
-          <CloudUpgrade onSwitchLocal={() => setMode('local')} />
-        ) : backendStatus === 'offline' ? (
+        {backendStatus === 'offline' ? (
           <OfflineView />
         ) : uploading ? (
           <Suspense
@@ -701,19 +617,17 @@ function Dashboard() {
               </div>
             }
           >
-            <PaywallGuard onBack={() => startViewTransition(() => setCreating(false))}>
-              <PlanCreator
-                agents={agents}
-                onClose={() => startViewTransition(() => setCreating(false))}
-                onCreated={(plan) => {
-                  startViewTransition(() => {
-                    setCreating(false);
-                    refresh();
-                    setSelectedPlan(plan);
-                  });
-                }}
-              />
-            </PaywallGuard>
+            <PlanCreator
+              agents={agents}
+              onClose={() => startViewTransition(() => setCreating(false))}
+              onCreated={(plan) => {
+                startViewTransition(() => {
+                  setCreating(false);
+                  refresh();
+                  setSelectedPlan(plan);
+                });
+              }}
+            />
           </Suspense>
         ) : selectedPlan ? (
           editing ? (
@@ -746,42 +660,11 @@ function Dashboard() {
           </div>
         )}
       </div>
-
-      {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
     </div>
   );
 }
 
-function useRoute() {
-  const [path, setPath] = useState(window.location.pathname);
-
-  useEffect(() => {
-    const onPop = () => setPath(window.location.pathname);
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
-
-  return path;
-}
-
-/**
- * Main entry point of the application.
- */
 export default function App() {
-  const path = useRoute();
-
-  if (path === '/auth/cli') {
-    const params = new URLSearchParams(window.location.search);
-    const callback = params.get('callback');
-
-    if (callback) return <CliAuthPage callbackUrl={callback} />;
-  }
-
-  const sharedMatch = path.match(/^\/shared\/([^/]+)/);
-  if (sharedMatch) {
-    return <SharedPlanView token={sharedMatch[1] as string} />;
-  }
-
   if (!hasToken()) return <LandingPage />;
 
   return <Dashboard />;

@@ -2,6 +2,25 @@
 
 Agendex indexes and displays plans/sessions produced by multiple coding agents.
 
+## What's Free (Self-Hosted)
+
+- Local plan indexing & full-text search
+- All agent adapters (Claude Code, Cursor, Windsurf, etc.)
+- File watching with live updates
+- Plan viewing & editing
+- CLI scanning
+- No accounts, no Stripe, no Convex required
+
+## What Requires Cloud Pro
+
+- Cloud sync via CLI daemon
+- Shareable plan links
+- Comment threads
+- Plan creation from dashboard
+- Technology dependency charts
+- Unseen plan tracking & indicators
+- Workspace members (up to 5)
+
 ## Install
 
 ```bash
@@ -17,6 +36,11 @@ bun run dev
 # client (http://localhost:5173)
 bun run dev:client
 ```
+
+## Self-Hosting
+
+Self-hosted mode runs entirely locally. You do **not** need Convex or Stripe
+configuration — just clone the repo, install dependencies, and start the server.
 
 ## First-Run Adapter Selection
 
@@ -38,3 +62,8 @@ bun run start -- --configure-adapters
 ```
 
 If `--configure-adapters` is used in a non-interactive environment, Agendex exits with an actionable error.
+
+## License
+
+- All code except `packages/ee/` is licensed under [AGPL-3.0](./LICENSE).
+- Code under `packages/ee/` is licensed under the [Agendex Enterprise License](./packages/ee/LICENSE) — source-available for evaluation and development, but production use requires a Cloud Pro subscription.

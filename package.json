@@ -6,9 +6,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --filter @agendex/web dev",
-    "dev:client": "bun run --filter @agendex/web dev:client",
-    "build": "bun run --filter @agendex/web build",
+    "dev": "bun run --filter @agendex/app dev",
+    "dev:client": "bun run --filter @agendex/app dev:client",
+    "build": "bun run --filter @agendex/app build",
+    "build:cloud": "bun run --filter @agendex/ee build",
     "cli": "bun run --filter @agendex/cli",
     "cli:start": "bun run packages/cli/src/cli.ts start",
     "cli:login": "bun run packages/cli/src/cli.ts login",
@@ -23,8 +24,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.2",
-    "@types/bun": "^1.3.9",
-    "tidewave": "^0.6.0"
+    "@types/bun": "^1.3.9"
   },
   "peerDependencies": {
     "typescript": "^5"

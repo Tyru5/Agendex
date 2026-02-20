@@ -1,9 +1,22 @@
+import { ProFeature } from '@agendex/shared';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
+import { requireFeature } from './entitlements';
+
+async function validateShareToken(ctx: any, planId: string, token: string): Promise<void> {
+  const shareLink = await ctx.db
+    .query('shareLinks')
+    .withIndex('by_token', (q: any) => q.eq('token', token))
+    .first();
+
+  if (!shareLink || shareLink.revokedAt || shareLink.planId !== planId) {
+    throw new ConvexError('Invalid or revoked share token');
+  }
+}
 
 export const getComments = query({
-  args: { planId: v.id('plans') },
+  args: { planId: v.id('plans'), token: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const plan = await ctx.db.get(args.planId);
     if (!plan) throw new ConvexError('Plan not found');
@@ -11,18 +24,16 @@ export const getComments = query({
     const user = await authComponent.safeGetAuthUser(ctx);
     const isOwner = user && plan.ownerId === user._id;
 
-    if (!isOwner) {
-      const activeShareLink = await ctx.db
-        .query('shareLinks')
-        .withIndex('by_plan', (q) => q.eq('planId', args.planId))
-        .filter((q) => q.eq(q.field('revokedAt'), undefined))
-        .first();
-      if (!activeShareLink) throw new ConvexError('Access denied');
+    if (isOwner) {
+      await requireFeature(ctx, ProFeature.COMMENTS);
+    } else {
+      if (!args.token) throw new ConvexError('Share token required');
+      await validateShareToken(ctx, args.planId, args.token);
     }
 
     return await ctx.db
       .query('comments')
-      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+      .withIndex('by_plan', (q: any) => q.eq('planId', args.planId))
       .order('asc')
       .collect();
   },
@@ -32,6 +43,7 @@ export const addComment = mutation({
   args: {
     planId: v.id('plans'),
     body: v.string(),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
@@ -45,13 +57,11 @@ export const addComment = mutation({
     }
 
     const isOwner = plan.ownerId === user._id;
-    if (!isOwner) {
-      const activeShareLink = await ctx.db
-        .query('shareLinks')
-        .withIndex('by_plan', (q) => q.eq('planId', args.planId))
-        .filter((q) => q.eq(q.field('revokedAt'), undefined))
-        .first();
-      if (!activeShareLink) throw new ConvexError('Access denied');
+    if (isOwner) {
+      await requireFeature(ctx, ProFeature.COMMENTS);
+    } else {
+      if (!args.token) throw new ConvexError('Share token required');
+      await validateShareToken(ctx, args.planId, args.token);
     }
 
     return await ctx.db.insert('comments', {
@@ -83,7 +93,10 @@ export const deleteComment = mutation({
       throw new ConvexError('Plan not found');
     }
 
-    if (comment.authorId !== user._id && plan.ownerId !== user._id) {
+    const isOwner = plan.ownerId === user._id;
+    if (isOwner) {
+      await requireFeature(ctx, ProFeature.COMMENTS);
+    } else if (comment.authorId !== user._id) {
       throw new ConvexError('Access denied');
     }
 

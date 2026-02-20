@@ -2,8 +2,6 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
-import { useAuth } from '../hooks/useAuth.ts';
-import { useSubscription } from '../hooks/useSubscription.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import { extractHeadings } from '../lib/extract-headings.ts';
@@ -12,7 +10,6 @@ import { startViewTransition } from '../lib/view-transition.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
-import { SharePlanDialog } from './SharePlanDialog.tsx';
 
 const TechDependencyChart = lazy(() =>
   import('./TechDependencyChart.tsx').then((m) => ({ default: m.TechDependencyChart })),
@@ -47,13 +44,8 @@ export function PlanViewer({
   onEdit: () => void;
   onChartWideChange?: (wide: boolean) => void;
 }) {
-  const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
   const [pathCopied, setPathCopied] = useState(false);
-
-  const { isAuthenticated } = useAuth();
-
-  const { isActive: isPro } = useSubscription();
   const [showTechGraph, setShowTechGraph] = useState(false);
 
   const handleCopy = async () => {
@@ -173,25 +165,6 @@ export function PlanViewer({
               {copied ? <CheckIcon /> : <CopyIcon />}
               {copied ? 'Copied' : 'Copy'}
             </button>
-            {isAuthenticated && (
-              <button
-                type="button"
-                onClick={() => setShowShare(true)}
-                style={{
-                  padding: '5px 12px',
-                  fontSize: '12.5px',
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                  borderRadius: '7px',
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--secondary)',
-                  cursor: 'pointer',
-                }}
-              >
-                Share
-              </button>
-            )}
             {isMarkdown && (
               <button
                 type="button"
@@ -214,11 +187,9 @@ export function PlanViewer({
             <button
               type="button"
               onClick={() => {
-                if (isPro) {
-                  startViewTransition(() => setShowTechGraph((v) => !v));
-                }
+                startViewTransition(() => setShowTechGraph((v) => !v));
               }}
-              title={!isPro ? 'Pro feature' : showTechGraph ? 'Hide tech graph' : 'Show tech graph'}
+              title={showTechGraph ? 'Hide tech graph' : 'Show tech graph'}
               style={{
                 padding: '5px 12px',
                 fontSize: '12.5px',
@@ -227,9 +198,8 @@ export function PlanViewer({
                 borderRadius: '7px',
                 border: '1px solid var(--border)',
                 background: showTechGraph ? 'rgba(139,92,246,0.1)' : 'transparent',
-                color: showTechGraph ? '#8b5cf6' : isPro ? 'var(--secondary)' : 'var(--tertiary)',
-                cursor: isPro ? 'pointer' : 'default',
-                opacity: isPro ? 1 : 0.5,
+                color: showTechGraph ? '#8b5cf6' : 'var(--secondary)',
+                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '5px',
@@ -237,20 +207,6 @@ export function PlanViewer({
             >
               <GraphIcon />
               {showTechGraph ? 'Hide Graph' : 'Tech Graph'}
-              {!isPro && (
-                <span
-                  style={{
-                    fontSize: '9px',
-                    fontWeight: 600,
-                    padding: '1px 4px',
-                    borderRadius: '3px',
-                    background: 'rgba(139,92,246,0.15)',
-                    color: '#8b5cf6',
-                  }}
-                >
-                  PRO
-                </span>
-              )}
             </button>
           </div>
         </div>
@@ -341,8 +297,6 @@ export function PlanViewer({
             {pathCopied ? <CheckIcon /> : <CopyIcon />}
           </button>
         </div>
-
-        {showShare && <SharePlanDialog plan={plan} onClose={() => setShowShare(false)} />}
 
         <ScrollToTop />
       </div>

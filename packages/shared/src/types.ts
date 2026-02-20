@@ -1,3 +1,13 @@
+export enum ProFeature {
+  CLOUD_SYNC = 'cloud_sync',
+  SHARE_LINKS = 'share_links',
+  COMMENTS = 'comments',
+  PLAN_CREATION = 'plan_creation',
+  TECH_CHARTS = 'tech_charts',
+  UNSEEN_TRACKING = 'unseen_tracking',
+  WORKSPACE_MEMBERS = 'workspace_members',
+}
+
 export interface Plan {
   id: string;
   agent: string;

@@ -1,7 +1,8 @@
+import { ProFeature } from '@agendex/shared';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
-import { hasActiveSubscription } from './subscriptions';
+import { requireFeature } from './entitlements';
 
 export const publishPlan = mutation({
   args: {
@@ -20,10 +21,7 @@ export const publishPlan = mutation({
       throw new ConvexError('Unauthenticated');
     }
 
-    const hasSubscription = await hasActiveSubscription(ctx);
-    if (!hasSubscription) {
-      throw new ConvexError('Cloud Pro subscription required');
-    }
+    await requireFeature(ctx, ProFeature.CLOUD_SYNC);
 
     const ownerId = user._id;
     const now = Date.now();
@@ -134,6 +132,8 @@ export const updatePlanContent = mutation({
     if (!user) {
       throw new ConvexError('Unauthenticated');
     }
+
+    await requireFeature(ctx, ProFeature.CLOUD_SYNC);
 
     const plan = await ctx.db.get(args.planId);
     if (!plan) {
