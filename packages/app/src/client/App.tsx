@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseAsString, parseAsStringLiteral, useQueryState, useQueryStates } from 'nuqs';
 import { throttle } from 'nuqs';
 import { LandingPage } from './components/LandingPage.tsx';
 import { OfflineView } from './components/OfflineView.tsx';
+
+const Design1 = lazy(() => import('./components/landing/Design1.tsx'));
+const Design2 = lazy(() => import('./components/landing/Design2.tsx'));
+const Design3 = lazy(() => import('./components/landing/Design3.tsx'));
+const Design4 = lazy(() => import('./components/landing/Design4.tsx'));
+const Design5 = lazy(() => import('./components/landing/Design5.tsx'));
 import { PlanList } from './components/PlanList.tsx';
 import { PlanViewer } from './components/PlanViewer.tsx';
 import { SearchBar } from './components/SearchBar.tsx';
@@ -414,7 +420,24 @@ function Dashboard() {
   );
 }
 
+const DESIGN_ROUTES: Record<string, React.LazyExoticComponent<React.ComponentType>> = {
+  '/1': Design1,
+  '/2': Design2,
+  '/3': Design3,
+  '/4': Design4,
+  '/5': Design5,
+};
+
 export default function App() {
+  const DesignVariant = DESIGN_ROUTES[window.location.pathname];
+  if (DesignVariant) {
+    return (
+      <Suspense fallback={null}>
+        <DesignVariant />
+      </Suspense>
+    );
+  }
+
   if (!hasToken()) return <LandingPage />;
 
   return <Dashboard />;
