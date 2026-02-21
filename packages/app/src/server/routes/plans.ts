@@ -1,4 +1,4 @@
-import { create, getAgentStats, getAll, getById, scan, update } from '@agendex/shared';
+import { getAgentStats, getAll, getById, scan } from '@agendex/shared';
 import { Hono } from 'hono';
 import { search } from '../services/search.ts';
 
@@ -45,30 +45,12 @@ plans.get('/plans/:id/raw', (c) => {
   return c.text(plan.content);
 });
 
-plans.put('/plans/:id', async (c) => {
-  const plan = getById(c.req.param('id'));
-  if (!plan) return c.json({ error: 'not found' }, 404);
-
-  const body = await c.req.json<{ content: string }>();
-  if (!body.content) return c.json({ error: 'content required' }, 400);
-
-  const ok = await update(plan.id, body.content);
-  if (!ok) return c.json({ error: 'not writable' }, 403);
-
-  return c.json({ ok: true });
+plans.put('/plans/:id', (c) => {
+  return c.json({ error: 'Plan editing requires Cloud Pro' }, 403);
 });
 
-plans.post('/plans', async (c) => {
-  const body = await c.req.json<{ agent: string; title: string; content: string }>();
-  if (!body.agent || !body.title || !body.content) {
-    return c.json({ error: 'agent, title, and content are required' }, 400);
-  }
-  try {
-    const plan = await create(body.agent, body.title, body.content);
-    return c.json(plan, 201);
-  } catch (e) {
-    return c.json({ error: e instanceof Error ? e.message : 'create failed' }, 500);
-  }
+plans.post('/plans', (c) => {
+  return c.json({ error: 'Plan creation requires Cloud Pro' }, 403);
 });
 
 plans.get('/agents', (c) => {

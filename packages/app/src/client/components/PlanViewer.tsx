@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
@@ -6,14 +6,9 @@ import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import { extractHeadings } from '../lib/extract-headings.ts';
 import { looksLikeMarkdown, normalizePlanMarkdown } from '../lib/plan-markdown.ts';
-import { startViewTransition } from '../lib/view-transition.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
-
-const TechDependencyChart = lazy(() =>
-  import('./TechDependencyChart.tsx').then((m) => ({ default: m.TechDependencyChart })),
-);
 
 function isMarkdownPlan(plan: Plan): boolean {
   if (plan.format.toLowerCase() === 'md') return true;
@@ -35,18 +30,9 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
-export function PlanViewer({
-  plan,
-  onEdit,
-  onChartWideChange,
-}: {
-  plan: Plan;
-  onEdit: () => void;
-  onChartWideChange?: (wide: boolean) => void;
-}) {
+export function PlanViewer({ plan }: { plan: Plan }) {
   const [copied, setCopied] = useState(false);
   const [pathCopied, setPathCopied] = useState(false);
-  const [showTechGraph, setShowTechGraph] = useState(false);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(plan.content);
@@ -134,11 +120,11 @@ export function PlanViewer({
                 fontWeight: 550,
                 padding: '2px 7px',
                 borderRadius: '5px',
-                background: 'rgba(34,197,94,0.1)',
-                color: '#16a34a',
+                background: 'rgba(100,116,139,0.1)',
+                color: '#64748b',
               }}
             >
-              Writable
+              Read-only
             </span>
           </div>
 
@@ -165,74 +151,8 @@ export function PlanViewer({
               {copied ? <CheckIcon /> : <CopyIcon />}
               {copied ? 'Copied' : 'Copy'}
             </button>
-            {isMarkdown && (
-              <button
-                type="button"
-                onClick={onEdit}
-                style={{
-                  padding: '5px 12px',
-                  fontSize: '12.5px',
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                  borderRadius: '7px',
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--secondary)',
-                  cursor: 'pointer',
-                }}
-              >
-                Edit
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                startViewTransition(() => setShowTechGraph((v) => !v));
-              }}
-              title={showTechGraph ? 'Hide tech graph' : 'Show tech graph'}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: showTechGraph ? 'rgba(139,92,246,0.1)' : 'transparent',
-                color: showTechGraph ? '#8b5cf6' : 'var(--secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
-            >
-              <GraphIcon />
-              {showTechGraph ? 'Hide Graph' : 'Tech Graph'}
-            </button>
           </div>
         </div>
-
-        {showTechGraph && (
-          <div style={{ marginBottom: '32px', viewTransitionName: 'tech-graph' }}>
-            <Suspense
-              fallback={
-                <div
-                  style={{
-                    height: '200px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '13px',
-                    color: 'var(--tertiary)',
-                  }}
-                >
-                  Loading tech graph…
-                </div>
-              }
-            >
-              <TechDependencyChart plan={plan} onWideChange={onChartWideChange} />
-            </Suspense>
-          </div>
-        )}
 
         {/* Body */}
         {isMarkdown ? (
@@ -427,26 +347,6 @@ function CheckIcon() {
       style={{ width: '13px', height: '13px' }}
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-    </svg>
-  );
-}
-
-function GraphIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
-    >
-      <circle cx="5" cy="12" r="2" />
-      <circle cx="12" cy="5" r="2" />
-      <circle cx="19" cy="12" r="2" />
-      <line x1="7" y1="11" x2="10" y2="6" />
-      <line x1="14" y1="5" x2="17" y2="11" />
     </svg>
   );
 }
