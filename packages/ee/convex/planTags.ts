@@ -12,20 +12,26 @@ export const getTagsForPlans = query({
 
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
 
+    const allPlanTagRows = (
+      await Promise.all(
+        args.planIds.map((planId) =>
+          ctx.db
+            .query('planTags')
+            .withIndex('by_plan', (q: any) => q.eq('planId', planId))
+            .collect(),
+        ),
+      )
+    ).flat();
+
+    const uniqueTagIds = [...new Set(allPlanTagRows.map((r) => r.tagId))];
+    const tagDocs = await Promise.all(uniqueTagIds.map((id) => ctx.db.get(id)));
+    const tagMap = new Map(uniqueTagIds.map((id, i) => [id, tagDocs[i]]).filter(([, doc]) => doc));
+
     const result: Record<string, any[]> = {};
-
-    for (const planId of args.planIds) {
-      const planTagRows = await ctx.db
-        .query('planTags')
-        .withIndex('by_plan', (q: any) => q.eq('planId', planId))
-        .collect();
-
-      const tags = [];
-      for (const pt of planTagRows) {
-        const tag = await ctx.db.get(pt.tagId);
-        if (tag) tags.push(tag);
-      }
-      result[planId] = tags;
+    for (const planId of args.planIds) result[planId] = [];
+    for (const row of allPlanTagRows) {
+      const tag = tagMap.get(row.tagId);
+      if (tag) result[row.planId].push(tag);
     }
 
     return result;
