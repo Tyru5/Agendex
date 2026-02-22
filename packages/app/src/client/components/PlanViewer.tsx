@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
@@ -30,7 +30,16 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
-export function PlanViewer({ plan }: { plan: Plan }) {
+export function PlanViewer({
+  plan,
+  headerExtra,
+  onHistory,
+}: {
+  plan: Plan;
+  headerExtra?: ReactNode;
+  onHistory?: () => void;
+  [key: string]: unknown;
+}) {
   const [copied, setCopied] = useState(false);
   const [pathCopied, setPathCopied] = useState(false);
 
@@ -128,6 +137,8 @@ export function PlanViewer({ plan }: { plan: Plan }) {
             </span>
           </div>
 
+          {headerExtra}
+
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -151,6 +162,30 @@ export function PlanViewer({ plan }: { plan: Plan }) {
               {copied ? <CheckIcon /> : <CopyIcon />}
               {copied ? 'Copied' : 'Copy'}
             </button>
+            {onHistory && (
+              <button
+                type="button"
+                onClick={onHistory}
+                title="Version history"
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <HistoryIcon />
+                History
+              </button>
+            )}
           </div>
         </div>
 
@@ -347,6 +382,28 @@ function CheckIcon() {
       style={{ width: '13px', height: '13px' }}
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+  );
+}
+
+function HistoryIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      style={{ width: '13px', height: '13px' }}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v5h5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l4 2" />
     </svg>
   );
 }

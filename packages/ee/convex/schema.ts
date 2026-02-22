@@ -72,4 +72,64 @@ export default defineSchema({
   })
     .index('by_workspace', ['workspaceOwnerId'])
     .index('by_member', ['memberId']),
+
+  planVersions: defineTable({
+    ownerId: v.string(),
+    planId: v.id('plans'),
+    version: v.number(),
+    title: v.string(),
+    content: v.string(),
+    format: v.string(),
+    filePath: v.optional(v.string()),
+    workspace: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    source: v.optional(v.union(v.literal('cli_sync'), v.literal('editor'), v.literal('restore'))),
+    createdAt: v.number(),
+  })
+    .index('by_plan', ['planId'])
+    .index('by_plan_version', ['planId', 'version'])
+    .index('by_owner_createdAt', ['ownerId', 'createdAt']),
+
+  tags: defineTable({
+    ownerId: v.string(),
+    name: v.string(),
+    nameLc: v.string(),
+    color: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_nameLc', ['ownerId', 'nameLc']),
+
+  planTags: defineTable({
+    ownerId: v.string(),
+    planId: v.id('plans'),
+    tagId: v.id('tags'),
+    createdAt: v.number(),
+  })
+    .index('by_plan', ['planId'])
+    .index('by_tag', ['tagId'])
+    .index('by_plan_tag', ['planId', 'tagId'])
+    .index('by_owner_plan', ['ownerId', 'planId']),
+
+  collections: defineTable({
+    ownerId: v.string(),
+    name: v.string(),
+    nameLc: v.string(),
+    description: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_nameLc', ['ownerId', 'nameLc']),
+
+  collectionPlans: defineTable({
+    ownerId: v.string(),
+    collectionId: v.id('collections'),
+    planId: v.id('plans'),
+    position: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index('by_collection', ['collectionId'])
+    .index('by_plan', ['planId'])
+    .index('by_collection_plan', ['collectionId', 'planId']),
 });

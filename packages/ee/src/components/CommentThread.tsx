@@ -2,7 +2,7 @@ import { api } from '@convex/_generated/api';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
-import { SkeletonBlock } from './Skeleton.tsx';
+import { SkeletonBlock } from '@agendex/app/src/client/components/Skeleton.tsx';
 
 function timeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;

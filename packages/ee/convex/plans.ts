@@ -1,4 +1,4 @@
-import { ProFeature } from '@agendex/shared';
+import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
@@ -34,6 +34,7 @@ export const publishPlan = mutation({
       .first();
 
     if (existing) {
+      const newVersion = existing.version + 1;
       await ctx.db.patch(existing._id, {
         agent: args.agent,
         title: args.title,
@@ -42,8 +43,21 @@ export const publishPlan = mutation({
         filePath: args.filePath,
         workspace: args.workspace,
         metadata: args.metadata,
-        version: existing.version + 1,
+        version: newVersion,
         updatedAt: now,
+      });
+      await ctx.db.insert('planVersions', {
+        ownerId,
+        planId: existing._id,
+        version: newVersion,
+        title: args.title,
+        content: args.content,
+        format: args.format,
+        filePath: args.filePath,
+        workspace: args.workspace,
+        metadata: args.metadata,
+        source: 'cli_sync',
+        createdAt: now,
       });
       return existing._id;
     }
@@ -144,10 +158,32 @@ export const updatePlanContent = mutation({
       throw new ConvexError('Access denied');
     }
 
+    if (plan.title === args.title && plan.content === args.content) {
+      return;
+    }
+
+    const newVersion = plan.version + 1;
+    const now = Date.now();
+
     await ctx.db.patch(args.planId, {
       title: args.title,
       content: args.content,
-      updatedAt: Date.now(),
+      version: newVersion,
+      updatedAt: now,
+    });
+
+    await ctx.db.insert('planVersions', {
+      ownerId: user._id,
+      planId: args.planId,
+      version: newVersion,
+      title: args.title,
+      content: args.content,
+      format: plan.format,
+      filePath: plan.filePath,
+      workspace: plan.workspace,
+      metadata: plan.metadata,
+      source: 'editor',
+      createdAt: now,
     });
   },
 });

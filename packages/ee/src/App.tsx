@@ -24,6 +24,9 @@ import { useSubscription } from './hooks/useSubscription.ts';
 import { hasToken, type Plan } from '@agendex/app/src/client/lib/api.ts';
 import { filterPlans } from '@agendex/app/src/client/lib/plan-search.ts';
 import { startViewTransition } from '@agendex/app/src/client/lib/view-transition.ts';
+import { api } from '@convex/_generated/api';
+import { useQuery } from 'convex/react';
+import { PlanTagsBar } from './components/PlanTagsBar.tsx';
 
 const PlanEditor = lazy(() =>
   import('@agendex/app/src/client/components/PlanEditor.tsx').then((m) => ({
@@ -40,6 +43,12 @@ const PlanCreator = lazy(() =>
 const PlanUploader = lazy(() =>
   import('@agendex/app/src/client/components/PlanUploader.tsx').then((m) => ({
     default: m.PlanUploader,
+  })),
+);
+
+const PlanHistoryDrawer = lazy(() =>
+  import('./components/PlanHistoryDrawer.tsx').then((m) => ({
+    default: m.PlanHistoryDrawer,
   })),
 );
 
@@ -107,9 +116,13 @@ function Dashboard() {
     [setFilters],
   );
 
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedCollection, setSelectedCollection] = useState<string | undefined>(undefined);
+
   const [editing, setEditing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [mode, setMode] = useState<DashboardMode>('local');
   const [sidebarHidden, setSidebarHidden] = useState(() => {
@@ -127,6 +140,13 @@ function Dashboard() {
   const backendStatus = useBackendStatus();
   const { isActive: isPro } = useSubscription();
 
+  const allTags = useQuery(api.tags.listMyTags, isPro ? {} : 'skip');
+  const allCollections = useQuery(api.collections.listMyCollections, isPro ? {} : 'skip');
+  const collectionPlanIds = useQuery(
+    api.collections.getPlansInCollection,
+    isPro && selectedCollection ? { collectionId: selectedCollection } : 'skip',
+  );
+
   const { plans, loading, error, refresh } =
     mode === 'cloud'
       ? {
@@ -137,10 +157,22 @@ function Dashboard() {
         }
       : localPlans;
 
+  const planTagsMap = useQuery(
+    api.planTags.getTagsForPlans,
+    isPro && selectedTags.length > 0 && plans.length > 0
+      ? { planIds: plans.map((p) => p.id) as any }
+      : 'skip',
+  );
+
   const { isUnseen } = useSeenPlans();
   const hasUnseenPlans = useMemo(
     () => plans.some((p) => isUnseen(p.id, p.updatedAt)),
     [plans, isUnseen],
+  );
+
+  const collectionPlanIdSet = useMemo(
+    () => (collectionPlanIds ? new Set(collectionPlanIds) : null),
+    [collectionPlanIds],
   );
 
   const filteredPlans = useMemo(() => {
@@ -151,8 +183,17 @@ function Dashboard() {
       const field = sortBy === 'createdAt' ? 'createdAt' : 'updatedAt';
       result = result.filter((p) => new Date(p[field]).getTime() >= cutoff);
     }
+    if (collectionPlanIdSet) {
+      result = result.filter((p) => collectionPlanIdSet.has(p.id));
+    }
+    if (selectedTags.length > 0 && planTagsMap) {
+      result = result.filter((p) => {
+        const pTags = planTagsMap[p.id] ?? [];
+        return selectedTags.some((tagId) => pTags.some((t: any) => t._id === tagId));
+      });
+    }
     return result;
-  }, [plans, search, dateBucket, sortBy]);
+  }, [plans, search, dateBucket, sortBy, collectionPlanIdSet, selectedTags, planTagsMap]);
 
   const prevBackendStatus = useRef(backendStatus);
   useEffect(() => {
@@ -214,6 +255,7 @@ function Dashboard() {
     if (filteredPlans.length === 0 && selectedPlanId) {
       setSelectedPlanId(null);
       setEditing(false);
+      setShowHistory(false);
     }
   }, [filteredPlans, selectedPlanId, setSelectedPlanId]);
 
@@ -640,6 +682,12 @@ function Dashboard() {
             agents={agents}
             selectedAgent={agentFilter}
             onAgentSelect={setAgentFilter}
+            tags={allTags ?? undefined}
+            selectedTags={selectedTags}
+            onTagSelect={setSelectedTags}
+            collections={allCollections ?? undefined}
+            selectedCollection={selectedCollection}
+            onCollectionSelect={setSelectedCollection}
           />
         </div>
 
@@ -734,11 +782,26 @@ function Dashboard() {
                 onSaved={handleSaved}
               />
             </Suspense>
+          ) : showHistory ? (
+            <Suspense
+              fallback={
+                <div className="p-4">
+                  <SkeletonBlock lines={5} />
+                </div>
+              }
+            >
+              <PlanHistoryDrawer
+                planId={selectedPlan.id}
+                onClose={() => startViewTransition(() => setShowHistory(false))}
+              />
+            </Suspense>
           ) : (
             <PlanViewer
               plan={selectedPlan}
               onEdit={() => startViewTransition(() => setEditing(true))}
               onChartWideChange={handleChartWideChange}
+              onHistory={() => startViewTransition(() => setShowHistory(true))}
+              headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
             />
           )
         ) : (
