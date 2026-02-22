@@ -160,7 +160,7 @@ function Dashboard() {
   const planTagsMap = useQuery(
     api.planTags.getTagsForPlans,
     isPro && selectedTags.length > 0 && plans.length > 0
-      ? { planIds: plans.map((p) => p.id) as any }
+      ? { planIds: plans.map((p) => p.id) as Array<Id<"plans">> }
       : 'skip',
   );
 
