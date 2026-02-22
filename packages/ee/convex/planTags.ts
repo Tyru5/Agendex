@@ -101,17 +101,22 @@ export const setTagsForPlan = mutation({
       .withIndex('by_plan', (q: any) => q.eq('planId', args.planId))
       .collect();
 
+    const currentTagIds = new Set(existing.map((r) => r.tagId));
+    const desiredTagIds = new Set(args.tagIds);
+
     for (const row of existing) {
-      await ctx.db.delete(row._id);
+      if (!desiredTagIds.has(row.tagId)) await ctx.db.delete(row._id);
     }
 
     for (const tagId of args.tagIds) {
-      await ctx.db.insert('planTags', {
-        ownerId: user._id,
-        planId: args.planId,
-        tagId,
-        createdAt: Date.now(),
-      });
+      if (!currentTagIds.has(tagId)) {
+        await ctx.db.insert('planTags', {
+          ownerId: user._id,
+          planId: args.planId,
+          tagId,
+          createdAt: Date.now(),
+        });
+      }
     }
   },
 });
