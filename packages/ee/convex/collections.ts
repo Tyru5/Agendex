@@ -1,6 +1,7 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
+import { internal } from './_generated/api';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
@@ -95,16 +96,30 @@ export const deleteCollection = mutation({
       throw new ConvexError('Collection not found');
     }
 
-    const collectionPlans = await ctx.db
+    await ctx.db.delete(args.collectionId);
+    await ctx.scheduler.runAfter(0, internal.collections.cleanupCollectionPlans, {
+      collectionId: args.collectionId,
+    });
+  },
+});
+
+export const cleanupCollectionPlans = internalMutation({
+  args: { collectionId: v.id('collections') },
+  handler: async (ctx, args) => {
+    const batch = await ctx.db
       .query('collectionPlans')
       .withIndex('by_collection', (q: any) => q.eq('collectionId', args.collectionId))
-      .collect();
+      .take(500);
 
-    for (const cp of collectionPlans) {
+    for (const cp of batch) {
       await ctx.db.delete(cp._id);
     }
 
-    await ctx.db.delete(args.collectionId);
+    if (batch.length === 500) {
+      await ctx.scheduler.runAfter(0, internal.collections.cleanupCollectionPlans, {
+        collectionId: args.collectionId,
+      });
+    }
   },
 });
 

@@ -5,44 +5,73 @@ type DiffLine = {
   content: string;
 };
 
+// Myers' diff algorithm — O(n*d) time, O(n) space
 function computeDiff(oldText: string, newText: string): DiffLine[] {
   const oldLines = oldText.split('\n');
   const newLines = newText.split('\n');
-  const m = oldLines.length;
-  const n = newLines.length;
+  const n = oldLines.length;
+  const m = newLines.length;
+  const max = n + m;
 
-  const dp: number[][] = [];
-  for (let i = 0; i <= m; i++) {
-    dp[i] = new Array(n + 1).fill(0);
-  }
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (oldLines[i - 1] === newLines[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
+  const v = new Int32Array(2 * max + 1);
+  const trace: Int32Array[] = [];
+
+  for (let d = 0; d <= max; d++) {
+    trace.push(v.slice());
+    for (let k = -d; k <= d; k += 2) {
+      const idx = k + max;
+      let x: number;
+      if (k === -d || (k !== d && v[idx - 1] < v[idx + 1])) {
+        x = v[idx + 1];
       } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+        x = v[idx - 1] + 1;
+      }
+      let y = x - k;
+      while (x < n && y < m && oldLines[x] === newLines[y]) {
+        x++;
+        y++;
+      }
+      v[idx] = x;
+      if (x >= n && y >= m) {
+        const result: DiffLine[] = [];
+        let cx = n;
+        let cy = m;
+        for (let bd = d; bd > 0; bd--) {
+          const prev = trace[bd - 1];
+          const bk = cx - cy;
+          const bIdx = bk + max;
+          let px: number;
+          if (bk === -bd || (bk !== bd && prev[bIdx - 1] < prev[bIdx + 1])) {
+            px = prev[bIdx + 1];
+          } else {
+            px = prev[bIdx - 1] + 1;
+          }
+          const py = px - bk;
+          while (cx > px && cy > py) {
+            cx--;
+            cy--;
+            result.push({ type: 'unchanged', content: oldLines[cx] });
+          }
+          if (cx > px) {
+            cx--;
+            result.push({ type: 'removed', content: oldLines[cx] });
+          } else if (cy > py) {
+            cy--;
+            result.push({ type: 'added', content: newLines[cy] });
+          }
+        }
+        while (cx > 0 && cy > 0) {
+          cx--;
+          cy--;
+          result.push({ type: 'unchanged', content: oldLines[cx] });
+        }
+        result.reverse();
+        return result;
       }
     }
   }
 
-  const result: DiffLine[] = [];
-  let i = m;
-  let j = n;
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-      result.unshift({ type: 'unchanged', content: oldLines[i - 1] });
-      i--;
-      j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      result.unshift({ type: 'added', content: newLines[j - 1] });
-      j--;
-    } else {
-      result.unshift({ type: 'removed', content: oldLines[i - 1] });
-      i--;
-    }
-  }
-
-  return result;
+  return [];
 }
 
 const lineStyles: Record<DiffLine['type'], React.CSSProperties> = {

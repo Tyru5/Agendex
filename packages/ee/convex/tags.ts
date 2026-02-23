@@ -1,6 +1,7 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
+import { internal } from './_generated/api';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
@@ -85,15 +86,25 @@ export const deleteTag = mutation({
     const tag = await ctx.db.get(args.tagId);
     if (!tag || tag.ownerId !== user._id) throw new ConvexError('Tag not found');
 
-    const planTags = await ctx.db
+    await ctx.db.delete(args.tagId);
+    await ctx.scheduler.runAfter(0, internal.tags.cleanupPlanTags, { tagId: args.tagId });
+  },
+});
+
+export const cleanupPlanTags = internalMutation({
+  args: { tagId: v.id('tags') },
+  handler: async (ctx, args) => {
+    const batch = await ctx.db
       .query('planTags')
       .withIndex('by_tag', (q: any) => q.eq('tagId', args.tagId))
-      .collect();
+      .take(500);
 
-    for (const pt of planTags) {
+    for (const pt of batch) {
       await ctx.db.delete(pt._id);
     }
 
-    await ctx.db.delete(args.tagId);
+    if (batch.length === 500) {
+      await ctx.scheduler.runAfter(0, internal.tags.cleanupPlanTags, { tagId: args.tagId });
+    }
   },
 });
