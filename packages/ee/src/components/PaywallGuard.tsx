@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useSubscription } from '../hooks/useSubscription';
 import { PricingModal } from './PricingModal';
-import { SkeletonBlock } from './Skeleton';
+import { SkeletonBlock } from '@agendex/app/src/client/components/Skeleton';
 
 interface PaywallGuardProps {
   children: ReactNode;
@@ -16,6 +16,8 @@ const PRO_HIGHLIGHTS = [
   { icon: 'comment', label: 'Comment threads' },
   { icon: 'devices', label: 'Access from any device' },
   { icon: 'graph', label: 'Technology dependency charts' },
+  { icon: 'history', label: 'Version history & diffs' },
+  { icon: 'tag', label: 'Tags & collections' },
 ];
 
 function FeatureIcon({ type }: { type: string }) {
@@ -70,6 +72,21 @@ function FeatureIcon({ type }: { type: string }) {
           <line x1="7" y1="13" x2="10" y2="18" />
           <line x1="14" y1="5" x2="17" y2="11" />
           <line x1="14" y1="19" x2="17" y2="13" />
+        </svg>
+      );
+    case 'history':
+      return (
+        <svg aria-hidden="true" {...props}>
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path d="M3 3v5h5" />
+          <path d="M12 7v5l4 2" />
+        </svg>
+      );
+    case 'tag':
+      return (
+        <svg aria-hidden="true" {...props}>
+          <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
+          <path d="M7 7h.01" />
         </svg>
       );
     default:
