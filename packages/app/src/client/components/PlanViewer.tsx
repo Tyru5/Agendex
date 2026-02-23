@@ -41,18 +41,11 @@ export function PlanViewer({
   [key: string]: unknown;
 }) {
   const [copied, setCopied] = useState(false);
-  const [pathCopied, setPathCopied] = useState(false);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(plan.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-  };
-
-  const handleCopyPath = async () => {
-    await navigator.clipboard.writeText(plan.filePath);
-    setPathCopied(true);
-    setTimeout(() => setPathCopied(false), 1500);
   };
   const isMarkdown = isMarkdownPlan(plan);
   const markdown = isMarkdown ? normalizePlanMarkdown(plan.content) : '';
@@ -94,6 +87,7 @@ export function PlanViewer({
               <>
                 <span style={{ opacity: 0.5 }}>/</span>
                 <span>{workspace}</span>
+                <CopyPathButton path={plan.filePath} />
               </>
             )}
           </div>
@@ -157,9 +151,42 @@ export function PlanViewer({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '5px',
+                transition: 'color 0.2s ease',
               }}
             >
-              {copied ? <CheckIcon /> : <CopyIcon />}
+              <span
+                style={{
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '13px',
+                  height: '13px',
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    display: 'flex',
+                    opacity: copied ? 0 : 1,
+                    transform: copied ? 'scale(0.5)' : 'scale(1)',
+                    transition: 'opacity 0.2s ease, transform 0.2s ease',
+                  }}
+                >
+                  <CopyIcon />
+                </span>
+                <span
+                  style={{
+                    position: 'absolute',
+                    display: 'flex',
+                    opacity: copied ? 1 : 0,
+                    transform: copied ? 'scale(1)' : 'scale(0.5)',
+                    transition: 'opacity 0.2s ease, transform 0.2s ease',
+                  }}
+                >
+                  <CheckIcon />
+                </span>
+              </span>
               {copied ? 'Copied' : 'Copy'}
             </button>
             {onHistory && (
@@ -235,27 +262,77 @@ export function PlanViewer({
           }}
         >
           <span style={{ wordBreak: 'break-all' }}>{plan.filePath}</span>
-          <button
-            type="button"
-            onClick={handleCopyPath}
-            title={pathCopied ? 'Copied!' : 'Copy path'}
-            style={{
-              padding: '3px',
-              borderRadius: '5px',
-              border: 'none',
-              background: 'transparent',
-              color: pathCopied ? '#16a34a' : 'var(--tertiary)',
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            {pathCopied ? <CheckIcon /> : <CopyIcon />}
-          </button>
+          <CopyPathButton path={plan.filePath} />
         </div>
 
         <ScrollToTop />
       </div>
     </>
+  );
+}
+
+function CopyPathButton({ path }: { path: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(path);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={copied ? 'Copied!' : 'Copy path'}
+      style={{
+        position: 'relative',
+        padding: '2px',
+        borderRadius: '4px',
+        border: 'none',
+        background: 'transparent',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        width: '17px',
+        height: '17px',
+        opacity: copied ? 1 : 0.5,
+        transition: 'opacity 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.opacity = '1';
+      }}
+      onMouseLeave={(e) => {
+        if (!copied) e.currentTarget.style.opacity = '0.5';
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          display: 'flex',
+          color: 'var(--tertiary)',
+          opacity: copied ? 0 : 1,
+          transform: copied ? 'scale(0.5)' : 'scale(1)',
+          transition: 'opacity 0.2s ease, transform 0.2s ease',
+        }}
+      >
+        <CopyIcon />
+      </span>
+      <span
+        style={{
+          position: 'absolute',
+          display: 'flex',
+          color: '#16a34a',
+          opacity: copied ? 1 : 0,
+          transform: copied ? 'scale(1)' : 'scale(0.5)',
+          transition: 'opacity 0.2s ease, transform 0.2s ease',
+        }}
+      >
+        <CheckIcon />
+      </span>
+    </button>
   );
 }
 
