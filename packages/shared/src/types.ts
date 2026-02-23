@@ -6,6 +6,8 @@ export enum ProFeature {
   TECH_CHARTS = 'tech_charts',
   UNSEEN_TRACKING = 'unseen_tracking',
   WORKSPACE_MEMBERS = 'workspace_members',
+  PLAN_HISTORY = 'plan_history',
+  TAGS_COLLECTIONS = 'tags_collections',
 }
 
 export interface Plan {

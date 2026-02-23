@@ -1,5 +1,5 @@
 import { useAuth } from '../hooks/useAuth.ts';
-import { Skeleton } from './Skeleton';
+import { Skeleton } from '@agendex/app/src/client/components/Skeleton';
 
 export function AuthButton() {
   const { user, isLoading, isAuthenticated, signIn, signOut } = useAuth();

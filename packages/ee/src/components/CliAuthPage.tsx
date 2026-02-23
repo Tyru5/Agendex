@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
-import { Skeleton } from './Skeleton.tsx';
+import { Skeleton } from '@agendex/app/src/client/components/Skeleton.tsx';
 
 interface CliAuthPageProps {
   callbackUrl: string;

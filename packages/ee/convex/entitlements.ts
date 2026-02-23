@@ -1,4 +1,4 @@
-import { type ProFeature } from '@agendex/shared';
+import { type ProFeature } from '@agendex/shared/types';
 import { ConvexError } from 'convex/values';
 import { hasActiveSubscription } from './subscriptions';
 

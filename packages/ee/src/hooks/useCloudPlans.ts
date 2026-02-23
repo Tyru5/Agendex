@@ -1,6 +1,6 @@
 import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
-import type { Plan } from '../lib/api.ts';
+import type { Plan } from '@agendex/app/src/client/lib/api.ts';
 
 export function useCloudPlans(): {
   plans: Plan[];
