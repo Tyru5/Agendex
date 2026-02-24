@@ -310,8 +310,8 @@ export function EmptyStateView({
 
   function agentLabel(agent: string, stats: AgentStats | null | undefined) {
     return stats && stats.planCount > 0
-      ? `View ${stats.planCount} plans from ${getAgentLabel(agent)}`
-      : `Browse ${getAgentLabel(agent)} plans`;
+      ? `${stats.planCount} plans from ${getAgentLabel(agent)}`
+      : `${getAgentLabel(agent)} plans`;
   }
 
   async function handleRescan() {
@@ -326,25 +326,6 @@ export function EmptyStateView({
 
   return (
     <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg)' }}>
-      <style>
-        {`@keyframes empty-state-spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-@keyframes rolodex-out {
-  0%   { transform: translateY(0) rotateX(0); opacity: 1 }
-  100% { transform: translateY(60%) rotateX(-45deg); opacity: 0 }
-}
-@keyframes rolodex-in {
-  0%   { transform: translateY(-60%) rotateX(45deg); opacity: 0 }
-  100% { transform: translateY(0) rotateX(0); opacity: 1 }
-}
-@keyframes rolodex-out-inv {
-  0%   { transform: translateY(0) rotateX(0); opacity: 1 }
-  100% { transform: translateY(-60%) rotateX(45deg); opacity: 0 }
-}
-@keyframes rolodex-in-inv {
-  0%   { transform: translateY(60%) rotateX(-45deg); opacity: 0 }
-  100% { transform: translateY(0) rotateX(0); opacity: 1 }
-}`}
-      </style>
       <div
         className="empty-state-content"
         style={{

@@ -3,8 +3,7 @@ import { PlanList } from './PlanList.tsx';
 import { SidebarFilters } from './SidebarFilters.tsx';
 import { SkeletonBlock } from './Skeleton.tsx';
 import { startViewTransition } from '../lib/view-transition.ts';
-
-const SIDEBAR_EXPANDED_WIDTH = 260;
+import { SIDEBAR_EXPANDED_WIDTH } from '../lib/constants.ts';
 
 interface SidebarProps {
   sidebarHidden: boolean;

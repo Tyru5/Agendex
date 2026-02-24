@@ -11,8 +11,7 @@ import { useAgents, usePlans } from './hooks/usePlans.ts';
 import { api, hasToken, type Plan } from './lib/api.ts';
 import { EmptyStateView } from './components/EmptyStateView.tsx';
 import { filterPlans } from './lib/plan-search.ts';
-
-const SIDEBAR_EXPANDED_WIDTH = 260;
+import { SIDEBAR_EXPANDED_WIDTH } from './lib/constants.ts';
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
@@ -238,8 +237,12 @@ function Dashboard() {
               );
             }}
             onRescan={async () => {
-              await api.rescan();
-              await refresh();
+              try {
+                await api.rescan();
+                await refresh();
+              } catch (err) {
+                console.error('Rescan failed:', err);
+              }
             }}
             planCount={totalPlans}
             agents={agents}
