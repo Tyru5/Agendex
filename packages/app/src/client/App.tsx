@@ -11,7 +11,8 @@ import { SkeletonBlock } from './components/Skeleton.tsx';
 import { ThemeToggle } from './components/ThemeToggle.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { useAgents, usePlans } from './hooks/usePlans.ts';
-import { hasToken, type Plan } from './lib/api.ts';
+import { api, hasToken, type Plan } from './lib/api.ts';
+import { EmptyStateView } from './components/EmptyStateView.tsx';
 import { filterPlans } from './lib/plan-search.ts';
 import { startViewTransition } from './lib/view-transition.ts';
 
@@ -402,12 +403,18 @@ function Dashboard() {
         ) : selectedPlan ? (
           <PlanViewer plan={selectedPlan} />
         ) : (
-          <div
-            className="h-full flex items-center justify-center"
-            style={{ fontSize: '13px', color: 'var(--tertiary)' }}
-          >
-            Select a plan to view
-          </div>
+          <EmptyStateView
+            onSearch={() => {
+              window.dispatchEvent(
+                new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }),
+              );
+            }}
+            onRescan={() => {
+              api.rescan().then(() => refresh());
+            }}
+            planCount={totalPlans}
+            agents={agents}
+          />
         )}
       </div>
     </div>
