@@ -121,6 +121,18 @@
   animation: unseen-pulse 2s ease-in-out infinite;
 }
 
+.plan-row {
+  transition: background 120ms ease;
+}
+
+.plan-row:not(.plan-row--selected):hover {
+  background: var(--hover) !important;
+}
+
+.plan-row:not(.plan-row--selected):active {
+  background: var(--active) !important;
+}
+
 @keyframes sidebar-dot-ping {
   0% {
     transform: scale(1);

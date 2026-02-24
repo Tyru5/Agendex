@@ -30,7 +30,7 @@ function PlanRow({
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left block"
+      className={`w-full text-left block plan-row${selected ? ' plan-row--selected' : ''}`}
       style={{
         padding: '10px 8px',
         borderRadius: '7px',

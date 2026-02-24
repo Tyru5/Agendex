@@ -585,14 +585,15 @@ function Dashboard() {
           opacity: sidebarHidden ? (sidebarPeekOpen ? 1 : 0) : 1,
           transform: sidebarHidden
             ? sidebarPeekOpen
-              ? 'translateX(0)'
-              : 'translateX(calc(-100% - 1px))'
+              ? 'scale(1) translateY(0)'
+              : 'scale(0.96) translateY(8px)'
             : 'none',
+          transformOrigin: 'top left',
           willChange: sidebarPeek ? 'transform, opacity' : undefined,
           pointerEvents: sidebarVisible ? 'auto' : 'none',
           boxShadow: sidebarPeekOpen ? '0 18px 40px rgba(0,0,0,0.20)' : 'none',
           transition: sidebarHidden
-            ? 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease'
+            ? 'transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease'
             : 'opacity 120ms ease',
         }}
       >
