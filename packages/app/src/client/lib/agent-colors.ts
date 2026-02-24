@@ -108,6 +108,8 @@ const AGENT_BRANDING: Record<string, AgentBranding> = {
   },
 };
 
+export const AGENT_IDS = Object.keys(AGENT_BRANDING);
+
 export const AGENT_COLORS: Record<string, string> = Object.fromEntries(
   Object.entries(AGENT_BRANDING).map(([agent, branding]) => [agent, branding.color]),
 ) as Record<string, string>;

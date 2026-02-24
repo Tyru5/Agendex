@@ -1,0 +1,111 @@
+import type { Plan, AgentStats } from '../lib/api.ts';
+import { PlanList } from './PlanList.tsx';
+import { SidebarFilters } from './SidebarFilters.tsx';
+import { SkeletonBlock } from './Skeleton.tsx';
+import { startViewTransition } from '../lib/view-transition.ts';
+
+const SIDEBAR_EXPANDED_WIDTH = 260;
+
+interface SidebarProps {
+  sidebarHidden: boolean;
+  sidebarVisible: boolean;
+  sidebarPeekOpen: boolean;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  sortBy: 'updatedAt' | 'createdAt' | 'title';
+  onSortChange: (sort: 'updatedAt' | 'createdAt' | 'title') => void;
+  dateBucket: 'all' | 'today' | '7d' | '30d';
+  onDateBucketChange: (date: 'all' | 'today' | '7d' | '30d') => void;
+  agents: AgentStats[];
+  selectedAgent?: string;
+  onAgentSelect: (agent: string | undefined) => void;
+  filteredPlans: Plan[];
+  selectedPlanId?: string;
+  onSelectPlan: (plan: Plan | undefined) => void;
+  loading: boolean;
+  error: string | null;
+}
+
+export function Sidebar({
+  sidebarHidden,
+  sidebarVisible,
+  sidebarPeekOpen,
+  onMouseEnter,
+  onMouseLeave,
+  sortBy,
+  onSortChange,
+  dateBucket,
+  onDateBucketChange,
+  agents,
+  selectedAgent,
+  onAgentSelect,
+  filteredPlans,
+  selectedPlanId,
+  onSelectPlan,
+  loading,
+  error,
+}: SidebarProps) {
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover-reveal sidebar container
+    <div
+      className="flex flex-col overflow-hidden"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{
+        gridColumn: '1 / 2',
+        gridRow: '2 / 3',
+        position: sidebarHidden ? 'absolute' : 'relative',
+        top: sidebarHidden ? 0 : undefined,
+        left: sidebarHidden ? 0 : undefined,
+        height: sidebarHidden ? '100%' : undefined,
+        width: `${SIDEBAR_EXPANDED_WIDTH}px`,
+        zIndex: sidebarHidden ? 45 : undefined,
+        borderRight: sidebarVisible ? '1px solid var(--border)' : 'none',
+        background: 'var(--surface)',
+        minWidth: 0,
+        opacity: sidebarHidden ? (sidebarPeekOpen ? 1 : 0) : 1,
+        transform: sidebarHidden
+          ? sidebarPeekOpen
+            ? 'translateX(0)'
+            : 'translateX(calc(-100% - 1px))'
+          : 'none',
+        willChange: sidebarPeekOpen ? 'transform, opacity' : undefined,
+        pointerEvents: sidebarVisible ? 'auto' : 'none',
+        boxShadow: sidebarPeekOpen ? '0 18px 40px rgba(0,0,0,0.20)' : 'none',
+        transition: sidebarHidden
+          ? 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease'
+          : 'opacity 120ms ease',
+      }}
+    >
+      <div className="px-3 pt-3 pb-2">
+        <SidebarFilters
+          sortBy={sortBy}
+          onSortChange={onSortChange}
+          dateBucket={dateBucket}
+          onDateBucketChange={onDateBucketChange}
+          agents={agents}
+          selectedAgent={selectedAgent}
+          onAgentSelect={onAgentSelect}
+        />
+      </div>
+
+      <div className="flex-1 overflow-auto sidebar-scroll px-3 pb-3">
+        {loading ? (
+          <div className="p-4">
+            <SkeletonBlock lines={5} />
+          </div>
+        ) : error ? (
+          <div className="p-4" style={{ fontSize: '13px', color: '#ef4444' }}>
+            Failed to load plans.
+          </div>
+        ) : (
+          <PlanList
+            plans={filteredPlans}
+            selectedId={selectedPlanId}
+            onSelect={(plan) => startViewTransition(() => onSelectPlan(plan))}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

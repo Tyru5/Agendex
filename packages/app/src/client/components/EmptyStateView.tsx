@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentStats } from '../lib/api.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
 interface EmptyStateViewProps {
   onSearch?: () => void;
-  onRescan?: () => void;
+  onRescan?: () => Promise<void> | void;
   planCount?: number;
   agents?: AgentStats[];
 }
 
+const EMPTY_AGENTS: AgentStats[] = [];
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 const modKey = isMac ? '\u2318' : 'Ctrl';
 
@@ -31,7 +32,7 @@ function SearchIcon() {
   );
 }
 
-function RefreshIcon() {
+function RefreshIcon({ spinning }: { spinning?: boolean }) {
   return (
     <svg
       width="14"
@@ -42,6 +43,7 @@ function RefreshIcon() {
       strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      style={spinning ? { animation: 'empty-state-spin 0.8s linear infinite' } : undefined}
     >
       <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
       <path d="M3 3v5h5" />
@@ -128,10 +130,12 @@ function ActionPill({
 function SuggestionRow({
   icon,
   label,
+  disabled,
   onClick,
 }: {
   icon: React.ReactNode;
-  label: string;
+  label: React.ReactNode;
+  disabled?: boolean;
   onClick?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -139,6 +143,7 @@ function SuggestionRow({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -149,14 +154,15 @@ function SuggestionRow({
         padding: '10px 14px',
         borderRadius: '10px',
         border: '1px solid var(--border)',
-        background: hovered ? 'var(--hover)' : 'transparent',
+        background: hovered && !disabled ? 'var(--hover)' : 'transparent',
         color: 'var(--text)',
         fontSize: '13px',
         fontWeight: 450,
         fontFamily: 'inherit',
-        cursor: 'pointer',
-        transition: 'background 0.15s, border-color 0.15s',
-        borderColor: hovered ? 'var(--active)' : undefined,
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
+        transition: 'background 0.15s, border-color 0.15s, opacity 0.15s',
+        borderColor: hovered && !disabled ? 'var(--active)' : undefined,
       }}
     >
       <span style={{ display: 'flex', color: 'var(--secondary)', flexShrink: 0 }}>{icon}</span>
@@ -168,18 +174,177 @@ function SuggestionRow({
   );
 }
 
+function useAgentRotation(agentIds: string[]) {
+  const [indices, setIndices] = useState<{ current: number; prev: number | null }>({
+    current: 0,
+    prev: null,
+  });
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const count = agentIds.length;
+
+  useEffect(() => {
+    if (count <= 1) return;
+    const id = setInterval(() => {
+      setIndices((s) => ({ current: (s.current + 1) % count, prev: s.current }));
+    }, 5000);
+    return () => clearInterval(id);
+  }, [count]);
+
+  useEffect(() => {
+    if (indices.prev === null) return;
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setIndices((s) => ({ ...s, prev: null })), 400);
+    return () => clearTimeout(timeoutRef.current);
+  }, [indices.prev]);
+
+  const safeIndex = count > 0 ? indices.current % count : 0;
+  const safePrev = indices.prev !== null && count > 0 ? indices.prev % count : null;
+
+  return {
+    currentAgent: agentIds[safeIndex] ?? null,
+    prevAgent: safePrev !== null ? agentIds[safePrev] : null,
+  };
+}
+
+function RotatingAgentIcon({
+  size = 16,
+  currentAgent,
+  prevAgent,
+}: {
+  size?: number;
+  currentAgent: string;
+  prevAgent: string | null;
+}) {
+  const dim = `${size}px`;
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        width: dim,
+        height: dim,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {prevAgent && (
+        <span
+          key={`out-${prevAgent}`}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            animation: 'rolodex-out 0.4s ease-in forwards',
+          }}
+        >
+          <AgentIcon agent={prevAgent} size={size} />
+        </span>
+      )}
+      <span
+        key={`in-${currentAgent}`}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          animation: prevAgent ? 'rolodex-in 0.4s ease-out forwards' : undefined,
+        }}
+      >
+        <AgentIcon agent={currentAgent} size={size} />
+      </span>
+    </span>
+  );
+}
+
+function RotatingText({ current, prev }: { current: string; prev: string | null }) {
+  return (
+    <span
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        overflow: 'hidden',
+      }}
+    >
+      {prev && (
+        <span
+          key={`text-out-${prev}`}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            animation: 'rolodex-out-inv 0.4s ease-in forwards',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {prev}
+        </span>
+      )}
+      <span
+        key={`text-in-${current}`}
+        style={{
+          animation: prev ? 'rolodex-in-inv 0.4s ease-out forwards' : undefined,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {current}
+      </span>
+    </span>
+  );
+}
+
 export function EmptyStateView({
   onSearch,
   onRescan,
   planCount = 0,
-  agents = [],
+  agents = EMPTY_AGENTS,
 }: EmptyStateViewProps) {
-  const topAgent =
-    agents.length > 0 ? agents.reduce((a, b) => (b.planCount > a.planCount ? b : a)) : null;
-  const activeAgentCount = agents.filter((a) => a.planCount > 0).length;
+  const [rescanning, setRescanning] = useState(false);
+  const activeAgents = useMemo(() => agents.filter((a) => a.planCount > 0), [agents]);
+  const activeAgentIds = useMemo(() => activeAgents.map((a) => a.agent), [activeAgents]);
+  const { currentAgent, prevAgent } = useAgentRotation(activeAgentIds);
+
+  const agentStats = currentAgent ? agents.find((a) => a.agent === currentAgent) : null;
+  const prevAgentStats = prevAgent ? agents.find((a) => a.agent === prevAgent) : null;
+
+  function agentLabel(agent: string, stats: AgentStats | null | undefined) {
+    return stats && stats.planCount > 0
+      ? `View ${stats.planCount} plans from ${getAgentLabel(agent)}`
+      : `Browse ${getAgentLabel(agent)} plans`;
+  }
+
+  async function handleRescan() {
+    if (rescanning || !onRescan) return;
+    setRescanning(true);
+    try {
+      await onRescan();
+    } finally {
+      setRescanning(false);
+    }
+  }
 
   return (
     <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+      <style>
+        {`@keyframes empty-state-spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+@keyframes rolodex-out {
+  0%   { transform: translateY(0) rotateX(0); opacity: 1 }
+  100% { transform: translateY(60%) rotateX(-45deg); opacity: 0 }
+}
+@keyframes rolodex-in {
+  0%   { transform: translateY(-60%) rotateX(45deg); opacity: 0 }
+  100% { transform: translateY(0) rotateX(0); opacity: 1 }
+}
+@keyframes rolodex-out-inv {
+  0%   { transform: translateY(0) rotateX(0); opacity: 1 }
+  100% { transform: translateY(-60%) rotateX(45deg); opacity: 0 }
+}
+@keyframes rolodex-in-inv {
+  0%   { transform: translateY(60%) rotateX(-45deg); opacity: 0 }
+  100% { transform: translateY(0) rotateX(0); opacity: 1 }
+}`}
+      </style>
       <div
         className="empty-state-content"
         style={{
@@ -207,35 +372,46 @@ export function EmptyStateView({
         <p style={{ fontSize: '13px', color: 'var(--tertiary)', margin: 0, lineHeight: 1.6 }}>
           {planCount === 0
             ? 'No plans detected yet. Start an AI agent or rescan.'
-            : `${planCount} plans across ${activeAgentCount} agent${activeAgentCount !== 1 ? 's' : ''}`}
+            : `${planCount} plans across ${activeAgents.length} agent${activeAgents.length !== 1 ? 's' : ''}`}
         </p>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
           <ActionPill icon={<SearchIcon />} label="Search" kbd={`${modKey}+K`} onClick={onSearch} />
-          <ActionPill icon={<RefreshIcon />} label="Rescan" onClick={onRescan} />
         </div>
 
-        {planCount > 0 && (
-          <div
-            style={{
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-              marginTop: '4px',
-            }}
-          >
-            {topAgent && topAgent.planCount > 0 && (
-              <SuggestionRow
-                icon={<AgentIcon agent={topAgent.agent} size={16} />}
-                label={`View ${topAgent.planCount} plans from ${getAgentLabel(topAgent.agent)}`}
-                onClick={onSearch}
-              />
-            )}
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            marginTop: '4px',
+          }}
+        >
+          {currentAgent && (
+            <SuggestionRow
+              icon={
+                <RotatingAgentIcon size={16} currentAgent={currentAgent} prevAgent={prevAgent} />
+              }
+              label={
+                <RotatingText
+                  current={agentLabel(currentAgent, agentStats)}
+                  prev={prevAgent ? agentLabel(prevAgent, prevAgentStats) : null}
+                />
+              }
+              onClick={onSearch}
+            />
+          )}
+          {planCount > 0 && (
             <SuggestionRow icon={<SearchIcon />} label="Search all plans" onClick={onSearch} />
-            <SuggestionRow icon={<RefreshIcon />} label="Rescan for new plans" onClick={onRescan} />
-          </div>
-        )}
+          )}
+          <SuggestionRow
+            icon={<RefreshIcon spinning={rescanning} />}
+            label={rescanning ? 'Scanning for plans...' : 'Rescan for new plans'}
+            disabled={rescanning}
+            onClick={handleRescan}
+          />
+        </div>
 
         <p style={{ fontSize: '11px', color: 'var(--tertiary)', margin: '4px 0 0' }}>
           Press {modKey}+K to search anytime
