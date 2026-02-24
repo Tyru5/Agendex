@@ -2876,6 +2876,46 @@ body {
   background: rgba(239, 68, 68, 0.08);
 }
 
+@keyframes empty-state-fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.empty-state-content {
+  animation: empty-state-fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes empty-state-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rolodex-out {
+  0%   { transform: translateY(0) rotateX(0); opacity: 1; }
+  100% { transform: translateY(60%) rotateX(-45deg); opacity: 0; }
+}
+
+@keyframes rolodex-in {
+  0%   { transform: translateY(-60%) rotateX(45deg); opacity: 0; }
+  100% { transform: translateY(0) rotateX(0); opacity: 1; }
+}
+
+@keyframes rolodex-out-inv {
+  0%   { transform: translateY(0) rotateX(0); opacity: 1; }
+  100% { transform: translateY(-60%) rotateX(45deg); opacity: 0; }
+}
+
+@keyframes rolodex-in-inv {
+  0%   { transform: translateY(60%) rotateX(-45deg); opacity: 0; }
+  100% { transform: translateY(0) rotateX(0); opacity: 1; }
+}
+
 @keyframes upload-fadeUp {
   from {
     opacity: 0;
