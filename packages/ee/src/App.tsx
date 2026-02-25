@@ -120,10 +120,13 @@ function Dashboard() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | undefined>(undefined);
 
-  const [editing, setEditing] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  type Panel = 'editing' | 'creating' | 'uploading' | 'history' | null;
+  const [activePanel, setActivePanel] = useState<Panel>(null);
+  const editing = activePanel === 'editing';
+  const creating = activePanel === 'creating';
+  const uploading = activePanel === 'uploading';
+  const showHistory = activePanel === 'history';
+
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [mode, setMode] = useState<DashboardMode>('local');
   const [sidebarHidden, setSidebarHidden] = useState(() => {
@@ -255,13 +258,12 @@ function Dashboard() {
   useEffect(() => {
     if (filteredPlans.length === 0 && selectedPlanId) {
       setSelectedPlanId(null);
-      setEditing(false);
-      setShowHistory(false);
+      setActivePanel(null);
     }
   }, [filteredPlans, selectedPlanId, setSelectedPlanId]);
 
   function handleSaved() {
-    setEditing(false);
+    setActivePanel(null);
     refresh();
   }
 
@@ -385,11 +387,7 @@ function Dashboard() {
                 type="button"
                 onClick={() => {
                   if (isPro) {
-                    startViewTransition(() => {
-                      setCreating(true);
-                      setEditing(false);
-                      setUploading(false);
-                    });
+                    startViewTransition(() => setActivePanel('creating'));
                   } else {
                     setShowPricingModal(true);
                   }
@@ -429,11 +427,7 @@ function Dashboard() {
               <button
                 type="button"
                 onClick={() =>
-                  startViewTransition(() => {
-                    setUploading(true);
-                    setCreating(false);
-                    setEditing(false);
-                  })
+                  startViewTransition(() => setActivePanel('uploading'))
                 }
                 aria-label="Upload plan"
                 title="Upload plan"
@@ -605,11 +599,7 @@ function Dashboard() {
                 type="button"
                 onClick={() => {
                   if (isPro) {
-                    startViewTransition(() => {
-                      setCreating(true);
-                      setEditing(false);
-                      setUploading(false);
-                    });
+                    startViewTransition(() => setActivePanel('creating'));
                   } else {
                     setShowPricingModal(true);
                   }
@@ -636,11 +626,7 @@ function Dashboard() {
               <button
                 type="button"
                 onClick={() =>
-                  startViewTransition(() => {
-                    setUploading(true);
-                    setCreating(false);
-                    setEditing(false);
-                  })
+                  startViewTransition(() => setActivePanel('uploading'))
                 }
                 aria-label="Upload plan"
                 title="Upload plan"
@@ -737,10 +723,10 @@ function Dashboard() {
           >
             <PlanUploader
               agents={agents}
-              onClose={() => startViewTransition(() => setUploading(false))}
+              onClose={() => startViewTransition(() => setActivePanel(null))}
               onCreated={(plan) => {
                 startViewTransition(() => {
-                  setUploading(false);
+                  setActivePanel(null);
                   refresh();
                   setSelectedPlan(plan);
                 });
@@ -755,13 +741,13 @@ function Dashboard() {
               </div>
             }
           >
-            <PaywallGuard onBack={() => startViewTransition(() => setCreating(false))}>
+            <PaywallGuard onBack={() => startViewTransition(() => setActivePanel(null))}>
               <PlanCreator
                 agents={agents}
-                onClose={() => startViewTransition(() => setCreating(false))}
+                onClose={() => startViewTransition(() => setActivePanel(null))}
                 onCreated={(plan) => {
                   startViewTransition(() => {
-                    setCreating(false);
+                    setActivePanel(null);
                     refresh();
                     setSelectedPlan(plan);
                   });
@@ -780,7 +766,7 @@ function Dashboard() {
             >
               <PlanEditor
                 plan={selectedPlan}
-                onClose={() => startViewTransition(() => setEditing(false))}
+                onClose={() => startViewTransition(() => setActivePanel(null))}
                 onSaved={handleSaved}
               />
             </Suspense>
@@ -794,15 +780,15 @@ function Dashboard() {
             >
               <PlanHistoryDrawer
                 planId={selectedPlan.id}
-                onClose={() => startViewTransition(() => setShowHistory(false))}
+                onClose={() => startViewTransition(() => setActivePanel(null))}
               />
             </Suspense>
           ) : (
             <PlanViewer
               plan={selectedPlan}
-              onEdit={() => startViewTransition(() => setEditing(true))}
+              onEdit={() => startViewTransition(() => setActivePanel('editing'))}
               onChartWideChange={handleChartWideChange}
-              onHistory={() => startViewTransition(() => setShowHistory(true))}
+              onHistory={() => startViewTransition(() => setActivePanel('history'))}
               headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
             />
           )
