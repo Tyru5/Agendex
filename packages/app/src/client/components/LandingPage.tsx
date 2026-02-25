@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AGENTS,
   FEATURES,
@@ -367,10 +367,12 @@ function BentoCard({
   feature,
   layout,
   index,
+  inView,
 }: {
   feature: (typeof FEATURES)[number];
   layout: (typeof BENTO_MAP)[number];
   index: number;
+  inView?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
@@ -426,7 +428,7 @@ function BentoCard({
       >
         {feature.desc}
       </p>
-      {CARD_VISUALS[index]?.()}
+      {inView && CARD_VISUALS[index]?.()}
     </div>
   );
 }
@@ -869,6 +871,24 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
   const [yearly, setYearly] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'local' | 'cloud'>('local');
+  const [bentoInView, setBentoInView] = useState(false);
+  const bentoRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = bentoRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setBentoInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -1145,6 +1165,7 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
 
       {/* Bento Feature Grid */}
       <section
+        ref={bentoRef}
         style={{ padding: 'clamp(60px, 10vh, 120px) 24px', maxWidth: 1100, margin: '0 auto' }}
       >
         <div style={{ textAlign: 'center', marginBottom: 56 }}>
@@ -1179,6 +1200,7 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
               feature={feature}
               layout={BENTO_MAP[i] ?? { colSpan: 1, rowSpan: 1 }}
               index={i}
+              inView={bentoInView}
             />
           ))}
         </div>
