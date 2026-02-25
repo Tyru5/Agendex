@@ -849,8 +849,10 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
       {/* Navbar */}
       <nav
         style={{
-          position: 'sticky',
+          position: 'fixed',
           top: 0,
+          left: 0,
+          right: 0,
           zIndex: 100,
           display: 'flex',
           alignItems: 'center',
@@ -909,7 +911,7 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
           alignItems: 'center',
           maxWidth: 1100,
           margin: '0 auto',
-          padding: 'clamp(80px, 15vh, 160px) 24px clamp(60px, 10vh, 100px)',
+          padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
         }}
       >
         <div
