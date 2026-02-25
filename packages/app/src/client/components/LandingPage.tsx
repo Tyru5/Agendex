@@ -868,7 +868,7 @@ function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
 export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}) {
   const [token, setTokenValue] = useState('');
   const [showLogin, setShowLogin] = useState(false);
-  const [yearly, setYearly] = useState(true);
+  const [yearly, setYearly] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'local' | 'cloud'>('local');
   const [bentoInView, setBentoInView] = useState(false);
