@@ -29,6 +29,7 @@ export function usePlans(filters: { agent?: string; q?: string; sort?: string })
   }, [refresh]);
 
   useSocketEvent('plan:updated', refresh);
+  useSocketEvent('connection', refresh);
 
   return { plans, loading, error, refresh };
 }
@@ -45,6 +46,7 @@ export function useAgents() {
   }, [refresh]);
 
   useSocketEvent('plan:updated', refresh);
+  useSocketEvent('connection', refresh);
 
   return agents;
 }

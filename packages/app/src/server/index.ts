@@ -42,6 +42,7 @@ const startup = loadOrInitConfig({ configureAdapters })
   .then(() => {
     startWatching((plans) => broadcast('plan:updated', plans));
 
+    // Fallback polling for environments where fs.watch is unreliable (WSL, network mounts)
     let lastFingerprint = buildFingerprint();
     setInterval(async () => {
       await scan();
@@ -50,7 +51,7 @@ const startup = loadOrInitConfig({ configureAdapters })
         lastFingerprint = fp;
         broadcast('plan:updated', getAll());
       }
-    }, 5_000);
+    }, 60_000);
   })
   .catch((err) => {
     console.error('[agendex] startup failed', err);
