@@ -65,18 +65,18 @@ VITE_APP_URL=https://agendex.yourdomain.com
 ### Vercel
 
 1. Import the repo in Vercel
-2. Set **Root Directory** to `packages/web`
+2. Set **Root Directory** to `packages/ee`
 3. Set **Build Command** to `bun run build`
-4. Set **Output Directory** to `src/client/dist`
+4. Set **Output Directory** to `dist`
 5. Add the `VITE_*` env vars from above
 6. Deploy
 
 ### Other platforms
 
 ```bash
-cd packages/web
+cd packages/ee
 bun run build
-# serve src/client/dist as static files
+# serve dist as static files
 ```
 
 ## 7. Deploy Convex to production
