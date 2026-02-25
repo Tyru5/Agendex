@@ -21,10 +21,10 @@ function computeDiff(oldText: string, newText: string): DiffLine[] {
     for (let k = -d; k <= d; k += 2) {
       const idx = k + max;
       let x: number;
-      if (k === -d || (k !== d && v[idx - 1] < v[idx + 1])) {
-        x = v[idx + 1];
+      if (k === -d || (k !== d && v[idx - 1]! < v[idx + 1]!)) {
+        x = v[idx + 1]!;
       } else {
-        x = v[idx - 1] + 1;
+        x = v[idx - 1]! + 1;
       }
       let y = x - k;
       while (x < n && y < m && oldLines[x] === newLines[y]) {
@@ -37,33 +37,33 @@ function computeDiff(oldText: string, newText: string): DiffLine[] {
         let cx = n;
         let cy = m;
         for (let bd = d; bd > 0; bd--) {
-          const prev = trace[bd - 1];
+          const prev = trace[bd - 1]!;
           const bk = cx - cy;
           const bIdx = bk + max;
           let px: number;
-          if (bk === -bd || (bk !== bd && prev[bIdx - 1] < prev[bIdx + 1])) {
-            px = prev[bIdx + 1];
+          if (bk === -bd || (bk !== bd && prev[bIdx - 1]! < prev[bIdx + 1]!)) {
+            px = prev[bIdx + 1]!;
           } else {
-            px = prev[bIdx - 1] + 1;
+            px = prev[bIdx - 1]! + 1;
           }
           const py = px - bk;
           while (cx > px && cy > py) {
             cx--;
             cy--;
-            result.push({ type: 'unchanged', content: oldLines[cx] });
+            result.push({ type: 'unchanged', content: oldLines[cx]! });
           }
           if (cx > px) {
             cx--;
-            result.push({ type: 'removed', content: oldLines[cx] });
+            result.push({ type: 'removed', content: oldLines[cx]! });
           } else if (cy > py) {
             cy--;
-            result.push({ type: 'added', content: newLines[cy] });
+            result.push({ type: 'added', content: newLines[cy]! });
           }
         }
         while (cx > 0 && cy > 0) {
           cx--;
           cy--;
-          result.push({ type: 'unchanged', content: oldLines[cx] });
+          result.push({ type: 'unchanged', content: oldLines[cx]! });
         }
         result.reverse();
         return result;

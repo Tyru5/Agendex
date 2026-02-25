@@ -26,6 +26,7 @@ import { hasToken, type Plan } from '@agendex/app/src/client/lib/api.ts';
 import { filterPlans } from '@agendex/app/src/client/lib/plan-search.ts';
 import { startViewTransition } from '@agendex/app/src/client/lib/view-transition.ts';
 import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
 

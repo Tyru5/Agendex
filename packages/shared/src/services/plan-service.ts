@@ -143,8 +143,8 @@ async function scanUserPlans() {
       let agent = 'unknown';
       const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
       if (fmMatch) {
-        const agentLine = fmMatch[1].match(/^agent:\s*(.+)$/m);
-        if (agentLine) agent = agentLine[1].trim();
+        const agentLine = fmMatch[1]?.match(/^agent:\s*(.+)$/m);
+        if (agentLine?.[1]) agent = agentLine[1].trim();
       }
 
       const bodyContent = fmMatch ? content.slice(fmMatch[0].length) : content;
@@ -273,7 +273,7 @@ export async function create(agentName: string, title: string, content: string):
   let fileContent: string;
 
   if (adapter?.writable) {
-    const dir = adapter.getSearchPaths()[0];
+    const dir = adapter.getSearchPaths()[0] ?? USER_PLANS_DIR;
     await mkdir(dir, { recursive: true });
     filePath = join(dir, filename);
     fileContent = `# ${title}\n\n${content}`;

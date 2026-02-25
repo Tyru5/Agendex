@@ -105,8 +105,8 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
           </div>
         ) : (
           allTags
-            .filter((t) => !newName.trim() || t.nameLc.includes(newName.trim().toLowerCase()))
-            .map((tag) => (
+            .filter((t: any) => !newName.trim() || t.nameLc.includes(newName.trim().toLowerCase()))
+            .map((tag: any) => (
               <button
                 key={tag._id}
                 type="button"

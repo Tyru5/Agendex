@@ -179,7 +179,7 @@ function useAgentRotation(agentIds: string[]) {
     current: 0,
     prev: null,
   });
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const count = agentIds.length;
 
   useEffect(() => {
@@ -202,7 +202,7 @@ function useAgentRotation(agentIds: string[]) {
 
   return {
     currentAgent: agentIds[safeIndex] ?? null,
-    prevAgent: safePrev !== null ? agentIds[safePrev] : null,
+    prevAgent: safePrev !== null ? (agentIds[safePrev] ?? null) : null,
   };
 }
 
@@ -377,7 +377,7 @@ export function EmptyStateView({
               label={
                 <RotatingText
                   current={agentLabel(currentAgent, agentStats)}
-                  prev={prevAgent ? agentLabel(prevAgent, prevAgentStats) : null}
+                  prev={prevAgent ? agentLabel(prevAgent, prevAgentStats ?? null) : null}
                 />
               }
               onClick={onSearch}

@@ -79,4 +79,16 @@ export const api = {
   getAgents: () => request<AgentStats[]>('/agents'),
 
   rescan: () => request<{ ok: boolean }>('/rescan', { method: 'POST' }),
+
+  createPlan: (agent: string, title: string, content: string) =>
+    request<Plan>('/plans', {
+      method: 'POST',
+      body: JSON.stringify({ agent, title, content }),
+    }),
+
+  updatePlan: (id: string, content: string) =>
+    request<Plan>(`/plans/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ content }),
+    }),
 };

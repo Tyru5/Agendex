@@ -15,7 +15,7 @@ type Step = 'pick' | 'confirm';
 
 function extractTitle(text: string, filename: string): string {
   const match = text.match(/^#\s+(.+)/m);
-  if (match) return match[1].trim();
+  if (match?.[1]) return match[1].trim();
   return filename.replace(/\.md$/i, '');
 }
 
@@ -55,7 +55,7 @@ export function PlanUploader({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!agent && agents.length > 0) {
+    if (!agent && agents.length > 0 && agents[0]) {
       setAgent(agents[0].agent);
     }
   }, [agents, agent]);
@@ -109,7 +109,7 @@ export function PlanUploader({
     let firstPlan: Plan | undefined;
     try {
       for (let i = 0; i < valid.length; i++) {
-        const f = valid[i];
+        const f = valid[i]!;
         const plan = await api.createPlan(agent, f.title.trim(), f.content.trim());
         if (i === 0) firstPlan = plan;
         setUploadProgress(i + 1);

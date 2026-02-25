@@ -16,7 +16,7 @@ export function PlanEditor({
   onSaved: () => void;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView>();
+  const viewRef = useRef<EditorView>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
 

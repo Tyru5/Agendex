@@ -28,7 +28,7 @@ export function PlanCreator({
   const [splitRatio, setSplitRatio] = useState(0.5);
 
   const editorRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView>();
+  const viewRef = useRef<EditorView>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   const { resolvedTheme } = useTheme();
