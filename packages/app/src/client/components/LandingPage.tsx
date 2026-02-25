@@ -977,7 +977,7 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
             searchable interface.
           </p>
 
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12 }}>
             <button
               onClick={() => {
                 if (activeTab === 'cloud' && onCloudLogin) {
