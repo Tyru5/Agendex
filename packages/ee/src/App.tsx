@@ -20,6 +20,7 @@ import { useBackendStatus } from '@agendex/app/src/client/hooks/useBackendStatus
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useAgents, usePlans } from '@agendex/app/src/client/hooks/usePlans.ts';
 import { useSeenPlans } from '@agendex/app/src/client/hooks/useSeenPlans.ts';
+import { useAuth } from './hooks/useAuth.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { hasToken, type Plan } from '@agendex/app/src/client/lib/api.ts';
 import { filterPlans } from '@agendex/app/src/client/lib/plan-search.ts';
@@ -837,6 +838,7 @@ function useRoute() {
  */
 export default function App() {
   const path = useRoute();
+  const { isAuthenticated, isLoading, signIn } = useAuth();
 
   if (path === '/auth/cli') {
     const params = new URLSearchParams(window.location.search);
@@ -850,7 +852,16 @@ export default function App() {
     return <SharedPlanView token={sharedMatch[1] as string} />;
   }
 
-  if (!hasToken()) return <LandingPage />;
+  // Cloud mode: use Convex auth state
+  // Local/OSS fallback: use localStorage token
+  if (!isAuthenticated && !hasToken()) {
+    if (isLoading) return null;
+    return (
+      <LandingPage
+        onCloudLogin={() => signIn.social({ provider: 'github' })}
+      />
+    );
+  }
 
   return <Dashboard />;
 }
