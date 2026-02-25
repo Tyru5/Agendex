@@ -1,4 +1,5 @@
 import {
+  getAll,
   loadOrInitConfig,
   resolveAdapters,
   scan,
@@ -40,6 +41,17 @@ const startup = loadOrInitConfig({ configureAdapters })
   })
   .then(() => {
     startWatching((plans) => broadcast('plan:updated', plans));
+
+    // Fallback polling for environments where fs.watch is unreliable (WSL, network mounts)
+    let lastFingerprint = buildFingerprint();
+    setInterval(async () => {
+      await scan();
+      const fp = buildFingerprint();
+      if (fp !== lastFingerprint) {
+        lastFingerprint = fp;
+        broadcast('plan:updated', getAll());
+      }
+    }, 60_000);
   })
   .catch((err) => {
     console.error('[agendex] startup failed', err);
@@ -70,6 +82,13 @@ app.get(
 
 app.use('/api/*', authMiddleware);
 app.route('/api/v1', plans);
+
+function buildFingerprint(): string {
+  return getAll()
+    .map((p) => `${p.id}:${p.updatedAt.getTime()}`)
+    .sort()
+    .join('|');
+}
 
 function broadcast(event: string, data: unknown) {
   const msg = JSON.stringify({ event, data });

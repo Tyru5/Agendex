@@ -25,6 +25,8 @@ function connect() {
 
   socket.onopen = () => {
     console.log('[ws] connected');
+    const fns = listeners.get('connection');
+    if (fns) for (const fn of fns) fn(undefined);
   };
 
   socket.onmessage = (e) => {
