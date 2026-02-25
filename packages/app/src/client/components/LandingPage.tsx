@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AGENTS,
   FEATURES,
@@ -798,7 +798,75 @@ function PkgManagerInstall() {
   );
 }
 
-export function LandingPage() {
+function StepsList({ steps }: { steps: typeof LOCAL_STEPS | typeof CLOUD_STEPS }) {
+  return (
+    <>
+      {steps.map((step) => (
+        <div key={step.number} className="landing-step-block">
+          <div className="landing-step-bar">
+            {step.number} — {step.title.toUpperCase()}
+          </div>
+          {'hasPkgManager' in step && step.hasPkgManager ? (
+            <PkgManagerInstall />
+          ) : (
+            <pre className="landing-step-code">
+              <code>{step.code}</code>
+            </pre>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const prevHeightRef = useRef(0);
+  const prevTab = useRef(activeTab);
+
+  if (containerRef.current) {
+    prevHeightRef.current = containerRef.current.offsetHeight;
+  }
+
+  useLayoutEffect(() => {
+    if (prevTab.current === activeTab) return;
+    prevTab.current = activeTab;
+
+    const el = containerRef.current;
+    if (!el) return;
+
+    const startHeight = prevHeightRef.current;
+    const endHeight = el.offsetHeight;
+    if (startHeight === endHeight) return;
+
+    el.style.overflow = 'hidden';
+    el.style.height = `${startHeight}px`;
+
+    requestAnimationFrame(() => {
+      el.style.transition = 'height 0.3s ease';
+      el.style.height = `${endHeight}px`;
+
+      const onEnd = () => {
+        el.style.height = '';
+        el.style.transition = '';
+        el.style.overflow = '';
+        el.removeEventListener('transitionend', onEnd);
+      };
+      el.addEventListener('transitionend', onEnd);
+    });
+  }, [activeTab]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+    >
+      <StepsList steps={activeTab === 'cloud' ? CLOUD_STEPS : LOCAL_STEPS} />
+    </div>
+  );
+}
+
+export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}) {
   const [token, setTokenValue] = useState('');
   const [showLogin, setShowLogin] = useState(false);
   const [yearly, setYearly] = useState(true);
@@ -846,6 +914,60 @@ export function LandingPage() {
         }
       `}</style>
 
+      {/* Navbar */}
+      <nav
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '14px 24px',
+          background: 'rgba(10,10,10,0.85)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: `1px solid ${BORDER}`,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: '"Unbounded", sans-serif',
+            fontSize: 16,
+            fontWeight: 500,
+            color: TEXT_PRIMARY,
+            letterSpacing: '-0.02em',
+          }}
+        >
+          agendex
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            if (onCloudLogin) {
+              onCloudLogin();
+            } else {
+              startViewTransition(() => setShowLogin(true));
+            }
+          }}
+          style={{
+            fontSize: 13,
+            padding: '8px 20px',
+            borderRadius: 8,
+            border: `1px solid ${BORDER}`,
+            background: 'transparent',
+            color: TEXT_PRIMARY,
+            cursor: 'pointer',
+            fontWeight: 500,
+            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
+            transition: 'border-color 0.2s',
+          }}
+        >
+          Sign in
+        </button>
+      </nav>
+
       {/* Hero — two-column */}
       <section
         className="d3-hero"
@@ -857,7 +979,7 @@ export function LandingPage() {
           alignItems: 'center',
           maxWidth: 1100,
           margin: '0 auto',
-          padding: 'clamp(80px, 15vh, 160px) 24px clamp(60px, 10vh, 100px)',
+          padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
         }}
       >
         <div
@@ -923,11 +1045,17 @@ export function LandingPage() {
             searchable interface.
           </p>
 
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <button
-              onClick={() => startViewTransition(() => setShowLogin(true))}
+              onClick={() => {
+                if (activeTab === 'cloud' && onCloudLogin) {
+                  onCloudLogin();
+                } else {
+                  startViewTransition(() => setShowLogin(true));
+                }
+              }}
               style={{
-                padding: '14px 32px',
+                padding: '12px 28px',
                 borderRadius: 12,
                 border: 'none',
                 background: ACCENT,
@@ -935,17 +1063,31 @@ export function LandingPage() {
                 fontSize: 15,
                 fontWeight: 600,
                 cursor: 'pointer',
-                transition: 'opacity 0.2s',
+                transition: 'all 0.2s',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                whiteSpace: 'nowrap',
               }}
             >
-              Get Started
+              {activeTab === 'cloud' && onCloudLogin ? (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                  </svg>
+                  Sign in with GitHub
+                </>
+              ) : (
+                'Get Started'
+              )}
             </button>
             <a
               href="https://github.com/Tyru5/agendex"
               target="_blank"
               rel="noopener noreferrer"
               style={{
-                padding: '14px 32px',
+                padding: '12px 28px',
                 borderRadius: 12,
                 border: `1px solid ${BORDER}`,
                 background: 'transparent',
@@ -956,9 +1098,14 @@ export function LandingPage() {
                 textDecoration: 'none',
                 display: 'inline-flex',
                 alignItems: 'center',
+                gap: 8,
+                whiteSpace: 'nowrap',
                 transition: 'border-color 0.2s',
               }}
             >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+              </svg>
               View on GitHub
             </a>
           </div>
@@ -982,20 +1129,7 @@ export function LandingPage() {
                 Cloud
               </button>
             </div>
-            {(activeTab === 'cloud' ? CLOUD_STEPS : LOCAL_STEPS).map((step) => (
-              <div key={step.number} className="landing-step-block">
-                <div className="landing-step-bar">
-                  {step.number} — {step.title.toUpperCase()}
-                </div>
-                {'hasPkgManager' in step && step.hasPkgManager ? (
-                  <PkgManagerInstall />
-                ) : (
-                  <pre className="landing-step-code">
-                    <code>{step.code}</code>
-                  </pre>
-                )}
-              </div>
-            ))}
+            <AnimatedSteps activeTab={activeTab} />
           </div>
         </div>
       </section>
@@ -1089,7 +1223,8 @@ export function LandingPage() {
             period={yearly ? '/year' : '/month'}
             features={PRO_FEATURES}
             isPro
-            cta="Start Free Trial"
+            cta={onCloudLogin ? 'Sign in with GitHub' : 'Start Free Trial'}
+            onCta={onCloudLogin ? () => onCloudLogin() : undefined}
           />
         </div>
       </section>
@@ -1130,14 +1265,47 @@ export function LandingPage() {
       {/* Footer */}
       <footer
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '14px 24px',
+          background: 'rgba(10,10,10,0.85)',
+          backdropFilter: 'blur(12px)',
           borderTop: `1px solid ${BORDER}`,
-          padding: '32px 24px',
-          textAlign: 'center',
           fontSize: 13,
           color: TEXT_MUTED,
         }}
       >
-        Agendex — Open source agent plan dashboard
+        <span style={{ flex: 1 }}>© {new Date().getFullYear()} Agendex</span>
+        <span style={{ flex: 1, textAlign: 'center' }}>Made With ❤️ by Tyrus Malmstrom</span>
+        <span style={{ flex: 1, textAlign: 'right' }}>
+          <a
+            href="https://github.com/tiru5/agendex"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: 13,
+              padding: '8px 20px',
+              borderRadius: 8,
+              border: `1px solid ${BORDER}`,
+              background: 'transparent',
+              color: TEXT_PRIMARY,
+              cursor: 'pointer',
+              fontWeight: 500,
+              fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
+              transition: 'border-color 0.2s',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+            View on GitHub
+          </a>
+        </span>
       </footer>
 
       {/* Login Modal */}
