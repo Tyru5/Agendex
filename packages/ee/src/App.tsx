@@ -426,9 +426,7 @@ function Dashboard() {
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  startViewTransition(() => setActivePanel('uploading'))
-                }
+                onClick={() => startViewTransition(() => setActivePanel('uploading'))}
                 aria-label="Upload plan"
                 title="Upload plan"
                 style={{
@@ -625,9 +623,7 @@ function Dashboard() {
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  startViewTransition(() => setActivePanel('uploading'))
-                }
+                onClick={() => startViewTransition(() => setActivePanel('uploading'))}
                 aria-label="Upload plan"
                 title="Upload plan"
                 style={{
@@ -842,11 +838,7 @@ export default function App() {
   // Local/OSS fallback: use localStorage token
   if (!isAuthenticated && !hasToken()) {
     if (isLoading) return null;
-    return (
-      <LandingPage
-        onCloudLogin={() => signIn.social({ provider: 'github' })}
-      />
-    );
+    return <LandingPage onCloudLogin={() => signIn.social({ provider: 'github' })} />;
   }
 
   return <Dashboard />;
