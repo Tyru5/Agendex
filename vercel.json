@@ -1,3 +1,5 @@
 {
-  "outputDirectory": "src/client/dist"
+  "buildCommand": "bun run build:cloud",
+  "outputDirectory": "packages/ee/dist",
+  "installCommand": "bun install"
 }
