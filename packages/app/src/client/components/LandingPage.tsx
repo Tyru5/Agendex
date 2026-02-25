@@ -998,8 +998,10 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
                 transition: 'all 0.2s',
                 display: 'inline-flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: 8,
                 whiteSpace: 'nowrap',
+                width: 180,
               }}
             >
               {activeTab === 'cloud' && onCloudLogin ? (
