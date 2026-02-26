@@ -205,7 +205,7 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
           {loading === 'skip' ? 'Setting up…' : 'Continue with free plan'}
         </button>
 
-        {error && <p className="welcome-error" style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</p>}
+        {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</p>}
 
         <p className="welcome-fine-print">No credit card needed · Cancel anytime</p>
       </div>
