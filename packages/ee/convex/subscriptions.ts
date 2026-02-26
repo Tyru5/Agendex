@@ -36,8 +36,100 @@ export async function hasActiveSubscription(ctx: any): Promise<boolean> {
     .withIndex('by_user', (q: any) => q.eq('userId', user._id))
     .first();
 
-  return sub ? sub.status === 'active' && sub.currentPeriodEnd > Date.now() : false;
+  if (!sub) return false;
+  const valid = sub.currentPeriodEnd > Date.now();
+  return valid && (sub.status === 'active' || sub.status === 'trialing');
 }
+
+export const hasCompletedOnboarding = query({
+  handler: async (ctx) => {
+    let user;
+    try {
+      user = await authComponent.getAuthUser(ctx);
+    } catch {
+      return null;
+    }
+    if (!user) return null;
+
+    const sub = await ctx.db
+      .query('subscriptions')
+      .withIndex('by_user', (q: any) => q.eq('userId', user._id))
+      .first();
+
+    return sub !== null;
+  },
+});
+
+export const startTrial = internalMutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const existing = await ctx.db
+      .query('subscriptions')
+      .withIndex('by_user', (q: any) => q.eq('userId', userId))
+      .first();
+
+    if (existing) return;
+
+    const TRIAL_DAYS = 7;
+    const trialEnd = Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000;
+
+    await ctx.db.insert('subscriptions', {
+      userId,
+      stripeCustomerId: '',
+      stripeSubscriptionId: '',
+      status: 'trialing',
+      plan: 'monthly',
+      currentPeriodEnd: trialEnd,
+      cancelAtPeriodEnd: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const startTrialAction = action({
+  handler: async (ctx) => {
+    const user = await ctx.runQuery(api.auth.getCurrentUser);
+    if (!user) throw new ConvexError('Not authenticated');
+
+    await ctx.runMutation(internal.subscriptions.startTrial, { userId: user._id });
+    return { ok: true };
+  },
+});
+
+export const skipTrial = internalMutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const existing = await ctx.db
+      .query('subscriptions')
+      .withIndex('by_user', (q: any) => q.eq('userId', userId))
+      .first();
+
+    if (existing) return;
+
+    await ctx.db.insert('subscriptions', {
+      userId,
+      stripeCustomerId: '',
+      stripeSubscriptionId: '',
+      status: 'canceled',
+      plan: 'monthly',
+      currentPeriodEnd: 0,
+      cancelAtPeriodEnd: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const skipTrialAction = action({
+  handler: async (ctx) => {
+    const user = await ctx.runQuery(api.auth.getCurrentUser);
+    if (!user) throw new ConvexError('Not authenticated');
+
+    await ctx.runMutation(internal.subscriptions.skipTrial, { userId: user._id });
+    return { ok: true };
+  },
+});
 
 export const createCheckoutSession = action({
   args: { plan: v.union(v.literal('monthly'), v.literal('yearly')) },

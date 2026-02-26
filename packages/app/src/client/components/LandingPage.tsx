@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import {
   AGENTS,
   FEATURES,
@@ -13,6 +13,33 @@ import {
 import { IconCloud } from './landing/IconCloud.tsx';
 import { FAQBackground } from './landing/FAQBackground.tsx';
 import { startViewTransition } from '../lib/view-transition.ts';
+
+function Spinner({ size = 14, color }: { size?: number; color?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      style={{ animation: 'spin 0.8s linear infinite', flexShrink: 0 }}
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke={color ?? 'currentColor'}
+        strokeWidth="3"
+        opacity={0.25}
+      />
+      <path
+        d="M12 2a10 10 0 0 1 10 10"
+        stroke={color ?? 'currentColor'}
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 const OPENAI_SVG = `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100" height="100"><path fill="white" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>')}`;
 
@@ -71,7 +98,7 @@ function IndexingViz() {
           const cx = 30 + i * 56;
           const cy = 40 + (i % 2 === 0 ? -12 : 12);
           return (
-            <g key={i}>
+            <g key={`dot-${cx}-${cy}`}>
               {i > 0 && (
                 <line
                   x1={30 + (i - 1) * 56}
@@ -480,7 +507,7 @@ function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: bo
               fontWeight: 500,
               fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
               cursor: 'pointer',
-              transition: 'all 0.2s ease',
+              transition: 'background 0.2s ease, color 0.2s ease',
             }}
           >
             {label}
@@ -502,6 +529,7 @@ function PricingCard({
   isPro,
   cta,
   onCta,
+  loading,
 }: {
   title: string;
   price: string;
@@ -510,6 +538,7 @@ function PricingCard({
   isPro?: boolean;
   cta: string;
   onCta?: () => void;
+  loading?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
@@ -522,7 +551,7 @@ function PricingCard({
         border: `1px solid ${isPro ? 'rgba(200,255,50,0.25)' : BORDER}`,
         borderRadius: RADIUS,
         padding: 40,
-        transition: 'all 0.3s ease',
+        transition: 'transform 0.3s ease, border-color 0.3s ease',
         transform: hovered ? 'translateY(-2px)' : 'none',
         position: 'relative',
         overflow: 'hidden',
@@ -605,6 +634,7 @@ function PricingCard({
         ))}
       </ul>
       <button
+        disabled={loading}
         onClick={onCta}
         style={{
           width: '100%',
@@ -616,11 +646,17 @@ function PricingCard({
           fontSize: 15,
           fontWeight: 600,
           fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-          cursor: 'pointer',
+          cursor: loading ? 'default' : 'pointer',
           transition: 'opacity 0.2s',
+          opacity: loading ? 0.7 : 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
         }}
       >
-        {cta}
+        {loading && <Spinner size={15} color={isPro ? '#0a0a0a' : undefined} />}
+        {loading ? 'Redirecting…' : cta}
       </button>
     </div>
   );
@@ -639,6 +675,8 @@ function LoginModal({
 }) {
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       style={{
         position: 'fixed',
         inset: 0,
@@ -651,6 +689,9 @@ function LoginModal({
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) startViewTransition(onClose);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') startViewTransition(onClose);
       }}
     >
       <div
@@ -692,7 +733,6 @@ function LoginModal({
             value={tokenValue}
             onChange={(e) => onTokenChange(e.target.value)}
             placeholder="Paste your token"
-            autoFocus
             style={{
               width: '100%',
               padding: '14px 16px',
@@ -884,14 +924,493 @@ function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
   );
 }
 
+function LandingNavbar({ signingIn, onSignIn }: { signingIn: boolean; onSignIn: () => void }) {
+  return (
+    <nav
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '14px 24px',
+        background: 'rgba(10,10,10,0.85)',
+        backdropFilter: 'blur(8px)',
+        borderBottom: `1px solid ${BORDER}`,
+      }}
+    >
+      <span
+        style={{
+          fontFamily: '"Unbounded", sans-serif',
+          fontSize: 16,
+          fontWeight: 500,
+          color: TEXT_PRIMARY,
+          letterSpacing: '-0.02em',
+        }}
+      >
+        agendex
+      </span>
+      <button
+        type="button"
+        disabled={signingIn}
+        onClick={onSignIn}
+        style={{
+          fontSize: 13,
+          padding: '8px 20px',
+          borderRadius: 8,
+          border: `1px solid ${BORDER}`,
+          background: 'transparent',
+          color: TEXT_PRIMARY,
+          cursor: signingIn ? 'default' : 'pointer',
+          fontWeight: 500,
+          fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
+          transition: 'border-color 0.2s',
+          opacity: signingIn ? 0.6 : 1,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        {signingIn && <Spinner size={12} />}
+        {signingIn ? 'Redirecting…' : 'Sign in'}
+      </button>
+    </nav>
+  );
+}
+
+function LandingFooter() {
+  return (
+    <footer
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '14px 24px',
+        background: 'rgba(10,10,10,0.85)',
+        backdropFilter: 'blur(8px)',
+        borderTop: `1px solid ${BORDER}`,
+        fontSize: 13,
+        color: TEXT_MUTED,
+      }}
+    >
+      <span style={{ flex: 1 }}>© {new Date().getFullYear()} Agendex</span>
+      <span style={{ flex: 1, textAlign: 'center' }}>Made With ❤️ by Tyrus Malmstrom</span>
+      <span style={{ flex: 1, textAlign: 'right' }}>
+        <a
+          href="https://github.com/tiru5/agendex"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            fontSize: 13,
+            padding: '8px 20px',
+            borderRadius: 8,
+            border: `1px solid ${BORDER}`,
+            background: 'transparent',
+            color: TEXT_PRIMARY,
+            cursor: 'pointer',
+            fontWeight: 500,
+            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
+            transition: 'border-color 0.2s',
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+          </svg>
+          View on GitHub
+        </a>
+      </span>
+    </footer>
+  );
+}
+
+interface LandingState {
+  token: string;
+  showLogin: boolean;
+  yearly: boolean;
+  openFaq: number | null;
+  activeTab: 'local' | 'cloud';
+  bentoInView: boolean;
+  signingIn: boolean;
+}
+
+type LandingAction =
+  | { type: 'SET_TOKEN'; value: string }
+  | { type: 'SET_SHOW_LOGIN'; value: boolean }
+  | { type: 'SET_YEARLY'; value: boolean }
+  | { type: 'SET_OPEN_FAQ'; value: number | null }
+  | { type: 'SET_ACTIVE_TAB'; value: 'local' | 'cloud' }
+  | { type: 'SET_BENTO_IN_VIEW' }
+  | { type: 'START_SIGNING_IN' };
+
+function landingReducer(state: LandingState, action: LandingAction): LandingState {
+  switch (action.type) {
+    case 'SET_TOKEN':
+      return { ...state, token: action.value };
+    case 'SET_SHOW_LOGIN':
+      return { ...state, showLogin: action.value };
+    case 'SET_YEARLY':
+      return { ...state, yearly: action.value };
+    case 'SET_OPEN_FAQ':
+      return { ...state, openFaq: action.value };
+    case 'SET_ACTIVE_TAB':
+      return { ...state, activeTab: action.value };
+    case 'SET_BENTO_IN_VIEW':
+      return { ...state, bentoInView: true };
+    case 'START_SIGNING_IN':
+      return { ...state, signingIn: true };
+  }
+}
+
+const LANDING_INITIAL: LandingState = {
+  token: '',
+  showLogin: false,
+  yearly: false,
+  openFaq: null,
+  activeTab: 'local',
+  bentoInView: false,
+  signingIn: false,
+};
+
+const GITHUB_ICON_PATH =
+  'M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z';
+
+function GitHubIcon16() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+      <path d={GITHUB_ICON_PATH} />
+    </svg>
+  );
+}
+
+function LandingHero({
+  signingIn,
+  activeTab,
+  agentIconImages,
+  hasCloudLogin,
+  onCloudLogin,
+  onShowLogin,
+  onSetActiveTab,
+}: {
+  signingIn: boolean;
+  activeTab: 'local' | 'cloud';
+  agentIconImages: string[];
+  hasCloudLogin: boolean;
+  onCloudLogin: () => void;
+  onShowLogin: () => void;
+  onSetActiveTab: (v: 'local' | 'cloud') => void;
+}) {
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden' }}>
+      <FAQBackground />
+      <section
+        className="d3-hero"
+        style={{
+          position: 'relative',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 230,
+          alignItems: 'center',
+          maxWidth: 1100,
+          margin: '0 auto',
+          padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            opacity: 0.15,
+          }}
+        >
+          <IconCloud images={agentIconImages} />
+        </div>
+        <div>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 16px',
+              borderRadius: 20,
+              background: 'rgba(200,255,50,0.08)',
+              border: '1px solid rgba(200,255,50,0.15)',
+              fontSize: 13,
+              fontWeight: 500,
+              color: ACCENT,
+              marginBottom: 32,
+            }}
+          >
+            <span style={{ fontSize: 8, lineHeight: 1 }}>{'●'}</span>
+            Open Source
+          </div>
+
+          <h1
+            style={{
+              fontFamily: '"Unbounded", sans-serif',
+              fontSize: 'clamp(36px, 4.5vw, 56px)',
+              fontWeight: 400,
+              lineHeight: 1.08,
+              letterSpacing: '-0.03em',
+              margin: '0 0 20px',
+              color: TEXT_PRIMARY,
+            }}
+          >
+            One dashboard for
+            <br />
+            <span style={{ color: ACCENT }}>every coding agent.</span>
+          </h1>
+
+          <p
+            style={{
+              fontSize: 15,
+              lineHeight: 1.7,
+              color: '#777',
+              margin: '0 0 32px',
+              fontWeight: 400,
+              maxWidth: 440,
+            }}
+          >
+            Agendex indexes the plans your AI agents create and surfaces them in a single,
+            searchable interface.
+          </p>
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <button
+              disabled={signingIn}
+              onClick={() => {
+                if (activeTab === 'cloud' && hasCloudLogin) {
+                  onCloudLogin();
+                } else {
+                  onShowLogin();
+                }
+              }}
+              style={{
+                padding: '12px 28px',
+                borderRadius: 12,
+                border: 'none',
+                background: ACCENT,
+                color: '#0a0a0a',
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: signingIn ? 'default' : 'pointer',
+                transition: 'opacity 0.2s, transform 0.2s',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                whiteSpace: 'nowrap',
+                opacity: signingIn ? 0.7 : 1,
+              }}
+            >
+              {activeTab === 'cloud' && hasCloudLogin ? (
+                signingIn ? (
+                  <>
+                    <Spinner size={16} color="#0a0a0a" />
+                    Redirecting to GitHub…
+                  </>
+                ) : (
+                  <>
+                    <GitHubIcon16 />
+                    Sign in with GitHub
+                  </>
+                )
+              ) : (
+                'Get Started'
+              )}
+            </button>
+            <a
+              href="https://github.com/Tyru5/agendex"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: '12px 28px',
+                borderRadius: 12,
+                border: `1px solid ${BORDER}`,
+                background: 'transparent',
+                color: TEXT_PRIMARY,
+                fontSize: 15,
+                fontWeight: 500,
+                cursor: 'pointer',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                whiteSpace: 'nowrap',
+                transition: 'border-color 0.2s',
+              }}
+            >
+              <GitHubIcon16 />
+              View on GitHub
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <div className="landing-steps-panel">
+            <div className="landing-steps-tabs">
+              <button
+                type="button"
+                className={`landing-steps-tab ${activeTab === 'local' ? 'landing-steps-tab-active' : ''}`}
+                onClick={() => onSetActiveTab('local')}
+              >
+                Self-Hosted
+              </button>
+              <button
+                type="button"
+                className={`landing-steps-tab ${activeTab === 'cloud' ? 'landing-steps-tab-active' : ''}`}
+                onClick={() => onSetActiveTab('cloud')}
+              >
+                Cloud
+              </button>
+            </div>
+            <AnimatedSteps activeTab={activeTab} />
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function LandingPricing({
+  yearly,
+  signingIn,
+  onSetYearly,
+  onShowLogin,
+  onCloudLogin,
+}: {
+  yearly: boolean;
+  signingIn: boolean;
+  onSetYearly: (v: boolean) => void;
+  onShowLogin: () => void;
+  onCloudLogin?: () => void;
+}) {
+  return (
+    <section style={{ padding: 'clamp(60px, 10vh, 120px) 24px', maxWidth: 880, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 48 }}>
+        <h2
+          style={{
+            fontFamily: '"Unbounded", sans-serif',
+            fontSize: 'clamp(28px, 4vw, 40px)',
+            fontWeight: 400,
+            letterSpacing: '-0.025em',
+            margin: '0 0 12px',
+          }}
+        >
+          Simple pricing. Run it your way.
+        </h2>
+        <p style={{ fontSize: 16, color: TEXT_SECONDARY, margin: '0 0 28px', fontWeight: 400 }}>
+          Free forever for local use. Upgrade for cloud features.
+        </p>
+        <PricingToggle yearly={yearly} onChange={onSetYearly} />
+      </div>
+      <div className="d3-pricing-row" style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
+        <PricingCard
+          title="Self-Hosted"
+          price="$0"
+          period=""
+          features={FREE_FEATURES}
+          cta="Get Started"
+          onCta={onShowLogin}
+        />
+        <PricingCard
+          title="Pro"
+          price={yearly ? '$69' : '$7'}
+          period={yearly ? '/year' : '/month'}
+          features={PRO_FEATURES}
+          isPro
+          cta={onCloudLogin ? 'Sign in with GitHub' : 'Start Free Trial'}
+          onCta={onCloudLogin}
+          loading={signingIn}
+        />
+      </div>
+    </section>
+  );
+}
+
+function LandingFAQ({
+  openFaq,
+  onSetOpenFaq,
+}: {
+  openFaq: number | null;
+  onSetOpenFaq: (v: number | null) => void;
+}) {
+  return (
+    <section
+      style={{
+        padding: 'clamp(40px, 8vh, 80px) 24px clamp(80px, 12vh, 140px)',
+        maxWidth: 720,
+        margin: '0 auto',
+      }}
+    >
+      <div style={{ textAlign: 'center', marginBottom: 48 }}>
+        <span
+          style={{
+            display: 'inline-block',
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: ACCENT,
+            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
+            marginBottom: 12,
+          }}
+        >
+          Support
+        </span>
+        <h2
+          style={{
+            fontFamily: '"Unbounded", sans-serif',
+            fontSize: 'clamp(28px, 4vw, 40px)',
+            fontWeight: 400,
+            letterSpacing: '-0.025em',
+            margin: 0,
+          }}
+        >
+          Frequently asked questions
+        </h2>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {FAQ_ITEMS.map((item, i) => (
+          <FAQItem
+            key={item.q}
+            question={item.q}
+            answer={item.a}
+            open={openFaq === i}
+            onToggle={() => onSetOpenFaq(openFaq === i ? null : i)}
+            isFirst={i === 0}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}) {
-  const [token, setTokenValue] = useState('');
-  const [showLogin, setShowLogin] = useState(false);
-  const [yearly, setYearly] = useState(false);
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'local' | 'cloud'>('local');
-  const [bentoInView, setBentoInView] = useState(false);
+  const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
+  const { token, showLogin, yearly, openFaq, activeTab, bentoInView, signingIn } = state;
+  const setTokenValue = (v: string) => dispatch({ type: 'SET_TOKEN', value: v });
+  const setShowLogin = (v: boolean) => dispatch({ type: 'SET_SHOW_LOGIN', value: v });
+  const setYearly = (v: boolean) => dispatch({ type: 'SET_YEARLY', value: v });
+  const setOpenFaq = (v: number | null) => dispatch({ type: 'SET_OPEN_FAQ', value: v });
+  const setActiveTab = (v: 'local' | 'cloud') => dispatch({ type: 'SET_ACTIVE_TAB', value: v });
   const bentoRef = useRef<HTMLElement>(null);
+
+  function handleCloudLogin() {
+    if (!onCloudLogin || signingIn) return;
+    dispatch({ type: 'START_SIGNING_IN' });
+    onCloudLogin();
+  }
 
   useEffect(() => {
     const el = bentoRef.current;
@@ -899,7 +1418,7 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
-          setBentoInView(true);
+          dispatch({ type: 'SET_BENTO_IN_VIEW' });
           observer.disconnect();
         }
       },
@@ -917,7 +1436,7 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
     }
   }
 
-  const agentIconImages = useMemo(() => AGENT_ICON_IMAGES, []);
+  const agentIconImages = AGENT_ICON_IMAGES;
 
   return (
     <div
@@ -953,6 +1472,9 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
           initial-value: 0deg;
           inherits: false;
         }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
         @keyframes d3-bento-enter {
           from { opacity: 0; transform: translateY(24px); }
           to { opacity: 1; transform: translateY(0); }
@@ -978,240 +1500,22 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
         }
       `}</style>
 
-      {/* Navbar */}
-      <nav
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 100,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '14px 24px',
-          background: 'rgba(10,10,10,0.85)',
-          backdropFilter: 'blur(12px)',
-          borderBottom: `1px solid ${BORDER}`,
-        }}
-      >
-        <span
-          style={{
-            fontFamily: '"Unbounded", sans-serif',
-            fontSize: 16,
-            fontWeight: 500,
-            color: TEXT_PRIMARY,
-            letterSpacing: '-0.02em',
-          }}
-        >
-          agendex
-        </span>
-        <button
-          type="button"
-          onClick={() => {
-            if (onCloudLogin) {
-              onCloudLogin();
-            } else {
-              startViewTransition(() => setShowLogin(true));
-            }
-          }}
-          style={{
-            fontSize: 13,
-            padding: '8px 20px',
-            borderRadius: 8,
-            border: `1px solid ${BORDER}`,
-            background: 'transparent',
-            color: TEXT_PRIMARY,
-            cursor: 'pointer',
-            fontWeight: 500,
-            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-            transition: 'border-color 0.2s',
-          }}
-        >
-          Sign in
-        </button>
-      </nav>
+      <LandingNavbar
+        signingIn={signingIn}
+        onSignIn={
+          onCloudLogin ? handleCloudLogin : () => startViewTransition(() => setShowLogin(true))
+        }
+      />
 
-      {/* Hero — two-column */}
-      <div style={{ position: 'relative', overflow: 'hidden' }}>
-        <FAQBackground />
-        <section
-          className="d3-hero"
-          style={{
-            position: 'relative',
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 230,
-            alignItems: 'center',
-            maxWidth: 1100,
-            margin: '0 auto',
-            padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              pointerEvents: 'none',
-              opacity: 0.15,
-            }}
-          >
-            <IconCloud images={agentIconImages} />
-          </div>
-          <div>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 16px',
-                borderRadius: 20,
-                background: 'rgba(200,255,50,0.08)',
-                border: '1px solid rgba(200,255,50,0.15)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: ACCENT,
-                marginBottom: 32,
-              }}
-            >
-              <span style={{ fontSize: 8, lineHeight: 1 }}>{'●'}</span>
-              Open Source
-            </div>
-
-            <h1
-              style={{
-                fontFamily: '"Unbounded", sans-serif',
-                fontSize: 'clamp(36px, 4.5vw, 56px)',
-                fontWeight: 400,
-                lineHeight: 1.08,
-                letterSpacing: '-0.03em',
-                margin: '0 0 20px',
-                color: TEXT_PRIMARY,
-              }}
-            >
-              One dashboard for
-              <br />
-              <span style={{ color: ACCENT }}>every coding agent.</span>
-            </h1>
-
-            <p
-              style={{
-                fontSize: 15,
-                lineHeight: 1.7,
-                color: '#777',
-                margin: '0 0 32px',
-                fontWeight: 400,
-                maxWidth: 440,
-              }}
-            >
-              Agendex indexes the plans your AI agents create and surfaces them in a single,
-              searchable interface.
-            </p>
-
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <button
-                onClick={() => {
-                  if (activeTab === 'cloud' && onCloudLogin) {
-                    onCloudLogin();
-                  } else {
-                    startViewTransition(() => setShowLogin(true));
-                  }
-                }}
-                style={{
-                  padding: '12px 28px',
-                  borderRadius: 12,
-                  border: 'none',
-                  background: ACCENT,
-                  color: '#0a0a0a',
-                  fontSize: 15,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {activeTab === 'cloud' && onCloudLogin ? (
-                  <>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      style={{ flexShrink: 0 }}
-                    >
-                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                    </svg>
-                    Sign in with GitHub
-                  </>
-                ) : (
-                  'Get Started'
-                )}
-              </button>
-              <a
-                href="https://github.com/Tyru5/agendex"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  padding: '12px 28px',
-                  borderRadius: 12,
-                  border: `1px solid ${BORDER}`,
-                  background: 'transparent',
-                  color: TEXT_PRIMARY,
-                  fontSize: 15,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  textDecoration: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  whiteSpace: 'nowrap',
-                  transition: 'border-color 0.2s',
-                }}
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  style={{ flexShrink: 0 }}
-                >
-                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                </svg>
-                View on GitHub
-              </a>
-            </div>
-          </div>
-
-          <div>
-            <div className="landing-steps-panel">
-              <div className="landing-steps-tabs">
-                <button
-                  type="button"
-                  className={`landing-steps-tab ${activeTab === 'local' ? 'landing-steps-tab-active' : ''}`}
-                  onClick={() => setActiveTab('local')}
-                >
-                  Self-Hosted
-                </button>
-                <button
-                  type="button"
-                  className={`landing-steps-tab ${activeTab === 'cloud' ? 'landing-steps-tab-active' : ''}`}
-                  onClick={() => setActiveTab('cloud')}
-                >
-                  Cloud
-                </button>
-              </div>
-              <AnimatedSteps activeTab={activeTab} />
-            </div>
-          </div>
-        </section>
-      </div>
+      <LandingHero
+        signingIn={signingIn}
+        activeTab={activeTab}
+        agentIconImages={agentIconImages}
+        hasCloudLogin={!!onCloudLogin}
+        onCloudLogin={handleCloudLogin}
+        onShowLogin={() => startViewTransition(() => setShowLogin(true))}
+        onSetActiveTab={setActiveTab}
+      />
 
       {/* Bento Feature Grid */}
       <section
@@ -1256,154 +1560,17 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
         </div>
       </section>
 
-      {/* Pricing */}
-      <section
-        style={{
-          padding: 'clamp(60px, 10vh, 120px) 24px',
-          maxWidth: 880,
-          margin: '0 auto',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <h2
-            style={{
-              fontFamily: '"Unbounded", sans-serif',
-              fontSize: 'clamp(28px, 4vw, 40px)',
-              fontWeight: 400,
-              letterSpacing: '-0.025em',
-              margin: '0 0 12px',
-            }}
-          >
-            Simple pricing. Run it your way.
-          </h2>
-          <p style={{ fontSize: 16, color: TEXT_SECONDARY, margin: '0 0 28px', fontWeight: 400 }}>
-            Free forever for local use. Upgrade for cloud features.
-          </p>
-          <PricingToggle yearly={yearly} onChange={setYearly} />
-        </div>
+      <LandingPricing
+        yearly={yearly}
+        signingIn={signingIn}
+        onSetYearly={setYearly}
+        onShowLogin={() => startViewTransition(() => setShowLogin(true))}
+        onCloudLogin={onCloudLogin ? handleCloudLogin : undefined}
+      />
 
-        <div
-          className="d3-pricing-row"
-          style={{
-            display: 'flex',
-            gap: 16,
-            alignItems: 'stretch',
-          }}
-        >
-          <PricingCard
-            title="Self-Hosted"
-            price="$0"
-            period=""
-            features={FREE_FEATURES}
-            cta="Get Started"
-            onCta={() => startViewTransition(() => setShowLogin(true))}
-          />
-          <PricingCard
-            title="Pro"
-            price={yearly ? '$69' : '$7'}
-            period={yearly ? '/year' : '/month'}
-            features={PRO_FEATURES}
-            isPro
-            cta={onCloudLogin ? 'Sign in with GitHub' : 'Start Free Trial'}
-            onCta={onCloudLogin ? () => onCloudLogin() : undefined}
-          />
-        </div>
-      </section>
+      <LandingFAQ openFaq={openFaq} onSetOpenFaq={setOpenFaq} />
 
-      {/* FAQ */}
-      <section
-        style={{
-          padding: 'clamp(40px, 8vh, 80px) 24px clamp(80px, 12vh, 140px)',
-          maxWidth: 720,
-          margin: '0 auto',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <span
-            style={{
-              display: 'inline-block',
-              fontSize: 12,
-              fontWeight: 600,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: ACCENT,
-              fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-              marginBottom: 12,
-            }}
-          >
-            Support
-          </span>
-          <h2
-            style={{
-              fontFamily: '"Unbounded", sans-serif',
-              fontSize: 'clamp(28px, 4vw, 40px)',
-              fontWeight: 400,
-              letterSpacing: '-0.025em',
-              margin: 0,
-            }}
-          >
-            Frequently asked questions
-          </h2>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {FAQ_ITEMS.map((item, i) => (
-            <FAQItem
-              key={item.q}
-              question={item.q}
-              answer={item.a}
-              open={openFaq === i}
-              onToggle={() => setOpenFaq(openFaq === i ? null : i)}
-              isFirst={i === 0}
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '14px 24px',
-          background: 'rgba(10,10,10,0.85)',
-          backdropFilter: 'blur(12px)',
-          borderTop: `1px solid ${BORDER}`,
-          fontSize: 13,
-          color: TEXT_MUTED,
-        }}
-      >
-        <span style={{ flex: 1 }}>© {new Date().getFullYear()} Agendex</span>
-        <span style={{ flex: 1, textAlign: 'center' }}>Made With ❤️ by Tyrus Malmstrom</span>
-        <span style={{ flex: 1, textAlign: 'right' }}>
-          <a
-            href="https://github.com/tiru5/agendex"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              fontSize: 13,
-              padding: '8px 20px',
-              borderRadius: 8,
-              border: `1px solid ${BORDER}`,
-              background: 'transparent',
-              color: TEXT_PRIMARY,
-              cursor: 'pointer',
-              fontWeight: 500,
-              fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-              transition: 'border-color 0.2s',
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-            </svg>
-            View on GitHub
-          </a>
-        </span>
-      </footer>
+      <LandingFooter />
 
       {/* Login Modal */}
       {showLogin && (
@@ -1473,7 +1640,8 @@ function FAQItem({
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition:
+              'border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             background: open ? ACCENT : 'transparent',
           }}
         >

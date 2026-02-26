@@ -5,7 +5,8 @@ import { PricingModal } from './PricingModal';
 import { Skeleton } from '@agendex/app/src/client/components/Skeleton';
 
 export function SubscriptionBadge() {
-  const { subscription, isActive, isLoading, createPortal, reactivate } = useSubscription();
+  const { subscription, isActive, isTrialing, trialDaysLeft, isLoading, createPortal, reactivate } =
+    useSubscription();
   const { isAuthenticated } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
@@ -23,6 +24,96 @@ export function SubscriptionBadge() {
 
   if (!isAuthenticated) return null;
   if (isLoading) return <Skeleton width="96px" height="34px" borderRadius="var(--radius)" />;
+
+  if (isTrialing) {
+    return (
+      <>
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => setShowMenu(!showMenu)}
+            style={{
+              background:
+                'linear-gradient(135deg, rgba(200, 255, 50, 0.12), rgba(200, 255, 50, 0.06))',
+              color: '#c8ff32',
+              border: '1px solid rgba(200, 255, 50, 0.2)',
+              padding: '8px 12px',
+              borderRadius: 'var(--radius)',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Trial · {trialDaysLeft}d left
+            <span style={{ fontSize: '11px', opacity: 0.7 }}>▼</span>
+          </button>
+
+          {showMenu && (
+            <div
+              ref={menuRef}
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: '4px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                minWidth: '220px',
+                zIndex: 1000,
+              }}
+            >
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderBottom: '1px solid var(--border)',
+                  fontSize: '13px',
+                }}
+              >
+                <div style={{ color: 'var(--secondary)', marginBottom: '4px' }}>Free trial</div>
+                <div style={{ color: 'var(--text)', fontWeight: 600 }}>
+                  {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''} remaining
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMenu(false);
+                  setShowPricing(true);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#c8ff32',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  transition: 'background 200ms',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'var(--hover)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                }}
+              >
+                Upgrade to Pro
+              </button>
+            </div>
+          )}
+        </div>
+        {showPricing && <PricingModal onClose={() => setShowPricing(false)} />}
+      </>
+    );
+  }
 
   if (isActive && subscription) {
     const cancelAtPeriodEnd = subscription.cancelAtPeriodEnd;
@@ -51,7 +142,7 @@ export function SubscriptionBadge() {
             gap: '6px',
           }}
         >
-          ⭐ Pro
+          Pro
           <span style={{ fontSize: '12px' }}>▼</span>
         </button>
 
@@ -116,13 +207,13 @@ export function SubscriptionBadge() {
                 transition: 'background 200ms',
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'var(--background)';
+                (e.currentTarget as HTMLButtonElement).style.background = 'var(--hover)';
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
               }}
             >
-              💳 Manage Billing
+              Manage Billing
             </button>
 
             {cancelAtPeriodEnd && (
@@ -146,13 +237,13 @@ export function SubscriptionBadge() {
                   transition: 'background 200ms',
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = 'var(--background)';
+                  (e.currentTarget as HTMLButtonElement).style.background = 'var(--hover)';
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
                 }}
               >
-                ↻ Reactivate
+                Reactivate
               </button>
             )}
           </div>

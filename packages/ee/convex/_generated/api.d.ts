@@ -8,25 +8,21 @@
  * @module
  */
 
-import type * as auth from "../auth.js";
-import type * as cli from "../cli.js";
-import type * as collections from "../collections.js";
-import type * as comments from "../comments.js";
-import type * as entitlements from "../entitlements.js";
-import type * as http from "../http.js";
-import type * as planTags from "../planTags.js";
-import type * as planVersions from "../planVersions.js";
-import type * as plans from "../plans.js";
-import type * as sharing from "../sharing.js";
-import type * as stripe from "../stripe.js";
-import type * as subscriptions from "../subscriptions.js";
-import type * as tags from "../tags.js";
+import type * as auth from '../auth.js';
+import type * as cli from '../cli.js';
+import type * as collections from '../collections.js';
+import type * as comments from '../comments.js';
+import type * as entitlements from '../entitlements.js';
+import type * as http from '../http.js';
+import type * as planTags from '../planTags.js';
+import type * as planVersions from '../planVersions.js';
+import type * as plans from '../plans.js';
+import type * as sharing from '../sharing.js';
+import type * as stripe from '../stripe.js';
+import type * as subscriptions from '../subscriptions.js';
+import type * as tags from '../tags.js';
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
+import type { ApiFromModules, FilterApi, FunctionReference } from 'convex/server';
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
@@ -52,10 +48,7 @@ declare const fullApi: ApiFromModules<{
  * const myFunctionReference = api.myModule.myFunction;
  * ```
  */
-export declare const api: FilterApi<
-  typeof fullApi,
-  FunctionReference<any, "public">
->;
+export declare const api: FilterApi<typeof fullApi, FunctionReference<any, 'public'>>;
 
 /**
  * A utility for referencing Convex functions in your app's internal API.
@@ -65,17 +58,14 @@ export declare const api: FilterApi<
  * const myFunctionReference = internal.myModule.myFunction;
  * ```
  */
-export declare const internal: FilterApi<
-  typeof fullApi,
-  FunctionReference<any, "internal">
->;
+export declare const internal: FilterApi<typeof fullApi, FunctionReference<any, 'internal'>>;
 
 export declare const components: {
   betterAuth: {
     adapter: {
       create: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           input:
             | {
@@ -94,7 +84,7 @@ export declare const components: {
                   userId?: null | string;
                   username?: null | string;
                 };
-                model: "user";
+                model: 'user';
               }
             | {
                 data: {
@@ -106,7 +96,7 @@ export declare const components: {
                   userAgent?: null | string;
                   userId: string;
                 };
-                model: "session";
+                model: 'session';
               }
             | {
                 data: {
@@ -123,7 +113,7 @@ export declare const components: {
                   updatedAt: number;
                   userId: string;
                 };
-                model: "account";
+                model: 'account';
               }
             | {
                 data: {
@@ -133,11 +123,11 @@ export declare const components: {
                   updatedAt: number;
                   value: string;
                 };
-                model: "verification";
+                model: 'verification';
               }
             | {
                 data: { backupCodes: string; secret: string; userId: string };
-                model: "twoFactor";
+                model: 'twoFactor';
               }
             | {
                 data: {
@@ -152,7 +142,7 @@ export declare const components: {
                   transports?: null | string;
                   userId: string;
                 };
-                model: "passkey";
+                model: 'passkey';
               }
             | {
                 data: {
@@ -168,7 +158,7 @@ export declare const components: {
                   updatedAt?: null | number;
                   userId?: null | string;
                 };
-                model: "oauthApplication";
+                model: 'oauthApplication';
               }
             | {
                 data: {
@@ -182,7 +172,7 @@ export declare const components: {
                   updatedAt?: null | number;
                   userId?: null | string;
                 };
-                model: "oauthAccessToken";
+                model: 'oauthAccessToken';
               }
             | {
                 data: {
@@ -193,7 +183,7 @@ export declare const components: {
                   updatedAt?: null | number;
                   userId?: null | string;
                 };
-                model: "oauthConsent";
+                model: 'oauthConsent';
               }
             | {
                 data: {
@@ -201,7 +191,7 @@ export declare const components: {
                   privateKey: string;
                   publicKey: string;
                 };
-                model: "jwks";
+                model: 'jwks';
               }
             | {
                 data: {
@@ -209,7 +199,7 @@ export declare const components: {
                   key?: null | string;
                   lastRequest?: null | number;
                 };
-                model: "rateLimit";
+                model: 'rateLimit';
               };
           onCreateHandle?: string;
           select?: Array<string>;
@@ -217,375 +207,303 @@ export declare const components: {
         any
       >;
       deleteMany: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           input:
             | {
-                model: "user";
+                model: 'user';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "email"
-                    | "emailVerified"
-                    | "image"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "twoFactorEnabled"
-                    | "isAnonymous"
-                    | "username"
-                    | "displayUsername"
-                    | "phoneNumber"
-                    | "phoneNumberVerified"
-                    | "userId"
-                    | "_id";
+                    | 'name'
+                    | 'email'
+                    | 'emailVerified'
+                    | 'image'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'twoFactorEnabled'
+                    | 'isAnonymous'
+                    | 'username'
+                    | 'displayUsername'
+                    | 'phoneNumber'
+                    | 'phoneNumberVerified'
+                    | 'userId'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "session";
+                model: 'session';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "expiresAt"
-                    | "token"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "ipAddress"
-                    | "userAgent"
-                    | "userId"
-                    | "_id";
+                    | 'expiresAt'
+                    | 'token'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'ipAddress'
+                    | 'userAgent'
+                    | 'userId'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "account";
+                model: 'account';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "accountId"
-                    | "providerId"
-                    | "userId"
-                    | "accessToken"
-                    | "refreshToken"
-                    | "idToken"
-                    | "accessTokenExpiresAt"
-                    | "refreshTokenExpiresAt"
-                    | "scope"
-                    | "password"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'accountId'
+                    | 'providerId'
+                    | 'userId'
+                    | 'accessToken'
+                    | 'refreshToken'
+                    | 'idToken'
+                    | 'accessTokenExpiresAt'
+                    | 'refreshTokenExpiresAt'
+                    | 'scope'
+                    | 'password'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "verification";
+                model: 'verification';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
+                  field: 'identifier' | 'value' | 'expiresAt' | 'createdAt' | 'updatedAt' | '_id';
+                  operator?:
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
+                }>;
+              }
+            | {
+                model: 'twoFactor';
+                where?: Array<{
+                  connector?: 'AND' | 'OR';
+                  field: 'secret' | 'backupCodes' | 'userId' | '_id';
+                  operator?:
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
+                }>;
+              }
+            | {
+                model: 'passkey';
+                where?: Array<{
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "identifier"
-                    | "value"
-                    | "expiresAt"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'name'
+                    | 'publicKey'
+                    | 'userId'
+                    | 'credentialID'
+                    | 'counter'
+                    | 'deviceType'
+                    | 'backedUp'
+                    | 'transports'
+                    | 'createdAt'
+                    | 'aaguid'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "twoFactor";
+                model: 'oauthApplication';
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "secret" | "backupCodes" | "userId" | "_id";
-                  operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
-                }>;
-              }
-            | {
-                model: "passkey";
-                where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "publicKey"
-                    | "userId"
-                    | "credentialID"
-                    | "counter"
-                    | "deviceType"
-                    | "backedUp"
-                    | "transports"
-                    | "createdAt"
-                    | "aaguid"
-                    | "_id";
+                    | 'name'
+                    | 'icon'
+                    | 'metadata'
+                    | 'clientId'
+                    | 'clientSecret'
+                    | 'redirectURLs'
+                    | 'type'
+                    | 'disabled'
+                    | 'userId'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthApplication";
+                model: 'oauthAccessToken';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "icon"
-                    | "metadata"
-                    | "clientId"
-                    | "clientSecret"
-                    | "redirectURLs"
-                    | "type"
-                    | "disabled"
-                    | "userId"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'accessToken'
+                    | 'refreshToken'
+                    | 'accessTokenExpiresAt'
+                    | 'refreshTokenExpiresAt'
+                    | 'clientId'
+                    | 'userId'
+                    | 'scopes'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthAccessToken";
+                model: 'oauthConsent';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "accessToken"
-                    | "refreshToken"
-                    | "accessTokenExpiresAt"
-                    | "refreshTokenExpiresAt"
-                    | "clientId"
-                    | "userId"
-                    | "scopes"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'clientId'
+                    | 'userId'
+                    | 'scopes'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'consentGiven'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthConsent";
+                model: 'jwks';
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field:
-                    | "clientId"
-                    | "userId"
-                    | "scopes"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "consentGiven"
-                    | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'publicKey' | 'privateKey' | 'createdAt' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "jwks";
+                model: 'rateLimit';
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "publicKey" | "privateKey" | "createdAt" | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'key' | 'count' | 'lastRequest' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
-                }>;
-              }
-            | {
-                model: "rateLimit";
-                where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "key" | "count" | "lastRequest" | "_id";
-                  operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               };
           onDeleteHandle?: string;
@@ -601,375 +519,303 @@ export declare const components: {
         any
       >;
       deleteOne: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           input:
             | {
-                model: "user";
+                model: 'user';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "email"
-                    | "emailVerified"
-                    | "image"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "twoFactorEnabled"
-                    | "isAnonymous"
-                    | "username"
-                    | "displayUsername"
-                    | "phoneNumber"
-                    | "phoneNumberVerified"
-                    | "userId"
-                    | "_id";
+                    | 'name'
+                    | 'email'
+                    | 'emailVerified'
+                    | 'image'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'twoFactorEnabled'
+                    | 'isAnonymous'
+                    | 'username'
+                    | 'displayUsername'
+                    | 'phoneNumber'
+                    | 'phoneNumberVerified'
+                    | 'userId'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "session";
+                model: 'session';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "expiresAt"
-                    | "token"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "ipAddress"
-                    | "userAgent"
-                    | "userId"
-                    | "_id";
+                    | 'expiresAt'
+                    | 'token'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'ipAddress'
+                    | 'userAgent'
+                    | 'userId'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "account";
+                model: 'account';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "accountId"
-                    | "providerId"
-                    | "userId"
-                    | "accessToken"
-                    | "refreshToken"
-                    | "idToken"
-                    | "accessTokenExpiresAt"
-                    | "refreshTokenExpiresAt"
-                    | "scope"
-                    | "password"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'accountId'
+                    | 'providerId'
+                    | 'userId'
+                    | 'accessToken'
+                    | 'refreshToken'
+                    | 'idToken'
+                    | 'accessTokenExpiresAt'
+                    | 'refreshTokenExpiresAt'
+                    | 'scope'
+                    | 'password'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "verification";
+                model: 'verification';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
+                  field: 'identifier' | 'value' | 'expiresAt' | 'createdAt' | 'updatedAt' | '_id';
+                  operator?:
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
+                }>;
+              }
+            | {
+                model: 'twoFactor';
+                where?: Array<{
+                  connector?: 'AND' | 'OR';
+                  field: 'secret' | 'backupCodes' | 'userId' | '_id';
+                  operator?:
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
+                }>;
+              }
+            | {
+                model: 'passkey';
+                where?: Array<{
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "identifier"
-                    | "value"
-                    | "expiresAt"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'name'
+                    | 'publicKey'
+                    | 'userId'
+                    | 'credentialID'
+                    | 'counter'
+                    | 'deviceType'
+                    | 'backedUp'
+                    | 'transports'
+                    | 'createdAt'
+                    | 'aaguid'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "twoFactor";
+                model: 'oauthApplication';
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "secret" | "backupCodes" | "userId" | "_id";
-                  operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
-                }>;
-              }
-            | {
-                model: "passkey";
-                where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "publicKey"
-                    | "userId"
-                    | "credentialID"
-                    | "counter"
-                    | "deviceType"
-                    | "backedUp"
-                    | "transports"
-                    | "createdAt"
-                    | "aaguid"
-                    | "_id";
+                    | 'name'
+                    | 'icon'
+                    | 'metadata'
+                    | 'clientId'
+                    | 'clientSecret'
+                    | 'redirectURLs'
+                    | 'type'
+                    | 'disabled'
+                    | 'userId'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthApplication";
+                model: 'oauthAccessToken';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "icon"
-                    | "metadata"
-                    | "clientId"
-                    | "clientSecret"
-                    | "redirectURLs"
-                    | "type"
-                    | "disabled"
-                    | "userId"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'accessToken'
+                    | 'refreshToken'
+                    | 'accessTokenExpiresAt'
+                    | 'refreshTokenExpiresAt'
+                    | 'clientId'
+                    | 'userId'
+                    | 'scopes'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthAccessToken";
+                model: 'oauthConsent';
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "accessToken"
-                    | "refreshToken"
-                    | "accessTokenExpiresAt"
-                    | "refreshTokenExpiresAt"
-                    | "clientId"
-                    | "userId"
-                    | "scopes"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'clientId'
+                    | 'userId'
+                    | 'scopes'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'consentGiven'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthConsent";
+                model: 'jwks';
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field:
-                    | "clientId"
-                    | "userId"
-                    | "scopes"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "consentGiven"
-                    | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'publicKey' | 'privateKey' | 'createdAt' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "jwks";
+                model: 'rateLimit';
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "publicKey" | "privateKey" | "createdAt" | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'key' | 'count' | 'lastRequest' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
-                }>;
-              }
-            | {
-                model: "rateLimit";
-                where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "key" | "count" | "lastRequest" | "_id";
-                  operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               };
           onDeleteHandle?: string;
@@ -977,23 +823,23 @@ export declare const components: {
         any
       >;
       findMany: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         {
           join?: any;
           limit?: number;
           model:
-            | "user"
-            | "session"
-            | "account"
-            | "verification"
-            | "twoFactor"
-            | "passkey"
-            | "oauthApplication"
-            | "oauthAccessToken"
-            | "oauthConsent"
-            | "jwks"
-            | "rateLimit";
+            | 'user'
+            | 'session'
+            | 'account'
+            | 'verification'
+            | 'twoFactor'
+            | 'passkey'
+            | 'oauthApplication'
+            | 'oauthAccessToken'
+            | 'oauthConsent'
+            | 'jwks'
+            | 'rateLimit';
           offset?: number;
           paginationOpts: {
             cursor: string | null;
@@ -1003,84 +849,72 @@ export declare const components: {
             maximumRowsRead?: number;
             numItems: number;
           };
-          sortBy?: { direction: "asc" | "desc"; field: string };
+          sortBy?: { direction: 'asc' | 'desc'; field: string };
           where?: Array<{
-            connector?: "AND" | "OR";
+            connector?: 'AND' | 'OR';
             field: string;
             operator?:
-              | "lt"
-              | "lte"
-              | "gt"
-              | "gte"
-              | "eq"
-              | "in"
-              | "not_in"
-              | "ne"
-              | "contains"
-              | "starts_with"
-              | "ends_with";
-            value:
-              | string
-              | number
-              | boolean
-              | Array<string>
-              | Array<number>
-              | null;
+              | 'lt'
+              | 'lte'
+              | 'gt'
+              | 'gte'
+              | 'eq'
+              | 'in'
+              | 'not_in'
+              | 'ne'
+              | 'contains'
+              | 'starts_with'
+              | 'ends_with';
+            value: string | number | boolean | Array<string> | Array<number> | null;
           }>;
         },
         any
       >;
       findOne: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         {
           join?: any;
           model:
-            | "user"
-            | "session"
-            | "account"
-            | "verification"
-            | "twoFactor"
-            | "passkey"
-            | "oauthApplication"
-            | "oauthAccessToken"
-            | "oauthConsent"
-            | "jwks"
-            | "rateLimit";
+            | 'user'
+            | 'session'
+            | 'account'
+            | 'verification'
+            | 'twoFactor'
+            | 'passkey'
+            | 'oauthApplication'
+            | 'oauthAccessToken'
+            | 'oauthConsent'
+            | 'jwks'
+            | 'rateLimit';
           select?: Array<string>;
           where?: Array<{
-            connector?: "AND" | "OR";
+            connector?: 'AND' | 'OR';
             field: string;
             operator?:
-              | "lt"
-              | "lte"
-              | "gt"
-              | "gte"
-              | "eq"
-              | "in"
-              | "not_in"
-              | "ne"
-              | "contains"
-              | "starts_with"
-              | "ends_with";
-            value:
-              | string
-              | number
-              | boolean
-              | Array<string>
-              | Array<number>
-              | null;
+              | 'lt'
+              | 'lte'
+              | 'gt'
+              | 'gte'
+              | 'eq'
+              | 'in'
+              | 'not_in'
+              | 'ne'
+              | 'contains'
+              | 'starts_with'
+              | 'ends_with';
+            value: string | number | boolean | Array<string> | Array<number> | null;
           }>;
         },
         any
       >;
       updateMany: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           input:
             | {
-                model: "user";
+                model: 'user';
                 update: {
                   createdAt?: number;
                   displayUsername?: null | string;
@@ -1097,45 +931,39 @@ export declare const components: {
                   username?: null | string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "email"
-                    | "emailVerified"
-                    | "image"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "twoFactorEnabled"
-                    | "isAnonymous"
-                    | "username"
-                    | "displayUsername"
-                    | "phoneNumber"
-                    | "phoneNumberVerified"
-                    | "userId"
-                    | "_id";
+                    | 'name'
+                    | 'email'
+                    | 'emailVerified'
+                    | 'image'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'twoFactorEnabled'
+                    | 'isAnonymous'
+                    | 'username'
+                    | 'displayUsername'
+                    | 'phoneNumber'
+                    | 'phoneNumberVerified'
+                    | 'userId'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "session";
+                model: 'session';
                 update: {
                   createdAt?: number;
                   expiresAt?: number;
@@ -1146,39 +974,33 @@ export declare const components: {
                   userId?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "expiresAt"
-                    | "token"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "ipAddress"
-                    | "userAgent"
-                    | "userId"
-                    | "_id";
+                    | 'expiresAt'
+                    | 'token'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'ipAddress'
+                    | 'userAgent'
+                    | 'userId'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "account";
+                model: 'account';
                 update: {
                   accessToken?: null | string;
                   accessTokenExpiresAt?: null | number;
@@ -1194,44 +1016,38 @@ export declare const components: {
                   userId?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "accountId"
-                    | "providerId"
-                    | "userId"
-                    | "accessToken"
-                    | "refreshToken"
-                    | "idToken"
-                    | "accessTokenExpiresAt"
-                    | "refreshTokenExpiresAt"
-                    | "scope"
-                    | "password"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'accountId'
+                    | 'providerId'
+                    | 'userId'
+                    | 'accessToken'
+                    | 'refreshToken'
+                    | 'idToken'
+                    | 'accessTokenExpiresAt'
+                    | 'refreshTokenExpiresAt'
+                    | 'scope'
+                    | 'password'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "verification";
+                model: 'verification';
                 update: {
                   createdAt?: number;
                   expiresAt?: number;
@@ -1240,68 +1056,50 @@ export declare const components: {
                   value?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field:
-                    | "identifier"
-                    | "value"
-                    | "expiresAt"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'identifier' | 'value' | 'expiresAt' | 'createdAt' | 'updatedAt' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "twoFactor";
+                model: 'twoFactor';
                 update: {
                   backupCodes?: string;
                   secret?: string;
                   userId?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "secret" | "backupCodes" | "userId" | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'secret' | 'backupCodes' | 'userId' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "passkey";
+                model: 'passkey';
                 update: {
                   aaguid?: null | string;
                   backedUp?: boolean;
@@ -1315,42 +1113,36 @@ export declare const components: {
                   userId?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "publicKey"
-                    | "userId"
-                    | "credentialID"
-                    | "counter"
-                    | "deviceType"
-                    | "backedUp"
-                    | "transports"
-                    | "createdAt"
-                    | "aaguid"
-                    | "_id";
+                    | 'name'
+                    | 'publicKey'
+                    | 'userId'
+                    | 'credentialID'
+                    | 'counter'
+                    | 'deviceType'
+                    | 'backedUp'
+                    | 'transports'
+                    | 'createdAt'
+                    | 'aaguid'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthApplication";
+                model: 'oauthApplication';
                 update: {
                   clientId?: null | string;
                   clientSecret?: null | string;
@@ -1365,43 +1157,37 @@ export declare const components: {
                   userId?: null | string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "icon"
-                    | "metadata"
-                    | "clientId"
-                    | "clientSecret"
-                    | "redirectURLs"
-                    | "type"
-                    | "disabled"
-                    | "userId"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'name'
+                    | 'icon'
+                    | 'metadata'
+                    | 'clientId'
+                    | 'clientSecret'
+                    | 'redirectURLs'
+                    | 'type'
+                    | 'disabled'
+                    | 'userId'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthAccessToken";
+                model: 'oauthAccessToken';
                 update: {
                   accessToken?: null | string;
                   accessTokenExpiresAt?: null | number;
@@ -1414,41 +1200,35 @@ export declare const components: {
                   userId?: null | string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "accessToken"
-                    | "refreshToken"
-                    | "accessTokenExpiresAt"
-                    | "refreshTokenExpiresAt"
-                    | "clientId"
-                    | "userId"
-                    | "scopes"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'accessToken'
+                    | 'refreshToken'
+                    | 'accessTokenExpiresAt'
+                    | 'refreshTokenExpiresAt'
+                    | 'clientId'
+                    | 'userId'
+                    | 'scopes'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthConsent";
+                model: 'oauthConsent';
                 update: {
                   clientId?: null | string;
                   consentGiven?: null | boolean;
@@ -1458,96 +1238,78 @@ export declare const components: {
                   userId?: null | string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "clientId"
-                    | "userId"
-                    | "scopes"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "consentGiven"
-                    | "_id";
+                    | 'clientId'
+                    | 'userId'
+                    | 'scopes'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'consentGiven'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "jwks";
+                model: 'jwks';
                 update: {
                   createdAt?: number;
                   privateKey?: string;
                   publicKey?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "publicKey" | "privateKey" | "createdAt" | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'publicKey' | 'privateKey' | 'createdAt' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "rateLimit";
+                model: 'rateLimit';
                 update: {
                   count?: null | number;
                   key?: null | string;
                   lastRequest?: null | number;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "key" | "count" | "lastRequest" | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'key' | 'count' | 'lastRequest' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               };
           onUpdateHandle?: string;
@@ -1563,12 +1325,12 @@ export declare const components: {
         any
       >;
       updateOne: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           input:
             | {
-                model: "user";
+                model: 'user';
                 update: {
                   createdAt?: number;
                   displayUsername?: null | string;
@@ -1585,45 +1347,39 @@ export declare const components: {
                   username?: null | string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "email"
-                    | "emailVerified"
-                    | "image"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "twoFactorEnabled"
-                    | "isAnonymous"
-                    | "username"
-                    | "displayUsername"
-                    | "phoneNumber"
-                    | "phoneNumberVerified"
-                    | "userId"
-                    | "_id";
+                    | 'name'
+                    | 'email'
+                    | 'emailVerified'
+                    | 'image'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'twoFactorEnabled'
+                    | 'isAnonymous'
+                    | 'username'
+                    | 'displayUsername'
+                    | 'phoneNumber'
+                    | 'phoneNumberVerified'
+                    | 'userId'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "session";
+                model: 'session';
                 update: {
                   createdAt?: number;
                   expiresAt?: number;
@@ -1634,39 +1390,33 @@ export declare const components: {
                   userId?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "expiresAt"
-                    | "token"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "ipAddress"
-                    | "userAgent"
-                    | "userId"
-                    | "_id";
+                    | 'expiresAt'
+                    | 'token'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'ipAddress'
+                    | 'userAgent'
+                    | 'userId'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "account";
+                model: 'account';
                 update: {
                   accessToken?: null | string;
                   accessTokenExpiresAt?: null | number;
@@ -1682,44 +1432,38 @@ export declare const components: {
                   userId?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "accountId"
-                    | "providerId"
-                    | "userId"
-                    | "accessToken"
-                    | "refreshToken"
-                    | "idToken"
-                    | "accessTokenExpiresAt"
-                    | "refreshTokenExpiresAt"
-                    | "scope"
-                    | "password"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'accountId'
+                    | 'providerId'
+                    | 'userId'
+                    | 'accessToken'
+                    | 'refreshToken'
+                    | 'idToken'
+                    | 'accessTokenExpiresAt'
+                    | 'refreshTokenExpiresAt'
+                    | 'scope'
+                    | 'password'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "verification";
+                model: 'verification';
                 update: {
                   createdAt?: number;
                   expiresAt?: number;
@@ -1728,68 +1472,50 @@ export declare const components: {
                   value?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field:
-                    | "identifier"
-                    | "value"
-                    | "expiresAt"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'identifier' | 'value' | 'expiresAt' | 'createdAt' | 'updatedAt' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "twoFactor";
+                model: 'twoFactor';
                 update: {
                   backupCodes?: string;
                   secret?: string;
                   userId?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "secret" | "backupCodes" | "userId" | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'secret' | 'backupCodes' | 'userId' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "passkey";
+                model: 'passkey';
                 update: {
                   aaguid?: null | string;
                   backedUp?: boolean;
@@ -1803,42 +1529,36 @@ export declare const components: {
                   userId?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "publicKey"
-                    | "userId"
-                    | "credentialID"
-                    | "counter"
-                    | "deviceType"
-                    | "backedUp"
-                    | "transports"
-                    | "createdAt"
-                    | "aaguid"
-                    | "_id";
+                    | 'name'
+                    | 'publicKey'
+                    | 'userId'
+                    | 'credentialID'
+                    | 'counter'
+                    | 'deviceType'
+                    | 'backedUp'
+                    | 'transports'
+                    | 'createdAt'
+                    | 'aaguid'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthApplication";
+                model: 'oauthApplication';
                 update: {
                   clientId?: null | string;
                   clientSecret?: null | string;
@@ -1853,43 +1573,37 @@ export declare const components: {
                   userId?: null | string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "name"
-                    | "icon"
-                    | "metadata"
-                    | "clientId"
-                    | "clientSecret"
-                    | "redirectURLs"
-                    | "type"
-                    | "disabled"
-                    | "userId"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'name'
+                    | 'icon'
+                    | 'metadata'
+                    | 'clientId'
+                    | 'clientSecret'
+                    | 'redirectURLs'
+                    | 'type'
+                    | 'disabled'
+                    | 'userId'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthAccessToken";
+                model: 'oauthAccessToken';
                 update: {
                   accessToken?: null | string;
                   accessTokenExpiresAt?: null | number;
@@ -1902,41 +1616,35 @@ export declare const components: {
                   userId?: null | string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "accessToken"
-                    | "refreshToken"
-                    | "accessTokenExpiresAt"
-                    | "refreshTokenExpiresAt"
-                    | "clientId"
-                    | "userId"
-                    | "scopes"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "_id";
+                    | 'accessToken'
+                    | 'refreshToken'
+                    | 'accessTokenExpiresAt'
+                    | 'refreshTokenExpiresAt'
+                    | 'clientId'
+                    | 'userId'
+                    | 'scopes'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "oauthConsent";
+                model: 'oauthConsent';
                 update: {
                   clientId?: null | string;
                   consentGiven?: null | boolean;
@@ -1946,96 +1654,78 @@ export declare const components: {
                   userId?: null | string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
+                  connector?: 'AND' | 'OR';
                   field:
-                    | "clientId"
-                    | "userId"
-                    | "scopes"
-                    | "createdAt"
-                    | "updatedAt"
-                    | "consentGiven"
-                    | "_id";
+                    | 'clientId'
+                    | 'userId'
+                    | 'scopes'
+                    | 'createdAt'
+                    | 'updatedAt'
+                    | 'consentGiven'
+                    | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "jwks";
+                model: 'jwks';
                 update: {
                   createdAt?: number;
                   privateKey?: string;
                   publicKey?: string;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "publicKey" | "privateKey" | "createdAt" | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'publicKey' | 'privateKey' | 'createdAt' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               }
             | {
-                model: "rateLimit";
+                model: 'rateLimit';
                 update: {
                   count?: null | number;
                   key?: null | string;
                   lastRequest?: null | number;
                 };
                 where?: Array<{
-                  connector?: "AND" | "OR";
-                  field: "key" | "count" | "lastRequest" | "_id";
+                  connector?: 'AND' | 'OR';
+                  field: 'key' | 'count' | 'lastRequest' | '_id';
                   operator?:
-                    | "lt"
-                    | "lte"
-                    | "gt"
-                    | "gte"
-                    | "eq"
-                    | "in"
-                    | "not_in"
-                    | "ne"
-                    | "contains"
-                    | "starts_with"
-                    | "ends_with";
-                  value:
-                    | string
-                    | number
-                    | boolean
-                    | Array<string>
-                    | Array<number>
-                    | null;
+                    | 'lt'
+                    | 'lte'
+                    | 'gt'
+                    | 'gte'
+                    | 'eq'
+                    | 'in'
+                    | 'not_in'
+                    | 'ne'
+                    | 'contains'
+                    | 'starts_with'
+                    | 'ends_with';
+                  value: string | number | boolean | Array<string> | Array<number> | null;
                 }>;
               };
           onUpdateHandle?: string;
@@ -2044,15 +1734,15 @@ export declare const components: {
       >;
     };
     adapterTest: {
-      runCustomTests: FunctionReference<"action", "internal", any, any>;
-      runTests: FunctionReference<"action", "internal", any, any>;
+      runCustomTests: FunctionReference<'action', 'internal', any, any>;
+      runTests: FunctionReference<'action', 'internal', any, any>;
     };
   };
   stripe: {
     private: {
       handleCheckoutSessionCompleted: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           metadata?: any;
           mode: string;
@@ -2062,8 +1752,8 @@ export declare const components: {
         null
       >;
       handleCustomerCreated: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           email?: string;
           metadata?: any;
@@ -2073,8 +1763,8 @@ export declare const components: {
         null
       >;
       handleCustomerUpdated: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           email?: string;
           metadata?: any;
@@ -2084,8 +1774,8 @@ export declare const components: {
         null
       >;
       handleInvoiceCreated: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           amountDue: number;
           amountPaid: number;
@@ -2098,20 +1788,20 @@ export declare const components: {
         null
       >;
       handleInvoicePaid: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         { amountPaid: number; stripeInvoiceId: string },
         null
       >;
       handleInvoicePaymentFailed: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         { stripeInvoiceId: string },
         null
       >;
       handlePaymentIntentSucceeded: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           amount: number;
           created: number;
@@ -2124,8 +1814,8 @@ export declare const components: {
         null
       >;
       handleSubscriptionCreated: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           cancelAt?: number;
           cancelAtPeriodEnd: boolean;
@@ -2140,14 +1830,14 @@ export declare const components: {
         null
       >;
       handleSubscriptionDeleted: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         { stripeSubscriptionId: string },
         null
       >;
       handleSubscriptionUpdated: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           cancelAt?: number;
           cancelAtPeriodEnd: boolean;
@@ -2161,22 +1851,22 @@ export declare const components: {
         null
       >;
       updatePaymentCustomer: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         { stripeCustomerId: string; stripePaymentIntentId: string },
         null
       >;
       updateSubscriptionQuantityInternal: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         { quantity: number; stripeSubscriptionId: string },
         null
       >;
     };
     public: {
       createOrUpdateCustomer: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           email?: string;
           metadata?: any;
@@ -2186,8 +1876,8 @@ export declare const components: {
         string
       >;
       getCustomer: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { stripeCustomerId: string },
         {
           email?: string;
@@ -2197,8 +1887,8 @@ export declare const components: {
         } | null
       >;
       getPayment: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { stripePaymentIntentId: string },
         {
           amount: number;
@@ -2213,8 +1903,8 @@ export declare const components: {
         } | null
       >;
       getSubscription: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { stripeSubscriptionId: string },
         {
           cancelAt?: number;
@@ -2231,8 +1921,8 @@ export declare const components: {
         } | null
       >;
       getSubscriptionByOrgId: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { orgId: string },
         {
           cancelAt?: number;
@@ -2249,8 +1939,8 @@ export declare const components: {
         } | null
       >;
       listInvoices: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { stripeCustomerId: string },
         Array<{
           amountDue: number;
@@ -2265,8 +1955,8 @@ export declare const components: {
         }>
       >;
       listInvoicesByOrgId: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { orgId: string },
         Array<{
           amountDue: number;
@@ -2281,8 +1971,8 @@ export declare const components: {
         }>
       >;
       listInvoicesByUserId: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { userId: string },
         Array<{
           amountDue: number;
@@ -2297,8 +1987,8 @@ export declare const components: {
         }>
       >;
       listPayments: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { stripeCustomerId: string },
         Array<{
           amount: number;
@@ -2313,8 +2003,8 @@ export declare const components: {
         }>
       >;
       listPaymentsByOrgId: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { orgId: string },
         Array<{
           amount: number;
@@ -2329,8 +2019,8 @@ export declare const components: {
         }>
       >;
       listPaymentsByUserId: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { userId: string },
         Array<{
           amount: number;
@@ -2345,8 +2035,8 @@ export declare const components: {
         }>
       >;
       listSubscriptions: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { stripeCustomerId: string },
         Array<{
           cancelAt?: number;
@@ -2363,8 +2053,8 @@ export declare const components: {
         }>
       >;
       listSubscriptionsByUserId: FunctionReference<
-        "query",
-        "internal",
+        'query',
+        'internal',
         { userId: string },
         Array<{
           cancelAt?: number;
@@ -2381,8 +2071,8 @@ export declare const components: {
         }>
       >;
       updateSubscriptionMetadata: FunctionReference<
-        "mutation",
-        "internal",
+        'mutation',
+        'internal',
         {
           metadata: any;
           orgId?: string;
@@ -2392,8 +2082,8 @@ export declare const components: {
         null
       >;
       updateSubscriptionQuantity: FunctionReference<
-        "action",
-        "internal",
+        'action',
+        'internal',
         { apiKey: string; quantity: number; stripeSubscriptionId: string },
         null
       >;
