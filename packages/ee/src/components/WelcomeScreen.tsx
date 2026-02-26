@@ -109,26 +109,31 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
   const { user } = useAuth();
   const { startTrial, skipTrial } = useSubscription();
   const [loading, setLoading] = useState<'trial' | 'skip' | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const firstName = user?.name?.split(' ')[0] ?? 'there';
 
   async function handleStartTrial() {
     setLoading('trial');
+    setError(null);
     try {
       await startTrial();
       onComplete();
     } catch {
       setLoading(null);
+      setError('Failed to start trial. Please try again.');
     }
   }
 
   async function handleSkip() {
     setLoading('skip');
+    setError(null);
     try {
       await skipTrial();
       onComplete();
     } catch {
       setLoading(null);
+      setError('Something went wrong. Please try again.');
     }
   }
 
@@ -199,6 +204,8 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
         >
           {loading === 'skip' ? 'Setting up…' : 'Continue with free plan'}
         </button>
+
+        {error && <p className="welcome-error" style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</p>}
 
         <p className="welcome-fine-print">No credit card needed · Cancel anytime</p>
       </div>

@@ -6,7 +6,7 @@ export interface Subscription {
   userId: string;
   stripeCustomerId: string;
   stripeSubscriptionId: string;
-  status: 'active' | 'canceled' | 'past_due' | 'incomplete' | 'trialing';
+  status: 'active' | 'canceled' | 'past_due' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'paused' | 'unpaid';
   plan: 'monthly' | 'yearly';
   currentPeriodEnd: number;
   cancelAtPeriodEnd: boolean;

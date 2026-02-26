@@ -1047,7 +1047,8 @@ type LandingAction =
   | { type: 'SET_OPEN_FAQ'; value: number | null }
   | { type: 'SET_ACTIVE_TAB'; value: 'local' | 'cloud' }
   | { type: 'SET_BENTO_IN_VIEW' }
-  | { type: 'START_SIGNING_IN' };
+  | { type: 'START_SIGNING_IN' }
+  | { type: 'STOP_SIGNING_IN' };
 
 function landingReducer(state: LandingState, action: LandingAction): LandingState {
   switch (action.type) {
@@ -1065,6 +1066,10 @@ function landingReducer(state: LandingState, action: LandingAction): LandingStat
       return { ...state, bentoInView: true };
     case 'START_SIGNING_IN':
       return { ...state, signingIn: true };
+    case 'STOP_SIGNING_IN':
+      return { ...state, signingIn: false };
+    default:
+      return state;
   }
 }
 
@@ -1406,10 +1411,14 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
   const setActiveTab = (v: 'local' | 'cloud') => dispatch({ type: 'SET_ACTIVE_TAB', value: v });
   const bentoRef = useRef<HTMLElement>(null);
 
-  function handleCloudLogin() {
+  async function handleCloudLogin() {
     if (!onCloudLogin || signingIn) return;
     dispatch({ type: 'START_SIGNING_IN' });
-    onCloudLogin();
+    try {
+      await onCloudLogin();
+    } catch {
+      dispatch({ type: 'STOP_SIGNING_IN' });
+    }
   }
 
   useEffect(() => {
