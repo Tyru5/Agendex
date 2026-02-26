@@ -111,8 +111,8 @@ export function CollectionPickerPopover({
           </div>
         ) : (
           collections
-            .filter((c) => !newName.trim() || c.nameLc.includes(newName.trim().toLowerCase()))
-            .map((col) => (
+            .filter((c: any) => !newName.trim() || c.nameLc.includes(newName.trim().toLowerCase()))
+            .map((col: any) => (
               <button
                 key={col._id}
                 type="button"

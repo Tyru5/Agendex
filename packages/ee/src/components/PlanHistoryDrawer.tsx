@@ -190,7 +190,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
                 gap: '6px',
               }}
             >
-              {versions.map((ver, idx) => (
+              {versions.map((ver: any, idx: number) => (
                 <button
                   type="button"
                   key={ver._id}
@@ -284,7 +284,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
                     cursor: 'pointer',
                   }}
                 >
-                  {versions.map((ver) => (
+                  {versions.map((ver: any) => (
                     <option key={ver._id} value={ver.version}>
                       v{ver.version} — {timeAgo(ver.createdAt)}
                     </option>
@@ -310,7 +310,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
                     cursor: 'pointer',
                   }}
                 >
-                  {versions.map((ver) => (
+                  {versions.map((ver: any) => (
                     <option key={ver._id} value={ver.version}>
                       v{ver.version} — {timeAgo(ver.createdAt)}
                     </option>

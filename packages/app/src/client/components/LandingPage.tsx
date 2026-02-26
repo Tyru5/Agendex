@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AGENTS,
   FEATURES,
@@ -11,6 +11,7 @@ import {
   setToken,
 } from './landing/data.ts';
 import { IconCloud } from './landing/IconCloud.tsx';
+import { FAQBackground } from './landing/FAQBackground.tsx';
 import { startViewTransition } from '../lib/view-transition.ts';
 
 const OPENAI_SVG = `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100" height="100"><path fill="white" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>')}`;
@@ -32,7 +33,6 @@ const ACCENT = '#c8ff32';
 const BG = '#0a0a0a';
 const SURFACE = '#141414';
 const BORDER = 'rgba(255,255,255,0.06)';
-const BORDER_HOVER = 'rgba(255,255,255,0.12)';
 const TEXT_PRIMARY = '#ffffff';
 const TEXT_SECONDARY = '#999';
 const TEXT_MUTED = '#666';
@@ -367,66 +367,87 @@ function BentoCard({
   feature,
   layout,
   index,
+  inView,
 }: {
   feature: (typeof FEATURES)[number];
   layout: (typeof BENTO_MAP)[number];
   index: number;
+  inView?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
+  const delay = index * 0.07;
   return (
     <div
+      className={`d3-bento-card${inView ? ' d3-bento-active' : ''}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         gridColumn: `span ${layout.colSpan}`,
         gridRow: `span ${layout.rowSpan}`,
-        background: SURFACE,
-        border: `1px solid ${hovered ? BORDER_HOVER : BORDER}`,
+        position: 'relative',
         borderRadius: RADIUS,
-        padding: CARD_PAD,
-        transition: 'all 0.3s ease',
-        transform: hovered ? 'translateY(-2px)' : 'none',
-        overflow: 'hidden',
+        padding: 1,
+        transition: 'transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.4s ease',
+        transform: hovered ? 'translateY(-4px)' : 'none',
+        boxShadow: hovered
+          ? '0 0 30px rgba(200,255,50,0.08), 0 8px 32px rgba(0,0,0,0.4)'
+          : '0 2px 8px rgba(0,0,0,0.2)',
+        cursor: 'default',
+        opacity: inView ? 1 : 0,
+        animationDelay: `${delay}s`,
       }}
     >
       <div
         style={{
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          background: 'rgba(200,255,50,0.08)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 18,
+          background: BG,
+          borderRadius: RADIUS - 1,
+          padding: CARD_PAD,
+          height: '100%',
+          transition: 'background 0.4s ease',
+          overflow: 'hidden',
         }}
       >
-        {feature.icon}
+        <div
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 12,
+            background: hovered ? 'rgba(200,255,50,0.12)' : 'rgba(200,255,50,0.06)',
+            border: '1px solid rgba(200,255,50,0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 18,
+            transition: 'background 0.3s ease, border-color 0.3s ease',
+          }}
+        >
+          {feature.icon}
+        </div>
+        <h3
+          style={{
+            margin: '16px 0 8px',
+            fontSize: 18,
+            fontWeight: 600,
+            color: TEXT_PRIMARY,
+            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
+          }}
+        >
+          {feature.title}
+        </h3>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 14,
+            lineHeight: 1.6,
+            color: TEXT_SECONDARY,
+            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
+            fontWeight: 400,
+          }}
+        >
+          {feature.desc}
+        </p>
+        {inView && CARD_VISUALS[index]?.()}
       </div>
-      <h3
-        style={{
-          margin: '16px 0 8px',
-          fontSize: 18,
-          fontWeight: 600,
-          color: TEXT_PRIMARY,
-          fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-        }}
-      >
-        {feature.title}
-      </h3>
-      <p
-        style={{
-          margin: 0,
-          fontSize: 14,
-          lineHeight: 1.6,
-          color: TEXT_SECONDARY,
-          fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-          fontWeight: 400,
-        }}
-      >
-        {feature.desc}
-      </p>
-      {CARD_VISUALS[index]?.()}
     </div>
   );
 }
@@ -866,9 +887,27 @@ function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
 export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}) {
   const [token, setTokenValue] = useState('');
   const [showLogin, setShowLogin] = useState(false);
-  const [yearly, setYearly] = useState(true);
+  const [yearly, setYearly] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'local' | 'cloud'>('local');
+  const [bentoInView, setBentoInView] = useState(false);
+  const bentoRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = bentoRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setBentoInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.6 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -908,6 +947,34 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
           .d3-pricing-row {
             flex-direction: column !important;
           }
+        }
+        @property --border-angle {
+          syntax: '<angle>';
+          initial-value: 0deg;
+          inherits: false;
+        }
+        @keyframes d3-bento-enter {
+          from { opacity: 0; transform: translateY(24px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes d3-border-spin {
+          to { --border-angle: 360deg; }
+        }
+        .d3-bento-card {
+          --border-angle: 0deg;
+          background: ${BORDER};
+        }
+        .d3-bento-card.d3-bento-active {
+          animation: d3-bento-enter 0.5s ease both;
+        }
+        .d3-bento-card.d3-bento-active:hover {
+          background: conic-gradient(
+            from var(--border-angle),
+            transparent 30%,
+            rgba(200,255,50,0.5) 50%,
+            transparent 70%
+          );
+          animation: d3-bento-enter 0.5s ease both, d3-border-spin 4s linear infinite;
         }
       `}</style>
 
@@ -966,185 +1033,189 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
       </nav>
 
       {/* Hero — two-column */}
-      <section
-        className="d3-hero"
-        style={{
-          position: 'relative',
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 230,
-          alignItems: 'center',
-          maxWidth: 1100,
-          margin: '0 auto',
-          padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
-        }}
-      >
-        <div
+      <div style={{ position: 'relative', overflow: 'hidden' }}>
+        <FAQBackground />
+        <section
+          className="d3-hero"
           style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
+            position: 'relative',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 230,
             alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-            opacity: 0.15,
+            maxWidth: 1100,
+            margin: '0 auto',
+            padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
           }}
         >
-          <IconCloud images={agentIconImages} />
-        </div>
-        <div>
           <div
             style={{
-              display: 'inline-flex',
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              padding: '6px 16px',
-              borderRadius: 20,
-              background: 'rgba(200,255,50,0.08)',
-              border: '1px solid rgba(200,255,50,0.15)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: ACCENT,
-              marginBottom: 32,
+              justifyContent: 'center',
+              pointerEvents: 'none',
+              opacity: 0.15,
             }}
           >
-            <span style={{ fontSize: 8, lineHeight: 1 }}>{'●'}</span>
-            Open Source
+            <IconCloud images={agentIconImages} />
           </div>
-
-          <h1
-            style={{
-              fontFamily: '"Unbounded", sans-serif',
-              fontSize: 'clamp(36px, 4.5vw, 56px)',
-              fontWeight: 400,
-              lineHeight: 1.08,
-              letterSpacing: '-0.03em',
-              margin: '0 0 20px',
-              color: TEXT_PRIMARY,
-            }}
-          >
-            One dashboard for
-            <br />
-            <span style={{ color: ACCENT }}>every coding agent.</span>
-          </h1>
-
-          <p
-            style={{
-              fontSize: 15,
-              lineHeight: 1.7,
-              color: '#777',
-              margin: '0 0 32px',
-              fontWeight: 400,
-              maxWidth: 440,
-            }}
-          >
-            Agendex indexes the plans your AI agents create and surfaces them in a single,
-            searchable interface.
-          </p>
-
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <button
-              onClick={() => {
-                if (activeTab === 'cloud' && onCloudLogin) {
-                  onCloudLogin();
-                } else {
-                  startViewTransition(() => setShowLogin(true));
-                }
-              }}
+          <div>
+            <div
               style={{
-                padding: '12px 28px',
-                borderRadius: 12,
-                border: 'none',
-                background: ACCENT,
-                color: '#0a0a0a',
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
                 display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {activeTab === 'cloud' && onCloudLogin ? (
-                <>
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    style={{ flexShrink: 0 }}
-                  >
-                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                  </svg>
-                  Sign in with GitHub
-                </>
-              ) : (
-                'Get Started'
-              )}
-            </button>
-            <a
-              href="https://github.com/Tyru5/agendex"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                padding: '12px 28px',
-                borderRadius: 12,
-                border: `1px solid ${BORDER}`,
-                background: 'transparent',
-                color: TEXT_PRIMARY,
-                fontSize: 15,
+                gap: 6,
+                padding: '6px 16px',
+                borderRadius: 20,
+                background: 'rgba(200,255,50,0.08)',
+                border: '1px solid rgba(200,255,50,0.15)',
+                fontSize: 13,
                 fontWeight: 500,
-                cursor: 'pointer',
-                textDecoration: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                whiteSpace: 'nowrap',
-                transition: 'border-color 0.2s',
+                color: ACCENT,
+                marginBottom: 32,
               }}
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                style={{ flexShrink: 0 }}
-              >
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-              </svg>
-              View on GitHub
-            </a>
-          </div>
-        </div>
-
-        <div>
-          <div className="landing-steps-panel">
-            <div className="landing-steps-tabs">
-              <button
-                type="button"
-                className={`landing-steps-tab ${activeTab === 'local' ? 'landing-steps-tab-active' : ''}`}
-                onClick={() => setActiveTab('local')}
-              >
-                Self-Hosted
-              </button>
-              <button
-                type="button"
-                className={`landing-steps-tab ${activeTab === 'cloud' ? 'landing-steps-tab-active' : ''}`}
-                onClick={() => setActiveTab('cloud')}
-              >
-                Cloud
-              </button>
+              <span style={{ fontSize: 8, lineHeight: 1 }}>{'●'}</span>
+              Open Source
             </div>
-            <AnimatedSteps activeTab={activeTab} />
+
+            <h1
+              style={{
+                fontFamily: '"Unbounded", sans-serif',
+                fontSize: 'clamp(36px, 4.5vw, 56px)',
+                fontWeight: 400,
+                lineHeight: 1.08,
+                letterSpacing: '-0.03em',
+                margin: '0 0 20px',
+                color: TEXT_PRIMARY,
+              }}
+            >
+              One dashboard for
+              <br />
+              <span style={{ color: ACCENT }}>every coding agent.</span>
+            </h1>
+
+            <p
+              style={{
+                fontSize: 15,
+                lineHeight: 1.7,
+                color: '#777',
+                margin: '0 0 32px',
+                fontWeight: 400,
+                maxWidth: 440,
+              }}
+            >
+              Agendex indexes the plans your AI agents create and surfaces them in a single,
+              searchable interface.
+            </p>
+
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button
+                onClick={() => {
+                  if (activeTab === 'cloud' && onCloudLogin) {
+                    onCloudLogin();
+                  } else {
+                    startViewTransition(() => setShowLogin(true));
+                  }
+                }}
+                style={{
+                  padding: '12px 28px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: ACCENT,
+                  color: '#0a0a0a',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {activeTab === 'cloud' && onCloudLogin ? (
+                  <>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      style={{ flexShrink: 0 }}
+                    >
+                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                    </svg>
+                    Sign in with GitHub
+                  </>
+                ) : (
+                  'Get Started'
+                )}
+              </button>
+              <a
+                href="https://github.com/Tyru5/agendex"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  padding: '12px 28px',
+                  borderRadius: 12,
+                  border: `1px solid ${BORDER}`,
+                  background: 'transparent',
+                  color: TEXT_PRIMARY,
+                  fontSize: 15,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  whiteSpace: 'nowrap',
+                  transition: 'border-color 0.2s',
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  style={{ flexShrink: 0 }}
+                >
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                View on GitHub
+              </a>
+            </div>
           </div>
-        </div>
-      </section>
+
+          <div>
+            <div className="landing-steps-panel">
+              <div className="landing-steps-tabs">
+                <button
+                  type="button"
+                  className={`landing-steps-tab ${activeTab === 'local' ? 'landing-steps-tab-active' : ''}`}
+                  onClick={() => setActiveTab('local')}
+                >
+                  Self-Hosted
+                </button>
+                <button
+                  type="button"
+                  className={`landing-steps-tab ${activeTab === 'cloud' ? 'landing-steps-tab-active' : ''}`}
+                  onClick={() => setActiveTab('cloud')}
+                >
+                  Cloud
+                </button>
+              </div>
+              <AnimatedSteps activeTab={activeTab} />
+            </div>
+          </div>
+        </section>
+      </div>
 
       {/* Bento Feature Grid */}
       <section
+        ref={bentoRef}
         style={{ padding: 'clamp(60px, 10vh, 120px) 24px', maxWidth: 1100, margin: '0 auto' }}
       >
         <div style={{ textAlign: 'center', marginBottom: 56 }}>
@@ -1179,6 +1250,7 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
               feature={feature}
               layout={BENTO_MAP[i] ?? { colSpan: 1, rowSpan: 1 }}
               index={i}
+              inView={bentoInView}
             />
           ))}
         </div>
@@ -1242,23 +1314,38 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
       <section
         style={{
           padding: 'clamp(40px, 8vh, 80px) 24px clamp(80px, 12vh, 140px)',
-          maxWidth: 680,
+          maxWidth: 720,
           margin: '0 auto',
         }}
       >
-        <h2
-          style={{
-            fontFamily: '"Unbounded", sans-serif',
-            fontSize: 'clamp(28px, 4vw, 40px)',
-            fontWeight: 400,
-            letterSpacing: '-0.025em',
-            margin: '0 0 40px',
-            textAlign: 'center',
-          }}
-        >
-          FAQ
-        </h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <span
+            style={{
+              display: 'inline-block',
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: ACCENT,
+              fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
+              marginBottom: 12,
+            }}
+          >
+            Support
+          </span>
+          <h2
+            style={{
+              fontFamily: '"Unbounded", sans-serif',
+              fontSize: 'clamp(28px, 4vw, 40px)',
+              fontWeight: 400,
+              letterSpacing: '-0.025em',
+              margin: 0,
+            }}
+          >
+            Frequently asked questions
+          </h2>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {FAQ_ITEMS.map((item, i) => (
             <FAQItem
               key={item.q}
@@ -1266,6 +1353,7 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
               answer={item.a}
               open={openFaq === i}
               onToggle={() => setOpenFaq(openFaq === i ? null : i)}
+              isFirst={i === 0}
             />
           ))}
         </div>
@@ -1335,30 +1423,33 @@ function FAQItem({
   answer,
   open,
   onToggle,
+  isFirst,
 }: {
   question: string;
   answer: string;
   open: boolean;
   onToggle: () => void;
+  isFirst: boolean;
 }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <div
       style={{
-        background: open ? SURFACE : 'transparent',
-        border: `1px solid ${open ? BORDER : 'transparent'}`,
-        borderRadius: 14,
-        transition: 'all 0.2s ease',
+        borderTop: isFirst ? `1px solid ${BORDER}` : 'none',
+        borderBottom: `1px solid ${BORDER}`,
       }}
     >
       <button
         onClick={onToggle}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         aria-expanded={open}
         style={{
           width: '100%',
-          padding: '18px 20px',
+          padding: '22px 4px',
           background: 'none',
           border: 'none',
-          color: TEXT_PRIMARY,
+          color: hovered || open ? TEXT_PRIMARY : 'rgba(255,255,255,0.85)',
           fontSize: 15,
           fontWeight: 500,
           fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
@@ -1368,20 +1459,43 @@ function FAQItem({
           justifyContent: 'space-between',
           alignItems: 'center',
           gap: 16,
+          transition: 'color 0.2s ease',
         }}
       >
         {question}
-        <span
+        <div
           style={{
-            color: TEXT_MUTED,
-            fontSize: 18,
-            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            transform: open ? 'rotate(45deg)' : 'none',
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            border: `1px solid ${open ? ACCENT : hovered ? 'rgba(255,255,255,0.2)' : BORDER}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             flexShrink: 0,
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            background: open ? ACCENT : 'transparent',
           }}
         >
-          +
-        </span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            style={{
+              transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              transform: open ? 'rotate(180deg)' : 'none',
+            }}
+          >
+            <path
+              d="M2.5 4.5L6 8L9.5 4.5"
+              stroke={open ? '#000' : TEXT_MUTED}
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
       </button>
       <div
         style={{
@@ -1393,12 +1507,13 @@ function FAQItem({
         <div style={{ overflow: 'hidden' }}>
           <p
             style={{
-              padding: '0 20px 18px',
+              padding: '0 4px 22px 4px',
               margin: 0,
               fontSize: 14,
-              lineHeight: 1.7,
+              lineHeight: 1.75,
               color: TEXT_SECONDARY,
               fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
+              maxWidth: 580,
               opacity: open ? 1 : 0,
               transform: open ? 'translateY(0)' : 'translateY(-4px)',
               transition: 'opacity 0.25s 0.05s, transform 0.25s 0.05s',

@@ -141,7 +141,7 @@ function formatAgentLabel(agent: string): string {
   if (!normalized) return 'Unknown Agent';
   return normalized
     .split('-')
-    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+    .map((part) => (part ? (part[0]?.toUpperCase() ?? '') + part.slice(1) : part))
     .join(' ');
 }
 
