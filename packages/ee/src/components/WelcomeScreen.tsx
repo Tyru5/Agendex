@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useSubscription } from '../hooks/useSubscription';
 
 interface WelcomeScreenProps {
-  onComplete: () => void;
+  onComplete?: () => void;
 }
 
 const TRIAL_FEATURES = [
@@ -118,7 +118,7 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
     setError(null);
     try {
       await startTrial();
-      onComplete();
+      onComplete?.();
     } catch {
       setLoading(null);
       setError('Failed to start trial. Please try again.');
@@ -130,7 +130,7 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
     setError(null);
     try {
       await skipTrial();
-      onComplete();
+      onComplete?.();
     } catch {
       setLoading(null);
       setError('Something went wrong. Please try again.');

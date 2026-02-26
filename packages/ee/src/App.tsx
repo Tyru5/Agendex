@@ -1147,7 +1147,7 @@ export default function App() {
   }
 
   if (isAuthenticated && !onboardingLoading && needsOnboarding) {
-    return <WelcomeScreen onComplete={() => window.location.reload()} />;
+    return <WelcomeScreen />;
   }
 
   return <Dashboard />;
