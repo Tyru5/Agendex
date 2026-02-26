@@ -1,2 +1,12 @@
 #!/usr/bin/env bun
-import '../dist/cli.js';
+import { existsSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const dist = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'cli.js');
+if (!existsSync(dist)) {
+  console.error('Missing dist/cli.js — run `bun run build` in packages/cli first.');
+  process.exit(1);
+}
+
+import('../dist/cli.js');

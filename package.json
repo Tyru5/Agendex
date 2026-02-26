@@ -29,6 +29,5 @@
   },
   "peerDependencies": {
     "typescript": "^5"
-  },
-  "dependencies": {}
+  }
 }
