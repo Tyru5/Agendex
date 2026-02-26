@@ -18,7 +18,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
   return betterAuth({
     baseURL: convexSiteUrl,
     secret: process.env.BETTER_AUTH_SECRET,
-    trustedOrigins: [siteUrl].filter(Boolean),
+    trustedOrigins: [siteUrl, 'https://*.vercel.app', 'http://localhost:*'].filter(Boolean),
     database: authComponent.adapter(ctx),
     socialProviders: {
       ...(githubClientId && githubClientSecret
