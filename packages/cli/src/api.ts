@@ -16,6 +16,8 @@ export interface SyncPlanPayload {
   filePath?: string;
   workspace?: string;
   metadata?: Record<string, unknown>;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export async function syncPlan(plan: SyncPlanPayload): Promise<{ ok: boolean; error?: string }> {
@@ -37,6 +39,21 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<{ ok: boolean; er
   }
 
   return { ok: true };
+}
+
+export async function sendHeartbeat(): Promise<void> {
+  const { token, convexUrl } = getCloudConfig();
+  try {
+    await fetch(`${convexUrl}/api/cli/heartbeat`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+  } catch {
+    // best-effort, don't crash the daemon
+  }
 }
 
 export async function refreshToken(

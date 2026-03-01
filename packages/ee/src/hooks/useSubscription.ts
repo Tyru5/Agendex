@@ -6,7 +6,15 @@ export interface Subscription {
   userId: string;
   stripeCustomerId: string;
   stripeSubscriptionId: string;
-  status: 'active' | 'canceled' | 'past_due' | 'incomplete' | 'incomplete_expired' | 'trialing' | 'paused' | 'unpaid';
+  status:
+    | 'active'
+    | 'canceled'
+    | 'past_due'
+    | 'incomplete'
+    | 'incomplete_expired'
+    | 'trialing'
+    | 'paused'
+    | 'unpaid';
   plan: 'monthly' | 'yearly';
   currentPeriodEnd: number;
   cancelAtPeriodEnd: boolean;
@@ -45,7 +53,7 @@ export function useSubscription() {
     trialDaysLeft,
     isLoading: subscription === undefined,
     needsOnboarding: onboardingDone === false,
-    onboardingLoading: onboardingDone === undefined,
+    onboardingLoading: onboardingDone === undefined || onboardingDone === null,
     createCheckout: async (plan: 'monthly' | 'yearly') => {
       try {
         const result = await createCheckout({ plan });

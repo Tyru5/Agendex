@@ -1,5 +1,5 @@
+import { Skeleton } from '@agendex/web';
 import { useAuth } from '../hooks/useAuth.ts';
-import { Skeleton } from '@agendex/app/src/client/components/Skeleton';
 
 export function AuthButton() {
   const { user, isLoading, isAuthenticated, signIn, signOut } = useAuth();
@@ -12,7 +12,7 @@ export function AuthButton() {
     return (
       <button
         type="button"
-        onClick={() => signIn.social({ provider: 'github' })}
+        onClick={() => signIn.social({ provider: 'github', callbackURL: '/' })}
         style={{
           fontSize: '12px',
           padding: '4px 10px',

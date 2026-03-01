@@ -80,6 +80,7 @@ app.get(
   })),
 );
 
+app.get('/api/v1/health', (c) => c.json({ ok: true }));
 app.use('/api/*', authMiddleware);
 app.route('/api/v1', plans);
 

@@ -2,10 +2,6 @@ import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSubscription } from '../hooks/useSubscription';
 
-interface WelcomeScreenProps {
-  onComplete?: () => void;
-}
-
 const TRIAL_FEATURES = [
   {
     icon: 'cloud',
@@ -105,7 +101,7 @@ function WelcomeIcon({ type }: { type: string }) {
   }
 }
 
-export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
+export function WelcomeScreen() {
   const { user } = useAuth();
   const { startTrial, skipTrial } = useSubscription();
   const [loading, setLoading] = useState<'trial' | 'skip' | null>(null);
@@ -118,7 +114,6 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
     setError(null);
     try {
       await startTrial();
-      onComplete?.();
     } catch {
       setLoading(null);
       setError('Failed to start trial. Please try again.');
@@ -130,7 +125,6 @@ export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
     setError(null);
     try {
       await skipTrial();
-      onComplete?.();
     } catch {
       setLoading(null);
       setError('Something went wrong. Please try again.');

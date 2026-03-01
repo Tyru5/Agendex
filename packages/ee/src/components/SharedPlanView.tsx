@@ -1,16 +1,16 @@
 import { api } from '@convex/_generated/api';
+import {
+  AgentIcon,
+  getAgentLabel,
+  looksLikeMarkdown,
+  MarkdownCodeBlock,
+  normalizePlanMarkdown,
+  SkeletonBlock,
+} from '@agendex/web';
 import { useQuery } from 'convex/react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getAgentLabel } from '@agendex/app/src/client/lib/agent-colors.ts';
-import {
-  looksLikeMarkdown,
-  normalizePlanMarkdown,
-} from '@agendex/app/src/client/lib/plan-markdown.ts';
-import { AgentIcon } from '@agendex/app/src/client/components/AgentIcon.tsx';
 import { CommentThread } from './CommentThread.tsx';
-import { MarkdownCodeBlock } from '@agendex/app/src/client/components/MarkdownCodeBlock.tsx';
-import { SkeletonBlock } from '@agendex/app/src/client/components/Skeleton.tsx';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();

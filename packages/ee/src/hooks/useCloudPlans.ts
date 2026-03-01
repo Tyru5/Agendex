@@ -1,6 +1,6 @@
+import { type Plan, seedSeen } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
-import type { Plan } from '@agendex/app/src/client/lib/api.ts';
 
 export function useCloudPlans(): {
   plans: Plan[];
@@ -27,6 +27,8 @@ export function useCloudPlans(): {
       workspace: p.workspace,
       metadata: (p.metadata as Record<string, unknown>) ?? {},
     }));
+
+    seedSeen(plans);
 
     return { plans, loading: false, error: null };
   } catch (e) {

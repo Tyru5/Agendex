@@ -43,6 +43,7 @@
     "@types/unist": "^3.0.3",
     "@vitejs/plugin-react": "^5.1.4",
     "tailwindcss": "^4.1.18",
+    "tidewave": "^0.6.0",
     "vite": "^7.3.1"
   }
 }

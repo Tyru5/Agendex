@@ -9,6 +9,7 @@ import { looksLikeMarkdown, normalizePlanMarkdown } from '../lib/plan-markdown.t
 import { AgentIcon } from './AgentIcon.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
+import { TechDependencyChart } from './TechDependencyChart.tsx';
 
 function isMarkdownPlan(plan: Plan): boolean {
   if (plan.format.toLowerCase() === 'md') return true;
@@ -34,10 +35,14 @@ export function PlanViewer({
   plan,
   headerExtra,
   onHistory,
+  onShare,
+  onChartWideChange,
 }: {
   plan: Plan;
   headerExtra?: ReactNode;
   onHistory?: () => void;
+  onShare?: () => void;
+  onChartWideChange?: (wide: boolean) => void;
   [key: string]: unknown;
 }) {
   const [copied, setCopied] = useState(false);
@@ -189,6 +194,30 @@ export function PlanViewer({
               </span>
               {copied ? 'Copied' : 'Copy'}
             </button>
+            {onShare && (
+              <button
+                type="button"
+                onClick={onShare}
+                title="Share plan"
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <ShareIcon />
+                Share
+              </button>
+            )}
             {onHistory && (
               <button
                 type="button"
@@ -247,6 +276,12 @@ export function PlanViewer({
           </article>
         ) : (
           <pre className="plan-plain">{plan.content}</pre>
+        )}
+
+        {onChartWideChange && (
+          <div style={{ marginTop: '40px' }}>
+            <TechDependencyChart plan={plan} onWideChange={onChartWideChange} />
+          </div>
         )}
 
         {/* File path footer */}
@@ -459,6 +494,26 @@ function CheckIcon() {
       style={{ width: '13px', height: '13px' }}
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      style={{ width: '13px', height: '13px' }}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"
+      />
     </svg>
   );
 }

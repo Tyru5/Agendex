@@ -1,26 +1,20 @@
 import path from 'node:path';
 import react from '@vitejs/plugin-react';
+import tidewave from 'tidewave/vite-plugin';
 import { defineConfig } from 'vite';
+import { createAgendexViteConfig } from '../../vite.base';
 
-export default defineConfig({
-  envDir: '.',
-  plugins: [react()],
-  resolve: {
-    alias: {
-      '@convex': path.resolve(__dirname, 'convex'),
-    },
-  },
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-  },
-  server: {
-    port: 5174,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:4890',
-        changeOrigin: true,
+export default defineConfig(
+  createAgendexViteConfig({
+    envDir: '.',
+    plugins: [tidewave(), react()],
+    resolve: {
+      alias: {
+        '@convex': path.resolve(__dirname, 'convex'),
       },
     },
-  },
-});
+    server: {
+      port: 5174,
+    },
+  }),
+);

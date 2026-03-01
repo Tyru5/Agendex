@@ -1,8 +1,8 @@
 import { api } from '@convex/_generated/api';
+import { type Plan } from '@agendex/web';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { usePublishing } from '../hooks/usePublishing.ts';
-import type { Plan } from '@agendex/app/src/client/lib/api.ts';
 
 const appUrl = (import.meta.env.VITE_APP_URL as string) || window.location.origin;
 

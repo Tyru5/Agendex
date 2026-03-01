@@ -1,7 +1,7 @@
 import { api } from '@convex/_generated/api';
+import { SkeletonBlock } from '@agendex/web';
 import { useMutation, useQuery } from 'convex/react';
 import { useEffect, useState } from 'react';
-import { SkeletonBlock } from '@agendex/app/src/client/components/Skeleton.tsx';
 import { PlanDiffViewer } from './PlanDiffViewer.tsx';
 
 function timeAgo(timestamp: number): string {

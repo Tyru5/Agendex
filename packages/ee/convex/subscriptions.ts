@@ -25,7 +25,7 @@ export const getMySubscriptionQuery = query({
 export async function hasActiveSubscription(ctx: any): Promise<boolean> {
   let user;
   try {
-    user = await (await import('./auth')).authComponent.getAuthUser(ctx);
+    user = await authComponent.getAuthUser(ctx);
   } catch {
     return false;
   }

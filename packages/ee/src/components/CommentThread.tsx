@@ -1,8 +1,8 @@
+import { SkeletonBlock } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
-import { SkeletonBlock } from '@agendex/app/src/client/components/Skeleton.tsx';
 
 function timeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -140,7 +140,7 @@ export function CommentThread({
           <span style={{ fontSize: '12.5px', color: 'var(--tertiary)' }}>Sign in to comment</span>
           <button
             type="button"
-            onClick={() => signIn.social({ provider: 'github' })}
+            onClick={() => signIn.social({ provider: 'github', callbackURL: '/' })}
             style={{
               padding: '4px 12px',
               fontSize: '12px',

@@ -1,59 +1,61 @@
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from 'react';
+  EmptyStateView,
+  filterPlans,
+  hasToken,
+  LandingPage,
+  OfflineView,
+  PlanList,
+  PlanViewer,
+  SearchBar,
+  SidebarFilters,
+  SkeletonBlock,
+  startViewTransition,
+  ThemeToggle,
+  useAgents,
+  useBackendStatus,
+  usePlans,
+  useSeenPlans,
+  type AgentStats,
+  type Plan,
+} from '@agendex/web';
 import { parseAsString, parseAsStringLiteral, useQueryState, useQueryStates } from 'nuqs';
 import { throttle } from 'nuqs';
+import { Route, Switch, Redirect } from 'wouter';
 import { AuthButton } from './components/AuthButton.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
+import { CloudEmptyState } from './components/CloudEmptyState.tsx';
 import { CloudUpgrade } from './components/CloudUpgrade.tsx';
-import { LandingPage } from '@agendex/app/src/client/components/LandingPage.tsx';
-import { OfflineView } from '@agendex/app/src/client/components/OfflineView.tsx';
+import { OnboardingRoute } from './components/OnboardingRoute.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
-import { PlanList } from '@agendex/app/src/client/components/PlanList.tsx';
-import { PlanViewer } from '@agendex/app/src/client/components/PlanViewer.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
-import { SearchBar } from '@agendex/app/src/client/components/SearchBar.tsx';
 import { SharedPlanView } from './components/SharedPlanView.tsx';
-import { SidebarFilters } from '@agendex/app/src/client/components/SidebarFilters.tsx';
-import { SkeletonBlock } from '@agendex/app/src/client/components/Skeleton.tsx';
 import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
-import { ThemeToggle } from '@agendex/app/src/client/components/ThemeToggle.tsx';
-import { useBackendStatus } from '@agendex/app/src/client/hooks/useBackendStatus.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
-import { useAgents, usePlans } from '@agendex/app/src/client/hooks/usePlans.ts';
-import { useSeenPlans } from '@agendex/app/src/client/hooks/useSeenPlans.ts';
+import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useAuth } from './hooks/useAuth.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
-import { type AgentStats, hasToken, type Plan } from '@agendex/app/src/client/lib/api.ts';
-import { filterPlans } from '@agendex/app/src/client/lib/plan-search.ts';
-import { startViewTransition } from '@agendex/app/src/client/lib/view-transition.ts';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
+import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 
 const PlanEditor = lazy(() =>
-  import('@agendex/app/src/client/components/PlanEditor.tsx').then((m) => ({
+  import('@agendex/web').then((m) => ({
     default: m.PlanEditor,
   })),
 );
 
 const PlanCreator = lazy(() =>
-  import('@agendex/app/src/client/components/PlanCreator.tsx').then((m) => ({
+  import('@agendex/web').then((m) => ({
     default: m.PlanCreator,
   })),
 );
 
 const PlanUploader = lazy(() =>
-  import('@agendex/app/src/client/components/PlanUploader.tsx').then((m) => ({
+  import('@agendex/web').then((m) => ({
     default: m.PlanUploader,
   })),
 );
@@ -104,11 +106,16 @@ function useDashboardData(
   selectedCollection: string | undefined,
   isPro: boolean,
 ) {
+  const localEnabled = mode === 'local';
   const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
-  const localPlans = usePlans(filters);
+  const localPlans = usePlans(filters, localEnabled);
   const cloudPlans = useCloudPlans();
-  const agents = useAgents();
-  const backendStatus = useBackendStatus();
+  const localAgents = useAgents(localEnabled);
+  const localBackendStatus = useBackendStatus(undefined, localEnabled);
+  const daemonStatus = useDaemonStatus();
+  const cloudBackendStatus =
+    daemonStatus === 'stale' ? 'offline' : daemonStatus === 'unknown' ? 'checking' : 'online';
+  const backendStatus = mode === 'cloud' ? cloudBackendStatus : localBackendStatus;
 
   const allTags = useQuery(api.tags.listMyTags, isPro ? {} : 'skip');
   const allCollections = useQuery(api.collections.listMyCollections, isPro ? {} : 'skip');
@@ -117,11 +124,22 @@ function useDashboardData(
     isPro && selectedCollection ? { collectionId: selectedCollection } : 'skip',
   );
 
-  const { plans, loading, error, refresh } =
+  const cloudAgents = useMemo<AgentStats[]>(() => {
+    const counts = new Map<string, number>();
+    for (const p of cloudPlans.plans) {
+      counts.set(p.agent, (counts.get(p.agent) ?? 0) + 1);
+    }
+    return Array.from(counts, ([agent, planCount]) => ({ agent, planCount, writable: false }));
+  }, [cloudPlans.plans]);
+
+  const agents = mode === 'cloud' ? cloudAgents : localAgents;
+
+  const { plans, loading, refreshing, error, refresh } =
     mode === 'cloud'
       ? {
           plans: cloudPlans.plans,
           loading: cloudPlans.loading,
+          refreshing: false,
           error: cloudPlans.error,
           refresh: async () => {},
         }
@@ -147,6 +165,9 @@ function useDashboardData(
 
   const filteredPlans = useMemo(() => {
     let result = filterPlans(plans, search);
+    if (mode === 'cloud' && agentFilter) {
+      result = result.filter((p) => p.agent === agentFilter);
+    }
     if (dateBucket !== 'all') {
       const cutoffs = { today: 86400000, '7d': 604800000, '30d': 2592000000 } as Record<
         string,
@@ -165,8 +186,25 @@ function useDashboardData(
         return selectedTags.some((tagId) => pTags.some((t: any) => t._id === tagId));
       });
     }
+    if (mode === 'cloud') {
+      result = [...result].sort((a, b) => {
+        if (sortBy === 'title') return a.title.localeCompare(b.title);
+        const field = sortBy === 'createdAt' ? 'createdAt' : 'updatedAt';
+        return new Date(b[field]).getTime() - new Date(a[field]).getTime();
+      });
+    }
     return result;
-  }, [plans, search, dateBucket, sortBy, collectionPlanIdSet, selectedTags, planTagsMap]);
+  }, [
+    plans,
+    search,
+    mode,
+    agentFilter,
+    dateBucket,
+    sortBy,
+    collectionPlanIdSet,
+    selectedTags,
+    planTagsMap,
+  ]);
 
   const prevBackendStatus = useRef(backendStatus);
   useEffect(() => {
@@ -182,11 +220,20 @@ function useDashboardData(
   }, [agents, plans, mode]);
 
   const activeAgents = agents.filter((a) => a.planCount > 0).length;
+  const syncing = refreshing && !loading;
   const backendIndicator = useMemo(() => {
+    if (syncing) return { label: 'Syncing', color: '#f59e0b' };
+    if (mode === 'cloud') {
+      if (backendStatus === 'online' && plans.length === 0 && !error)
+        return { label: 'Syncing', color: '#f59e0b' };
+      if (backendStatus === 'online') return { label: 'Cloud', color: '#3b82f6' };
+      if (backendStatus === 'checking') return { label: 'Checking', color: '#f59e0b' };
+      return { label: 'Offline', color: '#ef4444' };
+    }
     if (backendStatus === 'online') return { label: 'Live', color: '#22c55e' };
     if (backendStatus === 'checking') return { label: 'Checking', color: '#f59e0b' };
     return { label: 'Offline', color: '#ef4444' };
-  }, [backendStatus]);
+  }, [backendStatus, mode, syncing, plans.length, error]);
 
   return {
     agents,
@@ -439,17 +486,32 @@ function DashboardTopbar({
           className="hidden lg:block"
           style={{ width: '1px', height: '18px', background: 'var(--border)' }}
         />
-        <span className="hidden lg:inline" style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
-          <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{totalPlans}</strong> plans
-        </span>
-        <div
-          className="hidden lg:block"
-          style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-        />
-        <span className="hidden lg:inline" style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
-          <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{activeAgents}</strong>{' '}
-          agents
-        </span>
+        {mode === 'cloud' && totalPlans === 0 ? (
+          <span className="hidden lg:inline" style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
+            Syncing...
+          </span>
+        ) : (
+          <>
+            <span
+              className="hidden lg:inline"
+              style={{ fontSize: '12px', color: 'var(--tertiary)' }}
+            >
+              <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{totalPlans}</strong>{' '}
+              plans
+            </span>
+            <div
+              className="hidden lg:block"
+              style={{ width: '1px', height: '18px', background: 'var(--border)' }}
+            />
+            <span
+              className="hidden lg:inline"
+              style={{ fontSize: '12px', color: 'var(--tertiary)' }}
+            >
+              <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{activeAgents}</strong>{' '}
+              agents
+            </span>
+          </>
+        )}
         <div
           className="hidden lg:block"
           style={{ width: '1px', height: '18px', background: 'var(--border)' }}
@@ -505,15 +567,21 @@ function DashboardMain({
   creating,
   editing,
   showHistory,
+  sharing,
   agents,
+  totalPlans,
   selectedPlan,
   onClose,
   onSaved,
   onCreated,
   onEdit,
   onHistory,
+  onShare,
+  onCloseShare,
   onChartWideChange,
   onSwitchLocal,
+  onSearch,
+  onRescan,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -522,15 +590,21 @@ function DashboardMain({
   creating: boolean;
   editing: boolean;
   showHistory: boolean;
+  sharing: boolean;
   agents: AgentStats[];
+  totalPlans: number;
   selectedPlan: Plan | undefined;
   onClose: () => void;
   onSaved: () => void;
   onCreated: (plan: Plan) => void;
   onEdit: () => void;
   onHistory: () => void;
+  onShare: () => void;
+  onCloseShare: () => void;
   onChartWideChange: (wide: boolean) => void;
   onSwitchLocal: () => void;
+  onSearch: () => void;
+  onRescan: () => Promise<void>;
 }) {
   return (
     <div
@@ -544,7 +618,7 @@ function DashboardMain({
     >
       {mode === 'cloud' && !isPro ? (
         <CloudUpgrade onSwitchLocal={onSwitchLocal} />
-      ) : backendStatus === 'offline' ? (
+      ) : mode === 'local' && backendStatus === 'offline' ? (
         <OfflineView />
       ) : uploading ? (
         <Suspense
@@ -590,21 +664,27 @@ function DashboardMain({
             <PlanHistoryDrawer planId={selectedPlan.id} onClose={onClose} />
           </Suspense>
         ) : (
-          <PlanViewer
-            plan={selectedPlan}
-            onEdit={onEdit}
-            onChartWideChange={onChartWideChange}
-            onHistory={onHistory}
-            headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
-          />
+          <>
+            <PlanViewer
+              plan={selectedPlan}
+              onEdit={onEdit}
+              onChartWideChange={onChartWideChange}
+              onHistory={isPro ? onHistory : undefined}
+              onShare={isPro ? onShare : undefined}
+              headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
+            />
+            {sharing && isPro && <SharePlanDialog plan={selectedPlan} onClose={onCloseShare} />}
+          </>
         )
+      ) : mode === 'cloud' ? (
+        <CloudEmptyState planCount={totalPlans} />
       ) : (
-        <div
-          className="h-full flex items-center justify-center"
-          style={{ fontSize: '13px', color: 'var(--tertiary)' }}
-        >
-          Select a plan to view
-        </div>
+        <EmptyStateView
+          onSearch={onSearch}
+          onRescan={onRescan}
+          planCount={totalPlans}
+          agents={agents}
+        />
       )}
     </div>
   );
@@ -788,6 +868,13 @@ function DashboardSidebar({
           <div className="p-4" style={{ fontSize: '13px', color: '#ef4444' }}>
             Failed to load plans.
           </div>
+        ) : mode === 'cloud' && filteredPlans.length === 0 ? (
+          <div
+            className="p-4"
+            style={{ fontSize: '12.5px', color: 'var(--tertiary)', textAlign: 'center' }}
+          >
+            Syncing plans...
+          </div>
         ) : (
           <PlanList
             plans={filteredPlans}
@@ -801,7 +888,7 @@ function DashboardSidebar({
   );
 }
 
-type Panel = 'editing' | 'creating' | 'uploading' | 'history' | null;
+type Panel = 'editing' | 'creating' | 'uploading' | 'history' | 'sharing' | null;
 
 type DashState = {
   selectedTags: string[];
@@ -878,12 +965,15 @@ function Dashboard() {
     [setFilters],
   );
 
+  const { isAuthenticated } = useAuth();
+  const defaultMode: DashboardMode = isAuthenticated ? 'cloud' : 'local';
+
   const [ds, dsd] = useReducer(dashReducer, {
     selectedTags: [],
     selectedCollection: undefined,
     activePanel: null,
     showPricingModal: false,
-    mode: 'local' as DashboardMode,
+    mode: defaultMode,
     sidebarHidden: localStorage.getItem(SIDEBAR_PREF_KEY) === 'true',
     sidebarPeek: false,
   });
@@ -910,6 +1000,7 @@ function Dashboard() {
   const creating = activePanel === 'creating';
   const uploading = activePanel === 'uploading';
   const showHistory = activePanel === 'history';
+  const sharing = activePanel === 'sharing';
   const sidebarBeforeWide = useRef<boolean | null>(null);
   const { isActive: isPro } = useSubscription();
 
@@ -952,10 +1043,13 @@ function Dashboard() {
   const selectedPlan = useMemo(() => {
     if (filteredPlans.length === 0) return undefined;
     if (selectedPlanId) {
-      return filteredPlans.find((p) => p.id === selectedPlanId) ?? filteredPlans[0];
+      return (
+        filteredPlans.find((p) => p.id === selectedPlanId) ??
+        (mode === 'local' ? filteredPlans[0] : undefined)
+      );
     }
-    return filteredPlans[0];
-  }, [filteredPlans, selectedPlanId]);
+    return mode === 'local' ? filteredPlans[0] : undefined;
+  }, [filteredPlans, selectedPlanId, mode]);
 
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => setSelectedPlanId(plan?.id ?? null),
@@ -1003,7 +1097,7 @@ function Dashboard() {
 
   return (
     <div
-      className="h-screen grid overflow-hidden"
+      className="h-screen grid overflow-clip"
       style={{
         position: 'relative',
         gridTemplateColumns: `${sidebarWidth}px 1fr`,
@@ -1087,7 +1181,9 @@ function Dashboard() {
         creating={creating}
         editing={editing}
         showHistory={showHistory}
+        sharing={sharing}
         agents={agents}
+        totalPlans={totalPlans}
         selectedPlan={selectedPlan}
         onClose={() => startViewTransition(() => setActivePanel(null))}
         onSaved={handleSaved}
@@ -1100,8 +1196,18 @@ function Dashboard() {
         }}
         onEdit={() => startViewTransition(() => setActivePanel('editing'))}
         onHistory={() => startViewTransition(() => setActivePanel('history'))}
+        onShare={() => setActivePanel('sharing')}
+        onCloseShare={() => setActivePanel(null)}
         onChartWideChange={handleChartWideChange}
         onSwitchLocal={() => setMode('local')}
+        onSearch={() => {
+          window.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }),
+          );
+        }}
+        onRescan={async () => {
+          await refresh();
+        }}
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
@@ -1109,46 +1215,42 @@ function Dashboard() {
   );
 }
 
-function useRoute() {
-  const [path, setPath] = useState(window.location.pathname);
-
-  useEffect(() => {
-    const onPop = () => setPath(window.location.pathname);
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
-
-  return path;
+function CliAuthRoute() {
+  const callback = new URLSearchParams(window.location.search).get('callback');
+  if (!callback) return <Redirect to="/" />;
+  return <CliAuthPage callbackUrl={callback} />;
 }
 
-/**
- * Main entry point of the Pro Cloud application.
- */
-export default function App() {
-  const path = useRoute();
+function HomeRoute() {
   const { isAuthenticated, isLoading, signIn } = useAuth();
   const { needsOnboarding, onboardingLoading } = useSubscription();
 
-  if (path === '/auth/cli') {
-    const params = new URLSearchParams(window.location.search);
-    const callback = params.get('callback');
+  if (hasToken()) return <Dashboard />;
 
-    if (callback) return <CliAuthPage callbackUrl={callback} />;
-  }
-
-  const sharedMatch = path.match(/^\/shared\/([^/]+)/);
-  if (sharedMatch) {
-    return <SharedPlanView token={sharedMatch[1] as string} />;
-  }
-
-  if (!isAuthenticated && !hasToken()) {
+  if (!isAuthenticated) {
     if (isLoading) return null;
-    return <LandingPage onCloudLogin={() => signIn.social({ provider: 'github' })} />;
+    return (
+      <LandingPage onCloudLogin={() => signIn.social({ provider: 'github', callbackURL: '/' })} />
+    );
   }
 
-  if (isAuthenticated && !onboardingLoading && needsOnboarding) {
-    return <WelcomeScreen />;
-  }
+  if (onboardingLoading) return null;
+  if (needsOnboarding) return <Redirect to="/welcome" />;
 
   return <Dashboard />;
+}
+
+export default function App() {
+  return (
+    <Switch>
+      <Route path="/auth/cli" component={CliAuthRoute} />
+      <Route path="/shared/:token">{({ token }) => <SharedPlanView token={token} />}</Route>
+      <Route path="/welcome">
+        <OnboardingRoute>
+          <WelcomeScreen />
+        </OnboardingRoute>
+      </Route>
+      <Route path="/" component={HomeRoute} />
+    </Switch>
+  );
 }

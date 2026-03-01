@@ -1,8 +1,8 @@
+import { Skeleton } from '@agendex/web';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSubscription } from '../hooks/useSubscription';
 import { PricingModal } from './PricingModal';
-import { Skeleton } from '@agendex/app/src/client/components/Skeleton';
 
 export function SubscriptionBadge() {
   const { subscription, isActive, isTrialing, trialDaysLeft, isLoading, createPortal, reactivate } =

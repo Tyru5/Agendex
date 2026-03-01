@@ -1,13 +1,13 @@
+import { Skeleton } from '@agendex/web';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
-import { Skeleton } from '@agendex/app/src/client/components/Skeleton.tsx';
 
 interface CliAuthPageProps {
   callbackUrl: string;
 }
 
 export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
-  const { user, isLoading, isAuthenticated, signIn } = useAuth();
+  const { user, sessionToken, isLoading, isAuthenticated, signIn } = useAuth();
   const [status, setStatus] = useState<'authenticating' | 'redirecting' | 'error'>(
     'authenticating',
   );
@@ -20,36 +20,23 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
       return;
     }
 
+    if (!sessionToken) {
+      setStatus('error');
+      return;
+    }
+
     setStatus('redirecting');
 
     const convexSiteUrl = import.meta.env.VITE_CONVEX_SITE_URL as string;
-
-    fetch(`${convexSiteUrl}/api/auth/get-session`, {
-      method: 'GET',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-    })
-      .then((res) => res.json())
-      .then((data: { session?: { token?: string } }) => {
-        const token = data?.session?.token;
-        if (!token) {
-          setStatus('error');
-          return;
-        }
-
-        const url = new URL(callbackUrl);
-        if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
-          setStatus('error');
-          return;
-        }
-        url.searchParams.set('token', token);
-        url.searchParams.set('convexUrl', convexSiteUrl);
-        window.location.href = url.toString();
-      })
-      .catch(() => {
-        setStatus('error');
-      });
-  }, [isLoading, isAuthenticated, callbackUrl, signIn.social]);
+    const url = new URL(callbackUrl);
+    if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
+      setStatus('error');
+      return;
+    }
+    url.searchParams.set('token', sessionToken);
+    url.searchParams.set('convexUrl', convexSiteUrl);
+    window.location.href = url.toString();
+  }, [isLoading, isAuthenticated, sessionToken, callbackUrl, signIn.social]);
 
   return (
     <div
