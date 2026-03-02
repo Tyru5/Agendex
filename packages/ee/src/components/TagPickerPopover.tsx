@@ -49,21 +49,9 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
   return (
     <div
       ref={ref}
-      style={{
-        position: 'absolute',
-        top: '100%',
-        left: 0,
-        marginTop: '4px',
-        width: '220px',
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: '8px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-        zIndex: 100,
-        overflow: 'hidden',
-      }}
+      className="absolute top-full left-0 mt-1 w-[220px] bg-(--surface) border border-border rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.12)] z-[100] overflow-hidden"
     >
-      <div style={{ padding: '8px' }}>
+      <div className="p-2">
         <input
           type="text"
           value={newName}
@@ -75,34 +63,15 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
             }
           }}
           placeholder="Create or search tags…"
-          style={{
-            width: '100%',
-            padding: '5px 8px',
-            fontSize: '12px',
-            fontFamily: 'inherit',
-            borderRadius: '5px',
-            border: '1px solid var(--border)',
-            background: 'transparent',
-            color: 'var(--text)',
-            outline: 'none',
-            boxSizing: 'border-box',
-          }}
+          className="w-full py-[5px] px-2 text-[12px] font-[inherit] rounded-[5px] border border-border bg-transparent text-text outline-none box-border"
         />
       </div>
 
-      <div
-        style={{
-          maxHeight: '180px',
-          overflowY: 'auto',
-          padding: '0 4px 4px',
-        }}
-      >
+      <div className="max-h-[180px] overflow-y-auto px-1 pb-1 pt-0">
         {allTags === undefined ? (
-          <div style={{ padding: '8px', fontSize: '12px', color: 'var(--tertiary)' }}>Loading…</div>
+          <div className="p-2 text-[12px] text-tertiary">Loading…</div>
         ) : allTags.length === 0 && !newName.trim() ? (
-          <div style={{ padding: '8px', fontSize: '12px', color: 'var(--tertiary)' }}>
-            Type to create your first tag
-          </div>
+          <div className="p-2 text-[12px] text-tertiary">Type to create your first tag</div>
         ) : (
           allTags
             .filter((t: any) => !newName.trim() || t.nameLc.includes(newName.trim().toLowerCase()))
@@ -111,41 +80,14 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
                 key={tag._id}
                 type="button"
                 onClick={() => handleToggle(tag._id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  width: '100%',
-                  padding: '5px 8px',
-                  fontSize: '12.5px',
-                  fontFamily: 'inherit',
-                  fontWeight: 450,
-                  borderRadius: '5px',
-                  border: 'none',
-                  background: assignedIds.has(tag._id) ? 'var(--active)' : 'transparent',
-                  color: 'var(--text)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
+                className="flex items-center gap-2 w-full py-[5px] px-2 text-[12.5px] font-[inherit] font-[450] rounded-[5px] border-none text-text cursor-pointer text-left"
+                style={{ background: assignedIds.has(tag._id) ? 'var(--active)' : 'transparent' }}
               >
                 <span
-                  style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    background: tag.color || 'var(--tertiary)',
-                    flexShrink: 0,
-                  }}
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ background: tag.color || 'var(--tertiary)' }}
                 />
-                <span
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
+                <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
                   {tag.name}
                 </span>
                 {assignedIds.has(tag._id) && (
@@ -159,7 +101,7 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
                     strokeWidth={2.5}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    style={{ flexShrink: 0, color: 'var(--secondary)' }}
+                    className="shrink-0 text-secondary"
                   >
                     <path d="m4.5 12.75 6 6 9-13.5" />
                   </svg>

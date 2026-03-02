@@ -78,7 +78,7 @@ Re-open adapter selection:
 
 ```bash
 bun run dev -- --configure-adapters
-bun run --filter @agendex/app start -- --configure-adapters
+bun run --cwd ./packages/app start -- --configure-adapters
 ```
 
 ## Useful Commands
@@ -88,6 +88,8 @@ From repo root:
 ```bash
 bun run dev                 # run OSS server (@agendex/app)
 bun run dev:client          # run OSS client (Vite)
+bun run dev:client:oss      # run OSS client (explicit)
+bun run dev:client:ee       # run EE client (Vite)
 bun run build               # build OSS client bundle
 bun run build:cloud         # build EE client
 
@@ -151,7 +153,7 @@ When working on `packages/ee`:
 npx convex dev
 
 # terminal 2 (from repo root)
-bun run --filter @agendex/ee dev:client
+bun run dev:client:ee
 ```
 
 The EE Vite client runs on `http://localhost:5174` and proxies `/api` to the OSS server (`http://localhost:4890`).

@@ -39,15 +39,8 @@ function PlanRow({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left block plan-row${selected ? ' plan-row--selected' : ''}`}
-      style={{
-        padding: '10px 8px',
-        borderRadius: '7px',
-        background: selected ? 'var(--active)' : 'transparent',
-        cursor: 'pointer',
-        border: 'none',
-        fontFamily: 'inherit',
-      }}
+      className={`w-full text-left block plan-row${selected ? ' plan-row--selected' : ''} py-2.5 px-2 rounded-[7px] cursor-pointer border-none font-[inherit]`}
+      style={{ background: selected ? 'var(--active)' : 'transparent' }}
     >
       <div
         ref={titleRef}
@@ -55,26 +48,11 @@ function PlanRow({
         style={{ paddingLeft: unseen ? '14px' : undefined }}
       >
         {unseen && (
-          <span
-            className="unseen-dot"
-            style={{
-              position: 'absolute',
-              left: '2px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              background: '#3b82f6',
-            }}
-          />
+          <span className="unseen-dot absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
         )}
         {plan.title}
       </div>
-      <div
-        className="flex items-center gap-1.5"
-        style={{ marginTop: '4px', fontSize: '11.5px', color: 'var(--tertiary)' }}
-      >
+      <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
         <AgentIcon agent={plan.agent} size={11} />
         <span>{getAgentLabel(plan.agent)}</span>
         <span>&middot;</span>
@@ -118,11 +96,7 @@ export function PlanList({
   }, [plans, isPro, isUnseen, selectedId]);
 
   if (plans.length === 0) {
-    return (
-      <div className="p-4" style={{ fontSize: '13px', color: 'var(--tertiary)' }}>
-        No plans found
-      </div>
-    );
+    return <div className="p-4 text-[13px] text-tertiary">No plans found</div>;
   }
 
   function handleClick(plan: Plan) {
@@ -131,43 +105,17 @@ export function PlanList({
   }
 
   return (
-    <div style={{ width: '100%' }}>
+    <div className="w-full">
       {unseenPlans.length > 0 && (
-        <div style={{ marginBottom: '8px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '6px 8px 4px',
-              width: '100%',
-              boxSizing: 'border-box',
-            }}
-          >
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                color: '#3b82f6',
-                letterSpacing: '0.04em',
-                textTransform: 'uppercase',
-              }}
-            >
+        <div className="mb-2">
+          <div className="flex items-center justify-between px-2 pt-1.5 pb-1 w-full">
+            <span className="text-[11px] font-semibold text-[#3b82f6] tracking-[0.04em] uppercase">
               Updated ({unseenPlans.length})
             </span>
             <button
               type="button"
               onClick={() => markAllSeen(unseenPlans)}
-              style={{
-                fontSize: '11px',
-                color: 'var(--tertiary)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
-                fontFamily: 'inherit',
-                whiteSpace: 'nowrap',
-              }}
+              className="text-[11px] text-tertiary bg-none border-none cursor-pointer p-0 font-[inherit] whitespace-nowrap"
             >
               Mark all read
             </button>
@@ -181,13 +129,7 @@ export function PlanList({
               onClick={() => handleClick(plan)}
             />
           ))}
-          <div
-            style={{
-              height: '1px',
-              background: 'var(--border)',
-              margin: '6px 8px',
-            }}
-          />
+          <div className="h-px bg-border mx-2 my-1.5" />
         </div>
       )}
       {restPlans.map((plan) => (

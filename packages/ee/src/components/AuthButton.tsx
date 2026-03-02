@@ -13,16 +13,7 @@ export function AuthButton() {
       <button
         type="button"
         onClick={() => signIn.social({ provider: 'github', callbackURL: '/' })}
-        style={{
-          fontSize: '12px',
-          padding: '4px 10px',
-          borderRadius: '6px',
-          border: '1px solid var(--border)',
-          background: 'var(--surface)',
-          color: 'var(--text)',
-          cursor: 'pointer',
-          fontWeight: 500,
-        }}
+        className="text-[12px] px-2.5 py-1 rounded-[6px] border border-border bg-surface text-text cursor-pointer font-medium"
       >
         Sign in
       </button>
@@ -30,33 +21,14 @@ export function AuthButton() {
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <span
-        style={{
-          fontSize: '12px',
-          color: 'var(--secondary)',
-          fontWeight: 500,
-          maxWidth: '120px',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
+    <div className="flex items-center gap-2">
+      <span className="text-[12px] text-secondary font-medium max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap">
         {user?.name || user?.email}
       </span>
       <button
         type="button"
         onClick={() => signOut()}
-        style={{
-          fontSize: '12px',
-          padding: '4px 10px',
-          borderRadius: '6px',
-          border: '1px solid var(--border)',
-          background: 'transparent',
-          color: 'var(--tertiary)',
-          cursor: 'pointer',
-          fontWeight: 500,
-        }}
+        className="text-[12px] px-2.5 py-1 rounded-[6px] border border-border bg-transparent text-tertiary cursor-pointer font-medium"
       >
         Sign out
       </button>

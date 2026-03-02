@@ -32,13 +32,7 @@ export function AgentSelect({
 
   return (
     <div
-      className="flex items-center min-w-0 max-w-[min(980px,62vw)] overflow-x-auto"
-      style={{
-        border: '1px solid var(--border)',
-        background: 'var(--hover)',
-        borderRadius: '12px',
-        padding: '3px',
-      }}
+      className="flex items-center min-w-0 max-w-[min(980px,62vw)] overflow-x-auto border border-border bg-hover rounded-[12px] p-[3px]"
       role="tablist"
       aria-label="Filter plans by agent"
     >
@@ -51,43 +45,27 @@ export function AgentSelect({
             role="tab"
             aria-selected={active}
             onClick={() => onSelect(tab.value)}
+            className="border-0 rounded-[9px] p-[6px_14px] whitespace-nowrap font-[inherit] cursor-pointer transition-[background,color] duration-[140ms] ease-[ease] flex flex-col items-center gap-[3px] min-w-[96px]"
             style={{
-              border: 'none',
-              borderRadius: '9px',
-              padding: '6px 14px',
-              whiteSpace: 'nowrap',
-              fontFamily: 'inherit',
               color: active ? 'var(--text)' : 'var(--secondary)',
               background: active ? 'var(--surface)' : 'transparent',
-              cursor: 'pointer',
-              transition: 'background 140ms ease, color 140ms ease',
               boxShadow: active ? '0 1px 0 rgba(0,0,0,0.03)' : 'none',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '3px',
-              minWidth: '96px',
             }}
             title={`${tab.label} (${tab.count})`}
           >
             <span
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 text-[12.5px] tracking-[-0.01em] leading-[1.1]"
               style={{
-                fontSize: '12.5px',
                 fontWeight: active ? 600 : 500,
-                letterSpacing: '-0.01em',
-                lineHeight: 1.1,
               }}
             >
               {tab.value ? <AgentIcon agent={tab.value} size={13} /> : <AllAgentsIcon />}
               {tab.label}
             </span>
             <span
+              className="text-[10.5px] leading-[1.1] tabular-nums"
               style={{
-                fontSize: '10.5px',
-                lineHeight: 1.1,
                 color: active ? 'var(--secondary)' : 'var(--tertiary)',
-                fontVariantNumeric: 'tabular-nums',
               }}
             >
               {tab.count} {tab.count === 1 ? 'plan' : 'plans'}
@@ -108,7 +86,7 @@ function AllAgentsIcon() {
       height={13}
       fill="none"
       aria-hidden="true"
-      style={{ flexShrink: 0 }}
+      className="shrink-0"
     >
       <circle cx="12" cy="3.5" r="0.9" fill="currentColor" opacity={0.9} />
       <path d="M12 4.75V6.25" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />

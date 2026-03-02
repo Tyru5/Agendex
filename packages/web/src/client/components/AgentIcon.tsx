@@ -12,16 +12,12 @@ export function AgentIcon({ agent, size = 14 }: { agent: string; size?: number }
     return (
       <span
         aria-hidden="true"
+        className="inline-flex items-center justify-center shrink-0 text-text"
         style={{
           width: dimension,
           height: dimension,
           minWidth: dimension,
           minHeight: dimension,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--text)',
-          flexShrink: 0,
         }}
       >
         <svg
@@ -54,22 +50,15 @@ export function AgentIcon({ agent, size = 14 }: { agent: string; size?: number }
   return (
     <span
       aria-hidden="true"
+      className="inline-flex items-center justify-center shrink-0 rounded-full font-bold tracking-[-0.02em] leading-none"
       style={{
         width: dimension,
         height: dimension,
         minWidth: dimension,
         minHeight: dimension,
-        borderRadius: '999px',
         background,
         color: getContrastTextColor(background),
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         fontSize: `${Math.max(7, Math.floor(size * 0.58))}px`,
-        fontWeight: 700,
-        letterSpacing: '-0.02em',
-        lineHeight: 1,
-        flexShrink: 0,
       }}
     >
       {getAgentGlyph(agent)}

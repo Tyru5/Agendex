@@ -96,25 +96,12 @@ export function PlanCreator({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div
-        className="flex items-center justify-between px-6 py-3 gap-4"
-        style={{ borderBottom: '1px solid var(--border)' }}
-      >
+      <div className="flex items-center justify-between px-6 py-3 gap-4 border-b border-border">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <select
             value={agent}
             onChange={(e) => setAgent(e.target.value)}
-            style={{
-              padding: '5px 8px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text)',
-              cursor: 'pointer',
-            }}
+            className="py-[5px] px-2 text-[12.5px] font-medium font-[inherit] rounded-[7px] border border-border bg-surface text-text cursor-pointer"
           >
             {agents.map((a) => (
               <option key={a.agent} value={a.agent}>
@@ -127,36 +114,15 @@ export function PlanCreator({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Plan title..."
-            style={{
-              flex: 1,
-              padding: '5px 10px',
-              fontSize: '14px',
-              fontWeight: 600,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-              color: 'var(--text)',
-              outline: 'none',
-            }}
+            className="flex-1 py-[5px] px-2.5 text-[14px] font-semibold font-[inherit] rounded-[7px] border border-border bg-transparent text-text outline-none"
           />
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {error && <span style={{ fontSize: '12px', color: '#ef4444' }}>{error}</span>}
+          {error && <span className="text-[12px] text-[#ef4444]">{error}</span>}
           <button
             type="button"
             onClick={onClose}
-            style={{
-              padding: '5px 12px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-              color: 'var(--secondary)',
-              cursor: 'pointer',
-            }}
+            className="py-[5px] px-3 text-[12.5px] font-medium font-[inherit] rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
           >
             Cancel
           </button>
@@ -164,15 +130,8 @@ export function PlanCreator({
             type="button"
             onClick={handleCreate}
             disabled={creating || !title.trim() || !content.trim()}
+            className="py-[5px] px-3 text-[12.5px] font-medium font-[inherit] rounded-[7px] border-none bg-text text-bg"
             style={{
-              padding: '5px 12px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: 'none',
-              background: 'var(--text)',
-              color: 'var(--bg)',
               cursor: creating ? 'default' : 'pointer',
               opacity: creating || !title.trim() || !content.trim() ? 0.5 : 1,
             }}
@@ -183,38 +142,25 @@ export function PlanCreator({
       </div>
 
       {/* Split pane */}
-      <div ref={containerRef} className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
+      <div ref={containerRef} className="flex-1 flex overflow-hidden min-h-0">
         {/* Editor pane */}
         <div
           ref={editorRef}
-          className="overflow-auto"
-          style={{ width: `${splitRatio * 100}%`, minWidth: 0 }}
+          className="overflow-auto min-w-0"
+          style={{ width: `${splitRatio * 100}%` }}
         />
 
         {/* Drag handle */}
         {/* biome-ignore lint/a11y/noStaticElementInteractions: resize drag handle */}
         <div
           onMouseDown={handleMouseDown}
-          style={{
-            width: '5px',
-            cursor: 'col-resize',
-            background: 'var(--border)',
-            flexShrink: 0,
-            transition: 'background 120ms',
-          }}
+          className="w-[5px] cursor-col-resize bg-border shrink-0 transition-[background] duration-[120ms]"
           onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--text)')}
           onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--border)')}
         />
 
         {/* Preview pane */}
-        <div
-          className="overflow-auto"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            padding: '24px 32px',
-          }}
-        >
+        <div className="overflow-auto flex-1 min-w-0 py-6 px-8">
           {content ? (
             <article className="plan-markdown">
               <Markdown
@@ -243,10 +189,7 @@ export function PlanCreator({
               </Markdown>
             </article>
           ) : (
-            <div
-              className="h-full flex items-center justify-center"
-              style={{ fontSize: '13px', color: 'var(--tertiary)' }}
-            >
+            <div className="h-full flex items-center justify-center text-[13px] text-tertiary">
               Start typing to see preview
             </div>
           )}

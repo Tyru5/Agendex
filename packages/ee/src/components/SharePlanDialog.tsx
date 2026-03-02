@@ -52,16 +52,7 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
     <div
       role="dialog"
       aria-modal="true"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0, 0, 0, 0.5)',
-        backdropFilter: 'blur(4px)',
-      }}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[4px]"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -69,128 +60,46 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
         if (e.key === 'Escape') onClose();
       }}
     >
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: '440px',
-          margin: '0 16px',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: '28px 32px',
-        }}
-      >
-        {/* Close button */}
+      <div className="relative w-full max-w-[440px] mx-4 bg-surface border border-border rounded-default py-7 px-8">
         <button
           type="button"
           onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: '14px',
-            right: '14px',
-            width: '28px',
-            height: '28px',
-            borderRadius: '6px',
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--tertiary)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '18px',
-            fontFamily: 'inherit',
-          }}
+          className="absolute top-3.5 right-3.5 w-7 h-7 rounded-[6px] border-none bg-transparent text-tertiary cursor-pointer flex items-center justify-center text-[18px] font-[inherit]"
         >
           ×
         </button>
 
-        <h2
-          style={{
-            fontSize: '15px',
-            fontWeight: 600,
-            color: 'var(--text)',
-            letterSpacing: '-0.02em',
-            marginBottom: '6px',
-          }}
-        >
+        <h2 className="text-[15px] font-semibold text-text tracking-[-0.02em] mb-1.5">
           Share Plan
         </h2>
-        <p
-          style={{
-            fontSize: '12.5px',
-            color: 'var(--tertiary)',
-            marginBottom: '20px',
-            lineHeight: 1.5,
-          }}
-        >
+        <p className="text-[12.5px] text-tertiary mb-5 leading-[1.5]">
           Create an unlisted link anyone can use to view this plan.
         </p>
 
-        {/* Share links list */}
         {hasLinks && (
-          <div style={{ marginBottom: '16px' }}>
+          <div className="mb-4">
             {shareLinks.map((link: { _id: string; token: string }) => {
               const url = `${appUrl}/shared/${link.token}`;
               return (
                 <div
                   key={link._id}
-                  className="flex items-center gap-2"
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: '7px',
-                    border: '1px solid var(--border)',
-                    marginBottom: '8px',
-                    background: 'var(--bg)',
-                  }}
+                  className="flex items-center gap-2 py-2 px-2.5 rounded-[7px] border border-border mb-2 bg-bg"
                 >
-                  <span
-                    style={{
-                      flex: 1,
-                      fontSize: '12px',
-                      color: 'var(--secondary)',
-                      fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
+                  <span className="flex-1 text-[12px] text-secondary font-['SF_Mono','JetBrains_Mono',monospace] overflow-hidden text-ellipsis whitespace-nowrap">
                     {url}
                   </span>
                   <button
                     type="button"
                     onClick={() => handleCopy(link.token)}
-                    style={{
-                      padding: '3px 10px',
-                      fontSize: '11.5px',
-                      fontWeight: 500,
-                      fontFamily: 'inherit',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      background: 'transparent',
-                      color: copiedToken === link.token ? '#16a34a' : 'var(--secondary)',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
+                    className="py-[3px] px-2.5 text-[11.5px] font-medium font-[inherit] rounded-[6px] border border-border bg-transparent cursor-pointer whitespace-nowrap"
+                    style={{ color: copiedToken === link.token ? '#16a34a' : 'var(--secondary)' }}
                   >
                     {copiedToken === link.token ? 'Copied' : 'Copy'}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleRevoke(link._id)}
-                    style={{
-                      padding: '3px 10px',
-                      fontSize: '11.5px',
-                      fontWeight: 500,
-                      fontFamily: 'inherit',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      background: 'transparent',
-                      color: '#ef4444',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
+                    className="py-[3px] px-2.5 text-[11.5px] font-medium font-[inherit] rounded-[6px] border border-border bg-transparent text-[#ef4444] cursor-pointer whitespace-nowrap"
                   >
                     Revoke
                   </button>
@@ -200,21 +109,12 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
           </div>
         )}
 
-        {/* Publish & Share button */}
         <button
           type="button"
           onClick={handlePublishAndShare}
           disabled={publishing}
+          className="w-full py-2 px-4 text-[13px] font-[550] font-[inherit] rounded-lg border-none bg-text text-bg"
           style={{
-            width: '100%',
-            padding: '8px 16px',
-            fontSize: '13px',
-            fontWeight: 550,
-            fontFamily: 'inherit',
-            borderRadius: '8px',
-            border: 'none',
-            background: 'var(--text)',
-            color: 'var(--bg)',
             cursor: publishing ? 'not-allowed' : 'pointer',
             opacity: publishing ? 0.6 : 1,
           }}

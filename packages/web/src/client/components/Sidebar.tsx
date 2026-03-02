@@ -47,7 +47,7 @@ export function Sidebar({
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: hover-reveal sidebar container
     <div
-      className="flex flex-col overflow-hidden"
+      className="flex flex-col overflow-hidden bg-surface min-w-0 origin-top-left"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={{
@@ -60,15 +60,12 @@ export function Sidebar({
         width: `${SIDEBAR_EXPANDED_WIDTH}px`,
         zIndex: sidebarHidden ? 45 : undefined,
         borderRight: sidebarVisible ? '1px solid var(--border)' : 'none',
-        background: 'var(--surface)',
-        minWidth: 0,
         opacity: sidebarHidden ? (sidebarPeekOpen ? 1 : 0) : 1,
         transform: sidebarHidden
           ? sidebarPeekOpen
             ? 'scale(1) translateY(0)'
             : 'scale(0.96) translateY(8px)'
           : 'none',
-        transformOrigin: 'top left',
         willChange: sidebarPeekOpen ? 'transform, opacity' : undefined,
         pointerEvents: sidebarVisible ? 'auto' : 'none',
         boxShadow: sidebarPeekOpen ? '0 18px 40px rgba(0,0,0,0.20)' : 'none',
@@ -95,9 +92,7 @@ export function Sidebar({
             <SkeletonBlock lines={5} />
           </div>
         ) : error ? (
-          <div className="p-4" style={{ fontSize: '13px', color: '#ef4444' }}>
-            Failed to load plans.
-          </div>
+          <div className="p-4 text-[13px] text-[#ef4444]">Failed to load plans.</div>
         ) : (
           <PlanList
             plans={filteredPlans}

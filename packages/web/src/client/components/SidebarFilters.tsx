@@ -4,15 +4,10 @@ import { AgentFilter } from './AgentFilter.tsx';
 type SortBy = 'updatedAt' | 'createdAt' | 'title';
 type DateBucket = 'all' | 'today' | '7d' | '30d';
 
-const labelStyle = {
-  fontSize: '11px',
-  fontWeight: 550,
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.06em',
-  color: 'var(--tertiary)',
-  padding: '0 8px',
-  marginBottom: '4px',
-};
+const labelClass = 'text-[11px] font-[550] uppercase tracking-[0.06em] text-tertiary px-2 mb-1';
+
+const selectClass =
+  'w-full p-[5px_8px] rounded-[7px] border border-border bg-surface text-text text-[12.5px] font-[inherit] font-[450] cursor-pointer outline-none';
 
 export function SidebarFilters({
   sortBy,
@@ -46,23 +41,11 @@ export function SidebarFilters({
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <div style={labelStyle}>Sort by</div>
+        <div className={labelClass}>Sort by</div>
         <select
           value={sortBy}
           onChange={(e) => onSortChange(e.target.value as SortBy)}
-          style={{
-            width: '100%',
-            padding: '5px 8px',
-            borderRadius: '7px',
-            border: '1px solid var(--border)',
-            background: 'var(--surface)',
-            color: 'var(--text)',
-            fontSize: '12.5px',
-            fontFamily: 'inherit',
-            fontWeight: 450,
-            cursor: 'pointer',
-            outline: 'none',
-          }}
+          className={selectClass}
         >
           <option value="updatedAt">Last modified</option>
           <option value="createdAt">Date created</option>
@@ -71,8 +54,8 @@ export function SidebarFilters({
       </div>
 
       <div>
-        <div style={labelStyle}>Date range</div>
-        <div className="flex gap-1" style={{ padding: '0 4px' }}>
+        <div className={labelClass}>Date range</div>
+        <div className="flex gap-1 px-1">
           {(
             [
               ['all', 'All'],
@@ -85,17 +68,11 @@ export function SidebarFilters({
               type="button"
               key={value}
               onClick={() => onDateBucketChange(value)}
+              className="flex-1 py-1 rounded-[6px] border-0 text-[11.5px] font-[inherit] cursor-pointer"
               style={{
-                flex: 1,
-                padding: '4px 0',
-                borderRadius: '6px',
-                border: 'none',
                 background: dateBucket === value ? 'var(--active)' : 'transparent',
                 color: dateBucket === value ? 'var(--text)' : 'var(--secondary)',
-                fontSize: '11.5px',
-                fontFamily: 'inherit',
                 fontWeight: dateBucket === value ? 550 : 450,
-                cursor: 'pointer',
               }}
             >
               {label}
@@ -108,12 +85,10 @@ export function SidebarFilters({
 
       {tags && onTagSelect && (
         <div>
-          <div style={labelStyle}>Tags</div>
-          <div className="flex flex-col gap-0.5" style={{ padding: '0 4px' }}>
+          <div className={labelClass}>Tags</div>
+          <div className="flex flex-col gap-0.5 px-1">
             {tags.length === 0 ? (
-              <div style={{ fontSize: '11.5px', color: 'var(--tertiary)', padding: '2px 4px' }}>
-                No tags
-              </div>
+              <div className="text-[11.5px] text-tertiary p-[2px_4px]">No tags</div>
             ) : (
               tags.map((tag) => {
                 const active = selectedTags?.includes(tag._id) ?? false;
@@ -127,35 +102,18 @@ export function SidebarFilters({
                         active ? current.filter((id) => id !== tag._id) : [...current, tag._id],
                       );
                     }}
+                    className="flex items-center gap-[6px] w-full p-1 rounded-[5px] border-0 font-[inherit] text-[11.5px] cursor-pointer text-left"
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      width: '100%',
-                      padding: '4px 4px',
-                      borderRadius: '5px',
-                      border: 'none',
                       background: active ? 'var(--active)' : 'transparent',
                       color: active ? 'var(--text)' : 'var(--secondary)',
-                      fontSize: '11.5px',
-                      fontFamily: 'inherit',
                       fontWeight: active ? 550 : 450,
-                      cursor: 'pointer',
-                      textAlign: 'left',
                     }}
                   >
                     <span
-                      style={{
-                        width: '7px',
-                        height: '7px',
-                        borderRadius: '50%',
-                        background: tag.color || 'var(--tertiary)',
-                        flexShrink: 0,
-                      }}
+                      className="w-[7px] h-[7px] rounded-full shrink-0"
+                      style={{ background: tag.color || 'var(--tertiary)' }}
                     />
-                    <span
-                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                    >
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
                       {tag.name}
                     </span>
                   </button>
@@ -168,23 +126,11 @@ export function SidebarFilters({
 
       {collections && onCollectionSelect && (
         <div>
-          <div style={labelStyle}>Collection</div>
+          <div className={labelClass}>Collection</div>
           <select
             value={selectedCollection ?? ''}
             onChange={(e) => onCollectionSelect(e.target.value || undefined)}
-            style={{
-              width: '100%',
-              padding: '5px 8px',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text)',
-              fontSize: '12.5px',
-              fontFamily: 'inherit',
-              fontWeight: 450,
-              cursor: 'pointer',
-              outline: 'none',
-            }}
+            className={selectClass}
           >
             <option value="">All plans</option>
             {collections.map((col) => (

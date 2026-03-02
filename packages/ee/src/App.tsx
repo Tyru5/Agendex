@@ -82,7 +82,7 @@ function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
       viewBox="0 0 24 24"
       strokeWidth={2.2}
       stroke="currentColor"
-      style={{ width: '14px', height: '14px', opacity: 0.9 }}
+      className="size-3.5 opacity-90"
     >
       {hidden ? (
         <path strokeLinecap="round" strokeLinejoin="round" d="m9.5 6.5 5 5.5-5 5.5" />
@@ -323,70 +323,39 @@ function DashboardTopbar({
 }) {
   return (
     <div
-      className="grid items-center min-w-0"
+      className="grid items-center min-w-0 col-span-full gap-x-3 border-b border-border bg-surface z-50 box-border"
       style={{
-        gridColumn: '1 / -1',
         height: `${TOPBAR_HEIGHT}px`,
-        columnGap: '12px',
         gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
-        boxSizing: 'border-box',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--surface)',
-        zIndex: 50,
       }}
     >
       <div
-        className="flex items-center gap-3 min-w-0 h-full overflow-hidden"
+        className="flex items-center gap-3 min-w-0 h-full overflow-hidden box-border pl-4"
         style={{
-          boxSizing: 'border-box',
-          paddingLeft: '16px',
           width: sidebarPinnedOpen ? `${SIDEBAR_EXPANDED_WIDTH}px` : undefined,
           flex: sidebarPinnedOpen ? '0 0 auto' : '1 1 auto',
           paddingRight: sidebarPinnedOpen ? '12px' : undefined,
           borderRight: sidebarPinnedOpen ? '1px solid var(--border)' : 'none',
         }}
       >
-        <div className="shrink-0" style={{ position: 'relative' }}>
+        <div className="shrink-0 relative">
           <button
             type="button"
             onClick={onToggleSidebar}
             aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
             title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+            className="size-[30px] rounded-lg border border-border text-text cursor-pointer flex items-center justify-center"
             style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
               background: sidebarHidden ? 'var(--hover)' : 'transparent',
-              color: 'var(--text)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
             }}
           >
             <SidebarToggleIcon hidden={sidebarHidden} />
           </button>
           {sidebarHidden && isPro && hasUnseenPlans && (
-            <span
-              className="sidebar-dot"
-              style={{
-                position: 'absolute',
-                top: '-2px',
-                right: '-2px',
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                background: '#3b82f6',
-                pointerEvents: 'none',
-              }}
-            />
+            <span className="sidebar-dot absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-blue-500 pointer-events-none" />
           )}
         </div>
-        <span
-          className="font-semibold text-sm"
-          style={{ letterSpacing: '-0.02em', color: 'var(--text)', whiteSpace: 'nowrap' }}
-        >
+        <span className="font-semibold text-sm tracking-tight text-text whitespace-nowrap">
           Agendex
         </span>
         {mode === 'local' && backendStatus === 'online' && (
@@ -396,19 +365,7 @@ function DashboardTopbar({
               onClick={onNewPlan}
               aria-label="Create new plan"
               title="Create new plan"
-              style={{
-                marginLeft: '8px',
-                width: '28px',
-                height: '28px',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className="ml-2 size-7 rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer flex items-center justify-center"
             >
               <svg
                 aria-hidden="true"
@@ -417,7 +374,7 @@ function DashboardTopbar({
                 viewBox="0 0 24 24"
                 strokeWidth={1.8}
                 stroke="currentColor"
-                style={{ width: '15px', height: '15px' }}
+                className="size-[15px]"
               >
                 <path
                   strokeLinecap="round"
@@ -431,18 +388,7 @@ function DashboardTopbar({
               onClick={onUpload}
               aria-label="Upload plan"
               title="Upload plan"
-              style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className="size-7 rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer flex items-center justify-center"
             >
               <svg
                 aria-hidden="true"
@@ -451,7 +397,7 @@ function DashboardTopbar({
                 viewBox="0 0 24 24"
                 strokeWidth={1.8}
                 stroke="currentColor"
-                style={{ width: '15px', height: '15px' }}
+                className="size-[15px]"
               >
                 <path
                   strokeLinecap="round"
@@ -475,84 +421,48 @@ function DashboardTopbar({
         />
       </div>
 
-      <div
-        className="flex items-center justify-end gap-3 min-w-0 justify-self-end"
-        style={{ paddingRight: '16px' }}
-      >
+      <div className="flex items-center justify-end gap-3 min-w-0 justify-self-end pr-4">
         <ThemeToggle />
         <SubscriptionBadge />
         <AuthButton />
-        <div
-          className="hidden lg:block"
-          style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-        />
+        <div className="hidden lg:block w-px h-[18px] bg-border" />
         {mode === 'cloud' && totalPlans === 0 ? (
-          <span className="hidden lg:inline" style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
-            Syncing...
-          </span>
+          <span className="hidden lg:inline text-xs text-tertiary">Syncing...</span>
         ) : (
           <>
-            <span
-              className="hidden lg:inline"
-              style={{ fontSize: '12px', color: 'var(--tertiary)' }}
-            >
-              <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{totalPlans}</strong>{' '}
+            <span className="hidden lg:inline text-xs text-tertiary">
+              <strong className="text-secondary" style={{ fontWeight: 550 }}>
+                {totalPlans}
+              </strong>{' '}
               plans
             </span>
-            <div
-              className="hidden lg:block"
-              style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-            />
-            <span
-              className="hidden lg:inline"
-              style={{ fontSize: '12px', color: 'var(--tertiary)' }}
-            >
-              <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{activeAgents}</strong>{' '}
+            <div className="hidden lg:block w-px h-[18px] bg-border" />
+            <span className="hidden lg:inline text-xs text-tertiary">
+              <strong className="text-secondary" style={{ fontWeight: 550 }}>
+                {activeAgents}
+              </strong>{' '}
               agents
             </span>
           </>
         )}
-        <div
-          className="hidden lg:block"
-          style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-        />
+        <div className="hidden lg:block w-px h-[18px] bg-border" />
         <div className="hidden lg:flex items-center gap-1.5">
           <button
             type="button"
             onClick={onToggleMode}
-            style={{
-              fontSize: '11px',
-              fontWeight: 550,
-              padding: '2px 8px',
-              borderRadius: '4px',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-              color: 'var(--secondary)',
-              cursor: 'pointer',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-            }}
+            className="text-[11px] py-0.5 px-2 rounded border border-border bg-transparent text-secondary cursor-pointer uppercase tracking-wide"
+            style={{ fontWeight: 550 }}
           >
             {mode}
           </button>
         </div>
-        <div
-          className="hidden lg:block"
-          style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-        />
+        <div className="hidden lg:block w-px h-[18px] bg-border" />
         <div className="hidden lg:flex items-center gap-1.5">
           <div
-            className="rounded-full status-pulse"
-            style={{
-              width: '6px',
-              height: '6px',
-              background: backendIndicator.color,
-              boxShadow: '0 0 0 2px var(--surface)',
-            }}
+            className="rounded-full status-pulse size-1.5 shadow-[0_0_0_2px_var(--surface)]"
+            style={{ background: backendIndicator.color }}
           />
-          <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
-            {backendIndicator.label}
-          </span>
+          <span className="text-xs text-tertiary">{backendIndicator.label}</span>
         </div>
       </div>
     </div>
@@ -608,13 +518,8 @@ function DashboardMain({
 }) {
   return (
     <div
-      className="overflow-auto main-scroll"
-      style={{
-        gridColumn: '2 / 3',
-        gridRow: '2 / 3',
-        background: 'var(--bg)',
-        viewTransitionName: 'main-content',
-      }}
+      className="overflow-auto main-scroll col-start-2 row-start-2 bg-bg"
+      style={{ viewTransitionName: 'main-content' }}
     >
       {mode === 'cloud' && !isPro ? (
         <CloudUpgrade onSwitchLocal={onSwitchLocal} />
@@ -751,12 +656,10 @@ function DashboardSidebar({
 }) {
   return (
     <div
-      className="flex flex-col overflow-hidden"
+      className="flex flex-col overflow-hidden col-start-1 row-start-2 bg-surface min-w-0 origin-top-left"
       onMouseEnter={onRevealHover}
       onMouseLeave={onScheduleClose}
       style={{
-        gridColumn: '1 / 2',
-        gridRow: '2 / 3',
         position: sidebarHidden ? 'absolute' : 'relative',
         top: sidebarHidden ? 0 : undefined,
         left: sidebarHidden ? 0 : undefined,
@@ -764,15 +667,12 @@ function DashboardSidebar({
         width: `${SIDEBAR_EXPANDED_WIDTH}px`,
         zIndex: sidebarHidden ? 45 : undefined,
         borderRight: sidebarVisible ? '1px solid var(--border)' : 'none',
-        background: 'var(--surface)',
-        minWidth: 0,
         opacity: sidebarHidden ? (sidebarPeekOpen ? 1 : 0) : 1,
         transform: sidebarHidden
           ? sidebarPeekOpen
             ? 'scale(1) translateY(0)'
             : 'scale(0.96) translateY(8px)'
           : 'none',
-        transformOrigin: 'top left',
         pointerEvents: sidebarVisible ? 'auto' : 'none',
         boxShadow: sidebarPeekOpen ? '0 18px 40px rgba(0,0,0,0.20)' : 'none',
         transition: sidebarHidden
@@ -782,47 +682,21 @@ function DashboardSidebar({
     >
       <div className="px-3 pt-3 pb-2">
         {mode === 'local' && backendStatus === 'online' && (
-          <div className="flex gap-1.5" style={{ marginBottom: '8px' }}>
+          <div className="flex gap-1.5 mb-2">
             <button
               type="button"
               onClick={onNewPlan}
-              style={{
-                flex: 1,
-                padding: '6px 10px',
-                fontSize: '12.5px',
-                fontWeight: 550,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--text)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '5px',
-              }}
+              className="flex-1 py-1.5 px-2.5 text-[12.5px] font-inherit rounded-[7px] border border-border bg-transparent text-text cursor-pointer flex items-center justify-center gap-[5px]"
+              style={{ fontWeight: 550 }}
             >
-              <span style={{ fontSize: '15px', lineHeight: 1 }}>+</span> New
+              <span className="text-[15px] leading-none">+</span> New
             </button>
             <button
               type="button"
               onClick={onUpload}
               aria-label="Upload plan"
               title="Upload plan"
-              style={{
-                padding: '6px 10px',
-                fontSize: '12.5px',
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+              className="py-1.5 px-2.5 text-[12.5px] font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer flex items-center justify-center"
             >
               <svg
                 aria-hidden="true"
@@ -831,7 +705,7 @@ function DashboardSidebar({
                 viewBox="0 0 24 24"
                 strokeWidth={2}
                 stroke="currentColor"
-                style={{ width: '14px', height: '14px' }}
+                className="size-3.5"
               >
                 <path
                   strokeLinecap="round"
@@ -865,16 +739,9 @@ function DashboardSidebar({
             <SkeletonBlock lines={5} />
           </div>
         ) : error ? (
-          <div className="p-4" style={{ fontSize: '13px', color: '#ef4444' }}>
-            Failed to load plans.
-          </div>
+          <div className="p-4 text-[13px] text-red-500">Failed to load plans.</div>
         ) : mode === 'cloud' && filteredPlans.length === 0 ? (
-          <div
-            className="p-4"
-            style={{ fontSize: '12.5px', color: 'var(--tertiary)', textAlign: 'center' }}
-          >
-            Syncing plans...
-          </div>
+          <div className="p-4 text-[12.5px] text-tertiary text-center">Syncing plans...</div>
         ) : (
           <PlanList
             plans={filteredPlans}
@@ -1097,12 +964,10 @@ function Dashboard() {
 
   return (
     <div
-      className="h-screen grid overflow-clip"
+      className="h-screen grid overflow-clip relative transition-[grid-template-columns] duration-[180ms] ease-in-out"
       style={{
-        position: 'relative',
         gridTemplateColumns: `${sidebarWidth}px 1fr`,
         gridTemplateRows: `${TOPBAR_HEIGHT}px 1fr`,
-        transition: 'grid-template-columns 180ms ease',
       }}
     >
       <DashboardTopbar
@@ -1128,15 +993,13 @@ function Dashboard() {
 
       {sidebarHidden && (
         <div
+          className="absolute left-0 z-40"
           onMouseEnter={peek.reveal}
           onMouseLeave={peek.scheduleClose}
           style={{
-            position: 'absolute',
-            left: 0,
             top: `${TOPBAR_HEIGHT}px`,
             height: `calc(100% - ${TOPBAR_HEIGHT}px)`,
             width: `${SIDEBAR_HOVER_ZONE_WIDTH}px`,
-            zIndex: 40,
           }}
           aria-hidden="true"
         />

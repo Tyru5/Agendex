@@ -177,7 +177,7 @@ export function PlanUploader({
               accept=".md"
               multiple
               onChange={handleInputChange}
-              style={{ display: 'none' }}
+              className="hidden"
             />
           </div>
 
@@ -204,7 +204,7 @@ export function PlanUploader({
               viewBox="0 0 24 24"
               strokeWidth={1.6}
               stroke="currentColor"
-              style={{ width: '13px', height: '13px', flexShrink: 0 }}
+              className="w-[13px] h-[13px] shrink-0"
             >
               <path
                 strokeLinecap="round"
@@ -233,7 +233,7 @@ export function PlanUploader({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {error && <span style={{ fontSize: '12px', color: '#ef4444' }}>{error}</span>}
+          {error && <span className="text-xs text-[#ef4444]">{error}</span>}
           <button
             type="button"
             onClick={() => {
@@ -264,7 +264,7 @@ export function PlanUploader({
       </div>
 
       {/* Body: file list + preview */}
-      <div className="flex flex-1 overflow-hidden" style={{ minHeight: 0 }}>
+      <div className="flex flex-1 overflow-hidden min-h-0">
         {/* File list */}
         <div className="upload-file-list">
           {files.map((f, i) => {
@@ -281,7 +281,7 @@ export function PlanUploader({
                   if (e.key === 'Enter' || e.key === ' ') setPreviewIdx(i);
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="flex-1 min-w-0">
                   <input
                     type="text"
                     value={f.title}
@@ -311,7 +311,7 @@ export function PlanUploader({
                       viewBox="0 0 24 24"
                       strokeWidth={2}
                       stroke="currentColor"
-                      style={{ width: '12px', height: '12px' }}
+                      className="w-3 h-3"
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                     </svg>
@@ -323,7 +323,7 @@ export function PlanUploader({
         </div>
 
         {/* Preview */}
-        <div className="flex-1 overflow-auto" style={{ padding: '24px 32px' }}>
+        <div className="flex-1 overflow-auto px-8 py-6">
           {previewFile ? (
             <article className="plan-markdown">
               <Markdown
@@ -352,10 +352,7 @@ export function PlanUploader({
               </Markdown>
             </article>
           ) : (
-            <div
-              className="h-full flex items-center justify-center"
-              style={{ fontSize: '13px', color: 'var(--tertiary)' }}
-            >
+            <div className="h-full flex items-center justify-center text-[13px] text-tertiary">
               Select a file to preview
             </div>
           )}

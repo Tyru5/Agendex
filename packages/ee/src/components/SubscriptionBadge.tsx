@@ -28,54 +28,30 @@ export function SubscriptionBadge() {
   if (isTrialing) {
     return (
       <>
-        <div style={{ position: 'relative' }}>
+        <div className="relative">
           <button
             type="button"
             onClick={() => setShowMenu(!showMenu)}
+            className="py-2 px-3 rounded-default font-semibold text-[13px] cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
             style={{
               background:
                 'linear-gradient(135deg, rgba(200, 255, 50, 0.12), rgba(200, 255, 50, 0.06))',
               color: '#c8ff32',
               border: '1px solid rgba(200, 255, 50, 0.2)',
-              padding: '8px 12px',
-              borderRadius: 'var(--radius)',
-              fontWeight: 600,
-              fontSize: '13px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              whiteSpace: 'nowrap',
             }}
           >
             Trial · {trialDaysLeft}d left
-            <span style={{ fontSize: '11px', opacity: 0.7 }}>▼</span>
+            <span className="text-[11px] opacity-70">▼</span>
           </button>
 
           {showMenu && (
             <div
               ref={menuRef}
-              style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: '4px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                minWidth: '220px',
-                zIndex: 1000,
-              }}
+              className="absolute top-full right-0 mt-1 bg-surface border border-border rounded-default min-w-[220px] z-[1000]"
             >
-              <div
-                style={{
-                  padding: '12px 16px',
-                  borderBottom: '1px solid var(--border)',
-                  fontSize: '13px',
-                }}
-              >
-                <div style={{ color: 'var(--secondary)', marginBottom: '4px' }}>Free trial</div>
-                <div style={{ color: 'var(--text)', fontWeight: 600 }}>
+              <div className="py-3 px-4 border-b border-border text-[13px]">
+                <div className="text-secondary mb-1">Free trial</div>
+                <div className="text-text font-semibold">
                   {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''} remaining
                 </div>
               </div>
@@ -86,18 +62,7 @@ export function SubscriptionBadge() {
                   setShowMenu(false);
                   setShowPricing(true);
                 }}
-                style={{
-                  width: '100%',
-                  padding: '10px 16px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#c8ff32',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  transition: 'background 200ms',
-                }}
+                className="w-full py-2.5 px-4 border-none bg-transparent text-[#c8ff32] text-left cursor-pointer text-[14px] font-semibold transition-[background] duration-200"
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.background = 'var(--hover)';
                 }}
@@ -124,65 +89,32 @@ export function SubscriptionBadge() {
     });
 
     return (
-      <div style={{ position: 'relative' }}>
+      <div className="relative">
         <button
           type="button"
           onClick={() => setShowMenu(!showMenu)}
-          style={{
-            background: 'var(--primary)',
-            color: 'white',
-            border: 'none',
-            padding: '8px 12px',
-            borderRadius: 'var(--radius)',
-            fontWeight: 600,
-            fontSize: '14px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
+          className="border-none py-2 px-3 rounded-default font-semibold text-[14px] cursor-pointer flex items-center gap-1.5 text-white"
+          style={{ background: 'var(--primary)' }}
         >
           Pro
-          <span style={{ fontSize: '12px' }}>▼</span>
+          <span className="text-[12px]">▼</span>
         </button>
 
         {showMenu && (
           <div
             ref={menuRef}
-            style={{
-              position: 'absolute',
-              top: '100%',
-              right: 0,
-              marginTop: '4px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              minWidth: '200px',
-              zIndex: 1000,
-            }}
+            className="absolute top-full right-0 mt-1 bg-surface border border-border rounded-default min-w-[200px] z-[1000]"
           >
-            <div
-              style={{
-                padding: '12px 16px',
-                borderBottom: '1px solid var(--border)',
-                fontSize: '13px',
-              }}
-            >
+            <div className="py-3 px-4 border-b border-border text-[13px]">
               {cancelAtPeriodEnd ? (
                 <div>
-                  <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                    Canceling
-                  </div>
-                  <div style={{ color: 'var(--text)', fontWeight: 600 }}>
-                    Active until {endDate}
-                  </div>
+                  <div className="text-(--text-secondary) mb-1">Canceling</div>
+                  <div className="text-text font-semibold">Active until {endDate}</div>
                 </div>
               ) : (
                 <div>
-                  <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                    Renews {endDate}
-                  </div>
-                  <div style={{ color: 'var(--text)', fontWeight: 600 }}>
+                  <div className="text-(--text-secondary) mb-1">Renews {endDate}</div>
+                  <div className="text-text font-semibold">
                     {subscription.plan === 'monthly' ? 'Monthly' : 'Annual'}
                   </div>
                 </div>
@@ -195,17 +127,7 @@ export function SubscriptionBadge() {
                 setShowMenu(false);
                 await createPortal();
               }}
-              style={{
-                width: '100%',
-                padding: '10px 16px',
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--text)',
-                textAlign: 'left',
-                cursor: 'pointer',
-                fontSize: '14px',
-                transition: 'background 200ms',
-              }}
+              className="w-full py-2.5 px-4 border-none bg-transparent text-text text-left cursor-pointer text-[14px] transition-[background] duration-200"
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLButtonElement).style.background = 'var(--hover)';
               }}
@@ -223,19 +145,8 @@ export function SubscriptionBadge() {
                   setShowMenu(false);
                   await reactivate();
                 }}
-                style={{
-                  width: '100%',
-                  padding: '10px 16px',
-                  border: 'none',
-                  borderTop: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--primary)',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  transition: 'background 200ms',
-                }}
+                className="w-full py-2.5 px-4 border-none border-t border-border bg-transparent text-left cursor-pointer text-[14px] font-semibold transition-[background] duration-200"
+                style={{ color: 'var(--primary)' }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.background = 'var(--hover)';
                 }}
@@ -257,15 +168,7 @@ export function SubscriptionBadge() {
       <button
         type="button"
         onClick={() => setShowPricing(true)}
-        style={{
-          background: 'var(--border)',
-          color: 'var(--text)',
-          border: 'none',
-          padding: '8px 12px',
-          borderRadius: 'var(--radius)',
-          fontSize: '14px',
-          cursor: 'pointer',
-        }}
+        className="bg-border text-text border-none py-2 px-3 rounded-default text-[14px] cursor-pointer"
       >
         Upgrade to Pro
       </button>

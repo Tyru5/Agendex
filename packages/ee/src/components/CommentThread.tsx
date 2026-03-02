@@ -55,70 +55,33 @@ export function CommentThread({
   }
 
   return (
-    <div style={{ marginTop: '40px' }}>
-      <h3
-        style={{
-          fontSize: '13px',
-          fontWeight: 600,
-          color: 'var(--text)',
-          letterSpacing: '-0.01em',
-          marginBottom: '16px',
-        }}
-      >
+    <div className="mt-10">
+      <h3 className="text-[13px] font-semibold text-text tracking-[-0.01em] mb-4">
         Comments
         {comments && comments.length > 0 && (
-          <span
-            style={{
-              marginLeft: '6px',
-              fontSize: '11.5px',
-              fontWeight: 450,
-              color: 'var(--tertiary)',
-            }}
-          >
-            ({comments.length})
-          </span>
+          <span className="ml-1.5 text-[11.5px] font-[450] text-tertiary">({comments.length})</span>
         )}
       </h3>
 
       {/* Comment input */}
       {isAuthenticated ? (
-        <div style={{ marginBottom: '20px' }}>
+        <div className="mb-5">
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Add a comment…"
             rows={3}
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              fontSize: '13px',
-              fontFamily: 'inherit',
-              lineHeight: 1.5,
-              color: 'var(--text)',
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: '8px',
-              resize: 'vertical',
-              outline: 'none',
-              boxSizing: 'border-box',
-            }}
+            className="w-full py-2.5 px-3 text-[13px] font-[inherit] leading-[1.5] text-text bg-transparent border border-border rounded-lg resize-y outline-none box-border"
           />
-          <div className="flex items-center justify-between" style={{ marginTop: '8px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--tertiary)' }}>⌘+Enter to post</span>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-[11px] text-tertiary">⌘+Enter to post</span>
             <button
               type="button"
               onClick={handlePost}
               disabled={posting || !body.trim()}
+              className="py-[5px] px-3.5 text-[12.5px] font-[550] font-[inherit] rounded-[7px] border-none bg-text text-bg"
               style={{
-                padding: '5px 14px',
-                fontSize: '12.5px',
-                fontWeight: 550,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: 'none',
-                background: 'var(--text)',
-                color: 'var(--bg)',
                 cursor: posting || !body.trim() ? 'not-allowed' : 'pointer',
                 opacity: posting || !body.trim() ? 0.5 : 1,
               }}
@@ -128,30 +91,12 @@ export function CommentThread({
           </div>
         </div>
       ) : (
-        <div
-          className="flex items-center gap-3"
-          style={{
-            padding: '12px 14px',
-            borderRadius: '8px',
-            border: '1px solid var(--border)',
-            marginBottom: '20px',
-          }}
-        >
-          <span style={{ fontSize: '12.5px', color: 'var(--tertiary)' }}>Sign in to comment</span>
+        <div className="flex items-center gap-3 py-3 px-3.5 rounded-lg border border-border mb-5">
+          <span className="text-[12.5px] text-tertiary">Sign in to comment</span>
           <button
             type="button"
             onClick={() => signIn.social({ provider: 'github', callbackURL: '/' })}
-            style={{
-              padding: '4px 12px',
-              fontSize: '12px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '6px',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-              color: 'var(--secondary)',
-              cursor: 'pointer',
-            }}
+            className="py-1 px-3 text-[12px] font-medium font-[inherit] rounded-[6px] border border-border bg-transparent text-secondary cursor-pointer"
           >
             Sign in
           </button>
@@ -162,7 +107,7 @@ export function CommentThread({
       {comments === undefined ? (
         <SkeletonBlock lines={2} />
       ) : comments.length === 0 ? (
-        <div style={{ fontSize: '12.5px', color: 'var(--tertiary)' }}>No comments yet.</div>
+        <div className="text-[12.5px] text-tertiary">No comments yet.</div>
       ) : (
         <div>
           {comments.map(
@@ -174,55 +119,22 @@ export function CommentThread({
               body: string;
               createdAt: number;
             }) => (
-              <div
-                key={comment._id}
-                style={{
-                  padding: '12px 0',
-                  borderTop: '1px solid var(--border)',
-                }}
-              >
+              <div key={comment._id} className="py-3 border-t border-border">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
+                  <div className="flex items-center gap-2 min-w-0">
                     {comment.authorAvatar ? (
                       <img
                         src={comment.authorAvatar}
                         alt=""
-                        style={{
-                          width: '20px',
-                          height: '20px',
-                          borderRadius: '999px',
-                          flexShrink: 0,
-                        }}
+                        className="w-5 h-5 rounded-full shrink-0"
                       />
                     ) : (
-                      <div
-                        style={{
-                          width: '20px',
-                          height: '20px',
-                          borderRadius: '999px',
-                          background: 'var(--hover)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '10px',
-                          fontWeight: 600,
-                          color: 'var(--secondary)',
-                          flexShrink: 0,
-                        }}
-                      >
+                      <div className="w-5 h-5 rounded-full bg-hover flex items-center justify-center text-[10px] font-semibold text-secondary shrink-0">
                         {comment.authorName.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <span
-                      style={{
-                        fontSize: '12.5px',
-                        fontWeight: 550,
-                        color: 'var(--text)',
-                      }}
-                    >
-                      {comment.authorName}
-                    </span>
-                    <span style={{ fontSize: '11.5px', color: 'var(--tertiary)' }}>
+                    <span className="text-[12.5px] font-[550] text-text">{comment.authorName}</span>
+                    <span className="text-[11.5px] text-tertiary">
                       {timeAgo(comment.createdAt)}
                     </span>
                   </div>
@@ -230,33 +142,13 @@ export function CommentThread({
                     <button
                       type="button"
                       onClick={() => deleteComment({ commentId: comment._id })}
-                      style={{
-                        padding: '2px 8px',
-                        fontSize: '11px',
-                        fontWeight: 450,
-                        fontFamily: 'inherit',
-                        borderRadius: '5px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: 'var(--tertiary)',
-                        cursor: 'pointer',
-                      }}
+                      className="py-0.5 px-2 text-[11px] font-[450] font-[inherit] rounded-[5px] border-none bg-transparent text-tertiary cursor-pointer"
                     >
                       Delete
                     </button>
                   )}
                 </div>
-                <p
-                  style={{
-                    marginTop: '6px',
-                    marginLeft: '28px',
-                    fontSize: '13.5px',
-                    lineHeight: 1.55,
-                    color: 'var(--text)',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                >
+                <p className="mt-1.5 ml-7 text-[13.5px] leading-[1.55] text-text whitespace-pre-wrap break-words">
                   {comment.body}
                 </p>
               </div>

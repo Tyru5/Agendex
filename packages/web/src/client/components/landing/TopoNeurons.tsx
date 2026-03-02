@@ -165,16 +165,6 @@ export function TopoNeurons() {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        width: '100vw',
-        height: '100vh',
-        pointerEvents: 'none',
-        zIndex: 0,
-      }}
-    />
+    <canvas ref={canvasRef} className="fixed inset-0 w-screen h-screen pointer-events-none z-0" />
   );
 }

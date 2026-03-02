@@ -15,17 +15,7 @@ export function AgentFilter({
 
   return (
     <div>
-      <div
-        style={{
-          fontSize: '11px',
-          fontWeight: 550,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          color: 'var(--tertiary)',
-          padding: '0 8px',
-          marginBottom: '4px',
-        }}
-      >
+      <div className="text-[11px] font-[550] uppercase tracking-[0.06em] text-tertiary px-2 mb-1">
         Agents
       </div>
       <AgentButton
@@ -66,38 +56,19 @@ function AgentButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2 w-full text-left"
+      className="flex items-center gap-2 w-full text-left p-[6px_8px] rounded-[7px] border-0 font-[inherit] text-[13px] text-text cursor-pointer"
       style={{
-        padding: '6px 8px',
-        borderRadius: '7px',
-        border: 'none',
         background: active ? 'var(--active)' : 'transparent',
-        fontFamily: 'inherit',
-        fontSize: '13px',
         fontWeight: active ? 550 : 450,
-        color: 'var(--text)',
-        cursor: 'pointer',
       }}
     >
       {agent ? (
         <AgentIcon agent={agent} size={12} />
       ) : (
-        <span
-          className="rounded-full"
-          style={{ width: '7px', height: '7px', background: 'var(--text)', flexShrink: 0 }}
-        />
+        <span className="rounded-full w-[7px] h-[7px] bg-text shrink-0" />
       )}
       <span className="flex-1">{label}</span>
-      <span
-        style={{
-          fontSize: '11.5px',
-          color: 'var(--tertiary)',
-          fontWeight: 400,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {count}
-      </span>
+      <span className="text-[11.5px] text-tertiary font-normal tabular-nums">{count}</span>
     </button>
   );
 }

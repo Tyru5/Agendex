@@ -88,38 +88,16 @@ function ActionPill({
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      className="inline-flex items-center gap-[7px] py-2 px-3.5 rounded-[10px] border border-border text-text text-[13px] font-medium font-[inherit] cursor-pointer transition-[background,border-color] duration-150"
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '7px',
-        padding: '8px 14px',
-        borderRadius: '10px',
-        border: '1px solid var(--border)',
         background: hovered ? 'var(--hover)' : 'transparent',
-        color: 'var(--text)',
-        fontSize: '13px',
-        fontWeight: 500,
-        fontFamily: 'inherit',
-        cursor: 'pointer',
-        transition: 'background 0.15s, border-color 0.15s',
         borderColor: hovered ? 'var(--active)' : undefined,
       }}
     >
-      <span style={{ display: 'flex', color: 'var(--secondary)' }}>{icon}</span>
+      <span className="flex text-secondary">{icon}</span>
       {label}
       {kbd && (
-        <span
-          style={{
-            fontSize: '10.5px',
-            fontWeight: 600,
-            letterSpacing: '0.02em',
-            padding: '2px 6px',
-            borderRadius: '5px',
-            background: 'var(--hover)',
-            border: '1px solid var(--border)',
-            color: 'var(--tertiary)',
-          }}
-        >
+        <span className="text-[10.5px] font-semibold tracking-[0.02em] py-0.5 px-1.5 rounded-[5px] bg-hover border border-border text-tertiary">
           {kbd}
         </span>
       )}
@@ -146,28 +124,17 @@ function SuggestionRow({
       disabled={disabled}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      className="w-full flex items-center gap-2.5 py-2.5 px-3.5 rounded-[10px] border border-border text-text text-[13px] font-[450] font-[inherit] transition-[background,border-color,opacity] duration-150"
       style={{
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        padding: '10px 14px',
-        borderRadius: '10px',
-        border: '1px solid var(--border)',
         background: hovered && !disabled ? 'var(--hover)' : 'transparent',
-        color: 'var(--text)',
-        fontSize: '13px',
-        fontWeight: 450,
-        fontFamily: 'inherit',
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.6 : 1,
-        transition: 'background 0.15s, border-color 0.15s, opacity 0.15s',
         borderColor: hovered && !disabled ? 'var(--active)' : undefined,
       }}
     >
-      <span style={{ display: 'flex', color: 'var(--secondary)', flexShrink: 0 }}>{icon}</span>
-      <span style={{ flex: 1, textAlign: 'left' }}>{label}</span>
-      <span style={{ display: 'flex', color: 'var(--tertiary)', flexShrink: 0 }}>
+      <span className="flex text-secondary shrink-0">{icon}</span>
+      <span className="flex-1 text-left">{label}</span>
+      <span className="flex text-tertiary shrink-0">
         <ChevronIcon />
       </span>
     </button>
@@ -218,40 +185,20 @@ function RotatingAgentIcon({
   const dim = `${size}px`;
 
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        width: dim,
-        height: dim,
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
+    <span className="inline-flex relative overflow-hidden" style={{ width: dim, height: dim }}>
       {prevAgent && (
         <span
           key={`out-${prevAgent}`}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            animation: 'rolodex-out 0.4s ease-in forwards',
-          }}
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ animation: 'rolodex-out 0.4s ease-in forwards' }}
         >
           <AgentIcon agent={prevAgent} size={size} />
         </span>
       )}
       <span
         key={`in-${currentAgent}`}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          animation: prevAgent ? 'rolodex-in 0.4s ease-out forwards' : undefined,
-        }}
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ animation: prevAgent ? 'rolodex-in 0.4s ease-out forwards' : undefined }}
       >
         <AgentIcon agent={currentAgent} size={size} />
       </span>
@@ -261,32 +208,20 @@ function RotatingAgentIcon({
 
 function RotatingText({ current, prev }: { current: string; prev: string | null }) {
   return (
-    <span
-      style={{
-        position: 'relative',
-        display: 'inline-flex',
-        overflow: 'hidden',
-      }}
-    >
+    <span className="relative inline-flex overflow-hidden">
       {prev && (
         <span
           key={`text-out-${prev}`}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            animation: 'rolodex-out-inv 0.4s ease-in forwards',
-            whiteSpace: 'nowrap',
-          }}
+          className="absolute inset-0 whitespace-nowrap"
+          style={{ animation: 'rolodex-out-inv 0.4s ease-in forwards' }}
         >
           {prev}
         </span>
       )}
       <span
         key={`text-in-${current}`}
-        style={{
-          animation: prev ? 'rolodex-in-inv 0.4s ease-out forwards' : undefined,
-          whiteSpace: 'nowrap',
-        }}
+        className="whitespace-nowrap"
+        style={{ animation: prev ? 'rolodex-in-inv 0.4s ease-out forwards' : undefined }}
       >
         {current}
       </span>
@@ -325,50 +260,23 @@ export function EmptyStateView({
   }
 
   return (
-    <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg)' }}>
-      <div
-        className="empty-state-content"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          textAlign: 'center',
-          maxWidth: '420px',
-          padding: '24px',
-          gap: '16px',
-        }}
-      >
-        <h2
-          style={{
-            fontSize: '20px',
-            fontWeight: 600,
-            color: 'var(--text)',
-            margin: 0,
-            letterSpacing: '-0.02em',
-          }}
-        >
+    <div className="h-full flex items-center justify-center bg-bg">
+      <div className="empty-state-content flex flex-col items-center text-center max-w-[420px] p-6 gap-4">
+        <h2 className="text-[20px] font-semibold text-text m-0 tracking-[-0.02em]">
           What would you like to do?
         </h2>
 
-        <p style={{ fontSize: '13px', color: 'var(--tertiary)', margin: 0, lineHeight: 1.6 }}>
+        <p className="text-[13px] text-tertiary m-0 leading-[1.6]">
           {planCount === 0
             ? 'No plans detected yet. Start an AI agent or rescan.'
             : `${planCount} plans across ${activeAgents.length} agent${activeAgents.length !== 1 ? 's' : ''}`}
         </p>
 
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div className="flex gap-2 flex-wrap justify-center">
           <ActionPill icon={<SearchIcon />} label="Search" kbd={`${modKey}+K`} onClick={onSearch} />
         </div>
 
-        <div
-          style={{
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-            marginTop: '4px',
-          }}
-        >
+        <div className="w-full flex flex-col gap-1.5 mt-1">
           {currentAgent && (
             <SuggestionRow
               icon={
@@ -394,9 +302,7 @@ export function EmptyStateView({
           />
         </div>
 
-        <p style={{ fontSize: '11px', color: 'var(--tertiary)', margin: '4px 0 0' }}>
-          Press {modKey}+K to search anytime
-        </p>
+        <p className="text-[11px] text-tertiary mt-1">Press {modKey}+K to search anytime</p>
       </div>
     </div>
   );

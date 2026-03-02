@@ -61,41 +61,19 @@ export function PlanEditor({
 
   return (
     <div className="h-full flex flex-col">
-      <div
-        className="flex items-center justify-between px-6 py-3"
-        style={{ borderBottom: '1px solid var(--border)' }}
-      >
+      <div className="flex items-center justify-between px-6 py-3 border-b border-border">
         <div>
-          <h1 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-            Editing: {plan.title}
-          </h1>
-          <p
-            style={{
-              fontSize: '11.5px',
-              color: 'var(--tertiary)',
-              marginTop: '2px',
-              fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
-            }}
-          >
+          <h1 className="text-[14px] font-semibold text-text">Editing: {plan.title}</h1>
+          <p className="text-[11.5px] text-tertiary mt-0.5 font-['SF_Mono','JetBrains_Mono',monospace]">
             {plan.filePath}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {error && <span style={{ fontSize: '12px', color: '#ef4444' }}>{error}</span>}
+          {error && <span className="text-xs text-[#ef4444]">{error}</span>}
           <button
             type="button"
             onClick={onClose}
-            style={{
-              padding: '5px 12px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-              color: 'var(--secondary)',
-              cursor: 'pointer',
-            }}
+            className="py-[5px] px-3 text-[12.5px] font-medium font-[inherit] rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
           >
             Cancel
           </button>
@@ -103,15 +81,8 @@ export function PlanEditor({
             type="button"
             onClick={save}
             disabled={saving}
+            className="py-[5px] px-3 text-[12.5px] font-medium font-[inherit] rounded-[7px] border-0 bg-text text-bg"
             style={{
-              padding: '5px 12px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: 'none',
-              background: 'var(--text)',
-              color: 'var(--bg)',
               cursor: saving ? 'default' : 'pointer',
               opacity: saving ? 0.5 : 1,
             }}

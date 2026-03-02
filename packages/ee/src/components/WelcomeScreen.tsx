@@ -199,7 +199,7 @@ export function WelcomeScreen() {
           {loading === 'skip' ? 'Setting up…' : 'Continue with free plan'}
         </button>
 
-        {error && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>{error}</p>}
+        {error && <p className="text-[#ef4444] text-[13px] mt-2">{error}</p>}
 
         <p className="welcome-fine-print">No credit card needed · Cancel anytime</p>
       </div>

@@ -106,46 +106,13 @@ export function SearchBar({
       <button
         type="button"
         onClick={openModal}
-        className="flex items-center gap-2 rounded-lg"
-        style={{
-          padding: '5px 8px',
-          border: '1px solid var(--border)',
-          background: 'transparent',
-          minWidth: 0,
-          width: '100%',
-          maxWidth: '150px',
-          overflow: 'hidden',
-          color: 'var(--secondary)',
-          cursor: 'pointer',
-        }}
+        className="flex items-center gap-2 rounded-lg py-[5px] px-2 border border-border bg-transparent min-w-0 w-full max-w-[150px] overflow-hidden text-secondary cursor-pointer"
       >
         <SearchIcon />
-        <span
-          style={{
-            fontSize: '12px',
-            flex: 1,
-            minWidth: 0,
-            textAlign: 'left',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
+        <span className="text-[12px] flex-1 min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis">
           Search
         </span>
-        <kbd
-          style={{
-            fontFamily: 'inherit',
-            fontSize: '10px',
-            lineHeight: 1,
-            flexShrink: 0,
-            color: 'var(--tertiary)',
-            border: '1px solid var(--border)',
-            borderRadius: '4px',
-            padding: '3px 4px',
-            background: 'var(--hover)',
-          }}
-        >
+        <kbd className="font-[inherit] text-[10px] leading-none shrink-0 text-tertiary border border-border rounded-[4px] py-[3px] px-1 bg-hover">
           {isMac ? '⌘K' : 'Ctrl+K'}
         </kbd>
       </button>
@@ -154,12 +121,11 @@ export function SearchBar({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-[120] flex justify-center px-4"
+          className="fixed inset-0 z-[120] flex justify-center px-4 pt-[84px]"
           style={{
             background: 'rgba(0,0,0,0.44)',
             opacity: open ? 1 : 0,
             backdropFilter: open ? 'blur(3px)' : 'blur(0px)',
-            paddingTop: '84px',
             transition: 'opacity 220ms ease, backdrop-filter 260ms ease',
           }}
           onMouseDown={(e) => {
@@ -167,14 +133,8 @@ export function SearchBar({
           }}
         >
           <div
+            className="w-[min(720px,100%)] h-fit border border-border rounded-[14px] bg-surface shadow-[0_24px_50px_rgba(0,0,0,0.22)] overflow-hidden"
             style={{
-              width: 'min(720px, 100%)',
-              height: 'fit-content',
-              border: '1px solid var(--border)',
-              borderRadius: '14px',
-              background: 'var(--surface)',
-              boxShadow: '0 24px 50px rgba(0,0,0,0.22)',
-              overflow: 'hidden',
               opacity: open ? 1 : 0,
               transform: open ? 'translateY(0px) scale(1)' : 'translateY(-10px) scale(0.98)',
               transition: 'opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
@@ -183,13 +143,7 @@ export function SearchBar({
             role="document"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div
-              className="flex items-center gap-3"
-              style={{
-                padding: '12px 14px',
-                borderBottom: '1px solid var(--border)',
-              }}
-            >
+            <div className="flex items-center gap-3 py-3 px-3.5 border-b border-border">
               <SearchIcon />
               <input
                 ref={inputRef}
@@ -203,76 +157,30 @@ export function SearchBar({
                   }
                 }}
                 placeholder="Search plans..."
-                className="flex-1 outline-none"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  fontFamily: 'inherit',
-                  fontSize: '14px',
-                  color: 'var(--text)',
-                }}
+                className="flex-1 outline-none bg-transparent border-none font-[inherit] text-[14px] text-text"
               />
               <button
                 type="button"
                 onClick={closeModal}
-                style={{
-                  fontFamily: 'inherit',
-                  fontSize: '11px',
-                  color: 'var(--tertiary)',
-                  border: '1px solid var(--border)',
-                  background: 'var(--hover)',
-                  borderRadius: '6px',
-                  padding: '4px 8px',
-                  cursor: 'pointer',
-                }}
+                className="font-[inherit] text-[11px] text-tertiary border border-border bg-hover rounded-[6px] py-1 px-2 cursor-pointer"
               >
                 Esc
               </button>
             </div>
-            <div
-              style={{
-                maxHeight: '380px',
-                overflowY: 'auto',
-                padding: '8px',
-              }}
-            >
-              <div
-                style={{
-                  padding: '4px 8px 8px',
-                  fontSize: '11px',
-                  color: 'var(--tertiary)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
+            <div className="max-h-[380px] overflow-y-auto p-2">
+              <div className="pt-1 px-2 pb-2 text-[11px] text-tertiary tabular-nums">
                 {search.trim().length > 0
                   ? `${filteredPlans.length} of ${plans.length} plans`
                   : `${plans.length} plans`}
               </div>
 
               {filteredPlans.length === 0 ? (
-                <div
-                  style={{
-                    padding: '8px',
-                    fontSize: '12px',
-                    color: 'var(--tertiary)',
-                  }}
-                >
-                  No matching plans
-                </div>
+                <div className="p-2 text-[12px] text-tertiary">No matching plans</div>
               ) : (
                 <>
                   {unseenFiltered.length > 0 && (
-                    <div style={{ marginBottom: '4px' }}>
-                      <div
-                        style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: '#3b82f6',
-                          letterSpacing: '0.04em',
-                          textTransform: 'uppercase',
-                          padding: '6px 8px 4px',
-                        }}
-                      >
+                    <div className="mb-1">
+                      <div className="text-[11px] font-semibold text-[#3b82f6] tracking-[0.04em] uppercase px-2 pt-1.5 pb-1">
                         Updated ({unseenFiltered.length})
                       </div>
                       {unseenFiltered.map((plan) => (
@@ -288,13 +196,7 @@ export function SearchBar({
                           }}
                         />
                       ))}
-                      <div
-                        style={{
-                          height: '1px',
-                          background: 'var(--border)',
-                          margin: '6px 8px',
-                        }}
-                      />
+                      <div className="h-px bg-border mx-2 my-1.5" />
                     </div>
                   )}
                   {restFiltered.map((plan) => (
@@ -335,52 +237,19 @@ function SearchPlanRow({
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left block"
-      style={{
-        padding: '10px 8px',
-        borderRadius: '8px',
-        background: selected ? 'var(--active)' : 'transparent',
-        cursor: 'pointer',
-        border: 'none',
-        fontFamily: 'inherit',
-      }}
+      className="w-full text-left block py-2.5 px-2 rounded-lg cursor-pointer border-none font-[inherit]"
+      style={{ background: selected ? 'var(--active)' : 'transparent' }}
     >
       <div
-        style={{
-          position: 'relative',
-          fontWeight: 500,
-          fontSize: '13px',
-          lineHeight: 1.35,
-          color: 'var(--text)',
-          letterSpacing: '-0.01em',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical' as const,
-          overflow: 'hidden',
-          paddingLeft: unseen ? '14px' : undefined,
-        }}
+        className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
+        style={{ paddingLeft: unseen ? '14px' : undefined }}
       >
         {unseen && (
-          <span
-            className="unseen-dot"
-            style={{
-              position: 'absolute',
-              left: '2px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              background: '#3b82f6',
-            }}
-          />
+          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
         )}
         {plan.title}
       </div>
-      <div
-        className="flex items-center gap-1.5"
-        style={{ marginTop: '4px', fontSize: '11.5px', color: 'var(--tertiary)' }}
-      >
+      <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
         <AgentIcon agent={plan.agent} size={11} />
         <span>{getAgentLabel(plan.agent)}</span>
         <span>&middot;</span>
@@ -409,7 +278,7 @@ function SearchIcon() {
       viewBox="0 0 24 24"
       strokeWidth={2}
       stroke="currentColor"
-      style={{ width: '14px', height: '14px', opacity: 0.5, flexShrink: 0 }}
+      className="w-[14px] h-[14px] opacity-50 shrink-0"
     >
       <path
         strokeLinecap="round"

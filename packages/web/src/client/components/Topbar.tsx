@@ -13,7 +13,7 @@ function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
       viewBox="0 0 24 24"
       strokeWidth={2.2}
       stroke="currentColor"
-      style={{ width: '14px', height: '14px', opacity: 0.9 }}
+      className="w-[14px] h-[14px] opacity-90"
     >
       {hidden ? (
         <path strokeLinecap="round" strokeLinejoin="round" d="m9.5 6.5 5 5.5-5 5.5" />
@@ -61,23 +61,16 @@ export function Topbar({
 
   return (
     <div
-      className="grid items-center min-w-0"
+      className="grid items-center min-w-0 border-b border-border bg-surface z-50 gap-x-3"
       style={{
         gridColumn: '1 / -1',
         height: `${height}px`,
-        columnGap: '12px',
         gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
-        boxSizing: 'border-box',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--surface)',
-        zIndex: 50,
       }}
     >
       <div
-        className="flex items-center gap-3 min-w-0 h-full overflow-hidden"
+        className="flex items-center gap-3 min-w-0 h-full overflow-hidden pl-4"
         style={{
-          boxSizing: 'border-box',
-          paddingLeft: '16px',
           width: sidebarPinnedOpen ? `${SIDEBAR_EXPANDED_WIDTH}px` : undefined,
           flex: sidebarPinnedOpen ? '0 0 auto' : '1 1 auto',
           paddingRight: sidebarPinnedOpen ? '12px' : undefined,
@@ -90,26 +83,15 @@ export function Topbar({
             onClick={onToggleSidebar}
             aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
             title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+            className="w-[30px] h-[30px] rounded-lg border border-border text-text cursor-pointer flex items-center justify-center"
             style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
               background: sidebarHidden ? 'var(--hover)' : 'transparent',
-              color: 'var(--text)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
             }}
           >
             <SidebarToggleIcon hidden={sidebarHidden} />
           </button>
         </div>
-        <span
-          className="font-semibold text-sm"
-          style={{ letterSpacing: '-0.02em', color: 'var(--text)', whiteSpace: 'nowrap' }}
-        >
+        <span className="font-semibold text-sm tracking-[-0.02em] text-text whitespace-nowrap">
           Agendex
         </span>
       </div>
@@ -124,43 +106,26 @@ export function Topbar({
         />
       </div>
 
-      <div
-        className="flex items-center justify-end gap-3 min-w-0 justify-self-end"
-        style={{ paddingRight: '16px' }}
-      >
+      <div className="flex items-center justify-end gap-3 min-w-0 justify-self-end pr-4">
         <ThemeToggle />
-        <div
-          className="hidden lg:block"
-          style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-        />
-        <span className="hidden lg:inline" style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
-          <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{totalPlans}</strong> plans
+        <div className="hidden lg:block w-px h-[18px] bg-border" />
+        <span className="hidden lg:inline text-xs text-tertiary">
+          <strong className="text-secondary font-[550]">{totalPlans}</strong> plans
         </span>
-        <div
-          className="hidden lg:block"
-          style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-        />
-        <span className="hidden lg:inline" style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
-          <strong style={{ color: 'var(--secondary)', fontWeight: 550 }}>{activeAgents}</strong>{' '}
-          agents
+        <div className="hidden lg:block w-px h-[18px] bg-border" />
+        <span className="hidden lg:inline text-xs text-tertiary">
+          <strong className="text-secondary font-[550]">{activeAgents}</strong> agents
         </span>
-        <div
-          className="hidden lg:block"
-          style={{ width: '1px', height: '18px', background: 'var(--border)' }}
-        />
+        <div className="hidden lg:block w-px h-[18px] bg-border" />
         <div className="hidden lg:flex items-center gap-1.5">
           <div
-            className="rounded-full status-pulse"
+            className="rounded-full status-pulse w-1.5 h-1.5"
             style={{
-              width: '6px',
-              height: '6px',
               background: backendIndicator.color,
               boxShadow: '0 0 0 2px var(--surface)',
             }}
           />
-          <span style={{ fontSize: '12px', color: 'var(--tertiary)' }}>
-            {backendIndicator.label}
-          </span>
+          <span className="text-xs text-tertiary">{backendIndicator.label}</span>
         </div>
       </div>
     </div>

@@ -63,23 +63,12 @@ export function PlanViewer({
   return (
     <>
       {showOutline && <PlanOutline headings={headings} />}
-      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 32px 80px' }}>
+      <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
         {/* Header */}
-        <div
-          style={{
-            marginBottom: '32px',
-            paddingBottom: '24px',
-            borderBottom: '1px solid var(--border)',
-          }}
-        >
+        <div className="mb-8 pb-6 border-b border-border">
           <div
-            className="flex items-center gap-1"
-            style={{
-              fontSize: '12px',
-              color: 'var(--tertiary)',
-              marginBottom: '10px',
-              fontWeight: 450,
-            }}
+            className="flex items-center gap-1 text-xs text-tertiary mb-2.5"
+            style={{ fontWeight: 450 }}
           >
             <span className="flex items-center gap-1.5">
               <AgentIcon agent={plan.agent} size={13} />
@@ -87,30 +76,18 @@ export function PlanViewer({
             </span>
             {workspace && (
               <>
-                <span style={{ opacity: 0.5 }}>/</span>
+                <span className="opacity-50">/</span>
                 <span>{workspace}</span>
                 <CopyPathButton path={plan.filePath} />
               </>
             )}
           </div>
 
-          <h1
-            style={{
-              fontSize: '26px',
-              fontWeight: 600,
-              letterSpacing: '-0.03em',
-              lineHeight: 1.25,
-              color: 'var(--text)',
-              marginBottom: '12px',
-            }}
-          >
+          <h1 className="text-[26px] font-semibold tracking-[-0.03em] leading-[1.25] text-text mb-3">
             {plan.title}
           </h1>
 
-          <div
-            className="flex items-center gap-5"
-            style={{ fontSize: '12.5px', color: 'var(--secondary)', marginBottom: '16px' }}
-          >
+          <div className="flex items-center gap-5 text-[12.5px] text-secondary mb-4">
             <span className="flex items-center gap-1.5">
               <ClockIcon />
               Updated {timeAgo(plan.updatedAt)}
@@ -120,14 +97,8 @@ export function PlanViewer({
               {plan.format.toUpperCase()}
             </span>
             <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 550,
-                padding: '2px 7px',
-                borderRadius: '5px',
-                background: 'rgba(100,116,139,0.1)',
-                color: '#64748b',
-              }}
+              className="text-[11px] px-[7px] py-[2px] rounded-[5px] bg-[rgba(100,116,139,0.1)] text-[#64748b]"
+              style={{ fontWeight: 550 }}
             >
               Read-only
             </span>
@@ -140,50 +111,24 @@ export function PlanViewer({
               type="button"
               onClick={handleCopy}
               title={copied ? 'Copied!' : 'Copy plan'}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: copied ? '#16a34a' : 'var(--secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                transition: 'color 0.2s ease',
-              }}
+              className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent cursor-pointer transition-colors duration-200"
+              style={{ color: copied ? '#16a34a' : 'var(--secondary)' }}
             >
-              <span
-                style={{
-                  position: 'relative',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '13px',
-                  height: '13px',
-                }}
-              >
+              <span className="relative flex items-center justify-center w-[13px] h-[13px]">
                 <span
+                  className="absolute flex transition-[opacity,transform] duration-200 ease-in-out"
                   style={{
-                    position: 'absolute',
-                    display: 'flex',
                     opacity: copied ? 0 : 1,
                     transform: copied ? 'scale(0.5)' : 'scale(1)',
-                    transition: 'opacity 0.2s ease, transform 0.2s ease',
                   }}
                 >
                   <CopyIcon />
                 </span>
                 <span
+                  className="absolute flex transition-[opacity,transform] duration-200 ease-in-out"
                   style={{
-                    position: 'absolute',
-                    display: 'flex',
                     opacity: copied ? 1 : 0,
                     transform: copied ? 'scale(1)' : 'scale(0.5)',
-                    transition: 'opacity 0.2s ease, transform 0.2s ease',
                   }}
                 >
                   <CheckIcon />
@@ -196,20 +141,7 @@ export function PlanViewer({
                 type="button"
                 onClick={onShare}
                 title="Share plan"
-                style={{
-                  padding: '5px 12px',
-                  fontSize: '12.5px',
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                  borderRadius: '7px',
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                }}
+                className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
               >
                 <ShareIcon />
                 Share
@@ -220,20 +152,7 @@ export function PlanViewer({
                 type="button"
                 onClick={onHistory}
                 title="Version history"
-                style={{
-                  padding: '5px 12px',
-                  fontSize: '12.5px',
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                  borderRadius: '7px',
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                }}
+                className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
               >
                 <HistoryIcon />
                 History
@@ -277,17 +196,10 @@ export function PlanViewer({
 
         {/* File path footer */}
         <div
-          className="flex items-center justify-between gap-2"
-          style={{
-            marginTop: '40px',
-            paddingTop: '16px',
-            borderTop: '1px solid var(--border)',
-            fontSize: '11.5px',
-            color: 'var(--tertiary)',
-            fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
-          }}
+          className="flex items-center justify-between gap-2 mt-10 pt-4 border-t border-border text-[11.5px] text-tertiary"
+          style={{ fontFamily: "'SF Mono', 'JetBrains Mono', monospace" }}
         >
-          <span style={{ wordBreak: 'break-all' }}>{plan.filePath}</span>
+          <span className="break-all">{plan.filePath}</span>
           <CopyPathButton path={plan.filePath} />
         </div>
 
@@ -311,22 +223,8 @@ function CopyPathButton({ path }: { path: string }) {
       type="button"
       onClick={handleCopy}
       title={copied ? 'Copied!' : 'Copy path'}
-      style={{
-        position: 'relative',
-        padding: '2px',
-        borderRadius: '4px',
-        border: 'none',
-        background: 'transparent',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        width: '17px',
-        height: '17px',
-        opacity: copied ? 1 : 0.5,
-        transition: 'opacity 0.15s',
-      }}
+      className="relative p-[2px] rounded-[4px] border-none bg-transparent cursor-pointer flex items-center justify-center shrink-0 w-[17px] h-[17px] transition-opacity duration-150"
+      style={{ opacity: copied ? 1 : 0.5 }}
       onMouseEnter={(e) => {
         e.currentTarget.style.opacity = '1';
       }}
@@ -335,25 +233,19 @@ function CopyPathButton({ path }: { path: string }) {
       }}
     >
       <span
+        className="absolute flex text-tertiary transition-[opacity,transform] duration-200 ease-in-out"
         style={{
-          position: 'absolute',
-          display: 'flex',
-          color: 'var(--tertiary)',
           opacity: copied ? 0 : 1,
           transform: copied ? 'scale(0.5)' : 'scale(1)',
-          transition: 'opacity 0.2s ease, transform 0.2s ease',
         }}
       >
         <CopyIcon />
       </span>
       <span
+        className="absolute flex text-[#16a34a] transition-[opacity,transform] duration-200 ease-in-out"
         style={{
-          position: 'absolute',
-          display: 'flex',
-          color: '#16a34a',
           opacity: copied ? 1 : 0,
           transform: copied ? 'scale(1)' : 'scale(0.5)',
-          transition: 'opacity 0.2s ease, transform 0.2s ease',
         }}
       >
         <CheckIcon />
@@ -386,28 +278,12 @@ function ScrollToTop() {
       type="button"
       onClick={scrollToTop}
       aria-label="Scroll to top"
-      className="scroll-to-top"
+      className="scroll-to-top fixed bottom-7 right-7 w-[38px] h-[38px] rounded-[10px] border border-border bg-surface text-secondary cursor-pointer flex items-center justify-center shadow-[0_2px_12px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.02)] z-50 transition-[opacity,transform,border-color,background] duration-200"
       data-visible={visible}
       style={{
-        position: 'fixed',
-        bottom: '28px',
-        right: '28px',
-        width: '38px',
-        height: '38px',
-        borderRadius: '10px',
-        border: '1px solid var(--border)',
-        background: 'var(--surface)',
-        color: 'var(--secondary)',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.02)',
         opacity: visible ? 1 : 0,
         pointerEvents: visible ? 'auto' : 'none',
         transform: visible ? 'translateY(0)' : 'translateY(8px)',
-        transition: 'opacity 0.2s ease, transform 0.2s ease, border-color 0.15s, background 0.15s',
-        zIndex: 50,
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = 'var(--tertiary)';
@@ -425,7 +301,7 @@ function ScrollToTop() {
         viewBox="0 0 24 24"
         strokeWidth={2}
         stroke="currentColor"
-        style={{ width: '15px', height: '15px' }}
+        className="w-[15px] h-[15px]"
       >
         <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
       </svg>
@@ -442,7 +318,7 @@ function ClockIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px', opacity: 0.4 }}
+      className="w-[13px] h-[13px] opacity-40"
     >
       <path
         strokeLinecap="round"
@@ -462,7 +338,7 @@ function CopyIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
+      className="w-[13px] h-[13px]"
     >
       <path
         strokeLinecap="round"
@@ -482,7 +358,7 @@ function CheckIcon() {
       viewBox="0 0 24 24"
       strokeWidth={2}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
+      className="w-[13px] h-[13px]"
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
     </svg>
@@ -498,7 +374,7 @@ function ShareIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
+      className="w-[13px] h-[13px]"
     >
       <path
         strokeLinecap="round"
@@ -518,7 +394,7 @@ function HistoryIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
+      className="w-[13px] h-[13px]"
     >
       <path
         strokeLinecap="round"
@@ -540,7 +416,7 @@ function DocIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px', opacity: 0.4 }}
+      className="w-[13px] h-[13px] opacity-40"
     >
       <path
         strokeLinecap="round"

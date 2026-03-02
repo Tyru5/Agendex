@@ -25,63 +25,38 @@ function TechNodeComponent({ data }: NodeProps<TechNode>) {
 
   return (
     <div
+      className="rounded-lg px-3.5 py-2 min-w-[100px] relative transition-opacity duration-150"
       style={{
         background: `${color}18`,
-        borderRadius: '8px',
         borderLeft: `3px solid ${color}`,
-        padding: '8px 14px',
-        minWidth: '100px',
-        position: 'relative',
-        transition: 'opacity 0.15s ease',
       }}
     >
       <Handle
         type="target"
         position={Position.Top}
-        style={{ width: '6px', height: '6px', background: color, border: 'none' }}
+        className="!w-1.5 !h-1.5 !border-none"
+        style={{ background: color }}
       />
       <Handle
         type="source"
         position={Position.Bottom}
-        style={{ width: '6px', height: '6px', background: color, border: 'none' }}
+        className="!w-1.5 !h-1.5 !border-none"
+        style={{ background: color }}
       />
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span
-          style={{
-            fontSize: '13px',
-            fontWeight: 550,
-            color: 'var(--text)',
-            lineHeight: 1.3,
-          }}
-        >
+      <div className="flex items-center gap-1.5">
+        <span className="text-[13px] text-text leading-[1.3]" style={{ fontWeight: 550 }}>
           {data.label}
         </span>
         {mentionCount > 1 && (
           <span
-            style={{
-              fontSize: '10px',
-              fontWeight: 600,
-              padding: '1px 5px',
-              borderRadius: '6px',
-              background: `${color}30`,
-              color,
-              lineHeight: 1.4,
-            }}
+            className="text-[10px] font-semibold px-[5px] py-px rounded-[6px] leading-[1.4]"
+            style={{ background: `${color}30`, color }}
           >
             {mentionCount}
           </span>
         )}
       </div>
-      <div
-        style={{
-          fontSize: '10px',
-          opacity: 0.6,
-          textTransform: 'uppercase',
-          letterSpacing: '0.03em',
-          marginTop: '2px',
-          color: 'var(--text)',
-        }}
-      >
+      <div className="text-[10px] opacity-60 uppercase tracking-[0.03em] mt-0.5 text-text">
         {data.category}
       </div>
     </div>
@@ -116,10 +91,8 @@ function CategoryFilters({
   );
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-      <span style={{ fontSize: '11px', color: 'var(--tertiary)', marginRight: '2px' }}>
-        Filter:
-      </span>
+    <div className="flex flex-wrap gap-1.5 items-center">
+      <span className="text-[11px] text-tertiary mr-0.5">Filter:</span>
       {presentCategories.map((cat) => {
         const color = CATEGORY_COLORS[cat];
         const active = activeCategories.has(cat);
@@ -129,35 +102,20 @@ function CategoryFilters({
             type="button"
             key={cat}
             onClick={() => onToggle(cat)}
+            className="flex items-center gap-[5px] px-2.5 py-[3px] text-[11px] font-medium font-inherit rounded-[6px] cursor-pointer transition-all duration-150 capitalize"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              padding: '3px 10px',
-              fontSize: '11px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '6px',
               border: `1px solid ${active ? `${color}40` : 'var(--border)'}`,
               background: active ? `${color}15` : 'transparent',
               color: active ? color : 'var(--tertiary)',
-              cursor: 'pointer',
               opacity: active ? 1 : 0.6,
-              transition: 'all 0.15s ease',
-              textTransform: 'capitalize',
             }}
           >
             <div
-              style={{
-                width: '7px',
-                height: '7px',
-                borderRadius: '50%',
-                background: active ? color : 'var(--tertiary)',
-                flexShrink: 0,
-              }}
+              className="w-[7px] h-[7px] rounded-full shrink-0"
+              style={{ background: active ? color : 'var(--tertiary)' }}
             />
             {cat}
-            <span style={{ opacity: 0.6 }}>({count})</span>
+            <span className="opacity-60">({count})</span>
           </button>
         );
       })}
@@ -176,7 +134,7 @@ function FullscreenIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
+      className="w-[13px] h-[13px]"
     >
       <path
         strokeLinecap="round"
@@ -196,7 +154,7 @@ function ExpandWidthIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
+      className="w-[13px] h-[13px]"
     >
       <path
         strokeLinecap="round"
@@ -216,7 +174,7 @@ function CollapseWidthIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
+      className="w-[13px] h-[13px]"
     >
       <path
         strokeLinecap="round"
@@ -236,7 +194,7 @@ function ExitFullscreenIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
+      className="w-[13px] h-[13px]"
     >
       <path
         strokeLinecap="round"
@@ -415,14 +373,7 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
 
   if (graph.nodes.length === 0) {
     return (
-      <div
-        style={{
-          padding: '32px',
-          textAlign: 'center',
-          fontSize: '13px',
-          color: 'var(--tertiary)',
-        }}
-      >
+      <div className="p-8 text-center text-[13px] text-tertiary">
         No technologies detected in this plan
       </div>
     );
@@ -439,43 +390,15 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
       <>
         {/* Inline placeholder */}
         <div>
-          <div
-            style={{
-              fontSize: '12.5px',
-              color: 'var(--secondary)',
-              marginBottom: '16px',
-            }}
-          >
-            {statsText}
-          </div>
-          <div
-            style={{
-              width: '100%',
-              height: '500px',
-              borderRadius: '12px',
-              border: '1px solid var(--border)',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '13px',
-              color: 'var(--tertiary)',
-            }}
-          >
+          <div className="text-[12.5px] text-secondary mb-4">{statsText}</div>
+          <div className="w-full h-[500px] rounded-xl border border-border overflow-hidden flex items-center justify-center text-[13px] text-tertiary">
             Graph is in fullscreen mode
           </div>
         </div>
 
         {createPortal(
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 9999,
-              background: 'var(--bg)',
-            }}
-          >
-            <div style={{ width: '100%', height: '100%' }}>
+          <div className="fixed inset-0 z-[9999] bg-bg">
+            <div className="w-full h-full">
               <GraphContent
                 nodes={filteredGraph.nodes}
                 edges={filteredGraph.edges}
@@ -492,49 +415,15 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
               type="button"
               onClick={exitFullscreen}
               title="Exit fullscreen (Esc)"
-              style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                zIndex: 1,
-                padding: '6px 14px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                fontFamily: 'inherit',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-              }}
+              className="absolute top-4 right-4 z-[1] px-3.5 py-1.5 text-[12.5px] font-medium font-inherit rounded-lg border border-border bg-surface text-secondary cursor-pointer flex items-center gap-[5px] shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
             >
               <ExitFullscreenIcon />
               Exit
             </button>
 
             {/* Floating filters + stats */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '16px',
-                left: '16px',
-                zIndex: 1,
-                padding: '10px 14px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                maxWidth: '360px',
-              }}
-            >
-              <div style={{ fontSize: '12px', color: 'var(--secondary)' }}>{statsText}</div>
+            <div className="absolute top-4 left-4 z-[1] px-3.5 py-2.5 rounded-lg border border-border bg-surface shadow-[0_2px_12px_rgba(0,0,0,0.08)] flex flex-col gap-2 max-w-[360px]">
+              <div className="text-xs text-secondary">{statsText}</div>
               {filterPanel}
             </div>
           </div>,
@@ -546,6 +435,7 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
 
   return (
     <div
+      className="transition-[margin,padding] duration-[250ms] ease-in-out"
       style={
         wide
           ? {
@@ -553,23 +443,13 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
               marginRight: 'calc(-50vw + 50%)',
               paddingLeft: '32px',
               paddingRight: '32px',
-              transition: 'margin 0.25s ease, padding 0.25s ease',
             }
-          : {
-              transition: 'margin 0.25s ease, padding 0.25s ease',
-            }
+          : undefined
       }
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '12px',
-        }}
-      >
-        <div style={{ fontSize: '12.5px', color: 'var(--secondary)' }}>{statsText}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[12.5px] text-secondary">{statsText}</div>
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => {
@@ -578,19 +458,10 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
               onWideChange?.(next);
             }}
             title={wide ? 'Collapse width' : 'Expand width'}
+            className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border cursor-pointer"
             style={{
-              padding: '5px 12px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
               background: wide ? 'rgba(139,92,246,0.1)' : 'transparent',
               color: wide ? '#8b5cf6' : 'var(--secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
             }}
           >
             {wide ? <CollapseWidthIcon /> : <ExpandWidthIcon />}
@@ -600,20 +471,7 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
             type="button"
             onClick={() => setFullscreen(true)}
             title="Fullscreen"
-            style={{
-              padding: '5px 12px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-              color: 'var(--secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-            }}
+            className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
           >
             <FullscreenIcon />
             Fullscreen
@@ -622,17 +480,11 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
       </div>
 
       {/* Category filters */}
-      <div style={{ marginBottom: '12px' }}>{filterPanel}</div>
+      <div className="mb-3">{filterPanel}</div>
 
       <div
-        style={{
-          width: '100%',
-          height: wide ? '650px' : '500px',
-          borderRadius: '12px',
-          border: '1px solid var(--border)',
-          overflow: 'hidden',
-          transition: 'height 0.25s ease',
-        }}
+        className="w-full rounded-xl border border-border overflow-hidden transition-[height] duration-[250ms] ease-in-out"
+        style={{ height: wide ? '650px' : '500px' }}
       >
         <GraphContent
           nodes={filteredGraph.nodes}
@@ -646,14 +498,7 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
       </div>
 
       {/* Hover hint */}
-      <div
-        style={{
-          fontSize: '11px',
-          color: 'var(--tertiary)',
-          marginTop: '8px',
-          textAlign: 'center',
-        }}
-      >
+      <div className="text-[11px] text-tertiary mt-2 text-center">
         Hover a node to highlight its connections · Dashed edges = known relationships
       </div>
     </div>

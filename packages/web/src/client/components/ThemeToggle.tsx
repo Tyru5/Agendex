@@ -18,7 +18,7 @@ function SunMoonIcon({ resolved }: { resolved: 'light' | 'dark' }) {
         viewBox="0 0 24 24"
         strokeWidth={2}
         stroke="currentColor"
-        style={{ width: '14px', height: '14px' }}
+        className="w-[14px] h-[14px]"
       >
         <path
           strokeLinecap="round"
@@ -37,7 +37,7 @@ function SunMoonIcon({ resolved }: { resolved: 'light' | 'dark' }) {
       viewBox="0 0 24 24"
       strokeWidth={2}
       stroke="currentColor"
-      style={{ width: '14px', height: '14px' }}
+      className="w-[14px] h-[14px]"
     >
       <path
         strokeLinecap="round"
@@ -67,42 +67,21 @@ export function ThemeToggle() {
   }, [open]);
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} className="relative">
       <button
         type="button"
         aria-label="Toggle theme"
         onClick={() => setOpen((v) => !v)}
+        className="w-[30px] h-[30px] rounded-lg border border-border text-text cursor-pointer flex items-center justify-center"
         style={{
-          width: '30px',
-          height: '30px',
-          borderRadius: '8px',
-          border: '1px solid var(--border)',
           background: open ? 'var(--hover)' : 'transparent',
-          color: 'var(--text)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
         }}
       >
         <SunMoonIcon resolved={resolvedTheme} />
       </button>
 
       {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 6px)',
-            right: 0,
-            minWidth: '140px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: '10px',
-            padding: '4px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-            zIndex: 100,
-          }}
-        >
+        <div className="absolute top-[calc(100%+6px)] right-0 min-w-[140px] bg-surface border border-border rounded-[10px] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)] z-[100]">
           {OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -111,21 +90,11 @@ export function ThemeToggle() {
                 setTheme(opt.value);
                 setOpen(false);
               }}
+              className="w-full flex items-center justify-between gap-2 p-[7px_10px] text-[12.5px] font-[inherit] rounded-[7px] border-0 cursor-pointer"
               style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
-                padding: '7px 10px',
-                fontSize: '12.5px',
                 fontWeight: theme === opt.value ? 550 : 400,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: 'none',
                 background: theme === opt.value ? 'var(--hover)' : 'transparent',
                 color: theme === opt.value ? 'var(--text)' : 'var(--secondary)',
-                cursor: 'pointer',
               }}
             >
               {opt.label}
@@ -137,7 +106,7 @@ export function ThemeToggle() {
                   viewBox="0 0 24 24"
                   strokeWidth={2.5}
                   stroke="currentColor"
-                  style={{ width: '12px', height: '12px' }}
+                  className="w-3 h-3"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                 </svg>

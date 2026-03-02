@@ -40,35 +40,14 @@ export function CloudEmptyState({ planCount }: CloudEmptyStateProps) {
 
   if (planCount > 0) {
     return (
-      <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg)' }}>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-            maxWidth: '360px',
-            padding: '24px',
-            gap: '12px',
-          }}
-        >
-          <p style={{ fontSize: '14px', color: 'var(--secondary)', margin: 0, fontWeight: 500 }}>
+      <div className="h-full flex items-center justify-center bg-bg">
+        <div className="flex flex-col items-center text-center max-w-[360px] p-6 gap-3">
+          <p className="text-[14px] text-secondary m-0 font-medium">
             Select a plan from the sidebar
           </p>
-          <p style={{ fontSize: '12px', color: 'var(--tertiary)', margin: 0 }}>
+          <p className="text-[12px] text-tertiary m-0">
             or press{' '}
-            <kbd
-              style={{
-                fontSize: '10.5px',
-                fontWeight: 600,
-                padding: '2px 6px',
-                borderRadius: '5px',
-                background: 'var(--hover)',
-                border: '1px solid var(--border)',
-                color: 'var(--tertiary)',
-                fontFamily: 'inherit',
-              }}
-            >
+            <kbd className="text-[10.5px] font-semibold py-0.5 px-1.5 rounded-[5px] bg-hover border border-border text-tertiary font-[inherit]">
               {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
                 ? '\u2318'
                 : 'Ctrl'}
@@ -83,44 +62,17 @@ export function CloudEmptyState({ planCount }: CloudEmptyStateProps) {
 
   if (timedOut) {
     return (
-      <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg)' }}>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-            maxWidth: '400px',
-            padding: '24px',
-            gap: '14px',
-          }}
-        >
-          <div style={{ color: 'var(--tertiary)', marginBottom: '2px' }}>
+      <div className="h-full flex items-center justify-center bg-bg">
+        <div className="flex flex-col items-center text-center max-w-[400px] p-6 gap-3.5">
+          <div className="text-tertiary mb-0.5">
             <CloudSyncIcon />
           </div>
-          <h2
-            style={{
-              fontSize: '17px',
-              fontWeight: 600,
-              color: 'var(--text)',
-              margin: 0,
-              letterSpacing: '-0.02em',
-            }}
-          >
+          <h2 className="text-[17px] font-semibold text-text m-0 tracking-[-0.02em]">
             No plans found
           </h2>
-          <p style={{ fontSize: '13px', color: 'var(--tertiary)', margin: 0, lineHeight: 1.6 }}>
+          <p className="text-[13px] text-tertiary m-0 leading-[1.6]">
             Run{' '}
-            <code
-              style={{
-                fontSize: '12px',
-                padding: '2px 7px',
-                borderRadius: '5px',
-                background: 'var(--hover)',
-                border: '1px solid var(--border)',
-                fontFamily: 'var(--font-mono, monospace)',
-              }}
-            >
+            <code className="text-[12px] py-0.5 px-[7px] rounded-[5px] bg-hover border border-border font-[var(--font-mono,monospace)]">
               agendex daemon
             </code>{' '}
             to sync plans from your machine.
@@ -131,33 +83,15 @@ export function CloudEmptyState({ planCount }: CloudEmptyStateProps) {
   }
 
   return (
-    <div className="h-full flex items-center justify-center" style={{ background: 'var(--bg)' }}>
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          textAlign: 'center',
-          maxWidth: '400px',
-          padding: '24px',
-          gap: '14px',
-        }}
-      >
-        <div style={{ color: '#f59e0b', marginBottom: '2px' }}>
+    <div className="h-full flex items-center justify-center bg-bg">
+      <div className="flex flex-col items-center text-center max-w-[400px] p-6 gap-3.5">
+        <div className="text-[#f59e0b] mb-0.5">
           <CloudSyncIcon pulse />
         </div>
-        <h2
-          style={{
-            fontSize: '17px',
-            fontWeight: 600,
-            color: 'var(--text)',
-            margin: 0,
-            letterSpacing: '-0.02em',
-          }}
-        >
+        <h2 className="text-[17px] font-semibold text-text m-0 tracking-[-0.02em]">
           Syncing your plans...
         </h2>
-        <p style={{ fontSize: '13px', color: 'var(--tertiary)', margin: 0, lineHeight: 1.6 }}>
+        <p className="text-[13px] text-tertiary m-0 leading-[1.6]">
           Your plans will appear as the CLI syncs them.
         </p>
       </div>

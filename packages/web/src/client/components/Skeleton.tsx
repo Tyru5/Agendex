@@ -13,12 +13,11 @@ export function Skeleton({
 }: SkeletonProps) {
   return (
     <div
-      className="skeleton-pulse"
+      className="skeleton-pulse bg-border"
       style={{
         width,
         height,
         borderRadius,
-        background: 'var(--border)',
         ...style,
       }}
     />
@@ -32,7 +31,7 @@ export function SkeletonLine({ width = '100%' }: { width?: string }) {
 export function SkeletonBlock({ lines = 3 }: { lines?: number }) {
   const widths = ['100%', '92%', '78%', '85%', '60%'];
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <div className="flex flex-col gap-2.5">
       {Array.from({ length: lines }, (_, i) => (
         <SkeletonLine key={widths[i % widths.length]} width={widths[i % widths.length]} />
       ))}

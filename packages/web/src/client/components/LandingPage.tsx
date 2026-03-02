@@ -22,7 +22,8 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      style={{ animation: 'spin 0.8s linear infinite', flexShrink: 0 }}
+      className="animate-spin shrink-0"
+      style={{ animationDuration: '0.8s' }}
     >
       <circle
         cx="12"
@@ -82,7 +83,7 @@ const BENTO_MAP: { colSpan: number; rowSpan: number }[] = [
 function IndexingViz() {
   const dots = Array.from({ length: 6 });
   return (
-    <div style={{ position: 'relative', height: 80, marginTop: 16 }}>
+    <div className="relative h-20 mt-4">
       <style>{`
         @keyframes d3-dot-appear {
           0% { opacity: 0; transform: scale(0); }
@@ -136,31 +137,10 @@ function IndexingViz() {
 
 function SearchMockup() {
   return (
-    <div
-      style={{
-        marginTop: 16,
-        background: 'rgba(255,255,255,0.04)',
-        borderRadius: 10,
-        padding: '10px 14px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        fontSize: 13,
-        color: TEXT_MUTED,
-        fontFamily: '"SF Mono", "Fira Code", monospace',
-      }}
-    >
-      <span style={{ opacity: 0.5 }}>{'>'}</span>
+    <div className="mt-4 bg-[rgba(255,255,255,0.04)] rounded-[10px] px-3.5 py-2.5 flex items-center gap-2 text-[13px] text-[#666] font-mono">
+      <span className="opacity-50">{'>'}</span>
       <span>search plans...</span>
-      <span
-        style={{
-          marginLeft: 'auto',
-          fontSize: 11,
-          background: 'rgba(255,255,255,0.06)',
-          padding: '2px 6px',
-          borderRadius: 4,
-        }}
-      >
+      <span className="ml-auto text-[11px] bg-[rgba(255,255,255,0.06)] px-1.5 py-0.5 rounded">
         ⌘K
       </span>
     </div>
@@ -169,7 +149,7 @@ function SearchMockup() {
 
 function CloudIcon() {
   return (
-    <div style={{ marginTop: 16, textAlign: 'center' }}>
+    <div className="mt-4 text-center">
       <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
         <path
           d="M16 34h16a8 8 0 100-16 1 1 0 01-1-1 9 9 0 00-17.5 1A7 7 0 0016 34z"
@@ -193,7 +173,7 @@ function CloudIcon() {
 
 function LinkIcon() {
   return (
-    <div style={{ marginTop: 16, textAlign: 'center' }}>
+    <div className="mt-4 text-center">
       <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
         <path
           d="M17 23a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"
@@ -216,7 +196,7 @@ function LinkIcon() {
 
 function SpeechBubble() {
   return (
-    <div style={{ marginTop: 16, textAlign: 'center' }}>
+    <div className="mt-4 text-center">
       <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
         <path
           d="M8 12a4 4 0 014-4h16a4 4 0 014 4v10a4 4 0 01-4 4H16l-5 4v-4H8V12z"
@@ -236,39 +216,23 @@ function SpeechBubble() {
 function AdapterDots() {
   const names = AGENTS.slice(0, 10);
   return (
-    <div
-      style={{
-        marginTop: 16,
-        display: 'flex',
-        gap: 8,
-        flexWrap: 'wrap',
-        alignItems: 'center',
-      }}
-    >
+    <div className="mt-4 flex gap-2 flex-wrap items-center">
       {names.map((name) => (
         <span
           key={name}
-          style={{
-            fontSize: 11,
-            fontFamily: '"SF Mono", "Fira Code", monospace',
-            background: 'rgba(200,255,50,0.08)',
-            color: ACCENT,
-            padding: '4px 10px',
-            borderRadius: 6,
-            border: '1px solid rgba(200,255,50,0.12)',
-          }}
+          className="text-[11px] font-mono bg-[rgba(200,255,50,0.08)] text-[#c8ff32] px-2.5 py-1 rounded-md border border-[rgba(200,255,50,0.12)]"
         >
           {name}
         </span>
       ))}
-      <span style={{ fontSize: 12, color: TEXT_MUTED }}>+{AGENTS.length - 10} more</span>
+      <span className="text-xs text-[#666]">+{AGENTS.length - 10} more</span>
     </div>
   );
 }
 
 function TechNodes() {
   return (
-    <div style={{ marginTop: 16, textAlign: 'center' }}>
+    <div className="mt-4 text-center">
       <svg width="60" height="60" viewBox="0 0 60 60" fill="none">
         <circle cx="30" cy="15" r="5" stroke={ACCENT} strokeWidth={1.5} opacity={0.6} />
         <circle cx="15" cy="45" r="5" stroke={ACCENT} strokeWidth={1.5} opacity={0.6} />
@@ -283,14 +247,14 @@ function TechNodes() {
 
 function NotificationDot() {
   return (
-    <div style={{ marginTop: 16, textAlign: 'center' }}>
+    <div className="mt-4 text-center">
       <style>{`
         @keyframes d3-pulse {
           0%, 100% { opacity: 0.4; transform: scale(1); }
           50% { opacity: 1; transform: scale(1.3); }
         }
       `}</style>
-      <div style={{ position: 'relative', display: 'inline-block' }}>
+      <div className="relative inline-block">
         <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
           <rect
             x="6"
@@ -322,16 +286,8 @@ function NotificationDot() {
           />
         </svg>
         <div
-          style={{
-            position: 'absolute',
-            top: 4,
-            right: -2,
-            width: 10,
-            height: 10,
-            borderRadius: '50%',
-            background: ACCENT,
-            animation: 'd3-pulse 2s ease infinite',
-          }}
+          className="absolute top-1 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#c8ff32]"
+          style={{ animation: 'd3-pulse 2s ease infinite' }}
         />
       </div>
     </div>
@@ -340,40 +296,22 @@ function NotificationDot() {
 
 function EditorMockup() {
   return (
-    <div
-      style={{
-        marginTop: 16,
-        background: 'rgba(255,255,255,0.03)',
-        borderRadius: 10,
-        padding: 16,
-        fontFamily: '"SF Mono", "Fira Code", monospace',
-        fontSize: 12,
-        lineHeight: 1.7,
-        color: TEXT_MUTED,
-      }}
-    >
+    <div className="mt-4 bg-[rgba(255,255,255,0.03)] rounded-[10px] p-4 font-mono text-xs leading-[1.7] text-[#666]">
       <div>
-        <span style={{ color: ACCENT, opacity: 0.6 }}># </span>
-        <span style={{ color: TEXT_PRIMARY, opacity: 0.7 }}>New Plan</span>
+        <span className="text-[#c8ff32] opacity-60"># </span>
+        <span className="text-white opacity-70">New Plan</span>
       </div>
-      <div style={{ opacity: 0.4 }}>
-        <span style={{ color: ACCENT, opacity: 0.6 }}>- </span>
+      <div className="opacity-40">
+        <span className="text-[#c8ff32] opacity-60">- </span>
         Refactor auth module
       </div>
-      <div style={{ opacity: 0.3 }}>
-        <span style={{ color: ACCENT, opacity: 0.6 }}>- </span>
+      <div className="opacity-30">
+        <span className="text-[#c8ff32] opacity-60">- </span>
         Add rate limiting
       </div>
       <div
-        style={{
-          display: 'inline-block',
-          width: 2,
-          height: 14,
-          background: ACCENT,
-          opacity: 0.6,
-          marginLeft: 2,
-          animation: 'd3-pulse 1s ease infinite',
-        }}
+        className="inline-block w-0.5 h-3.5 bg-[#c8ff32] opacity-60 ml-0.5"
+        style={{ animation: 'd3-pulse 1s ease infinite' }}
       />
     </div>
   );
@@ -406,72 +344,34 @@ function BentoCard({
   const delay = index * 0.07;
   return (
     <div
-      className={`d3-bento-card${inView ? ' d3-bento-active' : ''}`}
+      className={`d3-bento-card${inView ? ' d3-bento-active' : ''} relative rounded-[20px] p-px cursor-default`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         gridColumn: `span ${layout.colSpan}`,
         gridRow: `span ${layout.rowSpan}`,
-        position: 'relative',
-        borderRadius: RADIUS,
-        padding: 1,
         transition: 'transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.4s ease',
         transform: hovered ? 'translateY(-4px)' : 'none',
         boxShadow: hovered
           ? '0 0 30px rgba(200,255,50,0.08), 0 8px 32px rgba(0,0,0,0.4)'
           : '0 2px 8px rgba(0,0,0,0.2)',
-        cursor: 'default',
         opacity: inView ? 1 : 0,
         animationDelay: `${delay}s`,
       }}
     >
-      <div
-        style={{
-          background: BG,
-          borderRadius: RADIUS - 1,
-          padding: CARD_PAD,
-          height: '100%',
-          transition: 'background 0.4s ease',
-          overflow: 'hidden',
-        }}
-      >
+      <div className="bg-[#0a0a0a] rounded-[19px] p-9 h-full transition-[background] duration-400 overflow-hidden">
         <div
+          className="w-[42px] h-[42px] rounded-xl border border-[rgba(200,255,50,0.1)] flex items-center justify-center text-lg transition-[background,border-color] duration-300"
           style={{
-            width: 42,
-            height: 42,
-            borderRadius: 12,
             background: hovered ? 'rgba(200,255,50,0.12)' : 'rgba(200,255,50,0.06)',
-            border: '1px solid rgba(200,255,50,0.1)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 18,
-            transition: 'background 0.3s ease, border-color 0.3s ease',
           }}
         >
           {feature.icon}
         </div>
-        <h3
-          style={{
-            margin: '16px 0 8px',
-            fontSize: 18,
-            fontWeight: 600,
-            color: TEXT_PRIMARY,
-            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-          }}
-        >
+        <h3 className="mt-4 mb-2 text-lg font-semibold text-white font-[Inter,-apple-system,system-ui,sans-serif]">
           {feature.title}
         </h3>
-        <p
-          style={{
-            margin: 0,
-            fontSize: 14,
-            lineHeight: 1.6,
-            color: TEXT_SECONDARY,
-            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-            fontWeight: 400,
-          }}
-        >
+        <p className="m-0 text-sm leading-relaxed text-[#999] font-[Inter,-apple-system,system-ui,sans-serif] font-normal">
           {feature.desc}
         </p>
         {inView && CARD_VISUALS[index]?.()}
@@ -482,39 +382,21 @@ function BentoCard({
 
 function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div
-      style={{
-        display: 'inline-flex',
-        background: SURFACE,
-        border: `1px solid ${BORDER}`,
-        borderRadius: 30,
-        padding: 4,
-        gap: 2,
-      }}
-    >
+    <div className="inline-flex bg-[#141414] border border-[rgba(255,255,255,0.06)] rounded-[30px] p-1 gap-0.5">
       {(['Monthly', 'Yearly'] as const).map((label) => {
         const active = label === 'Yearly' ? yearly : !yearly;
         return (
           <button
             key={label}
             onClick={() => onChange(label === 'Yearly')}
+            className="px-5 py-2 rounded-[26px] border-none text-[13px] font-medium font-[Inter,-apple-system,system-ui,sans-serif] cursor-pointer transition-[background,color] duration-200"
             style={{
-              padding: '8px 20px',
-              borderRadius: 26,
-              border: 'none',
               background: active ? ACCENT : 'transparent',
               color: active ? '#0a0a0a' : TEXT_SECONDARY,
-              fontSize: 13,
-              fontWeight: 500,
-              fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-              cursor: 'pointer',
-              transition: 'background 0.2s ease, color 0.2s ease',
             }}
           >
             {label}
-            {label === 'Yearly' && (
-              <span style={{ fontSize: 11, marginLeft: 4, opacity: 0.7 }}>Save 17%</span>
-            )}
+            {label === 'Yearly' && <span className="text-[11px] ml-1 opacity-70">Save 17%</span>}
           </button>
         );
       })}
@@ -546,90 +428,43 @@ function PricingCard({
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      className="flex-1 bg-[#141414] rounded-[20px] p-10 relative overflow-hidden transition-[transform,border-color] duration-300"
       style={{
-        flex: 1,
-        background: SURFACE,
         border: `1px solid ${isPro ? 'rgba(200,255,50,0.25)' : BORDER}`,
-        borderRadius: RADIUS,
-        padding: 40,
-        transition: 'transform 0.3s ease, border-color 0.3s ease',
         transform: hovered ? 'translateY(-2px)' : 'none',
-        position: 'relative',
-        overflow: 'hidden',
       }}
     >
       {isPro && (
         <div
+          className="absolute top-0 left-0 right-0 h-0.5"
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 2,
             background: `linear-gradient(90deg, transparent, ${ACCENT}, transparent)`,
           }}
         />
       )}
       <div
-        style={{
-          fontSize: 14,
-          fontWeight: 500,
-          color: isPro ? ACCENT : TEXT_SECONDARY,
-          fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-          marginBottom: 16,
-          textTransform: 'uppercase',
-          letterSpacing: 1,
-        }}
+        className="text-sm font-medium font-[Inter,-apple-system,system-ui,sans-serif] mb-4 uppercase tracking-[1px]"
+        style={{ color: isPro ? ACCENT : TEXT_SECONDARY }}
       >
         {title}
       </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
-        <span
-          style={{
-            fontSize: 48,
-            fontWeight: 400,
-            color: TEXT_PRIMARY,
-            fontFamily: '"Unbounded", sans-serif',
-            letterSpacing: '-0.03em',
-          }}
-        >
+      <div className="flex items-baseline gap-1 mb-2">
+        <span className="text-[48px] font-normal text-white font-[Unbounded,sans-serif] tracking-[-0.03em]">
           {price}
         </span>
         {period && (
-          <span
-            style={{
-              fontSize: 14,
-              color: TEXT_MUTED,
-              fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-            }}
-          >
+          <span className="text-sm text-[#666] font-[Inter,-apple-system,system-ui,sans-serif]">
             {period}
           </span>
         )}
       </div>
-      <ul
-        style={{
-          listStyle: 'none',
-          padding: 0,
-          margin: '28px 0 36px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-        }}
-      >
+      <ul className="list-none p-0 mt-7 mb-9 flex flex-col gap-3">
         {features.map((f) => (
           <li
             key={f}
-            style={{
-              fontSize: 14,
-              color: TEXT_SECONDARY,
-              fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-            }}
+            className="text-sm text-[#999] font-[Inter,-apple-system,system-ui,sans-serif] flex items-center gap-2.5"
           >
-            <span style={{ color: ACCENT, fontSize: 14 }}>{'✓'}</span>
+            <span className="text-[#c8ff32] text-sm">{'✓'}</span>
             {f}
           </li>
         ))}
@@ -637,23 +472,13 @@ function PricingCard({
       <button
         disabled={loading}
         onClick={onCta}
+        className="w-full py-3.5 rounded-xl text-[15px] font-semibold font-[Inter,-apple-system,system-ui,sans-serif] flex items-center justify-center gap-2 transition-opacity duration-200"
         style={{
-          width: '100%',
-          padding: '14px 0',
-          borderRadius: 12,
           border: isPro ? 'none' : `1px solid ${BORDER}`,
           background: isPro ? ACCENT : 'transparent',
           color: isPro ? '#0a0a0a' : TEXT_PRIMARY,
-          fontSize: 15,
-          fontWeight: 600,
-          fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
           cursor: loading ? 'default' : 'pointer',
-          transition: 'opacity 0.2s',
           opacity: loading ? 0.7 : 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
         }}
       >
         {loading && <Spinner size={15} color={isPro ? '#0a0a0a' : undefined} />}
@@ -678,16 +503,7 @@ function LoginModal({
     <div
       role="dialog"
       aria-modal="true"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.7)',
-        backdropFilter: 'blur(8px)',
-      }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[rgba(0,0,0,0.7)] backdrop-blur-[8px]"
       onClick={(e) => {
         if (e.target === e.currentTarget) startViewTransition(onClose);
       }}
@@ -695,37 +511,11 @@ function LoginModal({
         if (e.key === 'Escape') startViewTransition(onClose);
       }}
     >
-      <div
-        style={{
-          background: SURFACE,
-          border: `1px solid ${BORDER}`,
-          borderRadius: RADIUS,
-          padding: 40,
-          width: '100%',
-          maxWidth: 420,
-          margin: '0 20px',
-        }}
-      >
-        <h2
-          style={{
-            margin: '0 0 8px',
-            fontSize: 24,
-            fontWeight: 600,
-            color: TEXT_PRIMARY,
-            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-          }}
-        >
+      <div className="bg-[#141414] border border-[rgba(255,255,255,0.06)] rounded-[20px] p-10 w-full max-w-[420px] mx-5">
+        <h2 className="m-0 mb-2 text-2xl font-semibold text-white font-[Inter,-apple-system,system-ui,sans-serif]">
           Connect to Agendex
         </h2>
-        <p
-          style={{
-            margin: '0 0 28px',
-            fontSize: 14,
-            color: TEXT_SECONDARY,
-            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-            lineHeight: 1.5,
-          }}
-        >
+        <p className="m-0 mb-7 text-sm text-[#999] font-[Inter,-apple-system,system-ui,sans-serif] leading-normal">
           Paste the auth token from your terminal to connect.
         </p>
         <form onSubmit={onSubmit}>
@@ -734,19 +524,7 @@ function LoginModal({
             value={tokenValue}
             onChange={(e) => onTokenChange(e.target.value)}
             placeholder="Paste your token"
-            style={{
-              width: '100%',
-              padding: '14px 16px',
-              borderRadius: 12,
-              border: `1px solid ${BORDER}`,
-              background: 'rgba(255,255,255,0.04)',
-              color: TEXT_PRIMARY,
-              fontSize: 14,
-              fontFamily: '"SF Mono", "Fira Code", monospace',
-              outline: 'none',
-              boxSizing: 'border-box',
-              transition: 'border-color 0.2s',
-            }}
+            className="w-full px-4 py-3.5 rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.04)] text-white text-sm font-mono outline-none box-border transition-[border-color] duration-200"
             onFocus={(e) => {
               e.currentTarget.style.borderColor = 'rgba(200,255,50,0.4)';
             }}
@@ -756,38 +534,14 @@ function LoginModal({
           />
           <button
             type="submit"
-            style={{
-              width: '100%',
-              padding: '14px 0',
-              marginTop: 16,
-              borderRadius: 12,
-              border: 'none',
-              background: ACCENT,
-              color: '#0a0a0a',
-              fontSize: 15,
-              fontWeight: 600,
-              fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-              cursor: 'pointer',
-              transition: 'opacity 0.2s',
-            }}
+            className="w-full py-3.5 mt-4 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold font-[Inter,-apple-system,system-ui,sans-serif] cursor-pointer transition-opacity duration-200"
           >
             Connect
           </button>
         </form>
         <button
           onClick={onClose}
-          style={{
-            width: '100%',
-            padding: '12px 0',
-            marginTop: 8,
-            borderRadius: 12,
-            border: 'none',
-            background: 'transparent',
-            color: TEXT_MUTED,
-            fontSize: 14,
-            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-            cursor: 'pointer',
-          }}
+          className="w-full py-3 mt-2 rounded-xl border-none bg-transparent text-[#666] text-sm font-[Inter,-apple-system,system-ui,sans-serif] cursor-pointer"
         >
           Cancel
         </button>
@@ -919,7 +673,7 @@ function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
   }, [activeTab]);
 
   return (
-    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div ref={containerRef} className="flex flex-col gap-3">
       <StepsList steps={activeTab === 'cloud' ? CLOUD_STEPS : LOCAL_STEPS} />
     </div>
   );
@@ -927,52 +681,18 @@ function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
 
 function LandingNavbar({ signingIn, onSignIn }: { signingIn: boolean; onSignIn: () => void }) {
   return (
-    <nav
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '14px 24px',
-        background: 'rgba(10,10,10,0.85)',
-        backdropFilter: 'blur(8px)',
-        borderBottom: `1px solid ${BORDER}`,
-      }}
-    >
-      <span
-        style={{
-          fontFamily: '"Unbounded", sans-serif',
-          fontSize: 16,
-          fontWeight: 500,
-          color: TEXT_PRIMARY,
-          letterSpacing: '-0.02em',
-        }}
-      >
+    <nav className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 py-3.5 bg-[rgba(10,10,10,0.85)] backdrop-blur-[8px] border-b border-[rgba(255,255,255,0.06)]">
+      <span className="font-[Unbounded,sans-serif] text-base font-medium text-white tracking-[-0.02em]">
         agendex
       </span>
       <button
         type="button"
         disabled={signingIn}
         onClick={onSignIn}
+        className="text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 inline-flex items-center gap-1.5"
         style={{
-          fontSize: 13,
-          padding: '8px 20px',
-          borderRadius: 8,
-          border: `1px solid ${BORDER}`,
-          background: 'transparent',
-          color: TEXT_PRIMARY,
           cursor: signingIn ? 'default' : 'pointer',
-          fontWeight: 500,
-          fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-          transition: 'border-color 0.2s',
           opacity: signingIn ? 0.6 : 1,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
         }}
       >
         {signingIn && <Spinner size={12} />}
@@ -984,42 +704,15 @@ function LandingNavbar({ signingIn, onSignIn }: { signingIn: boolean; onSignIn: 
 
 function LandingFooter() {
   return (
-    <footer
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '14px 24px',
-        background: 'rgba(10,10,10,0.85)',
-        backdropFilter: 'blur(8px)',
-        borderTop: `1px solid ${BORDER}`,
-        fontSize: 13,
-        color: TEXT_MUTED,
-      }}
-    >
-      <span style={{ flex: 1 }}>© {new Date().getFullYear()} Agendex</span>
-      <span style={{ flex: 1, textAlign: 'center' }}>Made With ❤️ by Tyrus Malmstrom</span>
-      <span style={{ flex: 1, textAlign: 'right' }}>
+    <footer className="flex items-center justify-between px-6 py-3.5 bg-[rgba(10,10,10,0.85)] backdrop-blur-[8px] border-t border-[rgba(255,255,255,0.06)] text-[13px] text-[#666]">
+      <span className="flex-1">© {new Date().getFullYear()} Agendex</span>
+      <span className="flex-1 text-center">Made With ❤️ by Tyrus Malmstrom</span>
+      <span className="flex-1 text-right">
         <a
           href="https://github.com/tiru5/agendex"
           target="_blank"
           rel="noopener noreferrer"
-          style={{
-            fontSize: 13,
-            padding: '8px 20px',
-            borderRadius: 8,
-            border: `1px solid ${BORDER}`,
-            background: 'transparent',
-            color: TEXT_PRIMARY,
-            cursor: 'pointer',
-            fontWeight: 500,
-            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-            transition: 'border-color 0.2s',
-            textDecoration: 'none',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
+          className="text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white cursor-pointer font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 no-underline inline-flex items-center gap-2"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
@@ -1089,7 +782,7 @@ const GITHUB_ICON_PATH =
 
 function GitHubIcon16() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
       <path d={GITHUB_ICON_PATH} />
     </svg>
   );
@@ -1113,85 +806,36 @@ function LandingHero({
   onSetActiveTab: (v: 'local' | 'cloud') => void;
 }) {
   return (
-    <div style={{ position: 'relative', overflow: 'hidden' }}>
+    <div className="relative overflow-hidden">
       <FAQBackground />
       <section
-        className="d3-hero"
+        className="d3-hero relative grid grid-cols-2 items-center max-w-[1100px] mx-auto px-6"
         style={{
-          position: 'relative',
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
           gap: 230,
-          alignItems: 'center',
-          maxWidth: 1100,
-          margin: '0 auto',
           padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
         }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-            opacity: 0.15,
-          }}
-        >
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.15]">
           <IconCloud images={agentIconImages} />
         </div>
         <div>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 16px',
-              borderRadius: 20,
-              background: 'rgba(200,255,50,0.08)',
-              border: '1px solid rgba(200,255,50,0.15)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: ACCENT,
-              marginBottom: 32,
-            }}
-          >
-            <span style={{ fontSize: 8, lineHeight: 1 }}>{'●'}</span>
+          <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[20px] bg-[rgba(200,255,50,0.08)] border border-[rgba(200,255,50,0.15)] text-[13px] font-medium text-[#c8ff32] mb-8">
+            <span className="text-[8px] leading-none">{'●'}</span>
             Open Source
           </div>
 
-          <h1
-            style={{
-              fontFamily: '"Unbounded", sans-serif',
-              fontSize: 'clamp(36px, 4.5vw, 56px)',
-              fontWeight: 400,
-              lineHeight: 1.08,
-              letterSpacing: '-0.03em',
-              margin: '0 0 20px',
-              color: TEXT_PRIMARY,
-            }}
-          >
+          <h1 className="font-[Unbounded,sans-serif] text-[clamp(36px,4.5vw,56px)] font-normal leading-[1.08] tracking-[-0.03em] m-0 mb-5 text-white">
             One dashboard for
             <br />
-            <span style={{ color: ACCENT }}>every coding agent.</span>
+            <span className="text-[#c8ff32]">every coding agent.</span>
           </h1>
 
-          <p
-            style={{
-              fontSize: 15,
-              lineHeight: 1.7,
-              color: '#777',
-              margin: '0 0 32px',
-              fontWeight: 400,
-              maxWidth: 440,
-            }}
-          >
+          <p className="text-[15px] leading-[1.7] text-[#777] m-0 mb-8 font-normal max-w-[440px]">
             Agendex indexes the plans your AI agents create and surfaces them in a single,
             searchable interface.
           </p>
 
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div className="flex gap-3 items-center">
             <button
               disabled={signingIn}
               onClick={() => {
@@ -1201,21 +845,9 @@ function LandingHero({
                   onShowLogin();
                 }
               }}
+              className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
               style={{
-                padding: '12px 28px',
-                borderRadius: 12,
-                border: 'none',
-                background: ACCENT,
-                color: '#0a0a0a',
-                fontSize: 15,
-                fontWeight: 600,
                 cursor: signingIn ? 'default' : 'pointer',
-                transition: 'opacity 0.2s, transform 0.2s',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                whiteSpace: 'nowrap',
                 opacity: signingIn ? 0.7 : 1,
               }}
             >
@@ -1239,22 +871,7 @@ function LandingHero({
               href="https://github.com/Tyru5/agendex"
               target="_blank"
               rel="noopener noreferrer"
-              style={{
-                padding: '12px 28px',
-                borderRadius: 12,
-                border: `1px solid ${BORDER}`,
-                background: 'transparent',
-                color: TEXT_PRIMARY,
-                fontSize: 15,
-                fontWeight: 500,
-                cursor: 'pointer',
-                textDecoration: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                whiteSpace: 'nowrap',
-                transition: 'border-color 0.2s',
-              }}
+              className="px-7 py-3 rounded-xl border border-[rgba(255,255,255,0.06)] bg-transparent text-white text-[15px] font-medium cursor-pointer no-underline inline-flex items-center gap-2 whitespace-nowrap transition-[border-color] duration-200"
             >
               <GitHubIcon16 />
               View on GitHub
@@ -1302,25 +919,20 @@ function LandingPricing({
   onCloudLogin?: () => void;
 }) {
   return (
-    <section style={{ padding: 'clamp(60px, 10vh, 120px) 24px', maxWidth: 880, margin: '0 auto' }}>
-      <div style={{ textAlign: 'center', marginBottom: 48 }}>
-        <h2
-          style={{
-            fontFamily: '"Unbounded", sans-serif',
-            fontSize: 'clamp(28px, 4vw, 40px)',
-            fontWeight: 400,
-            letterSpacing: '-0.025em',
-            margin: '0 0 12px',
-          }}
-        >
+    <section
+      className="max-w-[880px] mx-auto px-6"
+      style={{ padding: 'clamp(60px, 10vh, 120px) 24px' }}
+    >
+      <div className="text-center mb-12">
+        <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0 mb-3">
           Simple pricing. Run it your way.
         </h2>
-        <p style={{ fontSize: 16, color: TEXT_SECONDARY, margin: '0 0 28px', fontWeight: 400 }}>
+        <p className="text-base text-[#999] m-0 mb-7 font-normal">
           Free forever for local use. Upgrade for cloud features.
         </p>
         <PricingToggle yearly={yearly} onChange={onSetYearly} />
       </div>
-      <div className="d3-pricing-row" style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
+      <div className="d3-pricing-row flex gap-4 items-stretch">
         <PricingCard
           title="Self-Hosted"
           price="$0"
@@ -1353,40 +965,18 @@ function LandingFAQ({
 }) {
   return (
     <section
-      style={{
-        padding: 'clamp(40px, 8vh, 80px) 24px clamp(80px, 12vh, 140px)',
-        maxWidth: 720,
-        margin: '0 auto',
-      }}
+      className="max-w-[720px] mx-auto px-6"
+      style={{ padding: 'clamp(40px, 8vh, 80px) 24px clamp(80px, 12vh, 140px)' }}
     >
-      <div style={{ textAlign: 'center', marginBottom: 48 }}>
-        <span
-          style={{
-            display: 'inline-block',
-            fontSize: 12,
-            fontWeight: 600,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            color: ACCENT,
-            fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-            marginBottom: 12,
-          }}
-        >
+      <div className="text-center mb-12">
+        <span className="inline-block text-xs font-semibold tracking-[0.1em] uppercase text-[#c8ff32] font-[Inter,-apple-system,system-ui,sans-serif] mb-3">
           Support
         </span>
-        <h2
-          style={{
-            fontFamily: '"Unbounded", sans-serif',
-            fontSize: 'clamp(28px, 4vw, 40px)',
-            fontWeight: 400,
-            letterSpacing: '-0.025em',
-            margin: 0,
-          }}
-        >
+        <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0">
           Frequently asked questions
         </h2>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      <div className="flex flex-col">
         {FAQ_ITEMS.map((item, i) => (
           <FAQItem
             key={item.q}
@@ -1449,16 +1039,7 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
   const agentIconImages = AGENT_ICON_IMAGES;
 
   return (
-    <div
-      className="landing-page"
-      style={{
-        minHeight: '100vh',
-        backgroundColor: BG,
-        color: TEXT_PRIMARY,
-        fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-        overflowX: 'hidden',
-      }}
-    >
+    <div className="landing-page min-h-screen bg-[#0a0a0a] text-white font-[Inter,-apple-system,system-ui,sans-serif] overflow-x-hidden">
       <TopoNeurons />
       <style>{`
         @media (max-width: 768px) {
@@ -1529,34 +1110,19 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
       {/* Bento Feature Grid */}
       <section
         ref={bentoRef}
-        style={{ padding: 'clamp(60px, 10vh, 120px) 24px', maxWidth: 1100, margin: '0 auto' }}
+        className="max-w-[1100px] mx-auto px-6"
+        style={{ padding: 'clamp(60px, 10vh, 120px) 24px' }}
       >
-        <div style={{ textAlign: 'center', marginBottom: 56 }}>
-          <h2
-            style={{
-              fontFamily: '"Unbounded", sans-serif',
-              fontSize: 'clamp(28px, 4vw, 40px)',
-              fontWeight: 400,
-              letterSpacing: '-0.025em',
-              margin: '0 0 12px',
-            }}
-          >
+        <div className="text-center mb-14">
+          <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0 mb-3">
             Everything you need
           </h2>
-          <p style={{ fontSize: 16, color: TEXT_SECONDARY, margin: 0, fontWeight: 400 }}>
+          <p className="text-base text-[#999] m-0 font-normal">
             A complete toolkit for managing AI agent plans.
           </p>
         </div>
 
-        <div
-          className="d3-bento-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gridTemplateRows: 'auto',
-            gap: 16,
-          }}
-        >
+        <div className="d3-bento-grid grid grid-cols-[repeat(4,1fr)] grid-rows-[auto] gap-4">
           {FEATURES.map((feature, i) => (
             <BentoCard
               key={feature.title}
@@ -1610,9 +1176,9 @@ function FAQItem({
   const [hovered, setHovered] = useState(false);
   return (
     <div
+      className="border-b border-[rgba(255,255,255,0.06)]"
       style={{
         borderTop: isFirst ? `1px solid ${BORDER}` : 'none',
-        borderBottom: `1px solid ${BORDER}`,
       }}
     >
       <button
@@ -1620,35 +1186,16 @@ function FAQItem({
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         aria-expanded={open}
+        className="w-full px-1 py-[22px] bg-none border-none text-[15px] font-medium font-[Inter,-apple-system,system-ui,sans-serif] text-left cursor-pointer flex justify-between items-center gap-4 transition-colors duration-200"
         style={{
-          width: '100%',
-          padding: '22px 4px',
-          background: 'none',
-          border: 'none',
           color: hovered || open ? TEXT_PRIMARY : 'rgba(255,255,255,0.85)',
-          fontSize: 15,
-          fontWeight: 500,
-          fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-          textAlign: 'left',
-          cursor: 'pointer',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 16,
-          transition: 'color 0.2s ease',
         }}
       >
         {question}
         <div
+          className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
           style={{
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
             border: `1px solid ${open ? ACCENT : hovered ? 'rgba(255,255,255,0.2)' : BORDER}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
             transition:
               'border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             background: open ? ACCENT : 'transparent',
@@ -1675,22 +1222,15 @@ function FAQItem({
         </div>
       </button>
       <div
+        className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
         style={{
-          display: 'grid',
           gridTemplateRows: open ? '1fr' : '0fr',
-          transition: 'grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
-        <div style={{ overflow: 'hidden' }}>
+        <div className="overflow-hidden">
           <p
+            className="px-1 pb-[22px] m-0 text-sm leading-[1.75] text-[#999] font-[Inter,-apple-system,system-ui,sans-serif] max-w-[580px]"
             style={{
-              padding: '0 4px 22px 4px',
-              margin: 0,
-              fontSize: 14,
-              lineHeight: 1.75,
-              color: TEXT_SECONDARY,
-              fontFamily: '"Inter", -apple-system, system-ui, sans-serif',
-              maxWidth: 580,
               opacity: open ? 1 : 0,
               transform: open ? 'translateY(0)' : 'translateY(-4px)',
               transition: 'opacity 0.25s 0.05s, transform 0.25s 0.05s',
