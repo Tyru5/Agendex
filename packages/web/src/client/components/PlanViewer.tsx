@@ -9,6 +9,7 @@ import { looksLikeMarkdown, normalizePlanMarkdown } from '../lib/plan-markdown.t
 import { AgentIcon } from './AgentIcon.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
+import { TechDependencyChart } from './TechDependencyChart.tsx';
 
 function isMarkdownPlan(plan: Plan): boolean {
   if (plan.format.toLowerCase() === 'md') return true;
@@ -35,12 +36,13 @@ export function PlanViewer({
   headerExtra,
   onHistory,
   onShare,
+  onChartWideChange,
 }: {
   plan: Plan;
   headerExtra?: ReactNode;
   onHistory?: () => void;
   onShare?: () => void;
-  [key: string]: unknown;
+  onChartWideChange?: (wide: boolean) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -160,6 +162,12 @@ export function PlanViewer({
             )}
           </div>
         </div>
+
+        {onChartWideChange && (
+          <div style={{ marginTop: '8px', marginBottom: '24px' }}>
+            <TechDependencyChart plan={plan} onWideChange={onChartWideChange} />
+          </div>
+        )}
 
         {/* Body */}
         {isMarkdown ? (

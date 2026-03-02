@@ -7,11 +7,9 @@ import {
   OfflineView,
   PlanList,
   PlanViewer,
-  SearchBar,
   SidebarFilters,
   SkeletonBlock,
   startViewTransition,
-  ThemeToggle,
   useAgents,
   useBackendStatus,
   usePlans,
@@ -22,16 +20,17 @@ import {
 import { parseAsString, parseAsStringLiteral, useQueryState, useQueryStates } from 'nuqs';
 import { throttle } from 'nuqs';
 import { Route, Switch, Redirect } from 'wouter';
-import { AuthButton } from './components/AuthButton.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudEmptyState } from './components/CloudEmptyState.tsx';
+import { SettingsPage } from './components/SettingsPage.tsx';
 import { CloudUpgrade } from './components/CloudUpgrade.tsx';
+import { CommentThread } from './components/CommentThread.tsx';
 import { OnboardingRoute } from './components/OnboardingRoute.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { SharedPlanView } from './components/SharedPlanView.tsx';
-import { SubscriptionBadge } from './components/SubscriptionBadge.tsx';
+import { DashboardTopbar } from './components/DashboardTopbar.tsx';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useAuth } from './hooks/useAuth.ts';
@@ -72,26 +71,6 @@ const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
 
 type DashboardMode = 'local' | 'cloud';
-
-function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2.2}
-      stroke="currentColor"
-      className="size-3.5 opacity-90"
-    >
-      {hidden ? (
-        <path strokeLinecap="round" strokeLinejoin="round" d="m9.5 6.5 5 5.5-5 5.5" />
-      ) : (
-        <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 6.5-5 5.5 5 5.5" />
-      )}
-    </svg>
-  );
-}
 
 const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
 const dateOptions = ['all', 'today', '7d', '30d'] as const;
@@ -282,193 +261,6 @@ function useSidebarPeek(sidebarHidden: boolean, setSidebarPeek: (v: boolean) => 
   return { clear, reveal, scheduleClose };
 }
 
-function DashboardTopbar({
-  sidebarPinnedOpen,
-  sidebarHidden,
-  isPro,
-  hasUnseenPlans,
-  mode,
-  backendStatus,
-  backendIndicator,
-  totalPlans,
-  activeAgents,
-  search,
-  plans,
-  selectedPlan,
-  onToggleSidebar,
-  onSetSearch,
-  onSelectPlan,
-  onNewPlan,
-  onUpload,
-  onToggleMode,
-}: {
-  sidebarPinnedOpen: boolean;
-  sidebarHidden: boolean;
-  isPro: boolean;
-  hasUnseenPlans: boolean;
-  mode: DashboardMode;
-  backendStatus: string;
-  backendIndicator: { label: string; color: string };
-  totalPlans: number;
-  activeAgents: number;
-  search: string;
-  plans: Plan[];
-  selectedPlan: Plan | undefined;
-  onToggleSidebar: () => void;
-  onSetSearch: (v: string) => void;
-  onSelectPlan: (p: Plan | undefined) => void;
-  onNewPlan: () => void;
-  onUpload: () => void;
-  onToggleMode: () => void;
-}) {
-  return (
-    <div
-      className="grid items-center min-w-0 col-span-full gap-x-3 border-b border-border bg-surface z-50 box-border"
-      style={{
-        height: `${TOPBAR_HEIGHT}px`,
-        gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
-      }}
-    >
-      <div
-        className="flex items-center gap-3 min-w-0 h-full overflow-hidden box-border pl-4"
-        style={{
-          width: sidebarPinnedOpen ? `${SIDEBAR_EXPANDED_WIDTH}px` : undefined,
-          flex: sidebarPinnedOpen ? '0 0 auto' : '1 1 auto',
-          paddingRight: sidebarPinnedOpen ? '12px' : undefined,
-          borderRight: sidebarPinnedOpen ? '1px solid var(--border)' : 'none',
-        }}
-      >
-        <div className="shrink-0 relative">
-          <button
-            type="button"
-            onClick={onToggleSidebar}
-            aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
-            title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
-            className="size-[30px] rounded-lg border border-border text-text cursor-pointer flex items-center justify-center"
-            style={{
-              background: sidebarHidden ? 'var(--hover)' : 'transparent',
-            }}
-          >
-            <SidebarToggleIcon hidden={sidebarHidden} />
-          </button>
-          {sidebarHidden && isPro && hasUnseenPlans && (
-            <span className="sidebar-dot absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-blue-500 pointer-events-none" />
-          )}
-        </div>
-        <span className="font-semibold text-sm tracking-tight text-text whitespace-nowrap">
-          Agendex
-        </span>
-        {mode === 'local' && backendStatus === 'online' && (
-          <>
-            <button
-              type="button"
-              onClick={onNewPlan}
-              aria-label="Create new plan"
-              title="Create new plan"
-              className="ml-2 size-7 rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer flex items-center justify-center"
-            >
-              <svg
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.8}
-                stroke="currentColor"
-                className="size-[15px]"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-                />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={onUpload}
-              aria-label="Upload plan"
-              title="Upload plan"
-              className="size-7 rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer flex items-center justify-center"
-            >
-              <svg
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.8}
-                stroke="currentColor"
-                className="size-[15px]"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13"
-                />
-              </svg>
-            </button>
-          </>
-        )}
-      </div>
-
-      <div className="hidden md:flex min-w-0 justify-center">
-        <SearchBar
-          search={search}
-          onSearch={onSetSearch}
-          plans={plans}
-          selectedId={selectedPlan?.id}
-          onSelectPlan={onSelectPlan}
-          isPro={isPro}
-        />
-      </div>
-
-      <div className="flex items-center justify-end gap-3 min-w-0 justify-self-end pr-4">
-        <ThemeToggle />
-        <SubscriptionBadge />
-        <AuthButton />
-        <div className="hidden lg:block w-px h-[18px] bg-border" />
-        {mode === 'cloud' && totalPlans === 0 ? (
-          <span className="hidden lg:inline text-xs text-tertiary">Syncing...</span>
-        ) : (
-          <>
-            <span className="hidden lg:inline text-xs text-tertiary">
-              <strong className="text-secondary" style={{ fontWeight: 550 }}>
-                {totalPlans}
-              </strong>{' '}
-              plans
-            </span>
-            <div className="hidden lg:block w-px h-[18px] bg-border" />
-            <span className="hidden lg:inline text-xs text-tertiary">
-              <strong className="text-secondary" style={{ fontWeight: 550 }}>
-                {activeAgents}
-              </strong>{' '}
-              agents
-            </span>
-          </>
-        )}
-        <div className="hidden lg:block w-px h-[18px] bg-border" />
-        <div className="hidden lg:flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onToggleMode}
-            className="text-[11px] py-0.5 px-2 rounded border border-border bg-transparent text-secondary cursor-pointer uppercase tracking-wide"
-            style={{ fontWeight: 550 }}
-          >
-            {mode}
-          </button>
-        </div>
-        <div className="hidden lg:block w-px h-[18px] bg-border" />
-        <div className="hidden lg:flex items-center gap-1.5">
-          <div
-            className="rounded-full status-pulse size-1.5 shadow-[0_0_0_2px_var(--surface)]"
-            style={{ background: backendIndicator.color }}
-          />
-          <span className="text-xs text-tertiary">{backendIndicator.label}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function DashboardMain({
   mode,
   isPro,
@@ -572,12 +364,16 @@ function DashboardMain({
           <>
             <PlanViewer
               plan={selectedPlan}
-              onEdit={onEdit}
               onChartWideChange={onChartWideChange}
               onHistory={isPro ? onHistory : undefined}
               onShare={isPro ? onShare : undefined}
               headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
             />
+            {isPro && mode === 'cloud' && (
+              <div className="max-w-[720px] mx-auto px-8 pb-16">
+                <CommentThread planId={selectedPlan.id} isOwner />
+              </div>
+            )}
             {sharing && isPro && <SharePlanDialog plan={selectedPlan} onClose={onCloseShare} />}
           </>
         )
@@ -681,22 +477,48 @@ function DashboardSidebar({
       }}
     >
       <div className="px-3 pt-3 pb-2">
-        {mode === 'local' && backendStatus === 'online' && (
+        {((mode === 'local' && backendStatus === 'online') || (mode === 'cloud' && isPro)) && (
           <div className="flex gap-1.5 mb-2">
             <button
               type="button"
               onClick={onNewPlan}
-              className="flex-1 py-1.5 px-2.5 text-[12.5px] font-inherit rounded-[7px] border border-border bg-transparent text-text cursor-pointer flex items-center justify-center gap-[5px]"
-              style={{ fontWeight: 550 }}
+              className="sidebar-new-btn flex-1 h-8 px-3 text-[12px] font-semibold tracking-[-0.01em] rounded-lg cursor-pointer flex items-center justify-center gap-1.5 border-none transition-all duration-150"
+              style={{
+                background: '#c8ff32',
+                color: '#111',
+                boxShadow: '0 0 0 1px rgba(200,255,50,0.15), 0 1px 3px rgba(0,0,0,0.3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#d4ff5c';
+                e.currentTarget.style.boxShadow =
+                  '0 0 0 1px rgba(200,255,50,0.3), 0 2px 8px rgba(200,255,50,0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#c8ff32';
+                e.currentTarget.style.boxShadow =
+                  '0 0 0 1px rgba(200,255,50,0.15), 0 1px 3px rgba(0,0,0,0.3)';
+              }}
             >
-              <span className="text-[15px] leading-none">+</span> New
+              <svg
+                aria-hidden="true"
+                width="11"
+                height="11"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M6 1v10M1 6h10" />
+              </svg>
+              New plan
             </button>
             <button
               type="button"
               onClick={onUpload}
               aria-label="Upload plan"
               title="Upload plan"
-              className="py-1.5 px-2.5 text-[12.5px] font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer flex items-center justify-center"
+              className="h-8 w-8 shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center transition-all duration-150 hover:text-secondary hover:border-[rgba(255,255,255,0.12)] hover:bg-hover"
             >
               <svg
                 aria-hidden="true"
@@ -983,6 +805,7 @@ function Dashboard() {
         search={search}
         plans={plans}
         selectedPlan={selectedPlan}
+        height={TOPBAR_HEIGHT}
         onToggleSidebar={toggleSidebar}
         onSetSearch={setSearch}
         onSelectPlan={setSelectedPlan}
@@ -1113,6 +936,7 @@ export default function App() {
           <WelcomeScreen />
         </OnboardingRoute>
       </Route>
+      <Route path="/settings" component={SettingsPage} />
       <Route path="/" component={HomeRoute} />
     </Switch>
   );
