@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, Redirect } from 'wouter';
 import { useAction } from 'convex/react';
+import { startViewTransition } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useAuth } from '../hooks/useAuth';
 import { useSubscription } from '../hooks/useSubscription';
@@ -31,7 +32,11 @@ function GitHubIcon() {
   );
 }
 
-function AccountSection({ user }: { user: { name: string; email: string; image?: string } }) {
+function AccountSection({
+  user,
+}: {
+  user: { name: string; email: string; image?: string | null };
+}) {
   const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
 
   return (
@@ -317,7 +322,7 @@ export function SettingsPage() {
     try {
       await deleteAccountAction();
       await signOut();
-      navigate('/');
+      startViewTransition(() => navigate('/'));
     } catch (err) {
       console.error('Delete account error:', err);
       setDeleting(false);
@@ -330,7 +335,7 @@ export function SettingsPage() {
         <div className="max-w-[600px] mx-auto px-4 h-14 flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => startViewTransition(() => navigate('/'))}
             className="p-1.5 -ml-1.5 rounded-default border-none bg-transparent text-secondary cursor-pointer transition-colors duration-150 hover:text-text hover:bg-hover"
             aria-label="Back to dashboard"
           >

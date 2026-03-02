@@ -1,4 +1,5 @@
 import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -10,7 +11,9 @@ export function CollectionPickerPopover({
   onClose: () => void;
 }) {
   const collections = useQuery(api.collections.listMyCollections);
-  const memberCollectionIds = useQuery(api.collections.getCollectionsForPlan, { planId });
+  const memberCollectionIds = useQuery(api.collections.getCollectionsForPlan, {
+    planId: planId as Id<'plans'>,
+  });
   const addToCollection = useMutation(api.collections.addPlanToCollection);
   const removeFromCollection = useMutation(api.collections.removePlanFromCollection);
   const createCollection = useMutation(api.collections.createCollection);
@@ -19,7 +22,7 @@ export function CollectionPickerPopover({
   const [creating, setCreating] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const memberSet = new Set(memberCollectionIds ?? []);
+  const memberSet = new Set<string>(memberCollectionIds ?? []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -37,7 +40,7 @@ export function CollectionPickerPopover({
     setCreating(true);
     try {
       const collectionId = await createCollection({ name: trimmed });
-      await addToCollection({ collectionId, planId });
+      await addToCollection({ collectionId, planId: planId as Id<'plans'> });
       setNewName('');
     } finally {
       setCreating(false);
@@ -46,9 +49,15 @@ export function CollectionPickerPopover({
 
   async function handleToggle(collectionId: string) {
     if (memberSet.has(collectionId)) {
-      await removeFromCollection({ collectionId, planId });
+      await removeFromCollection({
+        collectionId: collectionId as Id<'collections'>,
+        planId: planId as Id<'plans'>,
+      });
     } else {
-      await addToCollection({ collectionId, planId });
+      await addToCollection({
+        collectionId: collectionId as Id<'collections'>,
+        planId: planId as Id<'plans'>,
+      });
     }
   }
 

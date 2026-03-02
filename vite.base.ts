@@ -1,6 +1,7 @@
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AgendexViteConfig = {
   envDir?: string;
-  plugins: unknown[];
+  plugins: any[];
   resolve?: {
     alias?: Record<string, string>;
   };

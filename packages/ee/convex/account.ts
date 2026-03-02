@@ -22,7 +22,8 @@ export const deleteAccount = action({
       }
     }
 
-    await ctx.runMutation(internal.account.purgeUserData, { userId: user._id });
+    // biome-ignore lint/suspicious/noExplicitAny: account module not yet in generated types
+    await ctx.runMutation((internal as any).account.purgeUserData, { userId: user._id });
   },
 });
 
@@ -30,7 +31,7 @@ export const purgeUserData = internalMutation({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
     async function deleteAll(table: string, indexName: string, indexField: string) {
-      const rows = await ctx.db
+      const rows = await (ctx.db as any)
         .query(table)
         .withIndex(indexName, (q: any) => q.eq(indexField, userId))
         .collect();

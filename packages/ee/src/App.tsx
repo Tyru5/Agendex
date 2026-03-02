@@ -100,7 +100,9 @@ function useDashboardData(
   const allCollections = useQuery(api.collections.listMyCollections, isPro ? {} : 'skip');
   const collectionPlanIds = useQuery(
     api.collections.getPlansInCollection,
-    isPro && selectedCollection ? { collectionId: selectedCollection } : 'skip',
+    isPro && selectedCollection
+      ? { collectionId: selectedCollection as Id<'collections'> }
+      : 'skip',
   );
 
   const cloudAgents = useMemo<AgentStats[]>(() => {
@@ -157,7 +159,7 @@ function useDashboardData(
       result = result.filter((p) => new Date(p[field]).getTime() >= cutoff);
     }
     if (collectionPlanIdSet) {
-      result = result.filter((p) => collectionPlanIdSet.has(p.id));
+      result = result.filter((p) => collectionPlanIdSet.has(p.id as Id<'plans'>));
     }
     if (selectedTags.length > 0 && planTagsMap) {
       result = result.filter((p) => {
@@ -813,7 +815,7 @@ function Dashboard() {
         onNewPlan={handleNewPlan}
         onUpload={handleUpload}
         onToggleMode={() => setMode(mode === 'local' ? 'cloud' : 'local')}
-        onNavigate={navigate}
+        onNavigate={(path: string) => startViewTransition(() => navigate(path))}
         onShowPricing={() => setShowPricingModal(true)}
       />
 

@@ -17,6 +17,10 @@
     "noImplicitOverride": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
-  }
+    "noPropertyAccessFromIndexSignature": false,
+    "paths": {
+      "@convex/*": ["./packages/ee/convex/*"]
+    }
+  },
+  "exclude": ["**/convex/**"]
 }

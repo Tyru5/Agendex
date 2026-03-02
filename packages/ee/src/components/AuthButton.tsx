@@ -1,4 +1,4 @@
-import { Skeleton } from '@agendex/web';
+import { Skeleton, startViewTransition } from '@agendex/web';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth.ts';
@@ -72,7 +72,7 @@ export function AuthButton() {
             type="button"
             onClick={() => {
               setOpen(false);
-              navigate('/settings');
+              startViewTransition(() => navigate('/settings'));
             }}
             className="w-full py-2 px-3 border-none bg-transparent text-[13px] text-text text-left cursor-pointer transition-colors duration-150 hover:bg-hover"
           >

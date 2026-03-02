@@ -1,4 +1,5 @@
 import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { type Plan } from '@agendex/web';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
@@ -17,7 +18,7 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
 
   const shareLinks = useQuery(
     api.sharing.getShareLinks,
-    publishedPlanId ? { planId: publishedPlanId } : 'skip',
+    publishedPlanId ? { planId: publishedPlanId as Id<'plans'> } : 'skip',
   );
 
   async function handlePublishAndShare() {
@@ -29,7 +30,7 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
         (result as { planId?: string })?.planId ??
         (result as string);
       setPublishedPlanId(planId as string);
-      await createShareLink({ planId: planId as string });
+      await createShareLink({ planId: planId as Id<'plans'> });
     } finally {
       setPublishing(false);
     }
@@ -43,7 +44,7 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
   }
 
   async function handleRevoke(linkId: string) {
-    await revokeShareLink({ shareLinkId: linkId });
+    await revokeShareLink({ shareLinkId: linkId as Id<'shareLinks'> });
   }
 
   const hasLinks = shareLinks && shareLinks.length > 0;

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as account from '../account.js';
 import type * as auth from '../auth.js';
 import type * as cli from '../cli.js';
 import type * as collections from '../collections.js';
@@ -25,6 +26,7 @@ import type * as tags from '../tags.js';
 import type { ApiFromModules, FilterApi, FunctionReference } from 'convex/server';
 
 declare const fullApi: ApiFromModules<{
+  account: typeof account;
   auth: typeof auth;
   cli: typeof cli;
   collections: typeof collections;

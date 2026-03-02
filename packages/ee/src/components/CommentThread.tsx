@@ -1,5 +1,6 @@
 import { SkeletonBlock } from '@agendex/web';
 import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
@@ -26,7 +27,7 @@ export function CommentThread({
 }) {
   const { user, isAuthenticated, signIn } = useAuth();
   const comments = useQuery(api.comments.getComments, {
-    planId,
+    planId: planId as Id<'plans'>,
     ...(shareToken ? { token: shareToken } : {}),
   });
   const addComment = useMutation(api.comments.addComment);
@@ -40,7 +41,11 @@ export function CommentThread({
     if (!trimmed) return;
     setPosting(true);
     try {
-      await addComment({ planId, body: trimmed, ...(shareToken ? { token: shareToken } : {}) });
+      await addComment({
+        planId: planId as Id<'plans'>,
+        body: trimmed,
+        ...(shareToken ? { token: shareToken } : {}),
+      });
       setBody('');
     } finally {
       setPosting(false);
@@ -141,7 +146,7 @@ export function CommentThread({
                   {(isOwner || user?.id === comment.authorId) && (
                     <button
                       type="button"
-                      onClick={() => deleteComment({ commentId: comment._id })}
+                      onClick={() => deleteComment({ commentId: comment._id as Id<'comments'> })}
                       className="py-0.5 px-2 text-[11px] font-[450] font-[inherit] rounded-[5px] border-none bg-transparent text-tertiary cursor-pointer"
                     >
                       Delete

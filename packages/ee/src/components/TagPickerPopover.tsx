@@ -1,10 +1,11 @@
 import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useEffect, useRef, useState } from 'react';
 
 export function TagPickerPopover({ planId, onClose }: { planId: string; onClose: () => void }) {
   const allTags = useQuery(api.tags.listMyTags);
-  const planTagsMap = useQuery(api.planTags.getTagsForPlans, { planIds: [planId] });
+  const planTagsMap = useQuery(api.planTags.getTagsForPlans, { planIds: [planId as Id<'plans'>] });
   const addTag = useMutation(api.planTags.addTag);
   const removeTag = useMutation(api.planTags.removeTag);
   const createTag = useMutation(api.tags.createTag);
@@ -31,7 +32,7 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
     setCreating(true);
     try {
       const tagId = await createTag({ name: trimmed });
-      await addTag({ planId, tagId });
+      await addTag({ planId: planId as Id<'plans'>, tagId });
       setNewName('');
     } finally {
       setCreating(false);
@@ -40,9 +41,9 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
 
   async function handleToggle(tagId: string) {
     if (assignedIds.has(tagId)) {
-      await removeTag({ planId, tagId });
+      await removeTag({ planId: planId as Id<'plans'>, tagId: tagId as Id<'tags'> });
     } else {
-      await addTag({ planId, tagId });
+      await addTag({ planId: planId as Id<'plans'>, tagId: tagId as Id<'tags'> });
     }
   }
 

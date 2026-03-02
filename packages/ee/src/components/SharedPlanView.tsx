@@ -83,7 +83,7 @@ export function SharedPlanView({ token }: { token: string }) {
             {plan.createdAt && (
               <span className="flex items-center gap-1.5">
                 <ClockIcon />
-                {timeAgo(plan.createdAt as string)}
+                {timeAgo(String(plan.createdAt))}
               </span>
             )}
             <span className="flex items-center gap-1.5">

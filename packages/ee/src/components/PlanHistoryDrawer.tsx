@@ -1,4 +1,5 @@
 import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { SkeletonBlock } from '@agendex/web';
 import { useMutation, useQuery } from 'convex/react';
 import { useEffect, useState } from 'react';
@@ -29,7 +30,7 @@ function sourceLabel(source?: string): string {
 }
 
 export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose: () => void }) {
-  const versions = useQuery(api.planVersions.listForPlan, { planId });
+  const versions = useQuery(api.planVersions.listForPlan, { planId: planId as Id<'plans'> });
   const restoreMutation = useMutation(api.planVersions.restore);
 
   const [compareFrom, setCompareFrom] = useState<number | null>(null);
@@ -38,20 +39,20 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
 
   useEffect(() => {
     if (versions && versions.length >= 2 && compareFrom === null && compareTo === null) {
-      setCompareFrom(versions[1].version);
-      setCompareTo(versions[0].version);
+      setCompareFrom(versions[1]!.version);
+      setCompareTo(versions[0]!.version);
     } else if (versions && versions.length === 1 && compareTo === null) {
-      setCompareTo(versions[0].version);
+      setCompareTo(versions[0]!.version);
     }
   }, [versions, compareFrom, compareTo]);
 
   const fromSnapshot = useQuery(
     api.planVersions.getVersion,
-    compareFrom != null ? { planId, version: compareFrom } : 'skip',
+    compareFrom != null ? { planId: planId as Id<'plans'>, version: compareFrom } : 'skip',
   );
   const toSnapshot = useQuery(
     api.planVersions.getVersion,
-    compareTo != null ? { planId, version: compareTo } : 'skip',
+    compareTo != null ? { planId: planId as Id<'plans'>, version: compareTo } : 'skip',
   );
 
   async function handleRestore() {
@@ -62,7 +63,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
     if (!ok) return;
     setRestoring(true);
     try {
-      await restoreMutation({ planId, version: compareFrom });
+      await restoreMutation({ planId: planId as Id<'plans'>, version: compareFrom });
     } finally {
       setRestoring(false);
     }
