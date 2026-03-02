@@ -1,5 +1,6 @@
-import { SearchBar, ThemeToggle, type Plan } from '@agendex/web';
+import { ThemeToggle, type Plan } from '@agendex/web';
 import { AuthButton } from './AuthButton';
+import { CommandPalette } from './command-palette/CommandPalette';
 import { SubscriptionBadge } from './SubscriptionBadge';
 import { BrandSection } from './topbar/BrandSection';
 import { StatusPopover } from './topbar/StatusPopover';
@@ -26,6 +27,8 @@ export function DashboardTopbar({
   onNewPlan,
   onUpload,
   onToggleMode,
+  onNavigate,
+  onShowPricing,
 }: {
   sidebarPinnedOpen: boolean;
   sidebarHidden: boolean;
@@ -46,6 +49,8 @@ export function DashboardTopbar({
   onNewPlan: () => void;
   onUpload: () => void;
   onToggleMode: () => void;
+  onNavigate: (path: string) => void;
+  onShowPricing: () => void;
 }) {
   return (
     <div
@@ -66,13 +71,18 @@ export function DashboardTopbar({
       />
 
       <div className="hidden md:flex flex-1 min-w-0 justify-center">
-        <SearchBar
+        <CommandPalette
           search={search}
           onSearch={onSetSearch}
           plans={plans}
           selectedId={selectedPlan?.id}
           onSelectPlan={onSelectPlan}
           isPro={isPro}
+          mode={mode}
+          onNewPlan={onNewPlan}
+          onUpload={onUpload}
+          onNavigate={onNavigate}
+          onShowPricing={onShowPricing}
         />
       </div>
 

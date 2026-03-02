@@ -121,7 +121,7 @@ export function SearchBar({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-[120] flex justify-center px-4 pt-[84px]"
+          className="fixed inset-0 z-[120] flex items-center justify-center px-4"
           style={{
             background: 'rgba(0,0,0,0.44)',
             opacity: open ? 1 : 0,

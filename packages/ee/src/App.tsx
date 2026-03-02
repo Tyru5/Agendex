@@ -19,7 +19,7 @@ import {
 } from '@agendex/web';
 import { parseAsString, parseAsStringLiteral, useQueryState, useQueryStates } from 'nuqs';
 import { throttle } from 'nuqs';
-import { Route, Switch, Redirect } from 'wouter';
+import { Route, Switch, Redirect, useLocation } from 'wouter';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudEmptyState } from './components/CloudEmptyState.tsx';
 import { SettingsPage } from './components/SettingsPage.tsx';
@@ -621,6 +621,7 @@ function dashReducer(s: DashState, a: DashAction): DashState {
 }
 
 function Dashboard() {
+  const [, navigate] = useLocation();
   const [search, setSearch] = useQueryState(
     'q',
     parseAsString
@@ -812,6 +813,8 @@ function Dashboard() {
         onNewPlan={handleNewPlan}
         onUpload={handleUpload}
         onToggleMode={() => setMode(mode === 'local' ? 'cloud' : 'local')}
+        onNavigate={navigate}
+        onShowPricing={() => setShowPricingModal(true)}
       />
 
       {sidebarHidden && (
