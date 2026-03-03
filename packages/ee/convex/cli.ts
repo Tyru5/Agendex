@@ -112,6 +112,31 @@ export const sync = httpAction(async (ctx, request) => {
 
     const body = await request.json();
 
+    if (
+      typeof body.localPlanId !== 'string' ||
+      typeof body.agent !== 'string' ||
+      typeof body.title !== 'string' ||
+      typeof body.content !== 'string' ||
+      typeof body.format !== 'string'
+    ) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: localPlanId, agent, title, content, format' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if (
+      (body.filePath !== undefined && typeof body.filePath !== 'string') ||
+      (body.workspace !== undefined && typeof body.workspace !== 'string') ||
+      (body.createdAt !== undefined && typeof body.createdAt !== 'number') ||
+      (body.updatedAt !== undefined && typeof body.updatedAt !== 'number')
+    ) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid optional field types' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
     const existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndLocalId, {
       ownerId,
       localPlanId: body.localPlanId,
