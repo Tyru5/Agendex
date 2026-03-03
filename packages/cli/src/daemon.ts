@@ -63,26 +63,31 @@ export async function startDaemon(): Promise<void> {
     syncing = true;
 
     const batch = syncQueue.splice(0);
-    for (const payload of batch) {
-      let result = await syncPlan(payload);
+    try {
+      for (const payload of batch) {
+        let result = await syncPlan(payload);
 
-      if (!result.ok && result.error?.includes('401')) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          result = await syncPlan(payload);
+        if (!result.ok && result.error?.includes('401')) {
+          const refreshed = await tryRefreshToken();
+          if (refreshed) {
+            result = await syncPlan(payload);
+          }
+        }
+
+        if (!result.ok) {
+          if (result.error?.includes('401')) {
+            console.error('[agendex] session expired. Run `agendex login` to re-authenticate.');
+            process.exit(1);
+          }
+          console.error(`[agendex] sync failed for "${payload.title}": ${result.error}`);
         }
       }
-
-      if (!result.ok) {
-        if (result.error?.includes('401')) {
-          console.error('[agendex] session expired. Run `agendex login` to re-authenticate.');
-          process.exit(1);
-        }
-        console.error(`[agendex] sync failed for "${payload.title}": ${result.error}`);
-      }
+    } catch (err) {
+      console.error('[agendex] sync error:', err);
+      syncQueue.unshift(...batch);
+    } finally {
+      syncing = false;
     }
-
-    syncing = false;
     if (syncQueue.length > 0) processSyncQueue();
   }
 
