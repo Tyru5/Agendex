@@ -174,14 +174,14 @@ export const reactivateSubscription = action({
     if (!sub?.stripeSubscriptionId) throw new ConvexError('No subscription found');
 
     const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
-    await stripeClient.subscriptions.update(sub.stripeSubscriptionId, {
+    const updated = await stripeClient.subscriptions.update(sub.stripeSubscriptionId, {
       cancel_at_period_end: false,
     });
 
     await ctx.runMutation((internal as any).subscriptions.syncSubscriptionUpdate, {
       stripeSubscriptionId: sub.stripeSubscriptionId,
       status: 'active',
-      currentPeriodEnd: sub.currentPeriodEnd,
+      currentPeriodEnd: updated.current_period_end * 1000,
       cancelAtPeriodEnd: false,
     });
 

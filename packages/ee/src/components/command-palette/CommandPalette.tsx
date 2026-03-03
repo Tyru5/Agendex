@@ -46,7 +46,8 @@ export function CommandPalette({
 
   const isMac = useMemo(() => {
     if (typeof navigator === 'undefined') return true;
-    return /Mac|iPhone|iPad/i.test(navigator.platform);
+    const platform = (navigator as any).userAgentData?.platform ?? navigator.platform ?? '';
+    return /Mac|iPhone|iPad/i.test(platform);
   }, []);
 
   const clearCloseTimer = useCallback(() => {

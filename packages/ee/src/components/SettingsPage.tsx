@@ -92,13 +92,16 @@ function BillingSection({
     }
   }
 
+  const isFreePlan = subscription?.status === 'canceled' && !subscription?.stripeSubscriptionId;
   const statusLabel = isTrialing
     ? 'Trial'
     : isActive
       ? 'Pro'
-      : subscription?.status === 'canceled'
-        ? 'Canceled'
-        : 'Free';
+      : isFreePlan
+        ? 'Free'
+        : subscription?.status === 'canceled'
+          ? 'Canceled'
+          : 'Free';
 
   const statusColor = isTrialing
     ? 'text-[#c8ff32]'
