@@ -46,8 +46,6 @@ export async function startDaemon(): Promise<void> {
 
   const syncQueue: SyncPlanPayload[] = [];
   let syncing = false;
-  let needsReauth = false;
-
   async function tryRefreshToken(): Promise<boolean> {
     const cfg = loadConfig();
     if (!cfg?.cloudToken || !cfg.convexUrl) return false;
@@ -61,13 +59,11 @@ export async function startDaemon(): Promise<void> {
   }
 
   async function processSyncQueue() {
-    if (syncing || syncQueue.length === 0 || needsReauth) return;
+    if (syncing || syncQueue.length === 0) return;
     syncing = true;
 
     const batch = syncQueue.splice(0);
     for (const payload of batch) {
-      if (needsReauth) break;
-
       let result = await syncPlan(payload);
 
       if (!result.ok && result.error?.includes('401')) {
@@ -79,7 +75,6 @@ export async function startDaemon(): Promise<void> {
 
       if (!result.ok) {
         if (result.error?.includes('401')) {
-          needsReauth = true;
           console.error('[agendex] session expired. Run `agendex login` to re-authenticate.');
           process.exit(1);
         }

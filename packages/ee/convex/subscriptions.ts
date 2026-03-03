@@ -47,7 +47,8 @@ export const hasCompletedOnboarding = query({
     try {
       user = await authComponent.getAuthUser(ctx);
     } catch {
-      return null;
+      // Auth error — treat as onboarding complete to avoid blank screen
+      return true;
     }
     if (!user) return null;
 

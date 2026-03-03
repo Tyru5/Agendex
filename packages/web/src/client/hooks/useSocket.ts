@@ -64,13 +64,15 @@ function disconnect() {
 }
 
 let msgCount = 0;
-// @ts-expect-error debug
-window.__wsDebug = () => ({
-  readyState: socket?.readyState,
-  refCount,
-  listeners: [...listeners.keys()],
-  msgCount,
-});
+if (import.meta.env.DEV) {
+  // @ts-expect-error debug
+  window.__wsDebug = () => ({
+    readyState: socket?.readyState,
+    refCount,
+    listeners: [...listeners.keys()],
+    msgCount,
+  });
+}
 
 export function useSocketEvent(event: string, handler: () => void, enabled = true) {
   const handlerRef = useRef(handler);
