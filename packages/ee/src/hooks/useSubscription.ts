@@ -53,7 +53,7 @@ export function useSubscription() {
     trialDaysLeft,
     isLoading: subscription === undefined,
     needsOnboarding: onboardingDone === false,
-    onboardingLoading: onboardingDone === undefined || onboardingDone === null,
+    onboardingLoading: onboardingDone === undefined,
     createCheckout: async (plan: 'monthly' | 'yearly') => {
       try {
         const result = await createCheckout({ plan });

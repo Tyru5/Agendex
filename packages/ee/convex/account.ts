@@ -14,12 +14,8 @@ export const deleteAccount = action({
     // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
     const sub = await ctx.runQuery((api as any).subscriptions.getMySubscriptionQuery);
     if (sub?.stripeSubscriptionId) {
-      try {
-        const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
-        await stripeClient.subscriptions.cancel(sub.stripeSubscriptionId);
-      } catch (err) {
-        console.error('Stripe cancellation error during account deletion:', err);
-      }
+      const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
+      await stripeClient.subscriptions.cancel(sub.stripeSubscriptionId);
     }
 
     // biome-ignore lint/suspicious/noExplicitAny: account module not yet in generated types

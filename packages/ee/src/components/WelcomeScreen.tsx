@@ -114,6 +114,7 @@ export function WelcomeScreen() {
     setError(null);
     try {
       await startTrial();
+      setLoading(null);
     } catch {
       setLoading(null);
       setError('Failed to start trial. Please try again.');
@@ -125,6 +126,7 @@ export function WelcomeScreen() {
     setError(null);
     try {
       await skipTrial();
+      setLoading(null);
     } catch {
       setLoading(null);
       setError('Something went wrong. Please try again.');
