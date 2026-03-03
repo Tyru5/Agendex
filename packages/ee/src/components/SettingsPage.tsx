@@ -144,7 +144,7 @@ function BillingSection({
           </div>
         )}
 
-        {isActive || isTrialing ? (
+        {isActive && !isTrialing ? (
           <button
             type="button"
             onClick={handleManageBilling}

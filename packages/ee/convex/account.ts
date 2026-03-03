@@ -107,5 +107,12 @@ export const purgeUserData = internalMutation({
 
     // Daemon heartbeats
     await deleteAll('daemonHeartbeats', 'by_owner', 'ownerId');
+
+    // Comments authored by this user on other users' plans
+    const authoredComments = await ctx.db
+      .query('comments')
+      .filter((q: any) => q.eq(q.field('authorId'), userId))
+      .collect();
+    for (const c of authoredComments) await ctx.db.delete(c._id);
   },
 });
