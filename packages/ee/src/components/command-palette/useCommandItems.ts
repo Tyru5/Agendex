@@ -33,6 +33,7 @@ export function useCommandItems({
   selectedPlanId,
   isPro,
   onClose,
+  onSelectPlan,
 }: {
   commands: Command[];
   plans: Plan[];
@@ -40,6 +41,7 @@ export function useCommandItems({
   selectedPlanId: string | undefined;
   isPro: boolean;
   onClose: () => void;
+  onSelectPlan?: (plan: Plan) => void;
 }) {
   const [focusedIndex, setFocusedIndex] = useState(0);
 
@@ -90,9 +92,12 @@ export function useCommandItems({
       if (item.type === 'command' && item.command) {
         item.command.action();
         onClose();
+      } else if (item.type === 'plan' && item.plan && onSelectPlan) {
+        onSelectPlan(item.plan);
+        onClose();
       }
     },
-    [onClose],
+    [onClose, onSelectPlan],
   );
 
   const onKeyDown = useCallback(

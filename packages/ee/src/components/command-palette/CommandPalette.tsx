@@ -226,6 +226,7 @@ export function CommandPalette({
     selectedPlanId: selectedId,
     isPro,
     onClose: closeModal,
+    onSelectPlan,
   });
 
   const getFocusableIndex = useCallback(

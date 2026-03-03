@@ -75,6 +75,9 @@ function waitForCallback(port: number): Promise<CallbackResult> {
         const convexUrl = url.searchParams.get('convexUrl');
 
         if (!token || !convexUrl) {
+          clearTimeout(timeout);
+          setTimeout(() => server.stop(), 500);
+          reject(new Error('Missing token or convexUrl in callback'));
           return new Response(callbackPage(false), {
             headers: { 'Content-Type': 'text/html' },
           });
