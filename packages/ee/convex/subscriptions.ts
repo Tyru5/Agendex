@@ -50,7 +50,7 @@ export const hasCompletedOnboarding = query({
       // Auth error — treat as onboarding complete to avoid blank screen
       return true;
     }
-    if (!user) return null;
+    if (!user) return false;
 
     const sub = await ctx.db
       .query('subscriptions')
@@ -114,7 +114,7 @@ export const skipTrial = internalMutation({
       stripeSubscriptionId: '',
       status: 'canceled',
       plan: 'monthly',
-      currentPeriodEnd: 0,
+      currentPeriodEnd: Date.now(),
       cancelAtPeriodEnd: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),

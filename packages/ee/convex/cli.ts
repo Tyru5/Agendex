@@ -137,7 +137,8 @@ export const sync = httpAction(async (ctx, request) => {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  } catch {
+  } catch (err) {
+    console.error('Sync error:', err);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

@@ -69,22 +69,7 @@ export function BrandSection({
             onClick={onNewPlan}
             aria-label="Create new plan"
             title="Create new plan"
-            className="h-7 px-2.5 rounded-lg text-[11.5px] font-semibold tracking-[-0.01em] cursor-pointer flex items-center gap-1 border-none transition-all duration-150"
-            style={{
-              background: '#c8ff32',
-              color: '#111',
-              boxShadow: '0 0 0 1px rgba(200,255,50,0.15), 0 1px 3px rgba(0,0,0,0.3)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#d4ff5c';
-              e.currentTarget.style.boxShadow =
-                '0 0 0 1px rgba(200,255,50,0.3), 0 2px 8px rgba(200,255,50,0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#c8ff32';
-              e.currentTarget.style.boxShadow =
-                '0 0 0 1px rgba(200,255,50,0.15), 0 1px 3px rgba(0,0,0,0.3)';
-            }}
+            className="h-7 px-2.5 rounded-lg text-[11.5px] font-semibold tracking-[-0.01em] cursor-pointer flex items-center gap-1 border-none transition-all duration-150 bg-[#c8ff32] text-[#111] shadow-[0_0_0_1px_rgba(200,255,50,0.15),0_1px_3px_rgba(0,0,0,0.3)] hover:bg-[#d4ff5c] hover:shadow-[0_0_0_1px_rgba(200,255,50,0.3),0_2px_8px_rgba(200,255,50,0.15)] focus-visible:bg-[#d4ff5c] focus-visible:shadow-[0_0_0_1px_rgba(200,255,50,0.3),0_2px_8px_rgba(200,255,50,0.15)]"
           >
             <svg
               aria-hidden="true"

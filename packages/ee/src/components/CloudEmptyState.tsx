@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const SYNC_TIMEOUT_MS = 15_000;
 
@@ -31,6 +31,12 @@ interface CloudEmptyStateProps {
 export function CloudEmptyState({ planCount }: CloudEmptyStateProps) {
   const [timedOut, setTimedOut] = useState(false);
 
+  const isMac = useMemo(() => {
+    if (typeof navigator === 'undefined') return true;
+    const platform = (navigator as any).userAgentData?.platform ?? navigator.platform ?? '';
+    return /Mac|iPhone|iPad/i.test(platform);
+  }, []);
+
   useEffect(() => {
     if (planCount > 0) return;
     setTimedOut(false);
@@ -48,10 +54,7 @@ export function CloudEmptyState({ planCount }: CloudEmptyStateProps) {
           <p className="text-[12px] text-tertiary m-0">
             or press{' '}
             <kbd className="text-[10.5px] font-semibold py-0.5 px-1.5 rounded-[5px] bg-hover border border-border text-tertiary font-[inherit]">
-              {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
-                ? '\u2318'
-                : 'Ctrl'}
-              +K
+              {isMac ? '\u2318' : 'Ctrl'}+K
             </kbd>{' '}
             to search
           </p>

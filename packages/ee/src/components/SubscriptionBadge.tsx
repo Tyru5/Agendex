@@ -62,13 +62,7 @@ export function SubscriptionBadge() {
                   setShowMenu(false);
                   setShowPricing(true);
                 }}
-                className="w-full py-2.5 px-4 border-none bg-transparent text-[#c8ff32] text-left cursor-pointer text-[14px] font-semibold transition-[background] duration-200"
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = 'var(--hover)';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                }}
+                className="w-full py-2.5 px-4 border-none bg-transparent text-[#c8ff32] text-left cursor-pointer text-[14px] font-semibold transition-[background] duration-200 hover:bg-hover"
               >
                 Upgrade to Pro
               </button>
@@ -127,13 +121,7 @@ export function SubscriptionBadge() {
                 setShowMenu(false);
                 await createPortal();
               }}
-              className="w-full py-2.5 px-4 border-none bg-transparent text-text text-left cursor-pointer text-[14px] transition-[background] duration-200"
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'var(--hover)';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-              }}
+              className="w-full py-2.5 px-4 border-none bg-transparent text-text text-left cursor-pointer text-[14px] transition-[background] duration-200 hover:bg-hover"
             >
               Manage Billing
             </button>
@@ -145,14 +133,8 @@ export function SubscriptionBadge() {
                   setShowMenu(false);
                   await reactivate();
                 }}
-                className="w-full py-2.5 px-4 border-none border-t border-border bg-transparent text-left cursor-pointer text-[14px] font-semibold transition-[background] duration-200"
+                className="w-full py-2.5 px-4 border-0 border-t border-solid border-border bg-transparent text-left cursor-pointer text-[14px] font-semibold transition-[background] duration-200 hover:bg-hover"
                 style={{ color: 'var(--primary)' }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = 'var(--hover)';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                }}
               >
                 Reactivate
               </button>

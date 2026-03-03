@@ -1,5 +1,5 @@
 import { Skeleton } from '@agendex/web';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
 
 interface CliAuthPageProps {
@@ -11,11 +11,17 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
   const [status, setStatus] = useState<'authenticating' | 'redirecting' | 'error'>(
     'authenticating',
   );
+  const didAttemptSignIn = useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
 
     if (!isAuthenticated) {
+      if (didAttemptSignIn.current) {
+        setStatus('error');
+        return;
+      }
+      didAttemptSignIn.current = true;
       signIn.social({ provider: 'github', callbackURL: window.location.href });
       return;
     }
