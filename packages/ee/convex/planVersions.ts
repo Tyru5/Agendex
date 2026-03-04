@@ -25,7 +25,7 @@ export const listForPlan = query({
 
     const versions = await ctx.db
       .query('planVersions')
-      .withIndex('by_plan', (q: any) => q.eq('planId', args.planId))
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
       .order('desc')
       .collect();
 
@@ -60,9 +60,7 @@ export const getVersion = query({
 
     const snapshot = await ctx.db
       .query('planVersions')
-      .withIndex('by_plan_version', (q: any) =>
-        q.eq('planId', args.planId).eq('version', args.version),
-      )
+      .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).eq('version', args.version))
       .first();
 
     if (!snapshot) {
@@ -94,9 +92,7 @@ export const restore = mutation({
 
     const snapshot = await ctx.db
       .query('planVersions')
-      .withIndex('by_plan_version', (q: any) =>
-        q.eq('planId', args.planId).eq('version', args.version),
-      )
+      .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).eq('version', args.version))
       .first();
 
     if (!snapshot) {

@@ -1,13 +1,13 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { mutation, query, type QueryCtx } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
-async function validateShareToken(ctx: any, planId: string, token: string): Promise<void> {
+async function validateShareToken(ctx: QueryCtx, planId: string, token: string): Promise<void> {
   const shareLink = await ctx.db
     .query('shareLinks')
-    .withIndex('by_token', (q: any) => q.eq('token', token))
+    .withIndex('by_token', (q) => q.eq('token', token))
     .first();
 
   if (!shareLink || shareLink.revokedAt || shareLink.planId !== planId) {
@@ -33,7 +33,7 @@ export const getComments = query({
 
     return await ctx.db
       .query('comments')
-      .withIndex('by_plan', (q: any) => q.eq('planId', args.planId))
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
       .order('asc')
       .collect();
   },

@@ -20,7 +20,16 @@ import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { Redirect, Route, Switch, useLocation } from 'wouter';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudEmptyState } from './components/CloudEmptyState.tsx';
@@ -674,18 +683,23 @@ function Dashboard() {
     [setFilters],
   );
 
-  const { isAuthenticated } = useAuth();
-  const defaultMode: DashboardMode = isAuthenticated ? 'cloud' : 'local';
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [ds, dsd] = useReducer(dashReducer, {
     selectedTags: [],
     selectedCollection: undefined,
     activePanel: null,
     showPricingModal: false,
-    mode: defaultMode,
+    mode: 'local',
     sidebarHidden: localStorage.getItem(SIDEBAR_PREF_KEY) === 'true',
     sidebarPeek: false,
   });
+
+  useEffect(() => {
+    if (!authLoading) {
+      dsd({ type: 'SET_MODE', value: isAuthenticated ? 'cloud' : 'local' });
+    }
+  }, [authLoading, isAuthenticated]);
 
   const {
     selectedTags,
@@ -744,9 +758,7 @@ function Dashboard() {
   const sidebarWidth = sidebarPinnedOpen ? SIDEBAR_EXPANDED_WIDTH : 0;
 
   const peek = useSidebarPeek(sidebarHidden, setSidebarPeek);
-  const [optimisticSelectedPlan, setOptimisticSelectedPlan] = useState<Plan | undefined>(
-    undefined,
-  );
+  const [optimisticSelectedPlan, setOptimisticSelectedPlan] = useState<Plan | undefined>(undefined);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
@@ -794,7 +806,14 @@ function Dashboard() {
         setActivePanel(null);
       }
     }
-  }, [filteredPlans.length, loading, optimisticSelectedPlan, plans, selectedPlanId, setSelectedPlanId]);
+  }, [
+    filteredPlans.length,
+    loading,
+    optimisticSelectedPlan,
+    plans,
+    selectedPlanId,
+    setSelectedPlanId,
+  ]);
 
   function handleSaved() {
     setActivePanel(null);

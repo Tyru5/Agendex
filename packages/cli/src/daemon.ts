@@ -63,6 +63,7 @@ export async function startDaemon(): Promise<void> {
     syncing = true;
 
     const batch = syncQueue.splice(0);
+    let syncedCount = 0;
     try {
       for (const payload of batch) {
         let result = await syncPlan(payload);
@@ -81,10 +82,11 @@ export async function startDaemon(): Promise<void> {
           }
           console.error(`[agendex] sync failed for "${payload.title}": ${result.error}`);
         }
+        syncedCount++;
       }
     } catch (err) {
       console.error('[agendex] sync error:', err);
-      syncQueue.unshift(...batch);
+      syncQueue.unshift(...batch.slice(syncedCount));
     } finally {
       syncing = false;
     }

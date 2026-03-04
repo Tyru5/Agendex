@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import Stripe from 'stripe';
 import { api, internal } from './_generated/api';
-import { action, internalMutation, query } from './_generated/server';
+import { action, internalMutation, query, type QueryCtx } from './_generated/server';
 import { authComponent } from './auth';
 import { stripe } from './stripe';
 
@@ -17,12 +17,12 @@ export const getMySubscriptionQuery = query({
 
     return await ctx.db
       .query('subscriptions')
-      .withIndex('by_user', (q: any) => q.eq('userId', user._id))
+      .withIndex('by_user', (q) => q.eq('userId', user._id))
       .first();
   },
 });
 
-export async function hasActiveSubscription(ctx: any): Promise<boolean> {
+export async function hasActiveSubscription(ctx: QueryCtx): Promise<boolean> {
   let user;
   try {
     user = await authComponent.getAuthUser(ctx);
@@ -33,7 +33,7 @@ export async function hasActiveSubscription(ctx: any): Promise<boolean> {
 
   const sub = await ctx.db
     .query('subscriptions')
-    .withIndex('by_user', (q: any) => q.eq('userId', user._id))
+    .withIndex('by_user', (q) => q.eq('userId', user._id))
     .first();
 
   if (!sub) return false;
@@ -54,7 +54,7 @@ export const hasCompletedOnboarding = query({
 
     const sub = await ctx.db
       .query('subscriptions')
-      .withIndex('by_user', (q: any) => q.eq('userId', user._id))
+      .withIndex('by_user', (q) => q.eq('userId', user._id))
       .first();
 
     return sub !== null;
@@ -66,7 +66,7 @@ export const startTrial = internalMutation({
   handler: async (ctx, { userId }) => {
     const existing = await ctx.db
       .query('subscriptions')
-      .withIndex('by_user', (q: any) => q.eq('userId', userId))
+      .withIndex('by_user', (q) => q.eq('userId', userId))
       .first();
 
     if (existing) return;
@@ -103,7 +103,7 @@ export const skipTrial = internalMutation({
   handler: async (ctx, { userId }) => {
     const existing = await ctx.db
       .query('subscriptions')
-      .withIndex('by_user', (q: any) => q.eq('userId', userId))
+      .withIndex('by_user', (q) => q.eq('userId', userId))
       .first();
 
     if (existing) return;
@@ -170,7 +170,7 @@ export const reactivateSubscription = action({
     const user = await ctx.runQuery(api.auth.getCurrentUser);
     if (!user) throw new ConvexError('Not authenticated');
 
-    const sub = await ctx.runQuery((api as any).subscriptions.getMySubscriptionQuery);
+    const sub = await ctx.runQuery(api.subscriptions.getMySubscriptionQuery);
     if (!sub?.stripeSubscriptionId) throw new ConvexError('No subscription found');
 
     const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -178,10 +178,11 @@ export const reactivateSubscription = action({
       cancel_at_period_end: false,
     });
 
-    await ctx.runMutation((internal as any).subscriptions.syncSubscriptionUpdate, {
+    const item = updated.items.data[0];
+    await ctx.runMutation(internal.subscriptions.syncSubscriptionUpdate, {
       stripeSubscriptionId: sub.stripeSubscriptionId,
       status: 'active',
-      currentPeriodEnd: updated.current_period_end * 1000,
+      currentPeriodEnd: (item?.current_period_end ?? 0) * 1000,
       cancelAtPeriodEnd: false,
     });
 
@@ -194,7 +195,7 @@ export const createPortalSession = action({
     const user = await ctx.runQuery(api.auth.getCurrentUser);
     if (!user) throw new ConvexError('Not authenticated');
 
-    const sub = await ctx.runQuery((api as any).subscriptions.getMySubscriptionQuery);
+    const sub = await ctx.runQuery(api.subscriptions.getMySubscriptionQuery);
     if (!sub) throw new ConvexError('No subscription found');
 
     const siteUrl = process.env.SITE_URL ?? '';
@@ -221,7 +222,7 @@ export const fulfillCheckout = internalMutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query('subscriptions')
-      .withIndex('by_user', (q: any) => q.eq('userId', args.userId))
+      .withIndex('by_user', (q) => q.eq('userId', args.userId))
       .first();
 
     if (existing) {
@@ -269,7 +270,7 @@ export const syncSubscriptionUpdate = internalMutation({
   handler: async (ctx, args) => {
     const sub = await ctx.db
       .query('subscriptions')
-      .withIndex('by_stripe_subscription', (q: any) =>
+      .withIndex('by_stripe_subscription', (q) =>
         q.eq('stripeSubscriptionId', args.stripeSubscriptionId),
       )
       .first();
@@ -290,7 +291,7 @@ export const syncSubscriptionDeletion = internalMutation({
   handler: async (ctx, args) => {
     const sub = await ctx.db
       .query('subscriptions')
-      .withIndex('by_stripe_subscription', (q: any) =>
+      .withIndex('by_stripe_subscription', (q) =>
         q.eq('stripeSubscriptionId', args.stripeSubscriptionId),
       )
       .first();
