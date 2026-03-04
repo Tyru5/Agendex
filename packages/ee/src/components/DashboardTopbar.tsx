@@ -1,4 +1,4 @@
-import { ThemeToggle, type Plan } from '@agendex/web';
+import { type Plan, ThemeToggle } from '@agendex/web';
 import { AuthButton } from './AuthButton';
 import { CommandPalette } from './command-palette/CommandPalette';
 import { SubscriptionBadge } from './SubscriptionBadge';
@@ -27,6 +27,7 @@ export function DashboardTopbar({
   onNewPlan,
   onUpload,
   onToggleMode,
+  onHistory,
   onNavigate,
   onShowPricing,
 }: {
@@ -49,6 +50,7 @@ export function DashboardTopbar({
   onNewPlan: () => void;
   onUpload: () => void;
   onToggleMode: () => void;
+  onHistory: () => void;
   onNavigate: (path: string) => void;
   onShowPricing: () => void;
 }) {
@@ -81,6 +83,7 @@ export function DashboardTopbar({
           mode={mode}
           onNewPlan={onNewPlan}
           onUpload={onUpload}
+          onHistory={onHistory}
           onNavigate={onNavigate}
           onShowPricing={onShowPricing}
         />

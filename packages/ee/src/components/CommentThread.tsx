@@ -100,7 +100,7 @@ export function CommentThread({
           <span className="text-[12.5px] text-tertiary">Sign in to comment</span>
           <button
             type="button"
-            onClick={() => signIn.social({ provider: 'github', callbackURL: '/' })}
+            onClick={() => signIn.social({ provider: 'github', callbackURL: window.location.href })}
             className="py-1 px-3 text-[12px] font-medium font-[inherit] rounded-[6px] border border-border bg-transparent text-secondary cursor-pointer"
           >
             Sign in

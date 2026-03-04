@@ -155,8 +155,8 @@ export const createCheckoutSession = action({
       priceId,
       customerId,
       mode: 'subscription',
-      successUrl: `${siteUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${siteUrl}/pricing`,
+      successUrl: `${siteUrl}/?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${siteUrl}/`,
       metadata: { userId: user._id, plan },
       subscriptionMetadata: { userId: user._id, plan },
     });
@@ -201,7 +201,7 @@ export const createPortalSession = action({
 
     const { url } = await stripe.createCustomerPortalSession(ctx, {
       customerId: sub.stripeCustomerId,
-      returnUrl: `${siteUrl}/dashboard`,
+      returnUrl: `${siteUrl}/`,
     });
 
     return { url };

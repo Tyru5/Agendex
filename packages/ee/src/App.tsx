@@ -20,7 +20,7 @@ import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Redirect, Route, Switch, useLocation } from 'wouter';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudEmptyState } from './components/CloudEmptyState.tsx';
@@ -744,33 +744,57 @@ function Dashboard() {
   const sidebarWidth = sidebarPinnedOpen ? SIDEBAR_EXPANDED_WIDTH : 0;
 
   const peek = useSidebarPeek(sidebarHidden, setSidebarPeek);
+  const [optimisticSelectedPlan, setOptimisticSelectedPlan] = useState<Plan | undefined>(
+    undefined,
+  );
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
   }, [sidebarHidden]);
 
   const selectedPlan = useMemo(() => {
-    if (filteredPlans.length === 0) return undefined;
     if (selectedPlanId) {
       return (
         filteredPlans.find((p) => p.id === selectedPlanId) ??
+        plans.find((p) => p.id === selectedPlanId) ??
+        (optimisticSelectedPlan?.id === selectedPlanId ? optimisticSelectedPlan : undefined) ??
         (mode === 'local' ? filteredPlans[0] : undefined)
       );
     }
     return mode === 'local' ? filteredPlans[0] : undefined;
-  }, [filteredPlans, selectedPlanId, mode]);
+  }, [filteredPlans, plans, optimisticSelectedPlan, selectedPlanId, mode]);
 
   const setSelectedPlan = useCallback(
-    (plan: Plan | undefined) => setSelectedPlanId(plan?.id ?? null),
+    (plan: Plan | undefined) => {
+      setOptimisticSelectedPlan(plan);
+      setSelectedPlanId(plan?.id ?? null);
+    },
     [setSelectedPlanId],
   );
 
   useEffect(() => {
-    if (filteredPlans.length === 0 && selectedPlanId) {
-      setSelectedPlanId(null);
-      setActivePanel(null);
+    if (!selectedPlanId) {
+      setOptimisticSelectedPlan(undefined);
+      return;
     }
-  }, [filteredPlans, selectedPlanId, setSelectedPlanId]);
+    if (plans.some((plan) => plan.id === selectedPlanId)) {
+      setOptimisticSelectedPlan((current) =>
+        current?.id === selectedPlanId ? undefined : current,
+      );
+    }
+  }, [plans, selectedPlanId]);
+
+  useEffect(() => {
+    if (!selectedPlanId || loading) return;
+    const hasSelectedPlan = plans.some((plan) => plan.id === selectedPlanId);
+    const hasOptimisticPlan = optimisticSelectedPlan?.id === selectedPlanId;
+    if (!hasSelectedPlan && !hasOptimisticPlan) {
+      setSelectedPlanId(null);
+      if (filteredPlans.length === 0) {
+        setActivePanel(null);
+      }
+    }
+  }, [filteredPlans.length, loading, optimisticSelectedPlan, plans, selectedPlanId, setSelectedPlanId]);
 
   function handleSaved() {
     setActivePanel(null);
@@ -832,6 +856,7 @@ function Dashboard() {
         onNewPlan={handleNewPlan}
         onUpload={handleUpload}
         onToggleMode={() => setMode(mode === 'local' ? 'cloud' : 'local')}
+        onHistory={() => startViewTransition(() => setActivePanel('history'))}
         onNavigate={(path: string) => startViewTransition(() => navigate(path))}
         onShowPricing={() => setShowPricingModal(true)}
       />

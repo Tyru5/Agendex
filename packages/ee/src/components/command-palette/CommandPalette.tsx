@@ -1,13 +1,6 @@
+import { AgentIcon, getAgentLabel, type Plan, useSeenPlans, useTheme } from '@agendex/web';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AgentIcon,
-  filterPlans,
-  getAgentLabel,
-  useSeenPlans,
-  useTheme,
-  type Plan,
-} from '@agendex/web';
-import { useCommandItems, type Command, type FlatItem } from './useCommandItems';
+import { type Command, type FlatItem, useCommandItems } from './useCommandItems';
 
 export function CommandPalette({
   search,
@@ -19,6 +12,7 @@ export function CommandPalette({
   mode,
   onNewPlan,
   onUpload,
+  onHistory,
   onNavigate,
   onShowPricing,
 }: {
@@ -31,6 +25,7 @@ export function CommandPalette({
   mode: 'local' | 'cloud';
   onNewPlan: () => void;
   onUpload: () => void;
+  onHistory: () => void;
   onNavigate: (path: string) => void;
   onShowPricing: () => void;
 }) {
@@ -46,7 +41,11 @@ export function CommandPalette({
 
   const isMac = useMemo(() => {
     if (typeof navigator === 'undefined') return true;
-    const platform = (navigator as any).userAgentData?.platform ?? navigator.platform ?? '';
+    const platform =
+      (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
+        ?.platform ??
+      navigator.platform ??
+      '';
     return /Mac|iPhone|iPad/i.test(platform);
   }, []);
 
@@ -137,7 +136,7 @@ export function CommandPalette({
         if (!isPro) {
           onShowPricing();
         } else {
-          onNavigate('/settings');
+          onHistory();
         }
       },
     });
@@ -205,6 +204,7 @@ export function CommandPalette({
     resolvedTheme,
     onNewPlan,
     onUpload,
+    onHistory,
     onNavigate,
     onShowPricing,
     onSearch,
@@ -219,7 +219,6 @@ export function CommandPalette({
     footerHint,
     onKeyDown,
     resetFocus,
-    filteredPlans,
   } = useCommandItems({
     commands,
     plans,
@@ -248,6 +247,7 @@ export function CommandPalette({
   );
 
   useEffect(() => {
+    if (focusedIndex < 0) return;
     const container = scrollRef.current;
     const el = container?.querySelector('[data-focused="true"]') as HTMLElement | null;
     if (!container || !el) return;
@@ -330,7 +330,7 @@ export function CommandPalette({
               {flatItems.length === 0 ? (
                 <div className="p-3 text-[12px] text-tertiary text-center">No results</div>
               ) : (
-                flatItems.map((item, i) => {
+                flatItems.map((item) => {
                   if (item.type === 'group-header') {
                     return (
                       <div
