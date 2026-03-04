@@ -55,13 +55,14 @@ export function BrandSection({
         Agendex<span style={{ color: '#c8ff32' }}>.</span>
       </span>
 
-      {((mode === 'local' && backendStatus === 'online') || (mode === 'cloud' && isPro)) && (
+      {(mode === 'local' || (mode === 'cloud' && isPro)) && (
         <div
-          className="flex items-center gap-1 ml-1.5 transition-[opacity,transform] duration-200 ease-in-out"
+          className="flex items-center gap-1 ml-1.5 transition-[opacity,transform,filter] duration-200 ease-in-out"
           style={{
-            opacity: sidebarPinnedOpen ? 0 : 1,
+            opacity: sidebarPinnedOpen ? 0 : backendStatus === 'offline' ? 0.35 : 1,
             transform: sidebarPinnedOpen ? 'scale(0.95)' : 'scale(1)',
-            pointerEvents: sidebarPinnedOpen ? 'none' : 'auto',
+            filter: backendStatus === 'offline' ? 'blur(1.5px)' : undefined,
+            pointerEvents: sidebarPinnedOpen || backendStatus === 'offline' ? 'none' : 'auto',
           }}
         >
           <button

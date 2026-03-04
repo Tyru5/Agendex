@@ -32,7 +32,6 @@ import {
 } from 'react';
 import { Redirect, Route, Switch, useLocation } from 'wouter';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
-import { CloudEmptyState } from './components/CloudEmptyState.tsx';
 import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
 import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
 import { CloudPlanUploader } from './components/CloudPlanUploader.tsx';
@@ -51,6 +50,7 @@ import { useAuth } from './hooks/useAuth.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
+import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 
 const PlanEditor = lazy(() =>
   import('@agendex/web').then((m) => ({
@@ -212,13 +212,14 @@ function useDashboardData(
   }, [agents, plans, mode]);
 
   const activeAgents = agents.filter((a) => a.planCount > 0).length;
-  const syncing = refreshing && !loading;
+  const syncIndicator = useSyncIndicator(plans, loading);
+  const syncing = syncIndicator || (refreshing && !loading);
   const backendIndicator = useMemo(() => {
     if (syncing) return { label: 'Syncing', color: '#f59e0b' };
     if (mode === 'cloud') {
       if (backendStatus === 'online' && plans.length === 0 && !error)
         return { label: 'Syncing', color: '#f59e0b' };
-      if (backendStatus === 'online') return { label: 'Cloud', color: '#3b82f6' };
+      if (backendStatus === 'online') return { label: 'Cloud', color: '#22c55e' };
       if (backendStatus === 'checking') return { label: 'Checking', color: '#f59e0b' };
       return { label: 'Offline', color: '#ef4444' };
     }
@@ -328,7 +329,7 @@ function DashboardMain({
     >
       {mode === 'cloud' && !isPro ? (
         <CloudUpgrade onSwitchLocal={onSwitchLocal} />
-      ) : mode === 'local' && backendStatus === 'offline' ? (
+      ) : backendStatus === 'offline' ? (
         <OfflineView />
       ) : uploading ? (
         <Suspense
@@ -405,8 +406,6 @@ function DashboardMain({
             )}
           </>
         )
-      ) : mode === 'cloud' ? (
-        <CloudEmptyState planCount={totalPlans} />
       ) : (
         <EmptyStateView
           onSearch={onSearch}
@@ -504,8 +503,20 @@ function DashboardSidebar({
           : 'opacity 120ms ease',
       }}
     >
-      <div className="px-3 pt-3 pb-2">
-        {((mode === 'local' && backendStatus === 'online') || (mode === 'cloud' && isPro)) && (
+      <div
+        className="px-3 pt-3 pb-2"
+        style={
+          backendStatus === 'offline'
+            ? {
+                opacity: 0.35,
+                filter: 'blur(1.5px)',
+                pointerEvents: 'none',
+                transition: 'opacity 0.3s, filter 0.3s',
+              }
+            : { transition: 'opacity 0.3s, filter 0.3s' }
+        }
+      >
+        {(mode === 'local' || (mode === 'cloud' && isPro)) && (
           <div className="flex gap-1.5 mb-2">
             <button
               type="button"
@@ -583,7 +594,19 @@ function DashboardSidebar({
         />
       </div>
 
-      <div className="flex-1 overflow-auto sidebar-scroll px-3 pb-3">
+      <div
+        className="flex-1 overflow-auto sidebar-scroll px-3 pb-3"
+        style={
+          backendStatus === 'offline'
+            ? {
+                opacity: 0.35,
+                filter: 'blur(1.5px)',
+                pointerEvents: 'none',
+                transition: 'opacity 0.3s, filter 0.3s',
+              }
+            : { transition: 'opacity 0.3s, filter 0.3s' }
+        }
+      >
         {loading ? (
           <div className="p-4">
             <SkeletonBlock lines={5} />

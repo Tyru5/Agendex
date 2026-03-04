@@ -16,7 +16,7 @@ export function PlanTagsBar({ planId }: { planId: string }) {
   const tags = planTagsMap?.[planId] ?? [];
 
   return (
-    <div className="flex items-center gap-1.5 flex-wrap mt-2">
+    <div className="flex items-center gap-1.5 flex-wrap my-2">
       {tags.map((tag: any) => (
         <TagChip
           key={tag._id}

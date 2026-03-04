@@ -10,6 +10,11 @@ import {
   startWatching,
 } from '@agendex/shared';
 import { type SyncPlanPayload, refreshToken, sendHeartbeat, syncPlan } from './api.ts';
+import { readPid, removePid, writePid } from './pid.ts';
+
+const MAX_RESTARTS = 5;
+const RESTART_WINDOW_MS = 60_000;
+const RESTART_DELAY_MS = 5_000;
 
 function planToPayload(plan: {
   id: string;
@@ -37,7 +42,7 @@ function planToPayload(plan: {
   };
 }
 
-export async function startDaemon(): Promise<void> {
+export async function runWorker(): Promise<void> {
   const config = await loadOrInitConfig();
   const adapters = resolveAdapters(config.enabledAdapters);
   setActiveAdapters(adapters);
@@ -64,6 +69,7 @@ export async function startDaemon(): Promise<void> {
 
     const batch = syncQueue.splice(0);
     let syncedCount = 0;
+    let failedCount = 0;
     try {
       for (const payload of batch) {
         let result = await syncPlan(payload);
@@ -80,22 +86,25 @@ export async function startDaemon(): Promise<void> {
             console.error('[agendex] session expired. Run `agendex login` to re-authenticate.');
             process.exit(1);
           }
+          failedCount++;
           console.error(`[agendex] sync failed for "${payload.title}": ${result.error}`);
+        } else {
+          syncedCount++;
         }
-        syncedCount++;
       }
     } catch (err) {
       console.error('[agendex] sync error:', err);
-      syncQueue.unshift(...batch.slice(syncedCount));
+      syncQueue.unshift(...batch.slice(syncedCount + failedCount));
     } finally {
       syncing = false;
+    }
+    if (syncedCount > 0 || failedCount > 0) {
+      console.log(`[agendex] sync complete: ${syncedCount} synced, ${failedCount} failed`);
     }
     if (syncQueue.length > 0) processSyncQueue();
   }
 
-  setOnPlansChanged(() => {
-    // no-op: we handle sync via the watcher callback
-  });
+  setOnPlansChanged(() => {});
 
   console.log(`[agendex] initial scan...`);
   await scan();
@@ -130,8 +139,59 @@ export async function startDaemon(): Promise<void> {
   });
 
   console.log(`[agendex] daemon running. Watching for file changes...`);
-  console.log(`[agendex] Press Ctrl+C to stop.`);
 
-  // keep process alive
   await new Promise(() => {});
+}
+
+export async function startSupervisor(): Promise<void> {
+  writePid();
+
+  let stopping = false;
+  let workerProc: ReturnType<typeof Bun.spawn> | null = null;
+
+  const shutdown = () => {
+    if (stopping) return;
+    stopping = true;
+    console.log('[agendex] supervisor shutting down...');
+    if (workerProc) workerProc.kill('SIGTERM');
+    removePid();
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+
+  const scriptPath = new URL(import.meta.url).pathname.replace(/daemon\.\w+$/, 'cli.ts');
+  const restartTimes: number[] = [];
+
+  while (!stopping) {
+    workerProc = Bun.spawn(['bun', scriptPath, 'start', '--worker'], {
+      stdio: ['ignore', 'inherit', 'inherit'],
+    });
+
+    const exitCode = await workerProc.exited;
+    workerProc = null;
+
+    if (stopping) break;
+
+    const now = Date.now();
+    restartTimes.push(now);
+    while (restartTimes.length > 0 && now - restartTimes[0] > RESTART_WINDOW_MS) {
+      restartTimes.shift();
+    }
+
+    if (restartTimes.length > MAX_RESTARTS) {
+      console.error(
+        `[agendex] worker crashed ${MAX_RESTARTS} times in ${RESTART_WINDOW_MS / 1000}s, giving up`,
+      );
+      removePid();
+      process.exit(1);
+    }
+
+    console.log(
+      `[agendex] worker exited (code ${exitCode}), restarting in ${RESTART_DELAY_MS / 1000}s...`,
+    );
+    await new Promise((r) => setTimeout(r, RESTART_DELAY_MS));
+  }
+
+  removePid();
 }

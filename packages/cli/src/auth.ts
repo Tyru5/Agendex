@@ -1,11 +1,14 @@
 import { type AgendexConfig, loadConfig, saveConfig } from '@agendex/shared';
 
 const DEFAULT_SITE_URL = 'https://agendex.dev';
+const DEBUG_SITE_URL = 'http://localhost:5174';
 
 export async function login(siteUrlOverride?: string): Promise<void> {
   const port = await findOpenPort();
   const callbackUrl = `http://localhost:${port}/callback`;
-  const siteUrl = siteUrlOverride ?? DEFAULT_SITE_URL;
+  // const siteUrl = siteUrlOverride ?? DEFAULT_SITE_URL;
+
+  const siteUrl = siteUrlOverride ?? DEBUG_SITE_URL;
 
   const authUrl = `${siteUrl}/auth/cli?callback=${encodeURIComponent(callbackUrl)}`;
 

@@ -16,6 +16,7 @@
     "cli:start": "bun run --cwd ./packages/cli src/cli.ts start",
     "cli:login": "bun run --cwd ./packages/cli src/cli.ts login",
     "cli:sync": "bun run --cwd ./packages/cli src/cli.ts sync",
+    "cli:stop": "bun run --cwd ./packages/cli src/cli.ts stop",
     "cli:status": "bun run --cwd ./packages/cli src/cli.ts status",
     "format": "biome format --write .",
     "format:check": "biome format .",

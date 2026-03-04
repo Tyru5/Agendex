@@ -160,10 +160,6 @@
   }
 }
 
-.sidebar-dot {
-  position: relative;
-}
-
 .sidebar-dot::before {
   content: '';
   position: absolute;

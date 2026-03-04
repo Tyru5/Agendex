@@ -61,10 +61,10 @@ export function OfflineView() {
 
         <div className="offline-badge">CONNECTION LOST</div>
 
-        <h2 className="offline-title">Local server unreachable</h2>
+        <h2 className="offline-title">Server unreachable</h2>
 
         <p className="offline-desc">
-          The Agendex daemon isn't responding. Plans will reload automatically when it reconnects.
+          The local server isn't responding. Plans will reload automatically when it reconnects.
         </p>
 
         <div className="offline-diagnostics">
