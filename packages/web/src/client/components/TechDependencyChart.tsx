@@ -311,6 +311,12 @@ interface TechDependencyChartProps {
   onWideChange?: (wide: boolean) => void;
 }
 
+function getGraphCategories(graph: TechGraph): Set<TechCategory> {
+  const categories = new Set<TechCategory>();
+  for (const node of graph.nodes) categories.add(node.data.category);
+  return categories;
+}
+
 export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [wide, setWide] = useState(false);
@@ -320,15 +326,18 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
     const markdown = normalizePlanMarkdown(plan.content);
     const techs = extractTechnologies(markdown);
     return buildTechGraph(techs);
-  }, [plan.content]);
+  }, [plan.id, plan.content]);
 
-  const [activeCategories, setActiveCategories] = useState<Set<TechCategory>>(() => {
-    const cats = new Set<TechCategory>();
-    for (const n of graph.nodes) cats.add(n.data.category);
-    return cats;
-  });
+  const [activeCategories, setActiveCategories] = useState<Set<TechCategory>>(() =>
+    getGraphCategories(graph),
+  );
 
   const nodeTypes = useMemo(() => ({ tech: TechNodeComponent }), []);
+
+  useEffect(() => {
+    setActiveCategories(getGraphCategories(graph));
+    setFocusedNodeId(null);
+  }, [graph]);
 
   // Filter nodes/edges by active categories
   const filteredGraph = useMemo(() => {

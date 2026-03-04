@@ -461,7 +461,12 @@ function extractPackageNames(code: string): string[] {
 }
 
 function normalizePackageName(raw: string): string {
-  return raw.replace(/\/.*$/, '').replace(/@[\^~>=<*]?[\d.]+.*$/, '');
+  const withoutVersion = raw.replace(/@[\^~>=<*]?[\d.]+.*$/, '');
+  if (withoutVersion.startsWith('@')) {
+    const [scope, name] = withoutVersion.split('/');
+    return scope && name ? `${scope}/${name}` : withoutVersion;
+  }
+  return withoutVersion.replace(/\/.*$/, '');
 }
 
 function categorizeUnknownPackage(name: string): TechCategory {

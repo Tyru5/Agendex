@@ -931,19 +931,18 @@ function HomeRoute() {
   const { isAuthenticated, isLoading, signIn } = useAuth();
   const { needsOnboarding, onboardingLoading } = useSubscription();
 
-  if (hasToken()) return <Dashboard />;
-
-  if (!isAuthenticated) {
-    if (isLoading) return null;
-    return (
-      <LandingPage onCloudLogin={() => signIn.social({ provider: 'github', callbackURL: '/' })} />
-    );
+  if (isAuthenticated) {
+    if (onboardingLoading) return null;
+    if (needsOnboarding) return <Redirect to="/welcome" />;
+    return <Dashboard />;
   }
 
-  if (onboardingLoading) return null;
-  if (needsOnboarding) return <Redirect to="/welcome" />;
+  if (hasToken()) return <Dashboard />;
+  if (isLoading) return null;
 
-  return <Dashboard />;
+  return (
+    <LandingPage onCloudLogin={() => signIn.social({ provider: 'github', callbackURL: '/' })} />
+  );
 }
 
 export default function App() {
