@@ -120,7 +120,9 @@ export const sync = httpAction(async (ctx, request) => {
       typeof body.format !== 'string'
     ) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: localPlanId, agent, title, content, format' }),
+        JSON.stringify({
+          error: 'Missing required fields: localPlanId, agent, title, content, format',
+        }),
         { status: 400, headers: { 'Content-Type': 'application/json' } },
       );
     }
@@ -131,10 +133,10 @@ export const sync = httpAction(async (ctx, request) => {
       (body.createdAt !== undefined && typeof body.createdAt !== 'number') ||
       (body.updatedAt !== undefined && typeof body.updatedAt !== 'number')
     ) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid optional field types' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } },
-      );
+      return new Response(JSON.stringify({ error: 'Invalid optional field types' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndLocalId, {

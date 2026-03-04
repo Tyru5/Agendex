@@ -29,6 +29,7 @@ export { useSocketEvent } from './client/hooks/useSocket.ts';
 export { useTheme } from './client/hooks/useTheme.ts';
 
 export {
+  AGENT_IDS,
   getAgentColor,
   getAgentGlyph,
   getAgentIcon,

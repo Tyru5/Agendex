@@ -40,6 +40,9 @@ import type { Id } from '@convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
+import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
+import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
+import { CloudPlanUploader } from './components/CloudPlanUploader.tsx';
 
 const PlanEditor = lazy(() =>
   import('@agendex/web').then((m) => ({
@@ -327,7 +330,11 @@ function DashboardMain({
             </div>
           }
         >
-          <PlanUploader agents={agents} onClose={onClose} onCreated={onCreated} />
+          {mode === 'cloud' ? (
+            <CloudPlanUploader agents={agents} onClose={onClose} onCreated={onCreated} />
+          ) : (
+            <PlanUploader agents={agents} onClose={onClose} onCreated={onCreated} />
+          )}
         </Suspense>
       ) : creating ? (
         <Suspense
@@ -338,7 +345,11 @@ function DashboardMain({
           }
         >
           <PaywallGuard onBack={onClose}>
-            <PlanCreator agents={agents} onClose={onClose} onCreated={onCreated} />
+            {mode === 'cloud' ? (
+              <CloudPlanCreator agents={agents} onClose={onClose} onCreated={onCreated} />
+            ) : (
+              <PlanCreator agents={agents} onClose={onClose} onCreated={onCreated} />
+            )}
           </PaywallGuard>
         </Suspense>
       ) : selectedPlan ? (
@@ -350,7 +361,11 @@ function DashboardMain({
               </div>
             }
           >
-            <PlanEditor plan={selectedPlan} onClose={onClose} onSaved={onSaved} />
+            {mode === 'cloud' ? (
+              <CloudPlanEditor plan={selectedPlan} onClose={onClose} onSaved={onSaved} />
+            ) : (
+              <PlanEditor plan={selectedPlan} onClose={onClose} onSaved={onSaved} />
+            )}
           </Suspense>
         ) : showHistory ? (
           <Suspense

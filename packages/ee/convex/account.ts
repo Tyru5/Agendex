@@ -1,9 +1,8 @@
 import { ConvexError } from 'convex/values';
 import { v } from 'convex/values';
 import Stripe from 'stripe';
-import { api, internal } from './_generated/api';
+import { api, components, internal } from './_generated/api';
 import { action, internalMutation } from './_generated/server';
-import { authComponent } from './auth';
 
 export const deleteAccount = action({
   handler: async (ctx) => {
@@ -20,6 +19,36 @@ export const deleteAccount = action({
 
     // biome-ignore lint/suspicious/noExplicitAny: account module not yet in generated types
     await ctx.runMutation((internal as any).account.purgeUserData, { userId: user._id });
+    // biome-ignore lint/suspicious/noExplicitAny: account module not yet in generated types
+    await ctx.runMutation((internal as any).account.deleteAuthRecords, { userId: user._id });
+  },
+});
+
+export const deleteAuthRecords = internalMutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    await ctx.runMutation(components.betterAuth.adapter.deleteMany, {
+      input: {
+        model: 'session',
+        where: [{ field: 'userId', value: userId }],
+      },
+      paginationOpts: { cursor: null, numItems: 1000 },
+    });
+
+    await ctx.runMutation(components.betterAuth.adapter.deleteMany, {
+      input: {
+        model: 'account',
+        where: [{ field: 'userId', value: userId }],
+      },
+      paginationOpts: { cursor: null, numItems: 1000 },
+    });
+
+    await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
+      input: {
+        model: 'user',
+        where: [{ field: '_id', value: userId }],
+      },
+    });
   },
 });
 

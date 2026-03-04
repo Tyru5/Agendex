@@ -324,7 +324,11 @@ export function SettingsPage() {
     setDeleting(true);
     try {
       await deleteAccountAction();
-      await signOut();
+      try {
+        await signOut();
+      } catch {
+        // The auth session may already be gone after server-side deletion.
+      }
       startViewTransition(() => navigate('/'));
     } catch (err) {
       console.error('Delete account error:', err);

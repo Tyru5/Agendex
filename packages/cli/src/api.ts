@@ -1,4 +1,4 @@
-import { loadConfig } from '@agendex/shared';
+import { loadConfig, saveConfig } from '@agendex/shared';
 
 function getCloudConfig() {
   const config = loadConfig();
@@ -41,16 +41,47 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<{ ok: boolean; er
   return { ok: true };
 }
 
+async function refreshStoredToken(currentToken: string, convexUrl: string): Promise<string | null> {
+  const refreshed = await refreshToken(currentToken, convexUrl);
+  if (!refreshed) return null;
+
+  const config = loadConfig();
+  if (config) {
+    saveConfig({ ...config, cloudToken: refreshed.token });
+  }
+
+  return refreshed.token;
+}
+
 export async function sendHeartbeat(): Promise<void> {
   const { token, convexUrl } = getCloudConfig();
   try {
-    await fetch(`${convexUrl}/api/cli/heartbeat`, {
+    let activeToken = token;
+    let res = await fetch(`${convexUrl}/api/cli/heartbeat`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${activeToken}`,
         'Content-Type': 'application/json',
       },
     });
+
+    if (res.status === 401) {
+      const refreshedToken = await refreshStoredToken(activeToken, convexUrl);
+      if (!refreshedToken) return;
+
+      activeToken = refreshedToken;
+      res = await fetch(`${convexUrl}/api/cli/heartbeat`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${activeToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    }
+
+    if (res.status === 401) {
+      return;
+    }
   } catch {
     // best-effort, don't crash the daemon
   }
