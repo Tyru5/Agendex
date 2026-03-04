@@ -34,12 +34,14 @@ function timeAgo(dateStr: string): string {
 export function PlanViewer({
   plan,
   headerExtra,
+  onEdit,
   onHistory,
   onShare,
   onChartWideChange,
 }: {
   plan: Plan;
   headerExtra?: ReactNode;
+  onEdit?: () => void;
   onHistory?: () => void;
   onShare?: () => void;
   onChartWideChange?: (wide: boolean) => void;
@@ -194,6 +196,30 @@ export function PlanViewer({
               </span>
               {copied ? 'Copied' : 'Copy'}
             </button>
+            {onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                title="Edit plan"
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <EditIcon />
+                Edit
+              </button>
+            )}
             {onShare && (
               <button
                 type="button"
@@ -513,6 +539,31 @@ function ShareIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"
+      />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      style={{ width: '13px', height: '13px' }}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m16.862 4.487 1.687-1.688a2.25 2.25 0 1 1 3.182 3.182L10.582 17.13a4.5 4.5 0 0 1-1.897 1.13L6 19l.74-2.685a4.5 4.5 0 0 1 1.13-1.897L16.862 4.487Z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
       />
     </svg>
   );

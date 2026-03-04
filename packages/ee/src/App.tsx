@@ -1,10 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import {
+  type AgentStats,
   EmptyStateView,
   filterPlans,
   hasToken,
   LandingPage,
   OfflineView,
+  type Plan,
   PlanList,
   PlanViewer,
   SidebarFilters,
@@ -14,35 +15,33 @@ import {
   useBackendStatus,
   usePlans,
   useSeenPlans,
-  type AgentStats,
-  type Plan,
 } from '@agendex/web';
-import { parseAsString, parseAsStringLiteral, useQueryState, useQueryStates } from 'nuqs';
-import { throttle } from 'nuqs';
-import { Route, Switch, Redirect, useLocation } from 'wouter';
-import { CliAuthPage } from './components/CliAuthPage.tsx';
-import { CloudEmptyState } from './components/CloudEmptyState.tsx';
-import { SettingsPage } from './components/SettingsPage.tsx';
-import { CloudUpgrade } from './components/CloudUpgrade.tsx';
-import { CommentThread } from './components/CommentThread.tsx';
-import { OnboardingRoute } from './components/OnboardingRoute.tsx';
-import { PaywallGuard } from './components/PaywallGuard.tsx';
-import { PricingModal } from './components/PricingModal.tsx';
-import { WelcomeScreen } from './components/WelcomeScreen.tsx';
-import { SharedPlanView } from './components/SharedPlanView.tsx';
-import { DashboardTopbar } from './components/DashboardTopbar.tsx';
-import { useCloudPlans } from './hooks/useCloudPlans.ts';
-import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
-import { useAuth } from './hooks/useAuth.ts';
-import { useSubscription } from './hooks/useSubscription.ts';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
-import { PlanTagsBar } from './components/PlanTagsBar.tsx';
-import { SharePlanDialog } from './components/SharePlanDialog.tsx';
+import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { Redirect, Route, Switch, useLocation } from 'wouter';
+import { CliAuthPage } from './components/CliAuthPage.tsx';
+import { CloudEmptyState } from './components/CloudEmptyState.tsx';
 import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
 import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
 import { CloudPlanUploader } from './components/CloudPlanUploader.tsx';
+import { CloudUpgrade } from './components/CloudUpgrade.tsx';
+import { CommentThread } from './components/CommentThread.tsx';
+import { DashboardTopbar } from './components/DashboardTopbar.tsx';
+import { OnboardingRoute } from './components/OnboardingRoute.tsx';
+import { PaywallGuard } from './components/PaywallGuard.tsx';
+import { PlanTagsBar } from './components/PlanTagsBar.tsx';
+import { PricingModal } from './components/PricingModal.tsx';
+import { SettingsPage } from './components/SettingsPage.tsx';
+import { SharedPlanView } from './components/SharedPlanView.tsx';
+import { SharePlanDialog } from './components/SharePlanDialog.tsx';
+import { WelcomeScreen } from './components/WelcomeScreen.tsx';
+import { useAuth } from './hooks/useAuth.ts';
+import { useCloudPlans } from './hooks/useCloudPlans.ts';
+import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
+import { useSubscription } from './hooks/useSubscription.ts';
 
 const PlanEditor = lazy(() =>
   import('@agendex/web').then((m) => ({
@@ -381,6 +380,7 @@ function DashboardMain({
           <>
             <PlanViewer
               plan={selectedPlan}
+              onEdit={onEdit}
               onChartWideChange={onChartWideChange}
               onHistory={isPro ? onHistory : undefined}
               onShare={isPro ? onShare : undefined}
@@ -391,7 +391,9 @@ function DashboardMain({
                 <CommentThread planId={selectedPlan.id} isOwner />
               </div>
             )}
-            {sharing && isPro && <SharePlanDialog plan={selectedPlan} onClose={onCloseShare} />}
+            {sharing && isPro && (
+              <SharePlanDialog plan={selectedPlan} mode={mode} onClose={onCloseShare} />
+            )}
           </>
         )
       ) : mode === 'cloud' ? (

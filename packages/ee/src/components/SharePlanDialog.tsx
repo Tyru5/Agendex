@@ -1,20 +1,35 @@
+import type { Plan } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
-import { type Plan } from '@agendex/web';
 import { useMutation, useQuery } from 'convex/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePublishing } from '../hooks/usePublishing.ts';
 
 const appUrl = (import.meta.env.VITE_APP_URL as string) || window.location.origin;
 
-export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
+export function SharePlanDialog({
+  plan,
+  mode,
+  onClose,
+}: {
+  plan: Plan;
+  mode: 'local' | 'cloud';
+  onClose: () => void;
+}) {
   const { publish } = usePublishing();
   const createShareLink = useMutation(api.sharing.createShareLink);
   const revokeShareLink = useMutation(api.sharing.revokeShareLink);
 
-  const [publishedPlanId, setPublishedPlanId] = useState<string | null>(null);
+  const [publishedPlanId, setPublishedPlanId] = useState<string | null>(
+    mode === 'cloud' ? plan.id : null,
+  );
   const [publishing, setPublishing] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPublishedPlanId(mode === 'cloud' ? plan.id : null);
+    setCopiedToken(null);
+  }, [mode, plan.id]);
 
   const shareLinks = useQuery(
     api.sharing.getShareLinks,
@@ -24,11 +39,14 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
   async function handlePublishAndShare() {
     setPublishing(true);
     try {
-      const result = await publish(plan);
-      const planId =
-        (result as { _id?: string; planId?: string })?._id ??
-        (result as { planId?: string })?.planId ??
-        (result as string);
+      let planId = publishedPlanId;
+      if (!planId) {
+        const result = await publish(plan);
+        planId =
+          (result as { _id?: string; planId?: string })?._id ??
+          (result as { planId?: string })?.planId ??
+          (result as string);
+      }
       setPublishedPlanId(planId as string);
       await createShareLink({ planId: planId as Id<'plans'> });
     } finally {
@@ -48,6 +66,13 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
   }
 
   const hasLinks = shareLinks && shareLinks.length > 0;
+  const buttonLabel = publishing
+    ? 'Publishing…'
+    : hasLinks
+      ? 'Create Another Link'
+      : publishedPlanId
+        ? 'Create Share Link'
+        : 'Publish & Share';
 
   return (
     <div
@@ -120,7 +145,7 @@ export function SharePlanDialog({ plan, onClose }: { plan: Plan; onClose: () => 
             opacity: publishing ? 0.6 : 1,
           }}
         >
-          {publishing ? 'Publishing…' : hasLinks ? 'Create Another Link' : 'Publish & Share'}
+          {buttonLabel}
         </button>
       </div>
     </div>
