@@ -1,0 +1,1 @@
+export const SIDEBAR_EXPANDED_WIDTH = 260;

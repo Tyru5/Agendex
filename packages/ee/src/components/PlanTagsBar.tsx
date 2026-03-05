@@ -1,4 +1,5 @@
 import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { CollectionPickerPopover } from './CollectionPickerPopover.tsx';
@@ -6,7 +7,7 @@ import { TagChip } from './TagChip.tsx';
 import { TagPickerPopover } from './TagPickerPopover.tsx';
 
 export function PlanTagsBar({ planId }: { planId: string }) {
-  const planTagsMap = useQuery(api.planTags.getTagsForPlans, { planIds: [planId] });
+  const planTagsMap = useQuery(api.planTags.getTagsForPlans, { planIds: [planId as Id<'plans'>] });
   const removeTag = useMutation(api.planTags.removeTag);
 
   const [showTagPicker, setShowTagPicker] = useState(false);
@@ -15,17 +16,17 @@ export function PlanTagsBar({ planId }: { planId: string }) {
   const tags = planTagsMap?.[planId] ?? [];
 
   return (
-    <div className="flex items-center gap-1.5" style={{ flexWrap: 'wrap', marginTop: '8px' }}>
+    <div className="flex items-center gap-1.5 flex-wrap my-2">
       {tags.map((tag: any) => (
         <TagChip
           key={tag._id}
           name={tag.name}
           color={tag.color}
-          onRemove={() => removeTag({ planId, tagId: tag._id })}
+          onRemove={() => removeTag({ planId: planId as Id<'plans'>, tagId: tag._id })}
         />
       ))}
 
-      <div style={{ position: 'relative' }}>
+      <div className="relative">
         <button
           type="button"
           onClick={() => {
@@ -33,20 +34,7 @@ export function PlanTagsBar({ planId }: { planId: string }) {
             setShowCollectionPicker(false);
           }}
           title="Add tag"
-          style={{
-            padding: '2px 7px',
-            fontSize: '12px',
-            fontWeight: 500,
-            fontFamily: 'inherit',
-            borderRadius: '5px',
-            border: '1px dashed var(--border)',
-            background: 'transparent',
-            color: 'var(--tertiary)',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '3px',
-          }}
+          className="py-0.5 px-[7px] text-[12px] font-medium font-[inherit] rounded-[5px] border border-dashed border-border bg-transparent text-tertiary cursor-pointer inline-flex items-center gap-[3px]"
         >
           <svg
             aria-hidden="true"
@@ -69,7 +57,7 @@ export function PlanTagsBar({ planId }: { planId: string }) {
         )}
       </div>
 
-      <div style={{ position: 'relative' }}>
+      <div className="relative">
         <button
           type="button"
           onClick={() => {
@@ -77,20 +65,7 @@ export function PlanTagsBar({ planId }: { planId: string }) {
             setShowTagPicker(false);
           }}
           title="Add to collection"
-          style={{
-            padding: '2px 7px',
-            fontSize: '12px',
-            fontWeight: 500,
-            fontFamily: 'inherit',
-            borderRadius: '5px',
-            border: '1px dashed var(--border)',
-            background: 'transparent',
-            color: 'var(--tertiary)',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '3px',
-          }}
+          className="py-0.5 px-[7px] text-[12px] font-medium font-[inherit] rounded-[5px] border border-dashed border-border bg-transparent text-tertiary cursor-pointer inline-flex items-center gap-[3px]"
         >
           <svg
             aria-hidden="true"

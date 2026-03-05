@@ -15,7 +15,7 @@ export const listMyTags = query({
 
     return await ctx.db
       .query('tags')
-      .withIndex('by_owner', (q: any) => q.eq('ownerId', user._id))
+      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
       .collect();
   },
 });
@@ -33,7 +33,7 @@ export const createTag = mutation({
 
     const existing = await ctx.db
       .query('tags')
-      .withIndex('by_owner_nameLc', (q: any) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
+      .withIndex('by_owner_nameLc', (q) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
       .first();
 
     if (existing) throw new ConvexError('A tag with this name already exists');
@@ -64,7 +64,7 @@ export const renameTag = mutation({
 
     const existing = await ctx.db
       .query('tags')
-      .withIndex('by_owner_nameLc', (q: any) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
+      .withIndex('by_owner_nameLc', (q) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
       .first();
 
     if (existing && existing._id !== args.tagId) {
@@ -96,7 +96,7 @@ export const cleanupPlanTags = internalMutation({
   handler: async (ctx, args) => {
     const batch = await ctx.db
       .query('planTags')
-      .withIndex('by_tag', (q: any) => q.eq('tagId', args.tagId))
+      .withIndex('by_tag', (q) => q.eq('tagId', args.tagId))
       .take(500);
 
     for (const pt of batch) {

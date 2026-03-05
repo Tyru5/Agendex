@@ -1,9 +1,34 @@
 {
   "name": "@agendex/cli",
   "version": "0.1.0",
+  "description": "Agendex CLI for login, sync, and daemon workflows",
+  "homepage": "https://github.com/Tyru5/Agendex#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tyru5/Agendex.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/Tyru5/Agendex/issues"
+  },
   "type": "module",
+  "license": "AGPL-3.0-only",
   "bin": {
-    "agendex": "./src/cli.ts"
+    "agendex": "./bin/agendex"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "scripts": {
+    "build": "bun build ./src/cli.ts --target bun --outdir ./dist",
+    "prepack": "bun run build"
   },
   "dependencies": {
     "@agendex/shared": "workspace:*"

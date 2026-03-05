@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSeenPlans } from '../hooks/useSeenPlans.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
@@ -26,6 +26,15 @@ function PlanRow({
   unseen: boolean;
   onClick: () => void;
 }) {
+  const titleRef = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    setOverflows(el.scrollWidth > el.clientWidth);
+  }, [plan.title]);
+
   return (
     <button
       type="button"
@@ -41,19 +50,9 @@ function PlanRow({
       }}
     >
       <div
-        style={{
-          position: 'relative',
-          fontWeight: 500,
-          fontSize: '13px',
-          lineHeight: '1.35',
-          color: 'var(--text)',
-          letterSpacing: '-0.01em',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical' as const,
-          overflow: 'hidden',
-          paddingLeft: unseen ? '14px' : undefined,
-        }}
+        ref={titleRef}
+        className={`plan-title${overflows ? ' plan-title--fade' : ''}`}
+        style={{ paddingLeft: unseen ? '14px' : undefined }}
       >
         {unseen && (
           <span
@@ -96,7 +95,7 @@ export function PlanList({
   onSelect: (plan: Plan) => void;
   isPro?: boolean;
 }) {
-  const { isUnseen, markSeen } = useSeenPlans();
+  const { isUnseen, markSeen, markAllSeen } = useSeenPlans();
 
   useEffect(() => {
     if (!isPro || !selectedId) return;
@@ -132,20 +131,46 @@ export function PlanList({
   }
 
   return (
-    <div>
+    <div style={{ width: '100%' }}>
       {unseenPlans.length > 0 && (
         <div style={{ marginBottom: '8px' }}>
           <div
             style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              color: '#3b82f6',
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               padding: '6px 8px 4px',
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           >
-            Updated ({unseenPlans.length})
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#3b82f6',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Updated ({unseenPlans.length})
+            </span>
+            <button
+              type="button"
+              onClick={() => markAllSeen(unseenPlans)}
+              style={{
+                fontSize: '11px',
+                color: 'var(--tertiary)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Mark all read
+            </button>
           </div>
           {unseenPlans.map((plan) => (
             <PlanRow

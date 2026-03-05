@@ -109,51 +109,24 @@ export function PlanDiffViewer({
 
   if (!hasChanges) {
     return (
-      <div
-        style={{
-          padding: '20px',
-          fontSize: '12.5px',
-          color: 'var(--tertiary)',
-          textAlign: 'center',
-        }}
-      >
+      <div className="p-5 text-[12.5px] text-tertiary text-center">
         No differences between these versions.
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: '8px',
-        overflow: 'hidden',
-        fontSize: '12.5px',
-        fontFamily: "'SF Mono', 'JetBrains Mono', monospace",
-        lineHeight: 1.6,
-      }}
-    >
+    <div className="border border-border rounded-lg overflow-hidden text-[12.5px] font-['SF_Mono','JetBrains_Mono',monospace] leading-[1.6]">
       {lines.map((line, idx) => (
         <div
           key={idx}
+          className="px-3 py-px whitespace-pre-wrap break-words"
           style={{
-            padding: '1px 12px',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
             borderBottom: idx < lines.length - 1 ? '1px solid rgba(128,128,128,0.06)' : undefined,
             ...lineStyles[line.type],
           }}
         >
-          <span
-            style={{
-              display: 'inline-block',
-              width: '16px',
-              textAlign: 'center',
-              marginRight: '8px',
-              opacity: 0.6,
-              userSelect: 'none',
-            }}
-          >
+          <span className="inline-block w-4 text-center mr-2 opacity-60 select-none">
             {prefixes[line.type]}
           </span>
           {line.content || '\u00A0'}

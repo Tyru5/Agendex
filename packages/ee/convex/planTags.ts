@@ -1,5 +1,6 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
+import type { Doc } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
@@ -17,7 +18,7 @@ export const getTagsForPlans = query({
         args.planIds.map((planId) =>
           ctx.db
             .query('planTags')
-            .withIndex('by_plan', (q: any) => q.eq('planId', planId))
+            .withIndex('by_plan', (q) => q.eq('planId', planId))
             .collect(),
         ),
       )
@@ -29,7 +30,7 @@ export const getTagsForPlans = query({
       uniqueTagIds.map((id, i) => [id, tagDocs[i]] as const).filter(([, doc]) => doc),
     );
 
-    const result: Record<string, any[]> = {};
+    const result: Record<string, Doc<'tags'>[]> = {};
     for (const planId of args.planIds) result[planId] = [];
     for (const row of allPlanTagRows) {
       const tag = tagMap.get(row.tagId);
@@ -53,7 +54,7 @@ export const addTag = mutation({
 
     const existing = await ctx.db
       .query('planTags')
-      .withIndex('by_plan_tag', (q: any) => q.eq('planId', args.planId).eq('tagId', args.tagId))
+      .withIndex('by_plan_tag', (q) => q.eq('planId', args.planId).eq('tagId', args.tagId))
       .first();
 
     if (existing) return existing._id;
@@ -77,7 +78,7 @@ export const removeTag = mutation({
 
     const row = await ctx.db
       .query('planTags')
-      .withIndex('by_plan_tag', (q: any) => q.eq('planId', args.planId).eq('tagId', args.tagId))
+      .withIndex('by_plan_tag', (q) => q.eq('planId', args.planId).eq('tagId', args.tagId))
       .first();
 
     if (!row) throw new ConvexError('Tag not assigned to plan');
@@ -100,7 +101,7 @@ export const setTagsForPlan = mutation({
 
     const existing = await ctx.db
       .query('planTags')
-      .withIndex('by_plan', (q: any) => q.eq('planId', args.planId))
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
       .collect();
 
     const currentTagIds = new Set(existing.map((r) => r.tagId));

@@ -132,4 +132,9 @@ export default defineSchema({
     .index('by_collection', ['collectionId'])
     .index('by_plan', ['planId'])
     .index('by_collection_plan', ['collectionId', 'planId']),
+
+  daemonHeartbeats: defineTable({
+    ownerId: v.string(),
+    lastSeenAt: v.number(),
+  }).index('by_owner', ['ownerId']),
 });

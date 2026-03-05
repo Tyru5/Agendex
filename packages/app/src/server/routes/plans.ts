@@ -4,10 +4,6 @@ import { search } from '../services/search.ts';
 
 const plans = new Hono();
 
-plans.get('/health', (c) => {
-  return c.json({ ok: true });
-});
-
 plans.get('/plans', (c) => {
   const agent = c.req.query('agent');
   const q = c.req.query('q');

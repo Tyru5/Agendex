@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
-import { httpAction, internalMutation, internalQuery } from './_generated/server';
-import { createAuth } from './auth';
+import { httpAction, internalMutation, internalQuery, query } from './_generated/server';
+import { authComponent, createAuth } from './auth';
 
 export const findPlanByOwnerAndLocalId = internalQuery({
   args: { ownerId: v.string(), localPlanId: v.string() },
@@ -26,6 +26,8 @@ export const upsertPlan = internalMutation({
     filePath: v.optional(v.string()),
     workspace: v.optional(v.string()),
     metadata: v.optional(v.any()),
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
     existingId: v.optional(v.id('plans')),
     existingVersion: v.optional(v.number()),
   },
@@ -42,7 +44,7 @@ export const upsertPlan = internalMutation({
         workspace: args.workspace,
         metadata: args.metadata,
         version: args.existingVersion + 1,
-        updatedAt: now,
+        updatedAt: args.updatedAt ?? now,
       });
       return args.existingId;
     }
@@ -58,8 +60,8 @@ export const upsertPlan = internalMutation({
       workspace: args.workspace,
       metadata: args.metadata,
       version: 1,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: args.createdAt ?? now,
+      updatedAt: args.updatedAt ?? now,
     });
   },
 });
@@ -71,7 +73,9 @@ export const hasUserSubscription = internalQuery({
       .query('subscriptions')
       .withIndex('by_user', (q) => q.eq('userId', args.userId))
       .first();
-    return (sub?.status === 'active' && sub.currentPeriodEnd > Date.now()) || false;
+    if (!sub) return false;
+    const validStatus = sub.status === 'active' || sub.status === 'trialing';
+    return validStatus && sub.currentPeriodEnd > Date.now();
   },
 });
 
@@ -108,6 +112,33 @@ export const sync = httpAction(async (ctx, request) => {
 
     const body = await request.json();
 
+    if (
+      typeof body.localPlanId !== 'string' ||
+      typeof body.agent !== 'string' ||
+      typeof body.title !== 'string' ||
+      typeof body.content !== 'string' ||
+      typeof body.format !== 'string'
+    ) {
+      return new Response(
+        JSON.stringify({
+          error: 'Missing required fields: localPlanId, agent, title, content, format',
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if (
+      (body.filePath !== undefined && typeof body.filePath !== 'string') ||
+      (body.workspace !== undefined && typeof body.workspace !== 'string') ||
+      (body.createdAt !== undefined && typeof body.createdAt !== 'number') ||
+      (body.updatedAt !== undefined && typeof body.updatedAt !== 'number')
+    ) {
+      return new Response(JSON.stringify({ error: 'Invalid optional field types' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndLocalId, {
       ownerId,
       localPlanId: body.localPlanId,
@@ -123,6 +154,8 @@ export const sync = httpAction(async (ctx, request) => {
       filePath: body.filePath,
       workspace: body.workspace,
       metadata: body.metadata,
+      createdAt: body.createdAt,
+      updatedAt: body.updatedAt,
       existingId: existing?._id,
       existingVersion: existing?.version,
     });
@@ -132,12 +165,72 @@ export const sync = httpAction(async (ctx, request) => {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), {
+    console.error('Sync error:', err);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
   }
+});
+
+const HEARTBEAT_STALE_MS = 90_000;
+
+export const upsertHeartbeat = internalMutation({
+  args: { ownerId: v.string() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('daemonHeartbeats')
+      .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { lastSeenAt: Date.now() });
+    } else {
+      await ctx.db.insert('daemonHeartbeats', {
+        ownerId: args.ownerId,
+        lastSeenAt: Date.now(),
+      });
+    }
+  },
+});
+
+export const getDaemonStatus = query({
+  handler: async (ctx) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return { alive: false, lastSeenAt: null };
+    const hb = await ctx.db
+      .query('daemonHeartbeats')
+      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
+      .first();
+    if (!hb) return { alive: false, lastSeenAt: null };
+    const alive = Date.now() - hb.lastSeenAt < HEARTBEAT_STALE_MS;
+    return { alive, lastSeenAt: hb.lastSeenAt };
+  },
+});
+
+export const heartbeat = httpAction(async (ctx, request) => {
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const auth = createAuth(ctx);
+  const session = await auth.api.getSession({ headers: request.headers });
+
+  if (!session?.user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  await ctx.runMutation(internal.cli.upsertHeartbeat, { ownerId: session.user.id });
+
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 });
 
 export const refresh = httpAction(async (ctx, request) => {

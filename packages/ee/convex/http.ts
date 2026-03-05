@@ -3,7 +3,7 @@ import { httpRouter } from 'convex/server';
 import type Stripe from 'stripe';
 import { internal } from './_generated/api';
 import { authComponent, createAuth } from './auth';
-import { refresh, sync } from './cli';
+import { heartbeat, refresh, sync } from './cli';
 import { stripeComponent } from './stripe';
 
 const http = httpRouter();
@@ -25,7 +25,7 @@ registerRoutes(http, stripeComponent, {
         return;
       }
 
-      await ctx.runMutation((internal as any).subscriptions.fulfillCheckout, {
+      await ctx.runMutation(internal.subscriptions.fulfillCheckout, {
         userId,
         stripeCustomerId: subscription.customer as string,
         stripeSubscriptionId: subscription.id,
@@ -37,7 +37,7 @@ registerRoutes(http, stripeComponent, {
       const subscription = event.data.object as Stripe.Subscription;
       const item = subscription.items.data[0];
 
-      await ctx.runMutation((internal as any).subscriptions.syncSubscriptionUpdate, {
+      await ctx.runMutation(internal.subscriptions.syncSubscriptionUpdate, {
         stripeSubscriptionId: subscription.id,
         status: subscription.status,
         currentPeriodEnd: (item?.current_period_end ?? 0) * 1000,
@@ -47,7 +47,7 @@ registerRoutes(http, stripeComponent, {
     'customer.subscription.deleted': async (ctx, event) => {
       const subscription = event.data.object as Stripe.Subscription;
 
-      await ctx.runMutation((internal as any).subscriptions.syncSubscriptionDeletion, {
+      await ctx.runMutation(internal.subscriptions.syncSubscriptionDeletion, {
         stripeSubscriptionId: subscription.id,
       });
     },
@@ -56,5 +56,6 @@ registerRoutes(http, stripeComponent, {
 
 http.route({ path: '/api/cli/sync', method: 'POST', handler: sync });
 http.route({ path: '/api/cli/refresh', method: 'POST', handler: refresh });
+http.route({ path: '/api/cli/heartbeat', method: 'POST', handler: heartbeat });
 
 export default http;

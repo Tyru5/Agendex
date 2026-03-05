@@ -15,7 +15,7 @@ export const listMyCollections = query({
 
     return await ctx.db
       .query('collections')
-      .withIndex('by_owner', (q: any) => q.eq('ownerId', user._id))
+      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
       .collect();
   },
 });
@@ -33,7 +33,7 @@ export const createCollection = mutation({
 
     const existing = await ctx.db
       .query('collections')
-      .withIndex('by_owner_nameLc', (q: any) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
+      .withIndex('by_owner_nameLc', (q) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
       .first();
 
     if (existing) throw new ConvexError('A collection with this name already exists');
@@ -68,7 +68,7 @@ export const renameCollection = mutation({
 
     const existing = await ctx.db
       .query('collections')
-      .withIndex('by_owner_nameLc', (q: any) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
+      .withIndex('by_owner_nameLc', (q) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
       .first();
 
     if (existing && existing._id !== args.collectionId) {
@@ -108,7 +108,7 @@ export const cleanupCollectionPlans = internalMutation({
   handler: async (ctx, args) => {
     const batch = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_collection', (q: any) => q.eq('collectionId', args.collectionId))
+      .withIndex('by_collection', (q) => q.eq('collectionId', args.collectionId))
       .take(500);
 
     for (const cp of batch) {
@@ -138,7 +138,7 @@ export const addPlanToCollection = mutation({
 
     const existing = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_collection_plan', (q: any) =>
+      .withIndex('by_collection_plan', (q) =>
         q.eq('collectionId', args.collectionId).eq('planId', args.planId),
       )
       .first();
@@ -164,7 +164,7 @@ export const removePlanFromCollection = mutation({
 
     const row = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_collection_plan', (q: any) =>
+      .withIndex('by_collection_plan', (q) =>
         q.eq('collectionId', args.collectionId).eq('planId', args.planId),
       )
       .first();
@@ -186,7 +186,7 @@ export const getCollectionsForPlan = query({
 
     const rows = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_plan', (q: any) => q.eq('planId', args.planId))
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
       .collect();
 
     return rows.map((r) => r.collectionId);
@@ -208,7 +208,7 @@ export const getPlansInCollection = query({
 
     const rows = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_collection', (q: any) => q.eq('collectionId', args.collectionId))
+      .withIndex('by_collection', (q) => q.eq('collectionId', args.collectionId))
       .collect();
 
     return rows.map((r) => r.planId);

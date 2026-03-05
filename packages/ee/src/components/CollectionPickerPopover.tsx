@@ -1,4 +1,5 @@
 import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -10,7 +11,9 @@ export function CollectionPickerPopover({
   onClose: () => void;
 }) {
   const collections = useQuery(api.collections.listMyCollections);
-  const memberCollectionIds = useQuery(api.collections.getCollectionsForPlan, { planId });
+  const memberCollectionIds = useQuery(api.collections.getCollectionsForPlan, {
+    planId: planId as Id<'plans'>,
+  });
   const addToCollection = useMutation(api.collections.addPlanToCollection);
   const removeFromCollection = useMutation(api.collections.removePlanFromCollection);
   const createCollection = useMutation(api.collections.createCollection);
@@ -19,7 +22,7 @@ export function CollectionPickerPopover({
   const [creating, setCreating] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const memberSet = new Set(memberCollectionIds ?? []);
+  const memberSet = new Set<string>(memberCollectionIds ?? []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -37,7 +40,7 @@ export function CollectionPickerPopover({
     setCreating(true);
     try {
       const collectionId = await createCollection({ name: trimmed });
-      await addToCollection({ collectionId, planId });
+      await addToCollection({ collectionId, planId: planId as Id<'plans'> });
       setNewName('');
     } finally {
       setCreating(false);
@@ -46,30 +49,24 @@ export function CollectionPickerPopover({
 
   async function handleToggle(collectionId: string) {
     if (memberSet.has(collectionId)) {
-      await removeFromCollection({ collectionId, planId });
+      await removeFromCollection({
+        collectionId: collectionId as Id<'collections'>,
+        planId: planId as Id<'plans'>,
+      });
     } else {
-      await addToCollection({ collectionId, planId });
+      await addToCollection({
+        collectionId: collectionId as Id<'collections'>,
+        planId: planId as Id<'plans'>,
+      });
     }
   }
 
   return (
     <div
       ref={ref}
-      style={{
-        position: 'absolute',
-        top: '100%',
-        left: 0,
-        marginTop: '4px',
-        width: '220px',
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: '8px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-        zIndex: 100,
-        overflow: 'hidden',
-      }}
+      className="absolute top-full left-0 mt-1 w-[220px] bg-(--surface) border border-border rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.12)] z-[100] overflow-hidden"
     >
-      <div style={{ padding: '8px' }}>
+      <div className="p-2">
         <input
           type="text"
           value={newName}
@@ -81,34 +78,15 @@ export function CollectionPickerPopover({
             }
           }}
           placeholder="Create or search collections…"
-          style={{
-            width: '100%',
-            padding: '5px 8px',
-            fontSize: '12px',
-            fontFamily: 'inherit',
-            borderRadius: '5px',
-            border: '1px solid var(--border)',
-            background: 'transparent',
-            color: 'var(--text)',
-            outline: 'none',
-            boxSizing: 'border-box',
-          }}
+          className="w-full py-[5px] px-2 text-[12px] font-[inherit] rounded-[5px] border border-border bg-transparent text-text outline-none box-border"
         />
       </div>
 
-      <div
-        style={{
-          maxHeight: '180px',
-          overflowY: 'auto',
-          padding: '0 4px 4px',
-        }}
-      >
+      <div className="max-h-[180px] overflow-y-auto px-1 pb-1 pt-0">
         {collections === undefined || memberCollectionIds === undefined ? (
-          <div style={{ padding: '8px', fontSize: '12px', color: 'var(--tertiary)' }}>Loading…</div>
+          <div className="p-2 text-[12px] text-tertiary">Loading…</div>
         ) : collections.length === 0 && !newName.trim() ? (
-          <div style={{ padding: '8px', fontSize: '12px', color: 'var(--tertiary)' }}>
-            Type to create your first collection
-          </div>
+          <div className="p-2 text-[12px] text-tertiary">Type to create your first collection</div>
         ) : (
           collections
             .filter((c: any) => !newName.trim() || c.nameLc.includes(newName.trim().toLowerCase()))
@@ -117,22 +95,8 @@ export function CollectionPickerPopover({
                 key={col._id}
                 type="button"
                 onClick={() => handleToggle(col._id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  width: '100%',
-                  padding: '5px 8px',
-                  fontSize: '12.5px',
-                  fontFamily: 'inherit',
-                  fontWeight: 450,
-                  borderRadius: '5px',
-                  border: 'none',
-                  background: memberSet.has(col._id) ? 'var(--active)' : 'transparent',
-                  color: 'var(--text)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
+                className="flex items-center gap-2 w-full py-[5px] px-2 text-[12.5px] font-[inherit] font-[450] rounded-[5px] border-none text-text cursor-pointer text-left"
+                style={{ background: memberSet.has(col._id) ? 'var(--active)' : 'transparent' }}
               >
                 <svg
                   aria-hidden="true"
@@ -144,19 +108,11 @@ export function CollectionPickerPopover({
                   strokeWidth={1.8}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  style={{ flexShrink: 0, color: 'var(--secondary)' }}
+                  className="shrink-0 text-secondary"
                 >
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
-                <span
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
+                <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
                   {col.name}
                 </span>
                 {memberSet.has(col._id) && (
@@ -170,7 +126,7 @@ export function CollectionPickerPopover({
                     strokeWidth={2.5}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    style={{ flexShrink: 0, color: 'var(--secondary)' }}
+                    className="shrink-0 text-secondary"
                   >
                     <path d="m4.5 12.75 6 6 9-13.5" />
                   </svg>

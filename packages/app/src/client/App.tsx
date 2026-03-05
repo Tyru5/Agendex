@@ -156,7 +156,7 @@ function Dashboard() {
 
   return (
     <div
-      className="h-screen grid overflow-hidden"
+      className="h-screen grid overflow-clip"
       style={{
         position: 'relative',
         gridTemplateColumns: `${sidebarWidth}px 1fr`,

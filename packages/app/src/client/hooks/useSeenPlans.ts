@@ -64,5 +64,18 @@ export function useSeenPlans() {
     write({ ...current, [planId]: updatedAt });
   }, []);
 
-  return { isUnseen, markSeen };
+  const markAllSeen = useCallback((plans: { id: string; updatedAt: string }[]) => {
+    const current = snapshot();
+    const next = { ...current };
+    let changed = false;
+    for (const p of plans) {
+      if (next[p.id] !== p.updatedAt) {
+        next[p.id] = p.updatedAt;
+        changed = true;
+      }
+    }
+    if (changed) write(next);
+  }, []);
+
+  return { isUnseen, markSeen, markAllSeen };
 }

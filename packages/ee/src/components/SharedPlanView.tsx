@@ -1,16 +1,16 @@
 import { api } from '@convex/_generated/api';
+import {
+  AgentIcon,
+  getAgentLabel,
+  looksLikeMarkdown,
+  MarkdownCodeBlock,
+  normalizePlanMarkdown,
+  SkeletonBlock,
+} from '@agendex/web';
 import { useQuery } from 'convex/react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getAgentLabel } from '@agendex/app/src/client/lib/agent-colors.ts';
-import {
-  looksLikeMarkdown,
-  normalizePlanMarkdown,
-} from '@agendex/app/src/client/lib/plan-markdown.ts';
-import { AgentIcon } from '@agendex/app/src/client/components/AgentIcon.tsx';
 import { CommentThread } from './CommentThread.tsx';
-import { MarkdownCodeBlock } from '@agendex/app/src/client/components/MarkdownCodeBlock.tsx';
-import { SkeletonBlock } from '@agendex/app/src/client/components/Skeleton.tsx';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -33,11 +33,8 @@ export function SharedPlanView({ token }: { token: string }) {
 
   if (plan === undefined) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: 'var(--bg)' }}
-      >
-        <div style={{ width: '100%', maxWidth: '600px', padding: '24px' }}>
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="w-full max-w-[600px] p-6">
           <SkeletonBlock lines={5} />
         </div>
       </div>
@@ -46,23 +43,12 @@ export function SharedPlanView({ token }: { token: string }) {
 
   if (plan === null) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: 'var(--bg)' }}
-      >
-        <div style={{ textAlign: 'center' }}>
-          <h1
-            style={{
-              fontSize: '18px',
-              fontWeight: 600,
-              color: 'var(--text)',
-              letterSpacing: '-0.02em',
-              marginBottom: '8px',
-            }}
-          >
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="text-center">
+          <h1 className="text-[18px] font-semibold text-text tracking-[-0.02em] mb-2">
             Plan not found
           </h1>
-          <p style={{ fontSize: '13px', color: 'var(--tertiary)' }}>
+          <p className="text-[13px] text-tertiary">
             This link may have been revoked or the plan no longer exists.
           </p>
         </div>
@@ -78,68 +64,33 @@ export function SharedPlanView({ token }: { token: string }) {
   const markdown = isMarkdown ? normalizePlanMarkdown(plan.content) : '';
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 32px 80px' }}>
+    <div className="min-h-screen bg-bg text-text">
+      <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
         {/* Header */}
-        <div
-          style={{
-            marginBottom: '32px',
-            paddingBottom: '24px',
-            borderBottom: '1px solid var(--border)',
-          }}
-        >
-          <div
-            className="flex items-center gap-1"
-            style={{
-              fontSize: '12px',
-              color: 'var(--tertiary)',
-              marginBottom: '10px',
-              fontWeight: 450,
-            }}
-          >
+        <div className="mb-8 pb-6 border-b border-border">
+          <div className="flex items-center gap-1 text-[12px] text-tertiary mb-2.5 font-[450]">
             <span className="flex items-center gap-1.5">
               <AgentIcon agent={plan.agent} size={13} />
               <span>{getAgentLabel(plan.agent)}</span>
             </span>
           </div>
 
-          <h1
-            style={{
-              fontSize: '26px',
-              fontWeight: 600,
-              letterSpacing: '-0.03em',
-              lineHeight: 1.25,
-              color: 'var(--text)',
-              marginBottom: '12px',
-            }}
-          >
+          <h1 className="text-[26px] font-semibold tracking-[-0.03em] leading-[1.25] text-text mb-3">
             {plan.title}
           </h1>
 
-          <div
-            className="flex items-center gap-5"
-            style={{ fontSize: '12.5px', color: 'var(--secondary)' }}
-          >
+          <div className="flex items-center gap-5 text-[12.5px] text-secondary">
             {plan.createdAt && (
               <span className="flex items-center gap-1.5">
                 <ClockIcon />
-                {timeAgo(plan.createdAt as string)}
+                {timeAgo(String(plan.createdAt))}
               </span>
             )}
             <span className="flex items-center gap-1.5">
               <DocIcon />
               {plan.format.toUpperCase()}
             </span>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 550,
-                padding: '2px 7px',
-                borderRadius: '5px',
-                background: 'rgba(99,102,241,0.1)',
-                color: '#6366f1',
-              }}
-            >
+            <span className="text-[11px] font-[550] py-0.5 px-[7px] rounded-[5px] bg-[rgba(99,102,241,0.1)] text-[#6366f1]">
               Shared
             </span>
           </div>
@@ -193,7 +144,7 @@ function ClockIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px', opacity: 0.4 }}
+      className="w-[13px] h-[13px] opacity-40"
     >
       <path
         strokeLinecap="round"
@@ -213,7 +164,7 @@ function DocIcon() {
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      style={{ width: '13px', height: '13px', opacity: 0.4 }}
+      className="w-[13px] h-[13px] opacity-40"
     >
       <path
         strokeLinecap="round"

@@ -8,32 +8,10 @@ export function TagChip({
   onRemove?: () => void;
 }) {
   return (
-    <span
-      className="flex items-center gap-1"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '4px',
-        padding: '2px 8px',
-        fontSize: '11.5px',
-        fontWeight: 500,
-        fontFamily: 'inherit',
-        borderRadius: '5px',
-        border: '1px solid var(--border)',
-        background: 'var(--surface)',
-        color: 'var(--text)',
-        lineHeight: 1.4,
-        whiteSpace: 'nowrap',
-      }}
-    >
+    <span className="inline-flex items-center gap-1 py-0.5 px-2 text-[11.5px] font-medium font-[inherit] rounded-[5px] border border-border bg-surface text-text leading-[1.4] whitespace-nowrap">
       <span
-        style={{
-          width: '7px',
-          height: '7px',
-          borderRadius: '50%',
-          background: color || 'var(--tertiary)',
-          flexShrink: 0,
-        }}
+        className="w-[7px] h-[7px] rounded-full shrink-0"
+        style={{ background: color || 'var(--tertiary)' }}
       />
       {name}
       {onRemove && (
@@ -43,18 +21,7 @@ export function TagChip({
             e.stopPropagation();
             onRemove();
           }}
-          style={{
-            padding: 0,
-            border: 'none',
-            background: 'transparent',
-            color: 'var(--tertiary)',
-            cursor: 'pointer',
-            fontSize: '13px',
-            lineHeight: 1,
-            display: 'flex',
-            alignItems: 'center',
-            marginLeft: '2px',
-          }}
+          className="p-0 border-none bg-transparent text-tertiary cursor-pointer text-[13px] leading-none flex items-center ml-0.5"
         >
           ×
         </button>

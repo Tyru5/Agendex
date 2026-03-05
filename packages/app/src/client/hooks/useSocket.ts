@@ -72,7 +72,7 @@ window.__wsDebug = () => ({
   msgCount,
 });
 
-export function useSocketEvent(event: string, handler: () => void) {
+export function useSocketEvent(event: string, handler: () => void, enabled = true) {
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
 
@@ -81,6 +81,8 @@ export function useSocketEvent(event: string, handler: () => void) {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
+
     refCount++;
     if (refCount === 1) connect();
 
@@ -97,5 +99,5 @@ export function useSocketEvent(event: string, handler: () => void) {
       refCount--;
       if (refCount === 0) disconnect();
     };
-  }, [event, stableHandler]);
+  }, [event, stableHandler, enabled]);
 }

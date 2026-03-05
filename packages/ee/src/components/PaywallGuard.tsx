@@ -1,8 +1,8 @@
+import { SkeletonBlock } from '@agendex/web';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useSubscription } from '../hooks/useSubscription';
 import { PricingModal } from './PricingModal';
-import { SkeletonBlock } from '@agendex/app/src/client/components/Skeleton';
 
 interface PaywallGuardProps {
   children: ReactNode;
@@ -100,7 +100,7 @@ export function PaywallGuard({ children, fallback, onBack }: PaywallGuardProps) 
 
   if (isLoading) {
     return (
-      <div style={{ padding: '24px' }}>
+      <div className="p-6">
         <SkeletonBlock lines={4} />
       </div>
     );
