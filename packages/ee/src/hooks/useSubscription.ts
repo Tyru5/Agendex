@@ -22,11 +22,25 @@ export interface Subscription {
   updatedAt: number;
 }
 
-export function useSubscription() {
+type UseSubscriptionOptions = {
+  enabled?: boolean;
+};
+
+export function useSubscription(options: UseSubscriptionOptions = {}) {
+  const enabled = options.enabled ?? true;
+
   // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
-  const subscription = useQuery((api as any).subscriptions.getMySubscriptionQuery);
+  const subscription = useQuery(
+    // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+    (api as any).subscriptions.getMySubscriptionQuery,
+    enabled ? {} : 'skip',
+  );
   // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
-  const onboardingDone = useQuery((api as any).subscriptions.hasCompletedOnboarding);
+  const onboardingDone = useQuery(
+    // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+    (api as any).subscriptions.hasCompletedOnboarding,
+    enabled ? {} : 'skip',
+  );
   // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
   const createCheckout = useAction((api as any).subscriptions.createCheckoutSession);
   // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
@@ -41,6 +55,9 @@ export function useSubscription() {
   const sub = subscription as Subscription | null | undefined;
   const isTrialing = sub?.status === 'trialing' && (sub?.currentPeriodEnd ?? 0) > Date.now();
   const isActive = sub?.status === 'active' || isTrialing;
+  const subscriptionLoading = enabled && subscription === undefined;
+  const onboardingLoading = enabled && onboardingDone === undefined;
+  const onboardingResolved = !enabled || (!subscriptionLoading && !onboardingLoading);
 
   const trialDaysLeft = isTrialing
     ? Math.max(0, Math.ceil(((sub?.currentPeriodEnd ?? 0) - Date.now()) / (1000 * 60 * 60 * 24)))
@@ -51,9 +68,10 @@ export function useSubscription() {
     isActive,
     isTrialing,
     trialDaysLeft,
-    isLoading: subscription === undefined,
-    needsOnboarding: onboardingDone === false,
-    onboardingLoading: onboardingDone === undefined,
+    isLoading: subscriptionLoading,
+    needsOnboarding: enabled && onboardingDone === false,
+    onboardingLoading,
+    onboardingResolved,
     createCheckout: async (plan: 'monthly' | 'yearly') => {
       try {
         const result = await createCheckout({ plan });

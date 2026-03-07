@@ -50,7 +50,8 @@ export const hasCompletedOnboarding = query({
       // Auth error — treat as onboarding complete to avoid blank screen
       return true;
     }
-    if (!user) return false;
+    // Missing auth user can happen while auth state is still propagating; avoid false onboarding redirects.
+    if (!user) return true;
 
     const sub = await ctx.db
       .query('subscriptions')

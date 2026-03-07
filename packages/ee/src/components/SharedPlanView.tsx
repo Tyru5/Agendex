@@ -1,14 +1,15 @@
-import { api } from '@convex/_generated/api';
 import {
   AgentIcon,
+  buildPlanOutline,
   getAgentLabel,
-  looksLikeMarkdown,
   MarkdownCodeBlock,
-  normalizePlanMarkdown,
+  PlanOutline,
   SkeletonBlock,
 } from '@agendex/web';
+import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
 import Markdown from 'react-markdown';
+import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './CommentThread.tsx';
 
@@ -20,12 +21,6 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs} hour${hrs !== 1 ? 's' : ''} ago`;
   const days = Math.floor(hrs / 24);
   return `${days} day${days !== 1 ? 's' : ''} ago`;
-}
-
-function isMarkdownFormat(format: string, content: string, filePath?: string): boolean {
-  if (format.toLowerCase() === 'md') return true;
-  if (filePath && /\.mdx?$/i.test(filePath)) return true;
-  return looksLikeMarkdown(content);
 }
 
 export function SharedPlanView({ token }: { token: string }) {
@@ -56,15 +51,17 @@ export function SharedPlanView({ token }: { token: string }) {
     );
   }
 
-  const isMarkdown = isMarkdownFormat(
-    plan.format,
-    plan.content,
-    plan.filePath as string | undefined,
-  );
-  const markdown = isMarkdown ? normalizePlanMarkdown(plan.content) : '';
+  const outline = buildPlanOutline({
+    title: plan.title,
+    content: plan.content,
+    filePath: String(plan.filePath ?? ''),
+    format: plan.format,
+  });
+  const { entries, renderContent, renderMode } = outline;
 
   return (
     <div className="min-h-screen bg-bg text-text">
+      <PlanOutline entries={entries} />
       <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
         {/* Header */}
         <div className="mb-8 pb-6 border-b border-border">
@@ -97,10 +94,12 @@ export function SharedPlanView({ token }: { token: string }) {
         </div>
 
         {/* Body */}
-        {isMarkdown ? (
+        {renderMode === 'markdown' ? (
           <article className="plan-markdown">
+            <div id="plan-top" aria-hidden="true" />
             <Markdown
               remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeSlug]}
               components={{
                 code({ className, children, node: _node, ...props }) {
                   const code = String(children).replace(/\n$/, '');
@@ -121,11 +120,14 @@ export function SharedPlanView({ token }: { token: string }) {
                 },
               }}
             >
-              {markdown}
+              {renderContent}
             </Markdown>
           </article>
         ) : (
-          <pre className="plan-plain">{plan.content}</pre>
+          <>
+            <div id="plan-top" aria-hidden="true" />
+            <pre className="plan-plain">{renderContent}</pre>
+          </>
         )}
 
         {/* Comments */}

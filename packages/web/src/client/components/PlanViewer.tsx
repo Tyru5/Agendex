@@ -4,18 +4,11 @@ import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
-import { extractHeadings } from '../lib/extract-headings.ts';
-import { looksLikeMarkdown, normalizePlanMarkdown } from '../lib/plan-markdown.ts';
+import { buildPlanOutline } from '../lib/extract-headings.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
 import { TechDependencyChart } from './TechDependencyChart.tsx';
-
-function isMarkdownPlan(plan: Plan): boolean {
-  if (plan.format.toLowerCase() === 'md') return true;
-  if (/\.mdx?$/i.test(plan.filePath)) return true;
-  return looksLikeMarkdown(plan.content);
-}
 
 function extractWorkspace(plan: Plan): string | undefined {
   return plan.workspace || undefined;
@@ -31,6 +24,15 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
+type PlanViewerProps = {
+  plan: Plan;
+  headerExtra?: ReactNode;
+  onEdit?: () => void;
+  onHistory?: () => void;
+  onShare?: () => void;
+  onChartWideChange?: (wide: boolean) => void;
+};
+
 export function PlanViewer({
   plan,
   headerExtra,
@@ -38,14 +40,7 @@ export function PlanViewer({
   onHistory,
   onShare,
   onChartWideChange,
-}: {
-  plan: Plan;
-  headerExtra?: ReactNode;
-  onEdit?: () => void;
-  onHistory?: () => void;
-  onShare?: () => void;
-  onChartWideChange?: (wide: boolean) => void;
-}) {
+}: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -53,20 +48,25 @@ export function PlanViewer({
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
-  const isMarkdown = isMarkdownPlan(plan);
-  const markdown = isMarkdown ? normalizePlanMarkdown(plan.content) : '';
   const workspace = extractWorkspace(plan);
 
-  const headings = useMemo(
-    () => (isMarkdown ? extractHeadings(markdown) : []),
-    [markdown, isMarkdown],
+  const outline = useMemo(
+    () =>
+      buildPlanOutline({
+        title: plan.title,
+        content: plan.content,
+        filePath: plan.filePath,
+        format: plan.format,
+      }),
+    [plan.content, plan.filePath, plan.format, plan.title],
   );
+  const { entries, renderContent, renderMode } = outline;
 
-  const showOutline = isMarkdown && headings.length >= 2;
+  const showOutline = entries.length > 0;
 
   return (
     <>
-      {showOutline && <PlanOutline headings={headings} />}
+      {showOutline && <PlanOutline entries={entries} />}
       <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
         {/* Header */}
         <div className="mb-8 pb-6 border-b border-border">
@@ -183,8 +183,9 @@ export function PlanViewer({
         )}
 
         {/* Body */}
-        {isMarkdown ? (
+        {renderMode === 'markdown' ? (
           <article className="plan-markdown">
+            <div id="plan-top" aria-hidden="true" />
             <Markdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeSlug]}
@@ -208,11 +209,14 @@ export function PlanViewer({
                 },
               }}
             >
-              {markdown}
+              {renderContent}
             </Markdown>
           </article>
         ) : (
-          <pre className="plan-plain">{plan.content}</pre>
+          <>
+            <div id="plan-top" aria-hidden="true" />
+            <pre className="plan-plain">{renderContent}</pre>
+          </>
         )}
 
         {/* File path footer */}
