@@ -69,7 +69,7 @@ export function SharedPlanView({ token }: { token: string }) {
   const { entries, renderContent, renderMode } = outline;
 
   return (
-    <div className="min-h-screen bg-bg text-text">
+    <div className="min-h-screen bg-bg text-text main-scroll">
       <PlanOutline entries={entries} />
       <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
         {/* Header */}

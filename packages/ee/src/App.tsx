@@ -1019,6 +1019,8 @@ function HomeRoute() {
     enabled: !isLoading && isAuthenticated,
   });
 
+  if (hasToken() && !isAuthenticated) return <Dashboard initialMode="local" />;
+
   if (isLoading) return <BootLoadingView />;
 
   if (isAuthenticated) {
@@ -1026,8 +1028,6 @@ function HomeRoute() {
     if (needsOnboarding) return <Redirect to="/welcome" />;
     return <Dashboard initialMode="cloud" />;
   }
-
-  if (hasToken()) return <Dashboard initialMode="local" />;
 
   return (
     <LandingPage onCloudLogin={() => signIn.social({ provider: 'github', callbackURL: '/' })} />

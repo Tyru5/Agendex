@@ -63,7 +63,7 @@ export function PlanViewer({
   );
   const { entries, renderContent, renderMode } = outline;
 
-  const showOutline = entries.length > 0;
+  const showOutline = entries.some((e) => e.source !== 'fallback_root');
 
   return (
     <>
