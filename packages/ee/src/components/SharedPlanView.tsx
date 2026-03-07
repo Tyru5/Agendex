@@ -70,7 +70,7 @@ export function SharedPlanView({ token }: { token: string }) {
 
   return (
     <div className="min-h-screen bg-bg text-text main-scroll">
-      <PlanOutline entries={entries} />
+      {entries.some((e) => e.source !== 'fallback_root') && <PlanOutline entries={entries} />}
       <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
         {/* Header */}
         <div className="mb-8 pb-6 border-b border-border">
