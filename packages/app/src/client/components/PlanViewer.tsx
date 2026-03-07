@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { getAgentLabel } from '../lib/agent-colors.ts';
@@ -275,7 +276,7 @@ export function PlanViewer({
             <div id="plan-top" aria-hidden="true" />
             <Markdown
               remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeSlug]}
+              rehypePlugins={[rehypeRaw, rehypeSlug]}
               components={{
                 code({ className, children, node: _node, ...props }) {
                   const code = String(children).replace(/\n$/, '');

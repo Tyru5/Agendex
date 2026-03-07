@@ -9,6 +9,7 @@ import {
 import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
 import Markdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './CommentThread.tsx';
@@ -99,7 +100,7 @@ export function SharedPlanView({ token }: { token: string }) {
             <div id="plan-top" aria-hidden="true" />
             <Markdown
               remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeSlug]}
+              rehypePlugins={[rehypeRaw, rehypeSlug]}
               components={{
                 code({ className, children, node: _node, ...props }) {
                   const code = String(children).replace(/\n$/, '');
