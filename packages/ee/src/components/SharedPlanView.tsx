@@ -8,6 +8,7 @@ import {
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
+import { useMemo } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSlug from 'rehype-slug';
@@ -27,6 +28,19 @@ function timeAgo(dateStr: string): string {
 export function SharedPlanView({ token }: { token: string }) {
   const plan = useQuery(api.plans.getPlanByShareToken, { token });
 
+  const outline = useMemo(
+    () =>
+      plan
+        ? buildPlanOutline({
+            title: plan.title,
+            content: plan.content,
+            filePath: String(plan.filePath ?? ''),
+            format: plan.format,
+          })
+        : null,
+    [plan],
+  );
+
   if (plan === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
@@ -37,7 +51,7 @@ export function SharedPlanView({ token }: { token: string }) {
     );
   }
 
-  if (plan === null) {
+  if (plan === null || !outline) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="text-center">
@@ -52,12 +66,6 @@ export function SharedPlanView({ token }: { token: string }) {
     );
   }
 
-  const outline = buildPlanOutline({
-    title: plan.title,
-    content: plan.content,
-    filePath: String(plan.filePath ?? ''),
-    format: plan.format,
-  });
   const { entries, renderContent, renderMode } = outline;
 
   return (
