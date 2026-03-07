@@ -73,6 +73,43 @@ function promoteBoldLabels(markdown: string): {
   return { content: renderedLines.join('\n'), syntheticHeadingLines };
 }
 
+function injectBoldLabelAnchors(markdown: string, entries: OutlineEntry[]): string {
+  const boldEntries = entries.filter((e) => e.source === 'bold_label');
+  if (boldEntries.length === 0) return markdown;
+
+  const lines = markdown.split('\n');
+  const result: string[] = [];
+  let fenceMarker: '`' | '~' | null = null;
+  let entryIdx = 0;
+
+  for (const line of lines) {
+    const fenceMatch = /^([ \t]*)(`{3,}|~{3,})/.exec(line);
+    if (fenceMatch?.[2]) {
+      const marker = fenceMatch[2][0] as '`' | '~';
+      if (!fenceMarker) fenceMarker = marker;
+      else if (fenceMarker === marker) fenceMarker = null;
+      result.push(line);
+      continue;
+    }
+
+    const nextEntry = !fenceMarker ? boldEntries[entryIdx] : undefined;
+    if (nextEntry) {
+      const boldLabelMatch = /^\s*\*\*(.+?)\*\*\s*:?\s*$/.exec(line);
+      if (boldLabelMatch?.[1]) {
+        const text = boldLabelMatch[1].trim().replace(/:+$/, '').trim();
+        if (text && normalizeOutlineText(text) === normalizeOutlineText(nextEntry.text)) {
+          result.push(`<div id="${nextEntry.id}"></div>`);
+          entryIdx++;
+        }
+      }
+    }
+
+    result.push(line);
+  }
+
+  return result.join('\n');
+}
+
 function extractOutlineEntries(
   markdown: string,
   syntheticHeadingLines: Set<number>,
@@ -141,6 +178,9 @@ export function buildPlanOutline({
             },
           ],
     renderMode,
-    renderContent: renderMode === 'markdown' ? markdownCandidate : plainContent,
+    renderContent:
+      renderMode === 'markdown'
+        ? injectBoldLabelAnchors(markdownCandidate, structuredEntries)
+        : plainContent,
   };
 }
