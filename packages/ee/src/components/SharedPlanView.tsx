@@ -51,7 +51,7 @@ export function SharedPlanView({ token }: { token: string }) {
     );
   }
 
-  if (plan === null || !outline) {
+  if (!plan || !outline) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="text-center">
