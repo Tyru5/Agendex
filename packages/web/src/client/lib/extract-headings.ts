@@ -141,6 +141,6 @@ export function buildPlanOutline({
             },
           ],
     renderMode,
-    renderContent: renderMode === 'markdown' ? renderMarkdown : plainContent,
+    renderContent: renderMode === 'markdown' ? markdownCandidate : plainContent,
   };
 }
