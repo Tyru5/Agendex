@@ -4,6 +4,7 @@ import {
   getAgentLabel,
   MarkdownCodeBlock,
   PlanOutline,
+  sanitizeSchema,
   SkeletonBlock,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
@@ -11,18 +12,10 @@ import { useQuery } from 'convex/react';
 import { useMemo } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import rehypeSanitize from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './CommentThread.tsx';
-
-const sanitizeSchema = {
-  ...defaultSchema,
-  attributes: {
-    ...defaultSchema.attributes,
-    div: [...(defaultSchema.attributes?.div || []), 'id'],
-  },
-};
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -79,7 +72,9 @@ export function SharedPlanView({ token }: { token: string }) {
 
   return (
     <div className="min-h-screen bg-bg text-text main-scroll">
-      {entries.some((e) => e.source !== 'fallback_root') && <PlanOutline entries={entries} />}
+      {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
+        <PlanOutline entries={entries} />
+      )}
       <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
         {/* Header */}
         <div className="mb-8 pb-6 border-b border-border">
