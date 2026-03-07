@@ -11,9 +11,18 @@ import { useQuery } from 'convex/react';
 import { useMemo } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './CommentThread.tsx';
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    div: [...(defaultSchema.attributes?.div || []), 'id'],
+  },
+};
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -108,7 +117,7 @@ export function SharedPlanView({ token }: { token: string }) {
             <div id="plan-top" aria-hidden="true" />
             <Markdown
               remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeRaw, rehypeSlug]}
+              rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
               components={{
                 code({ className, children, node: _node, ...props }) {
                   const code = String(children).replace(/\n$/, '');
