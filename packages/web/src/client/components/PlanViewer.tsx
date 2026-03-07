@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { getAgentLabel } from '../lib/agent-colors.ts';
@@ -10,6 +11,14 @@ import { AgentIcon } from './AgentIcon.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
 import { TechDependencyChart } from './TechDependencyChart.tsx';
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    div: [...(defaultSchema.attributes?.div || []), 'id'],
+  },
+};
 
 function extractWorkspace(plan: Plan): string | undefined {
   return plan.workspace || undefined;
@@ -189,7 +198,7 @@ export function PlanViewer({
             <div id="plan-top" aria-hidden="true" />
             <Markdown
               remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeRaw, rehypeSlug]}
+              rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
               components={{
                 code({ className, children, node: _node, ...props }) {
                   const code = String(children).replace(/\n$/, '');
