@@ -1,22 +1,27 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
+import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadConfig } from '@agendex/shared';
+import { login, logout } from './auth.ts';
+import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, removePid } from './pid.ts';
+import { syncAll } from './sync.ts';
 
 const args = process.argv.slice(2);
 const command = args[0] ?? 'start';
+const cliEntry = resolve(process.argv[1] ?? fileURLToPath(import.meta.url));
 
 async function main() {
   switch (command) {
     case 'start': {
       if (args.includes('--daemon')) {
-        const { startSupervisor } = await import('./daemon.ts');
         await startSupervisor();
         break;
       }
 
       if (args.includes('--worker')) {
-        const { runWorker } = await import('./daemon.ts');
         await runWorker();
         break;
       }
@@ -29,9 +34,9 @@ async function main() {
 
       if (existingPid) removePid();
 
-      const scriptPath = new URL(import.meta.url).pathname;
-      const child = Bun.spawn(['bun', scriptPath, 'start', '--daemon'], {
-        stdio: ['ignore', 'ignore', 'ignore'],
+      const child = spawn(process.execPath, [cliEntry, 'start', '--daemon'], {
+        detached: true,
+        stdio: 'ignore',
       });
       child.unref();
 
@@ -66,7 +71,6 @@ async function main() {
     }
 
     case 'login': {
-      const { login } = await import('./auth.ts');
       const urlIdx = args.indexOf('--url');
       const siteUrl = urlIdx !== -1 ? args[urlIdx + 1] : undefined;
       await login(siteUrl);
@@ -74,13 +78,11 @@ async function main() {
     }
 
     case 'logout': {
-      const { logout } = await import('./auth.ts');
       logout();
       break;
     }
 
     case 'sync': {
-      const { syncAll } = await import('./sync.ts');
       await syncAll();
       break;
     }

@@ -1,0 +1,49 @@
+name: Publish CLI
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build CLI release artifact
+        run: bun run build:cli:release
+
+      - name: Check published version
+        id: version
+        run: |
+          LOCAL_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('./packages/cli/package.json', 'utf8')).version")
+          PUBLISHED_VERSION=$(npm view @agendex/cli version 2>/dev/null || true)
+          echo "local=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
+          echo "published=$PUBLISHED_VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$LOCAL_VERSION" = "$PUBLISHED_VERSION" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish package
+        if: steps.version.outputs.publish == 'true'
+        run: npm publish ./packages/cli/.release --access public --provenance

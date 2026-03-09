@@ -12,22 +12,30 @@
     "dev:client:ee": "bun run --cwd ./packages/ee dev:client",
     "build": "bun run --cwd ./packages/app build",
     "build:cloud": "bun run --cwd ./packages/ee build",
+    "build:cli:release": "node ./packages/cli/scripts/build-release.mjs",
     "cli": "bun run --cwd ./packages/cli src/cli.ts",
     "cli:start": "bun run --cwd ./packages/cli src/cli.ts start",
     "cli:login": "bun run --cwd ./packages/cli src/cli.ts login",
     "cli:sync": "bun run --cwd ./packages/cli src/cli.ts sync",
     "cli:stop": "bun run --cwd ./packages/cli src/cli.ts stop",
     "cli:status": "bun run --cwd ./packages/cli src/cli.ts status",
+    "changeset": "changeset",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "check": "biome check .",
-    "check:fix": "biome check --write ."
+    "check:fix": "biome check --write .",
+    "pack:cli:dry-run": "npm pack --dry-run ./packages/cli/.release",
+    "smoke:cli:release": "node ./packages/cli/scripts/pack-and-smoke.mjs",
+    "version-packages": "changeset version"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.30.0",
     "@biomejs/biome": "^2.4.2",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/bun": "^1.3.9",
+    "@types/node": "^24.3.1",
     "@types/mdast": "^4.0.4",
     "typescript": "^5"
   }

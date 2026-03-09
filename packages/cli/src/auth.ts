@@ -1,30 +1,33 @@
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
 import { type AgendexConfig, loadConfig, saveConfig } from '@agendex/shared';
 
 const DEFAULT_SITE_URL = 'https://agendex.dev';
-const DEBUG_SITE_URL = 'http://localhost:5174';
 
 export async function login(siteUrlOverride?: string): Promise<void> {
-  const port = await findOpenPort();
-  const callbackUrl = `http://localhost:${port}/callback`;
-  // const siteUrl = siteUrlOverride ?? DEFAULT_SITE_URL;
-
-  const siteUrl = siteUrlOverride ?? DEBUG_SITE_URL;
+  const { port, result } = await startCallbackServer();
+  const callbackUrl = `http://127.0.0.1:${port}/callback`;
+  const siteUrl = siteUrlOverride ?? DEFAULT_SITE_URL;
 
   const authUrl = `${siteUrl}/auth/cli?callback=${encodeURIComponent(callbackUrl)}`;
 
   console.log(`[agendex] Opening browser for authentication...`);
   console.log(`[agendex] If it doesn't open, visit: ${authUrl}`);
 
-  openBrowser(authUrl);
+  if (process.env.AGENDEX_DISABLE_BROWSER === '1') {
+    console.log('[agendex] Browser launch disabled by AGENDEX_DISABLE_BROWSER=1.');
+  } else {
+    openBrowser(authUrl);
+  }
 
-  const result = await waitForCallback(port);
+  const callback = await result;
 
   const existing = loadConfig();
   const config: AgendexConfig = {
     configVersion: 3,
     token: existing?.token,
-    cloudToken: result.token,
-    convexUrl: result.convexUrl,
+    cloudToken: callback.token,
+    convexUrl: callback.convexUrl,
     enabledAdapters: existing?.enabledAdapters ?? [],
   };
   saveConfig(config);
@@ -56,47 +59,100 @@ interface CallbackResult {
   convexUrl: string;
 }
 
-function waitForCallback(port: number): Promise<CallbackResult> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(
-      () => {
-        server.stop();
-        reject(new Error('Login timed out after 5 minutes'));
-      },
-      5 * 60 * 1000,
-    );
+async function startCallbackServer(): Promise<{ port: number; result: Promise<CallbackResult> }> {
+  const server = createServer();
+  const sockets = new Set<import('node:net').Socket>();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let settle: ((value: CallbackResult) => void) | undefined;
+  let fail: ((reason?: unknown) => void) | undefined;
 
-    const server = Bun.serve({
-      port,
-      fetch(req) {
-        const url = new URL(req.url);
-        if (url.pathname !== '/callback') {
-          return new Response('Not found', { status: 404 });
-        }
+  const result = new Promise<CallbackResult>((resolve, reject) => {
+    settle = resolve;
+    fail = reject;
+  });
 
-        const token = url.searchParams.get('token');
-        const convexUrl = url.searchParams.get('convexUrl');
+  const finish = (value: CallbackResult | Error) => {
+    if (!settle || !fail) return;
+    const resolve = settle;
+    const reject = fail;
+    settle = undefined;
+    fail = undefined;
+    if (timeout) clearTimeout(timeout);
+    server.closeIdleConnections?.();
+    server.closeAllConnections?.();
+    for (const socket of sockets) {
+      socket.destroy();
+    }
+    server.unref();
+    server.close();
+    if (value instanceof Error) {
+      reject(value);
+      return;
+    }
+    resolve(value);
+  };
 
-        if (!token || !convexUrl) {
-          clearTimeout(timeout);
-          setTimeout(() => server.stop(), 500);
-          reject(new Error('Missing token or convexUrl in callback'));
-          return new Response(callbackPage(false), {
-            headers: { 'Content-Type': 'text/html' },
-          });
-        }
+  server.on('request', (req, res) => {
+    const requestUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
+    if (requestUrl.pathname !== '/callback') {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+      return;
+    }
 
-        clearTimeout(timeout);
-        setTimeout(() => server.stop(), 500);
+    const token = requestUrl.searchParams.get('token');
+    const convexUrl = requestUrl.searchParams.get('convexUrl');
+    const success = Boolean(token && convexUrl);
 
-        resolve({ token, convexUrl });
+    res.writeHead(success ? 200 : 400, {
+      Connection: 'close',
+      'Content-Type': 'text/html; charset=utf-8',
+    });
+    res.end(callbackPage(success));
 
-        return new Response(callbackPage(true), {
-          headers: { 'Content-Type': 'text/html' },
-        });
-      },
+    if (!success) {
+      finish(new Error('Missing token or convexUrl in callback'));
+      return;
+    }
+
+    finish({
+      token: token ?? '',
+      convexUrl: convexUrl ?? '',
     });
   });
+
+  server.once('error', (error) => {
+    finish(error instanceof Error ? error : new Error(String(error)));
+  });
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => {
+      sockets.delete(socket);
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.listen(0, '127.0.0.1', () => resolve());
+    server.once('error', reject);
+  });
+
+  timeout = setTimeout(
+    () => {
+      finish(new Error('Login timed out after 5 minutes'));
+    },
+    5 * 60 * 1000,
+  );
+
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    server.close();
+    throw new Error('Unable to determine local callback port');
+  }
+
+  return {
+    port: address.port,
+    result,
+  };
 }
 
 function callbackPage(success: boolean): string {
@@ -141,16 +197,29 @@ function callbackPage(success: boolean): string {
 </html>`;
 }
 
-async function findOpenPort(): Promise<number> {
-  const server = Bun.serve({ port: 0, fetch: () => new Response('') });
-  const port = server.port ?? 0;
-  server.stop();
-
-  return port;
-}
-
 function openBrowser(url: string): void {
-  const platform = process.platform;
-  const cmd = platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
-  Bun.spawn([cmd, url], { stdout: 'ignore', stderr: 'ignore' });
+  if (process.platform === 'darwin') {
+    const child = spawn('open', [url], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+    return;
+  }
+
+  if (process.platform === 'win32') {
+    const child = spawn('cmd', ['/c', 'start', '', url], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.unref();
+    return;
+  }
+
+  const child = spawn('xdg-open', [url], {
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.unref();
 }

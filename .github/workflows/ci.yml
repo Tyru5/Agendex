@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Require changeset on PRs
+        if: github.event_name == 'pull_request'
+        run: bunx changeset status --since=origin/main
+
+      - name: Format check
+        run: bun run format:check
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Check
+        run: bun run check
+
+      - name: Build CLI release artifact
+        run: bun run build:cli:release
+
+      - name: Pack CLI release artifact
+        run: bun run pack:cli:dry-run
+
+      - name: Smoke test packed CLI
+        run: bun run smoke:cli:release

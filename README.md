@@ -96,11 +96,17 @@ bun run build               # build OSS client bundle
 bun run build:cloud         # build EE client bundle
 
 bun run cli:start           # start cloud sync daemon
-bun run cli:login           # browser login using the in-repo CLI default
+bun run cli:login           # browser login using https://agendex.dev
 bun run cli:login -- --url https://example.com
 bun run cli:sync            # one-shot cloud sync
 bun run cli:stop            # stop daemon
 bun run cli:status          # print current local/cloud config state
+
+bun run changeset           # create a release note for @agendex/cli
+bun run version-packages    # apply pending Changesets versions
+bun run build:cli:release   # generate packages/cli/.release
+bun run pack:cli:dry-run    # inspect the generated npm tarball
+bun run smoke:cli:release   # smoke-test the packed CLI under Node
 
 bun run format              # biome format
 bun run format:check
@@ -110,7 +116,7 @@ bun run check
 bun run check:fix
 ```
 
-For self-hosted logins, prefer `agendex login --url <site>` or `bun run cli:login -- --url <site>`. The current in-repo CLI source defaults to `http://localhost:5174` unless `--url` is passed, so the docs should not rely on the default for production or self-hosted usage.
+The published CLI is Node-compatible and can be installed with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`.
 
 ## Local API (OSS)
 

@@ -73,7 +73,7 @@ export const PKG_MANAGERS = [
 ] as const;
 
 export const CLOUD_STEPS = [
-  { number: '1', title: 'Install CLI', code: 'bun install -g @agendex/cli', hasPkgManager: true },
+  { number: '1', title: 'Install CLI', code: 'npm install -g @agendex/cli', hasPkgManager: true },
   { number: '2', title: 'Authenticate', code: 'agendex login        # opens browser OAuth' },
   { number: '3', title: 'Start Daemon', code: 'agendex start        # watches + syncs plans' },
 ];

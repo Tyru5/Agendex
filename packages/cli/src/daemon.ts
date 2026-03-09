@@ -1,3 +1,6 @@
+import { type ChildProcess, spawn } from 'node:child_process';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   CLI_DAEMON_HEARTBEAT_INTERVAL_MS,
   getAll,
@@ -148,7 +151,7 @@ export async function startSupervisor(): Promise<void> {
   writePid();
 
   let stopping = false;
-  let workerProc: ReturnType<typeof Bun.spawn> | null = null;
+  let workerProc: ChildProcess | null = null;
 
   const shutdown = () => {
     if (stopping) return;
@@ -161,15 +164,20 @@ export async function startSupervisor(): Promise<void> {
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
-  const scriptPath = new URL(import.meta.url).pathname.replace(/daemon\.\w+$/, 'cli.ts');
+  const scriptPath = resolve(
+    process.argv[1] ?? fileURLToPath(new URL('./cli.ts', import.meta.url)),
+  );
   const restartTimes: number[] = [];
 
   while (!stopping) {
-    workerProc = Bun.spawn(['bun', scriptPath, 'start', '--worker'], {
+    workerProc = spawn(process.execPath, [scriptPath, 'start', '--worker'], {
       stdio: ['ignore', 'inherit', 'inherit'],
     });
 
-    const exitCode = await workerProc.exited;
+    const exitCode = await new Promise<number | null>((resolve, reject) => {
+      workerProc?.once('exit', (code) => resolve(code));
+      workerProc?.once('error', reject);
+    });
     workerProc = null;
 
     if (stopping) break;
