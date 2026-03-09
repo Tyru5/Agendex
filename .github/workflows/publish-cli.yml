@@ -31,6 +31,12 @@ jobs:
       - name: Build CLI release artifact
         run: bun run build:cli:release
 
+      - name: Pack CLI release artifact
+        run: bun run pack:cli:dry-run
+
+      - name: Smoke test packed CLI
+        run: bun run smoke:cli:release
+
       - name: Check published version
         id: version
         run: |
