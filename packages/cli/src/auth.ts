@@ -121,9 +121,6 @@ async function startCallbackServer(): Promise<{ port: number; result: Promise<Ca
     });
   });
 
-  server.once('error', (error) => {
-    finish(error instanceof Error ? error : new Error(String(error)));
-  });
   server.on('connection', (socket) => {
     sockets.add(socket);
     socket.on('close', () => {
@@ -134,6 +131,10 @@ async function startCallbackServer(): Promise<{ port: number; result: Promise<Ca
   await new Promise<void>((resolve, reject) => {
     server.listen(0, '127.0.0.1', () => resolve());
     server.once('error', reject);
+  });
+
+  server.once('error', (error) => {
+    finish(error instanceof Error ? error : new Error(String(error)));
   });
 
   timeout = setTimeout(
