@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { type Plan } from '@agendex/web';
+import type { Plan } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation } from 'convex/react';
+import { useEffect, useState } from 'react';
 
 export function CloudPlanEditor({
   plan,

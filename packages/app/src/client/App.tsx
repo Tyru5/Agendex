@@ -1,17 +1,17 @@
+import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { parseAsString, parseAsStringLiteral, useQueryState, useQueryStates } from 'nuqs';
-import { throttle } from 'nuqs';
+import { EmptyStateView } from './components/EmptyStateView.tsx';
 import { LandingPage } from './components/LandingPage.tsx';
 import { OfflineView } from './components/OfflineView.tsx';
 import { PlanViewer } from './components/PlanViewer.tsx';
-import { Topbar } from './components/Topbar.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
+import { Topbar } from './components/Topbar.tsx';
 import { useBackendStatus } from './hooks/useBackendStatus.ts';
 import { useAgents, usePlans } from './hooks/usePlans.ts';
 import { api, hasToken, type Plan } from './lib/api.ts';
-import { EmptyStateView } from './components/EmptyStateView.tsx';
-import { filterPlans } from './lib/plan-search.ts';
 import { SIDEBAR_EXPANDED_WIDTH } from './lib/constants.ts';
+import { filterPlans } from './lib/plan-search.ts';
+
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;

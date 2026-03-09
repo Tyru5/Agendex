@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import Stripe from 'stripe';
 import { api, internal } from './_generated/api';
-import { action, internalMutation, query, type QueryCtx } from './_generated/server';
+import { action, internalMutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { stripe } from './stripe';
 

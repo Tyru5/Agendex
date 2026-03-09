@@ -6,7 +6,8 @@ export function PlanOutline({ entries }: { entries: OutlineEntry[] }) {
 
   const scrollTo = (id: string) => {
     const container = document.querySelector('.main-scroll');
-    const target = document.getElementById(id);
+    const target =
+      document.querySelector(`[data-agendex-anchor="${id}"]`) ?? document.getElementById(id);
     if (!container || !target) return;
     const containerRect = container.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();

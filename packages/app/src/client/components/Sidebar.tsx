@@ -1,9 +1,9 @@
-import type { Plan, AgentStats } from '../lib/api.ts';
+import type { AgentStats, Plan } from '../lib/api.ts';
+import { SIDEBAR_EXPANDED_WIDTH } from '../lib/constants.ts';
+import { startViewTransition } from '../lib/view-transition.ts';
 import { PlanList } from './PlanList.tsx';
 import { SidebarFilters } from './SidebarFilters.tsx';
 import { SkeletonBlock } from './Skeleton.tsx';
-import { startViewTransition } from '../lib/view-transition.ts';
-import { SIDEBAR_EXPANDED_WIDTH } from '../lib/constants.ts';
 
 interface SidebarProps {
   sidebarHidden: boolean;

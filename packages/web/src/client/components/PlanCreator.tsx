@@ -6,8 +6,8 @@ import { EditorView, keymap } from '@codemirror/view';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getAgentLabel } from '../lib/agent-colors.ts';
 import { useTheme } from '../hooks/useTheme.ts';
+import { getAgentLabel } from '../lib/agent-colors.ts';
 import { type AgentStats, api, type Plan } from '../lib/api.ts';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 

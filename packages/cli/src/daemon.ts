@@ -1,4 +1,5 @@
 import {
+  CLI_DAEMON_HEARTBEAT_INTERVAL_MS,
   getAll,
   loadConfig,
   loadOrInitConfig,
@@ -9,8 +10,8 @@ import {
   setOnPlansChanged,
   startWatching,
 } from '@agendex/shared';
-import { type SyncPlanPayload, refreshToken, sendHeartbeat, syncPlan } from './api.ts';
-import { readPid, removePid, writePid } from './pid.ts';
+import { refreshToken, type SyncPlanPayload, sendHeartbeat, syncPlan } from './api.ts';
+import { removePid, writePid } from './pid.ts';
 
 const MAX_RESTARTS = 5;
 const RESTART_WINDOW_MS = 60_000;
@@ -118,7 +119,7 @@ export async function runWorker(): Promise<void> {
   await processSyncQueue();
 
   void sendHeartbeat();
-  setInterval(() => void sendHeartbeat(), 30_000);
+  setInterval(() => void sendHeartbeat(), CLI_DAEMON_HEARTBEAT_INTERVAL_MS);
 
   startWatching((changedPlans) => {
     for (const plan of changedPlans as Array<{

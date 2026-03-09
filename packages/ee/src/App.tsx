@@ -17,7 +17,7 @@ import {
   useSeenPlans,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
-import type { Id } from '@convex/_generated/dataModel';
+import type { Doc, Id } from '@convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
 import {
@@ -85,6 +85,9 @@ type DashboardMode = 'local' | 'cloud';
 
 const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
 const dateOptions = ['all', 'today', '7d', '30d'] as const;
+
+type TagRecord = Doc<'tags'>;
+type CollectionRecord = Doc<'collections'>;
 
 function BootLoadingView({
   message = 'Loading your dashboard...',
@@ -198,7 +201,7 @@ function useDashboardData(
     if (selectedTags.length > 0 && planTagsMap) {
       result = result.filter((p) => {
         const pTags = planTagsMap[p.id] ?? [];
-        return selectedTags.some((tagId) => pTags.some((t: any) => t._id === tagId));
+        return selectedTags.some((tagId) => pTags.some((tag: TagRecord) => tag._id === tagId));
       });
     }
     if (mode === 'cloud') {
@@ -485,9 +488,9 @@ function DashboardSidebar({
   dateBucket: 'all' | 'today' | '7d' | '30d';
   agents: AgentStats[];
   agentFilter: string | undefined;
-  allTags: any[] | undefined;
+  allTags: TagRecord[] | undefined;
   selectedTags: string[];
-  allCollections: any[] | undefined;
+  allCollections: CollectionRecord[] | undefined;
   selectedCollection: string | undefined;
   filteredPlans: Plan[];
   selectedPlan: Plan | undefined;
@@ -696,7 +699,7 @@ function dashReducer(s: DashState, a: DashAction): DashState {
   }
 }
 
-function Dashboard({ initialMode }: { initialMode: DashboardMode }) {
+function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const [, navigate] = useLocation();
   const [search, setSearch] = useQueryState(
     'q',
@@ -736,7 +739,7 @@ function Dashboard({ initialMode }: { initialMode: DashboardMode }) {
     selectedCollection: undefined,
     activePanel: null,
     showPricingModal: false,
-    mode: initialMode,
+    mode: autoMode,
     sidebarHidden: localStorage.getItem(SIDEBAR_PREF_KEY) === 'true',
     sidebarPeek: false,
   });
@@ -753,9 +756,9 @@ function Dashboard({ initialMode }: { initialMode: DashboardMode }) {
   const setSelectedTags = (v: string[]) => dsd({ type: 'SET_TAGS', value: v });
   const setSelectedCollection = (v: string | undefined) =>
     dsd({ type: 'SET_COLLECTION', value: v });
-  const setActivePanel = (v: Panel) => dsd({ type: 'SET_PANEL', value: v });
+  const setActivePanel = useCallback((v: Panel) => dsd({ type: 'SET_PANEL', value: v }), []);
   const setShowPricingModal = (v: boolean) => dsd({ type: 'SET_PRICING_MODAL', value: v });
-  const setMode = (v: DashboardMode) => dsd({ type: 'SET_MODE', value: v });
+  const setMode = useCallback((v: DashboardMode) => dsd({ type: 'SET_MODE', value: v }), []);
   const setSidebarHidden = (v: boolean) => dsd({ type: 'SET_SIDEBAR_HIDDEN', value: v });
   const setSidebarPeek = (v: boolean) => dsd({ type: 'SET_SIDEBAR_PEEK', value: v });
 
@@ -799,10 +802,17 @@ function Dashboard({ initialMode }: { initialMode: DashboardMode }) {
 
   const peek = useSidebarPeek(sidebarHidden, setSidebarPeek);
   const [optimisticSelectedPlan, setOptimisticSelectedPlan] = useState<Plan | undefined>(undefined);
+  const previousAutoMode = useRef(autoMode);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
   }, [sidebarHidden]);
+
+  useEffect(() => {
+    if (previousAutoMode.current === autoMode) return;
+    previousAutoMode.current = autoMode;
+    setMode(autoMode);
+  }, [autoMode, setMode]);
 
   const selectedPlan = useMemo(() => {
     if (selectedPlanId) {
@@ -852,6 +862,7 @@ function Dashboard({ initialMode }: { initialMode: DashboardMode }) {
     optimisticSelectedPlan,
     plans,
     selectedPlanId,
+    setActivePanel,
     setSelectedPlanId,
   ]);
 
@@ -1015,18 +1026,22 @@ function CliAuthRoute() {
 
 function HomeRoute() {
   const { isAuthenticated, isLoading, signIn } = useAuth();
+  const hasCachedToken = hasToken();
   const { needsOnboarding, onboardingResolved } = useSubscription({
     enabled: !isLoading && isAuthenticated,
   });
 
-  if (hasToken() && !isAuthenticated) return <Dashboard initialMode="local" />;
+  if (isAuthenticated && onboardingResolved && needsOnboarding) return <Redirect to="/welcome" />;
+
+  if (hasCachedToken) {
+    return <Dashboard autoMode={isAuthenticated && onboardingResolved ? 'cloud' : 'local'} />;
+  }
 
   if (isLoading) return <BootLoadingView />;
 
   if (isAuthenticated) {
     if (!onboardingResolved) return <BootLoadingView />;
-    if (needsOnboarding) return <Redirect to="/welcome" />;
-    return <Dashboard initialMode="cloud" />;
+    return <Dashboard autoMode="cloud" />;
   }
 
   return (

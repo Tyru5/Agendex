@@ -4,8 +4,8 @@ import {
   getAgentLabel,
   MarkdownCodeBlock,
   PlanOutline,
-  sanitizeSchema,
   SkeletonBlock,
+  sanitizeSchema,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
