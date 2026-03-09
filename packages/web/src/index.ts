@@ -42,8 +42,9 @@ export {
   hasToken,
   setToken,
 } from './client/lib/api.ts';
-export type { HeadingEntry } from './client/lib/extract-headings.ts';
-export { extractHeadings } from './client/lib/extract-headings.ts';
+export type { OutlineEntry } from './client/lib/extract-headings.ts';
+export { buildPlanOutline } from './client/lib/extract-headings.ts';
 export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-markdown.ts';
+export { sanitizeSchema } from './client/lib/sanitize-schema.ts';
 export { filterPlans } from './client/lib/plan-search.ts';
 export { startViewTransition } from './client/lib/view-transition.ts';

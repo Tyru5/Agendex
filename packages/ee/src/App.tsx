@@ -86,6 +86,29 @@ type DashboardMode = 'local' | 'cloud';
 const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
 const dateOptions = ['all', 'today', '7d', '30d'] as const;
 
+function BootLoadingView({
+  message = 'Loading your dashboard...',
+  fullscreen = true,
+}: {
+  message?: string;
+  fullscreen?: boolean;
+}) {
+  return (
+    <div
+      className={
+        fullscreen
+          ? 'h-screen flex items-center justify-center bg-bg'
+          : 'h-full min-h-[280px] flex items-center justify-center'
+      }
+    >
+      <div className="w-full max-w-[420px] px-5">
+        <div className="text-[13px] text-tertiary mb-3 text-center">{message}</div>
+        <SkeletonBlock lines={4} />
+      </div>
+    </div>
+  );
+}
+
 function useDashboardData(
   mode: DashboardMode,
   agentFilter: string | undefined,
@@ -329,6 +352,8 @@ function DashboardMain({
     >
       {mode === 'cloud' && !isPro ? (
         <CloudUpgrade onSwitchLocal={onSwitchLocal} />
+      ) : mode === 'cloud' && backendStatus === 'checking' ? (
+        <BootLoadingView message="Connecting to cloud..." fullscreen={false} />
       ) : backendStatus === 'offline' ? (
         <OfflineView />
       ) : uploading ? (
@@ -671,7 +696,7 @@ function dashReducer(s: DashState, a: DashAction): DashState {
   }
 }
 
-function Dashboard() {
+function Dashboard({ initialMode }: { initialMode: DashboardMode }) {
   const [, navigate] = useLocation();
   const [search, setSearch] = useQueryState(
     'q',
@@ -706,23 +731,15 @@ function Dashboard() {
     [setFilters],
   );
 
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
-
   const [ds, dsd] = useReducer(dashReducer, {
     selectedTags: [],
     selectedCollection: undefined,
     activePanel: null,
     showPricingModal: false,
-    mode: 'local',
+    mode: initialMode,
     sidebarHidden: localStorage.getItem(SIDEBAR_PREF_KEY) === 'true',
     sidebarPeek: false,
   });
-
-  useEffect(() => {
-    if (!authLoading) {
-      dsd({ type: 'SET_MODE', value: isAuthenticated ? 'cloud' : 'local' });
-    }
-  }, [authLoading, isAuthenticated]);
 
   const {
     selectedTags,
@@ -998,16 +1015,19 @@ function CliAuthRoute() {
 
 function HomeRoute() {
   const { isAuthenticated, isLoading, signIn } = useAuth();
-  const { needsOnboarding, onboardingLoading } = useSubscription();
+  const { needsOnboarding, onboardingResolved } = useSubscription({
+    enabled: !isLoading && isAuthenticated,
+  });
+
+  if (hasToken() && !isAuthenticated) return <Dashboard initialMode="local" />;
+
+  if (isLoading) return <BootLoadingView />;
 
   if (isAuthenticated) {
-    if (onboardingLoading) return null;
+    if (!onboardingResolved) return <BootLoadingView />;
     if (needsOnboarding) return <Redirect to="/welcome" />;
-    return <Dashboard />;
+    return <Dashboard initialMode="cloud" />;
   }
-
-  if (hasToken()) return <Dashboard />;
-  if (isLoading) return null;
 
   return (
     <LandingPage onCloudLogin={() => signIn.social({ provider: 'github', callbackURL: '/' })} />

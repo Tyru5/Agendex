@@ -1,8 +1,8 @@
 import { useScrollSpy } from '../hooks/useScrollSpy.ts';
-import type { HeadingEntry } from '../lib/extract-headings.ts';
+import type { OutlineEntry } from '../lib/extract-headings.ts';
 
-export function PlanOutline({ headings }: { headings: HeadingEntry[] }) {
-  const activeId = useScrollSpy(headings.map((h) => h.id));
+export function PlanOutline({ entries }: { entries: OutlineEntry[] }) {
+  const activeId = useScrollSpy(entries.map((entry) => entry.id));
 
   const scrollTo = (id: string) => {
     const container = document.querySelector('.main-scroll');
@@ -18,29 +18,29 @@ export function PlanOutline({ headings }: { headings: HeadingEntry[] }) {
     <div className="plan-outline-dock">
       {/* Visible hint — tiny pills showing structure exists */}
       <div className="plan-outline-hint" aria-hidden="true">
-        {headings.slice(0, 5).map((h) => (
+        {entries.slice(0, 5).map((entry) => (
           <div
-            key={h.id}
+            key={entry.id}
             className="plan-outline-hint-tick"
-            data-level={h.level}
-            data-active={h.id === activeId || undefined}
+            data-level={entry.level}
+            data-active={entry.id === activeId || undefined}
           />
         ))}
-        {headings.length > 5 && <div className="plan-outline-hint-tick" data-level={2} />}
+        {entries.length > 5 && <div className="plan-outline-hint-tick" data-level={2} />}
       </div>
 
       {/* Slide-in panel */}
       <nav className="plan-outline-panel">
-        {headings.map((h) => (
+        {entries.map((entry) => (
           <button
-            key={h.id}
+            key={entry.id}
             type="button"
             className="plan-outline-item"
-            data-level={h.level}
-            data-active={h.id === activeId || undefined}
-            onClick={() => scrollTo(h.id)}
+            data-level={entry.level}
+            data-active={entry.id === activeId || undefined}
+            onClick={() => scrollTo(entry.id)}
           >
-            {h.text}
+            {entry.text}
           </button>
         ))}
       </nav>

@@ -1,14 +1,19 @@
-import { api } from '@convex/_generated/api';
 import {
   AgentIcon,
+  buildPlanOutline,
   getAgentLabel,
-  looksLikeMarkdown,
   MarkdownCodeBlock,
-  normalizePlanMarkdown,
+  PlanOutline,
+  sanitizeSchema,
   SkeletonBlock,
 } from '@agendex/web';
+import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
+import { useMemo } from 'react';
 import Markdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
+import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './CommentThread.tsx';
 
@@ -22,14 +27,21 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
-function isMarkdownFormat(format: string, content: string, filePath?: string): boolean {
-  if (format.toLowerCase() === 'md') return true;
-  if (filePath && /\.mdx?$/i.test(filePath)) return true;
-  return looksLikeMarkdown(content);
-}
-
 export function SharedPlanView({ token }: { token: string }) {
   const plan = useQuery(api.plans.getPlanByShareToken, { token });
+
+  const outline = useMemo(
+    () =>
+      plan
+        ? buildPlanOutline({
+            title: plan.title,
+            content: plan.content,
+            filePath: String(plan.filePath ?? ''),
+            format: plan.format,
+          })
+        : null,
+    [plan],
+  );
 
   if (plan === undefined) {
     return (
@@ -41,7 +53,7 @@ export function SharedPlanView({ token }: { token: string }) {
     );
   }
 
-  if (plan === null) {
+  if (!plan || !outline) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="text-center">
@@ -56,15 +68,13 @@ export function SharedPlanView({ token }: { token: string }) {
     );
   }
 
-  const isMarkdown = isMarkdownFormat(
-    plan.format,
-    plan.content,
-    plan.filePath as string | undefined,
-  );
-  const markdown = isMarkdown ? normalizePlanMarkdown(plan.content) : '';
+  const { entries, renderContent, renderMode } = outline;
 
   return (
-    <div className="min-h-screen bg-bg text-text">
+    <div className="min-h-screen bg-bg text-text main-scroll">
+      {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
+        <PlanOutline entries={entries} />
+      )}
       <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
         {/* Header */}
         <div className="mb-8 pb-6 border-b border-border">
@@ -97,10 +107,12 @@ export function SharedPlanView({ token }: { token: string }) {
         </div>
 
         {/* Body */}
-        {isMarkdown ? (
+        {renderMode === 'markdown' ? (
           <article className="plan-markdown">
+            <div id="plan-top" aria-hidden="true" />
             <Markdown
               remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
               components={{
                 code({ className, children, node: _node, ...props }) {
                   const code = String(children).replace(/\n$/, '');
@@ -121,11 +133,14 @@ export function SharedPlanView({ token }: { token: string }) {
                 },
               }}
             >
-              {markdown}
+              {renderContent}
             </Markdown>
           </article>
         ) : (
-          <pre className="plan-plain">{plan.content}</pre>
+          <>
+            <div id="plan-top" aria-hidden="true" />
+            <pre className="plan-plain">{renderContent}</pre>
+          </>
         )}
 
         {/* Comments */}
