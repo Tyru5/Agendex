@@ -16,6 +16,11 @@ export {
   loadOrInitConfig,
   saveConfig,
 } from './config.ts';
+export {
+  CLI_DAEMON_HEARTBEAT_INTERVAL_MS,
+  CLI_DAEMON_STALE_AFTER_MS,
+  CLI_DAEMON_STATUS_TICK_MS,
+} from './daemon-status.ts';
 export { hashPath } from './hash.ts';
 export type { DiscoveredPlanDir } from './services/plan-service.ts';
 export {
@@ -31,5 +36,5 @@ export {
 } from './services/plan-service.ts';
 export { startWatching } from './services/watcher.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
-export { ProFeature } from './types.ts';
 export type { AgentAdapter, Plan } from './types.ts';
+export { ProFeature } from './types.ts';
