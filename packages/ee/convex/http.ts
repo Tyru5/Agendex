@@ -11,6 +11,7 @@ const http = httpRouter();
 authComponent.registerRoutes(http, createAuth, { cors: true });
 
 registerRoutes(http, stripeComponent, {
+  webhookPath: '/stripe/webhook',
   events: {
     'customer.subscription.created': async (ctx, event) => {
       const subscription = event.data.object as Stripe.Subscription;
