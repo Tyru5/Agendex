@@ -262,7 +262,7 @@ async function verifyPackagers(tarballPath) {
   await verifyInstalledTarball(
     'pnpm',
     tarballPath,
-    (cwd) => ['-y', 'pnpm@latest', 'add', '--dir', cwd, tarballPath],
+    (cwd) => ['-y', 'pnpm@9', 'add', '--dir', cwd, tarballPath],
     { command: 'npx' },
   );
   await verifyInstalledTarball('bun', tarballPath, () => ['add', tarballPath], {

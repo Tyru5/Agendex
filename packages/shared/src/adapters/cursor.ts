@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
@@ -29,9 +29,10 @@ export const cursorAdapter: AgentAdapter = {
   async parse(filePath: string): Promise<Plan[]> {
     if (!existsSync(filePath)) return [];
 
+    const { default: SqliteDatabase } = await import('better-sqlite3');
     let db: Database.Database | null = null;
     try {
-      db = new Database(filePath, { fileMustExist: true, readonly: true });
+      db = new SqliteDatabase(filePath, { fileMustExist: true, readonly: true });
       const tables = db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
         .all() as Array<{ name: string }>;
