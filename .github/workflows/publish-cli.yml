@@ -59,5 +59,10 @@ jobs:
       - name: Tag release
         if: steps.version.outputs.publish == 'true'
         run: |
-          git tag "v${{ steps.version.outputs.local }}"
-          git push origin "v${{ steps.version.outputs.local }}"
+          TAG="v${{ steps.version.outputs.local }}"
+          if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists, skipping."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi

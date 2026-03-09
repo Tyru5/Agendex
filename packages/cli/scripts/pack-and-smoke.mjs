@@ -290,6 +290,12 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
     const smoke = runSync(binary, ['help'], { cwd: projectDir });
     assert.equal(smoke.status, 0, `${name} binary failed\n${smoke.stderr || smoke.stdout}`);
     assert.match(smoke.stdout, /Usage:/);
+
+    const status = runSync(binary, ['status'], {
+      cwd: projectDir,
+      env: { ...process.env, HOME: projectDir, USERPROFILE: projectDir },
+    });
+    assert.equal(status.status, 0, `${name} status failed\n${status.stderr || status.stdout}`);
   } finally {
     await rm(projectDir, { recursive: true, force: true });
   }
