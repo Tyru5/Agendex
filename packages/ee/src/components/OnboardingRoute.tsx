@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
 import { SkeletonBlock } from '@agendex/web';
+import type { ReactNode } from 'react';
 import { Redirect } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
 import { useSubscription } from '../hooks/useSubscription';

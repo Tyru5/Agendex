@@ -16,7 +16,7 @@ interface IconCloudProps {
 }
 
 function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3);
+  return 1 - (1 - t) ** 3;
 }
 
 export function IconCloud({ icons, images }: IconCloudProps) {
@@ -146,9 +146,7 @@ export function IconCloud({ icons, images }: IconCloudProps) {
 
         const currentX = rotationRef.current.x;
         const currentY = rotationRef.current.y;
-        const distance = Math.sqrt(
-          Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2),
-        );
+        const distance = Math.sqrt((targetX - currentX) ** 2 + (targetY - currentY) ** 2);
 
         const duration = Math.min(2000, Math.max(800, distance * 1000));
 

@@ -1,4 +1,5 @@
 import {
+  CLI_DAEMON_HEARTBEAT_INTERVAL_MS,
   getAll,
   loadConfig,
   loadOrInitConfig,
@@ -9,7 +10,6 @@ import {
   setOnPlansChanged,
   startWatching,
 } from '@agendex/shared';
-import { CLI_DAEMON_HEARTBEAT_INTERVAL_MS } from '@agendex/shared/daemon-status';
 import { refreshToken, type SyncPlanPayload, sendHeartbeat, syncPlan } from './api.ts';
 import { removePid, writePid } from './pid.ts';
 

@@ -1,6 +1,6 @@
 import {
   CLI_DAEMON_STALE_AFTER_MS,
-  CLI_DAEMON_STATUS_TICK_MS,
+  CLI_DAEMON_STATUS_POLL_INTERVAL_MS,
 } from '@agendex/shared/daemon-status';
 import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
@@ -13,7 +13,7 @@ export function useDaemonStatus(): DaemonStatus {
   const [now, setNow] = useState(Date.now);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), CLI_DAEMON_STATUS_TICK_MS);
+    const id = setInterval(() => setNow(Date.now()), CLI_DAEMON_STATUS_POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, []);
 

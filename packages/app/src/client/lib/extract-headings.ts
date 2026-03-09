@@ -25,6 +25,26 @@ function normalizeOutlineText(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function getFenceInfo(line: string): { marker: '`' | '~'; length: number } | null {
+  const fenceMatch = /^([ \t]*)(`{3,}|~{3,})/.exec(line);
+  if (!fenceMatch?.[2]) return null;
+  return {
+    marker: fenceMatch[2][0] as '`' | '~',
+    length: fenceMatch[2].length,
+  };
+}
+
+function updateFenceState(
+  activeFence: { marker: '`' | '~'; length: number } | null,
+  line: string,
+): { marker: '`' | '~'; length: number } | null {
+  const fence = getFenceInfo(line);
+  if (!fence) return activeFence;
+  if (!activeFence) return fence;
+  if (activeFence.marker === fence.marker && fence.length >= activeFence.length) return null;
+  return activeFence;
+}
+
 function isMarkdownPlan({
   content,
   filePath,
@@ -45,19 +65,17 @@ function promoteBoldLabels(markdown: string): {
 } {
   const syntheticHeadingLines = new Set<number>();
   const renderedLines: string[] = [];
-  let fenceMarker: '`' | '~' | null = null;
+  let activeFence: { marker: '`' | '~'; length: number } | null = null;
 
   for (const line of markdown.split('\n')) {
-    const fenceMatch = /^([ \t]*)(`{3,}|~{3,})/.exec(line);
-    if (fenceMatch?.[2]) {
-      const marker = fenceMatch[2][0] as '`' | '~';
-      if (!fenceMarker) fenceMarker = marker;
-      else if (fenceMarker === marker) fenceMarker = null;
+    const nextFenceState = updateFenceState(activeFence, line);
+    if (nextFenceState !== activeFence || getFenceInfo(line)) {
+      activeFence = nextFenceState;
       renderedLines.push(line);
       continue;
     }
 
-    const boldLabelMatch = !fenceMarker ? /^\s*\*\*(.+?)\*\*\s*:?\s*$/.exec(line) : null;
+    const boldLabelMatch = !activeFence ? /^\s*\*\*(.+?)\*\*\s*:?\s*$/.exec(line) : null;
     if (boldLabelMatch?.[1]) {
       const text = boldLabelMatch[1].trim().replace(/:+$/, '').trim();
       if (text) {
@@ -79,26 +97,24 @@ function injectBoldLabelAnchors(markdown: string, entries: OutlineEntry[]): stri
 
   const lines = markdown.split('\n');
   const result: string[] = [];
-  let fenceMarker: '`' | '~' | null = null;
+  let activeFence: { marker: '`' | '~'; length: number } | null = null;
   let entryIdx = 0;
 
   for (const line of lines) {
-    const fenceMatch = /^([ \t]*)(`{3,}|~{3,})/.exec(line);
-    if (fenceMatch?.[2]) {
-      const marker = fenceMatch[2][0] as '`' | '~';
-      if (!fenceMarker) fenceMarker = marker;
-      else if (fenceMarker === marker) fenceMarker = null;
+    const nextFenceState = updateFenceState(activeFence, line);
+    if (nextFenceState !== activeFence || getFenceInfo(line)) {
+      activeFence = nextFenceState;
       result.push(line);
       continue;
     }
 
-    const nextEntry = !fenceMarker ? boldEntries[entryIdx] : undefined;
+    const nextEntry = !activeFence ? boldEntries[entryIdx] : undefined;
     if (nextEntry) {
       const boldLabelMatch = /^\s*\*\*(.+?)\*\*\s*:?\s*$/.exec(line);
       if (boldLabelMatch?.[1]) {
         const text = boldLabelMatch[1].trim().replace(/:+$/, '').trim();
         if (text && normalizeOutlineText(text) === normalizeOutlineText(nextEntry.text)) {
-          result.push(`<div id="${nextEntry.id}"></div>`);
+          result.push(`<div data-agendex-anchor="${nextEntry.id}"></div>`);
           entryIdx++;
         }
       }

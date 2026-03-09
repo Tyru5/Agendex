@@ -1,4 +1,4 @@
-import { type ProFeature } from '@agendex/shared/types';
+import type { ProFeature } from '@agendex/shared/types';
 import { ConvexError } from 'convex/values';
 import type { QueryCtx } from './_generated/server';
 import { hasActiveSubscription } from './subscriptions';

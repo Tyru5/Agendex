@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import type { Plan, AgentStats } from '../lib/api.ts';
+import type { AgentStats, Plan } from '../lib/api.ts';
+import { SIDEBAR_EXPANDED_WIDTH } from '../lib/constants.ts';
 import { SearchBar } from './SearchBar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
-import { SIDEBAR_EXPANDED_WIDTH } from '../lib/constants.ts';
 
 function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
   return (

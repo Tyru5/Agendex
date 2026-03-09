@@ -1,4 +1,4 @@
-import { SidebarToggleIcon, NewPlanIcon, UploadIcon } from './TopbarIcons';
+import { NewPlanIcon, SidebarToggleIcon, UploadIcon } from './TopbarIcons';
 
 export function BrandSection({
   sidebarPinnedOpen,
