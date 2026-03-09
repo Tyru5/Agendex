@@ -30,14 +30,8 @@ jobs:
         if: github.event_name == 'pull_request'
         run: bunx changeset status --since=origin/main
 
-      - name: Format check
-        run: bun run format:check
-
-      - name: Lint
-        run: bun run lint
-
-      - name: Check
-        run: bun run check
+      - name: Check CLI release surfaces
+        run: bun run check:cli:release
 
       - name: Build CLI release artifact
         run: bun run build:cli:release
