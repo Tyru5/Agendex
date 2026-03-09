@@ -2,7 +2,7 @@
 
 This guide is for running the Agendex EE stack yourself with your own Convex deployment. If you only want local indexing and search on your own machine, use the free OSS flow from the root [README](../README.md) instead. OSS local usage does not require Convex, GitHub OAuth, or Stripe.
 
-Self-hosting the EE stack is for the cloud features: authentication, CLI sync, sharing, comments, onboarding, and paid subscription flows.
+Self-hosting the EE stack is for the cloud features: authentication, CLI sync, sharing, comments, plan history, onboarding, and paid subscription flows.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ From `packages/ee`:
 npx convex dev
 ```
 
-This provisions a Convex deployment and creates `.env.local` with values like:
+This provisions a Convex deployment and writes `packages/ee/.env.local` with values like:
 
 ```bash
 CONVEX_DEPLOYMENT=dev:your-deployment-name
@@ -65,9 +65,13 @@ In the [Convex dashboard](https://dashboard.convex.dev), configure these variabl
 | `STRIPE_MONTHLY_PRICE_ID` | Stripe price ID for monthly plans |
 | `STRIPE_YEARLY_PRICE_ID` | Stripe price ID for yearly plans |
 
+Stripe is only required once you want checkout, customer portal, or paid subscription renewals. You can defer these while bringing up auth and the EE UI locally, but Cloud Pro usage beyond the built-in trial flow depends on subscription state being configured correctly.
+
 ## 5. Configure EE client environment variables
 
-Set these in `packages/ee/.env.local` for local EE development, or in your hosting provider for deployed EE builds:
+`npx convex dev` already writes `VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL` into `packages/ee/.env.local` for local development. For deployed EE builds, copy those same values into your hosting provider's environment settings and add `VITE_APP_URL` for the public site URL.
+
+Example local or hosted client env:
 
 ```bash
 VITE_CONVEX_URL=https://your-deployment.convex.cloud
@@ -161,4 +165,5 @@ The OSS Vite client on `:5173` is for the free local app and is not the frontend
 
 - Stripe webhooks are registered at `/stripe/webhook`.
 - Subscription state is synchronized through Convex HTTP handlers in `packages/ee/convex/http.ts` and mutations in `packages/ee/convex/subscriptions.ts`.
+- Plan history is stored in the `planVersions` table and implemented in `packages/ee/convex/planVersions.ts`.
 - Billing is only required for EE paid or cloud flows. It is not needed for free local OSS usage.

@@ -1,25 +1,27 @@
 # Agendex EE Convex Backend
 
-This directory contains the Convex backend for Agendex Cloud / EE. It powers authentication, subscription state, share links, comments, cloud plan storage, and the CLI sync endpoints used by the daemon and one-shot sync flows.
+This directory contains the Convex backend for Agendex Cloud / EE. It powers authentication, subscription state, share links, comments, cloud plan storage, plan history, and the CLI sync endpoints used by the daemon and one-shot sync flows.
 
 ## What Lives Here
 
 - Better Auth integration for dashboard and CLI authentication
-- Convex tables and indexes for plans, comments, share links, subscriptions, and daemon heartbeats
+- Convex tables and indexes for plans, comments, share links, subscriptions, daemon heartbeats, tags, collections, and plan history snapshots
 - Stripe-backed subscription and portal flows
-- HTTP endpoints for Stripe webhooks and CLI sync/refresh/heartbeat requests
+- HTTP endpoints for Stripe webhooks and CLI sync, refresh, and heartbeat requests
 
 ## Key Files
 
 - `auth.ts` - Better Auth setup, GitHub provider wiring, Convex adapter, and trusted origins
 - `http.ts` - registers auth routes, Stripe webhook handling, and CLI HTTP endpoints
-- `subscriptions.ts` - trial start/skip flows, checkout and portal sessions, and webhook-driven subscription sync
+- `subscriptions.ts` - trial start and skip flows, checkout and portal sessions, and webhook-driven subscription sync
 - `cli.ts` - cloud plan upsert flow, token refresh, daemon heartbeat writes, and daemon status queries
 - `plans.ts` - EE plan retrieval helpers and shared plan access
+- `planVersions.ts` - plan history listing, snapshot reads, and restore flow
 - `sharing.ts` - create and revoke share links
 - `comments.ts` - read, create, and delete plan comments
 - `collections.ts` - collection-level EE feature logic
 - `tags.ts` and `planTags.ts` - tag and plan-tag feature support
+- `entitlements.ts` - subscription gating for Pro features
 - `schema.ts` - table definitions and indexes
 - `_generated/` - Convex-generated client and server artifacts managed by the Convex CLI
 
@@ -45,6 +47,8 @@ This directory contains the Convex backend for Agendex Cloud / EE. It powers aut
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_MONTHLY_PRICE_ID`
 - `STRIPE_YEARLY_PRICE_ID`
+
+Stripe variables are needed for checkout, customer portal, and paid subscription lifecycles. They are not required to understand the backend structure or bring up the EE UI locally before you wire billing.
 
 ## Important HTTP Routes
 
