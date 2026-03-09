@@ -33,7 +33,6 @@ jobs:
         uses: changesets/action@v1
         with:
           version: bun run version-packages
-          publish: echo "Publishing is handled by publish-cli.yml"
           title: Release @agendex/cli
           commit: Release @agendex/cli
         env:

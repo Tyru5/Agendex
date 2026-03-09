@@ -26,8 +26,18 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Require changeset on PRs
+      - name: Check for CLI-relevant changes
+        id: cli-changes
         if: github.event_name == 'pull_request'
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -qE '^packages/(cli|shared)/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require changeset on PRs
+        if: github.event_name == 'pull_request' && steps.cli-changes.outputs.changed == 'true'
         run: bunx changeset status --since=origin/main
 
       - name: Check CLI release surfaces
