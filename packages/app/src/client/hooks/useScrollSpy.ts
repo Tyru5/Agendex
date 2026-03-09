@@ -23,7 +23,11 @@ export function useScrollSpy(headingIds: string[]): string | null {
     );
 
     const elements = headingIds
-      .map((id) => root.querySelector(`#${CSS.escape(id)}`))
+      .map(
+        (id) =>
+          root.querySelector(`[data-agendex-anchor="${id}"]`) ??
+          root.querySelector(`#${CSS.escape(id)}`),
+      )
       .filter(Boolean) as Element[];
 
     for (const el of elements) observer.observe(el);

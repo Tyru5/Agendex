@@ -1,3 +1,4 @@
+import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { httpAction, internalMutation, internalQuery, query } from './_generated/server';
@@ -173,8 +174,6 @@ export const sync = httpAction(async (ctx, request) => {
   }
 });
 
-const HEARTBEAT_STALE_MS = 90_000;
-
 export const upsertHeartbeat = internalMutation({
   args: { ownerId: v.string() },
   handler: async (ctx, args) => {
@@ -202,7 +201,7 @@ export const getDaemonStatus = query({
       .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
       .first();
     if (!hb) return { alive: false, lastSeenAt: null };
-    const alive = Date.now() - hb.lastSeenAt < HEARTBEAT_STALE_MS;
+    const alive = Date.now() - hb.lastSeenAt < CLI_DAEMON_STALE_AFTER_MS;
     return { alive, lastSeenAt: hb.lastSeenAt };
   },
 });

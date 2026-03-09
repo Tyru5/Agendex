@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useLocation, Redirect } from 'wouter';
-import { useAction } from 'convex/react';
 import { startViewTransition } from '@agendex/web';
 import { api } from '@convex/_generated/api';
+import { useAction } from 'convex/react';
+import { useState } from 'react';
+import { Redirect, useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
 import { useSubscription } from '../hooks/useSubscription';
 import { PricingModal } from './PricingModal';

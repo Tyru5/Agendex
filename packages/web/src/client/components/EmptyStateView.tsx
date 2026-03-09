@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentStats } from '../lib/api.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
+import type { AgentStats } from '../lib/api.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
 interface EmptyStateViewProps {

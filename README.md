@@ -142,7 +142,7 @@ Common environment variables:
   - `VITE_ALLOWED_HOSTS` (comma-separated extra Vite allowed hosts)
 - EE/cloud:
   - Client: `VITE_CONVEX_URL`, `VITE_CONVEX_SITE_URL`, optional `VITE_APP_URL`
-  - Convex/auth/billing: `SITE_URL`, `CONVEX_SITE_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `BETTER_AUTH_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_MONTHLY_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`
+  - Convex/auth/billing: `SITE_URL`, `CONVEX_SITE_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `BETTER_AUTH_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_MONTHLY_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`
 
 ## EE / Cloud Development
 
@@ -157,6 +157,8 @@ bun run dev:client:ee
 ```
 
 The EE Vite client runs on `http://localhost:5174` and proxies `/api` to the OSS server (`http://localhost:4890`).
+
+For local billing setup and Stripe sandbox testing, see [docs/stripe-local-testing.md](./docs/stripe-local-testing.md).
 
 ## License
 

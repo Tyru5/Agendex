@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { filterPlans, type Plan } from '@agendex/web';
+import { type ReactNode, useCallback, useMemo, useState } from 'react';
 
 export interface Command {
   id: string;

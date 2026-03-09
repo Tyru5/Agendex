@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import Stripe from 'stripe';
 import { api, internal } from './_generated/api';
-import { action, internalMutation, query, type QueryCtx } from './_generated/server';
+import { action, internalMutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { stripe } from './stripe';
 
@@ -181,7 +181,7 @@ export const reactivateSubscription = action({
     const item = updated.items.data[0];
     await ctx.runMutation(internal.subscriptions.syncSubscriptionUpdate, {
       stripeSubscriptionId: sub.stripeSubscriptionId,
-      status: 'active',
+      status: updated.status,
       currentPeriodEnd: (item?.current_period_end ?? 0) * 1000,
       cancelAtPeriodEnd: false,
     });

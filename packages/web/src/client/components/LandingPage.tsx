@@ -1,19 +1,19 @@
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
+import { startViewTransition } from '../lib/view-transition.ts';
 import {
   AGENTS,
-  FEATURES,
-  FAQ_ITEMS,
-  FREE_FEATURES,
-  PRO_FEATURES,
-  LOCAL_STEPS,
   CLOUD_STEPS,
+  FAQ_ITEMS,
+  FEATURES,
+  FREE_FEATURES,
+  LOCAL_STEPS,
   PKG_MANAGERS,
+  PRO_FEATURES,
   setToken,
 } from './landing/data.ts';
-import { IconCloud } from './landing/IconCloud.tsx';
 import { FAQBackground } from './landing/FAQBackground.tsx';
+import { IconCloud } from './landing/IconCloud.tsx';
 import { TopoNeurons } from './landing/TopoNeurons.tsx';
-import { startViewTransition } from '../lib/view-transition.ts';
 
 function Spinner({ size = 14, color }: { size?: number; color?: string }) {
   return (

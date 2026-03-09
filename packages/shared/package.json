@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./daemon-status": "./src/daemon-status.ts",
     "./types": "./src/types.ts"
   },
   "dependencies": {
