@@ -1,4 +1,4 @@
-import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared';
+import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { httpAction, internalMutation, internalQuery, query } from './_generated/server';

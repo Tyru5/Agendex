@@ -1,4 +1,7 @@
-import { CLI_DAEMON_STALE_AFTER_MS, CLI_DAEMON_STATUS_POLL_INTERVAL_MS } from '@agendex/shared';
+import {
+  CLI_DAEMON_STALE_AFTER_MS,
+  CLI_DAEMON_STATUS_POLL_INTERVAL_MS,
+} from '@agendex/shared/daemon-status';
 import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
 import { useEffect, useState } from 'react';
