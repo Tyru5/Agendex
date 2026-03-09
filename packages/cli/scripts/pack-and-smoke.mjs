@@ -288,18 +288,44 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
     assert.equal(install.status, 0, `${name} install failed\n${install.stderr || install.stdout}`);
 
     const binary = join(projectDir, 'node_modules', '.bin', 'agendex');
-    const smoke = runSync(binary, ['help'], { cwd: projectDir });
+    const env = { ...process.env, HOME: projectDir, USERPROFILE: projectDir };
+
+    const smoke = runSync(binary, ['help'], { cwd: projectDir, env });
     assert.equal(smoke.status, 0, `${name} binary failed\n${smoke.stderr || smoke.stdout}`);
     assert.match(smoke.stdout, /Usage:/);
 
-    const status = runSync(binary, ['status'], {
-      cwd: projectDir,
-      env: { ...process.env, HOME: projectDir, USERPROFILE: projectDir },
-    });
-    assert.equal(status.status, 0, `${name} status failed\n${status.stderr || status.stdout}`);
+    await createCursorFixture(projectDir);
+    await writeSmokeConfig(projectDir);
+
+    const sync = runSync(binary, ['sync'], { cwd: projectDir, env });
+    assert.notEqual(sync.status, 0, `${name} sync should fail against an unreachable cloud`);
+    assert.match(
+      sync.stdout,
+      /Found 1 plans/,
+      `${name} sync did not parse the installed SQLite adapter`,
+    );
   } finally {
     await rm(projectDir, { recursive: true, force: true });
   }
+}
+
+async function writeSmokeConfig(homeDir) {
+  const configDir = join(homeDir, '.agendex');
+  await mkdir(configDir, { recursive: true });
+  await writeFile(
+    join(configDir, 'config.json'),
+    `${JSON.stringify(
+      {
+        configVersion: 3,
+        token: 'local-token',
+        cloudToken: 'cloud-token',
+        convexUrl: 'http://127.0.0.1:9',
+        enabledAdapters: ['cursor'],
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 async function readJson(req) {

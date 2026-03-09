@@ -109,15 +109,18 @@ async function startCallbackServer(): Promise<{ port: number; result: Promise<Ca
       'Content-Type': 'text/html; charset=utf-8',
     });
     res.end(callbackPage(success));
+    const callbackValue = success
+      ? {
+          token: token ?? '',
+          convexUrl: convexUrl ?? '',
+        }
+      : new Error('Missing token or convexUrl in callback');
 
-    if (!success) {
-      finish(new Error('Missing token or convexUrl in callback'));
-      return;
-    }
-
-    finish({
-      token: token ?? '',
-      convexUrl: convexUrl ?? '',
+    res.once('finish', () => {
+      finish(callbackValue);
+    });
+    res.once('close', () => {
+      finish(callbackValue);
     });
   });
 

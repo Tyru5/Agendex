@@ -174,9 +174,12 @@ export async function startSupervisor(): Promise<void> {
       stdio: ['ignore', 'inherit', 'inherit'],
     });
 
-    const exitCode = await new Promise<number | null>((resolve, reject) => {
+    const exitCode = await new Promise<number | null>((resolve) => {
       workerProc?.once('exit', (code) => resolve(code));
-      workerProc?.once('error', reject);
+      workerProc?.once('error', (error) => {
+        console.error('[agendex] failed to spawn worker:', error);
+        resolve(1);
+      });
     });
     workerProc = null;
 
