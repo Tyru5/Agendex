@@ -37,7 +37,7 @@ jobs:
           fi
 
       - name: Require changeset on PRs
-        if: github.event_name == 'pull_request' && steps.cli-changes.outputs.changed == 'true'
+        if: github.event_name == 'pull_request' && steps.cli-changes.outputs.changed == 'true' && !startsWith(github.head_ref, 'changeset-release/')
         run: bunx changeset status --since=origin/main
 
       - name: Check CLI release surfaces

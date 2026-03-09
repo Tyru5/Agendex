@@ -200,27 +200,32 @@ function callbackPage(success: boolean): string {
 
 function openBrowser(url: string): void {
   if (process.platform === 'darwin') {
-    const child = spawn('open', [url], {
-      detached: true,
-      stdio: 'ignore',
-    });
-    child.unref();
+    spawnBrowser('open', [url]);
     return;
   }
 
   if (process.platform === 'win32') {
-    const child = spawn('cmd', ['/c', 'start', '', url], {
-      detached: true,
-      stdio: 'ignore',
+    spawnBrowser('cmd', ['/c', 'start', '', url], {
       windowsHide: true,
     });
-    child.unref();
     return;
   }
 
-  const child = spawn('xdg-open', [url], {
+  spawnBrowser('xdg-open', [url]);
+}
+
+function spawnBrowser(
+  command: string,
+  args: string[],
+  options: Parameters<typeof spawn>[2] = {},
+): void {
+  const child = spawn(command, args, {
     detached: true,
     stdio: 'ignore',
+    ...options,
   });
+
+  // The URL is already printed above, so opener failures should not crash login.
+  child.on('error', () => {});
   child.unref();
 }

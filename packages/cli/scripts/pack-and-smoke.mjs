@@ -12,6 +12,7 @@ const repoRoot = resolve(__dirname, '../../..');
 const packageDir = resolve(__dirname, '..');
 const workspaceCli = join(packageDir, 'dist', 'cli.js');
 const releaseDir = join(packageDir, '.release');
+const nodeBin = process.execPath;
 
 await verifyDirectRuntime();
 const tarballPath = await packRelease();
@@ -23,7 +24,7 @@ try {
 }
 
 async function verifyDirectRuntime() {
-  const help = runSync('node', [workspaceCli, 'help']);
+  const help = runSync(nodeBin, [workspaceCli, 'help']);
   assert.equal(help.status, 0, help.stderr || help.stdout);
   assert.match(help.stdout, /Usage:/);
 
@@ -32,11 +33,10 @@ async function verifyDirectRuntime() {
     ...process.env,
     HOME: homeDir,
     USERPROFILE: homeDir,
-    AGENDEX_DISABLE_BROWSER: '1',
   };
 
   try {
-    const status = runSync('node', [workspaceCli, 'status'], { env });
+    const status = runSync(nodeBin, [workspaceCli, 'status'], { env });
     assert.equal(status.status, 0, status.stderr || status.stdout);
     assert.match(status.stdout, /Config version: none/);
 
@@ -47,7 +47,8 @@ async function verifyDirectRuntime() {
     const server = await startFakeCloud(cloudState);
 
     try {
-      await exerciseLogin(env, server.baseUrl);
+      await exerciseLogin({ ...env, AGENDEX_DISABLE_BROWSER: '1' }, server.baseUrl);
+      await exerciseLogin({ ...env, PATH: '/definitely-missing' }, server.baseUrl);
       await createCursorFixture(homeDir);
       await exerciseSyncParse(env);
       await exerciseDaemon(env, cloudState);
@@ -62,7 +63,7 @@ async function verifyDirectRuntime() {
 }
 
 async function exerciseLogin(env, baseUrl) {
-  const child = spawn('node', [workspaceCli, 'login', '--url', baseUrl], {
+  const child = spawn(nodeBin, [workspaceCli, 'login', '--url', baseUrl], {
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -110,7 +111,7 @@ async function exerciseSyncParse(env) {
     config.convexUrl = 'http://127.0.0.1:9';
     await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
 
-    const sync = runSync('node', [workspaceCli, 'sync'], { env });
+    const sync = runSync(nodeBin, [workspaceCli, 'sync'], { env });
     assert.notEqual(sync.status, 0, 'expected sync against an unreachable host to fail');
     assert.match(sync.stdout, /Found 1 plans/);
   } finally {
@@ -120,7 +121,7 @@ async function exerciseSyncParse(env) {
 }
 
 async function exerciseDaemon(env, cloudState) {
-  const start = runSync('node', [workspaceCli, 'start'], { env });
+  const start = runSync(nodeBin, [workspaceCli, 'start'], { env });
   assert.equal(start.status, 0, start.stderr || start.stdout);
 
   const pidPath = join(env.HOME, '.agendex', 'daemon.pid');
@@ -135,7 +136,7 @@ async function exerciseDaemon(env, cloudState) {
 
   await waitFor(() => cloudState.heartbeatCount > 0, 10_000);
 
-  const stop = runSync('node', [workspaceCli, 'stop'], { env });
+  const stop = runSync(nodeBin, [workspaceCli, 'stop'], { env });
   assert.equal(stop.status, 0, stop.stderr || stop.stdout);
 
   await waitFor(async () => {
