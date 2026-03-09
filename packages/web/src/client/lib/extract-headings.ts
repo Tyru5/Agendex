@@ -36,9 +36,8 @@ function getFenceInfo(line: string): { marker: '`' | '~'; length: number } | nul
 
 function updateFenceState(
   activeFence: { marker: '`' | '~'; length: number } | null,
-  line: string,
+  fence: { marker: '`' | '~'; length: number } | null,
 ): { marker: '`' | '~'; length: number } | null {
-  const fence = getFenceInfo(line);
   if (!fence) return activeFence;
   if (!activeFence) return fence;
   if (activeFence.marker === fence.marker && fence.length >= activeFence.length) return null;
@@ -68,8 +67,9 @@ function promoteBoldLabels(markdown: string): {
   let activeFence: { marker: '`' | '~'; length: number } | null = null;
 
   for (const line of markdown.split('\n')) {
-    const nextFenceState = updateFenceState(activeFence, line);
-    if (nextFenceState !== activeFence || getFenceInfo(line)) {
+    const fence = getFenceInfo(line);
+    const nextFenceState = updateFenceState(activeFence, fence);
+    if (nextFenceState !== activeFence || fence) {
       activeFence = nextFenceState;
       renderedLines.push(line);
       continue;
@@ -101,8 +101,9 @@ function injectBoldLabelAnchors(markdown: string, entries: OutlineEntry[]): stri
   let entryIdx = 0;
 
   for (const line of lines) {
-    const nextFenceState = updateFenceState(activeFence, line);
-    if (nextFenceState !== activeFence || getFenceInfo(line)) {
+    const fence = getFenceInfo(line);
+    const nextFenceState = updateFenceState(activeFence, fence);
+    if (nextFenceState !== activeFence || fence) {
       activeFence = nextFenceState;
       result.push(line);
       continue;
