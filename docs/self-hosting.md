@@ -1,13 +1,15 @@
 # Self-Hosting Agendex
 
-Run your own Agendex instance with your own Convex backend.
+This guide is for running the Agendex EE stack yourself with your own Convex deployment. If you only want local indexing and search on your own machine, use the free OSS flow from the root [README](../README.md) instead. OSS local usage does not require Convex, GitHub OAuth, or Stripe.
+
+Self-hosting the EE stack is for the cloud features: authentication, CLI sync, sharing, comments, onboarding, and paid subscription flows.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) runtime
-- [Convex](https://convex.dev) account (free tier works)
-- GitHub OAuth app (for authentication)
-- Hosting platform for the web dashboard (Vercel, etc.)
+- [Bun](https://bun.sh)
+- A [Convex](https://convex.dev) account
+- A GitHub OAuth app
+- A place to host the EE web dashboard
 
 ## 1. Clone and install
 
@@ -19,13 +21,15 @@ bun install
 
 ## 2. Create a Convex project
 
+From `packages/ee`:
+
 ```bash
 npx convex dev
 ```
 
-This provisions a Convex deployment and creates `.env.local` with:
+This provisions a Convex deployment and creates `.env.local` with values like:
 
-```
+```bash
 CONVEX_DEPLOYMENT=dev:your-deployment-name
 VITE_CONVEX_URL=https://your-deployment.convex.cloud
 VITE_CONVEX_SITE_URL=https://your-deployment.convex.site
@@ -33,53 +37,69 @@ VITE_CONVEX_SITE_URL=https://your-deployment.convex.site
 
 ## 3. Create a GitHub OAuth app
 
-1. Go to [GitHub Developer Settings](https://github.com/settings/developers) > OAuth Apps > New OAuth App
-2. Set **Homepage URL** to your web dashboard URL (e.g. `https://agendex.yourdomain.com`)
-3. Set **Authorization callback URL** to `https://your-deployment.convex.site/api/auth/callback/github`
-4. Copy the Client ID and generate a Client Secret
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers) and create a new OAuth app.
+2. Set **Homepage URL** to your dashboard URL, for example `https://agendex.yourdomain.com`.
+3. Set **Authorization callback URL** to `https://your-deployment.convex.site/api/auth/callback/github`.
+4. Copy the client ID and generate a client secret.
 
 ## 4. Configure Convex environment variables
 
-In the [Convex dashboard](https://dashboard.convex.dev), set these env vars for your deployment:
+In the [Convex dashboard](https://dashboard.convex.dev), configure these variables for the deployment used by `packages/ee/convex`.
 
-| Variable               | Value                                                          |
-| ---------------------- | -------------------------------------------------------------- |
-| `SITE_URL`             | Your web dashboard URL (e.g. `https://agendex.yourdomain.com`) |
-| `CONVEX_SITE_URL`      | Your Convex site URL (from `.env.local`)                       |
-| `GITHUB_CLIENT_ID`     | From GitHub OAuth app                                          |
-| `GITHUB_CLIENT_SECRET` | From GitHub OAuth app                                          |
-| `BETTER_AUTH_SECRET`   | Generate with `openssl rand -base64 32`                        |
+### Backend and auth
 
-## 5. Add client env vars
+| Variable | Value |
+| --- | --- |
+| `SITE_URL` | Public EE dashboard URL, for example `https://agendex.yourdomain.com` |
+| `CONVEX_SITE_URL` | Convex site URL from `.env.local` |
+| `GITHUB_CLIENT_ID` | GitHub OAuth app client ID |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
+| `BETTER_AUTH_SECRET` | Generate with `openssl rand -base64 32` |
 
-Add to `.env.local` (or your hosting platform's env config):
+### Billing
 
-```
+| Variable | Value |
+| --- | --- |
+| `STRIPE_SECRET_KEY` | Stripe secret key for the EE deployment |
+| `STRIPE_WEBHOOK_SECRET` | Webhook secret for `/stripe/webhook` |
+| `STRIPE_MONTHLY_PRICE_ID` | Stripe price ID for monthly plans |
+| `STRIPE_YEARLY_PRICE_ID` | Stripe price ID for yearly plans |
+
+## 5. Configure EE client environment variables
+
+Set these in `packages/ee/.env.local` for local EE development, or in your hosting provider for deployed EE builds:
+
+```bash
+VITE_CONVEX_URL=https://your-deployment.convex.cloud
+VITE_CONVEX_SITE_URL=https://your-deployment.convex.site
 VITE_APP_URL=https://agendex.yourdomain.com
 ```
 
-`VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL` should already be set from step 2.
+`VITE_APP_URL` is optional but recommended so share links point at the correct public site.
 
-## 6. Deploy the web dashboard
+## 6. Deploy the EE web dashboard
 
 ### Vercel
 
-1. Import the repo in Vercel
-2. Set **Root Directory** to `packages/ee`
-3. Set **Build Command** to `bun run build`
-4. Set **Output Directory** to `dist`
-5. Add the `VITE_*` env vars from above
-6. Deploy
+1. Import the repo into Vercel.
+2. Set **Root Directory** to `packages/ee`.
+3. Set **Build Command** to `bun run build`.
+4. Set **Output Directory** to `dist`.
+5. Add the `VITE_*` variables above.
+6. Deploy.
 
 ### Other platforms
 
 ```bash
 cd packages/ee
 bun run build
-# serve dist as static files
 ```
 
+Serve `dist/` as a static site.
+
 ## 7. Deploy Convex to production
+
+From `packages/ee`:
 
 ```bash
 npx convex deploy
@@ -87,25 +107,58 @@ npx convex deploy
 
 ## 8. Connect the CLI
 
+Always pass your site URL explicitly for self-hosted instances:
+
 ```bash
 bunx @agendex/cli login --url https://agendex.yourdomain.com
 ```
 
-This opens your self-hosted instance for OAuth, stores the token and Convex URL in `~/.agendex/config.json`.
+This opens your self-hosted instance for OAuth and stores the returned token and Convex URL in `~/.agendex/config.json`.
 
 Then sync or start the daemon:
 
 ```bash
-bunx @agendex/cli sync    # one-shot
-bunx @agendex/cli start   # persistent daemon
+bunx @agendex/cli sync
+bunx @agendex/cli start
+bunx @agendex/cli status
 ```
 
-## Local development
-
-Run all three simultaneously:
+If you are working from this repo checkout instead of the published CLI, use the equivalent root scripts and still pass `--url`:
 
 ```bash
-npx convex dev             # Convex backend (watches convex/ for changes)
-bun run dev                # Hono server on :4890
-bun run dev:client         # Vite on :5173 (proxies /api -> :4890)
+bun run cli:login -- --url https://agendex.yourdomain.com
+bun run cli:sync
+bun run cli:start
+bun run cli:status
 ```
+
+The current in-repo CLI auth source defaults to `http://localhost:5174` unless `--url` is provided, so do not rely on the default for self-hosted or production usage.
+
+## Local EE development
+
+To develop the EE stack locally from this repo, run all three processes:
+
+```bash
+# from packages/ee
+npx convex dev
+
+# from repo root
+bun run dev
+
+# from repo root
+bun run dev:client:ee
+```
+
+Ports and routing:
+
+- OSS API server: `http://localhost:4890`
+- EE Vite client: `http://localhost:5174`
+- EE client `/api` requests proxy to the OSS API on `:4890`
+
+The OSS Vite client on `:5173` is for the free local app and is not the frontend used for EE development.
+
+## Maintainer billing notes
+
+- Stripe webhooks are registered at `/stripe/webhook`.
+- Subscription state is synchronized through Convex HTTP handlers in `packages/ee/convex/http.ts` and mutations in `packages/ee/convex/subscriptions.ts`.
+- Billing is only required for EE paid or cloud flows. It is not needed for free local OSS usage.
