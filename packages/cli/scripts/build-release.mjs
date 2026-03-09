@@ -72,12 +72,9 @@ async function buildRelease() {
   const dependencyNames = ['better-sqlite3'];
   const dependencies = Object.fromEntries(
     dependencyNames.map((name) => {
-      const version =
-        cliManifest.dependencies?.[name] ?? sharedManifest.dependencies?.[name];
+      const version = cliManifest.dependencies?.[name] ?? sharedManifest.dependencies?.[name];
       if (typeof version !== 'string') {
-        throw new Error(
-          `Required dependency "${name}" not found in cli or shared package.json`,
-        );
+        throw new Error(`Required dependency "${name}" not found in cli or shared package.json`);
       }
       return [name, version];
     }),
