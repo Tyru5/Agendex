@@ -181,7 +181,7 @@ export const reactivateSubscription = action({
     const item = updated.items.data[0];
     await ctx.runMutation(internal.subscriptions.syncSubscriptionUpdate, {
       stripeSubscriptionId: sub.stripeSubscriptionId,
-      status: 'active',
+      status: updated.status,
       currentPeriodEnd: (item?.current_period_end ?? 0) * 1000,
       cancelAtPeriodEnd: false,
     });
