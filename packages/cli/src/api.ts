@@ -146,6 +146,7 @@ function requestText(urlString: string, options: RequestOptions): Promise<TextRe
             body,
           });
         });
+        res.on('error', reject);
       },
     );
 
