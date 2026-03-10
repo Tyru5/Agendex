@@ -79,9 +79,14 @@ async function exerciseLogin(env, baseUrl) {
     const match = stdout.match(/visit: (http:\/\/[^\s]+)/);
     if (match?.[1] && !opened) {
       opened = true;
-      void fetch(match[1]).then(async (response) => {
-        await response.arrayBuffer();
-      });
+      void fetch(match[1])
+        .then(async (response) => {
+          await response.arrayBuffer();
+        })
+        .catch((err) => {
+          console.error('[smoke] fetch to auth URL failed:', err);
+          child.kill();
+        });
     }
   });
   child.stderr.on('data', (chunk) => {
@@ -189,9 +194,13 @@ async function startFakeCloud(state) {
       const callbackUrl = new URL(callback);
       callbackUrl.searchParams.set('token', 'cloud-token');
       callbackUrl.searchParams.set('convexUrl', baseUrl);
-      void fetch(callbackUrl).then(async (response) => {
-        await response.arrayBuffer();
-      });
+      void fetch(callbackUrl)
+        .then(async (response) => {
+          await response.arrayBuffer();
+        })
+        .catch((err) => {
+          console.error('[smoke] fetch to callback URL failed:', err);
+        });
       respond(res, 200, 'ok', 'text/plain; charset=utf-8');
       return;
     }

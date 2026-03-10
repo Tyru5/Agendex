@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: publish-cli
+  cancel-in-progress: false
+
 permissions:
   contents: write
   id-token: write
