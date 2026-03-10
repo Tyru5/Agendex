@@ -41,7 +41,17 @@ jobs:
         id: version
         run: |
           LOCAL_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('./packages/cli/package.json', 'utf8')).version")
-          PUBLISHED_VERSION=$(npm view @agendex/cli version 2>/dev/null || true)
+          NPM_VIEW_ERR=$(mktemp)
+          if PUBLISHED_VERSION=$(npm view @agendex/cli version 2>"$NPM_VIEW_ERR"); then
+            :
+          elif grep -Eq 'E404|404 Not Found' "$NPM_VIEW_ERR"; then
+            PUBLISHED_VERSION=""
+          else
+            cat "$NPM_VIEW_ERR" >&2
+            rm -f "$NPM_VIEW_ERR"
+            exit 1
+          fi
+          rm -f "$NPM_VIEW_ERR"
           echo "local=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
           echo "published=$PUBLISHED_VERSION" >> "$GITHUB_OUTPUT"
           if [ "$LOCAL_VERSION" = "$PUBLISHED_VERSION" ]; then

@@ -5,7 +5,6 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Database from 'better-sqlite3';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../../..');
@@ -154,6 +153,7 @@ async function createCursorFixture(homeDir) {
   await mkdir(dbDir, { recursive: true });
 
   const dbPath = join(dbDir, 'ai-code-tracking.db');
+  const { default: Database } = await import('better-sqlite3');
   const db = new Database(dbPath);
   try {
     db.exec('CREATE TABLE prompts (id INTEGER PRIMARY KEY, prompt TEXT, model TEXT)');
