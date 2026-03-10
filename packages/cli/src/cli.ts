@@ -19,12 +19,12 @@ async function main(): Promise<number> {
     case 'start': {
       if (args.includes('--daemon')) {
         await startSupervisor();
-        break;
+        return 0;
       }
 
       if (args.includes('--worker')) {
         await runWorker();
-        break;
+        return 0;
       }
 
       const existingPid = readPid();
