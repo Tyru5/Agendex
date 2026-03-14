@@ -64,10 +64,10 @@
         "agendex": "./dist/cli.js",
       },
       "dependencies": {
-        "@agendex/shared": "workspace:*",
         "better-sqlite3": "^12.6.2",
       },
       "devDependencies": {
+        "@agendex/shared": "workspace:*",
         "@types/bun": "^1.3.9",
       },
     },
