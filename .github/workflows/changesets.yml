@@ -33,7 +33,7 @@ jobs:
         uses: changesets/action@v1
         with:
           version: bun run version-packages
-          title: Release @agendex/cli
-          commit: Release @agendex/cli
+          title: Release agendex-cli
+          commit: Release agendex-cli
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

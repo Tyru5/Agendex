@@ -46,7 +46,7 @@ jobs:
         run: |
           LOCAL_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('./packages/cli/package.json', 'utf8')).version")
           NPM_VIEW_ERR=$(mktemp)
-          if PUBLISHED_VERSION=$(npm view @agendex/cli version 2>"$NPM_VIEW_ERR"); then
+          if PUBLISHED_VERSION=$(npm view agendex-cli version 2>"$NPM_VIEW_ERR"); then
             :
           elif grep -Eq 'E404|404 Not Found' "$NPM_VIEW_ERR"; then
             PUBLISHED_VERSION=""

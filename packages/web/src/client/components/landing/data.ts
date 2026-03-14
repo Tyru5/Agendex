@@ -66,14 +66,14 @@ export const LOCAL_STEPS = [
 ];
 
 export const PKG_MANAGERS = [
-  { id: 'bun', label: 'bun', cmd: 'bun install -g @agendex/cli' },
-  { id: 'npm', label: 'npm', cmd: 'npm install -g @agendex/cli' },
-  { id: 'yarn', label: 'yarn', cmd: 'yarn global add @agendex/cli' },
-  { id: 'pnpm', label: 'pnpm', cmd: 'pnpm add -g @agendex/cli' },
+  { id: 'bun', label: 'bun', cmd: 'bun install -g agendex-cli' },
+  { id: 'npm', label: 'npm', cmd: 'npm install -g agendex-cli' },
+  { id: 'yarn', label: 'yarn', cmd: 'yarn global add agendex-cli' },
+  { id: 'pnpm', label: 'pnpm', cmd: 'pnpm add -g agendex-cli' },
 ] as const;
 
 export const CLOUD_STEPS = [
-  { number: '1', title: 'Install CLI', code: 'npm install -g @agendex/cli', hasPkgManager: true },
+  { number: '1', title: 'Install CLI', code: 'npm install -g agendex-cli', hasPkgManager: true },
   { number: '2', title: 'Authenticate', code: 'agendex login        # opens browser OAuth' },
   { number: '3', title: 'Start Daemon', code: 'agendex start        # watches + syncs plans' },
 ];

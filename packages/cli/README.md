@@ -1,14 +1,14 @@
-# `@agendex/cli`
+# `agendex-cli`
 
 Node-compatible Agendex CLI for browser login, one-shot sync, daemon supervision, and status checks.
 
 ## Install
 
 ```bash
-npm install -g @agendex/cli
-pnpm add -g @agendex/cli
-yarn global add @agendex/cli
-bun install -g @agendex/cli
+npm install -g agendex-cli
+pnpm add -g agendex-cli
+yarn global add agendex-cli
+bun install -g agendex-cli
 ```
 
 ## Commands

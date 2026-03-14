@@ -10,7 +10,7 @@ Agendex is a Bun workspaces monorepo:
 - `packages/app` - OSS local app (`@agendex/app`) with the Hono API and OSS Vite client
 - `packages/web` - shared React/web UI package consumed by the EE app
 - `packages/ee` - cloud/pro package (`@agendex/ee`) with Convex auth, subscriptions, sharing, comments, and EE dashboard flows
-- `packages/cli` - CLI (`@agendex/cli`) for login, sync, daemon, and status workflows
+- `packages/cli` - CLI (`agendex-cli`) for login, sync, daemon, and status workflows
 
 ## Feature Split
 
@@ -102,7 +102,7 @@ bun run cli:sync            # one-shot cloud sync
 bun run cli:stop            # stop daemon
 bun run cli:status          # print current local/cloud config state
 
-bun run changeset           # create a release note for @agendex/cli
+bun run changeset           # create a release note for agendex-cli
 bun run version-packages    # apply pending Changesets versions
 bun run build:cli:release   # generate packages/cli/.release
 bun run pack:cli:dry-run    # inspect the generated npm tarball
