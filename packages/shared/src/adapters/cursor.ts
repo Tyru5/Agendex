@@ -29,9 +29,9 @@ export const cursorAdapter: AgentAdapter = {
   async parse(filePath: string): Promise<Plan[]> {
     if (!existsSync(filePath)) return [];
 
-    const { default: SqliteDatabase } = await import('better-sqlite3');
     let db: Database.Database | null = null;
     try {
+      const { default: SqliteDatabase } = await import('better-sqlite3');
       db = new SqliteDatabase(filePath, { fileMustExist: true, readonly: true });
       const tables = db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
