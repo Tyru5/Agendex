@@ -1,53 +1,59 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
+import { spawn } from 'node:child_process';
+import { writeSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadConfig } from '@agendex/shared';
+import { login, logout } from './auth.ts';
+import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, removePid } from './pid.ts';
+import { syncAll } from './sync.ts';
 
 const args = process.argv.slice(2);
 const command = args[0] ?? 'start';
+const cliEntry = resolve(process.argv[1] ?? fileURLToPath(import.meta.url));
 
-async function main() {
+async function main(): Promise<number> {
   switch (command) {
     case 'start': {
       if (args.includes('--daemon')) {
-        const { startSupervisor } = await import('./daemon.ts');
         await startSupervisor();
-        break;
+        return 0;
       }
 
       if (args.includes('--worker')) {
-        const { runWorker } = await import('./daemon.ts');
         await runWorker();
-        break;
+        return 0;
       }
 
       const existingPid = readPid();
       if (existingPid && isRunning(existingPid)) {
-        console.log(`[agendex] daemon already running (PID ${existingPid})`);
-        break;
+        writeStdout(`[agendex] daemon already running (PID ${existingPid})`);
+        return 0;
       }
 
       if (existingPid) removePid();
 
-      const scriptPath = new URL(import.meta.url).pathname;
-      const child = Bun.spawn(['bun', scriptPath, 'start', '--daemon'], {
-        stdio: ['ignore', 'ignore', 'ignore'],
+      const child = spawn(process.execPath, [cliEntry, 'start', '--daemon'], {
+        detached: true,
+        stdio: 'ignore',
       });
       child.unref();
 
       // brief wait to let child write PID
       await new Promise((r) => setTimeout(r, 500));
       const pid = readPid();
-      console.log(`[agendex] daemon started${pid ? ` (PID ${pid})` : ''}`);
-      break;
+      writeStdout(`[agendex] daemon started${pid ? ` (PID ${pid})` : ''}`);
+      return 0;
     }
 
     case 'stop': {
       const pid = readPid();
       if (!pid || !isRunning(pid)) {
         removePid();
-        console.log('[agendex] daemon is not running');
-        break;
+        writeStdout('[agendex] daemon is not running');
+        return 0;
       }
 
       process.kill(pid, 'SIGTERM');
@@ -57,51 +63,48 @@ async function main() {
       }
 
       if (isRunning(pid)) {
-        console.error('[agendex] daemon did not stop in time');
+        writeStderr('[agendex] daemon did not stop in time');
       } else {
         removePid();
-        console.log(`[agendex] daemon stopped (PID ${pid})`);
+        writeStdout(`[agendex] daemon stopped (PID ${pid})`);
       }
-      break;
+      return isRunning(pid) ? 1 : 0;
     }
 
     case 'login': {
-      const { login } = await import('./auth.ts');
       const urlIdx = args.indexOf('--url');
       const siteUrl = urlIdx !== -1 ? args[urlIdx + 1] : undefined;
       await login(siteUrl);
-      break;
+      return 0;
     }
 
     case 'logout': {
-      const { logout } = await import('./auth.ts');
       logout();
-      break;
+      return 0;
     }
 
     case 'sync': {
-      const { syncAll } = await import('./sync.ts');
       await syncAll();
-      break;
+      return 0;
     }
 
     case 'status': {
       const config = loadConfig();
       const pid = readPid();
       const running = pid ? isRunning(pid) : false;
-      console.log(`[agendex] Config version: ${config?.configVersion ?? 'none'}`);
-      console.log(`[agendex] Local token: ${config?.token ? 'set' : 'not set'}`);
-      console.log(`[agendex] Cloud token: ${config?.cloudToken ? 'set' : 'not set'}`);
-      console.log(`[agendex] Convex URL: ${config?.convexUrl ?? 'not set'}`);
-      console.log(`[agendex] Enabled adapters: ${config?.enabledAdapters.join(', ') || 'none'}`);
-      console.log(`[agendex] Daemon: ${running ? `running (PID ${pid})` : 'not running'}`);
-      break;
+      writeStdout(`[agendex] Config version: ${config?.configVersion ?? 'none'}`);
+      writeStdout(`[agendex] Local token: ${config?.token ? 'set' : 'not set'}`);
+      writeStdout(`[agendex] Cloud token: ${config?.cloudToken ? 'set' : 'not set'}`);
+      writeStdout(`[agendex] Convex URL: ${config?.convexUrl ?? 'not set'}`);
+      writeStdout(`[agendex] Enabled adapters: ${config?.enabledAdapters.join(', ') || 'none'}`);
+      writeStdout(`[agendex] Daemon: ${running ? `running (PID ${pid})` : 'not running'}`);
+      return 0;
     }
 
     case 'help':
     case '--help':
     case '-h': {
-      console.log(
+      writeStdout(
         `
 agendex - CLI for syncing local agent plans to the cloud
 
@@ -117,18 +120,48 @@ Usage:
   agendex help         Show this help message
 `.trim(),
       );
-      break;
+      return 0;
     }
 
     default: {
-      console.error(`Unknown command: ${command}`);
-      console.error(`Run "agendex help" for usage.`);
-      process.exit(1);
+      writeStderr(`Unknown command: ${command}`);
+      writeStderr(`Run "agendex help" for usage.`);
+      return 1;
     }
   }
 }
 
-main().catch((err) => {
-  console.error('[agendex]', err instanceof Error ? err.message : err);
-  process.exit(1);
+const exitCode = await main().catch((err) => {
+  writeStderr(`[agendex] ${err instanceof Error ? err.message : err}`);
+  return 1;
 });
+
+await Promise.all([flushStream(process.stdout), flushStream(process.stderr)]);
+
+if (exitCode !== 0) {
+  process.exit(exitCode);
+}
+
+function flushStream(stream: NodeJS.WriteStream): Promise<void> {
+  if (stream.destroyed || !stream.writable) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    stream.write('', (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function writeStdout(message: string): void {
+  writeSync(process.stdout.fd, `${message}\n`);
+}
+
+function writeStderr(message: string): void {
+  writeSync(process.stderr.fd, `${message}\n`);
+}

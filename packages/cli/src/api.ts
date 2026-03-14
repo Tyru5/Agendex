@@ -1,3 +1,5 @@
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { loadConfig, saveConfig } from '@agendex/shared';
 
 function getCloudConfig() {
@@ -24,18 +26,18 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<{ ok: boolean; er
   const { token, convexUrl } = getCloudConfig();
   const url = `${convexUrl}/api/cli/sync`;
 
-  const res = await fetch(url, {
+  const res = await requestText(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
+      Connection: 'close',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(plan),
   });
 
-  if (!res.ok) {
-    const body = await res.text();
-    return { ok: false, error: `${res.status}: ${body}` };
+  if (res.status < 200 || res.status >= 300) {
+    return { ok: false, error: `${res.status}: ${res.body}` };
   }
 
   return { ok: true };
@@ -54,13 +56,14 @@ async function refreshStoredToken(currentToken: string, convexUrl: string): Prom
 }
 
 export async function sendHeartbeat(): Promise<void> {
-  const { token, convexUrl } = getCloudConfig();
   try {
+    const { token, convexUrl } = getCloudConfig();
     let activeToken = token;
-    let res = await fetch(`${convexUrl}/api/cli/heartbeat`, {
+    let res = await requestText(`${convexUrl}/api/cli/heartbeat`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${activeToken}`,
+        Connection: 'close',
         'Content-Type': 'application/json',
       },
     });
@@ -70,10 +73,11 @@ export async function sendHeartbeat(): Promise<void> {
       if (!refreshedToken) return;
 
       activeToken = refreshedToken;
-      res = await fetch(`${convexUrl}/api/cli/heartbeat`, {
+      res = await requestText(`${convexUrl}/api/cli/heartbeat`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${activeToken}`,
+          Connection: 'close',
           'Content-Type': 'application/json',
         },
       });
@@ -91,17 +95,67 @@ export async function refreshToken(
   currentToken: string,
   convexUrl: string,
 ): Promise<{ token: string; expiresAt: number } | null> {
-  const res = await fetch(`${convexUrl}/api/cli/refresh`, {
+  const res = await requestText(`${convexUrl}/api/cli/refresh`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${currentToken}`,
+      Connection: 'close',
       'Content-Type': 'application/json',
     },
   });
 
-  if (!res.ok) return null;
+  if (res.status < 200 || res.status >= 300) return null;
 
-  const body = (await res.json()) as { token?: string; expiresAt?: number };
+  const body = JSON.parse(res.body) as { token?: string; expiresAt?: number };
   if (!body.token) return null;
   return { token: body.token, expiresAt: body.expiresAt ?? 0 };
+}
+
+interface RequestOptions {
+  method: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+interface TextResponse {
+  status: number;
+  body: string;
+}
+
+function requestText(urlString: string, options: RequestOptions): Promise<TextResponse> {
+  const url = new URL(urlString);
+  const request = url.protocol === 'https:' ? httpsRequest : httpRequest;
+
+  return new Promise((resolve, reject) => {
+    const req = request(
+      url,
+      {
+        agent: false,
+        headers: options.headers,
+        method: options.method,
+      },
+      (res) => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
+          body += chunk;
+        });
+        res.on('end', () => {
+          resolve({
+            status: res.statusCode ?? 0,
+            body,
+          });
+        });
+        res.on('error', reject);
+      },
+    );
+
+    req.on('error', reject);
+
+    if (options.body) {
+      req.write(options.body);
+    }
+
+    req.end();
+  });
 }

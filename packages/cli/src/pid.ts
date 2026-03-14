@@ -1,10 +1,11 @@
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const pidPath = join(homedir(), '.agendex', 'daemon.pid');
 
 export function writePid(): void {
+  mkdirSync(dirname(pidPath), { recursive: true });
   writeFileSync(pidPath, String(process.pid));
 }
 

@@ -111,9 +111,11 @@ npx convex deploy
 
 ## 8. Connect the CLI
 
-Always pass your site URL explicitly for self-hosted instances:
+The published CLI works with `npm`, `pnpm`, `yarn`, and `bun`, but for self-hosted instances you should always pass your site URL explicitly:
 
 ```bash
+npx @agendex/cli login --url https://agendex.yourdomain.com
+pnpm dlx @agendex/cli login --url https://agendex.yourdomain.com
 bunx @agendex/cli login --url https://agendex.yourdomain.com
 ```
 
@@ -136,7 +138,7 @@ bun run cli:start
 bun run cli:status
 ```
 
-The current in-repo CLI auth source defaults to `http://localhost:5174` unless `--url` is provided, so do not rely on the default for self-hosted or production usage.
+The default published login target is `https://agendex.dev`, so keep passing `--url` for self-hosted deployments.
 
 ## Local EE development
 
