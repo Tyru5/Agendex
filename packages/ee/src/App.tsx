@@ -1037,8 +1037,6 @@ function HomeRoute() {
     return <Dashboard autoMode={isAuthenticated && onboardingResolved ? 'cloud' : 'local'} />;
   }
 
-  if (isLoading) return <BootLoadingView />;
-
   if (isAuthenticated) {
     if (!onboardingResolved) return <BootLoadingView />;
     return <Dashboard autoMode="cloud" />;
