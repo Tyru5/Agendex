@@ -14,6 +14,8 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
   const convexSiteUrl = process.env.CONVEX_SITE_URL ?? '';
   const githubClientId = process.env.GITHUB_CLIENT_ID;
   const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
   return betterAuth({
     baseURL: convexSiteUrl,
@@ -30,6 +32,9 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     socialProviders: {
       ...(githubClientId && githubClientSecret
         ? { github: { clientId: githubClientId, clientSecret: githubClientSecret } }
+        : {}),
+      ...(googleClientId && googleClientSecret
+        ? { google: { clientId: googleClientId, clientSecret: googleClientSecret } }
         : {}),
     },
     plugins: [crossDomain({ siteUrl }), convex({ authConfig }), bearer()],

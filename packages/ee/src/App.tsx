@@ -1042,9 +1042,7 @@ function HomeRoute() {
     return <Dashboard autoMode="cloud" />;
   }
 
-  return (
-    <LandingPage onCloudLogin={() => signIn.social({ provider: 'github', callbackURL: '/' })} />
-  );
+  return <LandingPage onCloudLogin={(provider) => signIn.social({ provider, callbackURL: '/' })} />;
 }
 
 export default function App() {

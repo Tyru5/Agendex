@@ -413,6 +413,7 @@ function PricingCard({
   cta,
   onCta,
   loading,
+  ctaButtons,
 }: {
   title: string;
   price: string;
@@ -422,6 +423,7 @@ function PricingCard({
   cta: string;
   onCta?: () => void;
   loading?: boolean;
+  ctaButtons?: React.ReactNode;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
@@ -469,21 +471,23 @@ function PricingCard({
           </li>
         ))}
       </ul>
-      <button
-        disabled={loading}
-        onClick={onCta}
-        className="w-full py-3.5 rounded-xl text-[15px] font-semibold font-[Inter,-apple-system,system-ui,sans-serif] flex items-center justify-center gap-2 transition-opacity duration-200"
-        style={{
-          border: isPro ? 'none' : `1px solid ${BORDER}`,
-          background: isPro ? ACCENT : 'transparent',
-          color: isPro ? '#0a0a0a' : TEXT_PRIMARY,
-          cursor: loading ? 'default' : 'pointer',
-          opacity: loading ? 0.7 : 1,
-        }}
-      >
-        {loading && <Spinner size={15} color={isPro ? '#0a0a0a' : undefined} />}
-        {loading ? 'Redirecting…' : cta}
-      </button>
+      {ctaButtons || (
+        <button
+          disabled={loading}
+          onClick={onCta}
+          className="w-full py-3.5 rounded-xl text-[15px] font-semibold font-[Inter,-apple-system,system-ui,sans-serif] flex items-center justify-center gap-2 transition-opacity duration-200"
+          style={{
+            border: isPro ? 'none' : `1px solid ${BORDER}`,
+            background: isPro ? ACCENT : 'transparent',
+            color: isPro ? '#0a0a0a' : TEXT_PRIMARY,
+            cursor: loading ? 'default' : 'pointer',
+            opacity: loading ? 0.7 : 1,
+          }}
+        >
+          {loading && <Spinner size={15} color={isPro ? '#0a0a0a' : undefined} />}
+          {loading ? 'Redirecting…' : cta}
+        </button>
+      )}
     </div>
   );
 }
@@ -679,25 +683,76 @@ function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
   );
 }
 
-function LandingNavbar({ signingIn, onSignIn }: { signingIn: boolean; onSignIn: () => void }) {
+function LandingNavbar({
+  signingIn,
+  onSignIn,
+  onCloudLogin,
+}: {
+  signingIn: boolean;
+  onSignIn: () => void;
+  onCloudLogin?: (provider: 'github' | 'google') => void;
+}) {
+  const [showProviders, setShowProviders] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showProviders) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setShowProviders(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showProviders]);
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 py-3.5 bg-[rgba(10,10,10,0.85)] backdrop-blur-[8px] border-b border-[rgba(255,255,255,0.06)]">
       <span className="font-[Unbounded,sans-serif] text-base font-medium text-white tracking-[-0.02em]">
         agendex
       </span>
-      <button
-        type="button"
-        disabled={signingIn}
-        onClick={onSignIn}
-        className="text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 inline-flex items-center gap-1.5"
-        style={{
-          cursor: signingIn ? 'default' : 'pointer',
-          opacity: signingIn ? 0.6 : 1,
-        }}
-      >
-        {signingIn && <Spinner size={12} />}
-        {signingIn ? 'Redirecting…' : 'Sign in'}
-      </button>
+      <div className="relative" ref={ref}>
+        <button
+          type="button"
+          disabled={signingIn}
+          onClick={() => (onCloudLogin ? setShowProviders(!showProviders) : onSignIn())}
+          className="text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 inline-flex items-center gap-1.5"
+          style={{
+            cursor: signingIn ? 'default' : 'pointer',
+            opacity: signingIn ? 0.6 : 1,
+          }}
+        >
+          {signingIn && <Spinner size={12} />}
+          {signingIn ? 'Redirecting…' : 'Sign in'}
+        </button>
+        {showProviders && (
+          <div
+            className="absolute top-full right-0 mt-2 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-xl overflow-hidden min-w-[200px]"
+            style={{ animation: 'statusPopoverIn 120ms ease-out' }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setShowProviders(false);
+                onCloudLogin!('github');
+              }}
+              className="w-full px-4 py-3 border-none bg-transparent text-[13px] text-white text-left cursor-pointer flex items-center gap-2.5 transition-colors duration-150 hover:bg-[rgba(255,255,255,0.05)]"
+            >
+              <GitHubIcon16 /> Continue with GitHub
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowProviders(false);
+                onCloudLogin!('google');
+              }}
+              className="w-full px-4 py-3 border-none bg-transparent text-[13px] text-white text-left cursor-pointer flex items-center gap-2.5 transition-colors duration-150 hover:bg-[rgba(255,255,255,0.05)]"
+            >
+              <GoogleIcon16 /> Continue with Google
+            </button>
+          </div>
+        )}
+      </div>
     </nav>
   );
 }
@@ -788,6 +843,29 @@ function GitHubIcon16() {
   );
 }
 
+function GoogleIcon16() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" className="shrink-0">
+      <path
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+        fill="#34A853"
+      />
+      <path
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
+
 function LandingHero({
   signingIn,
   activeTab,
@@ -801,7 +879,7 @@ function LandingHero({
   activeTab: 'local' | 'cloud';
   agentIconImages: string[];
   hasCloudLogin: boolean;
-  onCloudLogin: () => void;
+  onCloudLogin: (provider: 'github' | 'google') => void;
   onShowLogin: () => void;
   onSetActiveTab: (v: 'local' | 'cloud') => void;
 }) {
@@ -836,37 +914,41 @@ function LandingHero({
           </p>
 
           <div className="flex gap-3 items-center">
-            <button
-              disabled={signingIn}
-              onClick={() => {
-                if (activeTab === 'cloud' && hasCloudLogin) {
-                  onCloudLogin();
-                } else {
-                  onShowLogin();
-                }
-              }}
-              className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
-              style={{
-                cursor: signingIn ? 'default' : 'pointer',
-                opacity: signingIn ? 0.7 : 1,
-              }}
-            >
-              {activeTab === 'cloud' && hasCloudLogin ? (
-                signingIn ? (
-                  <>
-                    <Spinner size={16} color="#0a0a0a" />
-                    Redirecting to GitHub…
-                  </>
-                ) : (
-                  <>
-                    <GitHubIcon16 />
-                    Sign in with GitHub
-                  </>
-                )
+            {activeTab === 'cloud' && hasCloudLogin ? (
+              signingIn ? (
+                <button
+                  disabled
+                  className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap opacity-70"
+                >
+                  <Spinner size={16} color="#0a0a0a" />
+                  Redirecting…
+                </button>
               ) : (
-                'Get Started'
-              )}
-            </button>
+                <>
+                  <button
+                    onClick={() => onCloudLogin('github')}
+                    className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
+                  >
+                    <GitHubIcon16 />
+                    GitHub
+                  </button>
+                  <button
+                    onClick={() => onCloudLogin('google')}
+                    className="px-7 py-3 rounded-xl border border-[rgba(255,255,255,0.1)] bg-white text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
+                  >
+                    <GoogleIcon16 />
+                    Google
+                  </button>
+                </>
+              )
+            ) : (
+              <button
+                onClick={onShowLogin}
+                className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
+              >
+                Get Started
+              </button>
+            )}
             <a
               href="https://github.com/Tyru5/agendex"
               target="_blank"
@@ -916,7 +998,7 @@ function LandingPricing({
   signingIn: boolean;
   onSetYearly: (v: boolean) => void;
   onShowLogin: () => void;
-  onCloudLogin?: () => void;
+  onCloudLogin?: (provider: 'github' | 'google') => void;
 }) {
   return (
     <section
@@ -947,9 +1029,37 @@ function LandingPricing({
           period={yearly ? '/year' : '/month'}
           features={PRO_FEATURES}
           isPro
-          cta={onCloudLogin ? 'Sign in with GitHub' : 'Start Free Trial'}
-          onCta={onCloudLogin}
+          cta="Start Free Trial"
+          onCta={onCloudLogin ? undefined : onShowLogin}
           loading={signingIn}
+          ctaButtons={
+            onCloudLogin && (
+              <div className="flex gap-2 w-full">
+                <button
+                  disabled={signingIn}
+                  onClick={() => onCloudLogin('github')}
+                  className="flex-1 py-3.5 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[14px] font-semibold cursor-pointer flex items-center justify-center gap-2 transition-opacity duration-200"
+                  style={{
+                    opacity: signingIn ? 0.7 : 1,
+                    cursor: signingIn ? 'default' : 'pointer',
+                  }}
+                >
+                  <GitHubIcon16 /> GitHub
+                </button>
+                <button
+                  disabled={signingIn}
+                  onClick={() => onCloudLogin('google')}
+                  className="flex-1 py-3.5 rounded-xl border border-[rgba(255,255,255,0.1)] bg-white text-[#0a0a0a] text-[14px] font-semibold cursor-pointer flex items-center justify-center gap-2 transition-opacity duration-200"
+                  style={{
+                    opacity: signingIn ? 0.7 : 1,
+                    cursor: signingIn ? 'default' : 'pointer',
+                  }}
+                >
+                  <GoogleIcon16 /> Google
+                </button>
+              </div>
+            )
+          }
         />
       </div>
     </section>
@@ -992,7 +1102,11 @@ function LandingFAQ({
   );
 }
 
-export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}) {
+export function LandingPage({
+  onCloudLogin,
+}: {
+  onCloudLogin?: (provider: 'github' | 'google') => void;
+} = {}) {
   const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
   const { token, showLogin, yearly, openFaq, activeTab, bentoInView, signingIn } = state;
   const setTokenValue = (v: string) => dispatch({ type: 'SET_TOKEN', value: v });
@@ -1002,11 +1116,11 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
   const setActiveTab = (v: 'local' | 'cloud') => dispatch({ type: 'SET_ACTIVE_TAB', value: v });
   const bentoRef = useRef<HTMLElement>(null);
 
-  async function handleCloudLogin() {
+  async function handleCloudLogin(provider: 'github' | 'google') {
     if (!onCloudLogin || signingIn) return;
     dispatch({ type: 'START_SIGNING_IN' });
     try {
-      await onCloudLogin();
+      await onCloudLogin(provider);
     } catch {
       dispatch({ type: 'STOP_SIGNING_IN' });
     }
@@ -1092,9 +1206,8 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
 
       <LandingNavbar
         signingIn={signingIn}
-        onSignIn={
-          onCloudLogin ? handleCloudLogin : () => startViewTransition(() => setShowLogin(true))
-        }
+        onSignIn={() => startViewTransition(() => setShowLogin(true))}
+        onCloudLogin={onCloudLogin ? handleCloudLogin : undefined}
       />
 
       <LandingHero
