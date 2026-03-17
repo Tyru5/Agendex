@@ -31,10 +31,22 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     database: authComponent.adapter(ctx),
     socialProviders: {
       ...(githubClientId && githubClientSecret
-        ? { github: { clientId: githubClientId, clientSecret: githubClientSecret } }
+        ? {
+            github: {
+              clientId: githubClientId,
+              clientSecret: githubClientSecret,
+              overrideUserInfoOnSignIn: true,
+            },
+          }
         : {}),
       ...(googleClientId && googleClientSecret
-        ? { google: { clientId: googleClientId, clientSecret: googleClientSecret } }
+        ? {
+            google: {
+              clientId: googleClientId,
+              clientSecret: googleClientSecret,
+              overrideUserInfoOnSignIn: true,
+            },
+          }
         : {}),
     },
     plugins: [crossDomain({ siteUrl }), convex({ authConfig }), bearer()],
