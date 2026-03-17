@@ -35,7 +35,6 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
             github: {
               clientId: githubClientId,
               clientSecret: githubClientSecret,
-              overrideUserInfoOnSignIn: true,
             },
           }
         : {}),
