@@ -16,6 +16,7 @@ bun install -g agendex-cli
 ```bash
 agendex login
 agendex login --url https://agendex.yourdomain.com
+agendex configure
 agendex start
 agendex stop
 agendex sync
