@@ -1,7 +1,7 @@
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EmptyStateView } from './components/EmptyStateView.tsx';
-import { LandingPage } from './components/LandingPage.tsx';
+import { LandingPage } from '@agendex/web';
 import { OfflineView } from './components/OfflineView.tsx';
 import { PlanViewer } from './components/PlanViewer.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
