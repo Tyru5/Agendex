@@ -11,6 +11,7 @@
     "@agendex/web": "workspace:*",
     "@convex-dev/better-auth": "^0.10.10",
     "@convex-dev/stripe": "^0.1.3",
+    "@vercel/analytics": "^2.0.1",
     "better-auth": "^1.4.18",
     "convex": "^1.32.0",
     "nuqs": "^2.8.8",

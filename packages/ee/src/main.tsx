@@ -1,5 +1,6 @@
 import { ThemeProvider } from '@agendex/web';
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
+import { Analytics } from '@vercel/analytics/react';
 import './index.css';
 import { NuqsAdapter } from 'nuqs/adapters/react';
 import { StrictMode } from 'react';
@@ -14,6 +15,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
       <ConvexBetterAuthProvider client={convex} authClient={authClient}>
         <ThemeProvider>
           <App />
+          <Analytics />
         </ThemeProvider>
       </ConvexBetterAuthProvider>
     </NuqsAdapter>
