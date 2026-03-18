@@ -3,6 +3,7 @@ export { AgentIcon } from './client/components/AgentIcon.tsx';
 export { EmptyStateView } from './client/components/EmptyStateView.tsx';
 export { LandingPage } from './client/components/LandingPage.tsx';
 export { MarkdownCodeBlock } from './client/components/MarkdownCodeBlock.tsx';
+export { GitHubIcon, GoogleIcon } from './client/components/OAuthIcons.tsx';
 export { OfflineView } from './client/components/OfflineView.tsx';
 export { PlanCreator } from './client/components/PlanCreator.tsx';
 export { PlanEditor } from './client/components/PlanEditor.tsx';
