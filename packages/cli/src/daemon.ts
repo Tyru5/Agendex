@@ -53,6 +53,8 @@ export async function runWorker(): Promise<void> {
 
   console.log(`[agendex] daemon starting with ${config.enabledAdapters.length} adapters`);
 
+  void sendHeartbeat();
+
   const syncQueue: SyncPlanPayload[] = [];
   let syncing = false;
   async function tryRefreshToken(): Promise<boolean> {
@@ -121,7 +123,6 @@ export async function runWorker(): Promise<void> {
   }
   await processSyncQueue();
 
-  void sendHeartbeat();
   setInterval(() => void sendHeartbeat(), CLI_DAEMON_HEARTBEAT_INTERVAL_MS);
 
   startWatching((changedPlans) => {

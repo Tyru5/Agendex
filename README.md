@@ -98,6 +98,7 @@ bun run build:cloud         # build EE client bundle
 bun run cli:start           # start cloud sync daemon
 bun run cli:login           # browser login using https://agendex.dev
 bun run cli:login -- --url https://example.com
+bun run cli:configure       # select which agents/adapters to index
 bun run cli:sync            # one-shot cloud sync
 bun run cli:stop            # stop daemon
 bun run cli:status          # print current local/cloud config state

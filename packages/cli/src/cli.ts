@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { writeSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig } from '@agendex/shared';
+import { loadConfig, loadOrInitConfig } from '@agendex/shared';
 import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, removePid } from './pid.ts';
@@ -83,6 +83,12 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'configure': {
+      const config = await loadOrInitConfig({ configureAdapters: true });
+      writeStdout(`[agendex] adapters updated: ${config.enabledAdapters.join(', ')}`);
+      return 0;
+    }
+
     case 'sync': {
       await syncAll();
       return 0;
@@ -115,6 +121,7 @@ Usage:
   agendex login        Authenticate via browser OAuth (agendex.dev)
   agendex login --url <url>  Login to a self-hosted instance
   agendex logout       Clear stored cloud token
+  agendex configure    Select which agents/adapters to index
   agendex sync         One-shot scan + sync to cloud
   agendex status       Show current config state + daemon status
   agendex help         Show this help message

@@ -121,9 +121,10 @@ bunx agendex-cli login --url https://agendex.yourdomain.com
 
 This opens your self-hosted instance for OAuth and stores the returned token and Convex URL in `~/.agendex/config.json`.
 
-Then sync or start the daemon:
+Then configure adapters, sync, or start the daemon:
 
 ```bash
+bunx agendex-cli configure
 bunx agendex-cli sync
 bunx agendex-cli start
 bunx agendex-cli status
@@ -133,6 +134,7 @@ If you are working from this repo checkout instead of the published CLI, use the
 
 ```bash
 bun run cli:login -- --url https://agendex.yourdomain.com
+bun run cli:configure
 bun run cli:sync
 bun run cli:start
 bun run cli:status
