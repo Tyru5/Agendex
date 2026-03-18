@@ -1,4 +1,4 @@
-@import "../../../web/src/client/index.css";
+@import "@agendex/web/styles";
 @import "tailwindcss";
 @source "../../../web/src/client";
 

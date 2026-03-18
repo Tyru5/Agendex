@@ -1,26 +1,30 @@
 import type { ReactNode } from 'react';
-import type { LandingContextValue } from './LandingContext.tsx';
 
-type SlotRenderFn = (ctx: LandingContextValue) => ReactNode;
+type SlotRenderFn = () => ReactNode;
 
 interface SlotProps {
   children: SlotRenderFn;
 }
 
-function NavbarAuth({ children }: SlotProps) {
-  return null;
+export interface SlotComponent {
+  (props: SlotProps): null;
+  _slotName: string;
 }
-NavbarAuth._slotName = 'NavbarAuth' as const;
 
-function HeroCta({ children }: SlotProps) {
+const NavbarAuth: SlotComponent = function NavbarAuth() {
   return null;
-}
-HeroCta._slotName = 'HeroCta' as const;
+};
+NavbarAuth._slotName = 'NavbarAuth';
 
-function PricingCta({ children }: SlotProps) {
+const HeroCta: SlotComponent = function HeroCta() {
   return null;
-}
-PricingCta._slotName = 'PricingCta' as const;
+};
+HeroCta._slotName = 'HeroCta';
+
+const PricingCta: SlotComponent = function PricingCta() {
+  return null;
+};
+PricingCta._slotName = 'PricingCta';
 
 export { NavbarAuth, HeroCta, PricingCta };
 export type { SlotRenderFn };

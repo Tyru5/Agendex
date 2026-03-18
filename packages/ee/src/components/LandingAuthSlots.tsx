@@ -30,7 +30,7 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
 }
 
 export function EENavbarAuth({ onLogin }: { onLogin: (provider: 'github' | 'google') => void }) {
-  const { signingIn, startSigningIn } = useLandingContext();
+  const { signingIn, startSigningIn, stopSigningIn } = useLandingContext();
   const [showProviders, setShowProviders] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -45,10 +45,14 @@ export function EENavbarAuth({ onLogin }: { onLogin: (provider: 'github' | 'goog
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showProviders]);
 
-  function handleLogin(provider: 'github' | 'google') {
+  async function handleLogin(provider: 'github' | 'google') {
     setShowProviders(false);
     startSigningIn();
-    onLogin(provider);
+    try {
+      await onLogin(provider);
+    } catch {
+      stopSigningIn();
+    }
   }
 
   return (
@@ -92,11 +96,15 @@ export function EENavbarAuth({ onLogin }: { onLogin: (provider: 'github' | 'goog
 }
 
 export function EEHeroCta({ onLogin }: { onLogin: (provider: 'github' | 'google') => void }) {
-  const { signingIn, activeTab, showLogin, startSigningIn } = useLandingContext();
+  const { signingIn, activeTab, showLogin, startSigningIn, stopSigningIn } = useLandingContext();
 
-  function handleLogin(provider: 'github' | 'google') {
+  async function handleLogin(provider: 'github' | 'google') {
     startSigningIn();
-    onLogin(provider);
+    try {
+      await onLogin(provider);
+    } catch {
+      stopSigningIn();
+    }
   }
 
   if (activeTab === 'cloud') {
@@ -140,11 +148,15 @@ export function EEHeroCta({ onLogin }: { onLogin: (provider: 'github' | 'google'
 }
 
 export function EEPricingCta({ onLogin }: { onLogin: (provider: 'github' | 'google') => void }) {
-  const { signingIn, startSigningIn } = useLandingContext();
+  const { signingIn, startSigningIn, stopSigningIn } = useLandingContext();
 
-  function handleLogin(provider: 'github' | 'google') {
+  async function handleLogin(provider: 'github' | 'google') {
     startSigningIn();
-    onLogin(provider);
+    try {
+      await onLogin(provider);
+    } catch {
+      stopSigningIn();
+    }
   }
 
   return (

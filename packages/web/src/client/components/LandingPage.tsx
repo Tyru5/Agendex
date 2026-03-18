@@ -20,7 +20,7 @@ import {
   landingReducer,
 } from './landing/LandingContext.tsx';
 import { NavbarAuth, HeroCta, PricingCta } from './landing/LandingSlots.tsx';
-import type { SlotRenderFn } from './landing/LandingSlots.tsx';
+import type { SlotRenderFn, SlotComponent } from './landing/LandingSlots.tsx';
 import { FAQBackground } from './landing/FAQBackground.tsx';
 import { IconCloud } from './landing/IconCloud.tsx';
 import { TopoNeurons } from './landing/TopoNeurons.tsx';
@@ -986,14 +986,18 @@ function LandingFAQ({
   );
 }
 
+function isSlotComponent(type: unknown): type is SlotComponent {
+  return typeof type === 'function' && typeof (type as SlotComponent)._slotName === 'string';
+}
+
 function extractSlots(children: ReactNode): Record<string, SlotRenderFn> {
   const slots: Record<string, SlotRenderFn> = {};
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const slotName = (child.type as any)?._slotName;
+    if (!isSlotComponent(child.type)) return;
     const props = child.props as Record<string, unknown>;
-    if (slotName && typeof props.children === 'function') {
-      slots[slotName] = props.children as SlotRenderFn;
+    if (typeof props.children === 'function') {
+      slots[child.type._slotName] = props.children as SlotRenderFn;
     }
   });
   return slots;
@@ -1022,9 +1026,9 @@ function LandingPageInner({ children }: { children?: ReactNode }) {
 
   const slots = useMemo(() => extractSlots(children), [children]);
 
-  const navbarAuthNode = slots.NavbarAuth ? slots.NavbarAuth(ctxValue) : undefined;
-  const heroCtaNode = slots.HeroCta ? slots.HeroCta(ctxValue) : undefined;
-  const pricingCtaNode = slots.PricingCta ? slots.PricingCta(ctxValue) : undefined;
+  const navbarAuthNode = slots.NavbarAuth ? slots.NavbarAuth() : undefined;
+  const heroCtaNode = slots.HeroCta ? slots.HeroCta() : undefined;
+  const pricingCtaNode = slots.PricingCta ? slots.PricingCta() : undefined;
 
   useEffect(() => {
     const el = bentoRef.current;
