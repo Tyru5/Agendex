@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { startViewTransition } from '../lib/view-transition.ts';
 import {
   AGENTS,
@@ -12,6 +13,14 @@ import {
   PRO_FEATURES,
   setToken,
 } from './landing/data.ts';
+import {
+  type LandingContextValue,
+  LandingContext,
+  LANDING_INITIAL,
+  landingReducer,
+} from './landing/LandingContext.tsx';
+import { NavbarAuth, HeroCta, PricingCta } from './landing/LandingSlots.tsx';
+import type { SlotRenderFn } from './landing/LandingSlots.tsx';
 import { FAQBackground } from './landing/FAQBackground.tsx';
 import { IconCloud } from './landing/IconCloud.tsx';
 import { TopoNeurons } from './landing/TopoNeurons.tsx';
@@ -707,26 +716,12 @@ function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
 function LandingNavbar({
   signingIn,
   onSignIn,
-  onCloudLogin,
+  authSlot,
 }: {
   signingIn: boolean;
   onSignIn: () => void;
-  onCloudLogin?: (provider: 'github' | 'google') => void;
+  authSlot?: ReactNode;
 }) {
-  const [showProviders, setShowProviders] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!showProviders) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setShowProviders(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showProviders]);
-
   return (
     <nav className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 py-3.5 bg-[rgba(10,10,10,0.85)] backdrop-blur-[8px] border-b border-[rgba(255,255,255,0.06)]">
       <div className="flex items-center gap-7">
@@ -748,11 +743,11 @@ function LandingNavbar({
           ))}
         </div>
       </div>
-      <div className="relative" ref={ref}>
+      {authSlot || (
         <button
           type="button"
           disabled={signingIn}
-          onClick={() => (onCloudLogin ? setShowProviders(!showProviders) : onSignIn())}
+          onClick={onSignIn}
           className="text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 inline-flex items-center gap-1.5"
           style={{
             cursor: signingIn ? 'default' : 'pointer',
@@ -762,34 +757,7 @@ function LandingNavbar({
           {signingIn && <Spinner size={12} />}
           {signingIn ? 'Redirecting…' : 'Sign in'}
         </button>
-        {showProviders && (
-          <div
-            className="absolute top-full right-0 mt-2 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-xl overflow-hidden min-w-[200px]"
-            style={{ animation: 'statusPopoverIn 120ms ease-out' }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setShowProviders(false);
-                onCloudLogin!('github');
-              }}
-              className="w-full px-4 py-3 border-none bg-transparent text-[13px] text-white text-left cursor-pointer flex items-center gap-2.5 transition-colors duration-150 hover:bg-[rgba(255,255,255,0.05)]"
-            >
-              <GitHubIcon16 /> Continue with GitHub
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowProviders(false);
-                onCloudLogin!('google');
-              }}
-              className="w-full px-4 py-3 border-none bg-transparent text-[13px] text-white text-left cursor-pointer flex items-center gap-2.5 transition-colors duration-150 hover:bg-[rgba(255,255,255,0.05)]"
-            >
-              <GoogleIcon16 /> Continue with Google
-            </button>
-          </div>
-        )}
-      </div>
+      )}
     </nav>
   );
 }
@@ -798,7 +766,17 @@ function LandingFooter() {
   return (
     <footer className="flex items-center justify-between px-6 py-3.5 bg-[rgba(10,10,10,0.85)] backdrop-blur-[8px] border-t border-[rgba(255,255,255,0.06)] text-[13px] text-[#666]">
       <span className="flex-1">© {new Date().getFullYear()} Agendex</span>
-      <span className="flex-1 text-center">Made With ❤️ by Tyrus Malmstrom</span>
+      <span className="flex-1 text-center">
+        Made With ❤️ by{' '}
+        <a
+          href="https://tiru5.me"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:opacity-80 transition-opacity"
+        >
+          Tyrus Malmstrom
+        </a>
+      </span>
       <span className="flex-1 text-right">
         <a
           href="https://github.com/tiru5/agendex"
@@ -816,78 +794,21 @@ function LandingFooter() {
   );
 }
 
-interface LandingState {
-  token: string;
-  showLogin: boolean;
-  yearly: boolean;
-  openFaq: number | null;
-  activeTab: 'local' | 'cloud';
-  bentoInView: boolean;
-  signingIn: boolean;
-}
-
-type LandingAction =
-  | { type: 'SET_TOKEN'; value: string }
-  | { type: 'SET_SHOW_LOGIN'; value: boolean }
-  | { type: 'SET_YEARLY'; value: boolean }
-  | { type: 'SET_OPEN_FAQ'; value: number | null }
-  | { type: 'SET_ACTIVE_TAB'; value: 'local' | 'cloud' }
-  | { type: 'SET_BENTO_IN_VIEW' }
-  | { type: 'START_SIGNING_IN' }
-  | { type: 'STOP_SIGNING_IN' };
-
-function landingReducer(state: LandingState, action: LandingAction): LandingState {
-  switch (action.type) {
-    case 'SET_TOKEN':
-      return { ...state, token: action.value };
-    case 'SET_SHOW_LOGIN':
-      return { ...state, showLogin: action.value };
-    case 'SET_YEARLY':
-      return { ...state, yearly: action.value };
-    case 'SET_OPEN_FAQ':
-      return { ...state, openFaq: action.value };
-    case 'SET_ACTIVE_TAB':
-      return { ...state, activeTab: action.value };
-    case 'SET_BENTO_IN_VIEW':
-      return { ...state, bentoInView: true };
-    case 'START_SIGNING_IN':
-      return { ...state, signingIn: true };
-    case 'STOP_SIGNING_IN':
-      return { ...state, signingIn: false };
-    default:
-      return state;
-  }
-}
-
-const LANDING_INITIAL: LandingState = {
-  token: '',
-  showLogin: false,
-  yearly: false,
-  openFaq: null,
-  activeTab: 'local',
-  bentoInView: false,
-  signingIn: false,
-};
-
 const GitHubIcon16 = () => <GitHubIcon />;
 const GoogleIcon16 = () => <GoogleIcon />;
 
 function LandingHero({
-  signingIn,
   activeTab,
   agentIconImages,
-  hasCloudLogin,
-  onCloudLogin,
   onShowLogin,
   onSetActiveTab,
+  ctaSlot,
 }: {
-  signingIn: boolean;
   activeTab: 'local' | 'cloud';
   agentIconImages: string[];
-  hasCloudLogin: boolean;
-  onCloudLogin: (provider: 'github' | 'google') => void;
   onShowLogin: () => void;
   onSetActiveTab: (v: 'local' | 'cloud') => void;
+  ctaSlot?: ReactNode;
 }) {
   return (
     <div className="relative overflow-hidden">
@@ -922,34 +843,7 @@ function LandingHero({
           </p>
 
           <div className="flex gap-3 items-center">
-            {activeTab === 'cloud' && hasCloudLogin ? (
-              signingIn ? (
-                <button
-                  disabled
-                  className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap opacity-70"
-                >
-                  <Spinner size={16} color="#0a0a0a" />
-                  Redirecting…
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={() => onCloudLogin('github')}
-                    className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
-                  >
-                    <GitHubIcon16 />
-                    GitHub
-                  </button>
-                  <button
-                    onClick={() => onCloudLogin('google')}
-                    className="px-7 py-3 rounded-xl border border-[rgba(255,255,255,0.1)] bg-white text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
-                  >
-                    <GoogleIcon16 />
-                    Google
-                  </button>
-                </>
-              )
-            ) : (
+            {ctaSlot || (
               <button
                 onClick={onShowLogin}
                 className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
@@ -1000,13 +894,13 @@ function LandingPricing({
   signingIn,
   onSetYearly,
   onShowLogin,
-  onCloudLogin,
+  proCtaSlot,
 }: {
   yearly: boolean;
   signingIn: boolean;
   onSetYearly: (v: boolean) => void;
   onShowLogin: () => void;
-  onCloudLogin?: (provider: 'github' | 'google') => void;
+  proCtaSlot?: ReactNode;
 }) {
   return (
     <section
@@ -1043,36 +937,9 @@ function LandingPricing({
           features={PRO_FEATURES}
           isPro
           cta="Start Free Trial"
-          onCta={onCloudLogin ? undefined : onShowLogin}
-          loading={signingIn}
-          ctaButtons={
-            onCloudLogin && (
-              <div className="flex gap-2 w-full">
-                <button
-                  disabled={signingIn}
-                  onClick={() => onCloudLogin('github')}
-                  className="flex-1 py-3.5 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[14px] font-semibold cursor-pointer flex items-center justify-center gap-2 transition-opacity duration-200"
-                  style={{
-                    opacity: signingIn ? 0.7 : 1,
-                    cursor: signingIn ? 'default' : 'pointer',
-                  }}
-                >
-                  <GitHubIcon16 /> GitHub
-                </button>
-                <button
-                  disabled={signingIn}
-                  onClick={() => onCloudLogin('google')}
-                  className="flex-1 py-3.5 rounded-xl border border-[rgba(255,255,255,0.1)] bg-white text-[#0a0a0a] text-[14px] font-semibold cursor-pointer flex items-center justify-center gap-2 transition-opacity duration-200"
-                  style={{
-                    opacity: signingIn ? 0.7 : 1,
-                    cursor: signingIn ? 'default' : 'pointer',
-                  }}
-                >
-                  <GoogleIcon16 /> Google
-                </button>
-              </div>
-            )
-          }
+          onCta={proCtaSlot ? undefined : onShowLogin}
+          loading={!proCtaSlot ? signingIn : undefined}
+          ctaButtons={proCtaSlot}
         />
       </div>
     </section>
@@ -1119,11 +986,20 @@ function LandingFAQ({
   );
 }
 
-export function LandingPage({
-  onCloudLogin,
-}: {
-  onCloudLogin?: (provider: 'github' | 'google') => void;
-} = {}) {
+function extractSlots(children: ReactNode): Record<string, SlotRenderFn> {
+  const slots: Record<string, SlotRenderFn> = {};
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+    const slotName = (child.type as any)?._slotName;
+    const props = child.props as Record<string, unknown>;
+    if (slotName && typeof props.children === 'function') {
+      slots[slotName] = props.children as SlotRenderFn;
+    }
+  });
+  return slots;
+}
+
+function LandingPageInner({ children }: { children?: ReactNode }) {
   const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
   const { token, showLogin, yearly, openFaq, activeTab, bentoInView, signingIn } = state;
   const setTokenValue = (v: string) => dispatch({ type: 'SET_TOKEN', value: v });
@@ -1133,15 +1009,22 @@ export function LandingPage({
   const setActiveTab = (v: 'local' | 'cloud') => dispatch({ type: 'SET_ACTIVE_TAB', value: v });
   const bentoRef = useRef<HTMLElement>(null);
 
-  async function handleCloudLogin(provider: 'github' | 'google') {
-    if (!onCloudLogin || signingIn) return;
-    dispatch({ type: 'START_SIGNING_IN' });
-    try {
-      await onCloudLogin(provider);
-    } catch {
-      dispatch({ type: 'STOP_SIGNING_IN' });
-    }
-  }
+  const ctxValue = useMemo<LandingContextValue>(
+    () => ({
+      signingIn,
+      activeTab,
+      showLogin: () => startViewTransition(() => setShowLogin(true)),
+      startSigningIn: () => dispatch({ type: 'START_SIGNING_IN' }),
+      stopSigningIn: () => dispatch({ type: 'STOP_SIGNING_IN' }),
+    }),
+    [signingIn, activeTab],
+  );
+
+  const slots = useMemo(() => extractSlots(children), [children]);
+
+  const navbarAuthNode = slots.NavbarAuth ? slots.NavbarAuth(ctxValue) : undefined;
+  const heroCtaNode = slots.HeroCta ? slots.HeroCta(ctxValue) : undefined;
+  const pricingCtaNode = slots.PricingCta ? slots.PricingCta(ctxValue) : undefined;
 
   useEffect(() => {
     const el = bentoRef.current;
@@ -1218,138 +1101,145 @@ export function LandingPage({
   const agentIconImages = AGENT_ICON_IMAGES;
 
   return (
-    <div className="landing-page min-h-screen bg-[#0a0a0a] text-white font-[Inter,-apple-system,system-ui,sans-serif] overflow-x-hidden">
-      <TopoNeurons />
-      <style>{`
-        @media (max-width: 768px) {
-          .landing-nav-links {
-            display: none !important;
+    <LandingContext.Provider value={ctxValue}>
+      <div className="landing-page min-h-screen bg-[#0a0a0a] text-white font-[Inter,-apple-system,system-ui,sans-serif] overflow-x-hidden">
+        <TopoNeurons />
+        <style>{`
+          @media (max-width: 768px) {
+            .landing-nav-links {
+              display: none !important;
+            }
+            .d3-hero {
+              grid-template-columns: 1fr !important;
+              text-align: center;
+            }
+            .d3-bento-grid {
+              grid-template-columns: 1fr !important;
+            }
+            .d3-bento-grid > div {
+              grid-column: span 1 !important;
+            }
+            .d3-pricing-row {
+              flex-direction: column !important;
+            }
+            .d3-guarantee-panel {
+              flex-direction: column;
+            }
+            .d3-guarantee-copy {
+              width: 100%;
+            }
           }
-          .d3-hero {
-            grid-template-columns: 1fr !important;
-            text-align: center;
+          @property --border-angle {
+            syntax: '<angle>';
+            initial-value: 0deg;
+            inherits: false;
           }
-          .d3-bento-grid {
-            grid-template-columns: 1fr !important;
+          @keyframes spin {
+            to { transform: rotate(360deg); }
           }
-          .d3-bento-grid > div {
-            grid-column: span 1 !important;
+          @keyframes d3-bento-enter {
+            from { opacity: 0; transform: translateY(24px); }
+            to { opacity: 1; transform: translateY(0); }
           }
-          .d3-pricing-row {
-            flex-direction: column !important;
+          @keyframes d3-border-spin {
+            to { --border-angle: 360deg; }
           }
-          .d3-guarantee-panel {
-            flex-direction: column;
+          .d3-bento-card {
+            --border-angle: 0deg;
+            background: ${BORDER};
           }
-          .d3-guarantee-copy {
-            width: 100%;
+          .d3-bento-card.d3-bento-active {
+            animation: d3-bento-enter 0.5s ease both;
           }
-        }
-        @property --border-angle {
-          syntax: '<angle>';
-          initial-value: 0deg;
-          inherits: false;
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes d3-bento-enter {
-          from { opacity: 0; transform: translateY(24px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes d3-border-spin {
-          to { --border-angle: 360deg; }
-        }
-        .d3-bento-card {
-          --border-angle: 0deg;
-          background: ${BORDER};
-        }
-        .d3-bento-card.d3-bento-active {
-          animation: d3-bento-enter 0.5s ease both;
-        }
-        .d3-bento-card.d3-bento-active:hover {
-          background: conic-gradient(
-            from var(--border-angle),
-            transparent 30%,
-            rgba(200,255,50,0.5) 50%,
-            transparent 70%
-          );
-          animation: d3-bento-enter 0.5s ease both, d3-border-spin 4s linear infinite;
-        }
-      `}</style>
+          .d3-bento-card.d3-bento-active:hover {
+            background: conic-gradient(
+              from var(--border-angle),
+              transparent 30%,
+              rgba(200,255,50,0.5) 50%,
+              transparent 70%
+            );
+            animation: d3-bento-enter 0.5s ease both, d3-border-spin 4s linear infinite;
+          }
+        `}</style>
 
-      <LandingNavbar
-        signingIn={signingIn}
-        onSignIn={() => startViewTransition(() => setShowLogin(true))}
-        onCloudLogin={onCloudLogin ? handleCloudLogin : undefined}
-      />
-
-      <LandingHero
-        signingIn={signingIn}
-        activeTab={activeTab}
-        agentIconImages={agentIconImages}
-        hasCloudLogin={!!onCloudLogin}
-        onCloudLogin={handleCloudLogin}
-        onShowLogin={() => startViewTransition(() => setShowLogin(true))}
-        onSetActiveTab={setActiveTab}
-      />
-
-      {/* Bento Feature Grid */}
-      <section
-        id="features"
-        ref={bentoRef}
-        className="max-w-[1100px] mx-auto px-6"
-        style={{
-          padding: 'clamp(60px, 10vh, 120px) 24px',
-          scrollMarginTop: LANDING_ANCHOR_OFFSET,
-        }}
-      >
-        <div className="text-center mb-14">
-          <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0 mb-3">
-            Everything you need
-          </h2>
-          <p className="text-base text-[#999] m-0 font-normal">
-            A complete toolkit for managing AI agent plans.
-          </p>
-        </div>
-
-        <div className="d3-bento-grid grid grid-cols-[repeat(4,1fr)] grid-rows-[auto] gap-4">
-          {FEATURES.map((feature, i) => (
-            <BentoCard
-              key={feature.title}
-              feature={feature}
-              layout={BENTO_MAP[i] ?? { colSpan: 1, rowSpan: 1 }}
-              index={i}
-              inView={bentoInView}
-            />
-          ))}
-        </div>
-      </section>
-
-      <LandingPricing
-        yearly={yearly}
-        signingIn={signingIn}
-        onSetYearly={setYearly}
-        onShowLogin={() => startViewTransition(() => setShowLogin(true))}
-        onCloudLogin={onCloudLogin ? handleCloudLogin : undefined}
-      />
-
-      <LandingFAQ openFaq={openFaq} onSetOpenFaq={setOpenFaq} />
-
-      <LandingFooter />
-
-      {/* Login Modal */}
-      {showLogin && (
-        <LoginModal
-          tokenValue={token}
-          onTokenChange={setTokenValue}
-          onSubmit={submit}
-          onClose={() => startViewTransition(() => setShowLogin(false))}
+        <LandingNavbar
+          signingIn={signingIn}
+          onSignIn={() => startViewTransition(() => setShowLogin(true))}
+          authSlot={navbarAuthNode}
         />
-      )}
-    </div>
+
+        <LandingHero
+          activeTab={activeTab}
+          agentIconImages={agentIconImages}
+          onShowLogin={() => startViewTransition(() => setShowLogin(true))}
+          onSetActiveTab={setActiveTab}
+          ctaSlot={heroCtaNode}
+        />
+
+        {/* Bento Feature Grid */}
+        <section
+          id="features"
+          ref={bentoRef}
+          className="max-w-[1100px] mx-auto px-6"
+          style={{
+            padding: 'clamp(60px, 10vh, 120px) 24px',
+            scrollMarginTop: LANDING_ANCHOR_OFFSET,
+          }}
+        >
+          <div className="text-center mb-14">
+            <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0 mb-3">
+              Everything you need
+            </h2>
+            <p className="text-base text-[#999] m-0 font-normal">
+              A complete toolkit for managing AI agent plans.
+            </p>
+          </div>
+
+          <div className="d3-bento-grid grid grid-cols-[repeat(4,1fr)] grid-rows-[auto] gap-4">
+            {FEATURES.map((feature, i) => (
+              <BentoCard
+                key={feature.title}
+                feature={feature}
+                layout={BENTO_MAP[i] ?? { colSpan: 1, rowSpan: 1 }}
+                index={i}
+                inView={bentoInView}
+              />
+            ))}
+          </div>
+        </section>
+
+        <LandingPricing
+          yearly={yearly}
+          signingIn={signingIn}
+          onSetYearly={setYearly}
+          onShowLogin={() => startViewTransition(() => setShowLogin(true))}
+          proCtaSlot={pricingCtaNode}
+        />
+
+        <LandingFAQ openFaq={openFaq} onSetOpenFaq={setOpenFaq} />
+
+        <LandingFooter />
+
+        {showLogin && (
+          <LoginModal
+            tokenValue={token}
+            onTokenChange={setTokenValue}
+            onSubmit={submit}
+            onClose={() => startViewTransition(() => setShowLogin(false))}
+          />
+        )}
+      </div>
+    </LandingContext.Provider>
   );
 }
+
+export function LandingPage({ children }: { children?: ReactNode } = {}) {
+  return <LandingPageInner>{children}</LandingPageInner>;
+}
+
+LandingPage.NavbarAuth = NavbarAuth;
+LandingPage.HeroCta = HeroCta;
+LandingPage.PricingCta = PricingCta;
 
 function FAQItem({
   question,

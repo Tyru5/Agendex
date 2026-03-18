@@ -46,6 +46,7 @@ import { SettingsPage } from './components/SettingsPage.tsx';
 import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
+import { EENavbarAuth, EEHeroCta, EEPricingCta } from './components/LandingAuthSlots.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
@@ -1044,7 +1045,20 @@ function HomeRoute() {
 
   if (isLoading) return <BootLoadingView />;
 
-  return <LandingPage onCloudLogin={(provider) => signIn.social({ provider, callbackURL: '/' })} />;
+  const handleLogin = (provider: 'github' | 'google') =>
+    signIn.social({ provider, callbackURL: '/' });
+
+  return (
+    <LandingPage>
+      <LandingPage.NavbarAuth>
+        {() => <EENavbarAuth onLogin={handleLogin} />}
+      </LandingPage.NavbarAuth>
+      <LandingPage.HeroCta>{() => <EEHeroCta onLogin={handleLogin} />}</LandingPage.HeroCta>
+      <LandingPage.PricingCta>
+        {() => <EEPricingCta onLogin={handleLogin} />}
+      </LandingPage.PricingCta>
+    </LandingPage>
+  );
 }
 
 export default function App() {
