@@ -144,3 +144,8 @@ export const PRO_FEATURES = [
   'Up to 5 workspace members',
   'Access from any device',
 ];
+
+export const MONEY_BACK_GUARANTEE = {
+  label: '14-day money-back guarantee',
+  body: "If Cloud Pro is not a fit for your workflow in the first 14 days, I'll give you a full refund. No questions asked.",
+} as const;

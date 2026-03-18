@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
-import { GitHubIcon, GoogleIcon } from './OAuthIcons.tsx';
 import { startViewTransition } from '../lib/view-transition.ts';
 import {
   AGENTS,
@@ -8,6 +7,7 @@ import {
   FEATURES,
   FREE_FEATURES,
   LOCAL_STEPS,
+  MONEY_BACK_GUARANTEE,
   PKG_MANAGERS,
   PRO_FEATURES,
   setToken,
@@ -15,6 +15,7 @@ import {
 import { FAQBackground } from './landing/FAQBackground.tsx';
 import { IconCloud } from './landing/IconCloud.tsx';
 import { TopoNeurons } from './landing/TopoNeurons.tsx';
+import { GitHubIcon, GoogleIcon } from './OAuthIcons.tsx';
 
 function Spinner({ size = 14, color }: { size?: number; color?: string }) {
   return (
@@ -68,6 +69,12 @@ const TEXT_SECONDARY = '#999';
 const TEXT_MUTED = '#666';
 const RADIUS = 20;
 const CARD_PAD = 36;
+const LANDING_ANCHOR_OFFSET = 96;
+const LANDING_SECTIONS = [
+  { id: 'features', label: 'Features' },
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'faq', label: 'FAQ' },
+] as const;
 
 const BENTO_MAP: { colSpan: number; rowSpan: number }[] = [
   { colSpan: 2, rowSpan: 1 }, // Instant Indexing
@@ -493,6 +500,19 @@ function PricingCard({
   );
 }
 
+function GuaranteePanel() {
+  return (
+    <div className="d3-guarantee-panel mt-4 mb-7 flex flex-col items-center gap-1.5">
+      <div className="text-[13px] font-medium tracking-[-0.01em] text-[rgba(255,255,255,0.82)] text-center">
+        {MONEY_BACK_GUARANTEE.label}
+      </div>
+      <p className="d3-guarantee-copy m-0 max-w-[460px] text-center text-[12.5px] leading-[1.6] text-[#666]">
+        {MONEY_BACK_GUARANTEE.body}
+      </p>
+    </div>
+  );
+}
+
 function LoginModal({
   tokenValue,
   onTokenChange,
@@ -709,9 +729,25 @@ function LandingNavbar({
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 py-3.5 bg-[rgba(10,10,10,0.85)] backdrop-blur-[8px] border-b border-[rgba(255,255,255,0.06)]">
-      <span className="font-[Unbounded,sans-serif] text-base font-medium text-white tracking-[-0.02em]">
-        agendex
-      </span>
+      <div className="flex items-center gap-7">
+        <a
+          href="#overview"
+          className="font-[Unbounded,sans-serif] text-base font-medium text-white tracking-[-0.02em] no-underline"
+        >
+          agendex
+        </a>
+        <div className="landing-nav-links flex items-center gap-[18px]">
+          {LANDING_SECTIONS.map((section) => (
+            <a
+              key={section.id}
+              href={`#${section.id}`}
+              className="text-[13px] text-[#666] no-underline font-medium tracking-[-0.01em] transition-colors duration-200 hover:text-white"
+            >
+              {section.label}
+            </a>
+          ))}
+        </div>
+      </div>
       <div className="relative" ref={ref}>
         <button
           type="button"
@@ -857,10 +893,12 @@ function LandingHero({
     <div className="relative overflow-hidden">
       <FAQBackground />
       <section
+        id="overview"
         className="d3-hero relative grid grid-cols-2 items-center max-w-[1100px] mx-auto px-6"
         style={{
           gap: 230,
           padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
+          scrollMarginTop: LANDING_ANCHOR_OFFSET,
         }}
       >
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.15]">
@@ -972,8 +1010,12 @@ function LandingPricing({
 }) {
   return (
     <section
+      id="pricing"
       className="max-w-[880px] mx-auto px-6"
-      style={{ padding: 'clamp(60px, 10vh, 120px) 24px' }}
+      style={{
+        padding: 'clamp(60px, 10vh, 120px) 24px',
+        scrollMarginTop: LANDING_ANCHOR_OFFSET,
+      }}
     >
       <div className="text-center mb-12">
         <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0 mb-3">
@@ -983,6 +1025,7 @@ function LandingPricing({
           Free forever for local use. Upgrade for cloud features.
         </p>
         <PricingToggle yearly={yearly} onChange={onSetYearly} />
+        <GuaranteePanel />
       </div>
       <div className="d3-pricing-row flex gap-4 items-stretch">
         <PricingCard
@@ -1045,8 +1088,12 @@ function LandingFAQ({
 }) {
   return (
     <section
+      id="faq"
       className="max-w-[720px] mx-auto px-6"
-      style={{ padding: 'clamp(40px, 8vh, 80px) 24px clamp(80px, 12vh, 140px)' }}
+      style={{
+        padding: 'clamp(40px, 8vh, 80px) 24px clamp(80px, 12vh, 140px)',
+        scrollMarginTop: LANDING_ANCHOR_OFFSET,
+      }}
     >
       <div className="text-center mb-12">
         <span className="inline-block text-xs font-semibold tracking-[0.1em] uppercase text-[#c8ff32] font-[Inter,-apple-system,system-ui,sans-serif] mb-3">
@@ -1112,6 +1159,54 @@ export function LandingPage({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const target = document.getElementById(hash);
+    if (!target) return;
+    requestAnimationFrame(() => {
+      target.scrollIntoView({ block: 'start' });
+    });
+  }, []);
+
+  useEffect(() => {
+    const ids = ['overview', ...LANDING_SECTIONS.map((section) => section.id)];
+    const sections = ids.map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
+    if (!sections.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort(
+            (a, b) =>
+              Math.abs(a.boundingClientRect.top - LANDING_ANCHOR_OFFSET) -
+              Math.abs(b.boundingClientRect.top - LANDING_ANCHOR_OFFSET),
+          );
+
+        const nextId = visible[0]?.target.id;
+        if (!nextId) return;
+
+        const url = new URL(window.location.href);
+        url.hash = nextId === 'overview' ? '' : nextId;
+        const next = `${url.pathname}${url.search}${url.hash}`;
+        const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+        if (next !== current) {
+          window.history.replaceState(window.history.state, '', next);
+        }
+      },
+      {
+        rootMargin: `-${LANDING_ANCHOR_OFFSET}px 0px -55% 0px`,
+        threshold: [0, 0.25, 0.6],
+      },
+    );
+
+    for (const section of sections) observer.observe(section);
+
+    return () => observer.disconnect();
+  }, []);
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (token.trim()) {
@@ -1127,6 +1222,9 @@ export function LandingPage({
       <TopoNeurons />
       <style>{`
         @media (max-width: 768px) {
+          .landing-nav-links {
+            display: none !important;
+          }
           .d3-hero {
             grid-template-columns: 1fr !important;
             text-align: center;
@@ -1139,6 +1237,12 @@ export function LandingPage({
           }
           .d3-pricing-row {
             flex-direction: column !important;
+          }
+          .d3-guarantee-panel {
+            flex-direction: column;
+          }
+          .d3-guarantee-copy {
+            width: 100%;
           }
         }
         @property --border-angle {
@@ -1192,9 +1296,13 @@ export function LandingPage({
 
       {/* Bento Feature Grid */}
       <section
+        id="features"
         ref={bentoRef}
         className="max-w-[1100px] mx-auto px-6"
-        style={{ padding: 'clamp(60px, 10vh, 120px) 24px' }}
+        style={{
+          padding: 'clamp(60px, 10vh, 120px) 24px',
+          scrollMarginTop: LANDING_ANCHOR_OFFSET,
+        }}
       >
         <div className="text-center mb-14">
           <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0 mb-3">
