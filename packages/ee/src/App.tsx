@@ -1042,6 +1042,8 @@ function HomeRoute() {
     return <Dashboard autoMode="cloud" />;
   }
 
+  if (isLoading) return <BootLoadingView />;
+
   return <LandingPage onCloudLogin={(provider) => signIn.social({ provider, callbackURL: '/' })} />;
 }
 
