@@ -7,6 +7,7 @@ import {
   FEATURES,
   FREE_FEATURES,
   LOCAL_STEPS,
+  MONEY_BACK_GUARANTEE,
   PKG_MANAGERS,
   PRO_FEATURES,
   setToken,
@@ -66,6 +67,12 @@ const TEXT_SECONDARY = '#999';
 const TEXT_MUTED = '#666';
 const RADIUS = 20;
 const CARD_PAD = 36;
+const LANDING_ANCHOR_OFFSET = 96;
+const LANDING_SECTIONS = [
+  { id: 'features', label: 'Features' },
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'faq', label: 'FAQ' },
+] as const;
 
 const BENTO_MAP: { colSpan: number; rowSpan: number }[] = [
   { colSpan: 2, rowSpan: 1 }, // Instant Indexing
@@ -663,6 +670,47 @@ function PricingCard({
   );
 }
 
+function GuaranteePanel() {
+  return (
+    <div
+      className="d3-guarantee-panel"
+      style={{
+        marginTop: 16,
+        marginBottom: 28,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 6,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          color: 'rgba(255,255,255,0.82)',
+          letterSpacing: '-0.01em',
+          textAlign: 'center',
+        }}
+      >
+        {MONEY_BACK_GUARANTEE.label}
+      </div>
+      <p
+        className="d3-guarantee-copy"
+        style={{
+          margin: 0,
+          maxWidth: 460,
+          fontSize: 12.5,
+          lineHeight: 1.6,
+          color: TEXT_MUTED,
+          textAlign: 'center',
+        }}
+      >
+        {MONEY_BACK_GUARANTEE.body}
+      </p>
+    </div>
+  );
+}
+
 function LoginModal({
   tokenValue,
   onTokenChange,
@@ -943,17 +991,48 @@ function LandingNavbar({ signingIn, onSignIn }: { signingIn: boolean; onSignIn: 
         borderBottom: `1px solid ${BORDER}`,
       }}
     >
-      <span
-        style={{
-          fontFamily: '"Unbounded", sans-serif',
-          fontSize: 16,
-          fontWeight: 500,
-          color: TEXT_PRIMARY,
-          letterSpacing: '-0.02em',
-        }}
-      >
-        agendex
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+        <a
+          href="#overview"
+          style={{
+            fontFamily: '"Unbounded", sans-serif',
+            fontSize: 16,
+            fontWeight: 500,
+            color: TEXT_PRIMARY,
+            letterSpacing: '-0.02em',
+            textDecoration: 'none',
+          }}
+        >
+          agendex
+        </a>
+        <div
+          className="landing-nav-links"
+          style={{ display: 'flex', alignItems: 'center', gap: 18 }}
+        >
+          {LANDING_SECTIONS.map((section) => (
+            <a
+              key={section.id}
+              href={`#${section.id}`}
+              style={{
+                fontSize: 13,
+                color: TEXT_MUTED,
+                textDecoration: 'none',
+                fontWeight: 500,
+                letterSpacing: '-0.01em',
+                transition: 'color 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = TEXT_PRIMARY;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = TEXT_MUTED;
+              }}
+            >
+              {section.label}
+            </a>
+          ))}
+        </div>
+      </div>
       <button
         type="button"
         disabled={signingIn}
@@ -1116,6 +1195,7 @@ function LandingHero({
     <div style={{ position: 'relative', overflow: 'hidden' }}>
       <FAQBackground />
       <section
+        id="overview"
         className="d3-hero"
         style={{
           position: 'relative',
@@ -1126,6 +1206,7 @@ function LandingHero({
           maxWidth: 1100,
           margin: '0 auto',
           padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
+          scrollMarginTop: LANDING_ANCHOR_OFFSET,
         }}
       >
         <div
@@ -1302,7 +1383,15 @@ function LandingPricing({
   onCloudLogin?: () => void;
 }) {
   return (
-    <section style={{ padding: 'clamp(60px, 10vh, 120px) 24px', maxWidth: 880, margin: '0 auto' }}>
+    <section
+      id="pricing"
+      style={{
+        padding: 'clamp(60px, 10vh, 120px) 24px',
+        maxWidth: 880,
+        margin: '0 auto',
+        scrollMarginTop: LANDING_ANCHOR_OFFSET,
+      }}
+    >
       <div style={{ textAlign: 'center', marginBottom: 48 }}>
         <h2
           style={{
@@ -1319,6 +1408,7 @@ function LandingPricing({
           Free forever for local use. Upgrade for cloud features.
         </p>
         <PricingToggle yearly={yearly} onChange={onSetYearly} />
+        <GuaranteePanel />
       </div>
       <div className="d3-pricing-row" style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
         <PricingCard
@@ -1353,10 +1443,12 @@ function LandingFAQ({
 }) {
   return (
     <section
+      id="faq"
       style={{
         padding: 'clamp(40px, 8vh, 80px) 24px clamp(80px, 12vh, 140px)',
         maxWidth: 720,
         margin: '0 auto',
+        scrollMarginTop: LANDING_ANCHOR_OFFSET,
       }}
     >
       <div style={{ textAlign: 'center', marginBottom: 48 }}>
@@ -1438,6 +1530,54 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const target = document.getElementById(hash);
+    if (!target) return;
+    requestAnimationFrame(() => {
+      target.scrollIntoView({ block: 'start' });
+    });
+  }, []);
+
+  useEffect(() => {
+    const ids = ['overview', ...LANDING_SECTIONS.map((section) => section.id)];
+    const sections = ids.map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
+    if (!sections.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort(
+            (a, b) =>
+              Math.abs(a.boundingClientRect.top - LANDING_ANCHOR_OFFSET) -
+              Math.abs(b.boundingClientRect.top - LANDING_ANCHOR_OFFSET),
+          );
+
+        const nextId = visible[0]?.target.id;
+        if (!nextId) return;
+
+        const url = new URL(window.location.href);
+        url.hash = nextId === 'overview' ? '' : nextId;
+        const next = `${url.pathname}${url.search}${url.hash}`;
+        const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+        if (next !== current) {
+          window.history.replaceState(window.history.state, '', next);
+        }
+      },
+      {
+        rootMargin: `-${LANDING_ANCHOR_OFFSET}px 0px -55% 0px`,
+        threshold: [0, 0.25, 0.6],
+      },
+    );
+
+    for (const section of sections) observer.observe(section);
+
+    return () => observer.disconnect();
+  }, []);
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (token.trim()) {
@@ -1462,6 +1602,9 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
       <TopoNeurons />
       <style>{`
         @media (max-width: 768px) {
+          .landing-nav-links {
+            display: none !important;
+          }
           .d3-hero {
             grid-template-columns: 1fr !important;
             text-align: center;
@@ -1474,6 +1617,12 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
           }
           .d3-pricing-row {
             flex-direction: column !important;
+          }
+          .d3-guarantee-panel {
+            flex-direction: column;
+          }
+          .d3-guarantee-copy {
+            width: 100%;
           }
         }
         @property --border-angle {
@@ -1528,8 +1677,14 @@ export function LandingPage({ onCloudLogin }: { onCloudLogin?: () => void } = {}
 
       {/* Bento Feature Grid */}
       <section
+        id="features"
         ref={bentoRef}
-        style={{ padding: 'clamp(60px, 10vh, 120px) 24px', maxWidth: 1100, margin: '0 auto' }}
+        style={{
+          padding: 'clamp(60px, 10vh, 120px) 24px',
+          maxWidth: 1100,
+          margin: '0 auto',
+          scrollMarginTop: LANDING_ANCHOR_OFFSET,
+        }}
       >
         <div style={{ textAlign: 'center', marginBottom: 56 }}>
           <h2
