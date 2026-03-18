@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.3.0
+
+### Minor Changes
+
+- f9089b8: Added new 'configure' command
+
 ## 0.2.0
 
 ### Minor Changes
