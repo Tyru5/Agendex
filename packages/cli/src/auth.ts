@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { type AgendexConfig, loadConfig, saveConfig } from '@agendex/shared';
 
-const DEFAULT_SITE_URL = 'https://agendex.dev';
+const DEFAULT_SITE_URL = 'https://app.agendex.dev';
 
 export async function login(siteUrlOverride?: string): Promise<void> {
   const { port, result } = await startCallbackServer();

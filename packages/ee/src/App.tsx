@@ -47,6 +47,7 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { EENavbarAuth, EEHeroCta, EEPricingCta } from './components/LandingAuthSlots.tsx';
+import { APP_URL } from './lib/auth-client.ts';
 import { useAuth } from './hooks/useAuth.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
@@ -1032,6 +1033,11 @@ function HomeRoute() {
     enabled: !isLoading && isAuthenticated,
   });
 
+  const appUrl = import.meta.env.VITE_APP_URL as string | undefined;
+  const marketingUrl = import.meta.env.VITE_MARKETING_URL as string | undefined;
+  const isAppHost = appUrl ? window.location.origin === new URL(appUrl).origin : false;
+  const isMarketingHost = marketingUrl ? window.location.origin === new URL(marketingUrl).origin : false;
+
   if (isAuthenticated && onboardingResolved && needsOnboarding) return <Redirect to="/welcome" />;
 
   if (hasCachedToken) {
@@ -1040,13 +1046,22 @@ function HomeRoute() {
 
   if (isAuthenticated) {
     if (!onboardingResolved) return <BootLoadingView />;
+    if (isMarketingHost && appUrl) {
+      window.location.href = appUrl;
+      return <BootLoadingView />;
+    }
     return <Dashboard autoMode="cloud" />;
   }
 
   if (isLoading) return <BootLoadingView />;
 
+  if (isAppHost && marketingUrl) {
+    window.location.href = marketingUrl;
+    return <BootLoadingView />;
+  }
+
   const handleLogin = (provider: 'github' | 'google') =>
-    signIn.social({ provider, callbackURL: '/' });
+    signIn.social({ provider, callbackURL: `${APP_URL}/` });
 
   return (
     <LandingPage>
