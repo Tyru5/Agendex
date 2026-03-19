@@ -19,6 +19,7 @@ import {
   LANDING_INITIAL,
   landingReducer,
 } from './landing/LandingContext.tsx';
+import { LandingMascot, type LandingMascotProps } from './landing/LandingMascot.tsx';
 import { NavbarAuth, HeroCta, PricingCta } from './landing/LandingSlots.tsx';
 import type { SlotRenderFn, SlotComponent } from './landing/LandingSlots.tsx';
 import { FAQBackground } from './landing/FAQBackground.tsx';
@@ -84,6 +85,11 @@ const LANDING_SECTIONS = [
   { id: 'pricing', label: 'Pricing' },
   { id: 'faq', label: 'FAQ' },
 ] as const;
+
+export interface LandingPageProps {
+  children?: ReactNode;
+  mascot?: LandingMascotProps;
+}
 
 const BENTO_MAP: { colSpan: number; rowSpan: number }[] = [
   { colSpan: 2, rowSpan: 1 }, // Instant Indexing
@@ -1003,7 +1009,7 @@ function extractSlots(children: ReactNode): Record<string, SlotRenderFn> {
   return slots;
 }
 
-function LandingPageInner({ children }: { children?: ReactNode }) {
+function LandingPageInner({ children, mascot }: LandingPageProps) {
   const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
   const { token, showLogin, yearly, openFaq, activeTab, bentoInView, signingIn } = state;
   const setTokenValue = (v: string) => dispatch({ type: 'SET_TOKEN', value: v });
@@ -1224,6 +1230,8 @@ function LandingPageInner({ children }: { children?: ReactNode }) {
 
         <LandingFooter />
 
+        {mascot && <LandingMascot greetings={mascot.greetings} onActivate={mascot.onActivate} />}
+
         {showLogin && (
           <LoginModal
             tokenValue={token}
@@ -1237,8 +1245,8 @@ function LandingPageInner({ children }: { children?: ReactNode }) {
   );
 }
 
-export function LandingPage({ children }: { children?: ReactNode } = {}) {
-  return <LandingPageInner>{children}</LandingPageInner>;
+export function LandingPage({ children, mascot }: LandingPageProps = {}) {
+  return <LandingPageInner mascot={mascot}>{children}</LandingPageInner>;
 }
 
 LandingPage.NavbarAuth = NavbarAuth;
