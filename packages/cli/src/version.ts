@@ -1,3 +1,6 @@
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import pkg from '../package.json';
 
 export const CLI_VERSION: string = pkg.version;
@@ -8,8 +11,34 @@ interface UpdateResult {
   latest: string;
 }
 
+const CACHE_FILE = join(tmpdir(), '.agendex-update-cache.json');
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function readCache(): UpdateResult | null {
+  try {
+    if (!existsSync(CACHE_FILE)) return null;
+    const { result, ts } = JSON.parse(readFileSync(CACHE_FILE, 'utf8'));
+    if (Date.now() - ts > CACHE_TTL_MS) return null;
+    return result as UpdateResult;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(result: UpdateResult): void {
+  try {
+    writeFileSync(CACHE_FILE, JSON.stringify({ result, ts: Date.now() }));
+  } catch {
+    /* non-fatal */
+  }
+}
+
 export async function checkForUpdate(): Promise<UpdateResult> {
   const current = CLI_VERSION;
+
+  const cached = readCache();
+  if (cached) return { ...cached, current };
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
@@ -26,7 +55,9 @@ export async function checkForUpdate(): Promise<UpdateResult> {
     const data = (await res.json()) as { version: string };
     const latest = data.version;
 
-    return { updateAvailable: isNewer(latest, current), current, latest };
+    const result: UpdateResult = { updateAvailable: isNewer(latest, current), current, latest };
+    writeCache(result);
+    return result;
   } catch {
     return { updateAvailable: false, current, latest: current };
   }
