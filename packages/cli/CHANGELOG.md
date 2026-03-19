@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.3.2
+
+### Patch Changes
+
+- ee62b2a: Updates to daemon logic and cli auth page
+
 ## 0.3.1
 
 ### Patch Changes
