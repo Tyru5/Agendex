@@ -16,6 +16,8 @@ export default defineConfig(
     },
     server: {
       port: 5174,
+      host: 'agendex.local',
+      allowedHosts: ['agendex.local', 'app.agendex.local'],
     },
   }),
 );
