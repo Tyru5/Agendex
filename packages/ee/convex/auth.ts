@@ -11,6 +11,10 @@ export const authComponent = createClient<DataModel>(components.betterAuth);
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
   const siteUrl = process.env.SITE_URL ?? '';
+  const appUrl = process.env.APP_URL ?? '';
+  if (!appUrl && siteUrl) {
+    console.warn('APP_URL not set — crossDomain plugin falling back to SITE_URL');
+  }
   const convexSiteUrl = process.env.CONVEX_SITE_URL ?? '';
   const githubClientId = process.env.GITHUB_CLIENT_ID;
   const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
@@ -25,6 +29,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       siteUrl && siteUrl.includes('://www.')
         ? siteUrl.replace('://www.', '://')
         : siteUrl && `${siteUrl.replace('://', '://www.')}`,
+      appUrl,
       'https://*.vercel.app',
       'http://localhost:*',
     ].filter(Boolean),
@@ -48,7 +53,11 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
           }
         : {}),
     },
-    plugins: [crossDomain({ siteUrl }), convex({ authConfig }), bearer()],
+    plugins: [
+      crossDomain({ siteUrl: appUrl || siteUrl }),
+      convex({ authConfig }),
+      bearer(),
+    ],
   });
 };
 

@@ -47,6 +47,7 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { EENavbarAuth, EEHeroCta, EEPricingCta } from './components/LandingAuthSlots.tsx';
+import { APP_URL } from './lib/auth-client.ts';
 import { useAuth } from './hooks/useAuth.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
@@ -1032,6 +1033,32 @@ function HomeRoute() {
     enabled: !isLoading && isAuthenticated,
   });
 
+  const appUrl = import.meta.env.VITE_APP_URL as string | undefined;
+  const marketingUrl = import.meta.env.VITE_MARKETING_URL as string | undefined;
+
+  let isAppHost = false;
+  let isMarketingHost = false;
+  try {
+    isAppHost = appUrl ? window.location.origin === new URL(appUrl).origin : false;
+    isMarketingHost = marketingUrl ? window.location.origin === new URL(marketingUrl).origin : false;
+  } catch {
+    // malformed env var — treat both as false
+  }
+
+  useEffect(() => {
+    if (isAuthenticated && onboardingResolved && !needsOnboarding && isMarketingHost && appUrl) {
+      window.location.href = appUrl;
+    }
+  }, [isAuthenticated, onboardingResolved, needsOnboarding, isMarketingHost, appUrl]);
+
+  useEffect(() => {
+    if (!isAuthenticated && !isLoading && !hasCachedToken && isAppHost && marketingUrl) {
+      window.location.href = marketingUrl;
+    }
+  }, [isAuthenticated, isLoading, hasCachedToken, isAppHost, marketingUrl]);
+
+  if (isAuthenticated && isMarketingHost && appUrl) return <BootLoadingView />;
+
   if (isAuthenticated && onboardingResolved && needsOnboarding) return <Redirect to="/welcome" />;
 
   if (hasCachedToken) {
@@ -1045,8 +1072,10 @@ function HomeRoute() {
 
   if (isLoading) return <BootLoadingView />;
 
+  if (isAppHost && marketingUrl) return <BootLoadingView />;
+
   const handleLogin = (provider: 'github' | 'google') =>
-    signIn.social({ provider, callbackURL: '/' });
+    signIn.social({ provider, callbackURL: `${APP_URL}/` });
 
   return (
     <LandingPage>
