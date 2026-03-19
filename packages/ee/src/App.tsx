@@ -1040,7 +1040,9 @@ function HomeRoute() {
   let isMarketingHost = false;
   try {
     isAppHost = appUrl ? window.location.origin === new URL(appUrl).origin : false;
-    isMarketingHost = marketingUrl ? window.location.origin === new URL(marketingUrl).origin : false;
+    isMarketingHost = marketingUrl
+      ? window.location.origin === new URL(marketingUrl).origin
+      : false;
   } catch {
     // malformed env var — treat both as false
   }

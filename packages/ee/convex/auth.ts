@@ -53,11 +53,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
           }
         : {}),
     },
-    plugins: [
-      crossDomain({ siteUrl: appUrl || siteUrl }),
-      convex({ authConfig }),
-      bearer(),
-    ],
+    plugins: [crossDomain({ siteUrl: appUrl || siteUrl }), convex({ authConfig }), bearer()],
   });
 };
 
