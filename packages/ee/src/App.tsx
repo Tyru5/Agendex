@@ -1057,9 +1057,9 @@ function HomeRoute() {
     }
   }, [isAuthenticated, isLoading, isAppHost, marketingUrl]);
 
-  if (isAuthenticated && onboardingResolved && needsOnboarding) return <Redirect to="/welcome" />;
+  if (isAuthenticated && isMarketingHost && appUrl) return <BootLoadingView />;
 
-  if ((isAuthenticated || hasCachedToken) && isMarketingHost && appUrl) return <BootLoadingView />;
+  if (isAuthenticated && onboardingResolved && needsOnboarding) return <Redirect to="/welcome" />;
 
   if (hasCachedToken) {
     return <Dashboard autoMode={isAuthenticated && onboardingResolved ? 'cloud' : 'local'} />;
