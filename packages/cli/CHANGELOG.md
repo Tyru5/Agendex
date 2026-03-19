@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.3.1
+
+### Patch Changes
+
+- aa704f3: Updated site URLS to new sub-domain
+
 ## 0.3.0
 
 ### Minor Changes
