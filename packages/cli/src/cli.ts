@@ -9,12 +9,27 @@ import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, removePid } from './pid.ts';
 import { syncAll } from './sync.ts';
+import { checkForUpdate, CLI_VERSION } from './version.ts';
 
 const args = process.argv.slice(2);
 const command = args[0] ?? 'start';
 const cliEntry = resolve(process.argv[1] ?? fileURLToPath(import.meta.url));
 
 async function main(): Promise<number> {
+  const skipCheck =
+    args.includes('--daemon') ||
+    args.includes('--worker') ||
+    ['help', '--help', '-h'].includes(command);
+
+  if (!skipCheck) {
+    const { updateAvailable, current, latest } = await checkForUpdate();
+    if (updateAvailable) {
+      writeStderr(`[agendex] update required: v${current} → v${latest}`);
+      writeStderr(`[agendex] run: npm i -g agendex-cli`);
+      return 1;
+    }
+  }
+
   switch (command) {
     case 'start': {
       if (args.includes('--daemon')) {
@@ -104,6 +119,7 @@ async function main(): Promise<number> {
       writeStdout(`[agendex] Convex URL: ${config?.convexUrl ?? 'not set'}`);
       writeStdout(`[agendex] Enabled adapters: ${config?.enabledAdapters.join(', ') || 'none'}`);
       writeStdout(`[agendex] Daemon: ${running ? `running (PID ${pid})` : 'not running'}`);
+      writeStdout(`[agendex] CLI version: ${CLI_VERSION}`);
       return 0;
     }
 
