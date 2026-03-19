@@ -1052,10 +1052,10 @@ function HomeRoute() {
   }, [isAuthenticated, onboardingResolved, needsOnboarding, isMarketingHost, appUrl]);
 
   useEffect(() => {
-    if (!isAuthenticated && !isLoading && isAppHost && marketingUrl) {
+    if (!isAuthenticated && !isLoading && !hasCachedToken && isAppHost && marketingUrl) {
       window.location.href = marketingUrl;
     }
-  }, [isAuthenticated, isLoading, isAppHost, marketingUrl]);
+  }, [isAuthenticated, isLoading, hasCachedToken, isAppHost, marketingUrl]);
 
   if (isAuthenticated && isMarketingHost && appUrl) return <BootLoadingView />;
 
