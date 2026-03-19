@@ -19,6 +19,10 @@ export async function checkForUpdate(): Promise<UpdateResult> {
     });
     clearTimeout(timeout);
 
+    if (!res.ok) {
+      return { updateAvailable: false, current, latest: current };
+    }
+
     const data = (await res.json()) as { version: string };
     const latest = data.version;
 

@@ -16,12 +16,12 @@ const command = args[0] ?? 'start';
 const cliEntry = resolve(process.argv[1] ?? fileURLToPath(import.meta.url));
 
 async function main(): Promise<number> {
-  const skipCheck =
-    args.includes('--daemon') ||
-    args.includes('--worker') ||
-    ['help', '--help', '-h'].includes(command);
+  const isInternal = args.includes('--daemon') || args.includes('--worker');
+  const isPassthrough = ['stop', 'status', 'login', 'logout', 'help', '--help', '-h'].includes(
+    command,
+  );
 
-  if (!skipCheck) {
+  if (!isInternal && !isPassthrough) {
     const { updateAvailable, current, latest } = await checkForUpdate();
     if (updateAvailable) {
       writeStderr(`[agendex] update required: v${current} → v${latest}`);
