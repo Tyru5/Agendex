@@ -1059,13 +1059,14 @@ function HomeRoute() {
 
   if (isAuthenticated && onboardingResolved && needsOnboarding) return <Redirect to="/welcome" />;
 
+  if ((isAuthenticated || hasCachedToken) && isMarketingHost && appUrl) return <BootLoadingView />;
+
   if (hasCachedToken) {
     return <Dashboard autoMode={isAuthenticated && onboardingResolved ? 'cloud' : 'local'} />;
   }
 
   if (isAuthenticated) {
     if (!onboardingResolved) return <BootLoadingView />;
-    if (isMarketingHost && appUrl) return <BootLoadingView />;
     return <Dashboard autoMode="cloud" />;
   }
 
