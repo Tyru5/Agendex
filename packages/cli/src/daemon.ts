@@ -90,7 +90,9 @@ export async function runWorker(): Promise<void> {
         if (!result.ok) {
           if (result.error?.includes('401')) {
             console.error('[agendex] session expired. Run `agendex login` to re-authenticate.');
-            process.exit(1);
+            batch.length = 0;
+            syncQueue.length = 0;
+            break;
           }
           failedCount++;
           console.error(`[agendex] sync failed for "${payload.title}": ${result.error}`);

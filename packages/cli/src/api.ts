@@ -25,16 +25,33 @@ export interface SyncPlanPayload {
 export async function syncPlan(plan: SyncPlanPayload): Promise<{ ok: boolean; error?: string }> {
   const { token, convexUrl } = getCloudConfig();
   const url = `${convexUrl}/api/cli/sync`;
+  let activeToken = token;
 
-  const res = await requestText(url, {
+  let res = await requestText(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${activeToken}`,
       Connection: 'close',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(plan),
   });
+
+  if (res.status === 401) {
+    const refreshed = await refreshStoredToken(activeToken, convexUrl);
+    if (refreshed) {
+      activeToken = refreshed;
+      res = await requestText(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${activeToken}`,
+          Connection: 'close',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(plan),
+      });
+    }
+  }
 
   if (res.status < 200 || res.status >= 300) {
     return { ok: false, error: `${res.status}: ${res.body}` };
