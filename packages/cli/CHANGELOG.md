@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.4.0
+
+### Minor Changes
+
+- d7c9505: updater lgoic
+
 ## 0.3.2
 
 ### Patch Changes
