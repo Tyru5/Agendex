@@ -7,6 +7,7 @@ type AgendexViteConfig = {
   };
   root?: string;
   server?: {
+    host?: string;
     allowedHosts?: string[];
     port?: number;
   };

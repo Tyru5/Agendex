@@ -1230,7 +1230,13 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
 
         <LandingFooter />
 
-        {mascot && <LandingMascot greetings={mascot.greetings} onActivate={mascot.onActivate} />}
+        {mascot && (
+          <LandingMascot
+            greetings={mascot.greetings}
+            onActivate={mascot.onActivate}
+            triggerElementId="faq"
+          />
+        )}
 
         {showLogin && (
           <LoginModal

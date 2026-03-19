@@ -7,22 +7,35 @@ import dinoVitaWalkStrip from './dino-vita-walk-strip.png';
 export interface LandingMascotProps {
   greetings?: string[];
   onActivate: () => void;
+  triggerElementId?: string;
 }
 
 type Direction = 'left' | 'right';
 
-const DEFAULT_GREETINGS = ['Hi!', 'Hello!', "I'm Ti"];
+const INTRO_GREETING = "Hi, I'm Ti 👋";
+const DEFAULT_GREETINGS = [
+  'why am I here?',
+  'what is a shader anyway?',
+  'do pixels dream?',
+  'I think therefore I render',
+  'is this the real life?',
+  '404: meaning not found',
+  '*existential crisis*',
+  'we live in a simulation',
+  "what's outside the viewport?",
+  'am I just vertices?',
+  'the void calls...',
+  'I walk, but where?',
+  'runtime was a mistake',
+  'consciousness.exe',
+  "help I'm trapped in code",
+];
 const DINO_RENDER_SIZE = 84;
 const DINO_FRAME_COUNT = 4;
 const WALKER_WIDTH = 112;
 const WALK_MARGIN = 20;
 const WALK_MAX_DURATION_MS = 5400;
 const WALK_MIN_DURATION_MS = 2600;
-const BOTTOM_VISIBILITY_THRESHOLD_PX = 1200;
-
-function pick<T>(items: T[]): T {
-  return items[Math.floor(Math.random() * items.length)] as T;
-}
 
 function getWalkBounds() {
   if (typeof window === 'undefined') {
@@ -38,27 +51,13 @@ function clampPosition(value: number) {
   return Math.min(Math.max(value, bounds.min), bounds.max);
 }
 
-function isNearBottomOfPage() {
-  if (typeof window === 'undefined') return false;
-
-  const viewportBottom = window.scrollY + window.innerHeight;
-  const documentHeight = Math.max(
-    document.body.scrollHeight,
-    document.documentElement.scrollHeight,
-    document.body.offsetHeight,
-    document.documentElement.offsetHeight,
-  );
-  const threshold = Math.max(BOTTOM_VISIBILITY_THRESHOLD_PX, Math.round(window.innerHeight * 0.6));
-
-  return documentHeight - viewportBottom <= threshold;
-}
-
-export function LandingMascot({ greetings, onActivate }: LandingMascotProps) {
+export function LandingMascot({ greetings, onActivate, triggerElementId }: LandingMascotProps) {
   const messagePool = useMemo(
     () => (greetings && greetings.length > 0 ? greetings : DEFAULT_GREETINGS),
     [greetings],
   );
-  const [greeting, setGreeting] = useState(() => pick(messagePool));
+  const [greeting, setGreeting] = useState(INTRO_GREETING);
+  const phraseIndexRef = useRef(0);
   const [positionX, setPositionX] = useState(() =>
     typeof window === 'undefined' ? WALK_MARGIN : getWalkBounds().min,
   );
@@ -68,9 +67,7 @@ export function LandingMascot({ greetings, onActivate }: LandingMascotProps) {
   const [hovered, setHovered] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [hoverCapable, setHoverCapable] = useState(false);
-  const [isNearBottom, setIsNearBottom] = useState(() =>
-    typeof window === 'undefined' ? false : isNearBottomOfPage(),
-  );
+  const [isNearBottom, setIsNearBottom] = useState(false);
   const positionRef = useRef(positionX);
   const directionRef = useRef<Direction>('right');
 
@@ -104,27 +101,48 @@ export function LandingMascot({ greetings, onActivate }: LandingMascotProps) {
     };
   }, []);
 
+  const nextGreeting = () => {
+    const idx = phraseIndexRef.current;
+    setGreeting(messagePool[idx % messagePool.length]!);
+    phraseIndexRef.current = idx + 1;
+  };
+
   useEffect(() => {
-    setGreeting(pick(messagePool));
+    phraseIndexRef.current = 0;
+    setGreeting(INTRO_GREETING);
   }, [messagePool]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const syncViewport = () => {
-      setPositionX((current) => clampPosition(current));
-      setIsNearBottom(isNearBottomOfPage());
-    };
+    const syncPosition = () => setPositionX((current) => clampPosition(current));
+    syncPosition();
+    window.addEventListener('resize', syncPosition);
 
-    syncViewport();
-    window.addEventListener('resize', syncViewport);
-    window.addEventListener('scroll', syncViewport, { passive: true });
-
-    return () => {
-      window.removeEventListener('resize', syncViewport);
-      window.removeEventListener('scroll', syncViewport);
-    };
+    return () => window.removeEventListener('resize', syncPosition);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !triggerElementId) return;
+
+    let observer: IntersectionObserver | null = null;
+
+    const setup = () => {
+      const el = document.getElementById(triggerElementId);
+      if (!el) {
+        requestAnimationFrame(setup);
+        return;
+      }
+      observer = new IntersectionObserver(
+        ([entry]) => setIsNearBottom(entry?.isIntersecting ?? false),
+        { threshold: 0, rootMargin: '-40% 0px 0px 0px' },
+      );
+      observer.observe(el);
+    };
+    setup();
+
+    return () => observer?.disconnect();
+  }, [triggerElementId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -166,7 +184,7 @@ export function LandingMascot({ greetings, onActivate }: LandingMascotProps) {
         if (cancelled) return;
 
         setMoving(false);
-        setGreeting(pick(messagePool));
+        nextGreeting();
 
         pauseTimer = window.setTimeout(
           () => {
@@ -190,7 +208,7 @@ export function LandingMascot({ greetings, onActivate }: LandingMascotProps) {
 
   const speechBubble = (
     <span
-      className="absolute left-1/2 top-0 flex -translate-x-1/2 flex-col items-center"
+      className="absolute left-1/2 top-6 flex -translate-x-1/2 flex-col items-center"
       style={{
         opacity: hovered ? 1 : 0.92,
         transition:
@@ -236,7 +254,7 @@ export function LandingMascot({ greetings, onActivate }: LandingMascotProps) {
           pointerEvents: isNearBottom ? 'auto' : 'none',
           transform: `translateY(${isNearBottom ? '0' : '18px'})`,
           transition:
-            'opacity 360ms cubic-bezier(0.22, 1, 0.36, 1), transform 360ms cubic-bezier(0.22, 1, 0.36, 1)',
+            'opacity 600ms cubic-bezier(0.22, 1, 0.36, 1), transform 600ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       >
         <button

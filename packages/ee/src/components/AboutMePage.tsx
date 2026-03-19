@@ -1,118 +1,107 @@
 import { startViewTransition } from '@agendex/web';
 import { useLocation } from 'wouter';
 
-const ABOUT_SECTIONS = [
-  {
-    eyebrow: 'Who I Am',
-    title: 'The person behind this project.',
-    body: '[Write 2-4 sentences about who you are, the work you care about, and the kinds of tools you want to exist.]',
-  },
-  {
-    eyebrow: 'Why Agendex Exists',
-    title: 'What felt missing.',
-    body: '[Write why you started Agendex, what you kept seeing in agent workflows, and what made the current experience feel incomplete.]',
-  },
-  {
-    eyebrow: 'How I Think About It',
-    title: 'The product point of view.',
-    body: '[Write how you think good agent tooling should behave: where it should feel precise, where it should stay out of the way, and what you want people to trust about it.]',
-  },
-  {
-    eyebrow: 'What Comes Next',
-    title: 'Where this is heading.',
-    body: '[Write what you want to keep exploring with the product, the workflow, or the larger direction of the project.]',
-  },
-] as const;
-
 export function AboutMePage() {
   const [, navigate] = useLocation();
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-[rgba(200,255,50,0.25)]">
       <style>{`
-        @media (max-width: 768px) {
-          .about-me-grid {
-            grid-template-columns: 1fr !important;
-          }
+        @keyframes about-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
+        .about-in { animation: about-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .about-d1 { animation-delay: 60ms; }
+        .about-d2 { animation-delay: 140ms; }
       `}</style>
 
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-[-8rem] top-24 h-72 w-72 rounded-full bg-[rgba(200,255,50,0.08)] blur-3xl" />
-        <div className="absolute right-[-6rem] top-[24rem] h-96 w-96 rounded-full bg-[rgba(255,255,255,0.035)] blur-3xl" />
-      </div>
-
-      <main className="relative mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-6 pb-20 pt-8">
-        <button
-          type="button"
-          onClick={() => startViewTransition(() => navigate('/'))}
-          className="inline-flex w-fit items-center gap-2 rounded-full border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-[13px] font-medium tracking-[-0.01em] text-[rgba(255,255,255,0.88)] transition-[border-color,background,color] duration-200 hover:border-[rgba(200,255,50,0.24)] hover:bg-[rgba(200,255,50,0.08)] hover:text-white"
-        >
-          <span aria-hidden="true">←</span>
-          Back to Agendex
-        </button>
-
-        <section className="about-me-grid mt-12 grid grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)] gap-10 border-b border-[rgba(255,255,255,0.06)] pb-12">
-          <div>
-            <div className="mb-4 text-[12px] font-medium uppercase tracking-[0.22em] text-[#c8ff32]">
-              About Ti
-            </div>
-            <h1 className="m-0 max-w-[10ch] font-[Unbounded,sans-serif] text-[clamp(42px,7vw,78px)] font-normal leading-[0.94] tracking-[-0.05em] text-white">
-              Hi, I&apos;m Ti.
-            </h1>
-            <p className="mb-0 mt-6 max-w-[34rem] text-[17px] leading-[1.8] text-[rgba(255,255,255,0.72)]">
-              This page is where I can explain the project in my own voice instead of through a
-              product grid. The structure is ready for that copy, and the sections below are
-              intentionally left as first-person placeholders for the first pass.
-            </p>
-          </div>
-
-          <div className="self-end rounded-[28px] border border-[rgba(255,255,255,0.07)] bg-[linear-gradient(180deg,rgba(20,20,20,0.94),rgba(11,11,11,0.96))] p-6 shadow-[0_18px_42px_rgba(0,0,0,0.35)]">
-            <div className="text-[12px] font-medium uppercase tracking-[0.18em] text-[rgba(255,255,255,0.42)]">
-              Founder Note Placeholder
-            </div>
-            <p className="mb-0 mt-4 text-[15px] leading-[1.75] text-[rgba(255,255,255,0.7)]">
-              [Use this panel for a short opening note. One paragraph is enough if it says who you
-              are, what this project is, and what you want people to understand before they try it.]
-            </p>
-          </div>
-        </section>
-
-        <section className="mt-12 grid gap-5">
-          {ABOUT_SECTIONS.map((section) => (
-            <article
-              key={section.eyebrow}
-              className="rounded-[28px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.025)] px-6 py-7 md:px-8"
+      <main className="relative mx-auto max-w-[840px] px-6 pb-28 pt-10">
+        <nav className="about-in">
+          <button
+            type="button"
+            onClick={() => startViewTransition(() => navigate('/'))}
+            className="group inline-flex items-center gap-1.5 text-[13px] text-[rgba(255,255,255,0.35)] transition-colors hover:text-white"
+          >
+            <span
+              className="inline-block transition-transform duration-150 group-hover:-translate-x-0.5"
+              aria-hidden="true"
             >
-              <div className="text-[12px] font-medium uppercase tracking-[0.2em] text-[#c8ff32]">
-                {section.eyebrow}
-              </div>
-              <h2 className="mb-0 mt-3 font-[Unbounded,sans-serif] text-[clamp(24px,3vw,34px)] font-normal tracking-[-0.04em] text-white">
-                {section.title}
-              </h2>
-              <p className="mb-0 mt-4 max-w-[48rem] text-[16px] leading-[1.85] text-[rgba(255,255,255,0.72)]">
-                {section.body}
-              </p>
-            </article>
-          ))}
-        </section>
+              ←
+            </span>
+            Back
+          </button>
+        </nav>
 
-        <footer className="mt-12 border-t border-[rgba(255,255,255,0.06)] pt-8 text-[14px] leading-[1.8] text-[rgba(255,255,255,0.62)]">
-          <p className="m-0">
-            [Optional closing note: write a short signoff, a thank-you, or a sentence about the kind
-            of people you hope this product helps.]
+        <header className="about-in about-d1 mb-20 mt-24">
+          <h1 className="font-[Unbounded,sans-serif] text-[clamp(48px,8vw,86px)] font-normal leading-[0.92] tracking-[-0.05em]">
+            Hi, I&apos;m Ti<span className="text-[#c8ff32]">.</span>
+          </h1>
+          <p className="mt-10 max-w-[28rem] text-[17px] leading-[1.9] text-[rgba(255,255,255,0.5)]">
+            This is where I explain the project in my own voice instead of through a product grid!
+            😅
           </p>
-          <p className="mb-0 mt-4 text-[12px] leading-[1.7] text-[rgba(255,255,255,0.42)]">
+        </header>
+
+        <div className="about-in about-d2">
+          <section className="border-t border-[rgba(255,255,255,0.06)] pb-14 pt-10">
+            <span className="font-mono text-[11px] text-[rgba(255,255,255,0.18)]">01</span>
+            <h2 className="mt-4 text-[clamp(24px,3.2vw,36px)] font-normal leading-[1.3] tracking-[-0.03em] text-[rgba(255,255,255,0.92)]">
+              The person behind this project.
+            </h2>
+            <p className="mt-5 max-w-[32rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.48)]">
+              I'm adaptable Software Engineer that loves solving problems with code 🔎. I'm the type
+              of engineer, and honestly person, that obsessively obssess on evey little aspect on a
+              project. So, the fact that I was able to release an deploy this for others to check
+              out and potential use is an achievement for sure! I love working in this
+              ever-changing, dynamic, fast-paced industry and honestly if I'm able to effect even
+              one person with a tool I create that's a win for me!
+            </p>
+          </section>
+
+          <section className="border-t border-[rgba(255,255,255,0.06)] pb-14 pt-10">
+            <span className="font-mono text-[11px] text-[rgba(255,255,255,0.18)]">02</span>
+            <div className="ml-4 mt-6 border-l-[2px] border-[rgba(200,255,50,0.3)] pl-6 sm:ml-8 sm:pl-8">
+              <p className="font-[Unbounded,sans-serif] text-[clamp(22px,3vw,30px)] font-normal leading-[1.35] tracking-[-0.03em] text-[rgba(255,255,255,0.88)]">
+                What felt missing.
+              </p>
+              <p className="mt-5 max-w-[34rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.48)]">
+                I honestly started this project intially to solve a problem/annoyance I was running
+                into in this agentic age of programming. This tool allows you to view, edit, and
+                interact with plans that are created by any and all models/agents! I've found it to
+                be super helpful, and I hope you do to.
+              </p>
+            </div>
+          </section>
+
+          <section className="border-t border-[rgba(255,255,255,0.06)] pb-14 pt-10">
+            <span className="font-mono text-[11px] text-[rgba(200,255,50,0.5)]">04</span>
+            <h2 className="mt-4 font-[Unbounded,sans-serif] text-[clamp(24px,3.2vw,36px)] font-normal leading-[1.3] tracking-[-0.04em] text-white">
+              Where this is heading<span className="text-[#c8ff32]">.</span>
+            </h2>
+            <p className="mt-5 max-w-[32rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.48)]">
+              Forward! I have so many ideas on cool/helpful features to implement and would love
+              any/all contributions!
+            </p>
+          </section>
+        </div>
+
+        <footer className="border-t border-[rgba(255,255,255,0.06)] pt-10">
+          <p className="max-w-[28rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.38)]">
+            Thanks for checking this project out, I greatly appreciate it! Never stop being you ❤️
+            Onwards and Upwards 🚀
+          </p>
+          <p className="mt-8 text-[11px] text-[rgba(255,255,255,0.2)]">
             Mascot sprite by{' '}
             <a
               href="https://arks.itch.io/dino-characters"
               target="_blank"
               rel="noreferrer"
-              className="text-[rgba(200,255,50,0.82)] underline decoration-[rgba(200,255,50,0.35)] underline-offset-4"
+              className="underline decoration-[rgba(255,255,255,0.1)] underline-offset-[3px] transition-colors hover:text-[rgba(200,255,50,0.6)]"
             >
               Arks
             </a>{' '}
-            under CC BY 4.0.
+            · CC BY 4.0
           </p>
         </footer>
       </main>
