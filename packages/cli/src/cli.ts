@@ -9,7 +9,7 @@ import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, removePid } from './pid.ts';
 import { syncAll } from './sync.ts';
-import { checkForUpdate, CLI_VERSION } from './version.ts';
+import { CLI_VERSION, checkForUpdate } from './version.ts';
 
 const args = process.argv.slice(2);
 const command = args[0] ?? 'start';
