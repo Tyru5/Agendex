@@ -1,0 +1,10 @@
+Source: Dino Character Sprites by Arks
+URL: https://arks.itch.io/dino-characters
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Files derived from the user-provided archive:
+- dino-vita-sheet.png
+- dino-vita-idle-strip.png
+- dino-vita-walk-strip.png
+- dino-vita-frame.png
+- dino-shadow.png

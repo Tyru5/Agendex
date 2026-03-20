@@ -38,6 +38,7 @@ import { CloudPlanUploader } from './components/CloudPlanUploader.tsx';
 import { CloudUpgrade } from './components/CloudUpgrade.tsx';
 import { CommentThread } from './components/CommentThread.tsx';
 import { DashboardTopbar } from './components/DashboardTopbar.tsx';
+import { AboutMePage } from './components/AboutMePage.tsx';
 import { OnboardingRoute } from './components/OnboardingRoute.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
@@ -1027,6 +1028,7 @@ function CliAuthRoute() {
 }
 
 function HomeRoute() {
+  const [, navigate] = useLocation();
   const { isAuthenticated, isLoading, signIn } = useAuth();
   const hasCachedToken = hasToken();
   const { needsOnboarding, onboardingResolved } = useSubscription({
@@ -1080,7 +1082,7 @@ function HomeRoute() {
     signIn.social({ provider, callbackURL: `${APP_URL}/` });
 
   return (
-    <LandingPage>
+    <LandingPage mascot={{ onActivate: () => startViewTransition(() => navigate('/about-me')) }}>
       <LandingPage.NavbarAuth>
         {() => <EENavbarAuth onLogin={handleLogin} />}
       </LandingPage.NavbarAuth>
@@ -1097,6 +1099,7 @@ export default function App() {
     <Switch>
       <Route path="/auth/cli" component={CliAuthRoute} />
       <Route path="/shared/:token">{({ token }) => <SharedPlanView token={token} />}</Route>
+      <Route path="/about-me" component={AboutMePage} />
       <Route path="/welcome">
         <OnboardingRoute>
           <WelcomeScreen />
