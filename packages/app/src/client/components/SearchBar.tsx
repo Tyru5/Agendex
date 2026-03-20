@@ -203,6 +203,7 @@ export function SearchBar({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && filteredPlans[0]) {
                     if (e.shiftKey && onOpenInSplitView) {
+                      if (isPro) markSeen(filteredPlans[0].id, filteredPlans[0].updatedAt);
                       onOpenInSplitView(filteredPlans[0]);
                     } else {
                       onSelectPlan(filteredPlans[0]);
