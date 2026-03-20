@@ -38,5 +38,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .dmux/
 
 .claude/
+.amp/
 
 .impeccable.md

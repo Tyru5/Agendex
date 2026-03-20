@@ -1,6 +1,8 @@
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import { loadConfig, saveConfig } from '@agendex/shared';
+import { hostname as osHostname } from 'node:os';
+import { loadConfig, loadOrCreateDeviceId, saveConfig } from '@agendex/shared';
+import { readPidInfo } from './pid.ts';
 
 function getCloudConfig() {
   const config = loadConfig();
@@ -75,6 +77,12 @@ async function refreshStoredToken(currentToken: string, convexUrl: string): Prom
 export async function sendHeartbeat(): Promise<void> {
   try {
     const { token, convexUrl } = getCloudConfig();
+    const pidInfo = readPidInfo();
+    const heartbeatBody = JSON.stringify({
+      deviceId: loadOrCreateDeviceId(),
+      hostname: pidInfo?.hostname ?? osHostname(),
+      startedAtMs: pidInfo?.startedAtMs,
+    });
     let activeToken = token;
     let res = await requestText(`${convexUrl}/api/cli/heartbeat`, {
       method: 'POST',
@@ -83,6 +91,7 @@ export async function sendHeartbeat(): Promise<void> {
         Connection: 'close',
         'Content-Type': 'application/json',
       },
+      body: heartbeatBody,
     });
 
     if (res.status === 401) {
@@ -97,6 +106,7 @@ export async function sendHeartbeat(): Promise<void> {
           Connection: 'close',
           'Content-Type': 'application/json',
         },
+        body: heartbeatBody,
       });
     }
 

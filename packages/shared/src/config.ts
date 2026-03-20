@@ -14,6 +14,7 @@ export interface AgendexConfig {
   token?: string;
   cloudToken?: string;
   convexUrl?: string;
+  deviceId?: string;
   enabledAdapters: AdapterId[];
 }
 
@@ -22,6 +23,7 @@ interface StoredConfig {
   token?: unknown;
   cloudToken?: unknown;
   convexUrl?: unknown;
+  deviceId?: unknown;
   enabledAdapters?: unknown;
 }
 
@@ -54,11 +56,14 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     typeof raw.cloudToken === 'string' && raw.cloudToken.trim() ? raw.cloudToken : undefined;
   const convexUrl =
     typeof raw.convexUrl === 'string' && raw.convexUrl.trim() ? raw.convexUrl : undefined;
+  const deviceId =
+    typeof raw.deviceId === 'string' && raw.deviceId.trim() ? raw.deviceId : undefined;
   return {
     configVersion: 3,
     token,
     cloudToken,
     convexUrl,
+    deviceId,
     enabledAdapters: normalizeAdapterIds(raw.enabledAdapters),
   };
 }
@@ -74,6 +79,7 @@ export function saveConfig(config: AgendexConfig) {
     token: config.token,
     cloudToken: config.cloudToken,
     convexUrl: config.convexUrl,
+    deviceId: config.deviceId,
     enabledAdapters: sanitizeEnabledAdapterIds(config.enabledAdapters),
   };
   writeFileSync(configPath, JSON.stringify(payload, null, 2));
@@ -98,6 +104,22 @@ export function loadOrCreateToken(): string {
   console.log(`\n[agendex] generated auth token: ${token}`);
   console.log(`[agendex] saved to ${configPath}\n`);
   return token;
+}
+
+export function loadOrCreateDeviceId(): string {
+  const existing = loadConfig();
+  if (existing?.deviceId) return existing.deviceId;
+
+  const deviceId = randomBytes(16).toString('hex');
+  saveConfig({
+    configVersion: 3,
+    deviceId,
+    enabledAdapters: existing?.enabledAdapters ?? [],
+    token: existing?.token,
+    cloudToken: existing?.cloudToken,
+    convexUrl: existing?.convexUrl,
+  });
+  return deviceId;
 }
 
 export function getConfigPath(): string {
@@ -139,11 +161,14 @@ export async function loadOrInitConfig(options: InitConfigOptions = {}): Promise
     if (enabledAdapters.length === 0) enabledAdapters = getDefaultAdapterIds();
   }
 
+  const deviceId = existing?.deviceId || randomBytes(16).toString('hex');
+
   const nextConfig: AgendexConfig = {
     configVersion: 3,
     token: tokenFromEnv ? existing?.token : currentToken,
     cloudToken: existing?.cloudToken,
     convexUrl: existing?.convexUrl,
+    deviceId,
     enabledAdapters,
   };
   saveConfig(nextConfig);

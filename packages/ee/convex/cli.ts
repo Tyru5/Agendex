@@ -175,18 +175,57 @@ export const sync = httpAction(async (ctx, request) => {
 });
 
 export const upsertHeartbeat = internalMutation({
-  args: { ownerId: v.string() },
+  args: {
+    ownerId: v.string(),
+    deviceId: v.optional(v.string()),
+    hostname: v.optional(v.string()),
+    startedAtMs: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query('daemonHeartbeats')
-      .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
-      .first();
+    const existing = args.deviceId
+      ? await ctx.db
+          .query('daemonHeartbeats')
+          .withIndex('by_owner_device', (q) =>
+            q.eq('ownerId', args.ownerId).eq('deviceId', args.deviceId),
+          )
+          .first()
+      : await ctx.db
+          .query('daemonHeartbeats')
+          .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
+          .first();
+
+    // Clean up stale/legacy rows for this owner
+    if (args.deviceId) {
+      const allRows = await ctx.db
+        .query('daemonHeartbeats')
+        .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
+        .collect();
+      const now = Date.now();
+      for (const row of allRows) {
+        // Delete legacy rows (no deviceId) or rows stale for over 24 hours
+        if (
+          !row.deviceId ||
+          (row.deviceId !== args.deviceId && now - row.lastSeenAt > 86_400_000)
+        ) {
+          await ctx.db.delete(row._id);
+        }
+      }
+    }
+
+    const patch: Record<string, unknown> = { lastSeenAt: Date.now() };
+    if (args.deviceId !== undefined) patch.deviceId = args.deviceId;
+    if (args.hostname !== undefined) patch.hostname = args.hostname;
+    if (args.startedAtMs !== undefined) patch.startedAtMs = args.startedAtMs;
+
     if (existing) {
-      await ctx.db.patch(existing._id, { lastSeenAt: Date.now() });
+      await ctx.db.patch(existing._id, patch);
     } else {
       await ctx.db.insert('daemonHeartbeats', {
         ownerId: args.ownerId,
         lastSeenAt: Date.now(),
+        ...(args.deviceId !== undefined && { deviceId: args.deviceId }),
+        ...(args.hostname !== undefined && { hostname: args.hostname }),
+        ...(args.startedAtMs !== undefined && { startedAtMs: args.startedAtMs }),
       });
     }
   },
@@ -195,14 +234,20 @@ export const upsertHeartbeat = internalMutation({
 export const getDaemonStatus = query({
   handler: async (ctx) => {
     const user = await authComponent.safeGetAuthUser(ctx);
-    if (!user) return { alive: false, lastSeenAt: null };
-    const hb = await ctx.db
+    if (!user) return { devices: [] };
+    const heartbeats = await ctx.db
       .query('daemonHeartbeats')
       .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
-      .first();
-    if (!hb) return { alive: false, lastSeenAt: null };
-    const alive = Date.now() - hb.lastSeenAt < CLI_DAEMON_STALE_AFTER_MS;
-    return { alive, lastSeenAt: hb.lastSeenAt };
+      .collect();
+    return {
+      devices: heartbeats.map((hb) => ({
+        alive: Date.now() - hb.lastSeenAt < CLI_DAEMON_STALE_AFTER_MS,
+        lastSeenAt: hb.lastSeenAt,
+        deviceId: hb.deviceId ?? null,
+        hostname: hb.hostname ?? null,
+        startedAtMs: hb.startedAtMs ?? null,
+      })),
+    };
   },
 });
 
@@ -224,7 +269,24 @@ export const heartbeat = httpAction(async (ctx, request) => {
     });
   }
 
-  await ctx.runMutation(internal.cli.upsertHeartbeat, { ownerId: session.user.id });
+  let body: Record<string, unknown> = {};
+  try {
+    const text = await request.text();
+    if (text) body = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    // Old CLIs send no body — tolerate gracefully
+  }
+
+  const deviceId = typeof body.deviceId === 'string' ? body.deviceId : undefined;
+  const hostname = typeof body.hostname === 'string' ? body.hostname : undefined;
+  const startedAtMs = typeof body.startedAtMs === 'number' ? body.startedAtMs : undefined;
+
+  await ctx.runMutation(internal.cli.upsertHeartbeat, {
+    ownerId: session.user.id,
+    deviceId,
+    hostname,
+    startedAtMs,
+  });
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,

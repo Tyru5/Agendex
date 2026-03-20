@@ -4,8 +4,9 @@ import { useAction } from 'convex/react';
 import { useEffect, useState } from 'react';
 import { Redirect, useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
+import { type DaemonDeviceInfo, useDaemonStatus } from '../hooks/useDaemonStatus';
+import { type Subscription, useSubscription } from '../hooks/useSubscription';
 import { authClient } from '../lib/auth-client';
-import { useSubscription } from '../hooks/useSubscription';
 import { PricingModal } from './PricingModal';
 
 function BackArrow() {
@@ -19,6 +20,7 @@ function BackArrow() {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <path d="M19 12H5M12 19l-7-7 7-7" />
     </svg>
@@ -50,7 +52,7 @@ function AccountSection({
   useEffect(() => {
     authClient.listAccounts().then(({ data }) => {
       if (data && data.length > 0) {
-        setProvider(data[0]!.providerId);
+        setProvider(data[0]?.providerId ?? null);
       }
     });
   }, []);
@@ -87,7 +89,7 @@ function BillingSection({
   createPortal,
   onUpgrade,
 }: {
-  subscription: any;
+  subscription: Subscription | null | undefined;
   isActive: boolean;
   isTrialing: boolean;
   trialDaysLeft: number;
@@ -226,16 +228,15 @@ function DeleteConfirmModal({
         <div className="p-5">
           <label className="block text-[13px] text-secondary mb-2">
             Type <span className="text-text font-medium">{email}</span> to confirm
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={email}
+              disabled={deleting}
+              className="mt-2 w-full px-3 py-2 text-[13px] rounded-default border border-border bg-bg text-text placeholder:text-tertiary outline-none transition-colors duration-150 focus:border-red-500/50"
+            />
           </label>
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={email}
-            autoFocus
-            disabled={deleting}
-            className="w-full px-3 py-2 text-[13px] rounded-default border border-border bg-bg text-text placeholder:text-tertiary outline-none transition-colors duration-150 focus:border-red-500/50"
-          />
         </div>
 
         <div className="flex justify-end gap-2 px-5 pb-5">
@@ -321,9 +322,93 @@ function DangerZone({
   );
 }
 
+function formatUptime(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+function formatRelativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+function DeviceCard({ device }: { device: DaemonDeviceInfo }) {
+  const isAlive = device.status === 'alive';
+  return (
+    <div className="bg-surface border border-border rounded-default p-4 flex flex-col gap-2.5">
+      <div className="flex items-center justify-between">
+        <div className="text-[14px] font-medium text-text truncate">
+          {device.hostname ?? 'Unknown device'}
+        </div>
+        <div className="flex items-center gap-1.5 text-[12px] shrink-0">
+          <span
+            className="inline-block size-2 rounded-full"
+            style={{ background: isAlive ? '#22c55e' : '#eab308' }}
+          />
+          <span className={isAlive ? 'text-text' : 'text-secondary'}>
+            {isAlive ? 'Online' : 'Stale'}
+          </span>
+        </div>
+      </div>
+      <div className="flex gap-6 text-[13px]">
+        <div>
+          <span className="text-secondary">Uptime: </span>
+          <span className="text-text">
+            {device.uptimeMs != null ? formatUptime(device.uptimeMs) : 'n/a'}
+          </span>
+        </div>
+        <div>
+          <span className="text-secondary">Last seen: </span>
+          <span className="text-text">
+            {device.lastSeenAt != null ? formatRelativeTime(device.lastSeenAt) : 'Never'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DaemonSection({ devices }: { devices: DaemonDeviceInfo[] }) {
+  return (
+    <section>
+      <h2 className="text-[14px] font-semibold text-text mb-3">Connected Machines</h2>
+      {devices.length === 0 ? (
+        <div className="bg-surface border border-border rounded-default p-5">
+          <p className="text-[13px] text-secondary">
+            No CLI daemons detected. Run{' '}
+            <code className="text-[12px] bg-hover px-1.5 py-0.5 rounded-default">
+              agendex start
+            </code>{' '}
+            to connect a machine.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {devices.map((device) => (
+            <DeviceCard key={device.deviceId ?? 'legacy'} device={device} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function SettingsPage() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const { subscription, isActive, isTrialing, trialDaysLeft, createPortal } = useSubscription();
+  const { devices } = useDaemonStatus();
   const [, navigate] = useLocation();
   const [showPricing, setShowPricing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -376,6 +461,8 @@ export function SettingsPage() {
           createPortal={createPortal}
           onUpgrade={() => setShowPricing(true)}
         />
+
+        <DaemonSection devices={devices} />
 
         <DangerZone email={user.email} onDeleteAccount={handleDeleteAccount} deleting={deleting} />
       </div>

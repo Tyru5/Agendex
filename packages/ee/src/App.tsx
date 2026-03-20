@@ -31,6 +31,7 @@ import {
   useState,
 } from 'react';
 import { Redirect, Route, Switch, useLocation } from 'wouter';
+import { AboutMePage } from './components/AboutMePage.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
 import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
@@ -38,7 +39,7 @@ import { CloudPlanUploader } from './components/CloudPlanUploader.tsx';
 import { CloudUpgrade } from './components/CloudUpgrade.tsx';
 import { CommentThread } from './components/CommentThread.tsx';
 import { DashboardTopbar } from './components/DashboardTopbar.tsx';
-import { AboutMePage } from './components/AboutMePage.tsx';
+import { EEHeroCta, EENavbarAuth, EEPricingCta } from './components/LandingAuthSlots.tsx';
 import { OnboardingRoute } from './components/OnboardingRoute.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
@@ -47,13 +48,12 @@ import { SettingsPage } from './components/SettingsPage.tsx';
 import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
-import { EENavbarAuth, EEHeroCta, EEPricingCta } from './components/LandingAuthSlots.tsx';
-import { APP_URL } from './lib/auth-client.ts';
 import { useAuth } from './hooks/useAuth.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
+import { APP_URL } from './lib/auth-client.ts';
 
 const PlanEditor = lazy(() =>
   import('@agendex/web').then((m) => ({
@@ -131,7 +131,7 @@ function useDashboardData(
   const cloudPlans = useCloudPlans();
   const localAgents = useAgents(localEnabled);
   const localBackendStatus = useBackendStatus(undefined, localEnabled);
-  const daemonStatus = useDaemonStatus();
+  const { aggregateStatus: daemonStatus, devices: daemonDevices } = useDaemonStatus();
   const cloudBackendStatus =
     daemonStatus === 'stale' ? 'offline' : daemonStatus === 'unknown' ? 'checking' : 'online';
   const backendStatus = mode === 'cloud' ? cloudBackendStatus : localBackendStatus;
@@ -271,6 +271,8 @@ function useDashboardData(
     totalPlans,
     activeAgents,
     backendIndicator,
+    daemonDevices,
+    daemonStatus,
   };
 }
 
@@ -509,7 +511,7 @@ function DashboardSidebar({
   onUpload: () => void;
 }) {
   return (
-    <div
+    <aside
       className="flex flex-col overflow-hidden col-start-1 row-start-2 bg-surface min-w-0 origin-top-left"
       onMouseEnter={onRevealHover}
       onMouseLeave={onScheduleClose}
@@ -655,7 +657,7 @@ function DashboardSidebar({
           />
         )}
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -787,6 +789,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     totalPlans,
     activeAgents,
     backendIndicator,
+    daemonDevices,
+    daemonStatus,
   } = useDashboardData(
     mode,
     agentFilter,
@@ -931,6 +935,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onToggleMode={() => setMode(mode === 'local' ? 'cloud' : 'local')}
         onHistory={() => startViewTransition(() => setActivePanel('history'))}
         onNavigate={(path: string) => startViewTransition(() => navigate(path))}
+        daemonDevices={daemonDevices}
+        daemonAggregateStatus={daemonStatus}
         onShowPricing={() => setShowPricingModal(true)}
       />
 
@@ -1053,13 +1059,13 @@ function HomeRoute() {
     if (isAuthenticated && onboardingResolved && !needsOnboarding && isMarketingHost && appUrl) {
       window.location.href = appUrl;
     }
-  }, [isAuthenticated, onboardingResolved, needsOnboarding, isMarketingHost, appUrl]);
+  }, [isAuthenticated, onboardingResolved, needsOnboarding, isMarketingHost]);
 
   useEffect(() => {
     if (!isAuthenticated && !isLoading && !hasCachedToken && isAppHost && marketingUrl) {
       window.location.href = marketingUrl;
     }
-  }, [isAuthenticated, isLoading, hasCachedToken, isAppHost, marketingUrl]);
+  }, [isAuthenticated, isLoading, hasCachedToken, isAppHost]);
 
   if (isAuthenticated && isMarketingHost && appUrl) return <BootLoadingView />;
 

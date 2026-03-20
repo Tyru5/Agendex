@@ -32,6 +32,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       appUrl,
       'https://*.vercel.app',
       'http://localhost:*',
+      'http://*.agendex.local:*',
     ].filter(Boolean),
     database: authComponent.adapter(ctx),
     socialProviders: {
