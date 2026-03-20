@@ -126,11 +126,12 @@ export function LandingMascot({ greetings, onActivate, triggerElementId }: Landi
     if (typeof window === 'undefined' || !triggerElementId) return;
 
     let observer: IntersectionObserver | null = null;
+    let rafHandle: number | undefined;
 
     const setup = () => {
       const el = document.getElementById(triggerElementId);
       if (!el) {
-        requestAnimationFrame(setup);
+        rafHandle = requestAnimationFrame(setup);
         return;
       }
       observer = new IntersectionObserver(
@@ -141,7 +142,10 @@ export function LandingMascot({ greetings, onActivate, triggerElementId }: Landi
     };
     setup();
 
-    return () => observer?.disconnect();
+    return () => {
+      if (rafHandle !== undefined) cancelAnimationFrame(rafHandle);
+      observer?.disconnect();
+    };
   }, [triggerElementId]);
 
   useEffect(() => {
