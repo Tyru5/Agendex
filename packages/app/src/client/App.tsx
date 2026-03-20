@@ -163,7 +163,10 @@ function Dashboard() {
   }, [selectedPlanId, plansById, setSelectedPlanId]);
 
   useEffect(() => {
-    if (splitPlanId && (!plansById.has(splitPlanId) || splitPlanId === selectedPlanId || !selectedPlanId)) {
+    if (
+      splitPlanId &&
+      (!plansById.has(splitPlanId) || splitPlanId === selectedPlanId || !selectedPlanId)
+    ) {
       setSplitPlanId(null);
     }
   }, [splitPlanId, selectedPlanId, plansById, setSplitPlanId]);

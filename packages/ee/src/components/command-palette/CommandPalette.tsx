@@ -15,6 +15,9 @@ export function CommandPalette({
   onHistory,
   onNavigate,
   onShowPricing,
+  splitPlanId,
+  onOpenInSplitView,
+  onCloseSplit,
 }: {
   search: string;
   onSearch: (q: string) => void;
@@ -28,6 +31,9 @@ export function CommandPalette({
   onHistory: () => void;
   onNavigate: (path: string) => void;
   onShowPricing: () => void;
+  splitPlanId?: string;
+  onOpenInSplitView?: (plan: Plan) => void;
+  onCloseSplit?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -108,6 +114,17 @@ export function CommandPalette({
 
   const commands = useMemo<Command[]>(() => {
     const cmds: Command[] = [];
+
+    if (splitPlanId && onCloseSplit) {
+      cmds.push({
+        id: 'close-split',
+        label: 'Close Split View',
+        group: 'actions',
+        icon: <CloseSplitIcon />,
+        footerHint: 'Exit split pane view',
+        action: onCloseSplit,
+      });
+    }
 
     cmds.push({
       id: 'new-plan',
@@ -202,6 +219,8 @@ export function CommandPalette({
     mode,
     isPro,
     resolvedTheme,
+    splitPlanId,
+    onCloseSplit,
     onNewPlan,
     onUpload,
     onHistory,
@@ -227,6 +246,7 @@ export function CommandPalette({
     isPro,
     onClose: closeModal,
     onSelectPlan,
+    onOpenInSplitView,
   });
 
   const getFocusableIndex = useCallback(
@@ -387,41 +407,97 @@ export function CommandPalette({
                       isPro && isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId;
 
                     return (
-                      <button
+                      <div
                         key={plan.id}
-                        type="button"
+                        className="flex items-stretch gap-1"
                         data-focused={focused || undefined}
-                        className="w-full text-left block py-2.5 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
-                        style={{
-                          background: focused
-                            ? 'var(--hover)'
-                            : plan.id === selectedId
-                              ? 'var(--active)'
-                              : 'transparent',
-                        }}
-                        onClick={() => {
-                          if (isPro) markSeen(plan.id, plan.updatedAt);
-                          onSelectPlan(plan);
-                          closeModal();
-                        }}
-                        onMouseEnter={() => setFocusedIndex(fi)}
                       >
-                        <div
-                          className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
-                          style={{ paddingLeft: unseen ? '14px' : undefined }}
+                        <button
+                          type="button"
+                          className="flex-1 min-w-0 text-left block py-2.5 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
+                          style={{
+                            background: focused
+                              ? 'var(--hover)'
+                              : plan.id === selectedId
+                                ? 'var(--active)'
+                                : 'transparent',
+                          }}
+                          onClick={() => {
+                            if (isPro) markSeen(plan.id, plan.updatedAt);
+                            onSelectPlan(plan);
+                            closeModal();
+                          }}
+                          onMouseEnter={() => setFocusedIndex(fi)}
                         >
-                          {unseen && (
-                            <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
-                          )}
-                          {plan.title}
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
-                          <AgentIcon agent={plan.agent} size={11} />
-                          <span>{getAgentLabel(plan.agent)}</span>
-                          <span>&middot;</span>
-                          <span>{timeAgo(plan.updatedAt)}</span>
-                        </div>
-                      </button>
+                          <div
+                            className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
+                            style={{ paddingLeft: unseen ? '14px' : undefined }}
+                          >
+                            {unseen && (
+                              <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
+                            )}
+                            {plan.title}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
+                            <AgentIcon agent={plan.agent} size={11} />
+                            <span>{getAgentLabel(plan.agent)}</span>
+                            <span>&middot;</span>
+                            <span>{timeAgo(plan.updatedAt)}</span>
+                          </div>
+                        </button>
+                        {onOpenInSplitView && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isPro) markSeen(plan.id, plan.updatedAt);
+                              onOpenInSplitView(plan);
+                              closeModal();
+                            }}
+                            disabled={plan.id === selectedId || plan.id === splitPlanId}
+                            title="Open in split view"
+                            className="shrink-0 flex items-center justify-center w-9 rounded-lg border border-border bg-transparent cursor-pointer transition-[opacity,background] duration-150"
+                            style={{
+                              color:
+                                plan.id === selectedId || plan.id === splitPlanId
+                                  ? 'var(--tertiary)'
+                                  : 'var(--secondary)',
+                              opacity:
+                                plan.id === selectedId || plan.id === splitPlanId ? 0.4 : 0.6,
+                              cursor:
+                                plan.id === selectedId || plan.id === splitPlanId
+                                  ? 'not-allowed'
+                                  : 'pointer',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (plan.id !== selectedId && plan.id !== splitPlanId) {
+                                e.currentTarget.style.opacity = '1';
+                                e.currentTarget.style.background = 'var(--hover)';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.opacity =
+                                plan.id === selectedId || plan.id === splitPlanId ? '0.4' : '0.6';
+                              e.currentTarget.style.background = 'transparent';
+                            }}
+                          >
+                            <svg
+                              aria-hidden="true"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth={1.5}
+                              stroke="currentColor"
+                              className="w-3.5 h-3.5"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5Z"
+                              />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                     );
                   }
 
@@ -472,6 +548,22 @@ function SearchIcon() {
         strokeLinejoin="round"
         d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
       />
+    </svg>
+  );
+}
+
+function CloseSplitIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      className="w-[14px] h-[14px]"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
     </svg>
   );
 }

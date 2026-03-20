@@ -34,6 +34,7 @@ type PlanViewerProps = {
   onHistory?: () => void;
   onShare?: () => void;
   onChartWideChange?: (wide: boolean) => void;
+  mode?: 'single' | 'split';
 };
 
 export function PlanViewer({
@@ -43,8 +44,10 @@ export function PlanViewer({
   onHistory,
   onShare,
   onChartWideChange,
+  mode = 'single',
 }: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
+  const isSplit = mode === 'split';
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(plan.content);
@@ -69,8 +72,12 @@ export function PlanViewer({
 
   return (
     <>
-      {showOutline && <PlanOutline entries={entries} />}
-      <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
+      {showOutline && !isSplit && <PlanOutline entries={entries} />}
+      <div
+        className={
+          isSplit ? 'mx-auto px-6 pt-8 pb-[72px]' : 'max-w-[720px] mx-auto px-8 pt-10 pb-20'
+        }
+      >
         {/* Header */}
         <div className="mb-8 pb-6 border-b border-border">
           <div
@@ -231,7 +238,7 @@ export function PlanViewer({
           <CopyPathButton path={plan.filePath} />
         </div>
 
-        <ScrollToTop />
+        {!isSplit && <ScrollToTop />}
       </div>
     </>
   );

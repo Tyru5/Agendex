@@ -279,8 +279,14 @@ export function PlanList({
                 borderRadius: '7px',
                 border: 'none',
                 background: 'transparent',
-                color: (contextMenu.plan.id === selectedId || contextMenu.plan.id === splitPlanId) ? 'var(--tertiary)' : 'var(--text)',
-                cursor: (contextMenu.plan.id === selectedId || contextMenu.plan.id === splitPlanId) ? 'not-allowed' : 'pointer',
+                color:
+                  contextMenu.plan.id === selectedId || contextMenu.plan.id === splitPlanId
+                    ? 'var(--tertiary)'
+                    : 'var(--text)',
+                cursor:
+                  contextMenu.plan.id === selectedId || contextMenu.plan.id === splitPlanId
+                    ? 'not-allowed'
+                    : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',

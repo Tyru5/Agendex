@@ -34,6 +34,7 @@ export function useCommandItems({
   isPro,
   onClose,
   onSelectPlan,
+  onOpenInSplitView,
 }: {
   commands: Command[];
   plans: Plan[];
@@ -42,6 +43,7 @@ export function useCommandItems({
   isPro: boolean;
   onClose: () => void;
   onSelectPlan?: (plan: Plan) => void;
+  onOpenInSplitView?: (plan: Plan) => void;
 }) {
   const [focusedIndex, setFocusedIndex] = useState(0);
 
@@ -85,7 +87,8 @@ export function useCommandItems({
   );
 
   const focusedItem = focusableItems[focusedIndex];
-  const footerHint = focusedItem?.command?.footerHint ?? (focusedItem?.plan ? 'Open plan' : '');
+  const footerHint =
+    focusedItem?.command?.footerHint ?? (focusedItem?.plan ? 'Open plan · ⇧⏎ Split view' : '');
 
   const executeItem = useCallback(
     (item: FlatItem) => {
@@ -111,11 +114,16 @@ export function useCommandItems({
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (focusedItem) {
-          executeItem(focusedItem);
+          if (e.shiftKey && focusedItem.type === 'plan' && focusedItem.plan && onOpenInSplitView) {
+            onOpenInSplitView(focusedItem.plan);
+            onClose();
+          } else {
+            executeItem(focusedItem);
+          }
         }
       }
     },
-    [focusableItems.length, focusedItem, executeItem],
+    [focusableItems.length, focusedItem, executeItem, onOpenInSplitView, onClose],
   );
 
   const resetFocus = useCallback(() => setFocusedIndex(0), []);
