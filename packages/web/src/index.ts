@@ -51,3 +51,6 @@ export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-mark
 export { filterPlans } from './client/lib/plan-search.ts';
 export { sanitizeSchema } from './client/lib/sanitize-schema.ts';
 export { startViewTransition } from './client/lib/view-transition.ts';
+
+export { default as dinoVitaIdleStrip } from './client/components/landing/dino-vita-idle-strip.png';
+export { default as dinoShadow } from './client/components/landing/dino-shadow.png';

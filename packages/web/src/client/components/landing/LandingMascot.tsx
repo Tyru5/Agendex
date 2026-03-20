@@ -34,8 +34,8 @@ const DINO_RENDER_SIZE = 84;
 const DINO_FRAME_COUNT = 4;
 const WALKER_WIDTH = 112;
 const WALK_MARGIN = 20;
-const WALK_MAX_DURATION_MS = 5400;
-const WALK_MIN_DURATION_MS = 2600;
+const WALK_MAX_DURATION_MS = 8400;
+const WALK_MIN_DURATION_MS = 4600;
 
 function getWalkBounds() {
   if (typeof window === 'undefined') {
@@ -70,6 +70,8 @@ export function LandingMascot({ greetings, onActivate, triggerElementId }: Landi
   const [isNearBottom, setIsNearBottom] = useState(false);
   const positionRef = useRef(positionX);
   const directionRef = useRef<Direction>('right');
+  const bubbleRef = useRef<HTMLSpanElement>(null);
+  const walkerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     positionRef.current = positionX;
@@ -164,6 +166,10 @@ export function LandingMascot({ greetings, onActivate, triggerElementId }: Landi
       return;
     }
 
+    if (hovered) {
+      return;
+    }
+
     let cancelled = false;
     let travelTimer: number | undefined;
     let pauseTimer: number | undefined;
@@ -208,16 +214,33 @@ export function LandingMascot({ greetings, onActivate, triggerElementId }: Landi
       if (travelTimer) window.clearTimeout(travelTimer);
       if (pauseTimer) window.clearTimeout(pauseTimer);
     };
-  }, [isNearBottom, messagePool, reducedMotion]);
+  }, [isNearBottom, messagePool, reducedMotion, hovered]);
+
+  const dinoCenterX = positionX + 14 + DINO_RENDER_SIZE / 2;
+  const bubbleWidth = bubbleRef.current?.offsetWidth ?? 0;
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const bubbleLeft = dinoCenterX - bubbleWidth / 2;
+  const bubbleRight = dinoCenterX + bubbleWidth / 2;
+  const edgePadding = 12;
+  let bubbleShiftX = 0;
+  if (bubbleWidth > 0) {
+    if (bubbleLeft < edgePadding) {
+      bubbleShiftX = edgePadding - bubbleLeft;
+    } else if (bubbleRight > viewportWidth - edgePadding) {
+      bubbleShiftX = viewportWidth - edgePadding - bubbleRight;
+    }
+  }
 
   const speechBubble = (
     <span
-      className="absolute left-1/2 top-6 flex -translate-x-1/2 flex-col items-center"
+      ref={bubbleRef}
+      className="absolute top-3 flex flex-col items-center"
       style={{
+        left: `${14 + DINO_RENDER_SIZE / 2}px`,
         opacity: hovered ? 1 : 0.92,
         transition:
           'opacity 220ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms cubic-bezier(0.22, 1, 0.36, 1)',
-        transform: `translateX(-50%) translateY(${hovered && hoverCapable ? '-4px' : '0'})`,
+        transform: `translateX(calc(-50% + ${bubbleShiftX}px)) translateY(${hovered && hoverCapable ? '-4px' : '0'})`,
       }}
     >
       <span
@@ -262,6 +285,7 @@ export function LandingMascot({ greetings, onActivate, triggerElementId }: Landi
         }}
       >
         <button
+          ref={walkerRef}
           type="button"
           aria-label="Learn more about Ti and this project"
           tabIndex={isNearBottom ? 0 : -1}
@@ -274,12 +298,27 @@ export function LandingMascot({ greetings, onActivate, triggerElementId }: Landi
             transition: `transform ${moving ? walkDurationMs : 260}ms ${moving ? 'linear' : 'cubic-bezier(0.22, 1, 0.36, 1)'}`,
           }}
           onMouseEnter={() => {
-            if (hoverCapable) setHovered(true);
+            if (!hoverCapable) return;
+            if (moving && walkerRef.current) {
+              const rect = walkerRef.current.getBoundingClientRect();
+              const currentX = rect.left;
+              setPositionX(clampPosition(currentX));
+              setMoving(false);
+            }
+            setHovered(true);
           }}
           onMouseLeave={() => {
             if (hoverCapable) setHovered(false);
           }}
-          onFocus={() => setHovered(true)}
+          onFocus={() => {
+            if (moving && walkerRef.current) {
+              const rect = walkerRef.current.getBoundingClientRect();
+              const currentX = rect.left;
+              setPositionX(clampPosition(currentX));
+              setMoving(false);
+            }
+            setHovered(true);
+          }}
           onBlur={() => setHovered(false)}
           onClick={onActivate}
         >
