@@ -263,7 +263,7 @@ export function PlanList({
           >
             <button
               type="button"
-              disabled={contextMenu.plan.id === selectedId}
+              disabled={contextMenu.plan.id === selectedId || contextMenu.plan.id === splitPlanId}
               onClick={() => {
                 if (isPro) markSeen(contextMenu.plan.id, contextMenu.plan.updatedAt);
                 onOpenInSplitView(contextMenu.plan);
@@ -279,14 +279,14 @@ export function PlanList({
                 borderRadius: '7px',
                 border: 'none',
                 background: 'transparent',
-                color: contextMenu.plan.id === selectedId ? 'var(--tertiary)' : 'var(--text)',
-                cursor: contextMenu.plan.id === selectedId ? 'not-allowed' : 'pointer',
+                color: (contextMenu.plan.id === selectedId || contextMenu.plan.id === splitPlanId) ? 'var(--tertiary)' : 'var(--text)',
+                cursor: (contextMenu.plan.id === selectedId || contextMenu.plan.id === splitPlanId) ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
               }}
               onMouseEnter={(e) => {
-                if (contextMenu.plan.id !== selectedId) {
+                if (contextMenu.plan.id !== selectedId && contextMenu.plan.id !== splitPlanId) {
                   e.currentTarget.style.background = 'var(--hover)';
                 }
               }}
