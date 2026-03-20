@@ -19,8 +19,15 @@ export function MachinesIndicator({
         setOpen(false);
       }
     }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [open]);
 
   const aliveCount = devices.filter((d) => d.status === 'alive').length;
@@ -33,6 +40,7 @@ export function MachinesIndicator({
         type="button"
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1.5 text-xs text-tertiary hover:text-secondary transition-colors duration-150 cursor-pointer"
+        aria-label={`Machines: ${aliveCount} of ${devices.length} online`}
       >
         <svg
           aria-hidden="true"

@@ -194,7 +194,7 @@ export const upsertHeartbeat = internalMutation({
           .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
           .first();
 
-    // Clean up stale/legacy rows — only on insert (new device) to avoid scanning on every heartbeat
+    // Clean up stale rows — only on insert (new device) to avoid scanning on every heartbeat
     if (args.deviceId && !existing) {
       const allRows = await ctx.db
         .query('daemonHeartbeats')
@@ -202,16 +202,14 @@ export const upsertHeartbeat = internalMutation({
         .collect();
       const now = Date.now();
       for (const row of allRows) {
-        if (
-          !row.deviceId ||
-          (row.deviceId !== args.deviceId && now - row.lastSeenAt > 86_400_000)
-        ) {
+        if (row.deviceId !== args.deviceId && now - row.lastSeenAt > 86_400_000) {
           await ctx.db.delete(row._id);
         }
       }
     }
 
-    const patch: Record<string, unknown> = { lastSeenAt: Date.now() };
+    const now = Date.now();
+    const patch: Record<string, unknown> = { lastSeenAt: now };
     if (args.deviceId !== undefined) patch.deviceId = args.deviceId;
     if (args.hostname !== undefined) patch.hostname = args.hostname;
     if (args.startedAtMs !== undefined) patch.startedAtMs = args.startedAtMs;
@@ -221,7 +219,7 @@ export const upsertHeartbeat = internalMutation({
     } else {
       await ctx.db.insert('daemonHeartbeats', {
         ownerId: args.ownerId,
-        lastSeenAt: Date.now(),
+        lastSeenAt: now,
         ...(args.deviceId !== undefined && { deviceId: args.deviceId }),
         ...(args.hostname !== undefined && { hostname: args.hostname }),
         ...(args.startedAtMs !== undefined && { startedAtMs: args.startedAtMs }),

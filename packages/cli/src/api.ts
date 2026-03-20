@@ -4,6 +4,8 @@ import { hostname as osHostname } from 'node:os';
 import { loadConfig, loadOrCreateDeviceId, saveConfig } from '@agendex/shared';
 import { readPidInfo } from './pid.ts';
 
+let cachedDeviceId: string | undefined;
+
 function getCloudConfig() {
   const config = loadConfig();
   if (!config?.cloudToken) throw new Error('Not logged in. Run `agendex login` first.');
@@ -79,7 +81,7 @@ export async function sendHeartbeat(): Promise<void> {
     const { token, convexUrl } = getCloudConfig();
     const pidInfo = readPidInfo();
     const heartbeatBody = JSON.stringify({
-      deviceId: loadOrCreateDeviceId(),
+      deviceId: (cachedDeviceId ??= loadOrCreateDeviceId()),
       hostname: pidInfo?.hostname ?? osHostname(),
       startedAtMs: pidInfo?.startedAtMs,
     });
