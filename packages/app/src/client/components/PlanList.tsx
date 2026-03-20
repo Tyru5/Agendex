@@ -133,16 +133,18 @@ export function PlanList({
     function handleClose() {
       setContextMenu(null);
     }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') handleClose();
+    }
     window.addEventListener('pointerdown', handleClose);
     window.addEventListener('scroll', handleClose, true);
     window.addEventListener('resize', handleClose);
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') handleClose();
-    });
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('pointerdown', handleClose);
       window.removeEventListener('scroll', handleClose, true);
       window.removeEventListener('resize', handleClose);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [contextMenu]);
 
