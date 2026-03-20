@@ -11,6 +11,8 @@ export function SearchBar({
   plans,
   selectedId,
   onSelectPlan,
+  splitPlanId,
+  onOpenInSplitView,
   isPro = false,
 }: {
   search: string;
@@ -18,6 +20,8 @@ export function SearchBar({
   plans: Plan[];
   selectedId: string | undefined;
   onSelectPlan: (plan: Plan) => void;
+  splitPlanId?: string;
+  onOpenInSplitView?: (plan: Plan) => void;
   isPro?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -198,7 +202,11 @@ export function SearchBar({
                 onChange={(e) => onSearch(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && filteredPlans[0]) {
-                    onSelectPlan(filteredPlans[0]);
+                    if (e.shiftKey && onOpenInSplitView) {
+                      onOpenInSplitView(filteredPlans[0]);
+                    } else {
+                      onSelectPlan(filteredPlans[0]);
+                    }
                     closeModal();
                   }
                 }}
@@ -286,6 +294,16 @@ export function SearchBar({
                             onSelectPlan(plan);
                             closeModal();
                           }}
+                          onSplitView={
+                            onOpenInSplitView
+                              ? () => {
+                                  if (isPro) markSeen(plan.id, plan.updatedAt);
+                                  onOpenInSplitView(plan);
+                                  closeModal();
+                                }
+                              : undefined
+                          }
+                          splitDisabled={plan.id === selectedId || plan.id === splitPlanId}
                         />
                       ))}
                       <div
@@ -308,6 +326,16 @@ export function SearchBar({
                         onSelectPlan(plan);
                         closeModal();
                       }}
+                      onSplitView={
+                        onOpenInSplitView
+                          ? () => {
+                              if (isPro) markSeen(plan.id, plan.updatedAt);
+                              onOpenInSplitView(plan);
+                              closeModal();
+                            }
+                          : undefined
+                      }
+                      splitDisabled={plan.id === selectedId || plan.id === splitPlanId}
                     />
                   ))}
                 </>
@@ -325,68 +353,133 @@ function SearchPlanRow({
   selected,
   unseen,
   onClick,
+  onSplitView,
+  splitDisabled,
 }: {
   plan: Plan;
   selected: boolean;
   unseen: boolean;
   onClick: () => void;
+  onSplitView?: () => void;
+  splitDisabled?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left block"
+    <div
+      className="flex items-stretch gap-1"
       style={{
-        padding: '10px 8px',
         borderRadius: '8px',
-        background: selected ? 'var(--active)' : 'transparent',
-        cursor: 'pointer',
-        border: 'none',
-        fontFamily: 'inherit',
       }}
     >
-      <div
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex-1 min-w-0 text-left block"
         style={{
-          position: 'relative',
-          fontWeight: 500,
-          fontSize: '13px',
-          lineHeight: 1.35,
-          color: 'var(--text)',
-          letterSpacing: '-0.01em',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical' as const,
-          overflow: 'hidden',
-          paddingLeft: unseen ? '14px' : undefined,
+          padding: '10px 8px',
+          borderRadius: '8px',
+          background: selected ? 'var(--active)' : 'transparent',
+          cursor: 'pointer',
+          border: 'none',
+          fontFamily: 'inherit',
         }}
       >
-        {unseen && (
-          <span
-            className="unseen-dot"
-            style={{
-              position: 'absolute',
-              left: '2px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              background: '#3b82f6',
-            }}
-          />
-        )}
-        {plan.title}
-      </div>
-      <div
-        className="flex items-center gap-1.5"
-        style={{ marginTop: '4px', fontSize: '11.5px', color: 'var(--tertiary)' }}
-      >
-        <AgentIcon agent={plan.agent} size={11} />
-        <span>{getAgentLabel(plan.agent)}</span>
-        <span>&middot;</span>
-        <span>{timeAgo(plan.updatedAt)}</span>
-      </div>
-    </button>
+        <div
+          style={{
+            position: 'relative',
+            fontWeight: 500,
+            fontSize: '13px',
+            lineHeight: 1.35,
+            color: 'var(--text)',
+            letterSpacing: '-0.01em',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical' as const,
+            overflow: 'hidden',
+            paddingLeft: unseen ? '14px' : undefined,
+          }}
+        >
+          {unseen && (
+            <span
+              className="unseen-dot"
+              style={{
+                position: 'absolute',
+                left: '2px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: '#3b82f6',
+              }}
+            />
+          )}
+          {plan.title}
+        </div>
+        <div
+          className="flex items-center gap-1.5"
+          style={{ marginTop: '4px', fontSize: '11.5px', color: 'var(--tertiary)' }}
+        >
+          <AgentIcon agent={plan.agent} size={11} />
+          <span>{getAgentLabel(plan.agent)}</span>
+          <span>&middot;</span>
+          <span>{timeAgo(plan.updatedAt)}</span>
+        </div>
+      </button>
+      {onSplitView && (
+        <button
+          type="button"
+          onClick={onSplitView}
+          disabled={splitDisabled}
+          title="Open in split view"
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '36px',
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: splitDisabled ? 'var(--tertiary)' : 'var(--secondary)',
+            cursor: splitDisabled ? 'not-allowed' : 'pointer',
+            opacity: splitDisabled ? 0.4 : 0.6,
+            transition: 'opacity 0.15s, background 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            if (!splitDisabled) {
+              e.currentTarget.style.opacity = '1';
+              e.currentTarget.style.background = 'var(--hover)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = splitDisabled ? '0.4' : '0.6';
+            e.currentTarget.style.background = 'transparent';
+          }}
+        >
+          <SplitIcon />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SplitIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      style={{ width: '14px', height: '14px' }}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5Z"
+      />
+    </svg>
   );
 }
 
