@@ -1,8 +1,10 @@
-import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { httpAction, internalMutation, internalQuery, query } from './_generated/server';
 import { authComponent, createAuth } from './auth';
+
+const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
+const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
 
 export const findPlanByOwnerAndLocalId = internalQuery({
   args: { ownerId: v.string(), localPlanId: v.string() },
@@ -182,6 +184,8 @@ export const upsertHeartbeat = internalMutation({
     startedAtMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const now = Date.now();
+
     const existing = args.deviceId
       ? await ctx.db
           .query('daemonHeartbeats')
@@ -194,21 +198,26 @@ export const upsertHeartbeat = internalMutation({
           .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
           .first();
 
-    // Clean up stale rows — only on insert (new device) to avoid scanning on every heartbeat
-    if (args.deviceId && !existing) {
+    const shouldCleanup =
+      !existing ||
+      Math.floor(now / DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS) !==
+        Math.floor(existing.lastSeenAt / DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS);
+
+    // Throttle owner-level stale row cleanup so regularly heartbeating machines still
+    // prune old daemon entries without paying a full-table scan on every heartbeat.
+    if (shouldCleanup) {
       const allRows = await ctx.db
         .query('daemonHeartbeats')
         .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
         .collect();
-      const cutoff = Date.now() - 7 * 86_400_000;
+      const cutoff = now - DAEMON_HEARTBEAT_RETENTION_MS;
       for (const row of allRows) {
-        if (row.deviceId !== args.deviceId && row.lastSeenAt < cutoff) {
+        if (row._id !== existing?._id && row.lastSeenAt < cutoff) {
           await ctx.db.delete(row._id);
         }
       }
     }
 
-    const now = Date.now();
     const patch: Record<string, unknown> = { lastSeenAt: now };
     if (args.deviceId !== undefined) patch.deviceId = args.deviceId;
     if (args.hostname !== undefined) patch.hostname = args.hostname;
@@ -236,7 +245,7 @@ export const getDaemonStatus = query({
       .query('daemonHeartbeats')
       .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
       .collect();
-    const cutoff = Date.now() - 7 * 86_400_000;
+    const cutoff = Date.now() - DAEMON_HEARTBEAT_RETENTION_MS;
     return {
       devices: heartbeats
         .filter((hb) => hb.lastSeenAt >= cutoff)
