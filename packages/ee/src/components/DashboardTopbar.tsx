@@ -1,8 +1,10 @@
 import { type Plan, ThemeToggle } from '@agendex/web';
+import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
 import { AuthButton } from './AuthButton';
 import { CommandPalette } from './command-palette/CommandPalette';
 import { SubscriptionBadge } from './SubscriptionBadge';
 import { BrandSection } from './topbar/BrandSection';
+import { MachinesIndicator } from './topbar/MachinesIndicator';
 import { StatusPopover } from './topbar/StatusPopover';
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
@@ -29,6 +31,8 @@ export function DashboardTopbar({
   onToggleMode,
   onHistory,
   onNavigate,
+  daemonDevices,
+  daemonAggregateStatus,
   onShowPricing,
 }: {
   sidebarPinnedOpen: boolean;
@@ -52,6 +56,8 @@ export function DashboardTopbar({
   onToggleMode: () => void;
   onHistory: () => void;
   onNavigate: (path: string) => void;
+  daemonDevices: DaemonDeviceInfo[];
+  daemonAggregateStatus: 'alive' | 'stale' | 'unknown';
   onShowPricing: () => void;
 }) {
   return (
@@ -90,6 +96,8 @@ export function DashboardTopbar({
       </div>
 
       <div className="flex items-center justify-end gap-2.5 min-w-0 shrink-0 pr-4">
+        <MachinesIndicator devices={daemonDevices} aggregateStatus={daemonAggregateStatus} />
+        <div className="w-px h-4 bg-border" />
         <ThemeToggle />
         <SubscriptionBadge />
         <AuthButton />

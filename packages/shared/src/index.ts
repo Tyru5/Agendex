@@ -12,6 +12,7 @@ export type { AgendexConfig, InitConfigOptions } from './config.ts';
 export {
   getConfigPath,
   loadConfig,
+  loadOrCreateDeviceId,
   loadOrCreateToken,
   loadOrInitConfig,
   saveConfig,
