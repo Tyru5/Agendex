@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.6.0
+
+### Minor Changes
+
+- c4a0a86: mutli-daemon support
+
 ## 0.5.0
 
 ### Minor Changes
