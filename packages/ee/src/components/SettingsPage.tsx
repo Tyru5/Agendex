@@ -50,7 +50,7 @@ function AccountSection({
   useEffect(() => {
     authClient.listAccounts().then(({ data }) => {
       if (data && data.length > 0) {
-        setProvider(data[0].providerId);
+        setProvider(data[0]!.providerId);
       }
     });
   }, []);

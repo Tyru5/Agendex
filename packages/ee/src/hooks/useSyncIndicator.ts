@@ -5,7 +5,7 @@ const MIN_DISPLAY_MS = 2000;
 export function useSyncIndicator(plans: { id: string; updatedAt: string }[], loading: boolean) {
   const [isSyncing, setIsSyncing] = useState(false);
   const prevFingerprint = useRef<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const fingerprint = loading
     ? null

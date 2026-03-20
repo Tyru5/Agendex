@@ -735,7 +735,7 @@ function LandingNavbar({
           href="#overview"
           className="font-[Unbounded,sans-serif] text-base font-medium text-white tracking-[-0.02em] no-underline"
         >
-          agendex
+          agendex<span style={{ color: '#c8ff32' }}>.</span>
         </a>
         <div className="landing-nav-links flex items-center gap-[18px]">
           {LANDING_SECTIONS.map((section) => (
