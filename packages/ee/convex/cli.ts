@@ -200,9 +200,9 @@ export const upsertHeartbeat = internalMutation({
         .query('daemonHeartbeats')
         .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
         .collect();
-      const now = Date.now();
+      const cutoff = Date.now() - 86_400_000;
       for (const row of allRows) {
-        if (row.deviceId !== args.deviceId && now - row.lastSeenAt > 86_400_000) {
+        if (row.deviceId !== args.deviceId && row.lastSeenAt < cutoff) {
           await ctx.db.delete(row._id);
         }
       }
@@ -238,7 +238,6 @@ export const getDaemonStatus = query({
       .collect();
     return {
       devices: heartbeats.map((hb) => ({
-        alive: Date.now() - hb.lastSeenAt < CLI_DAEMON_STALE_AFTER_MS,
         lastSeenAt: hb.lastSeenAt,
         deviceId: hb.deviceId ?? null,
         hostname: hb.hostname ?? null,
