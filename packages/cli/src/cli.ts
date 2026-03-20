@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig, loadOrInitConfig } from '@agendex/shared';
 import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
-import { isRunning, readPid, removePid } from './pid.ts';
+import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
 import { syncAll } from './sync.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
 
@@ -17,6 +17,11 @@ const cliEntry = resolve(process.argv[1] ?? fileURLToPath(import.meta.url));
 
 async function main(): Promise<number> {
   const isInternal = args.includes('--daemon') || args.includes('--worker');
+  if (command === '--version' || command === '-v') {
+    writeStdout(CLI_VERSION);
+    return 0;
+  }
+
   const isPassthrough = ['stop', 'status', 'login', 'logout', 'help', '--help', '-h'].includes(
     command,
   );
@@ -111,7 +116,8 @@ async function main(): Promise<number> {
 
     case 'status': {
       const config = loadConfig();
-      const pid = readPid();
+      const pidInfo = readPidInfo();
+      const pid = pidInfo?.pid ?? null;
       const running = pid ? isRunning(pid) : false;
       writeStdout(`[agendex] Config version: ${config?.configVersion ?? 'none'}`);
       writeStdout(`[agendex] Local token: ${config?.token ? 'set' : 'not set'}`);
@@ -119,6 +125,23 @@ async function main(): Promise<number> {
       writeStdout(`[agendex] Convex URL: ${config?.convexUrl ?? 'not set'}`);
       writeStdout(`[agendex] Enabled adapters: ${config?.enabledAdapters.join(', ') || 'none'}`);
       writeStdout(`[agendex] Daemon: ${running ? `running (PID ${pid})` : 'not running'}`);
+
+      if (running && pidInfo?.startedAtMs) {
+        writeStdout(`[agendex] Uptime: ${formatDuration(Date.now() - pidInfo.startedAtMs)}`);
+      } else if (running) {
+        writeStdout(`[agendex] Uptime: unknown (restart daemon to populate)`);
+      } else {
+        writeStdout(`[agendex] Uptime: n/a`);
+      }
+
+      if (running && pidInfo?.hostname) {
+        writeStdout(`[agendex] Hostname: ${pidInfo.hostname}`);
+      } else if (running) {
+        writeStdout(`[agendex] Hostname: unknown (restart daemon to populate)`);
+      } else {
+        writeStdout(`[agendex] Hostname: n/a`);
+      }
+
       writeStdout(`[agendex] CLI version: ${CLI_VERSION}`);
       return 0;
     }
@@ -141,6 +164,8 @@ Usage:
   agendex sync         One-shot scan + sync to cloud
   agendex status       Show current config state + daemon status
   agendex help         Show this help message
+  agendex --version    Print CLI version
+  agendex -v           Print CLI version
 `.trim(),
       );
       return 0;
@@ -187,4 +212,17 @@ function writeStdout(message: string): void {
 
 function writeStderr(message: string): void {
   writeSync(process.stderr.fd, `${message}\n`);
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
