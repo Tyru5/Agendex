@@ -265,6 +265,7 @@ export function PlanList({
               type="button"
               disabled={contextMenu.plan.id === selectedId}
               onClick={() => {
+                if (isPro) markSeen(contextMenu.plan.id, contextMenu.plan.updatedAt);
                 onOpenInSplitView(contextMenu.plan);
                 setContextMenu(null);
               }}

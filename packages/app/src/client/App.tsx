@@ -163,7 +163,7 @@ function Dashboard() {
   }, [selectedPlanId, plansById, setSelectedPlanId]);
 
   useEffect(() => {
-    if (splitPlanId && (!plansById.has(splitPlanId) || splitPlanId === selectedPlanId)) {
+    if (splitPlanId && (!plansById.has(splitPlanId) || splitPlanId === selectedPlanId || !selectedPlanId)) {
       setSplitPlanId(null);
     }
   }, [splitPlanId, selectedPlanId, plansById, setSplitPlanId]);
@@ -284,7 +284,7 @@ function Dashboard() {
             }}
           >
             <div className="main-scroll" style={{ minWidth: 0, overflow: 'auto' }}>
-              <PlanViewer plan={selectedPlan} mode="split" />
+              <PlanViewer plan={selectedPlan!} mode="split" />
             </div>
             <div
               style={{
@@ -294,7 +294,7 @@ function Dashboard() {
               }}
             >
               <PlanViewer
-                plan={splitPlan}
+                plan={splitPlan!}
                 mode="split"
                 headerExtra={
                   <button
