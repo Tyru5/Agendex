@@ -1,5 +1,15 @@
 # agendex-cli
 
+## 0.5.0
+
+### Minor Changes
+
+- 237a15d: Added Version flag and added daemon logic for more info on status flag
+
+### Patch Changes
+
+- 70d180e: Updated README
+
 ## 0.4.0
 
 ### Minor Changes
