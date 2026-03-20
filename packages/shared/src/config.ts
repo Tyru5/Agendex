@@ -112,7 +112,7 @@ export function loadOrCreateDeviceId(): string {
 
   const deviceId = randomBytes(16).toString('hex');
   saveConfig({
-    ...existing,
+    ...(existing ?? {}),
     configVersion: 3,
     deviceId,
     enabledAdapters: existing?.enabledAdapters ?? [],

@@ -40,7 +40,7 @@ export function MachinesIndicator({
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-haspopup="dialog"
         className="flex items-center gap-1.5 text-xs text-tertiary hover:text-secondary transition-colors duration-150 cursor-pointer"
         aria-label={`Machines: ${aliveCount} of ${devices.length} online`}
       >

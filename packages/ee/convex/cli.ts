@@ -200,7 +200,7 @@ export const upsertHeartbeat = internalMutation({
         .query('daemonHeartbeats')
         .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
         .collect();
-      const cutoff = Date.now() - 86_400_000;
+      const cutoff = Date.now() - 7 * 86_400_000;
       for (const row of allRows) {
         if (row.deviceId !== args.deviceId && row.lastSeenAt < cutoff) {
           await ctx.db.delete(row._id);
