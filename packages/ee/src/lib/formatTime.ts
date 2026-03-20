@@ -1,5 +1,5 @@
-export function formatRelativeTime(ts: number): string {
-  const diff = Date.now() - ts;
+export function formatRelativeTime(ts: number, now: number = Date.now()): string {
+  const diff = now - ts;
   const s = Math.floor(diff / 1000);
   if (s < 60) return 'Just now';
   const m = Math.floor(s / 60);

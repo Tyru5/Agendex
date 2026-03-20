@@ -112,12 +112,10 @@ export function loadOrCreateDeviceId(): string {
 
   const deviceId = randomBytes(16).toString('hex');
   saveConfig({
+    ...existing,
     configVersion: 3,
     deviceId,
     enabledAdapters: existing?.enabledAdapters ?? [],
-    token: existing?.token,
-    cloudToken: existing?.cloudToken,
-    convexUrl: existing?.convexUrl,
   });
   return deviceId;
 }

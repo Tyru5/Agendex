@@ -236,13 +236,16 @@ export const getDaemonStatus = query({
       .query('daemonHeartbeats')
       .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
       .collect();
+    const cutoff = Date.now() - 7 * 86_400_000;
     return {
-      devices: heartbeats.map((hb) => ({
-        lastSeenAt: hb.lastSeenAt,
-        deviceId: hb.deviceId ?? null,
-        hostname: hb.hostname ?? null,
-        startedAtMs: hb.startedAtMs ?? null,
-      })),
+      devices: heartbeats
+        .filter((hb) => hb.lastSeenAt >= cutoff)
+        .map((hb) => ({
+          lastSeenAt: hb.lastSeenAt,
+          deviceId: hb.deviceId ?? null,
+          hostname: hb.hostname ?? null,
+          startedAtMs: hb.startedAtMs ?? null,
+        })),
     };
   },
 });
