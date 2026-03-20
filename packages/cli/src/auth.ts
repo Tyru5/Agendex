@@ -2,12 +2,18 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { type AgendexConfig, loadConfig, saveConfig } from '@agendex/shared';
 
-const DEFAULT_SITE_URL = 'https://app.agendex.dev';
+const PROD_SITE_URL = 'https://app.agendex.dev';
+const DEV_SITE_URL = 'http://app.agendex.local:5174';
+
+function getDefaultSiteUrl(): string {
+  if (process.env.AGENDEX_SITE_URL) return process.env.AGENDEX_SITE_URL;
+  return process.env.AGENDEX_DEV === '1' ? DEV_SITE_URL : PROD_SITE_URL;
+}
 
 export async function login(siteUrlOverride?: string): Promise<void> {
   const { port, result } = await startCallbackServer();
   const callbackUrl = `http://127.0.0.1:${port}/callback`;
-  const siteUrl = siteUrlOverride ?? DEFAULT_SITE_URL;
+  const siteUrl = siteUrlOverride ?? getDefaultSiteUrl();
 
   const authUrl = `${siteUrl}/auth/cli?callback=${encodeURIComponent(callbackUrl)}`;
 
