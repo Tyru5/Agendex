@@ -61,7 +61,7 @@ Run these in separate terminals:
 bun run dev
 
 # OSS Vite client (http://localhost:5173)
-bun run dev:client
+bun run dev:client:oss
 ```
 
 ### 3. Sign in locally with your token
@@ -89,8 +89,7 @@ From repo root:
 
 ```bash
 bun run dev                 # run OSS API server (@agendex/app) on :4890
-bun run dev:client          # run OSS client on :5173
-bun run dev:client:oss      # run OSS client explicitly on :5173
+bun run dev:client:oss      # run OSS client on :5173
 bun run dev:client:ee       # run EE client on :5174
 bun run build               # build OSS client bundle
 bun run build:cloud         # build EE client bundle
