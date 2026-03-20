@@ -2568,6 +2568,7 @@ body {
 /* Items */
 .plan-outline-item {
   display: block;
+  flex-shrink: 0;
   width: 100%;
   text-align: left;
   padding: 5px 10px;
