@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { type DaemonDeviceInfo, useDaemonStatus } from '../hooks/useDaemonStatus';
 import { type Subscription, useSubscription } from '../hooks/useSubscription';
 import { authClient } from '../lib/auth-client';
+import { formatRelativeTime, formatUptime } from '../lib/formatTime';
 import { PricingModal } from './PricingModal';
 
 function BackArrow() {
@@ -233,6 +234,7 @@ function DeleteConfirmModal({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={email}
+              autoFocus
               disabled={deleting}
               className="mt-2 w-full px-3 py-2 text-[13px] rounded-default border border-border bg-bg text-text placeholder:text-tertiary outline-none transition-colors duration-150 focus:border-red-500/50"
             />
@@ -322,28 +324,6 @@ function DangerZone({
   );
 }
 
-function formatUptime(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h > 0) return `${h}h ${m}m ${sec}s`;
-  if (m > 0) return `${m}m ${sec}s`;
-  return `${sec}s`;
-}
-
-function formatRelativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return 'just now';
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
-
 function DeviceCard({ device }: { device: DaemonDeviceInfo }) {
   const isAlive = device.status === 'alive';
   return (
@@ -396,8 +376,8 @@ function DaemonSection({ devices }: { devices: DaemonDeviceInfo[] }) {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {devices.map((device) => (
-            <DeviceCard key={device.deviceId ?? 'legacy'} device={device} />
+          {devices.map((device, i) => (
+            <DeviceCard key={device.deviceId ?? `device-${i}`} device={device} />
           ))}
         </div>
       )}

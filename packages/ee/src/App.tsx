@@ -1059,13 +1059,13 @@ function HomeRoute() {
     if (isAuthenticated && onboardingResolved && !needsOnboarding && isMarketingHost && appUrl) {
       window.location.href = appUrl;
     }
-  }, [isAuthenticated, onboardingResolved, needsOnboarding, isMarketingHost]);
+  }, [isAuthenticated, onboardingResolved, needsOnboarding, isMarketingHost, appUrl]);
 
   useEffect(() => {
     if (!isAuthenticated && !isLoading && !hasCachedToken && isAppHost && marketingUrl) {
       window.location.href = marketingUrl;
     }
-  }, [isAuthenticated, isLoading, hasCachedToken, isAppHost]);
+  }, [isAuthenticated, isLoading, hasCachedToken, isAppHost, marketingUrl]);
 
   if (isAuthenticated && isMarketingHost && appUrl) return <BootLoadingView />;
 

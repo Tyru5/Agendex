@@ -194,15 +194,14 @@ export const upsertHeartbeat = internalMutation({
           .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
           .first();
 
-    // Clean up stale/legacy rows for this owner
-    if (args.deviceId) {
+    // Clean up stale/legacy rows — only on insert (new device) to avoid scanning on every heartbeat
+    if (args.deviceId && !existing) {
       const allRows = await ctx.db
         .query('daemonHeartbeats')
         .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
         .collect();
       const now = Date.now();
       for (const row of allRows) {
-        // Delete legacy rows (no deviceId) or rows stale for over 24 hours
         if (
           !row.deviceId ||
           (row.deviceId !== args.deviceId && now - row.lastSeenAt > 86_400_000)

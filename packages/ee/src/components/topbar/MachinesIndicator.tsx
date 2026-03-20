@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DaemonDeviceInfo } from '../../hooks/useDaemonStatus';
-
-function formatRelativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  if (diff < 60_000) return 'Just now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
-}
+import { formatRelativeTime } from '../../lib/formatTime';
 
 export function MachinesIndicator({
   devices,
