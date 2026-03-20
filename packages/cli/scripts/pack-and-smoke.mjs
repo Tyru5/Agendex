@@ -132,7 +132,10 @@ async function exerciseDaemon(env, cloudState) {
   await waitFor(async () => {
     try {
       const value = (await readFile(pidPath, 'utf-8')).trim();
-      return /^\d+$/.test(value);
+      // Supports both legacy bare-PID and new JSON format
+      if (/^\d+$/.test(value)) return true;
+      const parsed = JSON.parse(value);
+      return Number.isFinite(parsed.pid) && parsed.pid > 0;
     } catch {
       return false;
     }

@@ -1,19 +1,46 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, hostname } from 'node:os';
 import { dirname, join } from 'node:path';
 
 const pidPath = join(homedir(), '.agendex', 'daemon.pid');
 
+export interface DaemonPidInfo {
+  pid: number;
+  startedAtMs?: number;
+  hostname?: string;
+}
+
 export function writePid(): void {
   mkdirSync(dirname(pidPath), { recursive: true });
-  writeFileSync(pidPath, String(process.pid));
+  const info: DaemonPidInfo = {
+    pid: process.pid,
+    startedAtMs: Date.now(),
+    hostname: hostname(),
+  };
+  writeFileSync(pidPath, JSON.stringify(info));
+}
+
+export function readPidInfo(): DaemonPidInfo | null {
+  if (!existsSync(pidPath)) return null;
+  const raw = readFileSync(pidPath, 'utf-8').trim();
+
+  // Legacy format: bare PID number
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber) && asNumber > 0 && !raw.startsWith('{')) {
+    return { pid: asNumber };
+  }
+
+  // New format: JSON
+  try {
+    const parsed = JSON.parse(raw) as DaemonPidInfo;
+    if (Number.isFinite(parsed.pid) && parsed.pid > 0) return parsed;
+  } catch {}
+
+  return null;
 }
 
 export function readPid(): number | null {
-  if (!existsSync(pidPath)) return null;
-  const raw = readFileSync(pidPath, 'utf-8').trim();
-  const pid = Number(raw);
-  return Number.isFinite(pid) && pid > 0 ? pid : null;
+  return readPidInfo()?.pid ?? null;
 }
 
 export function removePid(): void {
