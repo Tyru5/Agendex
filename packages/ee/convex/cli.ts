@@ -200,7 +200,7 @@ export const upsertHeartbeat = internalMutation({
 
     const shouldCleanup =
       !existing ||
-      now - (existing.lastCleanedAt ?? 0) >= DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS;
+      now - (existing.lastCleanedAt ?? existing.lastSeenAt) >= DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS;
 
     if (shouldCleanup) {
       const allRows = await ctx.db
@@ -211,6 +211,8 @@ export const upsertHeartbeat = internalMutation({
       for (const row of allRows) {
         if (row._id !== existing?._id && row.lastSeenAt < cutoff) {
           await ctx.db.delete(row._id);
+        } else if (row._id !== existing?._id) {
+          await ctx.db.patch(row._id, { lastCleanedAt: now });
         }
       }
     }
