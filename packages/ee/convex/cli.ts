@@ -199,7 +199,7 @@ export const upsertHeartbeat = internalMutation({
           .first();
 
     let lastCleanedAt = existing?.lastCleanedAt ?? 0;
-    if (!existing) {
+    if (!existing && args.deviceId) {
       const sibling = await ctx.db
         .query('daemonHeartbeats')
         .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
