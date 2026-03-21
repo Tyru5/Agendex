@@ -236,7 +236,7 @@ export const upsertHeartbeat = internalMutation({
       await ctx.db.insert('daemonHeartbeats', {
         ownerId: args.ownerId,
         lastSeenAt: now,
-        lastCleanedAt: now,
+        lastCleanedAt: shouldCleanup ? now : lastCleanedAt || now,
         ...(args.deviceId !== undefined && { deviceId: args.deviceId }),
         ...(args.hostname !== undefined && { hostname: args.hostname }),
         ...(args.startedAtMs !== undefined && { startedAtMs: args.startedAtMs }),
