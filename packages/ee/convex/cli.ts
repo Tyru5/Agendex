@@ -198,9 +198,16 @@ export const upsertHeartbeat = internalMutation({
           .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
           .first();
 
+    let lastCleanedAt = existing?.lastCleanedAt ?? 0;
+    if (!existing) {
+      const sibling = await ctx.db
+        .query('daemonHeartbeats')
+        .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
+        .first();
+      if (sibling?.lastCleanedAt) lastCleanedAt = sibling.lastCleanedAt;
+    }
     const shouldCleanup =
-      !existing ||
-      now - (existing.lastCleanedAt ?? existing.lastSeenAt) >= DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS;
+      now - lastCleanedAt >= DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS;
 
     if (shouldCleanup) {
       const allRows = await ctx.db
