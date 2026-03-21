@@ -200,8 +200,7 @@ export const upsertHeartbeat = internalMutation({
 
     const shouldCleanup =
       !existing ||
-      Math.floor(now / DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS) !==
-        Math.floor(existing.lastSeenAt / DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS);
+      now - existing.lastSeenAt >= DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS;
 
     // Throttle owner-level stale row cleanup so regularly heartbeating machines still
     // prune old daemon entries without paying a full-table scan on every heartbeat.
