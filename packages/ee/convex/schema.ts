@@ -136,6 +136,7 @@ export default defineSchema({
   daemonHeartbeats: defineTable({
     ownerId: v.string(),
     lastSeenAt: v.number(),
+    lastCleanedAt: v.optional(v.number()),
     deviceId: v.optional(v.string()),
     hostname: v.optional(v.string()),
     startedAtMs: v.optional(v.number()),

@@ -200,10 +200,8 @@ export const upsertHeartbeat = internalMutation({
 
     const shouldCleanup =
       !existing ||
-      now - existing.lastSeenAt >= DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS;
+      now - (existing.lastCleanedAt ?? 0) >= DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS;
 
-    // Throttle owner-level stale row cleanup so regularly heartbeating machines still
-    // prune old daemon entries without paying a full-table scan on every heartbeat.
     if (shouldCleanup) {
       const allRows = await ctx.db
         .query('daemonHeartbeats')
@@ -218,6 +216,7 @@ export const upsertHeartbeat = internalMutation({
     }
 
     const patch: Record<string, unknown> = { lastSeenAt: now };
+    if (shouldCleanup) patch.lastCleanedAt = now;
     if (args.deviceId !== undefined) patch.deviceId = args.deviceId;
     if (args.hostname !== undefined) patch.hostname = args.hostname;
     if (args.startedAtMs !== undefined) patch.startedAtMs = args.startedAtMs;
@@ -228,6 +227,7 @@ export const upsertHeartbeat = internalMutation({
       await ctx.db.insert('daemonHeartbeats', {
         ownerId: args.ownerId,
         lastSeenAt: now,
+        lastCleanedAt: now,
         ...(args.deviceId !== undefined && { deviceId: args.deviceId }),
         ...(args.hostname !== undefined && { hostname: args.hostname }),
         ...(args.startedAtMs !== undefined && { startedAtMs: args.startedAtMs }),
