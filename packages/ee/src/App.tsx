@@ -329,6 +329,9 @@ function DashboardMain({
   onSwitchLocal,
   onSearch,
   onRescan,
+  isSplitView,
+  splitPlan,
+  onCloseSplit,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -352,7 +355,106 @@ function DashboardMain({
   onSwitchLocal: () => void;
   onSearch: () => void;
   onRescan: () => Promise<void>;
+  isSplitView?: boolean;
+  splitPlan?: Plan;
+  onCloseSplit?: () => void;
 }) {
+  if (
+    isSplitView &&
+    splitPlan &&
+    selectedPlan &&
+    !editing &&
+    !creating &&
+    !uploading &&
+    !showHistory
+  ) {
+    return (
+      <div
+        className="col-start-2 row-start-2 bg-bg grid overflow-hidden"
+        style={{
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+          gridTemplateRows: 'auto 1fr',
+          minWidth: 0,
+          minHeight: 0,
+        }}
+      >
+        <div
+          className="col-span-2 flex items-center justify-center gap-3 px-4 py-1.5 border-b border-border bg-surface"
+          style={{ fontSize: '12px', color: 'var(--secondary)' }}
+        >
+          <svg
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            className="w-3.5 h-3.5 opacity-50"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5Z"
+            />
+          </svg>
+          <span>Split View</span>
+          <button
+            type="button"
+            onClick={onCloseSplit}
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium font-[inherit] rounded-md border border-border bg-transparent text-tertiary cursor-pointer hover:text-secondary hover:border-[var(--tertiary)] transition-colors duration-150"
+          >
+            <svg
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              className="w-2.5 h-2.5"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+            Close
+          </button>
+        </div>
+        <div className="main-scroll overflow-auto" style={{ minWidth: 0 }}>
+          <PlanViewer
+            plan={selectedPlan}
+            mode="split"
+            onEdit={onEdit}
+            onChartWideChange={onChartWideChange}
+            onHistory={isPro ? onHistory : undefined}
+            onShare={isPro ? onShare : undefined}
+            headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
+          />
+          {isPro && mode === 'cloud' && (
+            <div className="mx-auto px-6 pb-16">
+              <CommentThread planId={selectedPlan.id} isOwner />
+            </div>
+          )}
+        </div>
+        <div className="overflow-auto border-l border-border" style={{ minWidth: 0 }}>
+          <PlanViewer
+            plan={splitPlan}
+            mode="split"
+            onChartWideChange={onChartWideChange}
+            onHistory={isPro ? onHistory : undefined}
+            onShare={isPro ? onShare : undefined}
+            headerExtra={isPro ? <PlanTagsBar planId={splitPlan.id} /> : undefined}
+          />
+          {isPro && mode === 'cloud' && (
+            <div className="mx-auto px-6 pb-16">
+              <CommentThread planId={splitPlan.id} isOwner />
+            </div>
+          )}
+        </div>
+        {sharing && isPro && (
+          <SharePlanDialog plan={selectedPlan} mode={mode} onClose={onCloseShare} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className="overflow-auto main-scroll col-start-2 row-start-2 bg-bg"
@@ -480,6 +582,8 @@ function DashboardSidebar({
   onSelectPlan,
   onNewPlan,
   onUpload,
+  splitPlanId,
+  onOpenInSplitView,
 }: {
   sidebarHidden: boolean;
   sidebarVisible: boolean;
@@ -509,6 +613,8 @@ function DashboardSidebar({
   onSelectPlan: (plan: Plan) => void;
   onNewPlan: () => void;
   onUpload: () => void;
+  splitPlanId?: string;
+  onOpenInSplitView?: (plan: Plan) => void;
 }) {
   return (
     <aside
@@ -654,6 +760,8 @@ function DashboardSidebar({
             selectedId={selectedPlan?.id}
             onSelect={onSelectPlan}
             isPro={isPro}
+            splitPlanId={splitPlanId}
+            onOpenInSplitView={onOpenInSplitView}
           />
         )}
       </div>
@@ -722,6 +830,10 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   );
   const [selectedPlanId, setSelectedPlanId] = useQueryState(
     'plan',
+    parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
+  );
+  const [splitPlanId, setSplitPlanId] = useQueryState(
+    'split',
     parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
   );
 
@@ -802,6 +914,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     isPro,
   );
 
+  const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
+
   const sidebarPinnedOpen = !sidebarHidden;
   const sidebarPeekOpen = sidebarHidden && sidebarPeek;
   const sidebarVisible = sidebarPinnedOpen || sidebarPeekOpen;
@@ -833,12 +947,22 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     return mode === 'local' ? filteredPlans[0] : undefined;
   }, [filteredPlans, plans, optimisticSelectedPlan, selectedPlanId, mode]);
 
+  const splitPlan = useMemo(() => {
+    if (!splitPlanId) return undefined;
+    return plansById.get(splitPlanId) ?? plans.find((p) => p.id === splitPlanId);
+  }, [plansById, plans, splitPlanId]);
+
+  const isSplitView = !!selectedPlan && !!splitPlan && selectedPlan.id !== splitPlan.id;
+
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
       setOptimisticSelectedPlan(plan);
       setSelectedPlanId(plan?.id ?? null);
+      if (!plan || splitPlanId === plan.id) {
+        setSplitPlanId(null);
+      }
     },
-    [setSelectedPlanId],
+    [setSelectedPlanId, splitPlanId, setSplitPlanId],
   );
 
   useEffect(() => {
@@ -872,6 +996,28 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     setActivePanel,
     setSelectedPlanId,
   ]);
+
+  const openPlanInSplitView = useCallback(
+    (plan: Plan) => {
+      if (!selectedPlanId) {
+        setSelectedPlanId(plan.id);
+        return;
+      }
+      if (plan.id === selectedPlanId) return;
+      setSplitPlanId(plan.id);
+    },
+    [selectedPlanId, setSelectedPlanId, setSplitPlanId],
+  );
+
+  const closeSplitView = useCallback(() => {
+    setSplitPlanId(null);
+  }, [setSplitPlanId]);
+
+  useEffect(() => {
+    if (splitPlanId && splitPlanId === selectedPlanId) {
+      setSplitPlanId(null);
+    }
+  }, [splitPlanId, selectedPlanId, setSplitPlanId]);
 
   function handleSaved() {
     setActivePanel(null);
@@ -938,6 +1084,9 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         daemonDevices={daemonDevices}
         daemonAggregateStatus={daemonStatus}
         onShowPricing={() => setShowPricingModal(true)}
+        splitPlanId={splitPlanId ?? undefined}
+        onOpenInSplitView={openPlanInSplitView}
+        onCloseSplit={splitPlanId ? closeSplitView : undefined}
       />
 
       {sidebarHidden && (
@@ -983,6 +1132,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onSelectPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
         onNewPlan={handleNewPlan}
         onUpload={handleUpload}
+        splitPlanId={splitPlanId ?? undefined}
+        onOpenInSplitView={(plan: Plan) => startViewTransition(() => openPlanInSplitView(plan))}
       />
 
       <DashboardMain
@@ -1020,6 +1171,9 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onRescan={async () => {
           await refresh();
         }}
+        isSplitView={isSplitView}
+        splitPlan={splitPlan}
+        onCloseSplit={closeSplitView}
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}

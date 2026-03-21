@@ -34,6 +34,7 @@ export function PlanViewer({
   onHistory,
   onShare,
   onChartWideChange,
+  mode = 'single',
 }: {
   plan: Plan;
   headerExtra?: ReactNode;
@@ -41,8 +42,10 @@ export function PlanViewer({
   onHistory?: () => void;
   onShare?: () => void;
   onChartWideChange?: (wide: boolean) => void;
+  mode?: 'single' | 'split';
   [key: string]: unknown;
 }) {
+  const isSplit = mode === 'split';
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -68,8 +71,14 @@ export function PlanViewer({
 
   return (
     <>
-      {showOutline && <PlanOutline entries={entries} />}
-      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '40px 32px 80px' }}>
+      {showOutline && !isSplit && <PlanOutline entries={entries} />}
+      <div
+        style={{
+          maxWidth: isSplit ? '100%' : '720px',
+          margin: '0 auto',
+          padding: isSplit ? '32px 24px 72px' : '40px 32px 80px',
+        }}
+      >
         {/* Header */}
         <div
           style={{
@@ -331,7 +340,7 @@ export function PlanViewer({
           <CopyPathButton path={plan.filePath} />
         </div>
 
-        <ScrollToTop />
+        {!isSplit && <ScrollToTop />}
       </div>
     </>
   );

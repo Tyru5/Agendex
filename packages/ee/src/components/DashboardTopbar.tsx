@@ -34,6 +34,9 @@ export function DashboardTopbar({
   daemonDevices,
   daemonAggregateStatus,
   onShowPricing,
+  splitPlanId,
+  onOpenInSplitView,
+  onCloseSplit,
 }: {
   sidebarPinnedOpen: boolean;
   sidebarHidden: boolean;
@@ -59,6 +62,9 @@ export function DashboardTopbar({
   daemonDevices: DaemonDeviceInfo[];
   daemonAggregateStatus: 'alive' | 'stale' | 'unknown';
   onShowPricing: () => void;
+  splitPlanId?: string;
+  onOpenInSplitView: (plan: Plan) => void;
+  onCloseSplit?: () => void;
 }) {
   return (
     <div
@@ -92,6 +98,9 @@ export function DashboardTopbar({
           onHistory={onHistory}
           onNavigate={onNavigate}
           onShowPricing={onShowPricing}
+          splitPlanId={splitPlanId}
+          onOpenInSplitView={onOpenInSplitView}
+          onCloseSplit={onCloseSplit}
         />
       </div>
 

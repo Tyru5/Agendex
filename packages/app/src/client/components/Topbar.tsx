@@ -33,6 +33,8 @@ interface TopbarProps {
   plans: Plan[];
   selectedPlan?: Plan;
   onSelectPlan: (plan: Plan | undefined) => void;
+  splitPlanId?: string;
+  onOpenInSplitView: (plan: Plan) => void;
   totalPlans: number;
   activeAgents: number;
   backendStatus: 'online' | 'offline' | 'checking';
@@ -48,6 +50,8 @@ export function Topbar({
   plans,
   selectedPlan,
   onSelectPlan,
+  splitPlanId,
+  onOpenInSplitView,
   totalPlans,
   activeAgents,
   backendStatus,
@@ -121,6 +125,8 @@ export function Topbar({
           plans={plans}
           selectedId={selectedPlan?.id}
           onSelectPlan={onSelectPlan}
+          splitPlanId={splitPlanId}
+          onOpenInSplitView={onOpenInSplitView}
         />
       </div>
 
