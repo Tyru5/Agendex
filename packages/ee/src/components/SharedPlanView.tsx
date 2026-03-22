@@ -9,7 +9,7 @@ import {
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
@@ -30,7 +30,6 @@ function timeAgo(dateStr: string): string {
 export function SharedPlanView({ token }: { token: string }) {
   const plan = useQuery(api.plans.getPlanByShareToken, { token });
   const [fullscreen, setFullscreen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -82,7 +81,7 @@ export function SharedPlanView({ token }: { token: string }) {
   const { entries, renderContent, renderMode } = outline;
 
   const content = (
-    <div className="min-h-screen bg-bg text-text main-scroll" ref={containerRef}>
+    <div className="min-h-screen bg-bg text-text main-scroll">
       {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
         <PlanOutline entries={entries} />
       )}

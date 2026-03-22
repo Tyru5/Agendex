@@ -372,7 +372,7 @@ export function PlanViewer({
           <CopyPathButton path={plan.filePath} />
         </div>
 
-        {!isSplit && <ScrollToTop />}
+        {!isSplit && <ScrollToTop key={String(fullscreen)} />}
       </div>
     </>
   );
