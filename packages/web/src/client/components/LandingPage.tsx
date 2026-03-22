@@ -405,14 +405,14 @@ function BentoCard({
 
 function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="inline-flex bg-[#141414] border border-[rgba(255,255,255,0.06)] rounded-[30px] p-1 gap-0.5">
+    <div className="inline-flex max-w-full flex-wrap justify-center bg-[#141414] border border-[rgba(255,255,255,0.06)] rounded-[30px] p-1 gap-0.5">
       {(['Monthly', 'Yearly'] as const).map((label) => {
         const active = label === 'Yearly' ? yearly : !yearly;
         return (
           <button
             key={label}
             onClick={() => onChange(label === 'Yearly')}
-            className="px-5 py-2 rounded-[26px] border-none text-[13px] font-medium font-[Inter,-apple-system,system-ui,sans-serif] cursor-pointer transition-[background,color] duration-200"
+            className="px-4 sm:px-5 py-2 rounded-[26px] border-none text-[13px] font-medium font-[Inter,-apple-system,system-ui,sans-serif] cursor-pointer transition-[background,color] duration-200"
             style={{
               background: active ? ACCENT : 'transparent',
               color: active ? '#0a0a0a' : TEXT_SECONDARY,
@@ -453,7 +453,7 @@ function PricingCard({
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="flex-1 bg-[#141414] rounded-[20px] p-10 relative overflow-hidden transition-[transform,border-color] duration-300"
+      className="flex-1 bg-[#141414] rounded-[20px] p-6 sm:p-8 md:p-10 relative overflow-hidden transition-[transform,border-color] duration-300"
       style={{
         border: `1px solid ${isPro ? 'rgba(200,255,50,0.25)' : BORDER}`,
         transform: hovered ? 'translateY(-2px)' : 'none',
@@ -474,7 +474,7 @@ function PricingCard({
         {title}
       </div>
       <div className="flex items-baseline gap-1 mb-2">
-        <span className="text-[48px] font-normal text-white font-[Unbounded,sans-serif] tracking-[-0.03em]">
+        <span className="text-[40px] sm:text-[44px] md:text-[48px] font-normal text-white font-[Unbounded,sans-serif] tracking-[-0.03em]">
           {price}
         </span>
         {period && (
@@ -543,7 +543,7 @@ function LoginModal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[rgba(0,0,0,0.7)] backdrop-blur-[8px]"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[rgba(0,0,0,0.7)] backdrop-blur-[8px] p-4 sm:p-5"
       onClick={(e) => {
         if (e.target === e.currentTarget) startViewTransition(onClose);
       }}
@@ -551,7 +551,7 @@ function LoginModal({
         if (e.key === 'Escape') startViewTransition(onClose);
       }}
     >
-      <div className="bg-[#141414] border border-[rgba(255,255,255,0.06)] rounded-[20px] p-10 w-full max-w-[420px] mx-5">
+      <div className="bg-[#141414] border border-[rgba(255,255,255,0.06)] rounded-[20px] p-6 sm:p-8 md:p-10 w-full max-w-[420px]">
         <h2 className="m-0 mb-2 text-2xl font-semibold text-white font-[Inter,-apple-system,system-ui,sans-serif]">
           Connect to Agendex
         </h2>
@@ -723,56 +723,123 @@ function LandingNavbar({
   signingIn,
   onSignIn,
   authSlot,
+  mobileMenuOpen,
+  onMobileMenuToggle,
+  onMobileMenuClose,
 }: {
   signingIn: boolean;
   onSignIn: () => void;
-  authSlot?: ReactNode;
+  authSlot?: SlotRenderFn;
+  mobileMenuOpen: boolean;
+  onMobileMenuToggle: () => void;
+  onMobileMenuClose: () => void;
 }) {
+  const authAction = authSlot ? (
+    authSlot()
+  ) : (
+    <button
+      type="button"
+      disabled={signingIn}
+      onClick={() => {
+        onMobileMenuClose();
+        onSignIn();
+      }}
+      className="landing-auth-button text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 inline-flex items-center justify-center gap-1.5"
+      style={{
+        cursor: signingIn ? 'default' : 'pointer',
+        opacity: signingIn ? 0.6 : 1,
+      }}
+    >
+      {signingIn && <Spinner size={12} />}
+      {signingIn ? 'Redirecting…' : 'Sign in'}
+    </button>
+  );
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-between px-6 py-3.5 bg-[rgba(10,10,10,0.85)] backdrop-blur-[8px] border-b border-[rgba(255,255,255,0.06)]">
-      <div className="flex items-center gap-7">
-        <a
-          href="#overview"
-          className="font-[Unbounded,sans-serif] text-base font-medium text-white tracking-[-0.02em] no-underline"
+    <nav className="fixed top-0 left-0 right-0 z-[100] border-b border-[rgba(255,255,255,0.06)] bg-[rgba(10,10,10,0.85)] backdrop-blur-[8px]">
+      <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
+        <div className="flex min-w-0 items-center gap-4 sm:gap-7">
+          <a
+            href="#overview"
+            onClick={onMobileMenuClose}
+            className="shrink-0 font-[Unbounded,sans-serif] text-[15px] font-medium text-white tracking-[-0.02em] no-underline sm:text-base"
+          >
+            agendex<span style={{ color: '#c8ff32' }}>.</span>
+          </a>
+          <div className="landing-nav-links hidden items-center gap-[18px] md:flex">
+            {LANDING_SECTIONS.map((section) => (
+              <a
+                key={section.id}
+                href={`#${section.id}`}
+                className="text-[13px] text-[#666] no-underline font-medium tracking-[-0.01em] transition-colors duration-200 hover:text-white"
+              >
+                {section.label}
+              </a>
+            ))}
+          </div>
+        </div>
+
+        <div className="hidden shrink-0 md:block">{authAction}</div>
+
+        <button
+          type="button"
+          aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="landing-mobile-menu"
+          onClick={onMobileMenuToggle}
+          className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] text-white transition-[border-color,background-color] duration-200 md:hidden"
         >
-          agendex<span style={{ color: '#c8ff32' }}>.</span>
-        </a>
-        <div className="landing-nav-links flex items-center gap-[18px]">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none">
+            {mobileMenuOpen ? (
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            ) : (
+              <path
+                d="M4 7h16M4 12h16M4 17h16"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            )}
+          </svg>
+        </button>
+      </div>
+
+      <div
+        id="landing-mobile-menu"
+        className={`border-t border-[rgba(255,255,255,0.06)] px-4 py-4 md:hidden ${
+          mobileMenuOpen ? 'block' : 'hidden'
+        }`}
+      >
+        <div className="mx-auto flex max-w-[1200px] flex-col gap-3">
           {LANDING_SECTIONS.map((section) => (
             <a
               key={section.id}
               href={`#${section.id}`}
-              className="text-[13px] text-[#666] no-underline font-medium tracking-[-0.01em] transition-colors duration-200 hover:text-white"
+              onClick={onMobileMenuClose}
+              className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-[14px] font-medium text-white no-underline transition-[border-color,background-color] duration-200"
             >
               {section.label}
             </a>
           ))}
+          <div className="landing-mobile-auth pt-1">
+            {authSlot ? authSlot() : authAction}
+          </div>
         </div>
       </div>
-      {authSlot || (
-        <button
-          type="button"
-          disabled={signingIn}
-          onClick={onSignIn}
-          className="text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 inline-flex items-center gap-1.5"
-          style={{
-            cursor: signingIn ? 'default' : 'pointer',
-            opacity: signingIn ? 0.6 : 1,
-          }}
-        >
-          {signingIn && <Spinner size={12} />}
-          {signingIn ? 'Redirecting…' : 'Sign in'}
-        </button>
-      )}
     </nav>
   );
 }
 
 function LandingFooter() {
   return (
-    <footer className="flex items-center justify-between px-6 py-3.5 bg-[rgba(10,10,10,0.85)] backdrop-blur-[8px] border-t border-[rgba(255,255,255,0.06)] text-[13px] text-[#666]">
-      <span className="flex-1">© {new Date().getFullYear()} Agendex</span>
-      <span className="flex-1 text-center">
+    <footer className="flex flex-col items-center gap-3 border-t border-[rgba(255,255,255,0.06)] bg-[rgba(10,10,10,0.85)] px-4 py-5 text-center text-[13px] text-[#666] backdrop-blur-[8px] sm:px-6 md:flex-row md:justify-between md:gap-6 md:text-left">
+      <span className="md:flex-1">© {new Date().getFullYear()} Agendex</span>
+      <span className="md:flex-1 md:text-center">
         Made With ❤️ by{' '}
         <a
           href="https://tiru5.me"
@@ -783,12 +850,12 @@ function LandingFooter() {
           Tyrus Malmstrom
         </a>
       </span>
-      <span className="flex-1 text-right">
+      <span className="md:flex-1 md:text-right">
         <a
           href="https://github.com/tiru5/agendex"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white cursor-pointer font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 no-underline inline-flex items-center gap-2"
+          className="text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white cursor-pointer font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 no-underline inline-flex items-center justify-center gap-2"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
@@ -821,38 +888,38 @@ function LandingHero({
       <FAQBackground />
       <section
         id="overview"
-        className="d3-hero relative grid grid-cols-2 items-center max-w-[1100px] mx-auto px-6"
+        className="d3-hero relative grid grid-cols-1 items-center max-w-[1100px] mx-auto px-4 sm:px-6 md:grid-cols-2"
         style={{
-          gap: 230,
+          gap: 64,
           padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
           scrollMarginTop: LANDING_ANCHOR_OFFSET,
         }}
       >
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.15]">
+        <div className="landing-hero-cloud absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.15]">
           <IconCloud images={agentIconImages} />
         </div>
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[20px] bg-[rgba(200,255,50,0.08)] border border-[rgba(200,255,50,0.15)] text-[13px] font-medium text-[#c8ff32] mb-8">
+        <div className="relative z-[1] text-center md:text-left">
+          <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[20px] bg-[rgba(200,255,50,0.08)] border border-[rgba(200,255,50,0.15)] text-[13px] font-medium text-[#c8ff32] mb-6 sm:mb-8">
             <span className="text-[8px] leading-none">{'●'}</span>
             Open Source
           </div>
 
-          <h1 className="font-[Unbounded,sans-serif] text-[clamp(36px,4.5vw,56px)] font-normal leading-[1.08] tracking-[-0.03em] m-0 mb-5 text-white">
+          <h1 className="text-balance font-[Unbounded,sans-serif] text-[clamp(32px,10vw,56px)] font-normal leading-[1.08] tracking-[-0.03em] m-0 mb-5 text-white">
             One dashboard for
             <br />
             <span className="text-[#c8ff32]">every coding agent.</span>
           </h1>
 
-          <p className="text-[15px] leading-[1.7] text-[#777] m-0 mb-8 font-normal max-w-[440px]">
+          <p className="text-pretty text-[15px] leading-[1.7] text-[#777] m-0 mb-8 font-normal max-w-[440px] mx-auto md:mx-0">
             Agendex indexes the plans your AI agents create and surfaces them in a single,
             searchable interface.
           </p>
 
-          <div className="flex gap-3 items-center">
+          <div className="landing-hero-actions flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:justify-center md:justify-start">
             {ctaSlot || (
               <button
                 onClick={onShowLogin}
-                className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
+                className="landing-hero-action inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border-none bg-[#c8ff32] px-7 py-3 text-[15px] font-semibold text-[#0a0a0a] cursor-pointer transition-[opacity,transform] duration-200 sm:w-auto"
               >
                 Get Started
               </button>
@@ -861,7 +928,7 @@ function LandingHero({
               href="https://github.com/Tyru5/agendex"
               target="_blank"
               rel="noopener noreferrer"
-              className="px-7 py-3 rounded-xl border border-[rgba(255,255,255,0.06)] bg-transparent text-white text-[15px] font-medium cursor-pointer no-underline inline-flex items-center gap-2 whitespace-nowrap transition-[border-color] duration-200"
+              className="landing-hero-action inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[rgba(255,255,255,0.06)] bg-transparent px-7 py-3 text-[15px] font-medium text-white cursor-pointer no-underline transition-[border-color] duration-200 sm:w-auto"
             >
               <GitHubIcon16 />
               View on GitHub
@@ -869,7 +936,7 @@ function LandingHero({
           </div>
         </div>
 
-        <div>
+        <div className="relative z-[1]">
           <div className="landing-steps-panel">
             <div className="landing-steps-tabs">
               <button
@@ -1011,6 +1078,7 @@ function extractSlots(children: ReactNode): Record<string, SlotRenderFn> {
 
 function LandingPageInner({ children, mascot }: LandingPageProps) {
   const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { token, showLogin, yearly, openFaq, activeTab, bentoInView, signingIn } = state;
   const setTokenValue = (v: string) => dispatch({ type: 'SET_TOKEN', value: v });
   const setShowLogin = (v: boolean) => dispatch({ type: 'SET_SHOW_LOGIN', value: v });
@@ -1032,7 +1100,6 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
 
   const slots = useMemo(() => extractSlots(children), [children]);
 
-  const navbarAuthNode = slots.NavbarAuth ? slots.NavbarAuth() : undefined;
   const heroCtaNode = slots.HeroCta ? slots.HeroCta() : undefined;
   const pricingCtaNode = slots.PricingCta ? slots.PricingCta() : undefined;
 
@@ -1061,6 +1128,19 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
       target.scrollIntoView({ block: 'start' });
     });
   }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      if (window.innerWidth >= 768) setMobileMenuOpen(false);
+    }
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [activeTab, showLogin]);
 
   useEffect(() => {
     const ids = ['overview', ...LANDING_SECTIONS.map((section) => section.id)];
@@ -1116,9 +1196,6 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
         <TopoNeurons />
         <style>{`
           @media (max-width: 768px) {
-            .landing-nav-links {
-              display: none !important;
-            }
             .d3-hero {
               grid-template-columns: 1fr !important;
               text-align: center;
@@ -1137,6 +1214,16 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
             }
             .d3-guarantee-copy {
               width: 100%;
+            }
+            .landing-hero-cloud {
+              opacity: 0.08 !important;
+              transform: scale(0.82);
+            }
+            .d3-bento-card {
+              transform: none !important;
+            }
+            .d3-bento-card > div {
+              padding: 1.4rem !important;
             }
           }
           @property --border-angle {
@@ -1175,7 +1262,10 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
         <LandingNavbar
           signingIn={signingIn}
           onSignIn={() => startViewTransition(() => setShowLogin(true))}
-          authSlot={navbarAuthNode}
+          authSlot={slots.NavbarAuth}
+          mobileMenuOpen={mobileMenuOpen}
+          onMobileMenuToggle={() => setMobileMenuOpen((open) => !open)}
+          onMobileMenuClose={() => setMobileMenuOpen(false)}
         />
 
         <LandingHero
@@ -1190,13 +1280,13 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
         <section
           id="features"
           ref={bentoRef}
-          className="max-w-[1100px] mx-auto px-6"
+          className="max-w-[1100px] mx-auto px-4 sm:px-6"
           style={{
             padding: 'clamp(60px, 10vh, 120px) 24px',
             scrollMarginTop: LANDING_ANCHOR_OFFSET,
           }}
         >
-          <div className="text-center mb-14">
+          <div className="text-center mb-10 sm:mb-14">
             <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0 mb-3">
               Everything you need
             </h2>
@@ -1285,12 +1375,12 @@ function FAQItem({
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         aria-expanded={open}
-        className="w-full px-1 py-[22px] bg-none border-none text-[15px] font-medium font-[Inter,-apple-system,system-ui,sans-serif] text-left cursor-pointer flex justify-between items-center gap-4 transition-colors duration-200"
+        className="w-full px-1 py-[22px] bg-none border-none text-[15px] font-medium font-[Inter,-apple-system,system-ui,sans-serif] text-left cursor-pointer flex justify-between items-start gap-4 transition-colors duration-200"
         style={{
           color: hovered || open ? TEXT_PRIMARY : 'rgba(255,255,255,0.85)',
         }}
       >
-        {question}
+        <span className="text-pretty leading-[1.5]">{question}</span>
         <div
           className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
           style={{
