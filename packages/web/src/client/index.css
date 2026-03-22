@@ -553,6 +553,18 @@ body {
   background-size: 256px 256px;
 }
 
+@media (max-width: 768px) {
+  .landing-page::after {
+    opacity: 0.55;
+    animation-duration: 12s;
+  }
+
+  .landing-page::before {
+    opacity: 0.02;
+    background-size: 180px 180px;
+  }
+}
+
 .landing-nav-left {
   display: flex;
   align-items: center;
@@ -591,6 +603,14 @@ body {
 
 .landing-nav-link:hover {
   color: var(--landing-text);
+}
+
+.landing-auth-button {
+  min-height: 40px;
+}
+
+.landing-mobile-auth > * {
+  width: 100%;
 }
 
 /* Buttons */
@@ -895,7 +915,7 @@ body {
   .landing-hero {
     grid-template-columns: 1fr;
     gap: 48px;
-    padding: 64px 24px 56px;
+    padding: 64px 20px 56px;
   }
 
   .landing-hero-left {
@@ -910,6 +930,46 @@ body {
 
   .landing-hero-actions {
     justify-content: center;
+  }
+
+  .landing-hero-actions > * {
+    width: 100%;
+  }
+
+  .landing-steps-panel {
+    gap: 10px;
+  }
+
+  .landing-steps-tabs {
+    padding: 3px;
+  }
+
+  .landing-steps-tab {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .landing-pkg-install {
+    padding: 12px;
+  }
+
+  .landing-pkg-cmd {
+    align-items: flex-start;
+  }
+
+  .landing-pkg-cmd code {
+    min-width: 0;
+    white-space: pre;
+  }
+
+  .landing-step-bar {
+    padding: 9px 12px;
+    font-size: 11px;
+  }
+
+  .landing-step-code {
+    padding: 12px;
+    font-size: 12px;
   }
 }
 

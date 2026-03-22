@@ -56,12 +56,12 @@ export function EENavbarAuth({ onLogin }: { onLogin: (provider: 'github' | 'goog
   }
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative w-full md:w-auto" ref={ref}>
       <button
         type="button"
         disabled={signingIn}
         onClick={() => setShowProviders(!showProviders)}
-        className="text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 inline-flex items-center gap-1.5"
+        className="w-full md:w-auto text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 inline-flex items-center justify-center gap-1.5"
         style={{
           cursor: signingIn ? 'default' : 'pointer',
           opacity: signingIn ? 0.6 : 1,
@@ -72,7 +72,7 @@ export function EENavbarAuth({ onLogin }: { onLogin: (provider: 'github' | 'goog
       </button>
       {showProviders && (
         <div
-          className="absolute top-full right-0 mt-2 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-xl overflow-hidden min-w-[200px]"
+          className="absolute left-0 right-0 top-full mt-2 bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] rounded-xl overflow-hidden min-w-[200px] md:left-auto md:right-0 md:w-[220px]"
           style={{ animation: 'statusPopoverIn 120ms ease-out' }}
         >
           <button
@@ -112,7 +112,7 @@ export function EEHeroCta({ onLogin }: { onLogin: (provider: 'github' | 'google'
       return (
         <button
           disabled
-          className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap opacity-70"
+          className="w-full sm:w-auto px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap opacity-70"
         >
           <Spinner size={16} color="#0a0a0a" />
           Redirecting…
@@ -123,13 +123,13 @@ export function EEHeroCta({ onLogin }: { onLogin: (provider: 'github' | 'google'
       <>
         <button
           onClick={() => handleLogin('github')}
-          className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
+          className="w-full sm:w-auto px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
         >
           <GitHubIcon /> GitHub
         </button>
         <button
           onClick={() => handleLogin('google')}
-          className="px-7 py-3 rounded-xl border border-[rgba(255,255,255,0.1)] bg-white text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
+          className="w-full sm:w-auto px-7 py-3 rounded-xl border border-[rgba(255,255,255,0.1)] bg-white text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
         >
           <GoogleIcon /> Google
         </button>
@@ -140,7 +140,7 @@ export function EEHeroCta({ onLogin }: { onLogin: (provider: 'github' | 'google'
   return (
     <button
       onClick={showLogin}
-      className="px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
+      className="w-full sm:w-auto px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
     >
       Get Started
     </button>
@@ -160,7 +160,7 @@ export function EEPricingCta({ onLogin }: { onLogin: (provider: 'github' | 'goog
   }
 
   return (
-    <div className="flex gap-2 w-full">
+    <div className="flex w-full flex-col gap-2 sm:flex-row">
       <button
         disabled={signingIn}
         onClick={() => handleLogin('github')}
