@@ -206,8 +206,7 @@ export const upsertHeartbeat = internalMutation({
         .first();
       if (sibling?.lastCleanedAt) lastCleanedAt = sibling.lastCleanedAt;
     }
-    const shouldCleanup =
-      now - lastCleanedAt >= DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS;
+    const shouldCleanup = now - lastCleanedAt >= DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS;
 
     if (shouldCleanup) {
       const allRows = await ctx.db

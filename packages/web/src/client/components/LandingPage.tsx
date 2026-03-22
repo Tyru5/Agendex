@@ -826,9 +826,7 @@ function LandingNavbar({
               {section.label}
             </a>
           ))}
-          <div className="landing-mobile-auth pt-1">
-            {authSlot ? authSlot() : authAction}
-          </div>
+          <div className="landing-mobile-auth pt-1">{authSlot ? authSlot() : authAction}</div>
         </div>
       </div>
     </nav>
