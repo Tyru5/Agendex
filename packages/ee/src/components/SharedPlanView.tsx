@@ -81,7 +81,7 @@ export function SharedPlanView({ token }: { token: string }) {
   const { entries, renderContent, renderMode } = outline;
 
   const content = (
-    <div className="min-h-screen bg-bg text-text main-scroll">
+    <div className={`min-h-screen bg-bg text-text${fullscreen ? '' : ' main-scroll'}`}>
       {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
         <PlanOutline entries={entries} />
       )}
@@ -183,6 +183,7 @@ export function SharedPlanView({ token }: { token: string }) {
         background: 'var(--bg)',
         overflow: 'auto',
       }}
+      className="main-scroll"
     >
       {content}
     </div>
