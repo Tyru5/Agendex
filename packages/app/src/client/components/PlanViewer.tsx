@@ -79,8 +79,15 @@ export function PlanViewer({
 
   const showOutline = entries.filter((e) => e.source !== 'fallback_root').length >= 2;
 
-  const content = (
-    <>
+  return (
+    <div
+      style={
+        fullscreen
+          ? { position: 'fixed', inset: 0, zIndex: 100, background: 'var(--bg)', overflow: 'auto' }
+          : undefined
+      }
+      className={fullscreen ? 'main-scroll' : undefined}
+    >
       {showOutline && !isSplit && <PlanOutline entries={entries} />}
       <div
         style={{
@@ -374,23 +381,6 @@ export function PlanViewer({
 
         {!isSplit && <ScrollToTop key={String(fullscreen)} />}
       </div>
-    </>
-  );
-
-  if (!fullscreen) return content;
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        background: 'var(--bg)',
-        overflow: 'auto',
-      }}
-      className="main-scroll"
-    >
-      {content}
     </div>
   );
 }
