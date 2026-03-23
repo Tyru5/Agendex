@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
+import { ExitFullscreenIcon, FullscreenIcon, useFullscreen } from '@agendex/web';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
@@ -47,16 +48,7 @@ export function PlanViewer({
 }) {
   const isSplit = mode === 'split';
   const [copied, setCopied] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
-
-  useEffect(() => {
-    if (!fullscreen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setFullscreen(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [fullscreen]);
+  const fullscreen = useFullscreen<HTMLDivElement>();
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(plan.content);
@@ -81,12 +73,13 @@ export function PlanViewer({
 
   return (
     <div
+      ref={fullscreen.ref}
       style={
-        fullscreen
-          ? { position: 'fixed', inset: 0, zIndex: 100, background: 'var(--bg)', overflow: 'auto' }
+        fullscreen.isFullscreen
+          ? { background: 'var(--bg)', overflow: 'auto', height: '100%' }
           : undefined
       }
-      className={fullscreen ? 'main-scroll' : undefined}
+      className={fullscreen.isFullscreen ? 'main-scroll' : undefined}
     >
       {showOutline && !isSplit && <PlanOutline entries={entries} />}
       <div
@@ -297,8 +290,8 @@ export function PlanViewer({
             )}
             <button
               type="button"
-              onClick={() => setFullscreen((f) => !f)}
-              title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+              onClick={() => fullscreen.toggle()}
+              title={fullscreen.isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
               style={{
                 padding: '5px 12px',
                 fontSize: '12.5px',
@@ -314,8 +307,8 @@ export function PlanViewer({
                 gap: '5px',
               }}
             >
-              {fullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
-              {fullscreen ? 'Exit' : 'Fullscreen'}
+              {fullscreen.isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
+              {fullscreen.isFullscreen ? 'Exit' : 'Fullscreen'}
             </button>
           </div>
         </div>
@@ -659,46 +652,6 @@ function DocIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-      />
-    </svg>
-  );
-}
-
-function FullscreenIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
-      />
-    </svg>
-  );
-}
-
-function ExitFullscreenIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"
       />
     </svg>
   );

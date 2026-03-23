@@ -23,6 +23,7 @@ export type {
 } from './client/components/ThemeProvider.tsx';
 export { ThemeContext, ThemeProvider } from './client/components/ThemeProvider.tsx';
 export { ThemeToggle } from './client/components/ThemeToggle.tsx';
+export { ExitFullscreenIcon, FullscreenIcon } from './client/components/FullscreenIcons.tsx';
 
 export type { BackendStatus } from './client/hooks/useBackendStatus.ts';
 export { useBackendStatus } from './client/hooks/useBackendStatus.ts';
@@ -30,6 +31,7 @@ export { useAgents, usePlans } from './client/hooks/usePlans.ts';
 export { seedSeen, useSeenPlans } from './client/hooks/useSeenPlans.ts';
 export { useSocketEvent } from './client/hooks/useSocket.ts';
 export { useTheme } from './client/hooks/useTheme.ts';
+export { useFullscreen } from './client/hooks/useFullscreen.ts';
 
 export {
   AGENT_IDS,

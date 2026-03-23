@@ -1,9 +1,9 @@
 import { Background, Controls, Handle, MiniMap, Position, ReactFlow } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import '@xyflow/react/dist/style.css';
 import type { NodeProps } from '@xyflow/react';
 import type { Plan } from '../lib/api.ts';
+import { useFullscreen } from '../hooks/useFullscreen.ts';
 import { normalizePlanMarkdown } from '../lib/plan-markdown.ts';
 import type { TechCategory } from '../lib/tech-extract.ts';
 import { extractTechnologies } from '../lib/tech-extract.ts';
@@ -16,6 +16,7 @@ import {
   type TechNode,
   type TechNodeData,
 } from '../lib/tech-graph.ts';
+import { ExitFullscreenIcon, FullscreenIcon } from './FullscreenIcons.tsx';
 
 // ─── Node Component ───
 
@@ -125,26 +126,6 @@ function CategoryFilters({
 
 // ─── Icons ───
 
-function FullscreenIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="w-[13px] h-[13px]"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
-      />
-    </svg>
-  );
-}
-
 function ExpandWidthIcon() {
   return (
     <svg
@@ -180,26 +161,6 @@ function CollapseWidthIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"
-      />
-    </svg>
-  );
-}
-
-function ExitFullscreenIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="w-[13px] h-[13px]"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"
       />
     </svg>
   );
@@ -318,7 +279,7 @@ function getGraphCategories(graph: TechGraph): Set<TechCategory> {
 }
 
 export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartProps) {
-  const [fullscreen, setFullscreen] = useState(false);
+  const fullscreen = useFullscreen<HTMLDivElement>();
   const [wide, setWide] = useState(false);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
 
@@ -369,17 +330,6 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
   const onNodeHover = useCallback((id: string) => setFocusedNodeId(id), []);
   const onNodeLeave = useCallback(() => setFocusedNodeId(null), []);
 
-  const exitFullscreen = useCallback(() => setFullscreen(false), []);
-
-  useEffect(() => {
-    if (!fullscreen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') exitFullscreen();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [fullscreen, exitFullscreen]);
-
   if (graph.nodes.length === 0) {
     return (
       <div className="p-8 text-center text-[13px] text-tertiary">
@@ -394,122 +344,107 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
     <CategoryFilters graph={graph} activeCategories={activeCategories} onToggle={toggleCategory} />
   );
 
-  if (fullscreen) {
-    return (
-      <>
-        {/* Inline placeholder */}
-        <div>
-          <div className="text-[12.5px] text-secondary mb-4">{statsText}</div>
-          <div className="w-full h-[500px] rounded-xl border border-border overflow-hidden flex items-center justify-center text-[13px] text-tertiary">
-            Graph is in fullscreen mode
+  return (
+    <div ref={fullscreen.ref}>
+      {fullscreen.isFullscreen ? (
+        <div className="w-full h-full bg-bg" style={{ position: 'relative' }}>
+          <GraphContent
+            nodes={filteredGraph.nodes}
+            edges={filteredGraph.edges}
+            nodeTypes={nodeTypes}
+            focusedNodeId={focusedNodeId}
+            adjacencyMap={adjacencyMap}
+            onNodeHover={onNodeHover}
+            onNodeLeave={onNodeLeave}
+          />
+
+          {/* Floating exit button */}
+          <button
+            type="button"
+            onClick={() => fullscreen.exit()}
+            title="Exit fullscreen (Esc)"
+            className="absolute top-4 right-4 z-[1] px-3.5 py-1.5 text-[12.5px] font-medium font-inherit rounded-lg border border-border bg-surface text-secondary cursor-pointer flex items-center gap-[5px] shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
+          >
+            <ExitFullscreenIcon />
+            Exit
+          </button>
+
+          {/* Floating filters + stats */}
+          <div className="absolute top-4 left-4 z-[1] px-3.5 py-2.5 rounded-lg border border-border bg-surface shadow-[0_2px_12px_rgba(0,0,0,0.08)] flex flex-col gap-2 max-w-[360px]">
+            <div className="text-xs text-secondary">{statsText}</div>
+            {filterPanel}
           </div>
         </div>
-
-        {createPortal(
-          <div className="fixed inset-0 z-[9999] bg-bg">
-            <div className="w-full h-full">
-              <GraphContent
-                nodes={filteredGraph.nodes}
-                edges={filteredGraph.edges}
-                nodeTypes={nodeTypes}
-                focusedNodeId={focusedNodeId}
-                adjacencyMap={adjacencyMap}
-                onNodeHover={onNodeHover}
-                onNodeLeave={onNodeLeave}
-              />
+      ) : (
+        <div
+          className="transition-[margin,padding] duration-[250ms] ease-in-out"
+          style={
+            wide
+              ? {
+                  marginLeft: 'calc(-50vw + 50%)',
+                  marginRight: 'calc(-50vw + 50%)',
+                  paddingLeft: '32px',
+                  paddingRight: '32px',
+                }
+              : undefined
+          }
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[12.5px] text-secondary">{statsText}</div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !wide;
+                  setWide(next);
+                  onWideChange?.(next);
+                }}
+                title={wide ? 'Collapse width' : 'Expand width'}
+                className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border cursor-pointer"
+                style={{
+                  background: wide ? 'rgba(139,92,246,0.1)' : 'transparent',
+                  color: wide ? '#8b5cf6' : 'var(--secondary)',
+                }}
+              >
+                {wide ? <CollapseWidthIcon /> : <ExpandWidthIcon />}
+                {wide ? 'Collapse' : 'Expand'}
+              </button>
+              <button
+                type="button"
+                onClick={() => fullscreen.enter()}
+                title="Fullscreen"
+                className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+              >
+                <FullscreenIcon />
+                Fullscreen
+              </button>
             </div>
+          </div>
 
-            {/* Floating exit button */}
-            <button
-              type="button"
-              onClick={exitFullscreen}
-              title="Exit fullscreen (Esc)"
-              className="absolute top-4 right-4 z-[1] px-3.5 py-1.5 text-[12.5px] font-medium font-inherit rounded-lg border border-border bg-surface text-secondary cursor-pointer flex items-center gap-[5px] shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
-            >
-              <ExitFullscreenIcon />
-              Exit
-            </button>
+          {/* Category filters */}
+          <div className="mb-3">{filterPanel}</div>
 
-            {/* Floating filters + stats */}
-            <div className="absolute top-4 left-4 z-[1] px-3.5 py-2.5 rounded-lg border border-border bg-surface shadow-[0_2px_12px_rgba(0,0,0,0.08)] flex flex-col gap-2 max-w-[360px]">
-              <div className="text-xs text-secondary">{statsText}</div>
-              {filterPanel}
-            </div>
-          </div>,
-          document.body,
-        )}
-      </>
-    );
-  }
-
-  return (
-    <div
-      className="transition-[margin,padding] duration-[250ms] ease-in-out"
-      style={
-        wide
-          ? {
-              marginLeft: 'calc(-50vw + 50%)',
-              marginRight: 'calc(-50vw + 50%)',
-              paddingLeft: '32px',
-              paddingRight: '32px',
-            }
-          : undefined
-      }
-    >
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-[12.5px] text-secondary">{statsText}</div>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => {
-              const next = !wide;
-              setWide(next);
-              onWideChange?.(next);
-            }}
-            title={wide ? 'Collapse width' : 'Expand width'}
-            className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border cursor-pointer"
-            style={{
-              background: wide ? 'rgba(139,92,246,0.1)' : 'transparent',
-              color: wide ? '#8b5cf6' : 'var(--secondary)',
-            }}
+          <div
+            className="w-full rounded-xl border border-border overflow-hidden transition-[height] duration-[250ms] ease-in-out"
+            style={{ height: wide ? '650px' : '500px' }}
           >
-            {wide ? <CollapseWidthIcon /> : <ExpandWidthIcon />}
-            {wide ? 'Collapse' : 'Expand'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setFullscreen(true)}
-            title="Fullscreen"
-            className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
-          >
-            <FullscreenIcon />
-            Fullscreen
-          </button>
+            <GraphContent
+              nodes={filteredGraph.nodes}
+              edges={filteredGraph.edges}
+              nodeTypes={nodeTypes}
+              focusedNodeId={focusedNodeId}
+              adjacencyMap={adjacencyMap}
+              onNodeHover={onNodeHover}
+              onNodeLeave={onNodeLeave}
+            />
+          </div>
+
+          {/* Hover hint */}
+          <div className="text-[11px] text-tertiary mt-2 text-center">
+            Hover a node to highlight its connections · Dashed edges = known relationships
+          </div>
         </div>
-      </div>
-
-      {/* Category filters */}
-      <div className="mb-3">{filterPanel}</div>
-
-      <div
-        className="w-full rounded-xl border border-border overflow-hidden transition-[height] duration-[250ms] ease-in-out"
-        style={{ height: wide ? '650px' : '500px' }}
-      >
-        <GraphContent
-          nodes={filteredGraph.nodes}
-          edges={filteredGraph.edges}
-          nodeTypes={nodeTypes}
-          focusedNodeId={focusedNodeId}
-          adjacencyMap={adjacencyMap}
-          onNodeHover={onNodeHover}
-          onNodeLeave={onNodeLeave}
-        />
-      </div>
-
-      {/* Hover hint */}
-      <div className="text-[11px] text-tertiary mt-2 text-center">
-        Hover a node to highlight its connections · Dashed edges = known relationships
-      </div>
+      )}
     </div>
   );
 }

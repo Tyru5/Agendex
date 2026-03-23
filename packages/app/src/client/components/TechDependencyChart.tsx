@@ -1,6 +1,6 @@
 import { Background, Controls, Handle, MiniMap, Position, ReactFlow } from '@xyflow/react';
+import { ExitFullscreenIcon, FullscreenIcon, useFullscreen } from '@agendex/web';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import '@xyflow/react/dist/style.css';
 import type { NodeProps } from '@xyflow/react';
 import type { Plan } from '../lib/api.ts';
@@ -167,26 +167,6 @@ function CategoryFilters({
 
 // ─── Icons ───
 
-function FullscreenIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
-      />
-    </svg>
-  );
-}
-
 function ExpandWidthIcon() {
   return (
     <svg
@@ -222,26 +202,6 @@ function CollapseWidthIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"
-      />
-    </svg>
-  );
-}
-
-function ExitFullscreenIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"
       />
     </svg>
   );
@@ -360,7 +320,7 @@ function getGraphCategories(graph: TechGraph): Set<TechCategory> {
 }
 
 export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartProps) {
-  const [fullscreen, setFullscreen] = useState(false);
+  const fullscreen = useFullscreen<HTMLDivElement>();
   const [wide, setWide] = useState(false);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
 
@@ -411,17 +371,6 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
   const onNodeHover = useCallback((id: string) => setFocusedNodeId(id), []);
   const onNodeLeave = useCallback(() => setFocusedNodeId(null), []);
 
-  const exitFullscreen = useCallback(() => setFullscreen(false), []);
-
-  useEffect(() => {
-    if (!fullscreen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') exitFullscreen();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [fullscreen, exitFullscreen]);
-
   if (graph.nodes.length === 0) {
     return (
       <div
@@ -443,228 +392,183 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
     <CategoryFilters graph={graph} activeCategories={activeCategories} onToggle={toggleCategory} />
   );
 
-  if (fullscreen) {
-    return (
-      <>
-        {/* Inline placeholder */}
-        <div>
-          <div
+  return (
+    <div ref={fullscreen.ref}>
+      {fullscreen.isFullscreen ? (
+        <div
+          style={{ width: '100%', height: '100%', background: 'var(--bg)', position: 'relative' }}
+        >
+          <GraphContent
+            nodes={filteredGraph.nodes}
+            edges={filteredGraph.edges}
+            nodeTypes={nodeTypes}
+            focusedNodeId={focusedNodeId}
+            adjacencyMap={adjacencyMap}
+            onNodeHover={onNodeHover}
+            onNodeLeave={onNodeLeave}
+          />
+          <button
+            type="button"
+            onClick={() => fullscreen.exit()}
+            title="Exit fullscreen (Esc)"
             style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              zIndex: 1,
+              padding: '6px 14px',
               fontSize: '12.5px',
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
               color: 'var(--secondary)',
-              marginBottom: '16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
             }}
           >
-            {statsText}
+            <ExitFullscreenIcon />
+            Exit
+          </button>
+          <div
+            style={{
+              position: 'absolute',
+              top: '16px',
+              left: '16px',
+              zIndex: 1,
+              padding: '10px 14px',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              maxWidth: '360px',
+            }}
+          >
+            <div style={{ fontSize: '12px', color: 'var(--secondary)' }}>{statsText}</div>
+            {filterPanel}
           </div>
+        </div>
+      ) : (
+        <div
+          style={
+            wide
+              ? {
+                  marginLeft: 'calc(-50vw + 50%)',
+                  marginRight: 'calc(-50vw + 50%)',
+                  paddingLeft: '32px',
+                  paddingRight: '32px',
+                  transition: 'margin 0.25s ease, padding 0.25s ease',
+                }
+              : {
+                  transition: 'margin 0.25s ease, padding 0.25s ease',
+                }
+          }
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '12px',
+            }}
+          >
+            <div style={{ fontSize: '12.5px', color: 'var(--secondary)' }}>{statsText}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !wide;
+                  setWide(next);
+                  onWideChange?.(next);
+                }}
+                title={wide ? 'Collapse width' : 'Expand width'}
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: wide ? 'rgba(139,92,246,0.1)' : 'transparent',
+                  color: wide ? '#8b5cf6' : 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                {wide ? <CollapseWidthIcon /> : <ExpandWidthIcon />}
+                {wide ? 'Collapse' : 'Expand'}
+              </button>
+              <button
+                type="button"
+                onClick={() => fullscreen.enter()}
+                title="Fullscreen"
+                style={{
+                  padding: '5px 12px',
+                  fontSize: '12.5px',
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  borderRadius: '7px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <FullscreenIcon />
+                Fullscreen
+              </button>
+            </div>
+          </div>
+
+          {/* Category filters */}
+          <div style={{ marginBottom: '12px' }}>{filterPanel}</div>
+
           <div
             style={{
               width: '100%',
-              height: '500px',
+              height: wide ? '650px' : '500px',
               borderRadius: '12px',
               border: '1px solid var(--border)',
               overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '13px',
-              color: 'var(--tertiary)',
+              transition: 'height 0.25s ease',
             }}
           >
-            Graph is in fullscreen mode
+            <GraphContent
+              nodes={filteredGraph.nodes}
+              edges={filteredGraph.edges}
+              nodeTypes={nodeTypes}
+              focusedNodeId={focusedNodeId}
+              adjacencyMap={adjacencyMap}
+              onNodeHover={onNodeHover}
+              onNodeLeave={onNodeLeave}
+            />
           </div>
-        </div>
 
-        {createPortal(
+          {/* Hover hint */}
           <div
             style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 9999,
-              background: 'var(--bg)',
+              fontSize: '11px',
+              color: 'var(--tertiary)',
+              marginTop: '8px',
+              textAlign: 'center',
             }}
           >
-            <div style={{ width: '100%', height: '100%' }}>
-              <GraphContent
-                nodes={filteredGraph.nodes}
-                edges={filteredGraph.edges}
-                nodeTypes={nodeTypes}
-                focusedNodeId={focusedNodeId}
-                adjacencyMap={adjacencyMap}
-                onNodeHover={onNodeHover}
-                onNodeLeave={onNodeLeave}
-              />
-            </div>
-
-            {/* Floating exit button */}
-            <button
-              type="button"
-              onClick={exitFullscreen}
-              title="Exit fullscreen (Esc)"
-              style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                zIndex: 1,
-                padding: '6px 14px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                fontFamily: 'inherit',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--secondary)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-              }}
-            >
-              <ExitFullscreenIcon />
-              Exit
-            </button>
-
-            {/* Floating filters + stats */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '16px',
-                left: '16px',
-                zIndex: 1,
-                padding: '10px 14px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                maxWidth: '360px',
-              }}
-            >
-              <div style={{ fontSize: '12px', color: 'var(--secondary)' }}>{statsText}</div>
-              {filterPanel}
-            </div>
-          </div>,
-          document.body,
-        )}
-      </>
-    );
-  }
-
-  return (
-    <div
-      style={
-        wide
-          ? {
-              marginLeft: 'calc(-50vw + 50%)',
-              marginRight: 'calc(-50vw + 50%)',
-              paddingLeft: '32px',
-              paddingRight: '32px',
-              transition: 'margin 0.25s ease, padding 0.25s ease',
-            }
-          : {
-              transition: 'margin 0.25s ease, padding 0.25s ease',
-            }
-      }
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '12px',
-        }}
-      >
-        <div style={{ fontSize: '12.5px', color: 'var(--secondary)' }}>{statsText}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <button
-            type="button"
-            onClick={() => {
-              const next = !wide;
-              setWide(next);
-              onWideChange?.(next);
-            }}
-            title={wide ? 'Collapse width' : 'Expand width'}
-            style={{
-              padding: '5px 12px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
-              background: wide ? 'rgba(139,92,246,0.1)' : 'transparent',
-              color: wide ? '#8b5cf6' : 'var(--secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-            }}
-          >
-            {wide ? <CollapseWidthIcon /> : <ExpandWidthIcon />}
-            {wide ? 'Collapse' : 'Expand'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setFullscreen(true)}
-            title="Fullscreen"
-            style={{
-              padding: '5px 12px',
-              fontSize: '12.5px',
-              fontWeight: 500,
-              fontFamily: 'inherit',
-              borderRadius: '7px',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-              color: 'var(--secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-            }}
-          >
-            <FullscreenIcon />
-            Fullscreen
-          </button>
+            Hover a node to highlight its connections · Dashed edges = known relationships
+          </div>
         </div>
-      </div>
-
-      {/* Category filters */}
-      <div style={{ marginBottom: '12px' }}>{filterPanel}</div>
-
-      <div
-        style={{
-          width: '100%',
-          height: wide ? '650px' : '500px',
-          borderRadius: '12px',
-          border: '1px solid var(--border)',
-          overflow: 'hidden',
-          transition: 'height 0.25s ease',
-        }}
-      >
-        <GraphContent
-          nodes={filteredGraph.nodes}
-          edges={filteredGraph.edges}
-          nodeTypes={nodeTypes}
-          focusedNodeId={focusedNodeId}
-          adjacencyMap={adjacencyMap}
-          onNodeHover={onNodeHover}
-          onNodeLeave={onNodeLeave}
-        />
-      </div>
-
-      {/* Hover hint */}
-      <div
-        style={{
-          fontSize: '11px',
-          color: 'var(--tertiary)',
-          marginTop: '8px',
-          textAlign: 'center',
-        }}
-      >
-        Hover a node to highlight its connections · Dashed edges = known relationships
-      </div>
+      )}
     </div>
   );
 }
