@@ -1,7 +1,7 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
-import { mutation, type QueryCtx, query } from './_generated/server';
+import { internalMutation, mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
@@ -125,6 +125,17 @@ export const trackPendingUpload = mutation({
       throw new ConvexError('Upload expired');
     }
 
+    if (!metadata.contentType || !ALLOWED_COMMENT_IMAGE_TYPES.has(metadata.contentType)) {
+      await ctx.storage.delete(args.storageId);
+      throw new ConvexError(
+        `File type "${metadata.contentType ?? 'unknown'}" is not allowed. Use JPEG, PNG, WebP, or GIF.`,
+      );
+    }
+    if (metadata.size > MAX_COMMENT_IMAGE_BYTES) {
+      await ctx.storage.delete(args.storageId);
+      throw new ConvexError('Image must be under 5MB');
+    }
+
     await ctx.db.insert('pendingUploads', {
       storageId: args.storageId,
       uploadedBy: user._id,
@@ -206,6 +217,7 @@ export const addComment = mutation({
         }
 
         return {
+          pendingId: pending._id,
           storageId: attachment.storageId,
           fileName: attachment.fileName,
           contentType: metadata.contentType,
@@ -220,18 +232,16 @@ export const addComment = mutation({
       authorName: user.name ?? 'Anonymous',
       authorAvatar: user.image ?? undefined,
       body: trimmedBody,
-      ...(validatedAttachments.length > 0 ? { attachments: validatedAttachments } : {}),
+      ...(validatedAttachments.length > 0
+        ? {
+            attachments: validatedAttachments.map(({ pendingId: _, ...rest }) => rest),
+          }
+        : {}),
       createdAt: Date.now(),
     });
 
-    for (const attachment of validatedAttachments) {
-      const pending = await ctx.db
-        .query('pendingUploads')
-        .withIndex('by_user_storage', (q) =>
-          q.eq('uploadedBy', user._id).eq('storageId', attachment.storageId),
-        )
-        .first();
-      if (pending) await ctx.db.delete(pending._id);
+    for (const { pendingId } of validatedAttachments) {
+      await ctx.db.delete(pendingId);
     }
 
     return commentId;
@@ -251,11 +261,20 @@ export const deleteOrphanedUpload = mutation({
       )
       .first();
 
-    if (!pending) {
-      throw new ConvexError('Upload not found or not owned by user');
+    if (pending) {
+      await ctx.db.delete(pending._id);
+      await ctx.storage.delete(args.storageId);
+      return;
     }
 
-    await ctx.db.delete(pending._id);
+    // No pending record — allow deletion only if the file is very fresh
+    // (handles the case where trackPendingUpload failed after upload)
+    const metadata = await ctx.db.system.get(args.storageId);
+    if (!metadata) return;
+    const MAX_ORPHAN_AGE_MS = 5 * 60 * 1000;
+    if (Date.now() - metadata._creationTime > MAX_ORPHAN_AGE_MS) {
+      throw new ConvexError('Upload not found or not owned by user');
+    }
     await ctx.storage.delete(args.storageId);
   },
 });
@@ -342,5 +361,25 @@ export const deleteComment = mutation({
     }
 
     await ctx.db.delete(args.commentId);
+  },
+});
+
+const STALE_UPLOAD_AGE_MS = 15 * 60 * 1000;
+
+export const cleanupStalePendingUploads = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - STALE_UPLOAD_AGE_MS;
+    const stale = await ctx.db
+      .query('pendingUploads')
+      .filter((q) => q.lt(q.field('createdAt'), cutoff))
+      .collect();
+
+    for (const record of stale) {
+      await ctx.storage.delete(record.storageId);
+      await ctx.db.delete(record._id);
+    }
+
+    return { deleted: stale.length };
   },
 });
