@@ -9,15 +9,6 @@ const MAX_COMMENT_IMAGE_COUNT = 4;
 const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_COMMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
-const IMAGE_MAGIC_BYTES: Record<string, (bytes: Uint8Array) => boolean> = {
-  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8,
-  'image/png': (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
-  'image/gif': (b) => b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38 &&
-    (b[4] === 0x37 || b[4] === 0x39) && b[5] === 0x61,
-  'image/webp': (b) => b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
-    b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50,
-};
-
 async function validateShareToken(ctx: QueryCtx, planId: string, token: string): Promise<void> {
   const shareLink = await ctx.db
     .query('shareLinks')
@@ -199,15 +190,6 @@ export const addComment = mutation({
           throw new ConvexError('Image must be under 5MB');
         }
 
-        // storage.get() is available at runtime in mutations but only typed on StorageActionWriter
-        const blob = await (ctx.storage as unknown as { get: (id: Id<'_storage'>) => Promise<Blob | null> }).get(attachment.storageId);
-        if (!blob) throw new ConvexError('Uploaded file not found');
-        const header = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
-        const magicCheck = IMAGE_MAGIC_BYTES[metadata.contentType];
-        if (!magicCheck || !magicCheck(header)) {
-          throw new ConvexError('File content does not match declared image type');
-        }
-
         return {
           storageId: attachment.storageId,
           fileName: attachment.fileName,
@@ -252,10 +234,11 @@ export const deleteOrphanedUpload = mutation({
       )
       .first();
 
-    if (pending) {
-      await ctx.db.delete(pending._id);
+    if (!pending) {
+      throw new ConvexError('Upload not found or not owned by user');
     }
 
+    await ctx.db.delete(pending._id);
     await ctx.storage.delete(args.storageId);
   },
 });
