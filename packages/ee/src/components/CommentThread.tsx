@@ -210,7 +210,7 @@ export function CommentThread({
         await addComment({
           planId: planId as Id<'plans'>,
           body: trimmed,
-          ...(succeeded.length > 0 ? { attachments: succeeded } : {}),
+          ...(succeeded.length > 0 ? { attachments: succeeded.map(({ storageId, fileName }) => ({ storageId, fileName })) } : {}),
           ...(shareToken ? { token: shareToken } : {}),
         });
       } catch (addErr) {
