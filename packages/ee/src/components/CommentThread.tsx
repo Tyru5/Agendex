@@ -290,11 +290,15 @@ export function CommentThread({
 
   const canPost = !posting && (body.trim().length > 0 || pendingImages.length > 0);
 
-  function handleEditKeyDown(e: React.KeyboardEvent, commentId: string, originalBody: string, hasAttachments: boolean) {
+  function handleEditKeyDown(
+    e: React.KeyboardEvent,
+    commentId: string,
+    originalBody: string,
+    hasAttachments: boolean,
+  ) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       if (!saving) handleSaveEdit(commentId, originalBody, hasAttachments);
-    }
     }
     if (e.key === 'Escape') {
       if (saving) return;
@@ -493,7 +497,14 @@ export function CommentThread({
                       <textarea
                         value={editBody}
                         onChange={(e) => setEditBody(e.target.value)}
-                        onKeyDown={(e) => handleEditKeyDown(e, comment._id, comment.body)}
+                        onKeyDown={(e) =>
+                          handleEditKeyDown(
+                            e,
+                            comment._id,
+                            comment.body,
+                            (comment.attachments?.length ?? 0) > 0,
+                          )
+                        }
                         disabled={saving}
                         rows={3}
                         className="w-full py-2.5 px-3 text-[13px] font-[inherit] leading-[1.5] text-text bg-transparent border border-border rounded-lg resize-y outline-none box-border"
