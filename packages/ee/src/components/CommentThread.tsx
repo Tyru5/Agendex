@@ -226,7 +226,7 @@ export function CommentThread({
     }
   }
 
-  const canPost = !posting && (body.trim() || pendingImages.length > 0);
+  const canPost = !posting && (body.trim().length > 0 || pendingImages.length > 0);
 
   function handleEditKeyDown(e: React.KeyboardEvent, commentId: string, originalBody: string) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {

@@ -110,6 +110,21 @@ export const trackPendingUpload = mutation({
       await validateShareToken(ctx, args.planId, args.token);
     }
 
+    const existing = await ctx.db
+      .query('pendingUploads')
+      .withIndex('by_storage', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (existing) {
+      throw new ConvexError('Storage ID already claimed');
+    }
+
+    const metadata = await ctx.db.system.get(args.storageId);
+    if (!metadata) throw new ConvexError('File not found');
+    const MAX_UPLOAD_AGE_MS = 5 * 60 * 1000;
+    if (Date.now() - metadata._creationTime > MAX_UPLOAD_AGE_MS) {
+      throw new ConvexError('Upload expired');
+    }
+
     await ctx.db.insert('pendingUploads', {
       storageId: args.storageId,
       uploadedBy: user._id,
@@ -212,7 +227,9 @@ export const addComment = mutation({
     for (const attachment of validatedAttachments) {
       const pending = await ctx.db
         .query('pendingUploads')
-        .withIndex('by_storage', (q) => q.eq('storageId', attachment.storageId))
+        .withIndex('by_user_storage', (q) =>
+          q.eq('uploadedBy', user._id).eq('storageId', attachment.storageId),
+        )
         .first();
       if (pending) await ctx.db.delete(pending._id);
     }
