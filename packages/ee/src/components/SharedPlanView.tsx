@@ -9,7 +9,7 @@ import {
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useQuery } from 'convex/react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
@@ -29,6 +29,16 @@ function timeAgo(dateStr: string): string {
 
 export function SharedPlanView({ token }: { token: string }) {
   const plan = useQuery(api.plans.getPlanByShareToken, { token });
+  const [fullscreen, setFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [fullscreen]);
 
   const outline = useMemo(
     () =>
@@ -71,7 +81,15 @@ export function SharedPlanView({ token }: { token: string }) {
   const { entries, renderContent, renderMode } = outline;
 
   return (
-    <div className="min-h-screen bg-bg text-text main-scroll">
+    <div
+      style={
+        fullscreen
+          ? { position: 'fixed', inset: 0, zIndex: 100, background: 'var(--bg)', overflow: 'auto' }
+          : undefined
+      }
+      className={fullscreen ? 'main-scroll' : undefined}
+    >
+    <div className={`min-h-screen bg-bg text-text${fullscreen ? '' : ' main-scroll'}`}>
       {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
         <PlanOutline entries={entries} />
       )}
@@ -103,6 +121,19 @@ export function SharedPlanView({ token }: { token: string }) {
             <span className="text-[11px] font-[550] py-0.5 px-[7px] rounded-[5px] bg-[rgba(99,102,241,0.1)] text-[#6366f1]">
               Shared
             </span>
+          </div>
+
+          <div className="flex items-center gap-2 mt-4">
+            <button
+              type="button"
+              onClick={() => setFullscreen((f) => !f)}
+              title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+              className="flex items-center gap-[5px] text-[12.5px] font-medium rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+              style={{ padding: '5px 12px', fontFamily: 'inherit' }}
+            >
+              {fullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
+              {fullscreen ? 'Exit' : 'Fullscreen'}
+            </button>
           </div>
         </div>
 
@@ -147,6 +178,7 @@ export function SharedPlanView({ token }: { token: string }) {
         <CommentThread planId={plan._id} shareToken={token} />
       </div>
     </div>
+    </div>
   );
 }
 
@@ -185,6 +217,46 @@ function DocIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+      />
+    </svg>
+  );
+}
+
+function FullscreenIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-[13px] h-[13px]"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+      />
+    </svg>
+  );
+}
+
+function ExitFullscreenIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-[13px] h-[13px]"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"
       />
     </svg>
   );
