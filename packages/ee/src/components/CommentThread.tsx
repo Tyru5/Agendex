@@ -31,10 +31,15 @@ export function CommentThread({
     ...(shareToken ? { token: shareToken } : {}),
   });
   const addComment = useMutation(api.comments.addComment);
+  const editComment = useMutation(api.comments.editComment);
   const deleteComment = useMutation(api.comments.deleteComment);
 
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handlePost() {
     const trimmed = body.trim();
@@ -52,10 +57,47 @@ export function CommentThread({
     }
   }
 
+  async function handleSaveEdit(commentId: string) {
+    const trimmed = editBody.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    try {
+      await editComment({
+        commentId: commentId as Id<'comments'>,
+        body: trimmed,
+      });
+      setEditingId(null);
+      setEditBody('');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(commentId: string) {
+    setDeletingId(commentId);
+    try {
+      await deleteComment({ commentId: commentId as Id<'comments'> });
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handlePost();
+    }
+  }
+
+  function handleEditKeyDown(e: React.KeyboardEvent, commentId: string) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSaveEdit(commentId);
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setEditingId(null);
+      setEditBody('');
     }
   }
 
@@ -123,41 +165,115 @@ export function CommentThread({
               authorAvatar?: string;
               body: string;
               createdAt: number;
-            }) => (
-              <div key={comment._id} className="py-3 border-t border-border">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {comment.authorAvatar ? (
-                      <img
-                        src={comment.authorAvatar}
-                        alt=""
-                        className="w-5 h-5 rounded-full shrink-0"
-                      />
-                    ) : (
-                      <div className="w-5 h-5 rounded-full bg-hover flex items-center justify-center text-[10px] font-semibold text-secondary shrink-0">
-                        {comment.authorName.charAt(0).toUpperCase()}
+              updatedAt?: number;
+            }) => {
+              const isEditing = editingId === comment._id;
+              const isDeleting = deletingId === comment._id;
+              const isAuthor = user?.id === comment.authorId;
+
+              return (
+                <div key={comment._id} className="py-3 border-t border-border">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {comment.authorAvatar ? (
+                        <img
+                          src={comment.authorAvatar}
+                          alt=""
+                          className="w-5 h-5 rounded-full shrink-0"
+                        />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-hover flex items-center justify-center text-[10px] font-semibold text-secondary shrink-0">
+                          {comment.authorName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="text-[12.5px] font-[550] text-text">
+                        {comment.authorName}
+                      </span>
+                      <span className="text-[11.5px] text-tertiary">
+                        {timeAgo(comment.createdAt)}
+                      </span>
+                      {comment.updatedAt && (
+                        <span className="text-[11px] text-tertiary italic">(edited)</span>
+                      )}
+                    </div>
+                    {!isEditing && (isOwner || isAuthor) && (
+                      <div className="flex items-center gap-1">
+                        {isAuthor && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingId(comment._id);
+                              setEditBody(comment.body);
+                            }}
+                            className="py-0.5 px-2 text-[11px] font-[450] font-[inherit] rounded-[5px] border-none bg-transparent text-tertiary cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(comment._id)}
+                          disabled={isDeleting}
+                          className="py-0.5 px-2 text-[11px] font-[450] font-[inherit] rounded-[5px] border-none bg-transparent text-tertiary"
+                          style={{
+                            cursor: isDeleting ? 'not-allowed' : 'pointer',
+                            opacity: isDeleting ? 0.5 : 1,
+                          }}
+                        >
+                          {isDeleting ? 'Deleting…' : 'Delete'}
+                        </button>
                       </div>
                     )}
-                    <span className="text-[12.5px] font-[550] text-text">{comment.authorName}</span>
-                    <span className="text-[11.5px] text-tertiary">
-                      {timeAgo(comment.createdAt)}
-                    </span>
                   </div>
-                  {(isOwner || user?.id === comment.authorId) && (
-                    <button
-                      type="button"
-                      onClick={() => deleteComment({ commentId: comment._id as Id<'comments'> })}
-                      className="py-0.5 px-2 text-[11px] font-[450] font-[inherit] rounded-[5px] border-none bg-transparent text-tertiary cursor-pointer"
-                    >
-                      Delete
-                    </button>
+                  {isEditing ? (
+                    <div className="mt-1.5 ml-7">
+                      <textarea
+                        value={editBody}
+                        onChange={(e) => setEditBody(e.target.value)}
+                        onKeyDown={(e) => handleEditKeyDown(e, comment._id)}
+                        rows={3}
+                        className="w-full py-2.5 px-3 text-[13px] font-[inherit] leading-[1.5] text-text bg-transparent border border-border rounded-lg resize-y outline-none box-border"
+                      />
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-[11px] text-tertiary">
+                          ⌘+Enter to save · Esc to cancel
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingId(null);
+                              setEditBody('');
+                            }}
+                            disabled={saving}
+                            className="py-[5px] px-3.5 text-[12.5px] font-[550] font-[inherit] rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+                            style={{ opacity: saving ? 0.5 : 1 }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(comment._id)}
+                            disabled={saving || !editBody.trim()}
+                            className="py-[5px] px-3.5 text-[12.5px] font-[550] font-[inherit] rounded-[7px] border-none bg-text text-bg"
+                            style={{
+                              cursor: saving || !editBody.trim() ? 'not-allowed' : 'pointer',
+                              opacity: saving || !editBody.trim() ? 0.5 : 1,
+                            }}
+                          >
+                            {saving ? 'Saving…' : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-1.5 ml-7 text-[13.5px] leading-[1.55] text-text whitespace-pre-wrap break-words">
+                      {comment.body}
+                    </p>
                   )}
                 </div>
-                <p className="mt-1.5 ml-7 text-[13.5px] leading-[1.55] text-text whitespace-pre-wrap break-words">
-                  {comment.body}
-                </p>
-              </div>
-            ),
+              );
+            },
           )}
         </div>
       )}
