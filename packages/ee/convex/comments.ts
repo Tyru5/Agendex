@@ -174,6 +174,16 @@ export const addComment = mutation({
 
     const validatedAttachments = await Promise.all(
       incomingAttachments.map(async (attachment) => {
+        const pending = await ctx.db
+          .query('pendingUploads')
+          .withIndex('by_user_storage', (q) =>
+            q.eq('uploadedBy', user._id).eq('storageId', attachment.storageId),
+          )
+          .first();
+        if (!pending) {
+          throw new ConvexError('You do not own this upload');
+        }
+
         const metadata = await ctx.db.system.get(attachment.storageId);
         if (!metadata) {
           throw new ConvexError('Uploaded file not found');
@@ -241,11 +251,10 @@ export const deleteOrphanedUpload = mutation({
       )
       .first();
 
-    if (!pending) {
-      throw new ConvexError('Upload not found or not owned by user');
+    if (pending) {
+      await ctx.db.delete(pending._id);
     }
 
-    await ctx.db.delete(pending._id);
     await ctx.storage.delete(args.storageId);
   },
 });
@@ -313,8 +322,8 @@ export const deleteComment = mutation({
       throw new ConvexError('Plan not found');
     }
 
-    // Intentionally no share-token check here: authenticated users can always
-    // delete their own comments, even if the share link was revoked after posting.
+    // Plan owners can delete any comment without a share token.
+    // Non-owners (including comment authors) must provide a valid share token.
     const isOwner = plan.ownerId === user._id;
     if (isOwner) {
       await requireFeature(ctx, ProFeature.COMMENTS);

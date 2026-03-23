@@ -157,12 +157,19 @@ export function CommentThread({
         throw new Error(failed.map((r) => r.reason?.message ?? 'Upload failed').join(', '));
       }
 
-      await addComment({
-        planId: planId as Id<'plans'>,
-        body: trimmed,
-        ...(succeeded.length > 0 ? { attachments: succeeded } : {}),
-        ...(shareToken ? { token: shareToken } : {}),
-      });
+      try {
+        await addComment({
+          planId: planId as Id<'plans'>,
+          body: trimmed,
+          ...(succeeded.length > 0 ? { attachments: succeeded } : {}),
+          ...(shareToken ? { token: shareToken } : {}),
+        });
+      } catch (addErr) {
+        await Promise.allSettled(
+          succeeded.map((a) => deleteOrphanedUpload({ storageId: a.storageId })),
+        );
+        throw addErr;
+      }
 
       setBody('');
       for (const img of pendingImages) {
