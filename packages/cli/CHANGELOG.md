@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.7.0
+
+### Minor Changes
+
+- f97ffb1: Daemon status info/view
+
 ## 0.6.0
 
 ### Minor Changes
