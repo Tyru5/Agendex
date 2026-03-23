@@ -1187,6 +1187,28 @@ function CliAuthRoute() {
   return <CliAuthPage callbackUrl={callback} />;
 }
 
+/**
+ * Route mounted at /auth/check on the app host.
+ * The marketing site redirects here so we can check localStorage (which lives
+ * on the app origin) and either keep the user on the app or bounce them back.
+ */
+function AuthCheckRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const marketingUrl = import.meta.env.VITE_MARKETING_URL as string | undefined;
+  const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (isAuthenticated) {
+      window.location.replace('/');
+    } else if (returnTo || marketingUrl) {
+      window.location.replace(returnTo || marketingUrl!);
+    }
+  }, [isAuthenticated, isLoading, returnTo, marketingUrl]);
+
+  return <BootLoadingView />;
+}
+
 function HomeRoute() {
   const [, navigate] = useLocation();
   const { isAuthenticated, isLoading, signIn } = useAuth();
@@ -1209,6 +1231,16 @@ function HomeRoute() {
     // malformed env var — treat both as false
   }
 
+  // On the marketing host, bounce to the app host's /auth/check so it can
+  // inspect its own localStorage for an existing session.
+  useEffect(() => {
+    if (isMarketingHost && appUrl && !isLoading && !isAuthenticated) {
+      const checkUrl = new URL('/auth/check', appUrl);
+      checkUrl.searchParams.set('returnTo', window.location.href);
+      window.location.replace(checkUrl.toString());
+    }
+  }, [isMarketingHost, appUrl, isLoading, isAuthenticated]);
+
   useEffect(() => {
     if (isAuthenticated && onboardingResolved && !needsOnboarding && isMarketingHost && appUrl) {
       window.location.href = appUrl;
@@ -1220,6 +1252,8 @@ function HomeRoute() {
       window.location.href = marketingUrl;
     }
   }, [isAuthenticated, isLoading, hasCachedToken, isAppHost, marketingUrl]);
+
+  if (isMarketingHost && appUrl && !isAuthenticated) return <BootLoadingView />;
 
   if (isAuthenticated && isMarketingHost && appUrl) return <BootLoadingView />;
 
@@ -1257,6 +1291,7 @@ function HomeRoute() {
 export default function App() {
   return (
     <Switch>
+      <Route path="/auth/check" component={AuthCheckRoute} />
       <Route path="/auth/cli" component={CliAuthRoute} />
       <Route path="/shared/:token">{({ token }) => <SharedPlanView token={token} />}</Route>
       <Route path="/about-me" component={AboutMePage} />
