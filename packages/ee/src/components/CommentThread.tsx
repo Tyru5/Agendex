@@ -393,7 +393,7 @@ export function CommentThread({
                     </div>
                     {!isEditing && (isOwner || isAuthor) && (
                       <div className="flex items-center gap-1">
-                        {isAuthor && (
+                        {isAuthor && comment.body && (
                           <button
                             type="button"
                             disabled={saving}

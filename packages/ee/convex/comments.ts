@@ -369,7 +369,7 @@ export const cleanupStalePendingUploads = internalMutation({
     const stale = await ctx.db
       .query('pendingUploads')
       .withIndex('by_createdAt', (q) => q.lt('createdAt', cutoff))
-      .collect();
+      .take(500);
 
     for (const record of stale) {
       try {
