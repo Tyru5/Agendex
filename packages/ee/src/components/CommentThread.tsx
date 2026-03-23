@@ -245,9 +245,9 @@ export function CommentThread({
     deleteUntrackedUpload,
   ]);
 
-  async function handleSaveEdit(commentId: string, originalBody: string) {
+  async function handleSaveEdit(commentId: string, originalBody: string, hasAttachments: boolean) {
     const trimmed = editBody.trim();
-    if (!trimmed || trimmed === originalBody) return;
+    if ((!trimmed && !hasAttachments) || trimmed === originalBody) return;
     setSaving(true);
     try {
       await editComment({
@@ -517,18 +517,33 @@ export function CommentThread({
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleSaveEdit(comment._id, comment.body)}
+                            onClick={() =>
+                              handleSaveEdit(
+                                comment._id,
+                                comment.body,
+                                (comment.attachments?.length ?? 0) > 0,
+                              )
+                            }
                             disabled={
-                              saving || !editBody.trim() || editBody.trim() === comment.body
+                              saving ||
+                              (!editBody.trim() &&
+                                !(comment.attachments && comment.attachments.length > 0)) ||
+                              editBody.trim() === comment.body
                             }
                             className="py-[5px] px-3.5 text-[12.5px] font-[550] font-[inherit] rounded-[7px] border-none bg-text text-bg"
                             style={{
                               cursor:
-                                saving || !editBody.trim() || editBody.trim() === comment.body
+                                saving ||
+                                (!editBody.trim() &&
+                                  !(comment.attachments && comment.attachments.length > 0)) ||
+                                editBody.trim() === comment.body
                                   ? 'not-allowed'
                                   : 'pointer',
                               opacity:
-                                saving || !editBody.trim() || editBody.trim() === comment.body
+                                saving ||
+                                (!editBody.trim() &&
+                                  !(comment.attachments && comment.attachments.length > 0)) ||
+                                editBody.trim() === comment.body
                                   ? 0.5
                                   : 1,
                             }}
