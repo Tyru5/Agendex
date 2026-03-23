@@ -182,6 +182,7 @@ export const upsertHeartbeat = internalMutation({
     deviceId: v.optional(v.string()),
     hostname: v.optional(v.string()),
     startedAtMs: v.optional(v.number()),
+    pid: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -228,6 +229,7 @@ export const upsertHeartbeat = internalMutation({
     if (args.deviceId !== undefined) patch.deviceId = args.deviceId;
     if (args.hostname !== undefined) patch.hostname = args.hostname;
     if (args.startedAtMs !== undefined) patch.startedAtMs = args.startedAtMs;
+    if (args.pid !== undefined) patch.pid = args.pid;
 
     if (existing) {
       await ctx.db.patch(existing._id, patch);
@@ -239,6 +241,7 @@ export const upsertHeartbeat = internalMutation({
         ...(args.deviceId !== undefined && { deviceId: args.deviceId }),
         ...(args.hostname !== undefined && { hostname: args.hostname }),
         ...(args.startedAtMs !== undefined && { startedAtMs: args.startedAtMs }),
+        ...(args.pid !== undefined && { pid: args.pid }),
       });
     }
   },
@@ -261,6 +264,7 @@ export const getDaemonStatus = query({
           deviceId: hb.deviceId ?? null,
           hostname: hb.hostname ?? null,
           startedAtMs: hb.startedAtMs ?? null,
+          pid: hb.pid ?? null,
         })),
     };
   },
@@ -295,18 +299,68 @@ export const heartbeat = httpAction(async (ctx, request) => {
   const deviceId = typeof body.deviceId === 'string' ? body.deviceId : undefined;
   const hostname = typeof body.hostname === 'string' ? body.hostname : undefined;
   const startedAtMs = typeof body.startedAtMs === 'number' ? body.startedAtMs : undefined;
+  const pid = typeof body.pid === 'number' ? body.pid : undefined;
 
   await ctx.runMutation(internal.cli.upsertHeartbeat, {
     ownerId: session.user.id,
     deviceId,
     hostname,
     startedAtMs,
+    pid,
   });
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
+});
+
+export const devices = httpAction(async (ctx, request) => {
+  if (request.method !== 'GET') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const auth = createAuth(ctx);
+  const session = await auth.api.getSession({ headers: request.headers });
+
+  if (!session?.user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const heartbeats = await ctx.runQuery(internal.cli.getDaemonHeartbeats, {
+    ownerId: session.user.id,
+  });
+
+  return new Response(JSON.stringify({ devices: heartbeats }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+});
+
+export const getDaemonHeartbeats = internalQuery({
+  args: { ownerId: v.string() },
+  handler: async (ctx, args) => {
+    const heartbeats = await ctx.db
+      .query('daemonHeartbeats')
+      .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
+      .collect();
+    const cutoff = Date.now() - DAEMON_HEARTBEAT_RETENTION_MS;
+    return heartbeats
+      .filter((hb) => hb.lastSeenAt >= cutoff)
+      .map((hb) => ({
+        lastSeenAt: hb.lastSeenAt,
+        deviceId: hb.deviceId ?? null,
+        hostname: hb.hostname ?? null,
+        startedAtMs: hb.startedAtMs ?? null,
+        pid: hb.pid ?? null,
+      }));
+  },
 });
 
 export const refresh = httpAction(async (ctx, request) => {

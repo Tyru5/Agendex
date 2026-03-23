@@ -84,6 +84,7 @@ export async function sendHeartbeat(): Promise<void> {
       deviceId: (cachedDeviceId ??= loadOrCreateDeviceId()),
       hostname: pidInfo?.hostname ?? osHostname(),
       startedAtMs: pidInfo?.startedAtMs,
+      pid: pidInfo?.pid,
     });
     let activeToken = token;
     let res = await requestText(`${convexUrl}/api/cli/heartbeat`, {
@@ -187,4 +188,47 @@ function requestText(urlString: string, options: RequestOptions): Promise<TextRe
 
     req.end();
   });
+}
+
+export interface DeviceInfo {
+  deviceId: string | null;
+  hostname: string | null;
+  pid: number | null;
+  startedAtMs: number | null;
+  lastSeenAt: number | null;
+}
+
+export async function fetchDevices(): Promise<DeviceInfo[]> {
+  const { token, convexUrl } = getCloudConfig();
+  const url = `${convexUrl}/api/cli/devices`;
+  let activeToken = token;
+
+  let res = await requestText(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${activeToken}`,
+      Connection: 'close',
+    },
+  });
+
+  if (res.status === 401) {
+    const refreshed = await refreshStoredToken(activeToken, convexUrl);
+    if (refreshed) {
+      activeToken = refreshed;
+      res = await requestText(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${activeToken}`,
+          Connection: 'close',
+        },
+      });
+    }
+  }
+
+  if (res.status < 200 || res.status >= 300) {
+    return [];
+  }
+
+  const body = JSON.parse(res.body) as { devices?: DeviceInfo[] };
+  return body.devices ?? [];
 }

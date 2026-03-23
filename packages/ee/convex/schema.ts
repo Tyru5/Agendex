@@ -140,6 +140,7 @@ export default defineSchema({
     deviceId: v.optional(v.string()),
     hostname: v.optional(v.string()),
     startedAtMs: v.optional(v.number()),
+    pid: v.optional(v.number()),
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_device', ['ownerId', 'deviceId']),
