@@ -57,9 +57,9 @@ export function CommentThread({
     }
   }
 
-  async function handleSaveEdit(commentId: string) {
+  async function handleSaveEdit(commentId: string, originalBody: string) {
     const trimmed = editBody.trim();
-    if (!trimmed) return;
+    if (!trimmed || trimmed === originalBody) return;
     setSaving(true);
     try {
       await editComment({
@@ -98,10 +98,10 @@ export function CommentThread({
     }
   }
 
-  function handleEditKeyDown(e: React.KeyboardEvent, commentId: string) {
+  function handleEditKeyDown(e: React.KeyboardEvent, commentId: string, originalBody: string) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      handleSaveEdit(commentId);
+      if (!saving) handleSaveEdit(commentId, originalBody);
     }
     if (e.key === 'Escape') {
       if (saving) return;
@@ -242,7 +242,7 @@ export function CommentThread({
                       <textarea
                         value={editBody}
                         onChange={(e) => setEditBody(e.target.value)}
-                        onKeyDown={(e) => handleEditKeyDown(e, comment._id)}
+                        onKeyDown={(e) => handleEditKeyDown(e, comment._id, comment.body)}
                         rows={3}
                         className="w-full py-2.5 px-3 text-[13px] font-[inherit] leading-[1.5] text-text bg-transparent border border-border rounded-lg resize-y outline-none box-border"
                       />
@@ -265,12 +265,12 @@ export function CommentThread({
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleSaveEdit(comment._id)}
-                            disabled={saving || !editBody.trim()}
+                            onClick={() => handleSaveEdit(comment._id, comment.body)}
+                            disabled={saving || !editBody.trim() || editBody.trim() === comment.body}
                             className="py-[5px] px-3.5 text-[12.5px] font-[550] font-[inherit] rounded-[7px] border-none bg-text text-bg"
                             style={{
-                              cursor: saving || !editBody.trim() ? 'not-allowed' : 'pointer',
-                              opacity: saving || !editBody.trim() ? 0.5 : 1,
+                              cursor: saving || !editBody.trim() || editBody.trim() === comment.body ? 'not-allowed' : 'pointer',
+                              opacity: saving || !editBody.trim() || editBody.trim() === comment.body ? 0.5 : 1,
                             }}
                           >
                             {saving ? 'Saving…' : 'Save'}
