@@ -82,10 +82,10 @@ export function CommentThread({
       }
     }
 
-    const totalCount = pendingImages.length + validFiles.length;
-    if (totalCount > MAX_IMAGE_COUNT) {
-      setError(`Maximum ${MAX_IMAGE_COUNT} images per comment`);
-      return;
+    const available = MAX_IMAGE_COUNT - pendingImages.length;
+    if (validFiles.length > available) {
+      validFiles.splice(available);
+      errors.push(`Maximum ${MAX_IMAGE_COUNT} images per comment.`);
     }
 
     if (errors.length > 0) setError(errors.join(' '));
@@ -131,7 +131,11 @@ export function CommentThread({
           }
 
           const { storageId } = (await result.json()) as { storageId: Id<'_storage'> };
-          await trackPendingUpload({ storageId, planId: planId as Id<'plans'> });
+          await trackPendingUpload({
+            storageId,
+            planId: planId as Id<'plans'>,
+            ...(shareToken ? { token: shareToken } : {}),
+          });
           return { storageId, fileName: pending.file.name };
         }),
       );

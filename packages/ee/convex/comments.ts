@@ -9,6 +9,14 @@ const MAX_COMMENT_IMAGE_COUNT = 4;
 const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_COMMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
+const IMAGE_MAGIC_BYTES: Record<string, (bytes: Uint8Array) => boolean> = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8,
+  'image/png': (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
+  'image/gif': (b) => b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46,
+  'image/webp': (b) => b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+    b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50,
+};
+
 async function validateShareToken(ctx: QueryCtx, planId: string, token: string): Promise<void> {
   const shareLink = await ctx.db
     .query('shareLinks')
@@ -93,10 +101,23 @@ export const trackPendingUpload = mutation({
   args: {
     storageId: v.id('_storage'),
     planId: v.id('plans'),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
+
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) throw new ConvexError('Plan not found');
+
+    const isOwner = plan.ownerId === user._id;
+    if (isOwner) {
+      await requireFeature(ctx, ProFeature.COMMENTS);
+    } else {
+      if (!args.token) throw new ConvexError('Share token required');
+      await validateShareToken(ctx, args.planId, args.token);
+    }
+
     await ctx.db.insert('pendingUploads', {
       storageId: args.storageId,
       uploadedBy: user._id,
@@ -165,6 +186,14 @@ export const addComment = mutation({
 
         if (metadata.size > MAX_COMMENT_IMAGE_BYTES) {
           throw new ConvexError('Image must be under 5MB');
+        }
+
+        const blob = await ctx.storage.get(attachment.storageId);
+        if (!blob) throw new ConvexError('Uploaded file not found');
+        const header = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+        const magicCheck = IMAGE_MAGIC_BYTES[metadata.contentType];
+        if (!magicCheck || !magicCheck(header)) {
+          throw new ConvexError('File content does not match declared image type');
         }
 
         return {
