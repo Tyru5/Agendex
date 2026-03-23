@@ -272,44 +272,6 @@ export const deleteOrphanedUpload = mutation({
   },
 });
 
-export const deleteUntrackedUpload = mutation({
-  args: { storageId: v.id('_storage') },
-  handler: async (ctx, args) => {
-    const user = await authComponent.getAuthUser(ctx);
-    if (!user) throw new ConvexError('Unauthenticated');
-
-    const metadata = await ctx.db.system.get(args.storageId);
-    if (!metadata) return;
-
-    const MAX_UNTRACKED_AGE_MS = 60 * 1000;
-    if (Date.now() - metadata._creationTime > MAX_UNTRACKED_AGE_MS) {
-      throw new ConvexError('File too old for untracked deletion');
-    }
-
-    // Ensure the file is not already tracked or attached to a comment
-    const tracked = await ctx.db
-      .query('pendingUploads')
-      .withIndex('by_storage', (q) => q.eq('storageId', args.storageId))
-      .first();
-    if (tracked) {
-      throw new ConvexError('File is tracked — use deleteOrphanedUpload instead');
-    }
-
-    const commentsWithAttachments = await ctx.db
-      .query('comments')
-      .filter((q) => q.neq(q.field('attachments'), undefined))
-      .collect();
-    const isAttached = commentsWithAttachments.some((c) =>
-      (c.attachments ?? []).some((a) => a.storageId === args.storageId),
-    );
-    if (isAttached) {
-      throw new ConvexError('File is attached to a comment');
-    }
-
-    await ctx.storage.delete(args.storageId);
-  },
-});
-
 export const editComment = mutation({
   args: {
     commentId: v.id('comments'),

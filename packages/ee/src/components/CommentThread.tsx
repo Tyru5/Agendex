@@ -45,7 +45,6 @@ export function CommentThread({
   const generateUploadUrl = useMutation(api.comments.generateCommentImageUploadUrl);
   const trackPendingUpload = useMutation(api.comments.trackPendingUpload);
   const deleteOrphanedUpload = useMutation(api.comments.deleteOrphanedUpload);
-  const deleteUntrackedUpload = useMutation(api.comments.deleteUntrackedUpload);
 
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
@@ -193,15 +192,12 @@ export function CommentThread({
       const failed = settled.filter((r) => !r.tracked || r.error);
 
       if (failed.length > 0) {
-        const allStorageIds = settled.filter(
-          (r): r is UploadResult & { storageId: Id<'_storage'> } => !!r.storageId,
+        const trackedUploads = settled.filter(
+          (r): r is UploadResult & { storageId: Id<'_storage'>; tracked: true } =>
+            r.tracked && !!r.storageId,
         );
         await Promise.allSettled(
-          allStorageIds.map((a) =>
-            a.tracked
-              ? deleteOrphanedUpload({ storageId: a.storageId })
-              : deleteUntrackedUpload({ storageId: a.storageId }),
-          ),
+          trackedUploads.map((a) => deleteOrphanedUpload({ storageId: a.storageId })),
         );
         throw new Error(failed.map((r) => r.error ?? 'Upload failed').join(', '));
       }
@@ -242,7 +238,6 @@ export function CommentThread({
     shareToken,
     addComment,
     deleteOrphanedUpload,
-    deleteUntrackedUpload,
   ]);
 
   async function handleSaveEdit(commentId: string, originalBody: string, hasAttachments: boolean) {
