@@ -295,6 +295,17 @@ export const deleteUntrackedUpload = mutation({
       throw new ConvexError('File is tracked — use deleteOrphanedUpload instead');
     }
 
+    const commentsWithAttachments = await ctx.db
+      .query('comments')
+      .filter((q) => q.neq(q.field('attachments'), undefined))
+      .collect();
+    const isAttached = commentsWithAttachments.some((c) =>
+      (c.attachments ?? []).some((a) => a.storageId === args.storageId),
+    );
+    if (isAttached) {
+      throw new ConvexError('File is attached to a comment');
+    }
+
     await ctx.storage.delete(args.storageId);
   },
 });
