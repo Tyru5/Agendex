@@ -35,6 +35,16 @@ export default defineSchema({
     authorName: v.string(),
     authorAvatar: v.optional(v.string()),
     body: v.string(),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id('_storage'),
+          fileName: v.optional(v.string()),
+          contentType: v.string(),
+          size: v.number(),
+        }),
+      ),
+    ),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   }).index('by_plan', ['planId']),
