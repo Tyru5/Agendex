@@ -171,6 +171,15 @@ export const addComment = mutation({
   },
 });
 
+export const deleteOrphanedUpload = mutation({
+  args: { storageId: v.id('_storage') },
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) throw new ConvexError('Unauthenticated');
+    await ctx.storage.delete(args.storageId);
+  },
+});
+
 export const deleteComment = mutation({
   args: { commentId: v.id('comments') },
   handler: async (ctx, args) => {

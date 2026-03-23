@@ -2,7 +2,7 @@ import { SkeletonBlock } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
 
 const MAX_IMAGE_COUNT = 4;
@@ -42,20 +42,26 @@ export function CommentThread({
   const addComment = useMutation(api.comments.addComment);
   const deleteComment = useMutation(api.comments.deleteComment);
   const generateUploadUrl = useMutation(api.comments.generateCommentImageUploadUrl);
+  const deleteOrphanedUpload = useMutation(api.comments.deleteOrphanedUpload);
 
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingImagesRef = useRef(pendingImages);
+
+  useEffect(() => {
+    pendingImagesRef.current = pendingImages;
+  }, [pendingImages]);
 
   useEffect(() => {
     return () => {
-      for (const img of pendingImages) {
+      for (const img of pendingImagesRef.current) {
         URL.revokeObjectURL(img.previewUrl);
       }
     };
-  }, [pendingImages]);
+  }, []);
 
   function handleFilesSelected(files: FileList | null) {
     if (!files) return;
@@ -94,34 +100,37 @@ export function CommentThread({
     });
   }
 
-  async function handlePost() {
+  const handlePost = useCallback(async () => {
     const trimmed = body.trim();
-    if (!trimmed && pendingImages.length === 0) return;
+    if (posting || (!trimmed && pendingImages.length === 0)) return;
     setPosting(true);
     setError(null);
 
+    const uploadedStorageIds: Id<'_storage'>[] = [];
+
     try {
-      const uploadedAttachments: { storageId: Id<'_storage'>; fileName: string }[] = [];
+      const uploadedAttachments = await Promise.all(
+        pendingImages.map(async (pending) => {
+          const uploadUrl = await generateUploadUrl({
+            planId: planId as Id<'plans'>,
+            ...(shareToken ? { token: shareToken } : {}),
+          });
 
-      for (const pending of pendingImages) {
-        const uploadUrl = await generateUploadUrl({
-          planId: planId as Id<'plans'>,
-          ...(shareToken ? { token: shareToken } : {}),
-        });
+          const result = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': pending.file.type },
+            body: pending.file,
+          });
 
-        const result = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': pending.file.type },
-          body: pending.file,
-        });
+          if (!result.ok) {
+            throw new Error(`Failed to upload "${pending.file.name}"`);
+          }
 
-        if (!result.ok) {
-          throw new Error(`Failed to upload "${pending.file.name}"`);
-        }
-
-        const { storageId } = await result.json();
-        uploadedAttachments.push({ storageId, fileName: pending.file.name });
-      }
+          const { storageId } = (await result.json()) as { storageId: Id<'_storage'> };
+          uploadedStorageIds.push(storageId);
+          return { storageId, fileName: pending.file.name };
+        }),
+      );
 
       await addComment({
         planId: planId as Id<'plans'>,
@@ -136,11 +145,14 @@ export function CommentThread({
       }
       setPendingImages([]);
     } catch (e) {
+      await Promise.allSettled(
+        uploadedStorageIds.map((id) => deleteOrphanedUpload({ storageId: id })),
+      );
       setError(e instanceof Error ? e.message : 'Failed to post comment');
     } finally {
       setPosting(false);
     }
-  }
+  }, [body, posting, pendingImages, generateUploadUrl, planId, shareToken, addComment, deleteOrphanedUpload]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
