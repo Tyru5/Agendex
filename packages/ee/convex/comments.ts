@@ -176,6 +176,15 @@ export const deleteOrphanedUpload = mutation({
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
+
+    const allComments = await ctx.db.query('comments').collect();
+    const inUse = allComments.some((c) =>
+      (c.attachments ?? []).some((a) => a.storageId === args.storageId),
+    );
+    if (inUse) {
+      throw new ConvexError('Storage object is in use by a comment');
+    }
+
     await ctx.storage.delete(args.storageId);
   },
 });

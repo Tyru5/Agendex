@@ -68,24 +68,29 @@ export function CommentThread({
     setError(null);
 
     const newFiles = Array.from(files);
-    const totalCount = pendingImages.length + newFiles.length;
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+
+    for (const file of newFiles) {
+      if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+        errors.push(`"${file.name}" is not a supported type.`);
+      } else if (file.size > MAX_IMAGE_BYTES) {
+        errors.push(`"${file.name}" exceeds 5MB.`);
+      } else {
+        validFiles.push(file);
+      }
+    }
+
+    const totalCount = pendingImages.length + validFiles.length;
     if (totalCount > MAX_IMAGE_COUNT) {
       setError(`Maximum ${MAX_IMAGE_COUNT} images per comment`);
       return;
     }
 
-    for (const file of newFiles) {
-      if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-        setError(`"${file.name}" is not a supported image type. Use JPEG, PNG, WebP, or GIF.`);
-        return;
-      }
-      if (file.size > MAX_IMAGE_BYTES) {
-        setError(`"${file.name}" exceeds the 5MB size limit.`);
-        return;
-      }
-    }
+    if (errors.length > 0) setError(errors.join(' '));
+    if (validFiles.length === 0) return;
 
-    const newPending = newFiles.map((file) => ({
+    const newPending = validFiles.map((file) => ({
       file,
       previewUrl: URL.createObjectURL(file),
     }));
@@ -303,7 +308,13 @@ export function CommentThread({
                   {(isOwner || user?.id === comment.authorId) && (
                     <button
                       type="button"
-                      onClick={() => deleteComment({ commentId: comment._id as Id<'comments'> })}
+                      onClick={async () => {
+                        try {
+                          await deleteComment({ commentId: comment._id as Id<'comments'> });
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : 'Failed to delete comment');
+                        }
+                      }}
                       className="py-0.5 px-2 text-[11px] font-[450] font-[inherit] rounded-[5px] border-none bg-transparent text-tertiary cursor-pointer"
                     >
                       Delete
