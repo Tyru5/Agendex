@@ -79,6 +79,7 @@ export const editComment = mutation({
   args: {
     commentId: v.id('comments'),
     body: v.string(),
+    token: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
@@ -103,17 +104,23 @@ export const editComment = mutation({
     const isOwner = plan.ownerId === user._id;
     if (isOwner) {
       await requireFeature(ctx, ProFeature.COMMENTS);
+    } else {
+      if (!args.token) throw new ConvexError('Share token required');
+      await validateShareToken(ctx, comment.planId, args.token);
     }
 
+    const trimmed = args.body.trim();
+    if (!trimmed) throw new ConvexError('Comment body cannot be empty');
+
     await ctx.db.patch(args.commentId, {
-      body: args.body,
+      body: trimmed,
       updatedAt: Date.now(),
     });
   },
 });
 
 export const deleteComment = mutation({
-  args: { commentId: v.id('comments') },
+  args: { commentId: v.id('comments'), token: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -135,6 +142,11 @@ export const deleteComment = mutation({
       await requireFeature(ctx, ProFeature.COMMENTS);
     } else if (comment.authorId !== user._id) {
       throw new ConvexError('Access denied');
+    }
+
+    if (!isOwner) {
+      if (!args.token) throw new ConvexError('Share token required');
+      await validateShareToken(ctx, comment.planId, args.token);
     }
 
     await ctx.db.delete(args.commentId);

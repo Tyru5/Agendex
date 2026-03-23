@@ -65,9 +65,10 @@ export function CommentThread({
       await editComment({
         commentId: commentId as Id<'comments'>,
         body: trimmed,
+        ...(shareToken ? { token: shareToken } : {}),
       });
-      setEditingId(null);
-      setEditBody('');
+      setEditingId((prev) => (prev === commentId ? null : prev));
+      setEditBody((prev) => (prev === trimmed ? '' : prev));
     } finally {
       setSaving(false);
     }
@@ -76,7 +77,10 @@ export function CommentThread({
   async function handleDelete(commentId: string) {
     setDeletingId(commentId);
     try {
-      await deleteComment({ commentId: commentId as Id<'comments'> });
+      await deleteComment({
+        commentId: commentId as Id<'comments'>,
+        ...(shareToken ? { token: shareToken } : {}),
+      });
     } finally {
       setDeletingId(null);
     }
@@ -95,6 +99,7 @@ export function CommentThread({
       handleSaveEdit(commentId);
     }
     if (e.key === 'Escape') {
+      if (saving) return;
       e.preventDefault();
       setEditingId(null);
       setEditBody('');
