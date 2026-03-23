@@ -250,8 +250,53 @@ export const deleteOrphanedUpload = mutation({
   },
 });
 
+export const editComment = mutation({
+  args: {
+    commentId: v.id('comments'),
+    body: v.string(),
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new ConvexError('Unauthenticated');
+    }
+
+    const comment = await ctx.db.get(args.commentId);
+    if (!comment) {
+      throw new ConvexError('Comment not found');
+    }
+
+    if (comment.authorId !== user._id) {
+      throw new ConvexError('Only the comment author can edit');
+    }
+
+    const plan = await ctx.db.get(comment.planId);
+    if (!plan) {
+      throw new ConvexError('Plan not found');
+    }
+
+    const isOwner = plan.ownerId === user._id;
+    if (isOwner) {
+      await requireFeature(ctx, ProFeature.COMMENTS);
+    } else {
+      if (!args.token) throw new ConvexError('Share token required');
+      await validateShareToken(ctx, comment.planId, args.token);
+    }
+
+    const trimmed = args.body.trim();
+    if (!trimmed) throw new ConvexError('Comment body cannot be empty');
+    if (trimmed === comment.body) return;
+
+    await ctx.db.patch(args.commentId, {
+      body: trimmed,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const deleteComment = mutation({
-  args: { commentId: v.id('comments') },
+  args: { commentId: v.id('comments'), token: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -275,6 +320,11 @@ export const deleteComment = mutation({
       await requireFeature(ctx, ProFeature.COMMENTS);
     } else if (comment.authorId !== user._id) {
       throw new ConvexError('Access denied');
+    }
+
+    if (!isOwner) {
+      if (!args.token) throw new ConvexError('Share token required');
+      await validateShareToken(ctx, comment.planId, args.token);
     }
 
     for (const attachment of comment.attachments ?? []) {
