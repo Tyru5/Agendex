@@ -10,7 +10,7 @@
     "dev:client:oss": "bun run --cwd ./packages/app dev:client",
     "dev:client:ee": "bun run --cwd ./packages/ee dev:client",
     "build": "bun run --cwd ./packages/app build",
-    "build:cloud": "bun run --cwd ./packages/ee build",
+    "build:cloud": "cd packages/ee && bunx convex deploy --cmd 'bunx --bun vite build'",
     "build:cli:release": "node ./packages/cli/scripts/build-release.mjs",
     "cli": "bun run --cwd ./packages/cli src/cli.ts",
     "cli:start": "bun run --cwd ./packages/cli src/cli.ts start",
