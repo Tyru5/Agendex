@@ -290,10 +290,11 @@ export function CommentThread({
 
   const canPost = !posting && (body.trim().length > 0 || pendingImages.length > 0);
 
-  function handleEditKeyDown(e: React.KeyboardEvent, commentId: string, originalBody: string) {
+  function handleEditKeyDown(e: React.KeyboardEvent, commentId: string, originalBody: string, hasAttachments: boolean) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      if (!saving) handleSaveEdit(commentId, originalBody);
+      if (!saving) handleSaveEdit(commentId, originalBody, hasAttachments);
+    }
     }
     if (e.key === 'Escape') {
       if (saving) return;
