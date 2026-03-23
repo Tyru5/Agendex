@@ -286,6 +286,15 @@ export const deleteUntrackedUpload = mutation({
       throw new ConvexError('File too old for untracked deletion');
     }
 
+    // Ensure the file is not already tracked or attached to a comment
+    const tracked = await ctx.db
+      .query('pendingUploads')
+      .withIndex('by_storage', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (tracked) {
+      throw new ConvexError('File is tracked — use deleteOrphanedUpload instead');
+    }
+
     await ctx.storage.delete(args.storageId);
   },
 });
