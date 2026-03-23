@@ -127,13 +127,14 @@ export const trackPendingUpload = mutation({
 
     if (!metadata.contentType || !ALLOWED_COMMENT_IMAGE_TYPES.has(metadata.contentType)) {
       await ctx.storage.delete(args.storageId);
-      throw new ConvexError(
-        `File type "${metadata.contentType ?? 'unknown'}" is not allowed. Use JPEG, PNG, WebP, or GIF.`,
-      );
+      return {
+        success: false as const,
+        error: `File type "${metadata.contentType ?? 'unknown'}" is not allowed. Use JPEG, PNG, WebP, or GIF.`,
+      };
     }
     if (metadata.size > MAX_COMMENT_IMAGE_BYTES) {
       await ctx.storage.delete(args.storageId);
-      throw new ConvexError('Image must be under 5MB');
+      return { success: false as const, error: 'Image must be under 5MB' };
     }
 
     await ctx.db.insert('pendingUploads', {
@@ -142,6 +143,7 @@ export const trackPendingUpload = mutation({
       planId: args.planId,
       createdAt: Date.now(),
     });
+    return { success: true as const };
   },
 });
 
@@ -270,6 +272,24 @@ export const deleteOrphanedUpload = mutation({
   },
 });
 
+export const deleteUntrackedUpload = mutation({
+  args: { storageId: v.id('_storage') },
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) throw new ConvexError('Unauthenticated');
+
+    const metadata = await ctx.db.system.get(args.storageId);
+    if (!metadata) return;
+
+    const MAX_UNTRACKED_AGE_MS = 60 * 1000;
+    if (Date.now() - metadata._creationTime > MAX_UNTRACKED_AGE_MS) {
+      throw new ConvexError('File too old for untracked deletion');
+    }
+
+    await ctx.storage.delete(args.storageId);
+  },
+});
+
 export const editComment = mutation({
   args: {
     commentId: v.id('comments'),
@@ -366,6 +386,9 @@ export const cleanupStalePendingUploads = internalMutation({
   args: {},
   handler: async (ctx) => {
     const cutoff = Date.now() - STALE_UPLOAD_AGE_MS;
+    let deleted = 0;
+
+    // Pass 1: clean up stale pendingUploads records + their storage files
     const stale = await ctx.db
       .query('pendingUploads')
       .withIndex('by_createdAt', (q) => q.lt('createdAt', cutoff))
@@ -378,8 +401,34 @@ export const cleanupStalePendingUploads = internalMutation({
         // File may already be deleted; continue cleanup
       }
       await ctx.db.delete(record._id);
+      deleted++;
     }
 
-    return { deleted: stale.length };
+    // Pass 2: clean up untracked storage files (uploaded but never tracked,
+    // e.g. client crashed between fetch and trackPendingUpload)
+    const referencedIds = new Set<string>();
+
+    const allPending = await ctx.db.query('pendingUploads').collect();
+    for (const p of allPending) referencedIds.add(p.storageId);
+
+    const allComments = await ctx.db.query('comments').collect();
+    for (const c of allComments) {
+      for (const a of c.attachments ?? []) referencedIds.add(a.storageId);
+    }
+
+    const storageFiles = await ctx.db.system.query('_storage').order('asc').take(500);
+    for (const file of storageFiles) {
+      if (file._creationTime > cutoff) continue;
+      if (!file.contentType || !ALLOWED_COMMENT_IMAGE_TYPES.has(file.contentType)) continue;
+      if (referencedIds.has(file._id)) continue;
+      try {
+        await ctx.storage.delete(file._id);
+        deleted++;
+      } catch {
+        // already deleted
+      }
+    }
+
+    return { deleted };
   },
 });

@@ -45,6 +45,7 @@ export function CommentThread({
   const generateUploadUrl = useMutation(api.comments.generateCommentImageUploadUrl);
   const trackPendingUpload = useMutation(api.comments.trackPendingUpload);
   const deleteOrphanedUpload = useMutation(api.comments.deleteOrphanedUpload);
+  const deleteUntrackedUpload = useMutation(api.comments.deleteUntrackedUpload);
 
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
@@ -118,8 +119,15 @@ export function CommentThread({
     setError(null);
 
     try {
+      type UploadResult = {
+        storageId?: Id<'_storage'>;
+        fileName: string;
+        tracked: boolean;
+        error?: string;
+      };
+
       const results = await Promise.allSettled(
-        pendingImages.map(async (pending) => {
+        pendingImages.map(async (pending): Promise<UploadResult> => {
           const uploadUrl = await generateUploadUrl({
             planId: planId as Id<'plans'>,
             ...(shareToken ? { token: shareToken } : {}),
@@ -132,32 +140,70 @@ export function CommentThread({
           });
 
           if (!result.ok) {
-            throw new Error(`Failed to upload "${pending.file.name}"`);
+            return {
+              fileName: pending.file.name,
+              tracked: false,
+              error: `Failed to upload "${pending.file.name}"`,
+            };
           }
 
           const { storageId } = (await result.json()) as { storageId: Id<'_storage'> };
-          await trackPendingUpload({
-            storageId,
-            planId: planId as Id<'plans'>,
-            ...(shareToken ? { token: shareToken } : {}),
-          });
-          return { storageId, fileName: pending.file.name };
+
+          try {
+            const trackResult = await trackPendingUpload({
+              storageId,
+              planId: planId as Id<'plans'>,
+              ...(shareToken ? { token: shareToken } : {}),
+            });
+
+            if (trackResult && !trackResult.success) {
+              return {
+                storageId,
+                fileName: pending.file.name,
+                tracked: false,
+                error: trackResult.error,
+              };
+            }
+          } catch {
+            return {
+              storageId,
+              fileName: pending.file.name,
+              tracked: false,
+              error: `Failed to track "${pending.file.name}"`,
+            };
+          }
+
+          return { storageId, fileName: pending.file.name, tracked: true };
         }),
       );
 
-      const succeeded = results
-        .filter(
-          (r): r is PromiseFulfilledResult<{ storageId: Id<'_storage'>; fileName: string }> =>
-            r.status === 'fulfilled',
-        )
-        .map((r) => r.value);
-      const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      const settled = results.map((r) =>
+        r.status === 'fulfilled'
+          ? r.value
+          : ({
+              fileName: '?',
+              tracked: false,
+              error: r.reason?.message ?? 'Upload failed',
+            } as UploadResult),
+      );
+      const succeeded = settled.filter(
+        (r): r is UploadResult & { storageId: Id<'_storage'>; tracked: true } =>
+          r.tracked && !!r.storageId,
+      );
+      const failed = settled.filter((r) => !r.tracked || r.error);
 
       if (failed.length > 0) {
-        await Promise.allSettled(
-          succeeded.map((a) => deleteOrphanedUpload({ storageId: a.storageId })),
+        const allStorageIds = settled.filter(
+          (r): r is UploadResult & { storageId: Id<'_storage'> } => !!r.storageId,
         );
-        throw new Error(failed.map((r) => r.reason?.message ?? 'Upload failed').join(', '));
+        await Promise.allSettled(
+          allStorageIds.map((a) =>
+            a.tracked
+              ? deleteOrphanedUpload({ storageId: a.storageId })
+              : deleteUntrackedUpload({ storageId: a.storageId }),
+          ),
+        );
+        throw new Error(failed.map((r) => r.error ?? 'Upload failed').join(', '));
       }
 
       try {
@@ -194,6 +240,7 @@ export function CommentThread({
     shareToken,
     addComment,
     deleteOrphanedUpload,
+    deleteUntrackedUpload,
   ]);
 
   async function handleSaveEdit(commentId: string, originalBody: string) {
