@@ -67,13 +67,15 @@ export function CommentThread({
         body: trimmed,
         ...(shareToken ? { token: shareToken } : {}),
       });
+      let wasEditing = false;
       setEditingId((prev) => {
         if (prev === commentId) {
-          setEditBody('');
+          wasEditing = true;
           return null;
         }
         return prev;
       });
+      if (wasEditing) setEditBody('');
     } finally {
       setSaving(false);
     }
@@ -243,8 +245,10 @@ export function CommentThread({
                         value={editBody}
                         onChange={(e) => setEditBody(e.target.value)}
                         onKeyDown={(e) => handleEditKeyDown(e, comment._id, comment.body)}
+                        disabled={saving}
                         rows={3}
                         className="w-full py-2.5 px-3 text-[13px] font-[inherit] leading-[1.5] text-text bg-transparent border border-border rounded-lg resize-y outline-none box-border"
+                        style={{ opacity: saving ? 0.6 : 1 }}
                       />
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-[11px] text-tertiary">
