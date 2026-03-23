@@ -305,7 +305,8 @@ export const editComment = mutation({
     }
 
     const trimmed = args.body.trim();
-    if (!trimmed) throw new ConvexError('Comment body cannot be empty');
+    const hasAttachments = (comment.attachments ?? []).length > 0;
+    if (!trimmed && !hasAttachments) throw new ConvexError('Comment body cannot be empty');
     if (trimmed === comment.body) return;
 
     await ctx.db.patch(args.commentId, {
