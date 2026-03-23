@@ -1194,6 +1194,7 @@ function CliAuthRoute() {
  */
 function AuthCheckRoute() {
   const { isAuthenticated, isLoading } = useAuth();
+  const appUrl = import.meta.env.VITE_APP_URL as string | undefined;
   const marketingUrl = import.meta.env.VITE_MARKETING_URL as string | undefined;
   const returnTo = new URLSearchParams(window.location.search).get('returnTo');
 
@@ -1202,9 +1203,20 @@ function AuthCheckRoute() {
     if (isAuthenticated) {
       window.location.replace('/');
     } else if (returnTo || marketingUrl) {
-      window.location.replace(returnTo || marketingUrl!);
+      try {
+        const dest = new URL(returnTo || marketingUrl!);
+        const trusted = [appUrl, marketingUrl].filter(Boolean).map((u) => new URL(u!).origin);
+        if (!trusted.includes(dest.origin)) {
+          window.location.replace('/');
+          return;
+        }
+        dest.searchParams.set('checked', '1');
+        window.location.replace(dest.toString());
+      } catch {
+        window.location.replace('/');
+      }
     }
-  }, [isAuthenticated, isLoading, returnTo, marketingUrl]);
+  }, [isAuthenticated, isLoading, returnTo, marketingUrl, appUrl]);
 
   return <BootLoadingView />;
 }
@@ -1217,6 +1229,22 @@ function HomeRoute() {
     enabled: !isLoading && isAuthenticated,
   });
 
+  // Track whether we arrived with an OTT token (OAuth callback).
+  // The ConvexBetterAuthProvider will process it, but the auto-fetch from
+  // useSession resolves with null first — creating a transient unauth state.
+  // Suppress redirects until the OTT flow has a chance to establish the session.
+  const [processingOtt, setProcessingOtt] = useState(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('ott'),
+  );
+  useEffect(() => {
+    if (processingOtt && isAuthenticated) setProcessingOtt(false);
+  }, [processingOtt, isAuthenticated]);
+  useEffect(() => {
+    if (!processingOtt) return;
+    const id = setTimeout(() => setProcessingOtt(false), 5_000);
+    return () => clearTimeout(id);
+  }, [processingOtt]);
+
   const appUrl = import.meta.env.VITE_APP_URL as string | undefined;
   const marketingUrl = import.meta.env.VITE_MARKETING_URL as string | undefined;
 
@@ -1227,19 +1255,29 @@ function HomeRoute() {
     isMarketingHost = marketingUrl
       ? window.location.origin === new URL(marketingUrl).origin
       : false;
+    // Treat the apex domain (e.g. agendex.dev) as the marketing host
+    if (!isAppHost && !isMarketingHost && marketingUrl) {
+      const marketingHostname = new URL(marketingUrl).hostname; // e.g. www.agendex.dev
+      const apex = marketingHostname.replace(/^www\./, ''); // e.g. agendex.dev
+      if (window.location.hostname === apex) {
+        isMarketingHost = true;
+      }
+    }
   } catch {
     // malformed env var — treat both as false
   }
 
   // On the marketing host, bounce to the app host's /auth/check so it can
   // inspect its own localStorage for an existing session.
+  // Skip if we already checked (indicated by ?checked=1 from AuthCheckRoute).
+  const alreadyChecked = new URLSearchParams(window.location.search).get('checked') === '1';
   useEffect(() => {
-    if (isMarketingHost && appUrl && !isLoading && !isAuthenticated) {
+    if (isMarketingHost && appUrl && !isLoading && !isAuthenticated && !alreadyChecked) {
       const checkUrl = new URL('/auth/check', appUrl);
       checkUrl.searchParams.set('returnTo', window.location.href);
       window.location.replace(checkUrl.toString());
     }
-  }, [isMarketingHost, appUrl, isLoading, isAuthenticated]);
+  }, [isMarketingHost, appUrl, isLoading, isAuthenticated, alreadyChecked]);
 
   useEffect(() => {
     if (isAuthenticated && onboardingResolved && !needsOnboarding && isMarketingHost && appUrl) {
@@ -1248,12 +1286,19 @@ function HomeRoute() {
   }, [isAuthenticated, onboardingResolved, needsOnboarding, isMarketingHost, appUrl]);
 
   useEffect(() => {
-    if (!isAuthenticated && !isLoading && !hasCachedToken && isAppHost && marketingUrl) {
+    if (
+      !isAuthenticated &&
+      !isLoading &&
+      !hasCachedToken &&
+      isAppHost &&
+      marketingUrl &&
+      !processingOtt
+    ) {
       window.location.href = marketingUrl;
     }
-  }, [isAuthenticated, isLoading, hasCachedToken, isAppHost, marketingUrl]);
+  }, [isAuthenticated, isLoading, hasCachedToken, isAppHost, marketingUrl, processingOtt]);
 
-  if (isMarketingHost && appUrl && !isAuthenticated) return <BootLoadingView />;
+  if (isMarketingHost && appUrl && !isAuthenticated && !alreadyChecked) return <BootLoadingView />;
 
   if (isAuthenticated && isMarketingHost && appUrl) return <BootLoadingView />;
 

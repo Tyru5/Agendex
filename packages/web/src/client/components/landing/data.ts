@@ -56,7 +56,7 @@ export const LOCAL_STEPS = [
   {
     number: '2',
     title: 'Start Dev Servers',
-    code: `bun run dev          # API server :4890\nbun run dev:client   # Vite HMR  :5173`,
+    code: `bun run dev              # API server :4890\nbun run dev:client:oss   # Vite HMR  :5173`,
   },
   {
     number: '3',

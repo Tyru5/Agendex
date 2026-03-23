@@ -764,7 +764,7 @@ function LandingNavbar({
             onClick={onMobileMenuClose}
             className="shrink-0 font-[Unbounded,sans-serif] text-[15px] font-medium text-white tracking-[-0.02em] no-underline sm:text-base"
           >
-            agendex<span style={{ color: '#c8ff32' }}>.</span>
+            Agendex<span style={{ color: '#c8ff32' }}>.</span>
           </a>
           <div className="landing-nav-links hidden items-center gap-[18px] md:flex">
             {LANDING_SECTIONS.map((section) => (
