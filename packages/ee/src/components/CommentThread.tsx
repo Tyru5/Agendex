@@ -67,8 +67,13 @@ export function CommentThread({
         body: trimmed,
         ...(shareToken ? { token: shareToken } : {}),
       });
-      setEditingId((prev) => (prev === commentId ? null : prev));
-      setEditBody((prev) => (prev === trimmed ? '' : prev));
+      setEditingId((prev) => {
+        if (prev === commentId) {
+          setEditBody('');
+          return null;
+        }
+        return prev;
+      });
     } finally {
       setSaving(false);
     }
@@ -206,11 +211,13 @@ export function CommentThread({
                         {isAuthor && (
                           <button
                             type="button"
+                            disabled={saving}
                             onClick={() => {
                               setEditingId(comment._id);
                               setEditBody(comment.body);
                             }}
-                            className="py-0.5 px-2 text-[11px] font-[450] font-[inherit] rounded-[5px] border-none bg-transparent text-tertiary cursor-pointer"
+                            className="py-0.5 px-2 text-[11px] font-[450] font-[inherit] rounded-[5px] border-none bg-transparent text-tertiary"
+                            style={{ cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1 }}
                           >
                             Edit
                           </button>
