@@ -7,5 +7,5 @@ export const APP_URL = (
 
 export const authClient = createAuthClient({
   baseURL: import.meta.env.VITE_CONVEX_SITE_URL as string,
-  plugins: [convexClient(), crossDomainClient()],
+  plugins: [convexClient(), crossDomainClient({ disableCache: true })],
 });

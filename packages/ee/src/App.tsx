@@ -1202,10 +1202,7 @@ function AuthCheckRoute() {
     if (isAuthenticated) {
       window.location.replace('/');
     } else if (returnTo || marketingUrl) {
-      // Append ?checked=1 so the marketing site knows we already checked
-      const dest = new URL(returnTo || marketingUrl!);
-      dest.searchParams.set('checked', '1');
-      window.location.replace(dest.toString());
+      window.location.replace(returnTo || marketingUrl!);
     }
   }, [isAuthenticated, isLoading, returnTo, marketingUrl]);
 
@@ -1230,29 +1227,19 @@ function HomeRoute() {
     isMarketingHost = marketingUrl
       ? window.location.origin === new URL(marketingUrl).origin
       : false;
-    // Treat the apex domain (e.g. agendex.dev) as the marketing host
-    if (!isAppHost && !isMarketingHost && marketingUrl) {
-      const marketingHostname = new URL(marketingUrl).hostname; // e.g. www.agendex.dev
-      const apex = marketingHostname.replace(/^www\./, ''); // e.g. agendex.dev
-      if (window.location.hostname === apex) {
-        isMarketingHost = true;
-      }
-    }
   } catch {
     // malformed env var — treat both as false
   }
 
   // On the marketing host, bounce to the app host's /auth/check so it can
   // inspect its own localStorage for an existing session.
-  // Skip if we already checked (indicated by ?checked=1 from AuthCheckRoute).
-  const alreadyChecked = new URLSearchParams(window.location.search).get('checked') === '1';
   useEffect(() => {
-    if (isMarketingHost && appUrl && !isLoading && !isAuthenticated && !alreadyChecked) {
+    if (isMarketingHost && appUrl && !isLoading && !isAuthenticated) {
       const checkUrl = new URL('/auth/check', appUrl);
       checkUrl.searchParams.set('returnTo', window.location.href);
       window.location.replace(checkUrl.toString());
     }
-  }, [isMarketingHost, appUrl, isLoading, isAuthenticated, alreadyChecked]);
+  }, [isMarketingHost, appUrl, isLoading, isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated && onboardingResolved && !needsOnboarding && isMarketingHost && appUrl) {
@@ -1266,7 +1253,7 @@ function HomeRoute() {
     }
   }, [isAuthenticated, isLoading, hasCachedToken, isAppHost, marketingUrl]);
 
-  if (isMarketingHost && appUrl && !isAuthenticated && !alreadyChecked) return <BootLoadingView />;
+  if (isMarketingHost && appUrl && !isAuthenticated) return <BootLoadingView />;
 
   if (isAuthenticated && isMarketingHost && appUrl) return <BootLoadingView />;
 
