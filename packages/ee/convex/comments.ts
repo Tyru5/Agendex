@@ -261,20 +261,11 @@ export const deleteOrphanedUpload = mutation({
       )
       .first();
 
-    if (pending) {
-      await ctx.db.delete(pending._id);
-      await ctx.storage.delete(args.storageId);
-      return;
-    }
-
-    // No pending record — allow deletion only if the file is very fresh
-    // (handles the case where trackPendingUpload failed after upload)
-    const metadata = await ctx.db.system.get(args.storageId);
-    if (!metadata) return;
-    const MAX_ORPHAN_AGE_MS = 5 * 60 * 1000;
-    if (Date.now() - metadata._creationTime > MAX_ORPHAN_AGE_MS) {
+    if (!pending) {
       throw new ConvexError('Upload not found or not owned by user');
     }
+
+    await ctx.db.delete(pending._id);
     await ctx.storage.delete(args.storageId);
   },
 });
@@ -357,7 +348,11 @@ export const deleteComment = mutation({
     }
 
     for (const attachment of comment.attachments ?? []) {
-      await ctx.storage.delete(attachment.storageId);
+      try {
+        await ctx.storage.delete(attachment.storageId);
+      } catch {
+        // File may already be deleted; continue cleanup
+      }
     }
 
     await ctx.db.delete(args.commentId);
@@ -372,11 +367,15 @@ export const cleanupStalePendingUploads = internalMutation({
     const cutoff = Date.now() - STALE_UPLOAD_AGE_MS;
     const stale = await ctx.db
       .query('pendingUploads')
-      .filter((q) => q.lt(q.field('createdAt'), cutoff))
+      .withIndex('by_createdAt', (q) => q.lt('createdAt', cutoff))
       .collect();
 
     for (const record of stale) {
-      await ctx.storage.delete(record.storageId);
+      try {
+        await ctx.storage.delete(record.storageId);
+      } catch {
+        // File may already be deleted; continue cleanup
+      }
       await ctx.db.delete(record._id);
     }
 

@@ -56,7 +56,8 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index('by_storage', ['storageId'])
-    .index('by_user_storage', ['uploadedBy', 'storageId']),
+    .index('by_user_storage', ['uploadedBy', 'storageId'])
+    .index('by_createdAt', ['createdAt']),
 
   subscriptions: defineTable({
     userId: v.string(),
