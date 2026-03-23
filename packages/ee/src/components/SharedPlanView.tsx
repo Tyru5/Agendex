@@ -89,95 +89,95 @@ export function SharedPlanView({ token }: { token: string }) {
       }
       className={fullscreen ? 'main-scroll' : undefined}
     >
-    <div className={`min-h-screen bg-bg text-text${fullscreen ? '' : ' main-scroll'}`}>
-      {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
-        <PlanOutline entries={entries} />
-      )}
-      <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
-        {/* Header */}
-        <div className="mb-8 pb-6 border-b border-border">
-          <div className="flex items-center gap-1 text-[12px] text-tertiary mb-2.5 font-[450]">
-            <span className="flex items-center gap-1.5">
-              <AgentIcon agent={plan.agent} size={13} />
-              <span>{getAgentLabel(plan.agent)}</span>
-            </span>
-          </div>
-
-          <h1 className="text-[26px] font-semibold tracking-[-0.03em] leading-[1.25] text-text mb-3">
-            {plan.title}
-          </h1>
-
-          <div className="flex items-center gap-5 text-[12.5px] text-secondary">
-            {plan.createdAt && (
-              <span className="flex items-center gap-1.5">
-                <ClockIcon />
-                {timeAgo(String(plan.createdAt))}
-              </span>
-            )}
-            <span className="flex items-center gap-1.5">
-              <DocIcon />
-              {plan.format.toUpperCase()}
-            </span>
-            <span className="text-[11px] font-[550] py-0.5 px-[7px] rounded-[5px] bg-[rgba(99,102,241,0.1)] text-[#6366f1]">
-              Shared
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 mt-4">
-            <button
-              type="button"
-              onClick={() => setFullscreen((f) => !f)}
-              title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-              className="flex items-center gap-[5px] text-[12.5px] font-medium rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
-              style={{ padding: '5px 12px', fontFamily: 'inherit' }}
-            >
-              {fullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
-              {fullscreen ? 'Exit' : 'Fullscreen'}
-            </button>
-          </div>
-        </div>
-
-        {/* Body */}
-        {renderMode === 'markdown' ? (
-          <article className="plan-markdown">
-            <div id="plan-top" aria-hidden="true" />
-            <Markdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
-              components={{
-                code({ className, children, node: _node, ...props }) {
-                  const code = String(children).replace(/\n$/, '');
-                  const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
-                  const isBlock = Boolean(language) || code.includes('\n');
-
-                  if (!isBlock) {
-                    return (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    );
-                  }
-
-                  return (
-                    <MarkdownCodeBlock className={className} code={code} language={language} />
-                  );
-                },
-              }}
-            >
-              {renderContent}
-            </Markdown>
-          </article>
-        ) : (
-          <>
-            <div id="plan-top" aria-hidden="true" />
-            <pre className="plan-plain">{renderContent}</pre>
-          </>
+      <div className={`min-h-screen bg-bg text-text${fullscreen ? '' : ' main-scroll'}`}>
+        {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
+          <PlanOutline entries={entries} />
         )}
+        <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
+          {/* Header */}
+          <div className="mb-8 pb-6 border-b border-border">
+            <div className="flex items-center gap-1 text-[12px] text-tertiary mb-2.5 font-[450]">
+              <span className="flex items-center gap-1.5">
+                <AgentIcon agent={plan.agent} size={13} />
+                <span>{getAgentLabel(plan.agent)}</span>
+              </span>
+            </div>
 
-        {/* Comments */}
-        <CommentThread planId={plan._id} shareToken={token} />
+            <h1 className="text-[26px] font-semibold tracking-[-0.03em] leading-[1.25] text-text mb-3">
+              {plan.title}
+            </h1>
+
+            <div className="flex items-center gap-5 text-[12.5px] text-secondary">
+              {plan.createdAt && (
+                <span className="flex items-center gap-1.5">
+                  <ClockIcon />
+                  {timeAgo(String(plan.createdAt))}
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <DocIcon />
+                {plan.format.toUpperCase()}
+              </span>
+              <span className="text-[11px] font-[550] py-0.5 px-[7px] rounded-[5px] bg-[rgba(99,102,241,0.1)] text-[#6366f1]">
+                Shared
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setFullscreen((f) => !f)}
+                title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+                className="flex items-center gap-[5px] text-[12.5px] font-medium rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+                style={{ padding: '5px 12px', fontFamily: 'inherit' }}
+              >
+                {fullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
+                {fullscreen ? 'Exit' : 'Fullscreen'}
+              </button>
+            </div>
+          </div>
+
+          {/* Body */}
+          {renderMode === 'markdown' ? (
+            <article className="plan-markdown">
+              <div id="plan-top" aria-hidden="true" />
+              <Markdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
+                components={{
+                  code({ className, children, node: _node, ...props }) {
+                    const code = String(children).replace(/\n$/, '');
+                    const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
+                    const isBlock = Boolean(language) || code.includes('\n');
+
+                    if (!isBlock) {
+                      return (
+                        <code className={className} {...props}>
+                          {children}
+                        </code>
+                      );
+                    }
+
+                    return (
+                      <MarkdownCodeBlock className={className} code={code} language={language} />
+                    );
+                  },
+                }}
+              >
+                {renderContent}
+              </Markdown>
+            </article>
+          ) : (
+            <>
+              <div id="plan-top" aria-hidden="true" />
+              <pre className="plan-plain">{renderContent}</pre>
+            </>
+          )}
+
+          {/* Comments */}
+          <CommentThread planId={plan._id} shareToken={token} />
+        </div>
       </div>
-    </div>
     </div>
   );
 }
