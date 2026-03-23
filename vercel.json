@@ -1,5 +1,5 @@
 {
-  "buildCommand": "bun run build:cloud",
+  "buildCommand": "bunx convex deploy --cmd 'bun run build:cloud'",
   "outputDirectory": "packages/ee/dist",
   "installCommand": "bun install",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
