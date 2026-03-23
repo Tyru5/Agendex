@@ -199,7 +199,8 @@ export const addComment = mutation({
           throw new ConvexError('Image must be under 5MB');
         }
 
-        const blob = await ctx.storage.get(attachment.storageId);
+        // storage.get() is available at runtime in mutations but only typed on StorageActionWriter
+        const blob = await (ctx.storage as unknown as { get: (id: Id<'_storage'>) => Promise<Blob | null> }).get(attachment.storageId);
         if (!blob) throw new ConvexError('Uploaded file not found');
         const header = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
         const magicCheck = IMAGE_MAGIC_BYTES[metadata.contentType];
