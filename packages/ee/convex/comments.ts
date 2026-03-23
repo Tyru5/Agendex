@@ -89,6 +89,23 @@ export const generateCommentImageUploadUrl = mutation({
   },
 });
 
+export const trackPendingUpload = mutation({
+  args: {
+    storageId: v.id('_storage'),
+    planId: v.id('plans'),
+  },
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) throw new ConvexError('Unauthenticated');
+    await ctx.db.insert('pendingUploads', {
+      storageId: args.storageId,
+      uploadedBy: user._id,
+      planId: args.planId,
+      createdAt: Date.now(),
+    });
+  },
+});
+
 export const addComment = mutation({
   args: {
     planId: v.id('plans'),
@@ -159,7 +176,7 @@ export const addComment = mutation({
       }),
     );
 
-    return await ctx.db.insert('comments', {
+    const commentId = await ctx.db.insert('comments', {
       planId: args.planId,
       authorId: user._id,
       authorName: user.name ?? 'Anonymous',
@@ -168,6 +185,16 @@ export const addComment = mutation({
       ...(validatedAttachments.length > 0 ? { attachments: validatedAttachments } : {}),
       createdAt: Date.now(),
     });
+
+    for (const attachment of validatedAttachments) {
+      const pending = await ctx.db
+        .query('pendingUploads')
+        .withIndex('by_storage', (q) => q.eq('storageId', attachment.storageId))
+        .first();
+      if (pending) await ctx.db.delete(pending._id);
+    }
+
+    return commentId;
   },
 });
 
@@ -177,14 +204,18 @@ export const deleteOrphanedUpload = mutation({
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
-    const allComments = await ctx.db.query('comments').collect();
-    const inUse = allComments.some((c) =>
-      (c.attachments ?? []).some((a) => a.storageId === args.storageId),
-    );
-    if (inUse) {
-      throw new ConvexError('Storage object is in use by a comment');
+    const pending = await ctx.db
+      .query('pendingUploads')
+      .withIndex('by_user_storage', (q) =>
+        q.eq('uploadedBy', user._id).eq('storageId', args.storageId),
+      )
+      .first();
+
+    if (!pending) {
+      throw new ConvexError('Upload not found or not owned by user');
     }
 
+    await ctx.db.delete(pending._id);
     await ctx.storage.delete(args.storageId);
   },
 });

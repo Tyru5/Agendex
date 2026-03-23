@@ -42,6 +42,7 @@ export function CommentThread({
   const addComment = useMutation(api.comments.addComment);
   const deleteComment = useMutation(api.comments.deleteComment);
   const generateUploadUrl = useMutation(api.comments.generateCommentImageUploadUrl);
+  const trackPendingUpload = useMutation(api.comments.trackPendingUpload);
   const deleteOrphanedUpload = useMutation(api.comments.deleteOrphanedUpload);
 
   const [body, setBody] = useState('');
@@ -111,10 +112,8 @@ export function CommentThread({
     setPosting(true);
     setError(null);
 
-    const uploadedStorageIds: Id<'_storage'>[] = [];
-
     try {
-      const uploadedAttachments = await Promise.all(
+      const results = await Promise.allSettled(
         pendingImages.map(async (pending) => {
           const uploadUrl = await generateUploadUrl({
             planId: planId as Id<'plans'>,
@@ -132,15 +131,27 @@ export function CommentThread({
           }
 
           const { storageId } = (await result.json()) as { storageId: Id<'_storage'> };
-          uploadedStorageIds.push(storageId);
+          await trackPendingUpload({ storageId, planId: planId as Id<'plans'> });
           return { storageId, fileName: pending.file.name };
         }),
       );
 
+      const succeeded = results
+        .filter((r): r is PromiseFulfilledResult<{ storageId: Id<'_storage'>; fileName: string }> => r.status === 'fulfilled')
+        .map((r) => r.value);
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+
+      if (failed.length > 0) {
+        await Promise.allSettled(
+          succeeded.map((a) => deleteOrphanedUpload({ storageId: a.storageId })),
+        );
+        throw new Error(failed.map((r) => r.reason?.message ?? 'Upload failed').join(', '));
+      }
+
       await addComment({
         planId: planId as Id<'plans'>,
         body: trimmed,
-        ...(uploadedAttachments.length > 0 ? { attachments: uploadedAttachments } : {}),
+        ...(succeeded.length > 0 ? { attachments: succeeded } : {}),
         ...(shareToken ? { token: shareToken } : {}),
       });
 
@@ -150,14 +161,11 @@ export function CommentThread({
       }
       setPendingImages([]);
     } catch (e) {
-      await Promise.allSettled(
-        uploadedStorageIds.map((id) => deleteOrphanedUpload({ storageId: id })),
-      );
       setError(e instanceof Error ? e.message : 'Failed to post comment');
     } finally {
       setPosting(false);
     }
-  }, [body, posting, pendingImages, generateUploadUrl, planId, shareToken, addComment, deleteOrphanedUpload]);
+  }, [body, posting, pendingImages, generateUploadUrl, trackPendingUpload, planId, shareToken, addComment, deleteOrphanedUpload]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {

@@ -49,6 +49,15 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
   }).index('by_plan', ['planId']),
 
+  pendingUploads: defineTable({
+    storageId: v.id('_storage'),
+    uploadedBy: v.string(),
+    planId: v.id('plans'),
+    createdAt: v.number(),
+  })
+    .index('by_storage', ['storageId'])
+    .index('by_user_storage', ['uploadedBy', 'storageId']),
+
   subscriptions: defineTable({
     userId: v.string(),
     stripeCustomerId: v.string(),
