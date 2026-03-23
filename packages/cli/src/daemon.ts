@@ -190,7 +190,7 @@ export async function startSupervisor(): Promise<void> {
 
     const now = Date.now();
     restartTimes.push(now);
-    while (restartTimes.length > 0 && now - restartTimes[0]! > RESTART_WINDOW_MS) {
+    while (restartTimes.length > 0 && now - (restartTimes[0] as number) > RESTART_WINDOW_MS) {
       restartTimes.shift();
     }
 

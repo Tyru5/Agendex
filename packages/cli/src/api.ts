@@ -80,8 +80,9 @@ export async function sendHeartbeat(): Promise<void> {
   try {
     const { token, convexUrl } = getCloudConfig();
     const pidInfo = readPidInfo();
+    cachedDeviceId ??= loadOrCreateDeviceId();
     const heartbeatBody = JSON.stringify({
-      deviceId: (cachedDeviceId ??= loadOrCreateDeviceId()),
+      deviceId: cachedDeviceId,
       hostname: pidInfo?.hostname ?? osHostname(),
       startedAtMs: pidInfo?.startedAtMs,
       pid: pidInfo?.pid,
