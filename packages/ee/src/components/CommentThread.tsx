@@ -146,7 +146,10 @@ export function CommentThread({
       );
 
       const succeeded = results
-        .filter((r): r is PromiseFulfilledResult<{ storageId: Id<'_storage'>; fileName: string }> => r.status === 'fulfilled')
+        .filter(
+          (r): r is PromiseFulfilledResult<{ storageId: Id<'_storage'>; fileName: string }> =>
+            r.status === 'fulfilled',
+        )
         .map((r) => r.value);
       const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
 
@@ -181,7 +184,17 @@ export function CommentThread({
     } finally {
       setPosting(false);
     }
-  }, [body, posting, pendingImages, generateUploadUrl, trackPendingUpload, planId, shareToken, addComment, deleteOrphanedUpload]);
+  }, [
+    body,
+    posting,
+    pendingImages,
+    generateUploadUrl,
+    trackPendingUpload,
+    planId,
+    shareToken,
+    addComment,
+    deleteOrphanedUpload,
+  ]);
 
   async function handleSaveEdit(commentId: string, originalBody: string) {
     const trimmed = editBody.trim();
@@ -402,7 +415,10 @@ export function CommentThread({
                               setEditBody(comment.body);
                             }}
                             className="py-0.5 px-2 text-[11px] font-[450] font-[inherit] rounded-[5px] border-none bg-transparent text-tertiary"
-                            style={{ cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1 }}
+                            style={{
+                              cursor: saving ? 'not-allowed' : 'pointer',
+                              opacity: saving ? 0.5 : 1,
+                            }}
                           >
                             Edit
                           </button>
@@ -453,11 +469,19 @@ export function CommentThread({
                           <button
                             type="button"
                             onClick={() => handleSaveEdit(comment._id, comment.body)}
-                            disabled={saving || !editBody.trim() || editBody.trim() === comment.body}
+                            disabled={
+                              saving || !editBody.trim() || editBody.trim() === comment.body
+                            }
                             className="py-[5px] px-3.5 text-[12.5px] font-[550] font-[inherit] rounded-[7px] border-none bg-text text-bg"
                             style={{
-                              cursor: saving || !editBody.trim() || editBody.trim() === comment.body ? 'not-allowed' : 'pointer',
-                              opacity: saving || !editBody.trim() || editBody.trim() === comment.body ? 0.5 : 1,
+                              cursor:
+                                saving || !editBody.trim() || editBody.trim() === comment.body
+                                  ? 'not-allowed'
+                                  : 'pointer',
+                              opacity:
+                                saving || !editBody.trim() || editBody.trim() === comment.body
+                                  ? 0.5
+                                  : 1,
                             }}
                           >
                             {saving ? 'Saving…' : 'Save'}
