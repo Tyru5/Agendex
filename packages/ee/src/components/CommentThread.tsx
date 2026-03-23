@@ -211,13 +211,15 @@ export function CommentThread({
                     alt={img.file.name}
                     className="w-16 h-16 object-cover rounded-md border border-border"
                   />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(i)}
-                    className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-text text-bg text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border-none cursor-pointer"
-                  >
-                    ×
-                  </button>
+                  {!posting && (
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-text text-bg text-[10px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border-none cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -231,7 +233,7 @@ export function CommentThread({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={pendingImages.length >= MAX_IMAGE_COUNT}
+                disabled={posting || pendingImages.length >= MAX_IMAGE_COUNT}
                 className="py-0.5 px-2 text-[11px] font-[450] font-[inherit] rounded-[5px] border border-border bg-transparent text-secondary cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Add image
