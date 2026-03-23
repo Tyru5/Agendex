@@ -5,6 +5,8 @@ import { writeSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, loadOrInitConfig } from '@agendex/shared';
+import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
+import { fetchDevices } from './api.ts';
 import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
@@ -143,6 +145,33 @@ async function main(): Promise<number> {
       }
 
       writeStdout(`[agendex] CLI version: ${CLI_VERSION}`);
+
+      // Fetch all daemons from the cloud
+      try {
+        if (config?.cloudToken && config?.convexUrl) {
+          const allDevices = await fetchDevices();
+          if (allDevices.length > 0) {
+            const now = Date.now();
+            writeStdout(`[agendex] All daemons:`);
+            for (const device of allDevices) {
+              const age = device.lastSeenAt ? now - device.lastSeenAt : Number.POSITIVE_INFINITY;
+              const status = age < CLI_DAEMON_STALE_AFTER_MS ? 'alive' : 'stale';
+              const uptimeStr =
+                device.startedAtMs != null ? formatDuration(now - device.startedAtMs) : '~';
+              const pidStr = device.pid != null ? String(device.pid) : '~';
+              const hostnameStr = device.hostname ?? '~';
+              writeStdout(
+                `- hostname: ${hostnameStr}\n  pid: ${pidStr}\n  uptime: ${uptimeStr}\n  status: ${status}`,
+              );
+            }
+          } else {
+            writeStdout(`[agendex] All daemons: none`);
+          }
+        }
+      } catch {
+        // Best-effort: skip daemon list if not logged in or network error
+      }
+
       return 0;
     }
 
