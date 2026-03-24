@@ -22,6 +22,20 @@ export const getMySubscriptionQuery = query({
   },
 });
 
+export async function hasActiveSubscriptionForUserId(
+  ctx: QueryCtx,
+  userId: string,
+): Promise<boolean> {
+  const sub = await ctx.db
+    .query('subscriptions')
+    .withIndex('by_user', (q) => q.eq('userId', userId))
+    .first();
+
+  if (!sub) return false;
+  const valid = sub.currentPeriodEnd > Date.now();
+  return valid && (sub.status === 'active' || sub.status === 'trialing');
+}
+
 export async function hasActiveSubscription(ctx: QueryCtx): Promise<boolean> {
   let user;
   try {
@@ -31,14 +45,7 @@ export async function hasActiveSubscription(ctx: QueryCtx): Promise<boolean> {
   }
   if (!user) return false;
 
-  const sub = await ctx.db
-    .query('subscriptions')
-    .withIndex('by_user', (q) => q.eq('userId', user._id))
-    .first();
-
-  if (!sub) return false;
-  const valid = sub.currentPeriodEnd > Date.now();
-  return valid && (sub.status === 'active' || sub.status === 'trialing');
+  return hasActiveSubscriptionForUserId(ctx, user._id);
 }
 
 export const hasCompletedOnboarding = query({
@@ -57,7 +64,14 @@ export const hasCompletedOnboarding = query({
       .withIndex('by_user', (q) => q.eq('userId', user._id))
       .first();
 
-    return sub !== null;
+    if (sub !== null) return true;
+
+    const membership = await ctx.db
+      .query('workspaceMembers')
+      .withIndex('by_member', (q) => q.eq('memberId', user._id))
+      .first();
+
+    return membership !== null;
   },
 });
 

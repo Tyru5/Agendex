@@ -44,6 +44,7 @@ import { OnboardingRoute } from './components/OnboardingRoute.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
+import { AcceptInvitePage } from './components/AcceptInvitePage.tsx';
 import { SettingsPage } from './components/SettingsPage.tsx';
 import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
@@ -1345,6 +1346,7 @@ export default function App() {
           <WelcomeScreen />
         </OnboardingRoute>
       </Route>
+      <Route path="/invite/:token">{({ token }) => <AcceptInvitePage token={token} />}</Route>
       <Route path="/settings" component={SettingsPage} />
       <Route path="/" component={HomeRoute} />
     </Switch>

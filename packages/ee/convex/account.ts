@@ -142,6 +142,12 @@ export const purgeUserData = internalMutation({
     );
     await deleteRows(
       await ctx.db
+        .query('workspaceInvites')
+        .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', userId))
+        .collect(),
+    );
+    await deleteRows(
+      await ctx.db
         .query('comments')
         .filter((q) => q.eq(q.field('authorId'), userId))
         .collect(),
