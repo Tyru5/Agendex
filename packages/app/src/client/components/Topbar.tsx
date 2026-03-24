@@ -110,12 +110,22 @@ export function Topbar({
             <SidebarToggleIcon hidden={sidebarHidden} />
           </button>
         </div>
-        <span
+        <button
+          type="button"
+          onClick={() => onSelectPlan(undefined)}
           className="font-semibold text-sm"
-          style={{ letterSpacing: '-0.02em', color: 'var(--text)', whiteSpace: 'nowrap' }}
+          style={{
+            letterSpacing: '-0.02em',
+            color: 'var(--text)',
+            whiteSpace: 'nowrap',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+          }}
         >
           Agendex
-        </span>
+        </button>
       </div>
 
       <div className="hidden md:flex min-w-0 justify-center">
