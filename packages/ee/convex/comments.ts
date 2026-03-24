@@ -39,6 +39,21 @@ async function validateCommentAccess(
   }
 }
 
+async function getCommentReferencedStorageIds(
+  ctx: Pick<QueryCtx, 'db'>,
+): Promise<Set<Id<'_storage'>>> {
+  const referencedIds = new Set<Id<'_storage'>>();
+  const allComments = await ctx.db.query('comments').collect();
+
+  for (const comment of allComments) {
+    for (const attachment of comment.attachments ?? []) {
+      referencedIds.add(attachment.storageId);
+    }
+  }
+
+  return referencedIds;
+}
+
 export const getComments = query({
   args: { planId: v.id('plans'), token: v.optional(v.string()) },
   handler: async (ctx, args) => {
@@ -108,6 +123,11 @@ export const trackPendingUpload = mutation({
     } else {
       if (!args.token) throw new ConvexError('Share token required');
       await validateShareToken(ctx, args.planId, args.token);
+    }
+
+    const commentReferencedStorageIds = await getCommentReferencedStorageIds(ctx);
+    if (commentReferencedStorageIds.has(args.storageId)) {
+      throw new ConvexError('Storage ID already attached to a comment');
     }
 
     const existing = await ctx.db
@@ -369,6 +389,7 @@ export const cleanupStalePendingUploads = internalMutation({
   handler: async (ctx) => {
     const cutoff = Date.now() - STALE_UPLOAD_AGE_MS;
     let deleted = 0;
+    const commentReferencedStorageIds = await getCommentReferencedStorageIds(ctx);
 
     // Pass 1: clean up stale pendingUploads records + their storage files
     const stale = await ctx.db
@@ -377,10 +398,12 @@ export const cleanupStalePendingUploads = internalMutation({
       .take(500);
 
     for (const record of stale) {
-      try {
-        await ctx.storage.delete(record.storageId);
-      } catch {
-        // File may already be deleted; continue cleanup
+      if (!commentReferencedStorageIds.has(record.storageId)) {
+        try {
+          await ctx.storage.delete(record.storageId);
+        } catch {
+          // File may already be deleted; continue cleanup
+        }
       }
       await ctx.db.delete(record._id);
       deleted++;
@@ -388,15 +411,10 @@ export const cleanupStalePendingUploads = internalMutation({
 
     // Pass 2: clean up untracked storage files (uploaded but never tracked,
     // e.g. client crashed between fetch and trackPendingUpload)
-    const referencedIds = new Set<string>();
+    const referencedIds = new Set<Id<'_storage'>>(commentReferencedStorageIds);
 
     const allPending = await ctx.db.query('pendingUploads').collect();
     for (const p of allPending) referencedIds.add(p.storageId);
-
-    const allComments = await ctx.db.query('comments').collect();
-    for (const c of allComments) {
-      for (const a of c.attachments ?? []) referencedIds.add(a.storageId);
-    }
 
     const storageFiles = await ctx.db.system.query('_storage').order('asc').take(500);
     for (const file of storageFiles) {
