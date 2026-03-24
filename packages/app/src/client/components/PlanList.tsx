@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useSeenPlans } from '../hooks/useSeenPlans.ts';
+import { usePlanState } from '../hooks/usePlanState.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
+import type { PlanState } from '../lib/plan-state.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
 function timeAgo(dateStr: string): string {
@@ -38,7 +39,7 @@ function PlanRow({
     const el = titleRef.current;
     if (!el) return;
     setOverflows(el.scrollWidth > el.clientWidth);
-  }, [plan.title]);
+  });
 
   return (
     <button
@@ -90,43 +91,112 @@ function PlanRow({
   );
 }
 
-export function PlanList({
-  plans,
-  selectedId,
-  splitPlanId,
-  onSelect,
-  onOpenInSplitView,
-  isPro = false,
+function MenuButton({
+  label,
+  disabled = false,
+  onClick,
+  children,
 }: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        width: '100%',
+        textAlign: 'left',
+        padding: '8px 12px',
+        fontSize: '13px',
+        fontWeight: 450,
+        fontFamily: 'inherit',
+        borderRadius: '7px',
+        border: 'none',
+        background: 'transparent',
+        color: disabled ? 'var(--tertiary)' : 'var(--text)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) {
+          e.currentTarget.style.background = 'var(--hover)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
+      }}
+    >
+      {children}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+type PlanListProps = {
   plans: Plan[];
   selectedId: string | undefined;
   splitPlanId?: string;
   onSelect: (plan: Plan) => void;
   onOpenInSplitView?: (plan: Plan) => void;
   isPro?: boolean;
-}) {
-  const { isUnseen, markSeen, markAllSeen } = useSeenPlans();
+  planState?: PlanState;
+};
+
+export function PlanList(props: PlanListProps) {
+  const {
+    plans,
+    selectedId,
+    splitPlanId,
+    onSelect,
+    onOpenInSplitView,
+    planState: planStateProp,
+  } = props;
+  const localPlanState = usePlanState();
+  const planState = planStateProp ?? localPlanState;
   const [contextMenu, setContextMenu] = useState<{ plan: Plan; x: number; y: number } | null>(null);
+  const lastAutoSeenKeyRef = useRef<string | null>(null);
+
+  const selectedPlan = useMemo(
+    () => plans.find((plan) => plan.id === selectedId),
+    [plans, selectedId],
+  );
 
   useEffect(() => {
-    if (!isPro || !selectedId) return;
-    const plan = plans.find((p) => p.id === selectedId);
-    if (plan) markSeen(plan.id, plan.updatedAt);
-  }, [isPro, selectedId, plans, markSeen]);
+    if (!selectedPlan) {
+      lastAutoSeenKeyRef.current = null;
+      return;
+    }
+    const nextKey = `${selectedPlan.id}:${selectedPlan.updatedAt}`;
+    if (lastAutoSeenKeyRef.current === nextKey) return;
+    lastAutoSeenKeyRef.current = nextKey;
+    planState.markSeen(selectedPlan.id, selectedPlan.updatedAt);
+  }, [selectedPlan, planState]);
 
-  const { unseenPlans, restPlans } = useMemo(() => {
-    if (!isPro) return { unseenPlans: [] as Plan[], restPlans: plans };
+  const { pinnedPlans, unseenPlans, restPlans } = useMemo(() => {
+    const pinned: Plan[] = [];
     const unseen: Plan[] = [];
     const rest: Plan[] = [];
-    for (const p of plans) {
-      if (isUnseen(p.id, p.updatedAt) && p.id !== selectedId) {
-        unseen.push(p);
+
+    for (const plan of plans) {
+      const pinnedPlan = planState.isPinned(plan.id);
+      const unseenPlan = planState.isUnseen(plan.id, plan.updatedAt);
+      if (pinnedPlan) {
+        pinned.push(plan);
+      } else if (unseenPlan && plan.id !== selectedId) {
+        unseen.push(plan);
       } else {
-        rest.push(p);
+        rest.push(plan);
       }
     }
-    return { unseenPlans: unseen, restPlans: rest };
-  }, [plans, isPro, isUnseen, selectedId]);
+
+    return { pinnedPlans: pinned, unseenPlans: unseen, restPlans: rest };
+  }, [plans, planState, selectedId]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -148,14 +218,6 @@ export function PlanList({
     };
   }, [contextMenu]);
 
-  function handleContextMenu(e: React.MouseEvent, plan: Plan) {
-    if (!onOpenInSplitView) return;
-    e.preventDefault();
-    const x = Math.min(e.clientX, window.innerWidth - 200);
-    const y = Math.min(e.clientY, window.innerHeight - 48);
-    setContextMenu({ plan, x, y });
-  }
-
   if (plans.length === 0) {
     return (
       <div className="p-4" style={{ fontSize: '13px', color: 'var(--tertiary)' }}>
@@ -165,12 +227,66 @@ export function PlanList({
   }
 
   function handleClick(plan: Plan) {
-    if (isPro) markSeen(plan.id, plan.updatedAt);
+    planState.markSeen(plan.id, plan.updatedAt);
     onSelect(plan);
   }
 
+  function handleContextMenu(e: React.MouseEvent, plan: Plan) {
+    e.preventDefault();
+    const x = Math.min(e.clientX, window.innerWidth - 220);
+    const y = Math.min(e.clientY, window.innerHeight - 120);
+    setContextMenu({ plan, x, y });
+  }
+
+  const contextPlan = contextMenu?.plan;
+  const contextPlanPinned = contextPlan ? planState.isPinned(contextPlan.id) : false;
+  const contextPlanUnseen = contextPlan
+    ? planState.isUnseen(contextPlan.id, contextPlan.updatedAt)
+    : false;
+  const splitDisabled = contextPlan
+    ? contextPlan.id === selectedId || contextPlan.id === splitPlanId
+    : false;
+
   return (
     <div style={{ width: '100%' }}>
+      {pinnedPlans.length > 0 && (
+        <div style={{ marginBottom: '8px' }}>
+          <div
+            style={{
+              padding: '6px 8px 4px',
+              width: '100%',
+              boxSizing: 'border-box',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: 'var(--tertiary)',
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Pinned ({pinnedPlans.length})
+          </div>
+          {pinnedPlans.map((plan) => (
+            <PlanRow
+              key={plan.id}
+              plan={plan}
+              selected={plan.id === selectedId}
+              unseen={planState.isUnseen(plan.id, plan.updatedAt)}
+              isSplit={plan.id === splitPlanId}
+              onClick={() => handleClick(plan)}
+              onContextMenu={(e) => handleContextMenu(e, plan)}
+            />
+          ))}
+          {(unseenPlans.length > 0 || restPlans.length > 0) && (
+            <div
+              style={{
+                height: '1px',
+                background: 'var(--border)',
+                margin: '6px 8px',
+              }}
+            />
+          )}
+        </div>
+      )}
       {unseenPlans.length > 0 && (
         <div style={{ marginBottom: '8px' }}>
           <div
@@ -196,7 +312,7 @@ export function PlanList({
             </span>
             <button
               type="button"
-              onClick={() => markAllSeen(unseenPlans)}
+              onClick={() => planState.markAllSeen(unseenPlans)}
               style={{
                 fontSize: '11px',
                 color: 'var(--tertiary)',
@@ -222,13 +338,15 @@ export function PlanList({
               onContextMenu={(e) => handleContextMenu(e, plan)}
             />
           ))}
-          <div
-            style={{
-              height: '1px',
-              background: 'var(--border)',
-              margin: '6px 8px',
-            }}
-          />
+          {restPlans.length > 0 && (
+            <div
+              style={{
+                height: '1px',
+                background: 'var(--border)',
+                margin: '6px 8px',
+              }}
+            />
+          )}
         </div>
       )}
       {restPlans.map((plan) => (
@@ -236,7 +354,7 @@ export function PlanList({
           key={plan.id}
           plan={plan}
           selected={plan.id === selectedId}
-          unseen={false}
+          unseen={planState.isUnseen(plan.id, plan.updatedAt)}
           isSplit={plan.id === splitPlanId}
           onClick={() => handleClick(plan)}
           onContextMenu={(e) => handleContextMenu(e, plan)}
@@ -244,7 +362,6 @@ export function PlanList({
       ))}
 
       {contextMenu &&
-        onOpenInSplitView &&
         createPortal(
           <div
             style={{
@@ -252,7 +369,7 @@ export function PlanList({
               top: contextMenu.y,
               left: contextMenu.x,
               zIndex: 200,
-              minWidth: '180px',
+              minWidth: '196px',
               padding: '4px',
               background: 'var(--surface)',
               border: '1px solid var(--border)',
@@ -261,48 +378,38 @@ export function PlanList({
             }}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              disabled={contextMenu.plan.id === selectedId || contextMenu.plan.id === splitPlanId}
+            <MenuButton
+              label={contextPlanPinned ? 'Unpin plan' : 'Pin plan'}
               onClick={() => {
-                if (isPro) markSeen(contextMenu.plan.id, contextMenu.plan.updatedAt);
-                onOpenInSplitView(contextMenu.plan);
+                planState.setPinned(contextMenu.plan.id, !contextPlanPinned);
                 setContextMenu(null);
               }}
-              style={{
-                width: '100%',
-                textAlign: 'left',
-                padding: '8px 12px',
-                fontSize: '13px',
-                fontWeight: 450,
-                fontFamily: 'inherit',
-                borderRadius: '7px',
-                border: 'none',
-                background: 'transparent',
-                color:
-                  contextMenu.plan.id === selectedId || contextMenu.plan.id === splitPlanId
-                    ? 'var(--tertiary)'
-                    : 'var(--text)',
-                cursor:
-                  contextMenu.plan.id === selectedId || contextMenu.plan.id === splitPlanId
-                    ? 'not-allowed'
-                    : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-              onMouseEnter={(e) => {
-                if (contextMenu.plan.id !== selectedId && contextMenu.plan.id !== splitPlanId) {
-                  e.currentTarget.style.background = 'var(--hover)';
+            />
+            <MenuButton
+              label={contextPlanUnseen ? 'Mark as read' : 'Mark as unseen'}
+              onClick={() => {
+                if (contextPlanUnseen) {
+                  planState.markSeen(contextMenu.plan.id, contextMenu.plan.updatedAt);
+                } else {
+                  planState.markUnseen(contextMenu.plan.id);
                 }
+                setContextMenu(null);
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <SplitViewIcon />
-              Open in Split View
-            </button>
+            />
+            {onOpenInSplitView && (
+              <MenuButton
+                label="Open in Split View"
+                disabled={splitDisabled}
+                onClick={() => {
+                  if (splitDisabled) return;
+                  planState.markSeen(contextMenu.plan.id, contextMenu.plan.updatedAt);
+                  onOpenInSplitView(contextMenu.plan);
+                  setContextMenu(null);
+                }}
+              >
+                <SplitViewIcon />
+              </MenuButton>
+            )}
           </div>,
           document.body,
         )}

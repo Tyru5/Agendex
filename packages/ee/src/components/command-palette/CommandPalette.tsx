@@ -1,4 +1,11 @@
-import { AgentIcon, getAgentLabel, type Plan, useSeenPlans, useTheme } from '@agendex/web';
+import {
+  AgentIcon,
+  getAgentLabel,
+  type Plan,
+  type PlanState,
+  usePlanState,
+  useTheme,
+} from '@agendex/web';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Command, type FlatItem, useCommandItems } from './useCommandItems';
 
@@ -18,6 +25,7 @@ export function CommandPalette({
   splitPlanId,
   onOpenInSplitView,
   onCloseSplit,
+  planState: planStateProp,
 }: {
   search: string;
   onSearch: (q: string) => void;
@@ -34,6 +42,7 @@ export function CommandPalette({
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
   onCloseSplit?: () => void;
+  planState?: PlanState;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -41,7 +50,8 @@ export function CommandPalette({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame>>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { isUnseen, markSeen } = useSeenPlans();
+  const localPlanState = usePlanState();
+  const planState = planStateProp ?? localPlanState;
   const { resolvedTheme, setTheme } = useTheme();
   const modalExitMs = 220;
 
@@ -404,7 +414,7 @@ export function CommandPalette({
                     const fi = getFocusableIndex(item);
                     const focused = fi === focusedIndex;
                     const unseen =
-                      isPro && isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId;
+                      planState.isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId;
 
                     return (
                       <div
@@ -423,7 +433,7 @@ export function CommandPalette({
                                 : 'transparent',
                           }}
                           onClick={() => {
-                            if (isPro) markSeen(plan.id, plan.updatedAt);
+                            planState.markSeen(plan.id, plan.updatedAt);
                             onSelectPlan(plan);
                             closeModal();
                           }}
@@ -449,7 +459,7 @@ export function CommandPalette({
                           <button
                             type="button"
                             onClick={() => {
-                              if (isPro) markSeen(plan.id, plan.updatedAt);
+                              planState.markSeen(plan.id, plan.updatedAt);
                               onOpenInSplitView(plan);
                               closeModal();
                             }}

@@ -1,47 +1,45 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSeenPlans } from '../hooks/useSeenPlans.ts';
+import { usePlanState } from '../hooks/usePlanState.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import { filterPlans } from '../lib/plan-search.ts';
+import type { PlanState } from '../lib/plan-state.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
-export function SearchBar({
-  search,
-  onSearch,
-  plans,
-  selectedId,
-  onSelectPlan,
-  isPro = false,
-}: {
+type SearchBarProps = {
   search: string;
   onSearch: (q: string) => void;
   plans: Plan[];
   selectedId: string | undefined;
   onSelectPlan: (plan: Plan) => void;
   isPro?: boolean;
-}) {
+  planState?: PlanState;
+};
+
+export function SearchBar(props: SearchBarProps) {
+  const { search, onSearch, plans, selectedId, onSelectPlan, planState: planStateProp } = props;
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | undefined>(undefined);
   const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
-  const { isUnseen, markSeen } = useSeenPlans();
+  const localPlanState = usePlanState();
+  const planState = planStateProp ?? localPlanState;
   const modalExitMs = 220;
 
   const { unseenFiltered, restFiltered } = useMemo(() => {
-    if (!isPro) return { unseenFiltered: [] as Plan[], restFiltered: filteredPlans };
     const unseen: Plan[] = [];
     const rest: Plan[] = [];
-    for (const p of filteredPlans) {
-      if (isUnseen(p.id, p.updatedAt) && p.id !== selectedId) {
-        unseen.push(p);
+    for (const plan of filteredPlans) {
+      if (planState.isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId) {
+        unseen.push(plan);
       } else {
-        rest.push(p);
+        rest.push(plan);
       }
     }
     return { unseenFiltered: unseen, restFiltered: rest };
-  }, [filteredPlans, isPro, isUnseen, selectedId]);
+  }, [filteredPlans, planState, selectedId]);
 
   const isMac = useMemo(() => {
     if (typeof navigator === 'undefined') return true;
@@ -101,6 +99,12 @@ export function SearchBar({
     };
   }, []);
 
+  function handleSelect(plan: Plan) {
+    planState.markSeen(plan.id, plan.updatedAt);
+    onSelectPlan(plan);
+    closeModal();
+  }
+
   return (
     <>
       <button
@@ -152,8 +156,7 @@ export function SearchBar({
                 onChange={(e) => onSearch(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && filteredPlans[0]) {
-                    onSelectPlan(filteredPlans[0]);
-                    closeModal();
+                    handleSelect(filteredPlans[0]);
                   }
                 }}
                 placeholder="Search plans..."
@@ -189,11 +192,7 @@ export function SearchBar({
                           plan={plan}
                           selected={plan.id === selectedId}
                           unseen
-                          onClick={() => {
-                            if (isPro) markSeen(plan.id, plan.updatedAt);
-                            onSelectPlan(plan);
-                            closeModal();
-                          }}
+                          onClick={() => handleSelect(plan)}
                         />
                       ))}
                       <div className="h-px bg-border mx-2 my-1.5" />
@@ -204,12 +203,8 @@ export function SearchBar({
                       key={plan.id}
                       plan={plan}
                       selected={plan.id === selectedId}
-                      unseen={false}
-                      onClick={() => {
-                        if (isPro) markSeen(plan.id, plan.updatedAt);
-                        onSelectPlan(plan);
-                        closeModal();
-                      }}
+                      unseen={planState.isUnseen(plan.id, plan.updatedAt)}
+                      onClick={() => handleSelect(plan)}
                     />
                   ))}
                 </>
@@ -237,8 +232,10 @@ function SearchPlanRow({
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left block py-2.5 px-2 rounded-lg cursor-pointer border-none font-[inherit]"
-      style={{ background: selected ? 'var(--active)' : 'transparent' }}
+      className="w-full text-left block py-2.5 px-2.5 rounded-lg cursor-pointer border-none font-[inherit]"
+      style={{
+        background: selected ? 'var(--active)' : 'transparent',
+      }}
     >
       <div
         className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
@@ -262,6 +259,7 @@ function SearchPlanRow({
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h`;
@@ -278,12 +276,12 @@ function SearchIcon() {
       viewBox="0 0 24 24"
       strokeWidth={2}
       stroke="currentColor"
-      className="w-[14px] h-[14px] opacity-50 shrink-0"
+      className="w-3.5 h-3.5 text-tertiary"
     >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
-        d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+        d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
       />
     </svg>
   );

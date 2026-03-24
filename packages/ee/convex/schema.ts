@@ -160,6 +160,18 @@ export default defineSchema({
     .index('by_plan', ['planId'])
     .index('by_collection_plan', ['collectionId', 'planId']),
 
+  planPreferences: defineTable({
+    ownerId: v.string(),
+    planId: v.id('plans'),
+    pinned: v.boolean(),
+    lastSeenUpdatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_plan', ['ownerId', 'planId'])
+    .index('by_owner_pinned', ['ownerId', 'pinned']),
+
   daemonHeartbeats: defineTable({
     ownerId: v.string(),
     lastSeenAt: v.number(),

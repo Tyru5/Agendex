@@ -1,4 +1,4 @@
-import { type Plan, ThemeToggle } from '@agendex/web';
+import { type Plan, type PlanState, ThemeToggle } from '@agendex/web';
 import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
 import { AuthButton } from './AuthButton';
 import { CommandPalette } from './command-palette/CommandPalette';
@@ -37,6 +37,7 @@ export function DashboardTopbar({
   splitPlanId,
   onOpenInSplitView,
   onCloseSplit,
+  planState,
 }: {
   sidebarPinnedOpen: boolean;
   sidebarHidden: boolean;
@@ -65,6 +66,7 @@ export function DashboardTopbar({
   splitPlanId?: string;
   onOpenInSplitView: (plan: Plan) => void;
   onCloseSplit?: () => void;
+  planState: PlanState;
 }) {
   return (
     <div
@@ -101,6 +103,7 @@ export function DashboardTopbar({
           splitPlanId={splitPlanId}
           onOpenInSplitView={onOpenInSplitView}
           onCloseSplit={onCloseSplit}
+          planState={planState}
         />
       </div>
 
