@@ -73,6 +73,13 @@ export const purgeUserData = internalMutation({
         .withIndex('by_plan', (q) => q.eq('planId', plan._id))
         .collect();
       for (const comment of planComments) {
+        for (const attachment of comment.attachments ?? []) {
+          try {
+            await ctx.storage.delete(attachment.storageId);
+          } catch {
+            // File may already be deleted; continue cleanup
+          }
+        }
         await deleteRows(
           await ctx.db
             .query('commentAttachmentClaims')
@@ -152,6 +159,13 @@ export const purgeUserData = internalMutation({
       .filter((q) => q.eq(q.field('authorId'), userId))
       .collect();
     for (const comment of authoredComments) {
+      for (const attachment of comment.attachments ?? []) {
+        try {
+          await ctx.storage.delete(attachment.storageId);
+        } catch {
+          // File may already be deleted; continue cleanup
+        }
+      }
       await deleteRows(
         await ctx.db
           .query('commentAttachmentClaims')
@@ -159,6 +173,19 @@ export const purgeUserData = internalMutation({
           .collect(),
       );
       await ctx.db.delete(comment._id);
+    }
+
+    const pendingUploads = await ctx.db
+      .query('pendingUploads')
+      .filter((q) => q.eq(q.field('uploadedBy'), userId))
+      .collect();
+    for (const pending of pendingUploads) {
+      try {
+        await ctx.storage.delete(pending.storageId);
+      } catch {
+        // File may already be deleted; continue cleanup
+      }
+      await ctx.db.delete(pending._id);
     }
   },
 });
