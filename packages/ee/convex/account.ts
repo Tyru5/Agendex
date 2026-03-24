@@ -117,6 +117,12 @@ export const purgeUserData = internalMutation({
           .withIndex('by_plan', (q) => q.eq('planId', plan._id))
           .collect(),
       );
+      await deleteRows(
+        await ctx.db
+          .query('planPreferences')
+          .withIndex('by_owner_plan', (q) => q.eq('ownerId', userId).eq('planId', plan._id))
+          .collect(),
+      );
       await ctx.db.delete(plan._id);
     }
 
@@ -141,6 +147,12 @@ export const purgeUserData = internalMutation({
       await ctx.db.delete(col._id);
     }
 
+    await deleteRows(
+      await ctx.db
+        .query('planPreferences')
+        .withIndex('by_owner', (q) => q.eq('ownerId', userId))
+        .collect(),
+    );
     await deleteRows(
       await ctx.db
         .query('subscriptions')

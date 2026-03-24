@@ -7,14 +7,15 @@ import {
   OfflineView,
   type Plan,
   PlanList,
+  type PlanState,
   PlanViewer,
   SidebarFilters,
   SkeletonBlock,
   startViewTransition,
   useAgents,
   useBackendStatus,
+  usePlanState,
   usePlans,
-  useSeenPlans,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
@@ -49,6 +50,7 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { useAuth } from './hooks/useAuth.ts';
+import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
@@ -124,6 +126,8 @@ function useDashboardData(
   selectedTags: string[],
   selectedCollection: string | undefined,
   isPro: boolean,
+  localPlanState: PlanState,
+  cloudPlanState: PlanState,
 ) {
   const localEnabled = mode === 'local';
   const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
@@ -173,10 +177,12 @@ function useDashboardData(
       : 'skip',
   );
 
-  const { isUnseen } = useSeenPlans();
   const hasUnseenPlans = useMemo(
-    () => plans.some((p) => isUnseen(p.id, p.updatedAt)),
-    [plans, isUnseen],
+    () =>
+      plans.some((plan) =>
+        (mode === 'cloud' ? cloudPlanState : localPlanState).isUnseen(plan.id, plan.updatedAt),
+      ),
+    [plans, mode, cloudPlanState, localPlanState],
   );
 
   const collectionPlanIdSet = useMemo(
@@ -268,6 +274,7 @@ function useDashboardData(
     allCollections,
     filteredPlans,
     hasUnseenPlans,
+    planState: mode === 'cloud' ? cloudPlanState : localPlanState,
     totalPlans,
     activeAgents,
     backendIndicator,
@@ -577,6 +584,7 @@ function DashboardSidebar({
   onUpload,
   splitPlanId,
   onOpenInSplitView,
+  planState,
 }: {
   sidebarHidden: boolean;
   sidebarVisible: boolean;
@@ -608,6 +616,7 @@ function DashboardSidebar({
   onUpload: () => void;
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
+  planState: PlanState;
 }) {
   return (
     <aside
@@ -752,9 +761,9 @@ function DashboardSidebar({
             plans={filteredPlans}
             selectedId={selectedPlan?.id}
             onSelect={onSelectPlan}
-            isPro={isPro}
             splitPlanId={splitPlanId}
             onOpenInSplitView={onOpenInSplitView}
+            planState={planState}
           />
         )}
       </div>
@@ -879,6 +888,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const sharing = activePanel === 'sharing';
   const sidebarBeforeWide = useRef<boolean | null>(null);
   const { isActive: isPro } = useSubscription();
+  const localPlanState = usePlanState();
+  const cloudPlanState = useCloudPlanPreferences();
 
   const {
     agents,
@@ -891,6 +902,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     allCollections,
     filteredPlans,
     hasUnseenPlans,
+    planState,
     totalPlans,
     activeAgents,
     backendIndicator,
@@ -905,6 +917,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     selectedTags,
     selectedCollection,
     isPro,
+    localPlanState,
+    cloudPlanState,
   );
 
   const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
@@ -1080,6 +1094,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         splitPlanId={splitPlanId ?? undefined}
         onOpenInSplitView={openPlanInSplitView}
         onCloseSplit={splitPlanId ? closeSplitView : undefined}
+        planState={planState}
       />
 
       {sidebarHidden && (
@@ -1127,6 +1142,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onUpload={handleUpload}
         splitPlanId={splitPlanId ?? undefined}
         onOpenInSplitView={(plan: Plan) => startViewTransition(() => openPlanInSplitView(plan))}
+        planState={planState}
       />
 
       <DashboardMain

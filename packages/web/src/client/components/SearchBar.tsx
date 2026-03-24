@@ -1,20 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSeenPlans } from '../hooks/useSeenPlans.ts';
+import { usePlanState } from '../hooks/usePlanState.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import { filterPlans } from '../lib/plan-search.ts';
+import type { PlanState } from '../lib/plan-state.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
-export function SearchBar({
-  search,
-  onSearch,
-  plans,
-  selectedId,
-  onSelectPlan,
-  splitPlanId,
-  onOpenInSplitView,
-  isPro = false,
-}: {
+type SearchBarProps = {
   search: string;
   onSearch: (q: string) => void;
   plans: Plan[];
@@ -23,29 +15,33 @@ export function SearchBar({
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
   isPro?: boolean;
-}) {
+  planState?: PlanState;
+};
+
+export function SearchBar(props: SearchBarProps) {
+  const { search, onSearch, plans, selectedId, onSelectPlan, planState: planStateProp } = props;
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | undefined>(undefined);
   const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
-  const { isUnseen, markSeen } = useSeenPlans();
+  const localPlanState = usePlanState();
+  const planState = planStateProp ?? localPlanState;
   const modalExitMs = 220;
 
   const { unseenFiltered, restFiltered } = useMemo(() => {
-    if (!isPro) return { unseenFiltered: [] as Plan[], restFiltered: filteredPlans };
     const unseen: Plan[] = [];
     const rest: Plan[] = [];
-    for (const p of filteredPlans) {
-      if (isUnseen(p.id, p.updatedAt) && p.id !== selectedId) {
-        unseen.push(p);
+    for (const plan of filteredPlans) {
+      if (planState.isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId) {
+        unseen.push(plan);
       } else {
-        rest.push(p);
+        rest.push(plan);
       }
     }
     return { unseenFiltered: unseen, restFiltered: rest };
-  }, [filteredPlans, isPro, isUnseen, selectedId]);
+  }, [filteredPlans, planState, selectedId]);
 
   const isMac = useMemo(() => {
     if (typeof navigator === 'undefined') return true;
@@ -105,6 +101,12 @@ export function SearchBar({
     };
   }, []);
 
+  function handleSelect(plan: Plan) {
+    planState.markSeen(plan.id, plan.updatedAt);
+    onSelectPlan(plan);
+    closeModal();
+  }
+
   return (
     <>
       <button
@@ -156,13 +158,7 @@ export function SearchBar({
                 onChange={(e) => onSearch(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && filteredPlans[0]) {
-                    if (e.shiftKey && onOpenInSplitView) {
-                      if (isPro) markSeen(filteredPlans[0].id, filteredPlans[0].updatedAt);
-                      onOpenInSplitView(filteredPlans[0]);
-                    } else {
-                      onSelectPlan(filteredPlans[0]);
-                    }
-                    closeModal();
+                    handleSelect(filteredPlans[0]);
                   }
                 }}
                 placeholder="Search plans..."
@@ -198,21 +194,7 @@ export function SearchBar({
                           plan={plan}
                           selected={plan.id === selectedId}
                           unseen
-                          onClick={() => {
-                            if (isPro) markSeen(plan.id, plan.updatedAt);
-                            onSelectPlan(plan);
-                            closeModal();
-                          }}
-                          onSplitView={
-                            onOpenInSplitView
-                              ? () => {
-                                  if (isPro) markSeen(plan.id, plan.updatedAt);
-                                  onOpenInSplitView(plan);
-                                  closeModal();
-                                }
-                              : undefined
-                          }
-                          splitDisabled={plan.id === selectedId || plan.id === splitPlanId}
+                          onClick={() => handleSelect(plan)}
                         />
                       ))}
                       <div className="h-px bg-border mx-2 my-1.5" />
@@ -223,22 +205,8 @@ export function SearchBar({
                       key={plan.id}
                       plan={plan}
                       selected={plan.id === selectedId}
-                      unseen={false}
-                      onClick={() => {
-                        if (isPro) markSeen(plan.id, plan.updatedAt);
-                        onSelectPlan(plan);
-                        closeModal();
-                      }}
-                      onSplitView={
-                        onOpenInSplitView
-                          ? () => {
-                              if (isPro) markSeen(plan.id, plan.updatedAt);
-                              onOpenInSplitView(plan);
-                              closeModal();
-                            }
-                          : undefined
-                      }
-                      splitDisabled={plan.id === selectedId || plan.id === splitPlanId}
+                      unseen={planState.isUnseen(plan.id, plan.updatedAt)}
+                      onClick={() => handleSelect(plan)}
                     />
                   ))}
                 </>
@@ -256,88 +224,49 @@ function SearchPlanRow({
   selected,
   unseen,
   onClick,
-  onSplitView,
-  splitDisabled,
 }: {
   plan: Plan;
   selected: boolean;
   unseen: boolean;
   onClick: () => void;
-  onSplitView?: () => void;
-  splitDisabled?: boolean;
 }) {
   return (
-    <div className="flex items-stretch gap-1 rounded-lg">
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex-1 min-w-0 text-left block py-2.5 px-2 rounded-lg cursor-pointer border-none font-[inherit]"
-        style={{ background: selected ? 'var(--active)' : 'transparent' }}
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left block py-2.5 px-2.5 rounded-lg cursor-pointer border-none font-[inherit]"
+      style={{
+        background: selected ? 'var(--active)' : 'transparent',
+      }}
+    >
+      <div
+        className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
+        style={{ paddingLeft: unseen ? '14px' : undefined }}
       >
-        <div
-          className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
-          style={{ paddingLeft: unseen ? '14px' : undefined }}
-        >
-          {unseen && (
-            <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
-          )}
-          {plan.title}
-        </div>
-        <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
-          <AgentIcon agent={plan.agent} size={11} />
-          <span>{getAgentLabel(plan.agent)}</span>
-          <span>&middot;</span>
-          <span>{timeAgo(plan.updatedAt)}</span>
-        </div>
-      </button>
-      {onSplitView && (
-        <button
-          type="button"
-          onClick={onSplitView}
-          disabled={splitDisabled}
-          title="Open in split view"
-          className="shrink-0 flex items-center justify-center w-9 rounded-lg border border-border bg-transparent transition-[opacity,background] duration-150 hover:bg-hover"
-          style={{
-            color: splitDisabled ? 'var(--tertiary)' : 'var(--secondary)',
-            cursor: splitDisabled ? 'not-allowed' : 'pointer',
-            opacity: splitDisabled ? 0.4 : 0.6,
-          }}
-        >
-          <SplitIcon />
-        </button>
-      )}
-    </div>
+        {unseen && (
+          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
+        )}
+        {plan.title}
+      </div>
+      <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
+        <AgentIcon agent={plan.agent} size={11} />
+        <span>{getAgentLabel(plan.agent)}</span>
+        <span>&middot;</span>
+        <span>{timeAgo(plan.updatedAt)}</span>
+      </div>
+    </button>
   );
 }
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h`;
   const days = Math.floor(hrs / 24);
   return `${days}d`;
-}
-
-function SplitIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      className="w-3.5 h-3.5"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5Z"
-      />
-    </svg>
-  );
 }
 
 function SearchIcon() {
@@ -349,12 +278,12 @@ function SearchIcon() {
       viewBox="0 0 24 24"
       strokeWidth={2}
       stroke="currentColor"
-      className="w-[14px] h-[14px] opacity-50 shrink-0"
+      className="w-3.5 h-3.5 text-tertiary"
     >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
-        d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+        d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
       />
     </svg>
   );
