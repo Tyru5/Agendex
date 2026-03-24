@@ -49,6 +49,13 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
   }).index('by_plan', ['planId']),
 
+  commentAttachmentClaims: defineTable({
+    storageId: v.id('_storage'),
+    commentId: v.id('comments'),
+  })
+    .index('by_storage', ['storageId'])
+    .index('by_comment', ['commentId']),
+
   pendingUploads: defineTable({
     storageId: v.id('_storage'),
     uploadedBy: v.string(),

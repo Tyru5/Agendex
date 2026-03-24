@@ -68,12 +68,19 @@ export const purgeUserData = internalMutation({
           .withIndex('by_plan', (q) => q.eq('planId', plan._id))
           .collect(),
       );
-      await deleteRows(
-        await ctx.db
-          .query('comments')
-          .withIndex('by_plan', (q) => q.eq('planId', plan._id))
-          .collect(),
-      );
+      const planComments = await ctx.db
+        .query('comments')
+        .withIndex('by_plan', (q) => q.eq('planId', plan._id))
+        .collect();
+      for (const comment of planComments) {
+        await deleteRows(
+          await ctx.db
+            .query('commentAttachmentClaims')
+            .withIndex('by_comment', (q) => q.eq('commentId', comment._id))
+            .collect(),
+        );
+        await ctx.db.delete(comment._id);
+      }
       await deleteRows(
         await ctx.db
           .query('planVersions')
@@ -140,11 +147,18 @@ export const purgeUserData = internalMutation({
         .withIndex('by_owner', (q) => q.eq('ownerId', userId))
         .collect(),
     );
-    await deleteRows(
-      await ctx.db
-        .query('comments')
-        .filter((q) => q.eq(q.field('authorId'), userId))
-        .collect(),
-    );
+    const authoredComments = await ctx.db
+      .query('comments')
+      .filter((q) => q.eq(q.field('authorId'), userId))
+      .collect();
+    for (const comment of authoredComments) {
+      await deleteRows(
+        await ctx.db
+          .query('commentAttachmentClaims')
+          .withIndex('by_comment', (q) => q.eq('commentId', comment._id))
+          .collect(),
+      );
+      await ctx.db.delete(comment._id);
+    }
   },
 });

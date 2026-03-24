@@ -1,7 +1,13 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
-import { internalMutation, mutation, type QueryCtx, query } from './_generated/server';
+import {
+  internalMutation,
+  type MutationCtx,
+  mutation,
+  type QueryCtx,
+  query,
+} from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
@@ -52,6 +58,33 @@ async function getCommentReferencedStorageIds(
   }
 
   return referencedIds;
+}
+
+async function createCommentAttachmentClaims(
+  ctx: Pick<MutationCtx, 'db'>,
+  commentId: Id<'comments'>,
+  attachments: Array<{ storageId: Id<'_storage'> }>,
+): Promise<void> {
+  for (const attachment of attachments) {
+    await ctx.db.insert('commentAttachmentClaims', {
+      storageId: attachment.storageId,
+      commentId,
+    });
+  }
+}
+
+async function deleteCommentAttachmentClaims(
+  ctx: Pick<MutationCtx, 'db'>,
+  commentId: Id<'comments'>,
+): Promise<void> {
+  const claims = await ctx.db
+    .query('commentAttachmentClaims')
+    .withIndex('by_comment', (q) => q.eq('commentId', commentId))
+    .collect();
+
+  for (const claim of claims) {
+    await ctx.db.delete(claim._id);
+  }
 }
 
 export const getComments = query({
@@ -125,8 +158,11 @@ export const trackPendingUpload = mutation({
       await validateShareToken(ctx, args.planId, args.token);
     }
 
-    const commentReferencedStorageIds = await getCommentReferencedStorageIds(ctx);
-    if (commentReferencedStorageIds.has(args.storageId)) {
+    const existingClaim = await ctx.db
+      .query('commentAttachmentClaims')
+      .withIndex('by_storage', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (existingClaim) {
       throw new ConvexError('Storage ID already attached to a comment');
     }
 
@@ -262,6 +298,8 @@ export const addComment = mutation({
       createdAt: Date.now(),
     });
 
+    await createCommentAttachmentClaims(ctx, commentId, validatedAttachments);
+
     for (const { pendingId } of validatedAttachments) {
       await ctx.db.delete(pendingId);
     }
@@ -378,6 +416,7 @@ export const deleteComment = mutation({
       }
     }
 
+    await deleteCommentAttachmentClaims(ctx, comment._id);
     await ctx.db.delete(args.commentId);
   },
 });
