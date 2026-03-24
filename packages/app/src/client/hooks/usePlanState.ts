@@ -16,6 +16,13 @@ export function usePlanState(): PlanState {
       isPinned: pinned.isPinned,
       setPinned: pinned.setPinned,
     }),
-    [seen, pinned],
+    [
+      seen.isUnseen,
+      seen.markSeen,
+      seen.markUnseen,
+      seen.markAllSeen,
+      pinned.isPinned,
+      pinned.setPinned,
+    ],
   );
 }

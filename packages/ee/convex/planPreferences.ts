@@ -146,12 +146,26 @@ export const markManySeen = mutation({
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
-    for (const planId of args.planIds) {
-      const plan = await getOwnedPlanOrThrow(ctx, user._id, planId);
-      const existing = await ctx.db
+    if (args.planIds.length === 0) return;
+
+    const uniquePlanIds = [...new Set(args.planIds)];
+    const [plans, existingPreferences] = await Promise.all([
+      Promise.all(uniquePlanIds.map((planId) => getOwnedPlanOrThrow(ctx, user._id, planId))),
+      ctx.db
         .query('planPreferences')
-        .withIndex('by_owner_plan', (q) => q.eq('ownerId', user._id).eq('planId', planId))
-        .first();
+        .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
+        .collect(),
+    ]);
+
+    const plansById = new Map(uniquePlanIds.map((planId, index) => [planId, plans[index]]));
+    const preferencesByPlanId = new Map(
+      existingPreferences.map((preference) => [preference.planId, preference]),
+    );
+
+    for (const planId of uniquePlanIds) {
+      const plan = plansById.get(planId);
+      if (!plan) continue;
+      const existing = preferencesByPlanId.get(planId);
       const now = Date.now();
 
       if (existing) {
