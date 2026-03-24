@@ -82,6 +82,7 @@ export function DashboardTopbar({
         onToggleSidebar={onToggleSidebar}
         onNewPlan={onNewPlan}
         onUpload={onUpload}
+        onLogoClick={() => onSelectPlan(undefined)}
       />
 
       <div className="hidden md:flex flex-1 min-w-0 justify-center">

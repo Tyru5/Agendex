@@ -11,6 +11,7 @@ export function BrandSection({
   onToggleSidebar,
   onNewPlan,
   onUpload,
+  onLogoClick,
 }: {
   sidebarPinnedOpen: boolean;
   sidebarHidden: boolean;
@@ -22,6 +23,7 @@ export function BrandSection({
   onToggleSidebar: () => void;
   onNewPlan: () => void;
   onUpload: () => void;
+  onLogoClick: () => void;
 }) {
   return (
     <div
@@ -51,9 +53,13 @@ export function BrandSection({
         )}
       </div>
 
-      <span className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[-0.02em] text-text whitespace-nowrap select-none">
+      <button
+        type="button"
+        onClick={onLogoClick}
+        className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[-0.02em] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
+      >
         Agendex<span style={{ color: '#c8ff32' }}>.</span>
-      </span>
+      </button>
 
       {(mode === 'local' || (mode === 'cloud' && isPro)) && (
         <div
