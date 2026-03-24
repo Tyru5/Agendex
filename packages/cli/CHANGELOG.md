@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.7.1
+
+### Patch Changes
+
+- cf04213: Updated smoke-release script
+
 ## 0.7.0
 
 ### Minor Changes
