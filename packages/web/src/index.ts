@@ -24,6 +24,11 @@ export type {
 export { ThemeContext, ThemeProvider } from './client/components/ThemeProvider.tsx';
 export { ThemeToggle } from './client/components/ThemeToggle.tsx';
 export { ExitFullscreenIcon, FullscreenIcon } from './client/components/FullscreenIcons.tsx';
+export { AgentSelect } from './client/components/AgentSelect.tsx';
+export { Sidebar } from './client/components/Sidebar.tsx';
+export { TechDependencyChart } from './client/components/TechDependencyChart.tsx';
+export { Topbar } from './client/components/Topbar.tsx';
+export { WipMarquee } from './client/components/WipMarquee.tsx';
 
 export type { BackendStatus } from './client/hooks/useBackendStatus.ts';
 export { useBackendStatus } from './client/hooks/useBackendStatus.ts';
@@ -32,6 +37,7 @@ export { seedSeen, useSeenPlans } from './client/hooks/useSeenPlans.ts';
 export { useSocketEvent } from './client/hooks/useSocket.ts';
 export { useTheme } from './client/hooks/useTheme.ts';
 export { useFullscreen } from './client/hooks/useFullscreen.ts';
+export { useScrollSpy } from './client/hooks/useScrollSpy.ts';
 
 export {
   AGENT_IDS,
@@ -52,6 +58,11 @@ export { buildPlanOutline } from './client/lib/extract-headings.ts';
 export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-markdown.ts';
 export { filterPlans } from './client/lib/plan-search.ts';
 export { sanitizeSchema } from './client/lib/sanitize-schema.ts';
+export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
+export type { DetectedTech, TechCategory } from './client/lib/tech-extract.ts';
+export { extractTechnologies } from './client/lib/tech-extract.ts';
+export type { TechEdge, TechGraph, TechNode, TechNodeData } from './client/lib/tech-graph.ts';
+export { buildAdjacencyMap, buildTechGraph, CATEGORY_COLORS } from './client/lib/tech-graph.ts';
 export { startViewTransition } from './client/lib/view-transition.ts';
 
 export { default as dinoVitaIdleStrip } from './client/components/landing/dino-vita-idle-strip.png';

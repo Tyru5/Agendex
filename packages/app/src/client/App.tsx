@@ -1,16 +1,21 @@
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EmptyStateView } from './components/EmptyStateView.tsx';
-import { LandingPage } from '@agendex/web';
-import { OfflineView } from './components/OfflineView.tsx';
-import { PlanViewer } from './components/PlanViewer.tsx';
-import { Sidebar } from './components/Sidebar.tsx';
-import { Topbar } from './components/Topbar.tsx';
-import { useBackendStatus } from './hooks/useBackendStatus.ts';
-import { useAgents, usePlans } from './hooks/usePlans.ts';
-import { api, hasToken, type Plan } from './lib/api.ts';
-import { SIDEBAR_EXPANDED_WIDTH } from './lib/constants.ts';
-import { filterPlans } from './lib/plan-search.ts';
+import {
+  api,
+  EmptyStateView,
+  filterPlans,
+  hasToken,
+  LandingPage,
+  OfflineView,
+  type Plan,
+  PlanViewer,
+  Sidebar,
+  SIDEBAR_EXPANDED_WIDTH,
+  Topbar,
+  useAgents,
+  useBackendStatus,
+  usePlans,
+} from '@agendex/web';
 
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;

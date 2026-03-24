@@ -11,6 +11,8 @@ export function SearchBar({
   plans,
   selectedId,
   onSelectPlan,
+  splitPlanId,
+  onOpenInSplitView,
   isPro = false,
 }: {
   search: string;
@@ -18,6 +20,8 @@ export function SearchBar({
   plans: Plan[];
   selectedId: string | undefined;
   onSelectPlan: (plan: Plan) => void;
+  splitPlanId?: string;
+  onOpenInSplitView?: (plan: Plan) => void;
   isPro?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -152,7 +156,12 @@ export function SearchBar({
                 onChange={(e) => onSearch(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && filteredPlans[0]) {
-                    onSelectPlan(filteredPlans[0]);
+                    if (e.shiftKey && onOpenInSplitView) {
+                      if (isPro) markSeen(filteredPlans[0].id, filteredPlans[0].updatedAt);
+                      onOpenInSplitView(filteredPlans[0]);
+                    } else {
+                      onSelectPlan(filteredPlans[0]);
+                    }
                     closeModal();
                   }
                 }}
@@ -194,6 +203,16 @@ export function SearchBar({
                             onSelectPlan(plan);
                             closeModal();
                           }}
+                          onSplitView={
+                            onOpenInSplitView
+                              ? () => {
+                                  if (isPro) markSeen(plan.id, plan.updatedAt);
+                                  onOpenInSplitView(plan);
+                                  closeModal();
+                                }
+                              : undefined
+                          }
+                          splitDisabled={plan.id === selectedId || plan.id === splitPlanId}
                         />
                       ))}
                       <div className="h-px bg-border mx-2 my-1.5" />
@@ -210,6 +229,16 @@ export function SearchBar({
                         onSelectPlan(plan);
                         closeModal();
                       }}
+                      onSplitView={
+                        onOpenInSplitView
+                          ? () => {
+                              if (isPro) markSeen(plan.id, plan.updatedAt);
+                              onOpenInSplitView(plan);
+                              closeModal();
+                            }
+                          : undefined
+                      }
+                      splitDisabled={plan.id === selectedId || plan.id === splitPlanId}
                     />
                   ))}
                 </>
@@ -227,35 +256,57 @@ function SearchPlanRow({
   selected,
   unseen,
   onClick,
+  onSplitView,
+  splitDisabled,
 }: {
   plan: Plan;
   selected: boolean;
   unseen: boolean;
   onClick: () => void;
+  onSplitView?: () => void;
+  splitDisabled?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left block py-2.5 px-2 rounded-lg cursor-pointer border-none font-[inherit]"
-      style={{ background: selected ? 'var(--active)' : 'transparent' }}
-    >
-      <div
-        className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
-        style={{ paddingLeft: unseen ? '14px' : undefined }}
+    <div className="flex items-stretch gap-1 rounded-lg">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex-1 min-w-0 text-left block py-2.5 px-2 rounded-lg cursor-pointer border-none font-[inherit]"
+        style={{ background: selected ? 'var(--active)' : 'transparent' }}
       >
-        {unseen && (
-          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
-        )}
-        {plan.title}
-      </div>
-      <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
-        <AgentIcon agent={plan.agent} size={11} />
-        <span>{getAgentLabel(plan.agent)}</span>
-        <span>&middot;</span>
-        <span>{timeAgo(plan.updatedAt)}</span>
-      </div>
-    </button>
+        <div
+          className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
+          style={{ paddingLeft: unseen ? '14px' : undefined }}
+        >
+          {unseen && (
+            <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
+          )}
+          {plan.title}
+        </div>
+        <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
+          <AgentIcon agent={plan.agent} size={11} />
+          <span>{getAgentLabel(plan.agent)}</span>
+          <span>&middot;</span>
+          <span>{timeAgo(plan.updatedAt)}</span>
+        </div>
+      </button>
+      {onSplitView && (
+        <button
+          type="button"
+          onClick={onSplitView}
+          disabled={splitDisabled}
+          title="Open in split view"
+          className="shrink-0 flex items-center justify-center w-9 rounded-lg border border-border bg-transparent transition-[opacity,background] duration-150 hover:bg-hover"
+          style={{
+            color: splitDisabled ? 'var(--tertiary)' : 'var(--secondary)',
+            cursor: splitDisabled ? 'not-allowed' : 'pointer',
+            opacity: splitDisabled ? 0.4 : 0.6,
+          }}
+        >
+          <SplitIcon />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -267,6 +318,26 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs}h`;
   const days = Math.floor(hrs / 24);
   return `${days}d`;
+}
+
+function SplitIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-3.5 h-3.5"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5Z"
+      />
+    </svg>
+  );
 }
 
 function SearchIcon() {
