@@ -448,25 +448,9 @@ export const cleanupStalePendingUploads = internalMutation({
       deleted++;
     }
 
-    // Pass 2: clean up untracked storage files (uploaded but never tracked,
-    // e.g. client crashed between fetch and trackPendingUpload)
-    const referencedIds = new Set<Id<'_storage'>>(commentReferencedStorageIds);
-
-    const allPending = await ctx.db.query('pendingUploads').collect();
-    for (const p of allPending) referencedIds.add(p.storageId);
-
-    const storageFiles = await ctx.db.system.query('_storage').order('asc').take(500);
-    for (const file of storageFiles) {
-      if (file._creationTime > cutoff) continue;
-      if (!file.contentType || !ALLOWED_COMMENT_IMAGE_TYPES.has(file.contentType)) continue;
-      if (referencedIds.has(file._id)) continue;
-      try {
-        await ctx.storage.delete(file._id);
-        deleted++;
-      } catch {
-        // already deleted
-      }
-    }
+    // Do not sweep `_storage` globally here. Files uploaded before
+    // `trackPendingUpload` runs are indistinguishable from future storage-backed
+    // features, so deleting "untracked images" would risk cross-feature data loss.
 
     return { deleted };
   },
