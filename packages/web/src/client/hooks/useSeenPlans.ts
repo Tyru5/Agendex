@@ -39,15 +39,6 @@ export function seedSeen(plans: { id: string; updatedAt: string }[]) {
     write(seeded);
     return;
   }
-  let changed = false;
-  const next = { ...current };
-  for (const p of plans) {
-    if (!(p.id in next)) {
-      next[p.id] = p.updatedAt;
-      changed = true;
-    }
-  }
-  if (changed) write(next);
 }
 
 export function useSeenPlans() {
