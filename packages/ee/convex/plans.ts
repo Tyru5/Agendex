@@ -86,19 +86,22 @@ export const getMyPublishedPlans = query({
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return [];
 
-    const membership = await ctx.db
-      .query('workspaceMembers')
-      .withIndex('by_member', (q) => q.eq('memberId', user._id))
-      .first();
+    const ownActive = await hasActiveSubscriptionForUserId(ctx, user._id);
+    if (!ownActive) {
+      const membership = await ctx.db
+        .query('workspaceMembers')
+        .withIndex('by_member', (q) => q.eq('memberId', user._id))
+        .first();
 
-    if (membership) {
-      const ownerActive = await hasActiveSubscriptionForUserId(ctx, membership.workspaceOwnerId);
-      if (ownerActive) {
-        return await ctx.db
-          .query('plans')
-          .withIndex('by_owner', (q) => q.eq('ownerId', membership.workspaceOwnerId))
-          .order('desc')
-          .collect();
+      if (membership) {
+        const ownerActive = await hasActiveSubscriptionForUserId(ctx, membership.workspaceOwnerId);
+        if (ownerActive) {
+          return await ctx.db
+            .query('plans')
+            .withIndex('by_owner', (q) => q.eq('ownerId', membership.workspaceOwnerId))
+            .order('desc')
+            .collect();
+        }
       }
     }
 

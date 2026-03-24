@@ -17,6 +17,15 @@ export async function getWorkspaceContext(ctx: QueryCtx): Promise<WorkspaceConte
   }
   if (!user) return { role: 'none', workspaceOwnerId: null, canAccessCloud: false };
 
+  const ownActive = await hasActiveSubscription(ctx);
+  if (ownActive) {
+    return {
+      role: 'owner',
+      workspaceOwnerId: user._id,
+      canAccessCloud: true,
+    };
+  }
+
   const membership = await ctx.db
     .query('workspaceMembers')
     .withIndex('by_member', (q) => q.eq('memberId', user._id))
@@ -31,10 +40,9 @@ export async function getWorkspaceContext(ctx: QueryCtx): Promise<WorkspaceConte
     };
   }
 
-  const ownActive = await hasActiveSubscription(ctx);
   return {
-    role: 'owner',
-    workspaceOwnerId: ownActive ? user._id : null,
-    canAccessCloud: ownActive,
+    role: 'none',
+    workspaceOwnerId: null,
+    canAccessCloud: false,
   };
 }

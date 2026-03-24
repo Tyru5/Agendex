@@ -63,6 +63,9 @@ export const inviteWorkspaceMember = mutation({
     const emailLc = args.email.trim().toLowerCase();
     if (!emailLc) throw new ConvexError('Email cannot be empty');
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailLc)) throw new ConvexError('Invalid email address');
+
     if (user.email && user.email.toLowerCase() === emailLc) {
       throw new ConvexError('You cannot invite yourself');
     }
