@@ -1,7 +1,6 @@
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  api,
   EmptyStateView,
   filterPlans,
   hasToken,
@@ -341,14 +340,6 @@ function Dashboard() {
                 window.dispatchEvent(
                   new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }),
                 );
-              }}
-              onRescan={async () => {
-                try {
-                  await api.rescan();
-                  await refresh();
-                } catch (err) {
-                  console.error('Rescan failed:', err);
-                }
               }}
               planCount={totalPlans}
               agents={agents}
