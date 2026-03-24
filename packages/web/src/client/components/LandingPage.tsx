@@ -1104,6 +1104,7 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
   useEffect(() => {
     const el = bentoRef.current;
     if (!el) return;
+    const threshold = window.innerWidth < 768 ? 0.1 : 0.6;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
@@ -1111,7 +1112,7 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
           observer.disconnect();
         }
       },
-      { threshold: 0.6 },
+      { threshold },
     );
     observer.observe(el);
     return () => observer.disconnect();
