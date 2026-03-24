@@ -10,9 +10,16 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 type PendingImage = {
+  clientUploadId: string;
   file: File;
   previewUrl: string;
 };
+
+function createClientUploadId(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+}
 
 function timeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -97,6 +104,7 @@ export function CommentThread({
     if (validFiles.length === 0) return;
 
     const newPending = validFiles.map((file) => ({
+      clientUploadId: createClientUploadId(),
       file,
       previewUrl: URL.createObjectURL(file),
     }));
@@ -129,6 +137,7 @@ export function CommentThread({
         pendingImages.map(async (pending): Promise<UploadResult> => {
           const uploadUrl = await generateUploadUrl({
             planId: planId as Id<'plans'>,
+            clientUploadId: pending.clientUploadId,
             ...(shareToken ? { token: shareToken } : {}),
           });
 
@@ -152,6 +161,7 @@ export function CommentThread({
             const trackResult = await trackPendingUpload({
               storageId,
               planId: planId as Id<'plans'>,
+              clientUploadId: pending.clientUploadId,
               ...(shareToken ? { token: shareToken } : {}),
             });
 

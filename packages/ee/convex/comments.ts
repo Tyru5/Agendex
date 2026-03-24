@@ -1,6 +1,6 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import {
   internalMutation,
   type MutationCtx,
@@ -14,6 +14,14 @@ import { requireFeature } from './entitlements';
 const MAX_COMMENT_IMAGE_COUNT = 4;
 const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_COMMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const MAX_TRACKED_UPLOAD_AGE_MS = 5 * 60 * 1000;
+const STALE_COMMENT_UPLOAD_AGE_MS = 15 * 60 * 1000;
+
+type CommentReadCtx = {
+  db: Pick<QueryCtx['db'], 'query' | 'system'>;
+};
+
+type CommentStorageCtx = Pick<MutationCtx, 'db' | 'storage'>;
 
 async function validateShareToken(ctx: QueryCtx, planId: string, token: string): Promise<void> {
   const shareLink = await ctx.db
@@ -45,9 +53,7 @@ async function validateCommentAccess(
   }
 }
 
-async function getCommentReferencedStorageIds(
-  ctx: Pick<QueryCtx, 'db'>,
-): Promise<Set<Id<'_storage'>>> {
+async function getCommentReferencedStorageIds(ctx: CommentReadCtx): Promise<Set<Id<'_storage'>>> {
   const referencedIds = new Set<Id<'_storage'>>();
   const allComments = await ctx.db.query('comments').collect();
 
@@ -58,6 +64,17 @@ async function getCommentReferencedStorageIds(
   }
 
   return referencedIds;
+}
+
+async function getPendingUploadStorageIds(ctx: CommentReadCtx): Promise<Set<Id<'_storage'>>> {
+  const trackedIds = new Set<Id<'_storage'>>();
+  const pendingUploads = await ctx.db.query('pendingUploads').collect();
+
+  for (const pendingUpload of pendingUploads) {
+    trackedIds.add(pendingUpload.storageId);
+  }
+
+  return trackedIds;
 }
 
 async function createCommentAttachmentClaims(
@@ -85,6 +102,101 @@ async function deleteCommentAttachmentClaims(
   for (const claim of claims) {
     await ctx.db.delete(claim._id);
   }
+}
+
+async function findUploadReservation(
+  ctx: Pick<MutationCtx, 'db'>,
+  {
+    uploadedBy,
+    planId,
+    clientUploadId,
+  }: {
+    uploadedBy: string;
+    planId: Id<'plans'>;
+    clientUploadId?: string;
+  },
+) {
+  if (clientUploadId) {
+    return await ctx.db
+      .query('commentUploadReservations')
+      .withIndex('by_user_plan_clientUploadId', (q) =>
+        q.eq('uploadedBy', uploadedBy).eq('planId', planId).eq('clientUploadId', clientUploadId),
+      )
+      .first();
+  }
+
+  return await ctx.db
+    .query('commentUploadReservations')
+    .withIndex('by_user_plan_createdAt', (q) => q.eq('uploadedBy', uploadedBy).eq('planId', planId))
+    .order('asc')
+    .first();
+}
+
+async function reserveCommentUpload(
+  ctx: Pick<MutationCtx, 'db'>,
+  {
+    uploadedBy,
+    planId,
+    clientUploadId,
+  }: {
+    uploadedBy: string;
+    planId: Id<'plans'>;
+    clientUploadId?: string;
+  },
+): Promise<void> {
+  if (clientUploadId) {
+    const existingReservation = await findUploadReservation(ctx, {
+      uploadedBy,
+      planId,
+      clientUploadId,
+    });
+
+    if (existingReservation) {
+      return;
+    }
+  }
+
+  await ctx.db.insert('commentUploadReservations', {
+    ...(clientUploadId ? { clientUploadId } : {}),
+    uploadedBy,
+    planId,
+    createdAt: Date.now(),
+  });
+}
+
+async function deleteStorageFile(
+  ctx: Pick<MutationCtx, 'storage'>,
+  storageId: Id<'_storage'>,
+): Promise<void> {
+  try {
+    await ctx.storage.delete(storageId);
+  } catch {
+    // File may already be deleted; continue cleanup
+  }
+}
+
+export async function deletePendingUploadRecord(
+  ctx: CommentStorageCtx,
+  pendingUpload: Pick<Doc<'pendingUploads'>, '_id' | 'storageId'>,
+  options?: { deleteStorage?: boolean },
+): Promise<void> {
+  if (options?.deleteStorage ?? true) {
+    await deleteStorageFile(ctx, pendingUpload.storageId);
+  }
+
+  await ctx.db.delete(pendingUpload._id);
+}
+
+export async function deleteCommentWithAttachments(
+  ctx: CommentStorageCtx,
+  comment: Pick<Doc<'comments'>, '_id' | 'attachments'>,
+): Promise<void> {
+  for (const attachment of comment.attachments ?? []) {
+    await deleteStorageFile(ctx, attachment.storageId);
+  }
+
+  await deleteCommentAttachmentClaims(ctx, comment._id);
+  await ctx.db.delete(comment._id);
 }
 
 export const getComments = query({
@@ -117,6 +229,7 @@ export const generateCommentImageUploadUrl = mutation({
   args: {
     planId: v.id('plans'),
     token: v.optional(v.string()),
+    clientUploadId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
@@ -133,6 +246,12 @@ export const generateCommentImageUploadUrl = mutation({
       await validateShareToken(ctx, args.planId, args.token);
     }
 
+    await reserveCommentUpload(ctx, {
+      uploadedBy: user._id,
+      planId: args.planId,
+      ...(args.clientUploadId ? { clientUploadId: args.clientUploadId } : {}),
+    });
+
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -142,6 +261,7 @@ export const trackPendingUpload = mutation({
     storageId: v.id('_storage'),
     planId: v.id('plans'),
     token: v.optional(v.string()),
+    clientUploadId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
@@ -156,6 +276,15 @@ export const trackPendingUpload = mutation({
     } else {
       if (!args.token) throw new ConvexError('Share token required');
       await validateShareToken(ctx, args.planId, args.token);
+    }
+
+    const reservation = await findUploadReservation(ctx, {
+      uploadedBy: user._id,
+      planId: args.planId,
+      ...(args.clientUploadId ? { clientUploadId: args.clientUploadId } : {}),
+    });
+    if (!reservation) {
+      throw new ConvexError('Upload reservation not found or expired');
     }
 
     const existingClaim = await ctx.db
@@ -175,21 +304,27 @@ export const trackPendingUpload = mutation({
     }
 
     const metadata = await ctx.db.system.get(args.storageId);
-    if (!metadata) throw new ConvexError('File not found');
-    const MAX_UPLOAD_AGE_MS = 5 * 60 * 1000;
-    if (Date.now() - metadata._creationTime > MAX_UPLOAD_AGE_MS) {
+    if (!metadata) {
+      await ctx.db.delete(reservation._id);
+      throw new ConvexError('File not found');
+    }
+    if (Date.now() - metadata._creationTime > MAX_TRACKED_UPLOAD_AGE_MS) {
+      await deleteStorageFile(ctx, args.storageId);
+      await ctx.db.delete(reservation._id);
       throw new ConvexError('Upload expired');
     }
 
     if (!metadata.contentType || !ALLOWED_COMMENT_IMAGE_TYPES.has(metadata.contentType)) {
-      await ctx.storage.delete(args.storageId);
+      await deleteStorageFile(ctx, args.storageId);
+      await ctx.db.delete(reservation._id);
       return {
         success: false as const,
         error: `File type "${metadata.contentType ?? 'unknown'}" is not allowed. Use JPEG, PNG, WebP, or GIF.`,
       };
     }
     if (metadata.size > MAX_COMMENT_IMAGE_BYTES) {
-      await ctx.storage.delete(args.storageId);
+      await deleteStorageFile(ctx, args.storageId);
+      await ctx.db.delete(reservation._id);
       return { success: false as const, error: 'Image must be under 5MB' };
     }
 
@@ -199,6 +334,7 @@ export const trackPendingUpload = mutation({
       planId: args.planId,
       createdAt: Date.now(),
     });
+    await ctx.db.delete(reservation._id);
     return { success: true as const };
   },
 });
@@ -257,6 +393,9 @@ export const addComment = mutation({
           .first();
         if (!pending) {
           throw new ConvexError('You do not own this upload');
+        }
+        if (pending.planId !== args.planId) {
+          throw new ConvexError('Upload does not belong to this plan');
         }
 
         const metadata = await ctx.db.system.get(attachment.storageId);
@@ -325,8 +464,7 @@ export const deleteOrphanedUpload = mutation({
       throw new ConvexError('Upload not found or not owned by user');
     }
 
-    await ctx.db.delete(pending._id);
-    await ctx.storage.delete(args.storageId);
+    await deletePendingUploadRecord(ctx, pending);
   },
 });
 
@@ -408,29 +546,31 @@ export const deleteComment = mutation({
       await validateShareToken(ctx, comment.planId, args.token);
     }
 
-    for (const attachment of comment.attachments ?? []) {
-      try {
-        await ctx.storage.delete(attachment.storageId);
-      } catch {
-        // File may already be deleted; continue cleanup
-      }
-    }
-
-    await deleteCommentAttachmentClaims(ctx, comment._id);
-    await ctx.db.delete(args.commentId);
+    await deleteCommentWithAttachments(ctx, comment);
   },
 });
-
-const STALE_UPLOAD_AGE_MS = 15 * 60 * 1000;
 
 export const cleanupStalePendingUploads = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const cutoff = Date.now() - STALE_UPLOAD_AGE_MS;
-    let deleted = 0;
+    const cutoff = Date.now() - STALE_COMMENT_UPLOAD_AGE_MS;
+    let deletedReservations = 0;
+    let deletedPendingUploads = 0;
+    let deletedUntrackedFiles = 0;
     const commentReferencedStorageIds = await getCommentReferencedStorageIds(ctx);
+    const pendingUploadStorageIds = await getPendingUploadStorageIds(ctx);
 
-    // Pass 1: clean up stale pendingUploads records + their storage files
+    const staleReservations = await ctx.db
+      .query('commentUploadReservations')
+      .withIndex('by_createdAt', (q) => q.lt('createdAt', cutoff))
+      .take(500);
+
+    for (const reservation of staleReservations) {
+      await ctx.db.delete(reservation._id);
+      deletedReservations++;
+    }
+
+    // Pass 1: clean up stale tracked uploads and their storage files.
     const stale = await ctx.db
       .query('pendingUploads')
       .withIndex('by_createdAt', (q) => q.lt('createdAt', cutoff))
@@ -438,20 +578,27 @@ export const cleanupStalePendingUploads = internalMutation({
 
     for (const record of stale) {
       if (!commentReferencedStorageIds.has(record.storageId)) {
-        try {
-          await ctx.storage.delete(record.storageId);
-        } catch {
-          // File may already be deleted; continue cleanup
-        }
+        await deleteStorageFile(ctx, record.storageId);
       }
       await ctx.db.delete(record._id);
-      deleted++;
+      pendingUploadStorageIds.delete(record.storageId);
+      deletedPendingUploads++;
     }
 
-    // Do not sweep `_storage` globally here. Files uploaded before
-    // `trackPendingUpload` runs are indistinguishable from future storage-backed
-    // features, so deleting "untracked images" would risk cross-feature data loss.
+    // Pass 2: delete stale untracked blobs that are not referenced anywhere.
+    const staleStorageObjects = await ctx.db.system
+      .query('_storage')
+      .withIndex('by_creation_time', (q) => q.lt('_creationTime', cutoff))
+      .take(500);
 
-    return { deleted };
+    for (const storageObject of staleStorageObjects) {
+      if (commentReferencedStorageIds.has(storageObject._id)) continue;
+      if (pendingUploadStorageIds.has(storageObject._id)) continue;
+
+      await deleteStorageFile(ctx, storageObject._id);
+      deletedUntrackedFiles++;
+    }
+
+    return { deletedReservations, deletedPendingUploads, deletedUntrackedFiles };
   },
 });

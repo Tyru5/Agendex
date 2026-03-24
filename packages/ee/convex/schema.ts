@@ -56,6 +56,18 @@ export default defineSchema({
     .index('by_storage', ['storageId'])
     .index('by_comment', ['commentId']),
 
+  commentUploadReservations: defineTable({
+    clientUploadId: v.optional(v.string()),
+    uploadedBy: v.string(),
+    planId: v.id('plans'),
+    createdAt: v.number(),
+  })
+    .index('by_createdAt', ['createdAt'])
+    .index('by_user_plan_createdAt', ['uploadedBy', 'planId', 'createdAt'])
+    .index('by_user_plan_clientUploadId', ['uploadedBy', 'planId', 'clientUploadId'])
+    .index('by_plan', ['planId'])
+    .index('by_uploadedBy', ['uploadedBy']),
+
   pendingUploads: defineTable({
     storageId: v.id('_storage'),
     uploadedBy: v.string(),
@@ -64,7 +76,9 @@ export default defineSchema({
   })
     .index('by_storage', ['storageId'])
     .index('by_user_storage', ['uploadedBy', 'storageId'])
-    .index('by_createdAt', ['createdAt']),
+    .index('by_createdAt', ['createdAt'])
+    .index('by_plan', ['planId'])
+    .index('by_uploadedBy', ['uploadedBy']),
 
   subscriptions: defineTable({
     userId: v.string(),
