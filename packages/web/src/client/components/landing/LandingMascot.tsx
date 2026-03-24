@@ -138,7 +138,10 @@ export function LandingMascot({ greetings, onActivate, triggerElementId }: Landi
       }
       observer = new IntersectionObserver(
         ([entry]) => setIsNearBottom(entry?.isIntersecting ?? false),
-        { threshold: 0, rootMargin: '-40% 0px 0px 0px' },
+        {
+          threshold: 0,
+          rootMargin: '-40% 0px 0px 0px',
+        },
       );
       observer.observe(el);
     };

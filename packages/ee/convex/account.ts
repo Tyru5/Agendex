@@ -2,8 +2,9 @@ import type { GenericId } from 'convex/values';
 import { ConvexError, v } from 'convex/values';
 import Stripe from 'stripe';
 import { api, components, internal } from './_generated/api';
-import type { TableNames } from './_generated/dataModel';
+import type { Doc, TableNames } from './_generated/dataModel';
 import { action, internalMutation } from './_generated/server';
+import { deleteCommentWithAttachments, deletePendingUploadRecord } from './comments';
 
 export const deleteAccount = action({
   handler: async (ctx) => {
@@ -12,7 +13,10 @@ export const deleteAccount = action({
 
     const sub = await ctx.runQuery(api.subscriptions.getMySubscriptionQuery);
     if (sub?.stripeSubscriptionId) {
-      const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
+      const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeSecretKey) throw new ConvexError('STRIPE_SECRET_KEY not configured');
+
+      const stripeClient = new Stripe(stripeSecretKey);
       await stripeClient.subscriptions.cancel(sub.stripeSubscriptionId);
     }
 
@@ -56,6 +60,14 @@ export const purgeUserData = internalMutation({
       for (const row of rows) await ctx.db.delete(row._id);
     }
 
+    async function deletePendingUploads(
+      rows: Array<Pick<Doc<'pendingUploads'>, '_id' | 'storageId'>>,
+    ) {
+      for (const row of rows) {
+        await deletePendingUploadRecord(ctx, row);
+      }
+    }
+
     const plans = await ctx.db
       .query('plans')
       .withIndex('by_owner', (q) => q.eq('ownerId', userId))
@@ -73,14 +85,20 @@ export const purgeUserData = internalMutation({
         .withIndex('by_plan', (q) => q.eq('planId', plan._id))
         .collect();
       for (const comment of planComments) {
-        await deleteRows(
-          await ctx.db
-            .query('commentAttachmentClaims')
-            .withIndex('by_comment', (q) => q.eq('commentId', comment._id))
-            .collect(),
-        );
-        await ctx.db.delete(comment._id);
+        await deleteCommentWithAttachments(ctx, comment);
       }
+      await deletePendingUploads(
+        await ctx.db
+          .query('pendingUploads')
+          .withIndex('by_plan', (q) => q.eq('planId', plan._id))
+          .collect(),
+      );
+      await deleteRows(
+        await ctx.db
+          .query('commentUploadReservations')
+          .withIndex('by_plan', (q) => q.eq('planId', plan._id))
+          .collect(),
+      );
       await deleteRows(
         await ctx.db
           .query('planVersions')
@@ -164,13 +182,19 @@ export const purgeUserData = internalMutation({
       .filter((q) => q.eq(q.field('authorId'), userId))
       .collect();
     for (const comment of authoredComments) {
-      await deleteRows(
-        await ctx.db
-          .query('commentAttachmentClaims')
-          .withIndex('by_comment', (q) => q.eq('commentId', comment._id))
-          .collect(),
-      );
-      await ctx.db.delete(comment._id);
+      await deleteCommentWithAttachments(ctx, comment);
     }
+    await deletePendingUploads(
+      await ctx.db
+        .query('pendingUploads')
+        .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', userId))
+        .collect(),
+    );
+    await deleteRows(
+      await ctx.db
+        .query('commentUploadReservations')
+        .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', userId))
+        .collect(),
+    );
   },
 });
