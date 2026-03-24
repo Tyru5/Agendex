@@ -50,7 +50,8 @@
       "**",
       "!**/node_modules",
       "!**/dist",
-      "!packages/web/convex/_generated",
+      "!**/convex/_generated",
+      "!**/convex/_generated/**",
       "!packages/web/src/client/dist",
       "!**/*.css"
     ]
