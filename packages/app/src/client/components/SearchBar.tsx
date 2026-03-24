@@ -1,20 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSeenPlans } from '../hooks/useSeenPlans.ts';
+import { usePlanState } from '../hooks/usePlanState.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import { filterPlans } from '../lib/plan-search.ts';
+import type { PlanState } from '../lib/plan-state.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
-export function SearchBar({
-  search,
-  onSearch,
-  plans,
-  selectedId,
-  onSelectPlan,
-  splitPlanId,
-  onOpenInSplitView,
-  isPro = false,
-}: {
+type SearchBarProps = {
   search: string;
   onSearch: (q: string) => void;
   plans: Plan[];
@@ -23,29 +15,42 @@ export function SearchBar({
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
   isPro?: boolean;
-}) {
+  planState?: PlanState;
+};
+
+export function SearchBar(props: SearchBarProps) {
+  const {
+    search,
+    onSearch,
+    plans,
+    selectedId,
+    onSelectPlan,
+    splitPlanId,
+    onOpenInSplitView,
+    planState: planStateProp,
+  } = props;
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | undefined>(undefined);
   const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
-  const { isUnseen, markSeen } = useSeenPlans();
+  const localPlanState = usePlanState();
+  const planState = planStateProp ?? localPlanState;
   const modalExitMs = 220;
 
   const { unseenFiltered, restFiltered } = useMemo(() => {
-    if (!isPro) return { unseenFiltered: [] as Plan[], restFiltered: filteredPlans };
     const unseen: Plan[] = [];
     const rest: Plan[] = [];
-    for (const p of filteredPlans) {
-      if (isUnseen(p.id, p.updatedAt) && p.id !== selectedId) {
-        unseen.push(p);
+    for (const plan of filteredPlans) {
+      if (planState.isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId) {
+        unseen.push(plan);
       } else {
-        rest.push(p);
+        rest.push(plan);
       }
     }
     return { unseenFiltered: unseen, restFiltered: rest };
-  }, [filteredPlans, isPro, isUnseen, selectedId]);
+  }, [filteredPlans, planState, selectedId]);
 
   const isMac = useMemo(() => {
     if (typeof navigator === 'undefined') return true;
@@ -104,6 +109,19 @@ export function SearchBar({
       if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
     };
   }, []);
+
+  function handleSelect(plan: Plan) {
+    planState.markSeen(plan.id, plan.updatedAt);
+    onSelectPlan(plan);
+    closeModal();
+  }
+
+  function handleSplitSelect(plan: Plan) {
+    if (!onOpenInSplitView) return;
+    planState.markSeen(plan.id, plan.updatedAt);
+    onOpenInSplitView(plan);
+    closeModal();
+  }
 
   return (
     <>
@@ -203,12 +221,10 @@ export function SearchBar({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && filteredPlans[0]) {
                     if (e.shiftKey && onOpenInSplitView) {
-                      if (isPro) markSeen(filteredPlans[0].id, filteredPlans[0].updatedAt);
-                      onOpenInSplitView(filteredPlans[0]);
+                      handleSplitSelect(filteredPlans[0]);
                     } else {
-                      onSelectPlan(filteredPlans[0]);
+                      handleSelect(filteredPlans[0]);
                     }
-                    closeModal();
                   }
                 }}
                 placeholder="Search plans..."
@@ -290,19 +306,9 @@ export function SearchBar({
                           plan={plan}
                           selected={plan.id === selectedId}
                           unseen
-                          onClick={() => {
-                            if (isPro) markSeen(plan.id, plan.updatedAt);
-                            onSelectPlan(plan);
-                            closeModal();
-                          }}
+                          onClick={() => handleSelect(plan)}
                           onSplitView={
-                            onOpenInSplitView
-                              ? () => {
-                                  if (isPro) markSeen(plan.id, plan.updatedAt);
-                                  onOpenInSplitView(plan);
-                                  closeModal();
-                                }
-                              : undefined
+                            onOpenInSplitView ? () => handleSplitSelect(plan) : undefined
                           }
                           splitDisabled={plan.id === selectedId || plan.id === splitPlanId}
                         />
@@ -321,21 +327,9 @@ export function SearchBar({
                       key={plan.id}
                       plan={plan}
                       selected={plan.id === selectedId}
-                      unseen={false}
-                      onClick={() => {
-                        if (isPro) markSeen(plan.id, plan.updatedAt);
-                        onSelectPlan(plan);
-                        closeModal();
-                      }}
-                      onSplitView={
-                        onOpenInSplitView
-                          ? () => {
-                              if (isPro) markSeen(plan.id, plan.updatedAt);
-                              onOpenInSplitView(plan);
-                              closeModal();
-                            }
-                          : undefined
-                      }
+                      unseen={planState.isUnseen(plan.id, plan.updatedAt)}
+                      onClick={() => handleSelect(plan)}
+                      onSplitView={onOpenInSplitView ? () => handleSplitSelect(plan) : undefined}
                       splitDisabled={plan.id === selectedId || plan.id === splitPlanId}
                     />
                   ))}
@@ -432,19 +426,11 @@ function SearchPlanRow({
           onClick={onSplitView}
           disabled={splitDisabled}
           title="Open in split view"
+          className="shrink-0 flex items-center justify-center w-9 rounded-lg border border-border bg-transparent cursor-pointer transition-[opacity,background] duration-150"
           style={{
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '36px',
-            borderRadius: '8px',
-            border: '1px solid var(--border)',
-            background: 'transparent',
             color: splitDisabled ? 'var(--tertiary)' : 'var(--secondary)',
-            cursor: splitDisabled ? 'not-allowed' : 'pointer',
             opacity: splitDisabled ? 0.4 : 0.6,
-            transition: 'opacity 0.15s, background 0.15s',
+            cursor: splitDisabled ? 'not-allowed' : 'pointer',
           }}
           onMouseEnter={(e) => {
             if (!splitDisabled) {
@@ -457,14 +443,14 @@ function SearchPlanRow({
             e.currentTarget.style.background = 'transparent';
           }}
         >
-          <SplitIcon />
+          <SplitViewIcon />
         </button>
       )}
     </div>
   );
 }
 
-function SplitIcon() {
+function SplitViewIcon() {
   return (
     <svg
       aria-hidden="true"
@@ -484,16 +470,6 @@ function SplitIcon() {
   );
 }
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d`;
-}
-
 function SearchIcon() {
   return (
     <svg
@@ -503,12 +479,12 @@ function SearchIcon() {
       viewBox="0 0 24 24"
       strokeWidth={2}
       stroke="currentColor"
-      style={{ width: '14px', height: '14px', opacity: 0.5, flexShrink: 0 }}
+      style={{ width: '14px', height: '14px', color: 'var(--tertiary)' }}
     >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
-        d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+        d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
       />
     </svg>
   );
