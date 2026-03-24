@@ -13,6 +13,7 @@ import type * as auth from '../auth.js';
 import type * as cli from '../cli.js';
 import type * as collections from '../collections.js';
 import type * as comments from '../comments.js';
+import type * as crons from '../crons.js';
 import type * as entitlements from '../entitlements.js';
 import type * as http from '../http.js';
 import type * as planTags from '../planTags.js';
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   cli: typeof cli;
   collections: typeof collections;
   comments: typeof comments;
+  crons: typeof crons;
   entitlements: typeof entitlements;
   http: typeof http;
   planTags: typeof planTags;
