@@ -1,5 +1,6 @@
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useHotkey } from '@tanstack/react-hotkeys';
 import {
   EmptyStateView,
   filterPlans,
@@ -200,6 +201,8 @@ function Dashboard() {
     setSidebarPeek(false);
     setSidebarHidden((current) => !current);
   }
+
+  useHotkey('Mod+B', toggleSidebar);
 
   return (
     <div
