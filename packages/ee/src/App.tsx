@@ -334,7 +334,6 @@ function DashboardMain({
   onShare,
   onCloseShare,
   onChartWideChange,
-  onSwitchLocal,
   onSearch,
   isSplitView,
   splitPlan,
@@ -359,7 +358,6 @@ function DashboardMain({
   onShare: () => void;
   onCloseShare: () => void;
   onChartWideChange: (wide: boolean) => void;
-  onSwitchLocal: () => void;
   onSearch: () => void;
   isSplitView?: boolean;
   splitPlan?: Plan;
@@ -467,7 +465,7 @@ function DashboardMain({
       style={{ viewTransitionName: 'main-content' }}
     >
       {mode === 'cloud' && !isPro ? (
-        <CloudUpgrade onSwitchLocal={onSwitchLocal} />
+        <CloudUpgrade />
       ) : mode === 'cloud' && backendStatus === 'checking' ? (
         <BootLoadingView message="Connecting to cloud..." fullscreen={false} />
       ) : backendStatus === 'offline' ? (
@@ -780,7 +778,6 @@ type DashState = {
   selectedCollection: string | undefined;
   activePanel: Panel;
   showPricingModal: boolean;
-  mode: DashboardMode;
   sidebarHidden: boolean;
   sidebarPeek: boolean;
 };
@@ -790,7 +787,6 @@ type DashAction =
   | { type: 'SET_COLLECTION'; value: string | undefined }
   | { type: 'SET_PANEL'; value: Panel }
   | { type: 'SET_PRICING_MODAL'; value: boolean }
-  | { type: 'SET_MODE'; value: DashboardMode }
   | { type: 'SET_SIDEBAR_HIDDEN'; value: boolean }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_SIDEBAR_PEEK'; value: boolean };
@@ -805,8 +801,6 @@ function dashReducer(s: DashState, a: DashAction): DashState {
       return { ...s, activePanel: a.value };
     case 'SET_PRICING_MODAL':
       return { ...s, showPricingModal: a.value };
-    case 'SET_MODE':
-      return { ...s, mode: a.value };
     case 'SET_SIDEBAR_HIDDEN':
       return { ...s, sidebarHidden: a.value, sidebarPeek: false };
     case 'TOGGLE_SIDEBAR':
@@ -860,7 +854,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     selectedCollection: undefined,
     activePanel: null,
     showPricingModal: false,
-    mode: autoMode,
     sidebarHidden: localStorage.getItem(SIDEBAR_PREF_KEY) === 'true',
     sidebarPeek: false,
   });
@@ -870,16 +863,15 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     selectedCollection,
     activePanel,
     showPricingModal,
-    mode,
     sidebarHidden,
     sidebarPeek,
   } = ds;
+  const mode = autoMode;
   const setSelectedTags = (v: string[]) => dsd({ type: 'SET_TAGS', value: v });
   const setSelectedCollection = (v: string | undefined) =>
     dsd({ type: 'SET_COLLECTION', value: v });
   const setActivePanel = useCallback((v: Panel) => dsd({ type: 'SET_PANEL', value: v }), []);
   const setShowPricingModal = (v: boolean) => dsd({ type: 'SET_PRICING_MODAL', value: v });
-  const setMode = useCallback((v: DashboardMode) => dsd({ type: 'SET_MODE', value: v }), []);
   const setSidebarHidden = (v: boolean) => dsd({ type: 'SET_SIDEBAR_HIDDEN', value: v });
   const setSidebarPeek = (v: boolean) => dsd({ type: 'SET_SIDEBAR_PEEK', value: v });
 
@@ -932,17 +924,10 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const peek = useSidebarPeek(sidebarHidden, setSidebarPeek);
   const [optimisticSelectedPlan, setOptimisticSelectedPlan] = useState<Plan | undefined>(undefined);
-  const previousAutoMode = useRef(autoMode);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
   }, [sidebarHidden]);
-
-  useEffect(() => {
-    if (previousAutoMode.current === autoMode) return;
-    previousAutoMode.current = autoMode;
-    setMode(autoMode);
-  }, [autoMode, setMode]);
 
   const selectedPlan = useMemo(() => {
     if (selectedPlanId) {
@@ -1089,7 +1074,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onSelectPlan={setSelectedPlan}
         onNewPlan={handleNewPlan}
         onUpload={handleUpload}
-        onToggleMode={() => setMode(mode === 'local' ? 'cloud' : 'local')}
         onHistory={() => startViewTransition(() => setActivePanel('history'))}
         onNavigate={(path: string) => startViewTransition(() => navigate(path))}
         daemonDevices={daemonDevices}
@@ -1175,7 +1159,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onShare={() => setActivePanel('sharing')}
         onCloseShare={() => setActivePanel(null)}
         onChartWideChange={handleChartWideChange}
-        onSwitchLocal={() => setMode('local')}
         onSearch={() => {
           window.dispatchEvent(
             new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }),

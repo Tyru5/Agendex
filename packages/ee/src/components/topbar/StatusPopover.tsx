@@ -5,13 +5,11 @@ export function StatusPopover({
   backendIndicator,
   totalPlans,
   activeAgents,
-  onToggleMode,
 }: {
   mode: 'local' | 'cloud';
   backendIndicator: { label: string; color: string };
   totalPlans: number;
   activeAgents: number;
-  onToggleMode: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -78,14 +76,12 @@ export function StatusPopover({
           <div className="h-px bg-border" />
           <div className="flex items-center justify-between text-xs">
             <span className="text-tertiary">Mode</span>
-            <button
-              type="button"
-              onClick={onToggleMode}
-              className="text-[11px] py-0.5 px-2 rounded border border-border bg-transparent text-secondary cursor-pointer uppercase tracking-wide hover:bg-hover transition-colors duration-150"
+            <span
+              className="text-[11px] py-0.5 px-2 rounded border border-border bg-transparent text-secondary uppercase tracking-wide"
               style={{ fontWeight: 550 }}
             >
               {mode}
-            </button>
+            </span>
           </div>
         </div>
       )}
