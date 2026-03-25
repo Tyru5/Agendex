@@ -1,5 +1,6 @@
 export { AgentFilter } from './client/components/AgentFilter.tsx';
 export { AgentIcon } from './client/components/AgentIcon.tsx';
+export { AgentSelect } from './client/components/AgentSelect.tsx';
 export { EmptyStateView } from './client/components/EmptyStateView.tsx';
 export { ExitFullscreenIcon, FullscreenIcon } from './client/components/FullscreenIcons.tsx';
 export type { LandingPageProps } from './client/components/LandingPage.tsx';
@@ -17,8 +18,10 @@ export { PlanOutline } from './client/components/PlanOutline.tsx';
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export { PlanViewer } from './client/components/PlanViewer.tsx';
 export { SearchBar } from './client/components/SearchBar.tsx';
+export { Sidebar } from './client/components/Sidebar.tsx';
 export { SidebarFilters } from './client/components/SidebarFilters.tsx';
 export { Skeleton, SkeletonBlock, SkeletonLine } from './client/components/Skeleton.tsx';
+export { TechDependencyChart } from './client/components/TechDependencyChart.tsx';
 export type {
   ResolvedTheme,
   ThemeContextValue,
@@ -26,15 +29,20 @@ export type {
 } from './client/components/ThemeProvider.tsx';
 export { ThemeContext, ThemeProvider } from './client/components/ThemeProvider.tsx';
 export { ThemeToggle } from './client/components/ThemeToggle.tsx';
+export { Topbar } from './client/components/Topbar.tsx';
+export { WipMarquee } from './client/components/WipMarquee.tsx';
+
 export type { BackendStatus } from './client/hooks/useBackendStatus.ts';
 export { useBackendStatus } from './client/hooks/useBackendStatus.ts';
 export { useFullscreen } from './client/hooks/useFullscreen.ts';
 export { usePinnedPlans } from './client/hooks/usePinnedPlans.ts';
 export { usePlanState } from './client/hooks/usePlanState.ts';
 export { useAgents, usePlans } from './client/hooks/usePlans.ts';
+export { useScrollSpy } from './client/hooks/useScrollSpy.ts';
 export { seedSeen, useSeenPlans } from './client/hooks/useSeenPlans.ts';
 export { useSocketEvent } from './client/hooks/useSocket.ts';
 export { useTheme } from './client/hooks/useTheme.ts';
+
 export {
   AGENT_IDS,
   getAgentColor,
@@ -55,4 +63,9 @@ export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-mark
 export { filterPlans } from './client/lib/plan-search.ts';
 export type { PlanState, PlanStatePlan } from './client/lib/plan-state.ts';
 export { sanitizeSchema } from './client/lib/sanitize-schema.ts';
+export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
+export type { DetectedTech, TechCategory } from './client/lib/tech-extract.ts';
+export { extractTechnologies } from './client/lib/tech-extract.ts';
+export type { TechEdge, TechGraph, TechNode, TechNodeData } from './client/lib/tech-graph.ts';
+export { buildAdjacencyMap, buildTechGraph, CATEGORY_COLORS } from './client/lib/tech-graph.ts';
 export { startViewTransition } from './client/lib/view-transition.ts';

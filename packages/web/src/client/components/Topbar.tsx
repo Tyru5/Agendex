@@ -33,6 +33,8 @@ interface TopbarProps {
   plans: Plan[];
   selectedPlan?: Plan;
   onSelectPlan: (plan: Plan | undefined) => void;
+  splitPlanId?: string;
+  onOpenInSplitView?: (plan: Plan) => void;
   totalPlans: number;
   activeAgents: number;
   backendStatus: 'online' | 'offline' | 'checking';
@@ -48,6 +50,8 @@ export function Topbar({
   plans,
   selectedPlan,
   onSelectPlan,
+  splitPlanId,
+  onOpenInSplitView,
   totalPlans,
   activeAgents,
   backendStatus,
@@ -94,9 +98,9 @@ export function Topbar({
         <button
           type="button"
           onClick={() => onSelectPlan(undefined)}
-          className="font-semibold text-sm tracking-[-0.02em] text-text whitespace-nowrap bg-transparent border-none p-0 cursor-pointer"
+          className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[-0.02em] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
         >
-          Agendex
+          Agendex<span style={{ color: '#c8ff32' }}>.</span>
         </button>
       </div>
 
@@ -107,6 +111,8 @@ export function Topbar({
           plans={plans}
           selectedId={selectedPlan?.id}
           onSelectPlan={onSelectPlan}
+          splitPlanId={splitPlanId}
+          onOpenInSplitView={onOpenInSplitView}
         />
       </div>
 

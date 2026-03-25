@@ -37,6 +37,7 @@ export function seedSeen(plans: { id: string; updatedAt: string }[]) {
     const seeded: SeenMap = {};
     for (const p of plans) seeded[p.id] = p.updatedAt;
     write(seeded);
+    return;
   }
 }
 

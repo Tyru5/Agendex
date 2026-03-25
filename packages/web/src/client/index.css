@@ -3299,11 +3299,6 @@ body {
   animation: empty-state-fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes empty-state-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
 @keyframes cloud-sync-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.95); }

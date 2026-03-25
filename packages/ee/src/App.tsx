@@ -335,7 +335,6 @@ function DashboardMain({
   onChartWideChange,
   onSwitchLocal,
   onSearch,
-  onRescan,
   isSplitView,
   splitPlan,
   onCloseSplit,
@@ -361,7 +360,6 @@ function DashboardMain({
   onChartWideChange: (wide: boolean) => void;
   onSwitchLocal: () => void;
   onSearch: () => void;
-  onRescan: () => Promise<void>;
   isSplitView?: boolean;
   splitPlan?: Plan;
   onCloseSplit?: () => void;
@@ -549,12 +547,7 @@ function DashboardMain({
           </>
         )
       ) : (
-        <EmptyStateView
-          onSearch={onSearch}
-          onRescan={onRescan}
-          planCount={totalPlans}
-          agents={agents}
-        />
+        <EmptyStateView onSearch={onSearch} planCount={totalPlans} agents={agents} />
       )}
     </div>
   );
@@ -768,6 +761,7 @@ function DashboardSidebar({
             plans={filteredPlans}
             selectedId={selectedPlan?.id}
             onSelect={onSelectPlan}
+            isPro={isPro}
             splitPlanId={splitPlanId}
             onOpenInSplitView={onOpenInSplitView}
             planState={planState}
@@ -1183,9 +1177,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
           window.dispatchEvent(
             new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }),
           );
-        }}
-        onRescan={async () => {
-          await refresh();
         }}
         isSplitView={isSplitView}
         splitPlan={splitPlan}

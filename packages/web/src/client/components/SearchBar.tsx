@@ -12,6 +12,8 @@ type SearchBarProps = {
   plans: Plan[];
   selectedId: string | undefined;
   onSelectPlan: (plan: Plan) => void;
+  splitPlanId?: string;
+  onOpenInSplitView?: (plan: Plan) => void;
   isPro?: boolean;
   planState?: PlanState;
 };
