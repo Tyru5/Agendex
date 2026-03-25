@@ -72,6 +72,9 @@ export const upsertPlan = internalMutation({
 export const hasUserSubscription = internalQuery({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
+    const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '').split(',').map((id) => id.trim()).filter(Boolean);
+    if (bypassIds.includes(args.userId)) return true;
+
     const sub = await ctx.db
       .query('subscriptions')
       .withIndex('by_user', (q) => q.eq('userId', args.userId))
