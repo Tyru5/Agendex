@@ -1,3 +1,4 @@
+import { formatForDisplay } from '@tanstack/react-hotkeys';
 import { useMemo } from 'react';
 import type { AgentStats, Plan } from '../lib/api.ts';
 import { SIDEBAR_EXPANDED_WIDTH } from '../lib/constants.ts';
@@ -57,6 +58,8 @@ export function Topbar({
   backendStatus,
   height,
 }: TopbarProps) {
+  const shortcutLabel = formatForDisplay('Mod+B');
+
   const backendIndicator = useMemo(() => {
     if (backendStatus === 'online') return { label: 'Live', color: '#22c55e' };
     if (backendStatus === 'checking') return { label: 'Checking', color: '#f59e0b' };
@@ -85,8 +88,8 @@ export function Topbar({
           <button
             type="button"
             onClick={onToggleSidebar}
-            aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
-            title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+            aria-label={`${sidebarHidden ? 'Show' : 'Hide'} sidebar (${shortcutLabel})`}
+            title={`${sidebarHidden ? 'Show' : 'Hide'} sidebar (${shortcutLabel})`}
             className="w-[30px] h-[30px] rounded-lg border border-border text-text cursor-pointer flex items-center justify-center"
             style={{
               background: sidebarHidden ? 'var(--hover)' : 'transparent',

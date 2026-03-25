@@ -21,6 +21,7 @@ import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
+import { useHotkey } from '@tanstack/react-hotkeys';
 import {
   lazy,
   Suspense,
@@ -1036,6 +1037,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     peek.clear();
     dsd({ type: 'TOGGLE_SIDEBAR' });
   }
+
+  useHotkey('Mod+B', toggleSidebar);
 
   function handleNewPlan() {
     if (isPro) {
