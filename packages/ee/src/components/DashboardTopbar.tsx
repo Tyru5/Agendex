@@ -28,7 +28,6 @@ export function DashboardTopbar({
   onSelectPlan,
   onNewPlan,
   onUpload,
-  onToggleMode,
   onHistory,
   onNavigate,
   daemonDevices,
@@ -57,7 +56,6 @@ export function DashboardTopbar({
   onSelectPlan: (p: Plan | undefined) => void;
   onNewPlan: () => void;
   onUpload: () => void;
-  onToggleMode: () => void;
   onHistory: () => void;
   onNavigate: (path: string) => void;
   daemonDevices: DaemonDeviceInfo[];
@@ -120,7 +118,6 @@ export function DashboardTopbar({
           backendIndicator={backendIndicator}
           totalPlans={totalPlans}
           activeAgents={activeAgents}
-          onToggleMode={onToggleMode}
         />
       </div>
     </div>

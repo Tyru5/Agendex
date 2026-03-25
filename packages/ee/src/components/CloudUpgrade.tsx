@@ -72,11 +72,7 @@ function CloudFeatureIcon({ type }: { type: string }) {
   }
 }
 
-interface CloudUpgradeProps {
-  onSwitchLocal: () => void;
-}
-
-export function CloudUpgrade({ onSwitchLocal }: CloudUpgradeProps) {
+export function CloudUpgrade() {
   const [showPricing, setShowPricing] = useState(false);
 
   return (
@@ -159,9 +155,6 @@ export function CloudUpgrade({ onSwitchLocal }: CloudUpgradeProps) {
               >
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
-            </button>
-            <button type="button" className="cloud-upgrade-back" onClick={onSwitchLocal}>
-              Stay on local
             </button>
           </div>
 
