@@ -761,6 +761,7 @@ function DashboardSidebar({
             plans={filteredPlans}
             selectedId={selectedPlan?.id}
             onSelect={onSelectPlan}
+            isPro={isPro}
             splitPlanId={splitPlanId}
             onOpenInSplitView={onOpenInSplitView}
             planState={planState}

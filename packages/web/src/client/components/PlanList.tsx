@@ -134,6 +134,7 @@ export function PlanList(props: PlanListProps) {
     plans,
     selectedId,
     onSelect,
+    isPro = false,
     splitPlanId,
     onOpenInSplitView,
     planState: planStateProp,
@@ -169,6 +170,7 @@ export function PlanList(props: PlanListProps) {
   );
 
   useEffect(() => {
+    if (!isPro) return;
     if (!selectedPlan) {
       lastAutoSeenKeyRef.current = null;
       return;
@@ -177,9 +179,11 @@ export function PlanList(props: PlanListProps) {
     if (lastAutoSeenKeyRef.current === nextKey) return;
     lastAutoSeenKeyRef.current = nextKey;
     planState.markSeen(selectedPlan.id, selectedPlan.updatedAt);
-  }, [selectedPlan, planState]);
+  }, [selectedPlan, planState, isPro]);
 
   const { pinnedPlans, unseenPlans, restPlans } = useMemo(() => {
+    if (!isPro) return { pinnedPlans: [], unseenPlans: [], restPlans: plans };
+
     const pinned: Plan[] = [];
     const unseen: Plan[] = [];
     const rest: Plan[] = [];
@@ -197,18 +201,19 @@ export function PlanList(props: PlanListProps) {
     }
 
     return { pinnedPlans: pinned, unseenPlans: unseen, restPlans: rest };
-  }, [plans, planState, selectedId]);
+  }, [plans, planState, selectedId, isPro]);
 
   if (plans.length === 0) {
     return <div className="p-4 text-[13px] text-tertiary">No plans found</div>;
   }
 
   function handleClick(plan: Plan) {
-    planState.markSeen(plan.id, plan.updatedAt);
+    if (isPro) planState.markSeen(plan.id, plan.updatedAt);
     onSelect(plan);
   }
 
   function handleContextMenu(e: React.MouseEvent, plan: Plan) {
+    if (!isPro) return;
     e.preventDefault();
     const x = Math.min(e.clientX, window.innerWidth - 220);
     const y = Math.min(e.clientY, window.innerHeight - 120);
@@ -278,13 +283,14 @@ export function PlanList(props: PlanListProps) {
           key={plan.id}
           plan={plan}
           selected={plan.id === selectedId}
-          unseen={planState.isUnseen(plan.id, plan.updatedAt)}
+          unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
           onClick={() => handleClick(plan)}
-          isSplit={plan.id === splitPlanId}
-          onContextMenu={(e) => handleContextMenu(e, plan)}
+          isSplit={isPro && plan.id === splitPlanId}
+          onContextMenu={isPro ? (e) => handleContextMenu(e, plan) : undefined}
         />
       ))}
-      {contextMenu &&
+      {isPro &&
+        contextMenu &&
         createPortal(
           <div
             style={{

@@ -42,10 +42,6 @@ function Dashboard() {
     'plan',
     parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
   );
-  const [splitPlanId, setSplitPlanId] = useQueryState(
-    'split',
-    parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
-  );
 
   const agentFilter = agentFilterRaw ?? undefined;
   const setAgentFilter = useCallback(
@@ -69,11 +65,11 @@ function Dashboard() {
 
   const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
 
-  const localPlans = usePlans(filters);
-  const agents = useAgents();
+  const localPlans = usePlans(filters, true, false);
+  const agents = useAgents(true, false);
   const backendStatus = useBackendStatus();
 
-  const { plans, loading, error, refresh } = localPlans;
+  const { plans, loading, error } = localPlans;
 
   const filteredPlans = useMemo(() => {
     let result = filterPlans(plans, search);
@@ -126,54 +122,18 @@ function Dashboard() {
     return plansById.get(selectedPlanId);
   }, [plansById, selectedPlanId]);
 
-  const splitPlan = useMemo(() => {
-    if (!splitPlanId) return undefined;
-    return plansById.get(splitPlanId);
-  }, [plansById, splitPlanId]);
-
-  const isSplitView = !!selectedPlan && !!splitPlan && selectedPlan.id !== splitPlan.id;
-
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
-      const nextId = plan?.id ?? null;
-      setSelectedPlanId(nextId);
-      if (!nextId || splitPlanId === nextId) {
-        setSplitPlanId(null);
-      }
+      setSelectedPlanId(plan?.id ?? null);
     },
-    [setSelectedPlanId, splitPlanId, setSplitPlanId],
+    [setSelectedPlanId],
   );
-
-  const openPlanInSplitView = useCallback(
-    (plan: Plan) => {
-      if (!selectedPlanId) {
-        setSelectedPlanId(plan.id);
-        return;
-      }
-      if (plan.id === selectedPlanId) return;
-      setSplitPlanId(plan.id);
-    },
-    [selectedPlanId, setSelectedPlanId, setSplitPlanId],
-  );
-
-  const closeSplitView = useCallback(() => {
-    setSplitPlanId(null);
-  }, [setSplitPlanId]);
 
   useEffect(() => {
     if (selectedPlanId && !plansById.has(selectedPlanId)) {
       setSelectedPlanId(null);
     }
   }, [selectedPlanId, plansById, setSelectedPlanId]);
-
-  useEffect(() => {
-    if (
-      splitPlanId &&
-      (!plansById.has(splitPlanId) || splitPlanId === selectedPlanId || !selectedPlanId)
-    ) {
-      setSplitPlanId(null);
-    }
-  }, [splitPlanId, selectedPlanId, plansById, setSplitPlanId]);
 
   function clearHoverCloseTimer() {
     if (!hoverCloseTimer.current) return;
@@ -220,8 +180,6 @@ function Dashboard() {
         plans={plans}
         selectedPlan={selectedPlan}
         onSelectPlan={setSelectedPlan}
-        splitPlanId={splitPlanId ?? undefined}
-        onOpenInSplitView={openPlanInSplitView}
         totalPlans={totalPlans}
         activeAgents={activeAgents}
         backendStatus={backendStatus}
@@ -259,20 +217,17 @@ function Dashboard() {
         onAgentSelect={setAgentFilter}
         filteredPlans={filteredPlans}
         selectedPlanId={selectedPlan?.id}
-        splitPlanId={splitPlanId ?? undefined}
         onSelectPlan={setSelectedPlan}
-        onOpenInSplitView={openPlanInSplitView}
         loading={loading}
         error={error}
       />
 
-      {/* Main */}
       <div
         style={{
           gridColumn: '2 / 3',
           gridRow: '2 / 3',
           background: 'var(--bg)',
-          viewTransitionName: isSplitView ? undefined : 'main-content',
+          viewTransitionName: 'main-content',
           overflow: 'hidden',
           minWidth: 0,
           minHeight: 0,
@@ -280,55 +235,6 @@ function Dashboard() {
       >
         {backendStatus === 'offline' ? (
           <OfflineView />
-        ) : isSplitView ? (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-              height: '100%',
-              minWidth: 0,
-              minHeight: 0,
-            }}
-          >
-            <div className="main-scroll" style={{ minWidth: 0, overflow: 'auto' }}>
-              <PlanViewer plan={selectedPlan!} mode="split" />
-            </div>
-            <div
-              style={{
-                minWidth: 0,
-                overflow: 'auto',
-                borderLeft: '1px solid var(--border)',
-              }}
-            >
-              <PlanViewer
-                plan={splitPlan!}
-                mode="split"
-                headerExtra={
-                  <button
-                    type="button"
-                    onClick={closeSplitView}
-                    style={{
-                      padding: '5px 10px',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      fontFamily: 'inherit',
-                      borderRadius: '7px',
-                      border: '1px solid var(--border)',
-                      background: 'transparent',
-                      color: 'var(--secondary)',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                    }}
-                  >
-                    <SplitCloseIcon />
-                    Close split
-                  </button>
-                }
-              />
-            </div>
-          </div>
         ) : selectedPlan ? (
           <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
             <PlanViewer plan={selectedPlan} />
@@ -348,22 +254,6 @@ function Dashboard() {
         )}
       </div>
     </div>
-  );
-}
-
-function SplitCloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-      style={{ width: '13px', height: '13px' }}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
   );
 }
 

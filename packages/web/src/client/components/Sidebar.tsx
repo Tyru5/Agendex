@@ -20,6 +20,7 @@ interface SidebarProps {
   onAgentSelect: (agent: string | undefined) => void;
   filteredPlans: Plan[];
   selectedPlanId?: string;
+  isPro?: boolean;
   splitPlanId?: string;
   onSelectPlan: (plan: Plan | undefined) => void;
   onOpenInSplitView?: (plan: Plan) => void;
@@ -42,6 +43,7 @@ export function Sidebar({
   onAgentSelect,
   filteredPlans,
   selectedPlanId,
+  isPro,
   splitPlanId,
   onSelectPlan,
   onOpenInSplitView,
@@ -101,6 +103,7 @@ export function Sidebar({
           <PlanList
             plans={filteredPlans}
             selectedId={selectedPlanId}
+            isPro={isPro}
             splitPlanId={splitPlanId}
             onSelect={(plan) => startViewTransition(() => onSelectPlan(plan))}
             onOpenInSplitView={onOpenInSplitView}

@@ -3,7 +3,11 @@ import { type AgentStats, api, type Plan } from '../lib/api.ts';
 import { seedSeen } from './useSeenPlans.ts';
 import { useSocketEvent } from './useSocket.ts';
 
-export function usePlans(filters: { agent?: string; q?: string; sort?: string }, enabled = true) {
+export function usePlans(
+  filters: { agent?: string; q?: string; sort?: string },
+  enabled = true,
+  realtime = true,
+) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(enabled);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,13 +44,13 @@ export function usePlans(filters: { agent?: string; q?: string; sort?: string },
     if (enabled) refresh();
   }, [refresh, enabled]);
 
-  useSocketEvent('plan:updated', refresh, enabled);
-  useSocketEvent('connection', refresh, enabled);
+  useSocketEvent('plan:updated', refresh, enabled && realtime);
+  useSocketEvent('connection', refresh, enabled && realtime);
 
   return { plans, loading, refreshing, error, refresh };
 }
 
-export function useAgents(enabled = true) {
+export function useAgents(enabled = true, realtime = true) {
   const [agents, setAgents] = useState<AgentStats[]>([]);
 
   const refresh = useCallback(() => {
@@ -58,8 +62,8 @@ export function useAgents(enabled = true) {
     if (enabled) refresh();
   }, [refresh, enabled]);
 
-  useSocketEvent('plan:updated', refresh, enabled);
-  useSocketEvent('connection', refresh, enabled);
+  useSocketEvent('plan:updated', refresh, enabled && realtime);
+  useSocketEvent('connection', refresh, enabled && realtime);
 
   return agents;
 }
