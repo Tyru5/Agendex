@@ -47,6 +47,12 @@ export async function hasActiveSubscription(ctx: QueryCtx): Promise<boolean> {
   return valid && (sub.status === 'active' || sub.status === 'trialing');
 }
 
+export const isProUser = query({
+  handler: async (ctx) => {
+    return hasActiveSubscription(ctx);
+  },
+});
+
 export const hasCompletedOnboarding = query({
   handler: async (ctx) => {
     let user;
