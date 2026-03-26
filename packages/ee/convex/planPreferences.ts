@@ -1,13 +1,12 @@
 import { ConvexError, v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import type { Id } from './_generated/dataModel';
+import { type MutationCtx, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 
-type OwnedPlan = { ownerId: string; updatedAt: number } | null;
-
 async function getOwnedPlanOrThrow(
-  ctx: { db: { get: (id: unknown) => Promise<OwnedPlan> } },
+  ctx: Pick<MutationCtx, 'db'>,
   ownerId: string,
-  planId: unknown,
+  planId: Id<'plans'>,
 ) {
   const plan = await ctx.db.get(planId);
   if (!plan || plan.ownerId !== ownerId) {
