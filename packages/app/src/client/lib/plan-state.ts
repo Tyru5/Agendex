@@ -1,4 +1,4 @@
-import type { Plan } from './api.ts';
+import type { Plan } from '@agendex/web';
 
 export type PlanStatePlan = Pick<Plan, 'id' | 'updatedAt'>;
 

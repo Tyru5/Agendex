@@ -265,6 +265,41 @@ function DeleteConfirmModal({
   );
 }
 
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="inline-flex items-center justify-center size-9 rounded-[8px] bg-hover text-[13px] font-medium text-text">
+      {children}
+    </kbd>
+  );
+}
+
+const shortcuts = [
+  { label: 'Search', keys: ['⌘', 'K'] },
+  { label: 'Toggle Sidebar', keys: ['⌘', 'B'] },
+  { label: 'Submit Comment', keys: ['⌘', '↵'] },
+  { label: 'Close / Cancel', keys: ['Esc'] },
+] as const;
+
+function KeyboardShortcutsSection() {
+  return (
+    <section>
+      <h2 className="text-[14px] font-semibold text-text mb-3">Keyboard Shortcuts</h2>
+      <div className="bg-surface border border-border rounded-default p-5 flex flex-col gap-4">
+        {shortcuts.map((s) => (
+          <div key={s.label} className="flex items-center justify-between">
+            <span className="text-[14px] font-medium text-text">{s.label}</span>
+            <div className="flex items-center gap-1.5">
+              {s.keys.map((k) => (
+                <Kbd key={k}>{k}</Kbd>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function DangerZone({
   email,
   onDeleteAccount,
@@ -443,6 +478,8 @@ export function SettingsPage() {
         />
 
         <DaemonSection devices={devices} />
+
+        <KeyboardShortcutsSection />
 
         <DangerZone email={user.email} onDeleteAccount={handleDeleteAccount} deleting={deleting} />
       </div>

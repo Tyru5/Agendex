@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { PlanState } from '../lib/plan-state.ts';
 import { usePinnedPlans } from './usePinnedPlans.ts';
-import { useSeenPlans } from './useSeenPlans.ts';
+import { useSeenPlans } from '@agendex/web';
 
 export function usePlanState(): PlanState {
   const seen = useSeenPlans();
