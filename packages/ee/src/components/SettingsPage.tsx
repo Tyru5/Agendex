@@ -12,6 +12,7 @@ import { PricingModal } from './PricingModal';
 import { AccountTab } from './settings/AccountTab';
 import { SettingsSidebar } from './settings/SettingsSidebar';
 import { SettingsTabs } from './settings/SettingsTabs';
+import type { SettingsTabId } from './settings/constants';
 
 function BackArrow() {
   return (
@@ -39,6 +40,7 @@ export function SettingsPage() {
   const [showPricing, setShowPricing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [provider, setProvider] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<SettingsTabId>('account');
 
   // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
   const deleteAccountAction = useAction((api as any).account.deleteAccount);
@@ -126,7 +128,7 @@ export function SettingsPage() {
 
           {/* Right Content */}
           <section className="min-w-0">
-            <SettingsTabs activeTab="account" onChange={() => {}} />
+            <SettingsTabs activeTab={activeTab} onChange={setActiveTab} />
 
             <AccountTab
               user={user}

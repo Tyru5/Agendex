@@ -175,8 +175,22 @@ function DeviceCard({
   device: DaemonDeviceInfo;
   onRemove?: (deviceId: string) => void;
 }) {
+  const [removing, setRemoving] = useState(false);
+  const [error, setError] = useState(false);
   const isAlive = device.status === 'alive';
   const canRemove = device.deviceId != null && onRemove != null;
+
+  async function handleRemove() {
+    setRemoving(true);
+    setError(false);
+    try {
+      await onRemove!(device.deviceId as string);
+    } catch {
+      setError(true);
+      setRemoving(false);
+    }
+  }
+
   return (
     <div className="bg-surface border border-border rounded-2xl p-4 flex flex-col gap-2.5">
       <div className="flex items-center justify-between">
@@ -196,10 +210,11 @@ function DeviceCard({
           {canRemove && (
             <button
               type="button"
-              onClick={() => onRemove(device.deviceId as string)}
-              className="text-[12px] px-2 py-1 rounded-lg border border-border bg-transparent text-secondary cursor-pointer font-medium transition-colors duration-150 hover:text-red-400 hover:border-red-400/30 hover:bg-red-400/10"
+              disabled={removing}
+              onClick={handleRemove}
+              className="text-[12px] px-2 py-1 rounded-lg border border-border bg-transparent text-secondary cursor-pointer font-medium transition-colors duration-150 hover:text-red-400 hover:border-red-400/30 hover:bg-red-400/10 disabled:opacity-50 disabled:cursor-default"
             >
-              Remove
+              {removing ? 'Removing…' : error ? 'Failed — Retry' : 'Remove'}
             </button>
           )}
         </div>
