@@ -12,7 +12,9 @@ const packageDir = resolve(__dirname, '..');
 const workspaceCli = join(packageDir, 'dist', 'cli.js');
 const releaseDir = join(packageDir, '.release');
 const nodeBin = process.execPath;
+const cliVersion = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf-8')).version;
 
+buildReleaseArtifacts();
 await verifyDirectRuntime();
 const tarballPath = await packRelease();
 
@@ -32,6 +34,7 @@ async function verifyDirectRuntime() {
     ...process.env,
     HOME: homeDir,
     USERPROFILE: homeDir,
+    AGENDEX_UPDATE_CACHE_FILE: join(homeDir, '.agendex-update-cache.json'),
   };
 
   try {
@@ -49,6 +52,7 @@ async function verifyDirectRuntime() {
       await exerciseLogin({ ...env, AGENDEX_DISABLE_BROWSER: '1' }, server.baseUrl);
       await exerciseLogin({ ...env, PATH: '/definitely-missing' }, server.baseUrl);
       await createCursorFixture(homeDir);
+      await exerciseUpdateCheck(workspaceCli, env);
       await exerciseSyncParse(env);
       await exerciseDaemon(env, cloudState);
 
@@ -154,6 +158,32 @@ async function exerciseDaemon(env, cloudState) {
       return true;
     }
   }, 10_000);
+}
+
+async function exerciseUpdateCheck(binary, env, cwd = repoRoot) {
+  const cacheFile = env.AGENDEX_UPDATE_CACHE_FILE;
+  assert.ok(cacheFile, 'missing AGENDEX_UPDATE_CACHE_FILE');
+
+  await writeUpdateCache(cacheFile, { updateAvailable: true, current: '0.0.1', latest: '999.0.0' });
+
+  const blocked = runSync(nodeBin, [binary, 'sync'], { cwd, env });
+  assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
+  assert.match(blocked.stderr, /update required/);
+  assert.doesNotMatch(blocked.stdout, /Found 1 plans/);
+
+  const bypassed = runSync(nodeBin, [binary, 'status'], { cwd, env });
+  assert.equal(bypassed.status, 0, bypassed.stderr || bypassed.stdout);
+  assert.doesNotMatch(bypassed.stderr, /update required/);
+
+  await writeUpdateCache(cacheFile, {
+    updateAvailable: true,
+    current: '0.0.1',
+    latest: cliVersion,
+  });
+
+  const allowed = runSync(nodeBin, [binary, 'sync'], { cwd, env });
+  assert.match(allowed.stdout, /Found 1 plans/);
+  assert.doesNotMatch(allowed.stderr, /update required/);
 }
 
 async function createCursorFixture(homeDir) {
@@ -302,7 +332,12 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
     assert.equal(install.status, 0, `${name} install failed\n${install.stderr || install.stdout}`);
 
     const binary = join(projectDir, 'node_modules', '.bin', 'agendex');
-    const env = { ...process.env, HOME: projectDir, USERPROFILE: projectDir };
+    const env = {
+      ...process.env,
+      HOME: projectDir,
+      USERPROFILE: projectDir,
+      AGENDEX_UPDATE_CACHE_FILE: join(projectDir, '.agendex-update-cache.json'),
+    };
 
     const smoke = runSync(binary, ['help'], { cwd: projectDir, env });
     assert.equal(smoke.status, 0, `${name} binary failed\n${smoke.stderr || smoke.stdout}`);
@@ -310,6 +345,7 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
 
     await createCursorFixture(projectDir);
     await writeSmokeConfig(projectDir);
+    await exerciseUpdateCheck(binary, env, projectDir);
 
     const sync = runSync(binary, ['sync'], { cwd: projectDir, env });
     assert.notEqual(sync.status, 0, `${name} sync should fail against an unreachable cloud`);
@@ -321,6 +357,10 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
   } finally {
     await rm(projectDir, { recursive: true, force: true });
   }
+}
+
+async function writeUpdateCache(filePath, result) {
+  await writeFile(filePath, `${JSON.stringify({ result, ts: Date.now() })}\n`);
 }
 
 async function writeSmokeConfig(homeDir) {
@@ -355,6 +395,13 @@ function runSync(command, args, options = {}) {
     encoding: 'utf8',
     ...options,
   });
+}
+
+function buildReleaseArtifacts() {
+  const build = runSync(nodeBin, [join(packageDir, 'scripts', 'build-release.mjs')], {
+    cwd: repoRoot,
+  });
+  assert.equal(build.status, 0, build.stderr || build.stdout);
 }
 
 async function waitFor(condition, timeoutMs) {
