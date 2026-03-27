@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.8.3
+
+### Patch Changes
+
+- 1c65642: bugfix for deletion logic
+
 ## 0.8.2
 
 ### Patch Changes
