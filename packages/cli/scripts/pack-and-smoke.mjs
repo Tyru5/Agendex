@@ -52,7 +52,7 @@ async function verifyDirectRuntime() {
       await exerciseLogin({ ...env, AGENDEX_DISABLE_BROWSER: '1' }, server.baseUrl);
       await exerciseLogin({ ...env, PATH: '/definitely-missing' }, server.baseUrl);
       await createCursorFixture(homeDir);
-      await exerciseUpdateCheck(workspaceCli, env);
+      await exerciseUpdateCheck(workspaceCli, env, repoRoot, 'help');
       await exerciseSyncParse(env);
       await exerciseDaemon(env, cloudState);
 
@@ -160,18 +160,24 @@ async function exerciseDaemon(env, cloudState) {
   }, 10_000);
 }
 
-async function exerciseUpdateCheck(binary, env, cwd = repoRoot) {
+async function exerciseUpdateCheck(
+  binary,
+  env,
+  cwd = repoRoot,
+  bypassCommand = 'status',
+  executeDirectly = false,
+) {
   const cacheFile = env.AGENDEX_UPDATE_CACHE_FILE;
   assert.ok(cacheFile, 'missing AGENDEX_UPDATE_CACHE_FILE');
 
   await writeUpdateCache(cacheFile, { updateAvailable: true, current: '0.0.1', latest: '999.0.0' });
 
-  const blocked = runSync(nodeBin, [binary, 'sync'], { cwd, env });
+  const blocked = runCli(binary, ['sync'], { cwd, env }, executeDirectly);
   assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
   assert.match(blocked.stderr, /update required/);
   assert.doesNotMatch(blocked.stdout, /Found 1 plans/);
 
-  const bypassed = runSync(nodeBin, [binary, 'status'], { cwd, env });
+  const bypassed = runCli(binary, [bypassCommand], { cwd, env }, executeDirectly);
   assert.equal(bypassed.status, 0, bypassed.stderr || bypassed.stdout);
   assert.doesNotMatch(bypassed.stderr, /update required/);
 
@@ -181,9 +187,31 @@ async function exerciseUpdateCheck(binary, env, cwd = repoRoot) {
     latest: cliVersion,
   });
 
-  const allowed = runSync(nodeBin, [binary, 'sync'], { cwd, env });
+  const allowed = await withUnreachableConvexUrl(env, () =>
+    runCli(binary, ['sync'], { cwd, env }, executeDirectly),
+  );
   assert.match(allowed.stdout, /Found 1 plans/);
   assert.doesNotMatch(allowed.stderr, /update required/);
+}
+
+async function withUnreachableConvexUrl(env, run) {
+  const configPath = join(env.HOME, '.agendex', 'config.json');
+
+  try {
+    const original = JSON.parse(await readFile(configPath, 'utf-8'));
+    await writeFile(
+      configPath,
+      `${JSON.stringify({ ...original, convexUrl: 'http://127.0.0.1:9' }, null, 2)}\n`,
+    );
+
+    try {
+      return run();
+    } finally {
+      await writeFile(configPath, `${JSON.stringify(original, null, 2)}\n`);
+    }
+  } catch {
+    return run();
+  }
 }
 
 async function createCursorFixture(homeDir) {
@@ -345,7 +373,7 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
 
     await createCursorFixture(projectDir);
     await writeSmokeConfig(projectDir);
-    await exerciseUpdateCheck(binary, env, projectDir);
+    await exerciseUpdateCheck(binary, env, projectDir, 'status', true);
 
     const sync = runSync(binary, ['sync'], { cwd: projectDir, env });
     assert.notEqual(sync.status, 0, `${name} sync should fail against an unreachable cloud`);
@@ -395,6 +423,12 @@ function runSync(command, args, options = {}) {
     encoding: 'utf8',
     ...options,
   });
+}
+
+function runCli(binary, args, options, executeDirectly) {
+  return executeDirectly
+    ? runSync(binary, args, options)
+    : runSync(nodeBin, [binary, ...args], options);
 }
 
 function buildReleaseArtifacts() {
