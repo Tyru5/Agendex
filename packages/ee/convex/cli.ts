@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
-import { httpAction, internalMutation, internalQuery, query } from './_generated/server';
+import { httpAction, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent, createAuth } from './auth';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
@@ -253,6 +253,77 @@ export const upsertHeartbeat = internalMutation({
   },
 });
 
+export const deleteDaemons = internalMutation({
+  args: {
+    ownerId: v.string(),
+    deviceIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    let deleted = 0;
+    for (const deviceId of args.deviceIds) {
+      const row = await ctx.db
+        .query('daemonHeartbeats')
+        .withIndex('by_owner_device', (q) => q.eq('ownerId', args.ownerId).eq('deviceId', deviceId))
+        .first();
+      if (row) {
+        await ctx.db.delete(row._id);
+        deleted++;
+      }
+    }
+    return { deleted };
+  },
+});
+
+export const deleteDaemonsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== 'DELETE') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const auth = createAuth(ctx);
+  const session = await auth.api.getSession({ headers: request.headers });
+
+  if (!session?.user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (
+    !Array.isArray(body.deviceIds) ||
+    body.deviceIds.length === 0 ||
+    !body.deviceIds.every((id: unknown) => typeof id === 'string')
+  ) {
+    return new Response(
+      JSON.stringify({ error: 'deviceIds must be a non-empty array of strings' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  const result = await ctx.runMutation(internal.cli.deleteDaemons, {
+    ownerId: session.user.id,
+    deviceIds: body.deviceIds as string[],
+  });
+
+  return new Response(JSON.stringify({ ok: true, deleted: result.deleted }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+});
+
 export const getDaemonStatus = query({
   handler: async (ctx) => {
     const user = await authComponent.safeGetAuthUser(ctx);
@@ -273,6 +344,21 @@ export const getDaemonStatus = query({
           pid: hb.pid ?? null,
         })),
     };
+  },
+});
+
+export const removeDaemon = mutation({
+  args: { deviceId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) throw new Error('Unauthorized');
+    const row = await ctx.db
+      .query('daemonHeartbeats')
+      .withIndex('by_owner_device', (q) => q.eq('ownerId', user._id).eq('deviceId', args.deviceId))
+      .first();
+    if (row) {
+      await ctx.db.delete(row._id);
+    }
   },
 });
 

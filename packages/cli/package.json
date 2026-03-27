@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@agendex/shared": "workspace:*",
+    "@clack/prompts": "^1.0.1",
     "@types/bun": "^1.3.9"
   }
 }

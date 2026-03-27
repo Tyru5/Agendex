@@ -233,3 +233,44 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
   const body = JSON.parse(res.body) as { devices?: DeviceInfo[] };
   return body.devices ?? [];
 }
+
+export async function deleteDaemons(
+  deviceIds: string[],
+): Promise<{ ok: boolean; deleted: number }> {
+  const { token, convexUrl } = getCloudConfig();
+  const url = `${convexUrl}/api/cli/devices`;
+  let activeToken = token;
+
+  let res = await requestText(url, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${activeToken}`,
+      Connection: 'close',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ deviceIds }),
+  });
+
+  if (res.status === 401) {
+    const refreshed = await refreshStoredToken(activeToken, convexUrl);
+    if (refreshed) {
+      activeToken = refreshed;
+      res = await requestText(url, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${activeToken}`,
+          Connection: 'close',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ deviceIds }),
+      });
+    }
+  }
+
+  if (res.status < 200 || res.status >= 300) {
+    return { ok: false, deleted: 0 };
+  }
+
+  const body = JSON.parse(res.body) as { ok?: boolean; deleted?: number };
+  return { ok: body.ok ?? false, deleted: body.deleted ?? 0 };
+}
