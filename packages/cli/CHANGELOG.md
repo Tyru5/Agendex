@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.8.1
+
+### Patch Changes
+
+- d2c15b8: Updadted README.md
+
 ## 0.8.0
 
 ### Minor Changes
