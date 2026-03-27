@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.8.2
+
+### Patch Changes
+
+- cefe824: update to the update logic hehe
+
 ## 0.8.1
 
 ### Patch Changes
