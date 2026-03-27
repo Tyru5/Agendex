@@ -1,5 +1,15 @@
 # agendex-cli
 
+## 0.8.0
+
+### Minor Changes
+
+- b15193c: Deletion of stale daemons
+
+### Patch Changes
+
+- cf04213: Updated smoke-release script
+
 ## 0.7.0
 
 ### Minor Changes
