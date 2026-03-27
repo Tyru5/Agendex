@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, loadOrInitConfig } from '@agendex/shared';
 import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
-import { fetchDevices } from './api.ts';
+import { deleteDaemons, fetchDevices } from './api.ts';
 import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
@@ -24,9 +24,16 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  const isPassthrough = ['stop', 'status', 'login', 'logout', 'help', '--help', '-h'].includes(
-    command,
-  );
+  const isPassthrough = [
+    'stop',
+    'status',
+    'login',
+    'logout',
+    'cleanup',
+    'help',
+    '--help',
+    '-h',
+  ].includes(command);
 
   if (!isInternal && !isPassthrough) {
     const { updateAvailable, current, latest } = await checkForUpdate();
@@ -116,6 +123,87 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'cleanup': {
+      const config = loadConfig();
+      if (!config?.cloudToken || !config?.convexUrl) {
+        writeStderr('[agendex] not logged in. Run `agendex login` first.');
+        return 1;
+      }
+
+      const allDevices = await fetchDevices();
+      if (allDevices.length === 0) {
+        writeStdout('[agendex] no daemons found');
+        return 0;
+      }
+
+      const now = Date.now();
+      const staleDevices = allDevices.filter((d) => {
+        const age = d.lastSeenAt ? now - d.lastSeenAt : Number.POSITIVE_INFINITY;
+        return age >= CLI_DAEMON_STALE_AFTER_MS;
+      });
+
+      if (args.includes('--stale')) {
+        if (staleDevices.length === 0) {
+          writeStdout('[agendex] no stale daemons to remove');
+          return 0;
+        }
+        const staleIds = staleDevices
+          .map((d) => d.deviceId)
+          .filter((id): id is string => id != null);
+        if (staleIds.length === 0) {
+          writeStdout('[agendex] stale daemons have no device IDs and cannot be removed');
+          return 0;
+        }
+        const result = await deleteDaemons(staleIds);
+        if (result.ok) {
+          writeStdout(`[agendex] removed ${result.deleted} stale daemon(s)`);
+        } else {
+          writeStderr('[agendex] failed to remove stale daemons');
+          return 1;
+        }
+        return 0;
+      }
+
+      // Interactive mode: use @clack/prompts multiselect (same pattern as configure)
+      if (!process.stdin.isTTY || !process.stdout.isTTY) {
+        writeStderr(
+          '[agendex] interactive cleanup requires a TTY. Use --stale to auto-remove stale daemons.',
+        );
+        return 1;
+      }
+
+      const { promptForDaemonCleanup } = await import('./cleanup.ts');
+      const deviceIds = allDevices
+        .filter((d) => d.deviceId != null)
+        .map((d) => {
+          const age = d.lastSeenAt ? now - d.lastSeenAt : Number.POSITIVE_INFINITY;
+          const status = age < CLI_DAEMON_STALE_AFTER_MS ? 'alive' : 'stale';
+          return {
+            deviceId: d.deviceId as string,
+            hostname: d.hostname ?? 'unknown',
+            pid: d.pid,
+            status: status as 'alive' | 'stale',
+          };
+        });
+
+      if (deviceIds.length === 0) {
+        writeStdout('[agendex] no daemons with device IDs to remove');
+        return 0;
+      }
+
+      const selected = await promptForDaemonCleanup(deviceIds);
+      if (!selected) return 0;
+
+      const result = await deleteDaemons(selected);
+      if (result.ok) {
+        writeStdout(`[agendex] removed ${result.deleted} daemon(s)`);
+      } else {
+        writeStderr('[agendex] failed to remove daemons');
+        return 1;
+      }
+      return 0;
+    }
+
     case 'status': {
       const config = loadConfig();
       const pidInfo = readPidInfo();
@@ -191,6 +279,8 @@ Usage:
   agendex logout       Clear stored cloud token
   agendex configure    Select which agents/adapters to index
   agendex sync         One-shot scan + sync to cloud
+  agendex cleanup      Interactively remove cloud daemons
+  agendex cleanup --stale  Auto-remove all stale daemons
   agendex status       Show current config state + daemon status
   agendex help         Show this help message
   agendex --version    Print CLI version

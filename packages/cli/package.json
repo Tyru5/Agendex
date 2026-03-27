@@ -33,6 +33,7 @@
     "prepack": "node ./scripts/build-release.mjs --dist-only"
   },
   "dependencies": {
+    "@clack/prompts": "^1.0.1",
     "better-sqlite3": "^12.6.2"
   },
   "devDependencies": {
