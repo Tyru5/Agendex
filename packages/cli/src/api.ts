@@ -157,12 +157,17 @@ function requestText(urlString: string, options: RequestOptions): Promise<TextRe
   const url = new URL(urlString);
   const request = url.protocol === 'https:' ? httpsRequest : httpRequest;
 
+  const headers: Record<string, string> = { ...options.headers };
+  if (options.body) {
+    headers['Content-Length'] = String(Buffer.byteLength(options.body));
+  }
+
   return new Promise((resolve, reject) => {
     const req = request(
       url,
       {
         agent: false,
-        headers: options.headers,
+        headers,
         method: options.method,
       },
       (res) => {
