@@ -12,7 +12,9 @@ const packageDir = resolve(__dirname, '..');
 const workspaceCli = join(packageDir, 'dist', 'cli.js');
 const releaseDir = join(packageDir, '.release');
 const nodeBin = process.execPath;
+const cliVersion = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf-8')).version;
 
+buildReleaseArtifacts();
 await verifyDirectRuntime();
 const tarballPath = await packRelease();
 
@@ -32,6 +34,7 @@ async function verifyDirectRuntime() {
     ...process.env,
     HOME: homeDir,
     USERPROFILE: homeDir,
+    AGENDEX_UPDATE_CACHE_FILE: join(homeDir, '.agendex-update-cache.json'),
   };
 
   try {
@@ -49,6 +52,7 @@ async function verifyDirectRuntime() {
       await exerciseLogin({ ...env, AGENDEX_DISABLE_BROWSER: '1' }, server.baseUrl);
       await exerciseLogin({ ...env, PATH: '/definitely-missing' }, server.baseUrl);
       await createCursorFixture(homeDir);
+      await exerciseUpdateCheck(workspaceCli, env, repoRoot, 'help');
       await exerciseSyncParse(env);
       await exerciseDaemon(env, cloudState);
 
@@ -154,6 +158,60 @@ async function exerciseDaemon(env, cloudState) {
       return true;
     }
   }, 10_000);
+}
+
+async function exerciseUpdateCheck(
+  binary,
+  env,
+  cwd = repoRoot,
+  bypassCommand = 'status',
+  executeDirectly = false,
+) {
+  const cacheFile = env.AGENDEX_UPDATE_CACHE_FILE;
+  assert.ok(cacheFile, 'missing AGENDEX_UPDATE_CACHE_FILE');
+
+  await writeUpdateCache(cacheFile, { updateAvailable: true, current: '0.0.1', latest: '999.0.0' });
+
+  const blocked = runCli(binary, ['sync'], { cwd, env }, executeDirectly);
+  assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
+  assert.match(blocked.stderr, /update required/);
+  assert.doesNotMatch(blocked.stdout, /Found 1 plans/);
+
+  const bypassed = runCli(binary, [bypassCommand], { cwd, env }, executeDirectly);
+  assert.equal(bypassed.status, 0, bypassed.stderr || bypassed.stdout);
+  assert.doesNotMatch(bypassed.stderr, /update required/);
+
+  await writeUpdateCache(cacheFile, {
+    updateAvailable: true,
+    current: '0.0.1',
+    latest: cliVersion,
+  });
+
+  const allowed = await withUnreachableConvexUrl(env, () =>
+    runCli(binary, ['sync'], { cwd, env }, executeDirectly),
+  );
+  assert.match(allowed.stdout, /Found 1 plans/);
+  assert.doesNotMatch(allowed.stderr, /update required/);
+}
+
+async function withUnreachableConvexUrl(env, run) {
+  const configPath = join(env.HOME, '.agendex', 'config.json');
+
+  try {
+    const original = JSON.parse(await readFile(configPath, 'utf-8'));
+    await writeFile(
+      configPath,
+      `${JSON.stringify({ ...original, convexUrl: 'http://127.0.0.1:9' }, null, 2)}\n`,
+    );
+
+    try {
+      return run();
+    } finally {
+      await writeFile(configPath, `${JSON.stringify(original, null, 2)}\n`);
+    }
+  } catch {
+    return run();
+  }
 }
 
 async function createCursorFixture(homeDir) {
@@ -302,7 +360,12 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
     assert.equal(install.status, 0, `${name} install failed\n${install.stderr || install.stdout}`);
 
     const binary = join(projectDir, 'node_modules', '.bin', 'agendex');
-    const env = { ...process.env, HOME: projectDir, USERPROFILE: projectDir };
+    const env = {
+      ...process.env,
+      HOME: projectDir,
+      USERPROFILE: projectDir,
+      AGENDEX_UPDATE_CACHE_FILE: join(projectDir, '.agendex-update-cache.json'),
+    };
 
     const smoke = runSync(binary, ['help'], { cwd: projectDir, env });
     assert.equal(smoke.status, 0, `${name} binary failed\n${smoke.stderr || smoke.stdout}`);
@@ -310,6 +373,7 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
 
     await createCursorFixture(projectDir);
     await writeSmokeConfig(projectDir);
+    await exerciseUpdateCheck(binary, env, projectDir, 'status', true);
 
     const sync = runSync(binary, ['sync'], { cwd: projectDir, env });
     assert.notEqual(sync.status, 0, `${name} sync should fail against an unreachable cloud`);
@@ -321,6 +385,10 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
   } finally {
     await rm(projectDir, { recursive: true, force: true });
   }
+}
+
+async function writeUpdateCache(filePath, result) {
+  await writeFile(filePath, `${JSON.stringify({ result, ts: Date.now() })}\n`);
 }
 
 async function writeSmokeConfig(homeDir) {
@@ -355,6 +423,19 @@ function runSync(command, args, options = {}) {
     encoding: 'utf8',
     ...options,
   });
+}
+
+function runCli(binary, args, options, executeDirectly) {
+  return executeDirectly
+    ? runSync(binary, args, options)
+    : runSync(nodeBin, [binary, ...args], options);
+}
+
+function buildReleaseArtifacts() {
+  const build = runSync(nodeBin, [join(packageDir, 'scripts', 'build-release.mjs')], {
+    cwd: repoRoot,
+  });
+  assert.equal(build.status, 0, build.stderr || build.stdout);
 }
 
 async function waitFor(condition, timeoutMs) {
