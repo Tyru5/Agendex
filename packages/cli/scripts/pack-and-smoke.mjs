@@ -215,21 +215,19 @@ async function withUnreachableConvexUrl(env, run) {
 }
 
 async function createCursorFixture(homeDir) {
-  const dbDir = join(homeDir, '.cursor', 'ai-tracking');
-  await mkdir(dbDir, { recursive: true });
+  const projectEntry = join(homeDir, '.cursor', 'projects', 'smoke-project');
+  await mkdir(projectEntry, { recursive: true });
+  await writeFile(
+    join(projectEntry, '.workspace-trusted'),
+    JSON.stringify({ workspacePath: homeDir }),
+  );
 
-  const dbPath = join(dbDir, 'ai-code-tracking.db');
-  const { default: Database } = await import('better-sqlite3');
-  const db = new Database(dbPath);
-  try {
-    db.exec('CREATE TABLE prompts (id INTEGER PRIMARY KEY, prompt TEXT, model TEXT)');
-    db.prepare('INSERT INTO prompts (prompt, model) VALUES (?, ?)').run(
-      'Ship the npm release pipeline',
-      'gpt-5',
-    );
-  } finally {
-    db.close();
-  }
+  const plansDir = join(homeDir, '.cursor', 'plans');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(
+    join(plansDir, 'smoke-test.plan.md'),
+    '# Plan: Ship the npm release pipeline\n\nSmoke test plan content.\n',
+  );
 }
 
 async function startFakeCloud(state) {
