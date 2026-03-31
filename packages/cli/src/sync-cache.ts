@@ -20,7 +20,9 @@ export function loadSyncCache(): Record<string, string> {
 export function saveSyncCache(cache: Record<string, string>): void {
   const dir = join(homedir(), '.agendex');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(CACHE_PATH, JSON.stringify(cache));
+  // Merge with latest on-disk state to reduce lost updates from concurrent writers.
+  const existing = loadSyncCache();
+  writeFileSync(CACHE_PATH, JSON.stringify({ ...existing, ...cache }));
 }
 
 export function computePayloadHash(payload: SyncPlanPayload): string {
@@ -33,6 +35,8 @@ export function computePayloadHash(payload: SyncPlanPayload): string {
     payload.filePath ?? null,
     payload.workspace ?? null,
     payload.metadata ?? null,
+    payload.createdAt ?? null,
+    payload.updatedAt ?? null,
   ]);
   return createHash('sha256').update(canonical).digest('hex').slice(0, 20);
 }

@@ -137,6 +137,13 @@ export async function runWorker(): Promise<void> {
     syncQueue.push(payload);
   }
 
+  // Keep daemon cache bounded by removing plans no longer present locally.
+  const activePlanIds = new Set(plans.map((plan) => plan.id));
+  for (const id of Object.keys(syncCache)) {
+    if (!activePlanIds.has(id)) delete syncCache[id];
+  }
+  saveSyncCache(syncCache);
+
   console.log(`[agendex] syncing ${syncQueue.length} plans (${initialSkipped} unchanged)...`);
   await processSyncQueue();
 
