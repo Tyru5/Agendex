@@ -142,7 +142,7 @@ export async function runWorker(): Promise<void> {
   for (const id of Object.keys(syncCache)) {
     if (!activePlanIds.has(id)) delete syncCache[id];
   }
-  saveSyncCache(syncCache);
+  saveSyncCache(syncCache, { replace: true });
 
   console.log(`[agendex] syncing ${syncQueue.length} plans (${initialSkipped} unchanged)...`);
   await processSyncQueue();

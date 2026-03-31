@@ -17,9 +17,17 @@ export function loadSyncCache(): Record<string, string> {
   }
 }
 
-export function saveSyncCache(cache: Record<string, string>): void {
+export function saveSyncCache(
+  cache: Record<string, string>,
+  options?: { replace?: boolean },
+): void {
   const dir = join(homedir(), '.agendex');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  if (options?.replace) {
+    writeFileSync(CACHE_PATH, JSON.stringify(cache));
+    return;
+  }
+
   // Merge with latest on-disk state to reduce lost updates from concurrent writers.
   const existing = loadSyncCache();
   writeFileSync(CACHE_PATH, JSON.stringify({ ...existing, ...cache }));

@@ -64,6 +64,7 @@ export async function syncAll(force = false): Promise<void> {
     if (!activePlanIds.has(id)) delete cache[id];
   }
 
-  saveSyncCache(cache);
+  // Use replace mode so prune deletions and force-run failures are reflected on disk.
+  saveSyncCache(cache, { replace: true });
   console.log(`[agendex] Sync complete: ${synced} synced, ${skipped} unchanged, ${failed} failed`);
 }
