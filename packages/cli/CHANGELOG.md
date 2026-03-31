@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.8.5
+
+### Patch Changes
+
+- 31581a6: refactor sync logic, addedec chaching mechanism, pruning as well
+
 ## 0.8.4
 
 ### Patch Changes
