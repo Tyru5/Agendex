@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.8.4
+
+### Patch Changes
+
+- 153866d: smoke test update from cursor plan sync changes
+
 ## 0.8.3
 
 ### Patch Changes
