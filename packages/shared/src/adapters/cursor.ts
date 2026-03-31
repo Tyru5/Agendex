@@ -73,7 +73,8 @@ function stripFrontmatter(raw: string): { body: string; metadata: Record<string,
 }
 
 function workspaceFromPlanPath(filePath: string): string | undefined {
-  const idx = filePath.indexOf('/.cursor/plans/');
+  const normalized = filePath.replaceAll('\\', '/');
+  const idx = normalized.indexOf('/.cursor/plans/');
   if (idx === -1) return undefined;
   return filePath.slice(0, idx);
 }
