@@ -18,6 +18,7 @@ import {
 } from '@agendex/web';
 
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
+const OUTLINE_PREF_KEY = 'agendex_outline_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
 
@@ -60,6 +61,9 @@ function Dashboard() {
 
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     return localStorage.getItem(SIDEBAR_PREF_KEY) === 'true';
+  });
+  const [outlineHidden, setOutlineHidden] = useState(() => {
+    return localStorage.getItem(OUTLINE_PREF_KEY) === 'true';
   });
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -105,6 +109,10 @@ function Dashboard() {
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
   }, [sidebarHidden]);
+
+  useEffect(() => {
+    localStorage.setItem(OUTLINE_PREF_KEY, outlineHidden ? 'true' : 'false');
+  }, [outlineHidden]);
 
   useEffect(() => {
     if (!sidebarHidden) setSidebarPeek(false);
@@ -162,7 +170,12 @@ function Dashboard() {
     setSidebarHidden((current) => !current);
   }
 
+  function toggleOutline() {
+    setOutlineHidden((current) => !current);
+  }
+
   useHotkey('Mod+B', toggleSidebar);
+  useHotkey('Mod+Shift+O', toggleOutline);
 
   return (
     <div
@@ -240,7 +253,7 @@ function Dashboard() {
           <OfflineView />
         ) : selectedPlan ? (
           <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
-            <PlanViewer plan={selectedPlan} />
+            <PlanViewer plan={selectedPlan} outlineHidden={outlineHidden} />
           </div>
         ) : (
           <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
