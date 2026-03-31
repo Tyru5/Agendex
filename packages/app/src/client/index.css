@@ -2558,18 +2558,21 @@ body {
 
 .plan-outline-panel::-webkit-scrollbar { width: 0; }
 
-/* Hover interaction — expand dock, show panel, hide hint */
-.plan-outline-dock:hover {
+/* Hover / pinned interaction — expand dock, show panel, hide hint */
+.plan-outline-dock:hover,
+.plan-outline-dock[data-pinned] {
   width: 240px;
   pointer-events: auto;
 }
 
-.plan-outline-dock:hover .plan-outline-hint {
+.plan-outline-dock:hover .plan-outline-hint,
+.plan-outline-dock[data-pinned] .plan-outline-hint {
   opacity: 0;
   pointer-events: none;
 }
 
-.plan-outline-dock:hover .plan-outline-panel {
+.plan-outline-dock:hover .plan-outline-panel,
+.plan-outline-dock[data-pinned] .plan-outline-panel {
   transform: translate(0, -50%);
   right: 12px;
   opacity: 1;

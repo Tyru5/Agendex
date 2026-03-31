@@ -1,7 +1,7 @@
 import { useScrollSpy } from '../hooks/useScrollSpy.ts';
 import type { OutlineEntry } from '../lib/extract-headings.ts';
 
-export function PlanOutline({ entries }: { entries: OutlineEntry[] }) {
+export function PlanOutline({ entries, pinned }: { entries: OutlineEntry[]; pinned?: boolean }) {
   const activeId = useScrollSpy(entries.map((entry) => entry.id));
 
   const scrollTo = (id: string) => {
@@ -16,7 +16,7 @@ export function PlanOutline({ entries }: { entries: OutlineEntry[] }) {
   };
 
   return (
-    <div className="plan-outline-dock">
+    <div className="plan-outline-dock" data-pinned={pinned || undefined}>
       {/* Visible hint — tiny pills showing structure exists */}
       <div className="plan-outline-hint" aria-hidden="true">
         {entries.slice(0, 5).map((entry) => (

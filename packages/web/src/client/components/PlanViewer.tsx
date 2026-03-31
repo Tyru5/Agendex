@@ -85,7 +85,7 @@ export function PlanViewer({
       }
       className={fullscreen.isFullscreen ? 'main-scroll' : undefined}
     >
-      {showOutline && !isSplit && !outlineHidden && <PlanOutline entries={entries} />}
+      {showOutline && !isSplit && <PlanOutline entries={entries} pinned={!outlineHidden} />}
       <div
         className={
           isSplit ? 'mx-auto px-6 pt-8 pb-[72px]' : 'max-w-[720px] mx-auto px-8 pt-10 pb-20'
