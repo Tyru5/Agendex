@@ -39,6 +39,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 const shortcuts = [
   { label: 'Search', keys: ['⌘', 'K'] },
   { label: 'Toggle Sidebar', keys: ['⌘', 'B'] },
+  { label: 'Toggle Outline', keys: ['⇧', '⌘', 'O'] },
   { label: 'Submit Comment', keys: ['⌘', '↵'] },
   { label: 'Close / Cancel', keys: ['Esc'] },
 ] as const;

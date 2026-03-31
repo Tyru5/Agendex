@@ -37,6 +37,7 @@ type PlanViewerProps = {
   onShare?: () => void;
   onChartWideChange?: (wide: boolean) => void;
   mode?: 'single' | 'split';
+  outlineHidden?: boolean;
 };
 
 export function PlanViewer({
@@ -47,6 +48,7 @@ export function PlanViewer({
   onShare,
   onChartWideChange,
   mode = 'single',
+  outlineHidden,
 }: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
   const fullscreen = useFullscreen<HTMLDivElement>();
@@ -83,7 +85,7 @@ export function PlanViewer({
       }
       className={fullscreen.isFullscreen ? 'main-scroll' : undefined}
     >
-      {showOutline && !isSplit && <PlanOutline entries={entries} />}
+      {showOutline && !isSplit && !outlineHidden && <PlanOutline entries={entries} />}
       <div
         className={
           isSplit ? 'mx-auto px-6 pt-8 pb-[72px]' : 'max-w-[720px] mx-auto px-8 pt-10 pb-20'

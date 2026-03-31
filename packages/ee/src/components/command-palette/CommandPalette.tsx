@@ -26,6 +26,7 @@ export function CommandPalette({
   onOpenInSplitView,
   onCloseSplit,
   planState: planStateProp,
+  onToggleOutline,
 }: {
   search: string;
   onSearch: (q: string) => void;
@@ -43,6 +44,7 @@ export function CommandPalette({
   onOpenInSplitView?: (plan: Plan) => void;
   onCloseSplit?: () => void;
   planState?: PlanState;
+  onToggleOutline?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -152,6 +154,17 @@ export function CommandPalette({
       },
     });
 
+    if (onToggleOutline) {
+      cmds.push({
+        id: 'toggle-outline',
+        label: 'Toggle Outline',
+        group: 'actions',
+        icon: <OutlineIcon />,
+        footerHint: 'Show or hide plan outline (⇧⌘O)',
+        action: onToggleOutline,
+      });
+    }
+
     cmds.push({
       id: 'manage-history',
       label: 'Manage Plan History',
@@ -238,6 +251,7 @@ export function CommandPalette({
     onShowPricing,
     onSearch,
     toggleTheme,
+    onToggleOutline,
   ]);
 
   const {
@@ -750,6 +764,26 @@ function FlagIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5"
+      />
+    </svg>
+  );
+}
+
+function OutlineIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      className="w-[14px] h-[14px]"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
       />
     </svg>
   );

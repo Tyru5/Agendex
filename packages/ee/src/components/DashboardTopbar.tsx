@@ -37,6 +37,7 @@ export function DashboardTopbar({
   onOpenInSplitView,
   onCloseSplit,
   planState,
+  onToggleOutline,
 }: {
   sidebarPinnedOpen: boolean;
   sidebarHidden: boolean;
@@ -65,6 +66,7 @@ export function DashboardTopbar({
   onOpenInSplitView: (plan: Plan) => void;
   onCloseSplit?: () => void;
   planState: PlanState;
+  onToggleOutline?: () => void;
 }) {
   return (
     <div
@@ -103,6 +105,7 @@ export function DashboardTopbar({
           onOpenInSplitView={onOpenInSplitView}
           onCloseSplit={onCloseSplit}
           planState={planState}
+          onToggleOutline={onToggleOutline}
         />
       </div>
 

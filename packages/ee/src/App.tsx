@@ -84,6 +84,7 @@ const PlanHistoryDrawer = lazy(() =>
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
+const OUTLINE_PREF_KEY = 'agendex_outline_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
 
@@ -338,6 +339,7 @@ function DashboardMain({
   isSplitView,
   splitPlan,
   onCloseSplit,
+  outlineHidden,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -362,6 +364,7 @@ function DashboardMain({
   isSplitView?: boolean;
   splitPlan?: Plan;
   onCloseSplit?: () => void;
+  outlineHidden?: boolean;
 }) {
   if (
     isSplitView &&
@@ -534,6 +537,7 @@ function DashboardMain({
               onHistory={isPro ? onHistory : undefined}
               onShare={isPro ? onShare : undefined}
               headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
+              outlineHidden={outlineHidden}
             />
             {isPro && mode === 'cloud' && (
               <div className="max-w-[720px] mx-auto px-8 pb-16">
@@ -780,6 +784,7 @@ type DashState = {
   showPricingModal: boolean;
   sidebarHidden: boolean;
   sidebarPeek: boolean;
+  outlineHidden: boolean;
 };
 
 type DashAction =
@@ -789,7 +794,8 @@ type DashAction =
   | { type: 'SET_PRICING_MODAL'; value: boolean }
   | { type: 'SET_SIDEBAR_HIDDEN'; value: boolean }
   | { type: 'TOGGLE_SIDEBAR' }
-  | { type: 'SET_SIDEBAR_PEEK'; value: boolean };
+  | { type: 'SET_SIDEBAR_PEEK'; value: boolean }
+  | { type: 'TOGGLE_OUTLINE' };
 
 function dashReducer(s: DashState, a: DashAction): DashState {
   switch (a.type) {
@@ -807,6 +813,8 @@ function dashReducer(s: DashState, a: DashAction): DashState {
       return { ...s, sidebarHidden: !s.sidebarHidden, sidebarPeek: false };
     case 'SET_SIDEBAR_PEEK':
       return { ...s, sidebarPeek: a.value };
+    case 'TOGGLE_OUTLINE':
+      return { ...s, outlineHidden: !s.outlineHidden };
   }
 }
 
@@ -856,6 +864,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     showPricingModal: false,
     sidebarHidden: localStorage.getItem(SIDEBAR_PREF_KEY) === 'true',
     sidebarPeek: false,
+    outlineHidden: localStorage.getItem(OUTLINE_PREF_KEY) === 'true',
   });
 
   const {
@@ -865,6 +874,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     showPricingModal,
     sidebarHidden,
     sidebarPeek,
+    outlineHidden,
   } = ds;
   const mode = autoMode;
   const setSelectedTags = (v: string[]) => dsd({ type: 'SET_TAGS', value: v });
@@ -928,6 +938,10 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
   }, [sidebarHidden]);
+
+  useEffect(() => {
+    localStorage.setItem(OUTLINE_PREF_KEY, outlineHidden ? 'true' : 'false');
+  }, [outlineHidden]);
 
   const selectedPlan = useMemo(() => {
     if (selectedPlanId) {
@@ -1023,7 +1037,12 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     dsd({ type: 'TOGGLE_SIDEBAR' });
   }
 
+  function toggleOutline() {
+    dsd({ type: 'TOGGLE_OUTLINE' });
+  }
+
   useHotkey('Mod+B', toggleSidebar);
+  useHotkey('Mod+Shift+O', toggleOutline);
 
   function handleNewPlan() {
     if (isPro) {
@@ -1083,6 +1102,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onOpenInSplitView={openPlanInSplitView}
         onCloseSplit={splitPlanId ? closeSplitView : undefined}
         planState={planState}
+        onToggleOutline={toggleOutline}
       />
 
       {sidebarHidden && (
@@ -1167,6 +1187,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         isSplitView={isSplitView}
         splitPlan={splitPlan}
         onCloseSplit={closeSplitView}
+        outlineHidden={outlineHidden}
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
