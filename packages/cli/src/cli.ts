@@ -119,7 +119,8 @@ async function main(): Promise<number> {
     }
 
     case 'sync': {
-      await syncAll();
+      const force = args.includes('--force');
+      await syncAll(force);
       return 0;
     }
 
@@ -278,7 +279,8 @@ Usage:
   agendex login --url <url>  Login to a self-hosted instance
   agendex logout       Clear stored cloud token
   agendex configure    Select which agents/adapters to index
-  agendex sync         One-shot scan + sync to cloud
+  agendex sync         One-shot scan + sync to cloud (skips unchanged plans)
+  agendex sync --force Re-sync all plans, ignoring cache
   agendex cleanup      Interactively remove cloud daemons
   agendex cleanup --stale  Auto-remove all stale daemons
   agendex status       Show current config state + daemon status

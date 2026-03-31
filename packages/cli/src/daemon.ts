@@ -15,6 +15,7 @@ import {
 } from '@agendex/shared';
 import { refreshToken, type SyncPlanPayload, sendHeartbeat, syncPlan } from './api.ts';
 import { removePid, writePid } from './pid.ts';
+import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
 
 const MAX_RESTARTS = 5;
 const RESTART_WINDOW_MS = 60_000;
@@ -55,8 +56,10 @@ export async function runWorker(): Promise<void> {
 
   void sendHeartbeat();
 
+  const syncCache = loadSyncCache();
   const syncQueue: SyncPlanPayload[] = [];
   let syncing = false;
+
   async function tryRefreshToken(): Promise<boolean> {
     const cfg = loadConfig();
     if (!cfg?.cloudToken || !cfg.convexUrl) return false;
@@ -98,6 +101,7 @@ export async function runWorker(): Promise<void> {
           console.error(`[agendex] sync failed for "${payload.title}": ${result.error}`);
         } else {
           syncedCount++;
+          syncCache[payload.localPlanId] = computePayloadHash(payload);
         }
       }
     } catch (err) {
@@ -107,6 +111,7 @@ export async function runWorker(): Promise<void> {
       syncing = false;
     }
     if (syncedCount > 0 || failedCount > 0) {
+      saveSyncCache(syncCache);
       console.log(`[agendex] sync complete: ${syncedCount} synced, ${failedCount} failed`);
     }
     if (syncQueue.length > 0) processSyncQueue();
@@ -118,11 +123,28 @@ export async function runWorker(): Promise<void> {
   await scan();
 
   const plans = getAll();
-  console.log(`[agendex] syncing ${plans.length} plans...`);
+  let initialSkipped = 0;
 
   for (const plan of plans) {
-    syncQueue.push(planToPayload(plan));
+    const payload = planToPayload(plan);
+    const hash = computePayloadHash(payload);
+
+    if (syncCache[plan.id] === hash) {
+      initialSkipped++;
+      continue;
+    }
+
+    syncQueue.push(payload);
   }
+
+  // Keep daemon cache bounded by removing plans no longer present locally.
+  const activePlanIds = new Set(plans.map((plan) => plan.id));
+  for (const id of Object.keys(syncCache)) {
+    if (!activePlanIds.has(id)) delete syncCache[id];
+  }
+  saveSyncCache(syncCache, { replace: true });
+
+  console.log(`[agendex] syncing ${syncQueue.length} plans (${initialSkipped} unchanged)...`);
   await processSyncQueue();
 
   setInterval(() => void sendHeartbeat(), CLI_DAEMON_HEARTBEAT_INTERVAL_MS);
