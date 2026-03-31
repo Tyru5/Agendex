@@ -38,6 +38,8 @@ export async function syncAll(force = false): Promise<void> {
       filePath: plan.filePath,
       workspace: plan.workspace,
       metadata: plan.metadata,
+      createdAt: plan.createdAt.getTime(),
+      updatedAt: plan.updatedAt.getTime(),
     };
 
     const hash = computePayloadHash(payload);
