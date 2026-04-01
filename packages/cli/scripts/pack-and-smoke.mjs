@@ -147,8 +147,11 @@ async function exerciseDaemon(env, cloudState) {
 
   await waitFor(() => cloudState.heartbeatCount > 0, 10_000);
 
-  const stop = runSync(nodeBin, [workspaceCli, 'stop'], { env });
-  assert.equal(stop.status, 0, stop.stderr || stop.stdout);
+  // Use async spawn so the event loop stays unblocked — the stop command
+  // calls sendShutdown() which makes an HTTP request back to the fake cloud
+  // server running in this process. spawnSync would deadlock.
+  const stopExit = await runAsync(nodeBin, [workspaceCli, 'stop'], { env });
+  assert.equal(stopExit.code, 0, stopExit.stderr || stopExit.stdout);
 
   await waitFor(async () => {
     try {
@@ -420,6 +423,27 @@ function runSync(command, args, options = {}) {
   return spawnSync(command, args, {
     encoding: 'utf8',
     ...options,
+  });
+}
+
+function runAsync(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      ...options,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.once('error', reject);
+    child.once('exit', (code) => resolve({ code, stdout, stderr }));
   });
 }
 
