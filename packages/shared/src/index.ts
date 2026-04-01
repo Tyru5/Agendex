@@ -10,12 +10,15 @@ export {
 } from './adapters/registry.ts';
 export type { AgendexConfig, InitConfigOptions } from './config.ts';
 export {
+  getConfigDir,
   getConfigPath,
+  isDevMode,
   loadConfig,
   loadOrCreateDeviceId,
   loadOrCreateToken,
   loadOrInitConfig,
   saveConfig,
+  setDevMode,
 } from './config.ts';
 export {
   CLI_DAEMON_HEARTBEAT_INTERVAL_MS,

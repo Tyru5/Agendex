@@ -1,13 +1,13 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { type AgendexConfig, loadConfig, saveConfig } from '@agendex/shared';
+import { type AgendexConfig, isDevMode, loadConfig, saveConfig } from '@agendex/shared';
 
 const PROD_SITE_URL = 'https://app.agendex.dev';
 const DEV_SITE_URL = 'http://app.agendex.local:5174';
 
 function getDefaultSiteUrl(): string {
   if (process.env.AGENDEX_SITE_URL) return process.env.AGENDEX_SITE_URL;
-  return process.env.AGENDEX_DEV === '1' ? DEV_SITE_URL : PROD_SITE_URL;
+  return isDevMode() ? DEV_SITE_URL : PROD_SITE_URL;
 }
 
 export async function login(siteUrlOverride?: string): Promise<void> {
