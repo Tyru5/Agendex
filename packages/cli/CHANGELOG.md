@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.9.0
+
+### Minor Changes
+
+- 27441e0: updates to config paths, env differences, fixes
+
 ## 0.8.5
 
 ### Patch Changes
