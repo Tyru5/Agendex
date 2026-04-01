@@ -17,7 +17,16 @@ const args = process.argv.slice(2);
 const devFlag = args.includes('--dev');
 if (devFlag) setDevMode(true);
 
-const command = args[0] ?? 'start';
+/** Global flags that may appear before the subcommand; excluded from command resolution. */
+function firstCommandToken(argv: string[]): string | undefined {
+  for (const a of argv) {
+    if (a === '--dev') continue;
+    return a;
+  }
+  return undefined;
+}
+
+const command = firstCommandToken(args) ?? 'start';
 const cliEntry = resolve(process.argv[1] ?? fileURLToPath(import.meta.url));
 
 async function main(): Promise<number> {
