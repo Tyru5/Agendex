@@ -127,6 +127,16 @@ export async function sendHeartbeat(): Promise<void> {
   }
 }
 
+export async function sendShutdown(): Promise<void> {
+  try {
+    const { token, convexUrl } = getCloudConfig();
+    cachedDeviceId ??= loadOrCreateDeviceId();
+    await deleteDaemons([cachedDeviceId]);
+  } catch {
+    // best-effort — don't prevent shutdown
+  }
+}
+
 export async function refreshToken(
   currentToken: string,
   convexUrl: string,

@@ -59,11 +59,13 @@ export function CommandPalette({
 
   const isMac = useMemo(() => {
     if (typeof navigator === 'undefined') return true;
+
     const platform =
       (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
         ?.platform ??
       navigator.platform ??
       '';
+
     return /Mac|iPhone|iPad/i.test(platform);
   }, []);
 
@@ -76,6 +78,7 @@ export function CommandPalette({
   const openModal = useCallback(() => {
     clearCloseTimer();
     if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
+
     setMounted(true);
     openFrameRef.current = requestAnimationFrame(() => {
       setOpen(true);
@@ -86,6 +89,7 @@ export function CommandPalette({
     if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
     setOpen(false);
     clearCloseTimer();
+
     closeTimerRef.current = setTimeout(() => {
       setMounted(false);
       closeTimerRef.current = undefined;
@@ -103,6 +107,7 @@ export function CommandPalette({
       }
     }
     window.addEventListener('keydown', onKeyDown);
+
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [closeModal, openModal]);
 
@@ -225,7 +230,7 @@ export function CommandPalette({
       group: 'support',
       icon: <BookIcon />,
       footerHint: 'Open documentation',
-      action: () => window.open('https://agendex.dev/docs', '_blank'),
+      action: () => window.open('https://github.com/Tyru5/Agendex/blob/main/README.md', '_blank'),
     });
 
     cmds.push({
@@ -234,7 +239,11 @@ export function CommandPalette({
       group: 'support',
       icon: <FlagIcon />,
       footerHint: 'Report a bug or issue',
-      action: () => window.open('https://github.com/agendex/agendex/issues', '_blank'),
+      action: () =>
+        window.open(
+          'https://github.com/Tyru5/Agendex/issues?q=sort%3Aupdated-desc+is%3Aissue+is%3Aopen',
+          '_blank',
+        ),
     });
 
     return cmds;
@@ -287,16 +296,21 @@ export function CommandPalette({
       }
       return -1;
     },
+
     [focusableItems],
   );
 
   useEffect(() => {
     if (focusedIndex < 0) return;
+
     const container = scrollRef.current;
     const el = container?.querySelector('[data-focused="true"]') as HTMLElement | null;
+
     if (!container || !el) return;
+
     const cRect = container.getBoundingClientRect();
     const eRect = el.getBoundingClientRect();
+
     if (eRect.bottom > cRect.bottom) {
       container.scrollTop += eRect.bottom - cRect.bottom + 8;
     } else if (eRect.top < cRect.top) {

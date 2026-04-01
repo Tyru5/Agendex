@@ -13,7 +13,13 @@ import {
   setOnPlansChanged,
   startWatching,
 } from '@agendex/shared';
-import { refreshToken, type SyncPlanPayload, sendHeartbeat, syncPlan } from './api.ts';
+import {
+  refreshToken,
+  type SyncPlanPayload,
+  sendHeartbeat,
+  sendShutdown,
+  syncPlan,
+} from './api.ts';
 import { removePid, writePid } from './pid.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
 
@@ -54,7 +60,7 @@ export async function runWorker(): Promise<void> {
 
   console.log(`[agendex] daemon starting with ${config.enabledAdapters.length} adapters`);
 
-  void sendHeartbeat();
+  await sendHeartbeat();
 
   const syncCache = loadSyncCache();
   const syncQueue: SyncPlanPayload[] = [];
@@ -168,6 +174,13 @@ export async function runWorker(): Promise<void> {
   });
 
   console.log(`[agendex] daemon running. Watching for file changes...`);
+
+  async function gracefulShutdown() {
+    await sendShutdown();
+    process.exit(0);
+  }
+  process.on('SIGTERM', () => void gracefulShutdown());
+  process.on('SIGINT', () => void gracefulShutdown());
 
   await new Promise(() => {});
 }

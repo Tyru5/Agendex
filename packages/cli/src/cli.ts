@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, loadOrInitConfig, setDevMode } from '@agendex/shared';
 import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
-import { deleteDaemons, fetchDevices } from './api.ts';
+import { deleteDaemons, fetchDevices, sendShutdown } from './api.ts';
 import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
@@ -111,6 +111,7 @@ async function main(): Promise<number> {
         writeStderr('[agendex] daemon did not stop in time');
       } else {
         removePid();
+        await sendShutdown();
         writeStdout(`[agendex] daemon stopped (PID ${pid})`);
       }
       return isRunning(pid) ? 1 : 0;
@@ -260,6 +261,7 @@ async function main(): Promise<number> {
           const allDevices = await fetchDevices();
           if (allDevices.length > 0) {
             const now = Date.now();
+            const localDeviceId = config.deviceId;
             writeStdout(`[agendex] All daemons:`);
             for (const device of allDevices) {
               const age = device.lastSeenAt ? now - device.lastSeenAt : Number.POSITIVE_INFINITY;
@@ -268,8 +270,9 @@ async function main(): Promise<number> {
                 device.startedAtMs != null ? formatDuration(now - device.startedAtMs) : '~';
               const pidStr = device.pid != null ? String(device.pid) : '~';
               const hostnameStr = device.hostname ?? '~';
+              const isLocal = localDeviceId && device.deviceId === localDeviceId;
               writeStdout(
-                `- hostname: ${hostnameStr}\n  pid: ${pidStr}\n  uptime: ${uptimeStr}\n  status: ${status}`,
+                `- hostname: ${hostnameStr}${isLocal ? ' (this machine)' : ''}\n  pid: ${pidStr}\n  uptime: ${uptimeStr}\n  status: ${status}`,
               );
             }
           } else {
