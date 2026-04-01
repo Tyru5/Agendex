@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.9.1
+
+### Patch Changes
+
+- 1baf3c6: daemon sync logic updates
+
 ## 0.9.0
 
 ### Minor Changes
