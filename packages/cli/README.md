@@ -28,6 +28,33 @@ agendex help                   # Show help message
 agendex --version / -v         # Print CLI version
 ```
 
+## Dev vs prod (config directory)
+
+By default the CLI uses **`~/.agendex/`** for all on-disk state:
+
+- `config.json` — local token, cloud token, Convex URL, device id, enabled adapters
+- `daemon.pid` — supervisor PID and metadata
+- `sync-cache.json` — hashes used to skip unchanged plans on sync
+
+To use a **separate dev environment** (so local cloud / dev login does not overwrite prod credentials), use either:
+
+- **`--dev`** on any command (recommended), or
+- **`AGENDEX_DEV=1`** in the environment
+
+That switches the directory to **`~/.agendex-dev/`** with the same filenames inside it.
+
+`--dev` takes precedence when set programmatically; otherwise `AGENDEX_DEV=1` is read. When you start the daemon with `agendex start --dev`, the background supervisor and worker inherit `AGENDEX_DEV=1` so they stay on the dev config.
+
+Examples:
+
+```bash
+agendex --dev login
+agendex --dev status
+AGENDEX_DEV=1 agendex sync
+```
+
+In dev mode the default OAuth site (when you do not pass `--url` and do not set `AGENDEX_SITE_URL`) points at the local EE app URL used for development.
+
 ## Daemon Cleanup
 
 `agendex cleanup` manages registered daemon devices in the cloud.
@@ -76,6 +103,6 @@ For self-hosted deployments, pass your site URL explicitly:
 agendex login --url https://agendex.yourdomain.com
 ```
 
-This opens your deployment's OAuth flow and stores the returned `cloudToken` and `convexUrl` in `~/.agendex/config.json`.
+This opens your deployment's OAuth flow and stores the returned `cloudToken` and `convexUrl` in your active config directory (`~/.agendex/config.json` for prod, `~/.agendex-dev/config.json` when using `--dev` or `AGENDEX_DEV=1`).
 
-The target can also be set via `AGENDEX_SITE_URL` env var. For local development, set `AGENDEX_DEV=1` to use the local dev server.
+The target can also be set via `AGENDEX_SITE_URL` env var. For local development against the default dev app URL, use `agendex login --dev` or set `AGENDEX_DEV=1` (see [Dev vs prod](#dev-vs-prod-config-directory) above).

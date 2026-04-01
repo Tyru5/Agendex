@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { writeSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, loadOrInitConfig } from '@agendex/shared';
+import { loadConfig, loadOrInitConfig, setDevMode } from '@agendex/shared';
 import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
 import { deleteDaemons, fetchDevices } from './api.ts';
 import { login, logout } from './auth.ts';
@@ -14,7 +14,19 @@ import { syncAll } from './sync.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
 
 const args = process.argv.slice(2);
-const command = args[0] ?? 'start';
+const devFlag = args.includes('--dev');
+if (devFlag) setDevMode(true);
+
+/** Global flags that may appear before the subcommand; excluded from command resolution. */
+function firstCommandToken(argv: string[]): string | undefined {
+  for (const a of argv) {
+    if (a === '--dev') continue;
+    return a;
+  }
+  return undefined;
+}
+
+const command = firstCommandToken(args) ?? 'start';
 const cliEntry = resolve(process.argv[1] ?? fileURLToPath(import.meta.url));
 
 async function main(): Promise<number> {
@@ -64,9 +76,13 @@ async function main(): Promise<number> {
 
       if (existingPid) removePid();
 
-      const child = spawn(process.execPath, [cliEntry, 'start', '--daemon'], {
+      const daemonArgs = [cliEntry, 'start', '--daemon'];
+      if (devFlag) daemonArgs.push('--dev');
+
+      const child = spawn(process.execPath, daemonArgs, {
         detached: true,
         stdio: 'ignore',
+        env: { ...process.env, ...(devFlag ? { AGENDEX_DEV: '1' } : {}) },
       });
       child.unref();
 
@@ -208,8 +224,11 @@ async function main(): Promise<number> {
     case 'status': {
       const config = loadConfig();
       const pidInfo = readPidInfo();
+
       const pid = pidInfo?.pid ?? null;
+
       const running = pid ? isRunning(pid) : false;
+
       writeStdout(`[agendex] Config version: ${config?.configVersion ?? 'none'}`);
       writeStdout(`[agendex] Local token: ${config?.token ? 'set' : 'not set'}`);
       writeStdout(`[agendex] Cloud token: ${config?.cloudToken ? 'set' : 'not set'}`);
@@ -287,6 +306,9 @@ Usage:
   agendex help         Show this help message
   agendex --version    Print CLI version
   agendex -v           Print CLI version
+
+Flags:
+  --dev                Use dev environment (~/.agendex-dev/ config dir)
 `.trim(),
       );
       return 0;

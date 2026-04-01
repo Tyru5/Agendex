@@ -6,8 +6,20 @@ import type { AdapterId } from './adapters/catalog.ts';
 import { getDefaultAdapterIds, sanitizeEnabledAdapterIds } from './adapters/registry.ts';
 import { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 
-const configDir = join(homedir(), '.agendex');
-const configPath = join(configDir, 'config.json');
+let devModeOverride: boolean | undefined;
+
+export function setDevMode(dev: boolean): void {
+  devModeOverride = dev;
+}
+
+export function isDevMode(): boolean {
+  if (devModeOverride !== undefined) return devModeOverride;
+  return process.env.AGENDEX_DEV === '1';
+}
+
+export function getConfigDir(): string {
+  return join(homedir(), isDevMode() ? '.agendex-dev' : '.agendex');
+}
 
 export interface AgendexConfig {
   configVersion: 3;
@@ -28,14 +40,18 @@ interface StoredConfig {
 }
 
 function ensureConfigDir() {
-  if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
+  const dir = getConfigDir();
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 
 function readStoredConfig(): StoredConfig | null {
-  if (!existsSync(configPath)) return null;
+  const cfgPath = getConfigPath();
+  if (!existsSync(cfgPath)) return null;
+
   try {
-    const raw = JSON.parse(readFileSync(configPath, 'utf-8')) as StoredConfig;
+    const raw = JSON.parse(readFileSync(cfgPath, 'utf-8')) as StoredConfig;
     if (!raw || typeof raw !== 'object') return null;
+
     return raw;
   } catch {
     return null;
@@ -51,6 +67,7 @@ function normalizeAdapterIds(input: unknown): AdapterId[] {
 
 function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
   if (!raw) return null;
+
   const token = typeof raw.token === 'string' && raw.token.trim() ? raw.token : undefined;
   const cloudToken =
     typeof raw.cloudToken === 'string' && raw.cloudToken.trim() ? raw.cloudToken : undefined;
@@ -58,8 +75,9 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     typeof raw.convexUrl === 'string' && raw.convexUrl.trim() ? raw.convexUrl : undefined;
   const deviceId =
     typeof raw.deviceId === 'string' && raw.deviceId.trim() ? raw.deviceId : undefined;
+
   return {
-    configVersion: 3,
+    configVersion: 3, //TODO: implement actual logic here for incrementing the configVersion
     token,
     cloudToken,
     convexUrl,
@@ -82,7 +100,7 @@ export function saveConfig(config: AgendexConfig) {
     deviceId: config.deviceId,
     enabledAdapters: sanitizeEnabledAdapterIds(config.enabledAdapters),
   };
-  writeFileSync(configPath, JSON.stringify(payload, null, 2));
+  writeFileSync(getConfigPath(), JSON.stringify(payload, null, 2));
 }
 
 function generateToken(): string {
@@ -102,7 +120,7 @@ export function loadOrCreateToken(): string {
     enabledAdapters: existing?.enabledAdapters ?? [],
   });
   console.log(`\n[agendex] generated auth token: ${token}`);
-  console.log(`[agendex] saved to ${configPath}\n`);
+  console.log(`[agendex] saved to ${getConfigPath()}\n`);
   return token;
 }
 
@@ -121,7 +139,7 @@ export function loadOrCreateDeviceId(): string {
 }
 
 export function getConfigPath(): string {
-  return configPath;
+  return join(getConfigDir(), 'config.json');
 }
 
 export interface InitConfigOptions {

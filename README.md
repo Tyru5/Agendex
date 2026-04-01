@@ -70,9 +70,7 @@ On server startup, Agendex prints a local auth token. Paste that token into the 
 
 ## Adapter Selection
 
-On first server startup, Agendex prompts for enabled adapters and stores the result in:
-
-`~/.agendex/config.json`
+On first server startup, Agendex prompts for enabled adapters and stores the result in the shared config file (see [Configuration and Environment](#configuration-and-environment) for prod vs dev paths).
 
 In non-interactive environments, Agendex auto-enables default adapters.
 
@@ -97,10 +95,12 @@ bun run build:cloud         # build EE client bundle
 bun run cli:start           # start cloud sync daemon
 bun run cli:login           # browser login using https://agendex.dev
 bun run cli:login -- --url https://example.com
+bun run cli:login -- --dev  # login using dev config dir (~/.agendex-dev) + dev default site URL
 bun run cli:configure       # select which agents/adapters to index
 bun run cli:sync            # one-shot cloud sync
 bun run cli:stop            # stop daemon
 bun run cli:status          # print current local/cloud config state
+# Append `-- --dev` to any `cli:*` script to use ~/.agendex-dev (see packages/cli README)
 
 bun run changeset           # create a release note for agendex-cli
 bun run version-packages    # apply pending Changesets versions
@@ -116,7 +116,7 @@ bun run check
 bun run check:fix
 ```
 
-The published CLI is Node-compatible and can be installed with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`.
+The published CLI is Node-compatible and can be installed with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev …` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
 
 ## Local API (OSS)
 
@@ -139,19 +139,30 @@ WebSocket updates:
 
 ## Configuration and Environment
 
-Local config file:
+Local config (from `@agendex/shared`, used by the OSS API and the CLI):
 
-- `~/.agendex/config.json`
-  - `token` (local API auth token)
-  - `cloudToken` and `convexUrl` (after CLI login)
-  - `enabledAdapters`
+- **Prod (default):** `~/.agendex/config.json`
+- **Dev:** `~/.agendex-dev/config.json` when `AGENDEX_DEV=1` is set in the process environment (the CLI also accepts a `--dev` flag; see [`packages/cli/README.md`](./packages/cli/README.md))
+
+The same prod vs dev directory applies to CLI-only files: `daemon.pid` and `sync-cache.json` live next to `config.json` in that folder.
+
+Config fields:
+
+- `token` (local API auth token)
+- `cloudToken` and `convexUrl` (after CLI login)
+- `enabledAdapters`
 
 Common environment variables:
 
 - OSS app:
   - `PORT` (default `4890`)
   - `AGENDEX_TOKEN` (override generated local token)
+  - `AGENDEX_DEV=1` (use `~/.agendex-dev/` for shared config; align with `agendex --dev` when running both server and CLI)
   - `VITE_ALLOWED_HOSTS` (comma-separated extra Vite allowed hosts)
+- CLI (see `packages/cli/README.md` for full list):
+  - `AGENDEX_DEV=1` or `agendex --dev` — dev config directory and dev default login URL
+  - `AGENDEX_SITE_URL` — override login site URL
+  - `AGENDEX_TOKEN` — override local token read from config
 - EE client:
   - `VITE_CONVEX_URL`
   - `VITE_CONVEX_SITE_URL`

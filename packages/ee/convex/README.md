@@ -14,7 +14,7 @@ This directory contains the Convex backend for Agendex Cloud / EE. It powers aut
 - `auth.ts` - Better Auth setup, GitHub provider wiring, Convex adapter, and trusted origins
 - `http.ts` - registers auth routes, Stripe webhook handling, and CLI HTTP endpoints
 - `subscriptions.ts` - trial start and skip flows, checkout and portal sessions, and webhook-driven subscription sync
-- `cli.ts` - cloud plan upsert flow, token refresh, daemon heartbeat writes, and daemon status queries
+- `cli.ts` - cloud plan upsert flow, token refresh, daemon heartbeat writes, and daemon status queries (clients authenticate with a session token from `agendex login`; the CLI keeps that and `convexUrl` under `~/.agendex`, or `~/.agendex-dev` when using `agendex --dev` / `AGENDEX_DEV=1` — see `packages/cli/README.md`)
 - `plans.ts` - EE plan retrieval helpers and shared plan access
 - `planVersions.ts` - plan history listing, snapshot reads, and restore flow
 - `sharing.ts` - create and revoke share links

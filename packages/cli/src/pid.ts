@@ -1,8 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
-import { homedir, hostname } from 'node:os';
+import { hostname } from 'node:os';
 import { dirname, join } from 'node:path';
+import { getConfigDir } from '@agendex/shared';
 
-const pidPath = join(homedir(), '.agendex', 'daemon.pid');
+function getPidPath(): string {
+  return join(getConfigDir(), 'daemon.pid');
+}
 
 export interface DaemonPidInfo {
   pid: number;
@@ -11,18 +14,20 @@ export interface DaemonPidInfo {
 }
 
 export function writePid(): void {
-  mkdirSync(dirname(pidPath), { recursive: true });
+  const path = getPidPath();
+  mkdirSync(dirname(path), { recursive: true });
   const info: DaemonPidInfo = {
     pid: process.pid,
     startedAtMs: Date.now(),
     hostname: hostname(),
   };
-  writeFileSync(pidPath, JSON.stringify(info));
+  writeFileSync(path, JSON.stringify(info));
 }
 
 export function readPidInfo(): DaemonPidInfo | null {
-  if (!existsSync(pidPath)) return null;
-  const raw = readFileSync(pidPath, 'utf-8').trim();
+  const path = getPidPath();
+  if (!existsSync(path)) return null;
+  const raw = readFileSync(path, 'utf-8').trim();
 
   // Legacy format: bare PID number
   const asNumber = Number(raw);
@@ -45,7 +50,7 @@ export function readPid(): number | null {
 
 export function removePid(): void {
   try {
-    unlinkSync(pidPath);
+    unlinkSync(getPidPath());
   } catch {}
 }
 

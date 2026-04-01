@@ -8,9 +8,14 @@ let cachedDeviceId: string | undefined;
 
 function getCloudConfig() {
   const config = loadConfig();
+
   if (!config?.cloudToken) throw new Error('Not logged in. Run `agendex login` first.');
   if (!config.convexUrl) throw new Error('No Convex URL configured. Run `agendex login` first.');
-  return { token: config.cloudToken, convexUrl: config.convexUrl };
+
+  return {
+    token: config.cloudToken,
+    convexUrl: config.convexUrl,
+  };
 }
 
 export interface SyncPlanPayload {
@@ -155,9 +160,10 @@ interface TextResponse {
 
 function requestText(urlString: string, options: RequestOptions): Promise<TextResponse> {
   const url = new URL(urlString);
-  const request = url.protocol === 'https:' ? httpsRequest : httpRequest;
 
+  const request = url.protocol === 'https:' ? httpsRequest : httpRequest;
   const headers: Record<string, string> = { ...options.headers };
+
   if (options.body) {
     headers['Content-Length'] = String(Buffer.byteLength(options.body));
   }
@@ -206,6 +212,7 @@ export interface DeviceInfo {
 
 export async function fetchDevices(): Promise<DeviceInfo[]> {
   const { token, convexUrl } = getCloudConfig();
+
   const url = `${convexUrl}/api/cli/devices`;
   let activeToken = token;
 
