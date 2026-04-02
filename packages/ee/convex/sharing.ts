@@ -6,24 +6,121 @@ import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
 async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.randomUUID();
-  const data = new TextEncoder().encode(salt + password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashHex = Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-  return `${salt}:${hashHex}`;
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  const salt = crypto.getRandomValues(new Uint8Array(PASSWORD_SALT_BYTES));
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      hash: 'SHA-256',
+      iterations: PASSWORD_PBKDF2_ITERATIONS,
+      salt,
+    },
+    keyMaterial,
+    PASSWORD_HASH_BYTES * 8
+  );
+
+  const hash = new Uint8Array(derivedBits);
+  return `pbkdf2-sha256:${PASSWORD_PBKDF2_ITERATIONS}:${bytesToHex(salt)}:${bytesToHex(hash)}`;
 }
 
 async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  if (storedHash.startsWith('pbkdf2-sha256:')) {
+    const [algorithm, iterationsRaw, saltHex, expectedHashHex] = storedHash.split(':');
+    if (algorithm !== 'pbkdf2-sha256' || !iterationsRaw || !saltHex || !expectedHashHex) {
+      return false;
+    }
+
+    const iterations = Number.parseInt(iterationsRaw, 10);
+    if (!Number.isFinite(iterations) || iterations < 1) {
+      return false;
+    }
+
+    const salt = hexToBytes(saltHex);
+    const expectedHash = hexToBytes(expectedHashHex);
+    if (!salt || !expectedHash) {
+      return false;
+    }
+
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(password),
+      'PBKDF2',
+      false,
+      ['deriveBits']
+    );
+    const derivedBits = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        hash: 'SHA-256',
+        iterations,
+        salt,
+      },
+      keyMaterial,
+      expectedHash.length * 8
+    );
+    const actualHash = new Uint8Array(derivedBits);
+    return constantTimeEqualBytes(actualHash, expectedHash);
+  }
+
+  // Backward compatibility for links hashed before PBKDF2 rollout.
   const [salt, hash] = storedHash.split(':');
   if (!salt || !hash) return false;
   const data = new TextEncoder().encode(salt + password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashHex = Array.from(new Uint8Array(hashBuffer))
+  const hashHex = bytesToHex(new Uint8Array(hashBuffer));
+  return constantTimeEqualHex(hashHex, hash);
+}
+
+const PASSWORD_PBKDF2_ITERATIONS = 210_000;
+const PASSWORD_SALT_BYTES = 16;
+const PASSWORD_HASH_BYTES = 32;
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
-  return hashHex === hash;
+}
+
+function hexToBytes(hex: string): Uint8Array | null {
+  if (hex.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(hex)) {
+    return null;
+  }
+
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = Number.parseInt(hex.slice(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+function constantTimeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
+function constantTimeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    mismatch |= a[i] ^ b[i];
+  }
+  return mismatch === 0;
 }
 
 export const createShareLink = mutation({
