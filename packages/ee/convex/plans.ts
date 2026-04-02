@@ -131,6 +131,10 @@ export const getPlanByShareToken = query({
       throw new ConvexError('Plan not found');
     }
 
+    if (shareLink.passwordHash) {
+      return { passwordRequired: true as const };
+    }
+
     return plan;
   },
 });

@@ -11,8 +11,9 @@ import {
   useFullscreen,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
-import { useQuery } from 'convex/react';
-import { useMemo } from 'react';
+import { useAction, useQuery } from 'convex/react';
+import { ConvexError } from 'convex/values';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
@@ -30,9 +31,132 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
+type UnlockedPlan = {
+  _id: string;
+  agent: string;
+  title: string;
+  content: string;
+  format: string;
+  filePath?: string;
+  createdAt: number;
+};
+
+function PasswordGate({
+  token,
+  onUnlock,
+}: {
+  token: string;
+  onUnlock: (plan: UnlockedPlan) => void;
+}) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const unlock = useAction(api.sharing.getSharedPlanWithPassword);
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!password) return;
+      setSubmitting(true);
+      setError('');
+      try {
+        const plan = await unlock({ token, password });
+        onUnlock(plan as UnlockedPlan);
+      } catch (err) {
+        const message =
+          err instanceof ConvexError
+            ? typeof err.data === 'string'
+              ? err.data
+              : err.data != null &&
+                  typeof err.data === 'object' &&
+                  'message' in err.data &&
+                  typeof (err.data as { message: unknown }).message === 'string'
+                ? (err.data as { message: string }).message
+                : 'Something went wrong'
+            : err instanceof Error
+              ? err.message
+              : 'Incorrect password';
+        setError(message.includes('Incorrect password') ? 'Incorrect password' : message);
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [token, password, unlock, onUnlock],
+  );
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-bg">
+      <div className="w-full max-w-[360px] mx-4">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(99,102,241,0.1)] mb-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="w-6 h-6 text-[#6366f1]"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+              />
+            </svg>
+          </div>
+          <h1 className="text-[18px] font-semibold text-text tracking-[-0.02em] mb-1.5">
+            Password Required
+          </h1>
+          <p className="text-[13px] text-tertiary leading-[1.5]">
+            This shared plan is password protected. Enter the password to view it.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (error) setError('');
+            }}
+            placeholder="Enter password"
+            autoFocus
+            autoComplete="current-password"
+            className="w-full py-2 px-3 text-[13px] font-[inherit] rounded-lg border border-border bg-surface text-text outline-none placeholder:text-tertiary mb-2"
+            style={error ? { borderColor: '#ef4444' } : undefined}
+          />
+          {error && <p className="text-[12px] text-[#ef4444] mb-2">{error}</p>}
+          <button
+            type="submit"
+            disabled={submitting || password.length === 0}
+            className="w-full py-2 px-4 text-[13px] font-[550] font-[inherit] rounded-lg border-none bg-text text-bg mt-1"
+            style={{
+              cursor: submitting || password.length === 0 ? 'not-allowed' : 'pointer',
+              opacity: submitting || password.length === 0 ? 0.6 : 1,
+            }}
+          >
+            {submitting ? 'Verifying…' : 'Unlock'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function SharedPlanView({ token }: { token: string }) {
-  const plan = useQuery(api.plans.getPlanByShareToken, { token });
+  const queryResult = useQuery(api.plans.getPlanByShareToken, { token });
   const fullscreen = useFullscreen<HTMLDivElement>();
+  const [unlockedPlan, setUnlockedPlan] = useState<UnlockedPlan | null>(null);
+
+  useEffect(() => {
+    setUnlockedPlan(null);
+  }, [token]);
+
+  const needsPassword =
+    queryResult && 'passwordRequired' in queryResult && queryResult.passwordRequired;
+
+  const plan = needsPassword ? unlockedPlan : (queryResult as UnlockedPlan | null | undefined);
 
   const outline = useMemo(
     () =>
@@ -47,7 +171,7 @@ export function SharedPlanView({ token }: { token: string }) {
     [plan],
   );
 
-  if (plan === undefined) {
+  if (queryResult === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="w-full max-w-[600px] p-6">
@@ -55,6 +179,10 @@ export function SharedPlanView({ token }: { token: string }) {
         </div>
       </div>
     );
+  }
+
+  if (needsPassword && !unlockedPlan) {
+    return <PasswordGate token={token} onUnlock={setUnlockedPlan} />;
   }
 
   if (!plan || !outline) {
