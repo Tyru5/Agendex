@@ -11,7 +11,7 @@ async function hashPassword(password: string): Promise<string> {
     new TextEncoder().encode(password),
     'PBKDF2',
     false,
-    ['deriveBits']
+    ['deriveBits'],
   );
   const salt = crypto.getRandomValues(new Uint8Array(PASSWORD_SALT_BYTES));
   const derivedBits = await crypto.subtle.deriveBits(
@@ -22,7 +22,7 @@ async function hashPassword(password: string): Promise<string> {
       salt,
     },
     keyMaterial,
-    PASSWORD_HASH_BYTES * 8
+    PASSWORD_HASH_BYTES * 8,
   );
 
   const hash = new Uint8Array(derivedBits);
@@ -52,7 +52,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
       new TextEncoder().encode(password),
       'PBKDF2',
       false,
-      ['deriveBits']
+      ['deriveBits'],
     );
     const derivedBits = await crypto.subtle.deriveBits(
       {
@@ -62,7 +62,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
         salt,
       },
       keyMaterial,
-      expectedHash.length * 8
+      expectedHash.length * 8,
     );
     const actualHash = new Uint8Array(derivedBits);
     return constantTimeEqualBytes(actualHash, expectedHash);
@@ -136,7 +136,9 @@ export const createShareLink = action({
 
     const hasShareLinks = await ctx.runQuery(api.subscriptions.isProUser);
     if (!hasShareLinks) {
-      throw new ConvexError(`Cloud Pro subscription required for feature: ${ProFeature.SHARE_LINKS}`);
+      throw new ConvexError(
+        `Cloud Pro subscription required for feature: ${ProFeature.SHARE_LINKS}`,
+      );
     }
 
     await ctx.runQuery(api.plans.getPlan, { planId: args.planId });
