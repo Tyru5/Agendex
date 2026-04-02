@@ -25,6 +25,8 @@ export function SharePlanDialog({
   );
   const [publishing, setPublishing] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [passwordEnabled, setPasswordEnabled] = useState(false);
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     setPublishedPlanId(mode === 'cloud' ? plan.id : null);
@@ -48,7 +50,12 @@ export function SharePlanDialog({
           (result as string);
       }
       setPublishedPlanId(planId as string);
-      await createShareLink({ planId: planId as Id<'plans'> });
+      await createShareLink({
+        planId: planId as Id<'plans'>,
+        password: passwordEnabled && password.length > 0 ? password : undefined,
+      });
+      setPassword('');
+      setPasswordEnabled(false);
     } finally {
       setPublishing(false);
     }
@@ -104,13 +111,30 @@ export function SharePlanDialog({
 
         {hasLinks && (
           <div className="mb-4">
-            {shareLinks.map((link: { _id: string; token: string }) => {
+            {shareLinks.map((link: { _id: string; token: string; hasPassword: boolean }) => {
               const url = `${appUrl}/shared/${link.token}`;
               return (
                 <div
                   key={link._id}
                   className="flex items-center gap-2 py-2 px-2.5 rounded-[7px] border border-border mb-2 bg-bg"
                 >
+                  {link.hasPassword && (
+                    <svg
+                      aria-label="Password protected"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="w-3.5 h-3.5 text-tertiary shrink-0"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+                      />
+                    </svg>
+                  )}
                   <span className="flex-1 text-[12px] text-secondary font-['SF_Mono','JetBrains_Mono',monospace] overflow-hidden text-ellipsis whitespace-nowrap">
                     {url}
                   </span>
@@ -118,7 +142,9 @@ export function SharePlanDialog({
                     type="button"
                     onClick={() => handleCopy(link.token)}
                     className="py-[3px] px-2.5 text-[11.5px] font-medium font-[inherit] rounded-[6px] border border-border bg-transparent cursor-pointer whitespace-nowrap"
-                    style={{ color: copiedToken === link.token ? '#16a34a' : 'var(--secondary)' }}
+                    style={{
+                      color: copiedToken === link.token ? '#16a34a' : 'var(--secondary)',
+                    }}
                   >
                     {copiedToken === link.token ? 'Copied' : 'Copy'}
                   </button>
@@ -135,14 +161,40 @@ export function SharePlanDialog({
           </div>
         )}
 
+        <div className="mb-4">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={passwordEnabled}
+              onChange={(e) => {
+                setPasswordEnabled(e.target.checked);
+                if (!e.target.checked) setPassword('');
+              }}
+              className="w-3.5 h-3.5 accent-text cursor-pointer"
+            />
+            <span className="text-[12.5px] text-secondary font-medium">Protect with password</span>
+          </label>
+          {passwordEnabled && (
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter a password"
+              autoComplete="new-password"
+              className="mt-2 w-full py-1.5 px-2.5 text-[12.5px] font-[inherit] rounded-[7px] border border-border bg-bg text-text outline-none placeholder:text-tertiary"
+            />
+          )}
+        </div>
+
         <button
           type="button"
           onClick={handlePublishAndShare}
-          disabled={publishing}
+          disabled={publishing || (passwordEnabled && password.length === 0)}
           className="w-full py-2 px-4 text-[13px] font-[550] font-[inherit] rounded-lg border-none bg-text text-bg"
           style={{
-            cursor: publishing ? 'not-allowed' : 'pointer',
-            opacity: publishing ? 0.6 : 1,
+            cursor:
+              publishing || (passwordEnabled && password.length === 0) ? 'not-allowed' : 'pointer',
+            opacity: publishing || (passwordEnabled && password.length === 0) ? 0.6 : 1,
           }}
         >
           {buttonLabel}
