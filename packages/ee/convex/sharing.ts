@@ -1,7 +1,7 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import { internal } from './_generated/api';
-import { action, internalQuery, mutation, query } from './_generated/server';
+import { api, internal } from './_generated/api';
+import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
@@ -123,27 +123,23 @@ function constantTimeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
   return mismatch === 0;
 }
 
-export const createShareLink = mutation({
+export const createShareLink = action({
   args: {
     planId: v.id('plans'),
     password: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await authComponent.getAuthUser(ctx);
+    const user = await ctx.runQuery(api.auth.getCurrentUser);
     if (!user) {
       throw new ConvexError('Unauthenticated');
     }
 
-    await requireFeature(ctx, ProFeature.SHARE_LINKS);
-
-    const plan = await ctx.db.get(args.planId);
-    if (!plan) {
-      throw new ConvexError('Plan not found');
+    const hasShareLinks = await ctx.runQuery(api.subscriptions.isProUser);
+    if (!hasShareLinks) {
+      throw new ConvexError(`Cloud Pro subscription required for feature: ${ProFeature.SHARE_LINKS}`);
     }
 
-    if (plan.ownerId !== user._id) {
-      throw new ConvexError('Access denied');
-    }
+    await ctx.runQuery(api.plans.getPlan, { planId: args.planId });
 
     const token = `${crypto.randomUUID()}-${Date.now().toString(36)}`;
 
@@ -152,15 +148,40 @@ export const createShareLink = mutation({
       passwordHash = await hashPassword(args.password);
     }
 
-    await ctx.db.insert('shareLinks', {
+    await ctx.runMutation(internal.sharing.createShareLinkInternal, {
       planId: args.planId,
       token,
       createdBy: user._id,
-      createdAt: Date.now(),
       passwordHash,
     });
-
     return token;
+  },
+});
+
+export const createShareLinkInternal = internalMutation({
+  args: {
+    planId: v.id('plans'),
+    token: v.string(),
+    createdBy: v.string(),
+    passwordHash: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) {
+      throw new ConvexError('Plan not found');
+    }
+
+    if (plan.ownerId !== args.createdBy) {
+      throw new ConvexError('Access denied');
+    }
+
+    await ctx.db.insert('shareLinks', {
+      planId: args.planId,
+      token: args.token,
+      createdBy: args.createdBy,
+      createdAt: Date.now(),
+      passwordHash: args.passwordHash,
+    });
   },
 });
 

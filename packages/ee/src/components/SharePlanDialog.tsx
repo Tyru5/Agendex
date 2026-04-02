@@ -1,7 +1,7 @@
 import type { Plan } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
-import { useMutation, useQuery } from 'convex/react';
+import { useAction, useMutation, useQuery } from 'convex/react';
 import { useEffect, useState } from 'react';
 import { usePublishing } from '../hooks/usePublishing.ts';
 
@@ -17,7 +17,7 @@ export function SharePlanDialog({
   onClose: () => void;
 }) {
   const { publish } = usePublishing();
-  const createShareLink = useMutation(api.sharing.createShareLink);
+  const createShareLink = useAction(api.sharing.createShareLink);
   const revokeShareLink = useMutation(api.sharing.revokeShareLink);
 
   const [publishedPlanId, setPublishedPlanId] = useState<string | null>(
