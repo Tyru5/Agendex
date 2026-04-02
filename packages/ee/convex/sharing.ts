@@ -56,9 +56,7 @@ export const revokeShareLink = mutation({
       throw new ConvexError('Access denied');
     }
 
-    await ctx.db.patch(args.shareLinkId, {
-      revokedAt: Date.now(),
-    });
+    await ctx.db.delete(args.shareLinkId);
   },
 });
 

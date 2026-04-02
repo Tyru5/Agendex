@@ -29,7 +29,7 @@ async function validateShareToken(ctx: QueryCtx, planId: string, token: string):
     .withIndex('by_token', (q) => q.eq('token', token))
     .first();
 
-  if (!shareLink || shareLink.revokedAt || shareLink.planId !== planId) {
+  if (!shareLink || shareLink.planId !== planId) {
     throw new ConvexError('Invalid or revoked share token');
   }
 }

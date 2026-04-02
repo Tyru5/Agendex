@@ -24,7 +24,6 @@ export default defineSchema({
     token: v.string(),
     createdBy: v.string(),
     createdAt: v.number(),
-    revokedAt: v.optional(v.number()),
   })
     .index('by_token', ['token'])
     .index('by_plan', ['planId']),
