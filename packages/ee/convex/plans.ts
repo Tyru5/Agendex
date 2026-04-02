@@ -122,7 +122,7 @@ export const getPlanByShareToken = query({
       .withIndex('by_token', (q) => q.eq('token', args.token))
       .first();
 
-    if (!shareLink || shareLink.revokedAt) {
+    if (!shareLink) {
       throw new ConvexError('Invalid or revoked share link');
     }
 
