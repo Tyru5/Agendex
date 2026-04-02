@@ -4,6 +4,8 @@ import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
+import { AnimatePresence } from 'motion/react';
+import { ImageLightbox } from './ImageLightbox.tsx';
 
 const MAX_IMAGE_COUNT = 4;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -63,6 +65,10 @@ export function CommentThread({
   const [editBody, setEditBody] = useState('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    images: { url: string; fileName?: string | null }[];
+    index: number;
+  } | null>(null);
 
   useEffect(() => {
     pendingImagesRef.current = pendingImages;
@@ -579,13 +585,20 @@ export function CommentThread({
                       )}
                       {comment.attachments && comment.attachments.length > 0 && (
                         <div className="mt-2 ml-7 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {comment.attachments.map((attachment) => (
-                            <a
+                          {comment.attachments.map((attachment, attachIdx) => (
+                            <button
                               key={attachment.storageId}
-                              href={attachment.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="block"
+                              type="button"
+                              className="block cursor-zoom-in"
+                              onClick={() =>
+                                setLightbox({
+                                  images: comment.attachments!.map((a) => ({
+                                    url: a.url,
+                                    fileName: a.fileName,
+                                  })),
+                                  index: attachIdx,
+                                })
+                              }
                             >
                               <img
                                 src={attachment.url}
@@ -593,7 +606,7 @@ export function CommentThread({
                                 loading="lazy"
                                 className="w-full rounded-md border border-border object-cover max-h-60"
                               />
-                            </a>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -605,6 +618,15 @@ export function CommentThread({
           )}
         </div>
       )}
+      <AnimatePresence>
+        {lightbox && (
+          <ImageLightbox
+            images={lightbox.images}
+            initialIndex={lightbox.index}
+            onClose={() => setLightbox(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
