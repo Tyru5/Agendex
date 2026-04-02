@@ -5,25 +5,70 @@ import { action, internalQuery, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.randomUUID();
-  const data = new TextEncoder().encode(salt + password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashHex = Array.from(new Uint8Array(hashBuffer))
+const PBKDF2_ITERATIONS = 210_000;
+const PBKDF2_HASH_PREFIX = 'p2';
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
-  return `${salt}:${hashHex}`;
+}
+
+function hexToBytes(hex: string): Uint8Array | null {
+  if (hex.length % 2 !== 0) return null;
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    const byte = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    if (Number.isNaN(byte)) return null;
+    out[i] = byte;
+  }
+  return out;
+}
+
+async function pbkdf2Sha256(password: string, salt: Uint8Array): Promise<Uint8Array> {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(password),
+    { name: 'PBKDF2' },
+    false,
+    ['deriveBits'],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: new Uint8Array(salt),
+      iterations: PBKDF2_ITERATIONS,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    256,
+  );
+  return new Uint8Array(bits);
+}
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const derived = await pbkdf2Sha256(password, salt);
+  return `${PBKDF2_HASH_PREFIX}$${PBKDF2_ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(derived)}`;
 }
 
 async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  const [salt, hash] = storedHash.split(':');
-  if (!salt || !hash) return false;
-  const data = new TextEncoder().encode(salt + password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashHex = Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-  return hashHex === hash;
+  const parts = storedHash.split('$');
+  if (parts.length !== 4 || parts[0] !== PBKDF2_HASH_PREFIX) return false;
+  const iterations = Number(parts[1]);
+  if (iterations !== PBKDF2_ITERATIONS) return false;
+  const salt = hexToBytes(parts[2]);
+  const expected = hexToBytes(parts[3]);
+  if (!salt || !expected || expected.length !== 32) return false;
+
+  const derived = await pbkdf2Sha256(password, salt);
+  if (derived.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < derived.length; i++) {
+    diff |= derived[i] ^ expected[i];
+  }
+  return diff === 0;
 }
 
 export const createShareLink = mutation({
