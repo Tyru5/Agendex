@@ -12,7 +12,7 @@ import {
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useAction, useQuery } from 'convex/react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
@@ -135,6 +135,10 @@ export function SharedPlanView({ token }: { token: string }) {
   const queryResult = useQuery(api.plans.getPlanByShareToken, { token });
   const fullscreen = useFullscreen<HTMLDivElement>();
   const [unlockedPlan, setUnlockedPlan] = useState<UnlockedPlan | null>(null);
+
+  useEffect(() => {
+    setUnlockedPlan(null);
+  }, [token]);
 
   const needsPassword =
     queryResult && 'passwordRequired' in queryResult && queryResult.passwordRequired;

@@ -1,12 +1,85 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import { internal } from './_generated/api';
-import { action, internalQuery, mutation, query } from './_generated/server';
+import { api, internal } from './_generated/api';
+import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
-const PBKDF2_ITERATIONS = 210_000;
-const PBKDF2_HASH_PREFIX = 'p2';
+async function hashPassword(password: string): Promise<string> {
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  const salt = crypto.getRandomValues(new Uint8Array(PASSWORD_SALT_BYTES));
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      hash: 'SHA-256',
+      iterations: PASSWORD_PBKDF2_ITERATIONS,
+      salt,
+    },
+    keyMaterial,
+    PASSWORD_HASH_BYTES * 8,
+  );
+
+  const hash = new Uint8Array(derivedBits);
+  return `pbkdf2-sha256:${PASSWORD_PBKDF2_ITERATIONS}:${bytesToHex(salt)}:${bytesToHex(hash)}`;
+}
+
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  if (storedHash.startsWith('pbkdf2-sha256:')) {
+    const [algorithm, iterationsRaw, saltHex, expectedHashHex] = storedHash.split(':');
+    if (algorithm !== 'pbkdf2-sha256' || !iterationsRaw || !saltHex || !expectedHashHex) {
+      return false;
+    }
+
+    const iterations = Number.parseInt(iterationsRaw, 10);
+    if (!Number.isFinite(iterations) || iterations < 1) {
+      return false;
+    }
+
+    const salt = hexToBytes(saltHex);
+    const expectedHash = hexToBytes(expectedHashHex);
+    if (!salt || !expectedHash) {
+      return false;
+    }
+
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(password),
+      'PBKDF2',
+      false,
+      ['deriveBits'],
+    );
+    const derivedBits = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        hash: 'SHA-256',
+        iterations,
+        salt,
+      },
+      keyMaterial,
+      expectedHash.length * 8,
+    );
+    const actualHash = new Uint8Array(derivedBits);
+    return constantTimeEqualBytes(actualHash, expectedHash);
+  }
+
+  // Backward compatibility for links hashed before PBKDF2 rollout.
+  const [salt, hash] = storedHash.split(':');
+  if (!salt || !hash) return false;
+  const data = new TextEncoder().encode(salt + password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashHex = bytesToHex(new Uint8Array(hashBuffer));
+  return constantTimeEqualHex(hashHex, hash);
+}
+
+const PASSWORD_PBKDF2_ITERATIONS = 210_000;
+const PASSWORD_SALT_BYTES = 16;
+const PASSWORD_HASH_BYTES = 32;
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -15,83 +88,60 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 function hexToBytes(hex: string): Uint8Array | null {
-  if (hex.length % 2 !== 0) return null;
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    const byte = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-    if (Number.isNaN(byte)) return null;
-    out[i] = byte;
+  if (hex.length % 2 !== 0 || !/^[0-9a-f]+$/i.test(hex)) {
+    return null;
   }
-  return out;
-}
 
-async function pbkdf2Sha256(password: string, salt: Uint8Array): Promise<Uint8Array> {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    enc.encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits'],
-  );
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: new Uint8Array(salt),
-      iterations: PBKDF2_ITERATIONS,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    256,
-  );
-  return new Uint8Array(bits);
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const derived = await pbkdf2Sha256(password, salt);
-  return `${PBKDF2_HASH_PREFIX}$${PBKDF2_ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(derived)}`;
-}
-
-async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  const parts = storedHash.split('$');
-  if (parts.length !== 4 || parts[0] !== PBKDF2_HASH_PREFIX) return false;
-  const iterations = Number(parts[1]);
-  if (iterations !== PBKDF2_ITERATIONS) return false;
-  const salt = hexToBytes(parts[2]);
-  const expected = hexToBytes(parts[3]);
-  if (!salt || !expected || expected.length !== 32) return false;
-
-  const derived = await pbkdf2Sha256(password, salt);
-  if (derived.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < derived.length; i++) {
-    diff |= derived[i] ^ expected[i];
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = Number.parseInt(hex.slice(i, i + 2), 16);
   }
-  return diff === 0;
+  return bytes;
 }
 
-export const createShareLink = mutation({
+function constantTimeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
+function constantTimeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    mismatch |= a[i] ^ b[i];
+  }
+  return mismatch === 0;
+}
+
+export const createShareLink = action({
   args: {
     planId: v.id('plans'),
     password: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await authComponent.getAuthUser(ctx);
+    const user = await ctx.runQuery(api.auth.getCurrentUser);
     if (!user) {
       throw new ConvexError('Unauthenticated');
     }
 
-    await requireFeature(ctx, ProFeature.SHARE_LINKS);
-
-    const plan = await ctx.db.get(args.planId);
-    if (!plan) {
-      throw new ConvexError('Plan not found');
+    const hasShareLinks = await ctx.runQuery(api.subscriptions.isProUser);
+    if (!hasShareLinks) {
+      throw new ConvexError(
+        `Cloud Pro subscription required for feature: ${ProFeature.SHARE_LINKS}`,
+      );
     }
 
-    if (plan.ownerId !== user._id) {
-      throw new ConvexError('Access denied');
-    }
+    await ctx.runQuery(api.plans.getPlan, { planId: args.planId });
 
     const token = `${crypto.randomUUID()}-${Date.now().toString(36)}`;
 
@@ -100,15 +150,40 @@ export const createShareLink = mutation({
       passwordHash = await hashPassword(args.password);
     }
 
-    await ctx.db.insert('shareLinks', {
+    await ctx.runMutation(internal.sharing.createShareLinkInternal, {
       planId: args.planId,
       token,
       createdBy: user._id,
-      createdAt: Date.now(),
       passwordHash,
     });
-
     return token;
+  },
+});
+
+export const createShareLinkInternal = internalMutation({
+  args: {
+    planId: v.id('plans'),
+    token: v.string(),
+    createdBy: v.string(),
+    passwordHash: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) {
+      throw new ConvexError('Plan not found');
+    }
+
+    if (plan.ownerId !== args.createdBy) {
+      throw new ConvexError('Access denied');
+    }
+
+    await ctx.db.insert('shareLinks', {
+      planId: args.planId,
+      token: args.token,
+      createdBy: args.createdBy,
+      createdAt: Date.now(),
+      passwordHash: args.passwordHash,
+    });
   },
 });
 
