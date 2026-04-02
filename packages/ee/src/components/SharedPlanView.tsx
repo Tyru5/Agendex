@@ -12,6 +12,7 @@ import {
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useAction, useQuery } from 'convex/react';
+import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
@@ -62,7 +63,19 @@ function PasswordGate({
         const plan = await unlock({ token, password });
         onUnlock(plan as UnlockedPlan);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Incorrect password';
+        const message =
+          err instanceof ConvexError
+            ? typeof err.data === 'string'
+              ? err.data
+              : err.data != null &&
+                  typeof err.data === 'object' &&
+                  'message' in err.data &&
+                  typeof (err.data as { message: unknown }).message === 'string'
+                ? (err.data as { message: string }).message
+                : 'Something went wrong'
+            : err instanceof Error
+              ? err.message
+              : 'Incorrect password';
         setError(message.includes('Incorrect password') ? 'Incorrect password' : message);
       } finally {
         setSubmitting(false);
