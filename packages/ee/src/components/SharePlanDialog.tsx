@@ -93,27 +93,44 @@ export function SharePlanDialog({
   async function handleCopyLink(token: string) {
     const url = `${appUrl}/shared/${token}`;
     await navigator.clipboard.writeText(url);
+
     setCopiedToken(token);
     setTimeout(() => setCopiedToken(null), 2000);
   }
 
   async function handleCopyPassword() {
     if (!oneTimeSecret) return;
+
     await navigator.clipboard.writeText(oneTimeSecret.password);
     setCopiedSecret('password');
+
     setTimeout(() => setCopiedSecret(null), 2000);
   }
 
   async function handleCopyBoth() {
     if (!oneTimeSecret) return;
+
     const text = `Link:\n${oneTimeSecret.url}\n\nPassword:\n${oneTimeSecret.password}`;
     await navigator.clipboard.writeText(text);
     setCopiedSecret('both');
+
     setTimeout(() => setCopiedSecret(null), 2000);
   }
 
-  async function handleRevoke(linkId: string) {
+  async function handleRevoke(linkId: string, token: string) {
     await revokeShareLink({ shareLinkId: linkId as Id<'shareLinks'> });
+    const revokedUrl = `${appUrl}/shared/${token}`;
+
+    let clearedOneTimeBanner = false;
+    setOneTimeSecret((prev) => {
+      if (prev?.url === revokedUrl) {
+        clearedOneTimeBanner = true;
+        return null;
+      }
+      return prev;
+    });
+
+    if (clearedOneTimeBanner) setCopiedSecret(null);
   }
 
   const hasLinks = shareLinks && shareLinks.length > 0;
@@ -270,7 +287,7 @@ export function SharePlanDialog({
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleRevoke(link._id)}
+                      onClick={() => handleRevoke(link._id, link.token)}
                       className="py-1.5 px-3 text-[12px] font-medium font-[inherit] rounded-lg border border-border bg-transparent cursor-pointer text-[#ef4444]"
                     >
                       Revoke
