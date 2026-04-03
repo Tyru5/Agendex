@@ -12,6 +12,7 @@ import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
 import { syncAll } from './sync.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
+import { openAgendexWeb } from './web.ts';
 
 const args = process.argv.slice(2);
 const devFlag = args.includes('--dev');
@@ -41,6 +42,7 @@ async function main(): Promise<number> {
     'status',
     'login',
     'logout',
+    'open',
     'cleanup',
     'help',
     '--help',
@@ -57,6 +59,13 @@ async function main(): Promise<number> {
   }
 
   switch (command) {
+    case 'open': {
+      const urlIdx = args.indexOf('--url');
+      const siteUrl = urlIdx !== -1 ? args[urlIdx + 1] : undefined;
+      await openAgendexWeb(siteUrl);
+      return 0;
+    }
+
     case 'start': {
       if (args.includes('--daemon')) {
         await startSupervisor();
@@ -299,6 +308,8 @@ Usage:
   agendex stop         Stop the running daemon
   agendex login        Authenticate via browser OAuth (agendex.dev)
   agendex login --url <url>  Login to a self-hosted instance
+  agendex open         Open the Agendex web app in your browser
+  agendex open --url <url>  Open a self-hosted instance
   agendex logout       Clear stored cloud token
   agendex configure    Select which agents/adapters to index
   agendex sync         One-shot scan + sync to cloud (skips unchanged plans)
