@@ -1,3 +1,15 @@
+/** Short relative label from a Unix ms timestamp (e.g. `just now`, `3m ago`). */
+export function timeAgo(timestampMs: number): string {
+  const diff = Date.now() - timestampMs;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 export function formatRelativeTime(ts: number, now: number = Date.now()): string {
   const diff = Math.max(0, now - ts);
   const s = Math.floor(diff / 1000);
