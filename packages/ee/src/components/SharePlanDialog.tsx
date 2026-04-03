@@ -69,6 +69,7 @@ export function SharePlanDialog({
         ...(protectWithPassword ? { protectWithPassword: true } : {}),
       });
       const url = `${appUrl}/shared/${result.token}`;
+      setCopiedSecret(null);
       if ('password' in result && result.password) {
         setOneTimeSecret({ url, password: result.password });
       } else {
