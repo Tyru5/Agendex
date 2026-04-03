@@ -1,10 +1,12 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import { api, internal } from './_generated/api';
+import type { Doc } from './_generated/dataModel';
 import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
+// Random salt via Web Crypto — only safe from actions, not from deterministic mutations/queries (Convex runtimes docs).
 async function hashPassword(password: string): Promise<string> {
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
@@ -59,7 +61,7 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
         name: 'PBKDF2',
         hash: 'SHA-256',
         iterations,
-        salt,
+        salt: new Uint8Array(salt),
       },
       keyMaterial,
       expectedHash.length * 8,
@@ -80,6 +82,18 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
 const PASSWORD_PBKDF2_ITERATIONS = 210_000;
 const PASSWORD_SALT_BYTES = 16;
 const PASSWORD_HASH_BYTES = 32;
+const SHARE_LINK_SECRET_BYTES = 18;
+
+// Actions only (same determinism rules as hashPassword).
+function generateShareLinkSecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(SHARE_LINK_SECRET_BYTES));
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const b64 = btoa(binary);
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -126,7 +140,7 @@ function constantTimeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
 export const createShareLink = action({
   args: {
     planId: v.id('plans'),
-    password: v.optional(v.string()),
+    protectWithPassword: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await ctx.runQuery(api.auth.getCurrentUser);
@@ -146,8 +160,10 @@ export const createShareLink = action({
     const token = `${crypto.randomUUID()}-${Date.now().toString(36)}`;
 
     let passwordHash: string | undefined;
-    if (args.password && args.password.length > 0) {
-      passwordHash = await hashPassword(args.password);
+    let password: string | undefined;
+    if (args.protectWithPassword === true) {
+      password = generateShareLinkSecret();
+      passwordHash = await hashPassword(password);
     }
 
     await ctx.runMutation(internal.sharing.createShareLinkInternal, {
@@ -156,7 +172,7 @@ export const createShareLink = action({
       createdBy: user._id,
       passwordHash,
     });
-    return token;
+    return password !== undefined ? { token, password } : { token };
   },
 });
 
@@ -263,7 +279,7 @@ export const getShareLinkAndPlanInternal = internalQuery({
 
 export const getSharedPlanWithPassword = action({
   args: { token: v.string(), password: v.string() },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Doc<'plans'>> => {
     const result = await ctx.runQuery(internal.sharing.getShareLinkAndPlanInternal, {
       token: args.token,
     });

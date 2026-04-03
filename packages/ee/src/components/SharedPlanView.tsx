@@ -13,7 +13,7 @@ import {
 import { api } from '@convex/_generated/api';
 import { useAction, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
@@ -51,7 +51,12 @@ function PasswordGate({
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const unlock = useAction(api.sharing.getSharedPlanWithPassword);
+
+  useLayoutEffect(() => {
+    passwordInputRef.current?.focus();
+  }, []);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -85,18 +90,20 @@ function PasswordGate({
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg">
-      <div className="w-full max-w-[360px] mx-4">
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgba(99,102,241,0.1)] mb-4">
+    <div className="min-h-screen flex items-center justify-center bg-bg p-4">
+      <div className="w-full max-w-[400px] rounded-2xl border border-border bg-surface px-8 py-9 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.2)]">
+        <div className="text-center mb-7">
+          <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[color-mix(in_srgb,var(--text)_8%,transparent)] mb-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
               stroke="currentColor"
-              className="w-6 h-6 text-[#6366f1]"
+              className="w-5 h-5 text-text"
+              aria-hidden
             >
+              <title>Locked</title>
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -104,37 +111,42 @@ function PasswordGate({
               />
             </svg>
           </div>
-          <h1 className="text-[18px] font-semibold text-text tracking-[-0.02em] mb-1.5">
-            Password Required
+          <h1 className="text-[17px] font-semibold text-text tracking-[-0.02em] mb-2">
+            Password required
           </h1>
           <p className="text-[13px] text-tertiary leading-[1.5]">
-            This shared plan is password protected. Enter the password to view it.
+            This plan was shared with a link password. Enter it to view the plan.
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
+          <label htmlFor="shared-plan-password" className="sr-only">
+            Password
+          </label>
           <input
+            ref={passwordInputRef}
+            id="shared-plan-password"
             type="password"
             value={password}
             onChange={(e) => {
               setPassword(e.target.value);
               if (error) setError('');
             }}
-            placeholder="Enter password"
-            autoFocus
+            placeholder="Password"
             autoComplete="current-password"
-            className="w-full py-2 px-3 text-[13px] font-[inherit] rounded-lg border border-border bg-surface text-text outline-none placeholder:text-tertiary mb-2"
-            style={error ? { borderColor: '#ef4444' } : undefined}
+            className={`w-full py-2.5 px-3.5 text-[13px] font-[inherit] rounded-xl border bg-bg text-text outline-none placeholder:text-tertiary mb-2 transition-colors ${
+              error ? 'border-[#ef4444]' : 'border-border focus:border-text'
+            }`}
           />
-          {error && <p className="text-[12px] text-[#ef4444] mb-2">{error}</p>}
+          {error && (
+            <p className="text-[12px] text-[#ef4444] mb-3" role="alert">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={submitting || password.length === 0}
-            className="w-full py-2 px-4 text-[13px] font-[550] font-[inherit] rounded-lg border-none bg-text text-bg mt-1"
-            style={{
-              cursor: submitting || password.length === 0 ? 'not-allowed' : 'pointer',
-              opacity: submitting || password.length === 0 ? 0.6 : 1,
-            }}
+            className="w-full py-2.5 px-4 text-[13px] font-semibold font-[inherit] rounded-xl border-none bg-text text-bg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {submitting ? 'Verifying…' : 'Unlock'}
           </button>
@@ -149,6 +161,7 @@ export function SharedPlanView({ token }: { token: string }) {
   const fullscreen = useFullscreen<HTMLDivElement>();
   const [unlockedPlan, setUnlockedPlan] = useState<UnlockedPlan | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: must reset when navigating to another shared link
   useEffect(() => {
     setUnlockedPlan(null);
   }, [token]);
