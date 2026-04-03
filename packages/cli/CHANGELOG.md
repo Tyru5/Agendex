@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.10.0
+
+### Minor Changes
+
+- 8197510: added open command
+
 ## 0.9.1
 
 ### Patch Changes
