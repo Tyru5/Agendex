@@ -15,6 +15,7 @@
     "cli": "bun run --cwd ./packages/cli src/cli.ts",
     "cli:start": "bun run --cwd ./packages/cli src/cli.ts start",
     "cli:login": "bun run --cwd ./packages/cli src/cli.ts login",
+    "cli:open": "bun run --cwd ./packages/cli src/cli.ts open",
     "cli:configure": "bun run --cwd ./packages/cli src/cli.ts configure",
     "cli:sync": "bun run --cwd ./packages/cli src/cli.ts sync",
     "cli:stop": "bun run --cwd ./packages/cli src/cli.ts stop",

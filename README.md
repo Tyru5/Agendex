@@ -96,6 +96,8 @@ bun run cli:start           # start cloud sync daemon
 bun run cli:login           # browser login using https://agendex.dev
 bun run cli:login -- --url https://example.com
 bun run cli:login -- --dev  # login using dev config dir (~/.agendex-dev) + dev default site URL
+bun run cli:open            # open the Agendex web app in your default browser
+bun run cli:open -- --url https://example.com
 bun run cli:configure       # select which agents/adapters to index
 bun run cli:sync            # one-shot cloud sync
 bun run cli:stop            # stop daemon
@@ -161,7 +163,8 @@ Common environment variables:
   - `VITE_ALLOWED_HOSTS` (comma-separated extra Vite allowed hosts)
 - CLI (see `packages/cli/README.md` for full list):
   - `AGENDEX_DEV=1` or `agendex --dev` — dev config directory and dev default login URL
-  - `AGENDEX_SITE_URL` — override login site URL
+  - `AGENDEX_SITE_URL` — override login and `agendex open` site URL
+  - `AGENDEX_DISABLE_BROWSER=1` — skip launching the browser for `login` and `open` (URL is still printed)
   - `AGENDEX_TOKEN` — override local token read from config
 - EE client:
   - `VITE_CONVEX_URL`

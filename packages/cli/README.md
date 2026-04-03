@@ -1,6 +1,6 @@
 # `agendex-cli`
 
-Node-compatible Agendex CLI for browser login, one-shot sync, daemon supervision, status checks, and daemon cleanup.
+Node-compatible Agendex CLI for browser login, opening the web app, one-shot sync, daemon supervision, status checks, and daemon cleanup.
 
 ## Install
 
@@ -16,6 +16,8 @@ bun install -g agendex-cli
 ```bash
 agendex login                  # Authenticate via browser OAuth (agendex.dev)
 agendex login --url <url>      # Login to a self-hosted instance
+agendex open                   # Open the Agendex web app in your default browser
+agendex open --url <url>       # Open a self-hosted deployment
 agendex logout                 # Clear stored cloud token
 agendex configure              # Select which agents/adapters to index
 agendex start                  # Start daemon (backgrounds itself)
@@ -86,7 +88,7 @@ Before running `start`, `configure`, or `sync`, the CLI checks for a newer publi
 [agendex] run: npm i -g agendex-cli
 ```
 
-The check is skipped for `stop`, `status`, `login`, `logout`, `cleanup`, and `help`.
+The check is skipped for `stop`, `status`, `login`, `logout`, `open`, `cleanup`, and `help`.
 
 ## Supported Runtime
 
@@ -106,3 +108,9 @@ agendex login --url https://agendex.yourdomain.com
 This opens your deployment's OAuth flow and stores the returned `cloudToken` and `convexUrl` in your active config directory (`~/.agendex/config.json` for prod, `~/.agendex-dev/config.json` when using `--dev` or `AGENDEX_DEV=1`).
 
 The target can also be set via `AGENDEX_SITE_URL` env var. For local development against the default dev app URL, use `agendex login --dev` or set `AGENDEX_DEV=1` (see [Dev vs prod](#dev-vs-prod-config-directory) above).
+
+## Open the web app
+
+`agendex open` launches your default browser to the same base URL as the default login target (`https://app.agendex.dev` in prod, or the local EE dev URL when using `--dev` / `AGENDEX_DEV=1`). Override with `agendex open --url <url>` or `AGENDEX_SITE_URL`.
+
+If launching the browser is undesirable (for example in CI), set `AGENDEX_DISABLE_BROWSER=1`; the CLI still prints the URL to visit.

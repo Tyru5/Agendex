@@ -5,8 +5,9 @@ import { type AgendexConfig, isDevMode, loadConfig, saveConfig } from '@agendex/
 const PROD_SITE_URL = 'https://app.agendex.dev';
 const DEV_SITE_URL = 'http://app.agendex.local:5174';
 
-function getDefaultSiteUrl(): string {
+export function getDefaultSiteUrl(): string {
   if (process.env.AGENDEX_SITE_URL) return process.env.AGENDEX_SITE_URL;
+
   return isDevMode() ? DEV_SITE_URL : PROD_SITE_URL;
 }
 
@@ -207,7 +208,7 @@ function callbackPage(success: boolean): string {
 </html>`;
 }
 
-function openBrowser(url: string): void {
+export function openBrowser(url: string): void {
   if (process.platform === 'darwin') {
     spawnBrowser('open', [url]);
     return;
