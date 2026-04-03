@@ -29,3 +29,106 @@
     transform: scale(1) translateY(0);
   }
 }
+
+/* Share / public-link UI — opacity + transform only; respect reduced motion */
+@keyframes share-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes share-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes share-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes share-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes share-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+.share-dialog-overlay {
+  animation: share-overlay-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.share-dialog-panel {
+  animation: share-panel-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.share-dialog-overlay.share-dialog-exiting {
+  animation: share-overlay-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.share-dialog-panel.share-dialog-exiting {
+  animation: share-panel-out 0.24s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.share-surface-in {
+  animation: share-panel-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.share-reveal {
+  animation: share-content-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--share-delay, 0ms);
+  animation-fill-mode: both;
+}
+
+.share-link-row {
+  animation: share-content-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--share-row-delay, 0ms);
+  animation-fill-mode: both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-dialog-overlay,
+  .share-dialog-panel,
+  .share-surface-in,
+  .share-reveal,
+  .share-link-row {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .share-dialog-overlay.share-dialog-exiting,
+  .share-dialog-panel.share-dialog-exiting {
+    animation: none !important;
+    opacity: 0 !important;
+    transform: none !important;
+  }
+}

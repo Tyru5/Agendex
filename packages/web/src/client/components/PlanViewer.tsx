@@ -1,10 +1,10 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { useFullscreen } from '../hooks/useFullscreen.ts';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
+import { useFullscreen } from '../hooks/useFullscreen.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import { buildPlanOutline } from '../lib/extract-headings.ts';
@@ -436,8 +436,10 @@ function ShareIcon() {
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
-        d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"
+        d="M18 13v6a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 19V8.25A2.25 2.25 0 0 1 6 6h6"
       />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6v6" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 13.5 21 3" />
     </svg>
   );
 }

@@ -91,16 +91,16 @@ function PasswordGate({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg p-4">
-      <div className="w-full max-w-[400px] rounded-2xl border border-border bg-surface px-8 py-9 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.2)]">
-        <div className="text-center mb-7">
-          <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[color-mix(in_srgb,var(--text)_8%,transparent)] mb-4">
+      <div className="share-surface-in w-full max-w-[400px] rounded-2xl border border-border bg-surface px-8 py-9 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.25)]">
+        <div className="mb-7 text-left">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--text)_8%,transparent)] mb-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
               stroke="currentColor"
-              className="w-5 h-5 text-text"
+              className="h-[18px] w-[18px] text-text"
               aria-hidden
             >
               <title>Locked</title>
@@ -139,14 +139,17 @@ function PasswordGate({
             }`}
           />
           {error && (
-            <p className="text-[12px] text-[#ef4444] mb-3" role="alert">
+            <p
+              className="share-reveal text-[12px] text-[#ef4444] mb-3 [--share-delay:0ms]"
+              role="alert"
+            >
               {error}
             </p>
           )}
           <button
             type="submit"
             disabled={submitting || password.length === 0}
-            className="w-full py-2.5 px-4 text-[13px] font-semibold font-[inherit] rounded-xl border-none bg-text text-bg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="w-full select-none py-2.5 px-4 text-[13px] font-semibold font-[inherit] rounded-xl border-none bg-text text-bg transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer"
           >
             {submitting ? 'Verifying…' : 'Unlock'}
           </button>
@@ -187,7 +190,7 @@ export function SharedPlanView({ token }: { token: string }) {
   if (queryResult === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
-        <div className="w-full max-w-[600px] p-6">
+        <div className="share-reveal w-full max-w-[600px] p-6 [--share-delay:0ms]">
           <SkeletonBlock lines={5} />
         </div>
       </div>
@@ -200,12 +203,12 @@ export function SharedPlanView({ token }: { token: string }) {
 
   if (!plan || !outline) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg">
-        <div className="text-center">
-          <h1 className="text-[18px] font-semibold text-text tracking-[-0.02em] mb-2">
+      <div className="min-h-screen flex items-center justify-center bg-bg p-4">
+        <div className="share-surface-in w-full max-w-[400px] rounded-2xl border border-border bg-surface px-8 py-9 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.25)] text-left">
+          <h1 className="text-[17px] font-semibold text-text tracking-[-0.02em] mb-2">
             Plan not found
           </h1>
-          <p className="text-[13px] text-tertiary">
+          <p className="text-[13px] text-tertiary leading-[1.5]">
             This link may have been revoked or the plan no longer exists.
           </p>
         </div>
@@ -231,7 +234,10 @@ export function SharedPlanView({ token }: { token: string }) {
         {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
           <PlanOutline entries={entries} />
         )}
-        <div className="max-w-[720px] mx-auto px-8 pt-10 pb-20">
+        <div
+          key={plan._id}
+          className="share-reveal max-w-[720px] mx-auto px-8 pt-10 pb-20 [--share-delay:0ms]"
+        >
           {/* Header */}
           <div className="mb-8 pb-6 border-b border-border">
             <div className="flex items-center gap-1 text-[12px] text-tertiary mb-2.5 font-[450]">
@@ -256,7 +262,7 @@ export function SharedPlanView({ token }: { token: string }) {
                 <DocIcon />
                 {plan.format.toUpperCase()}
               </span>
-              <span className="text-[11px] font-[550] py-0.5 px-[7px] rounded-[5px] bg-[rgba(99,102,241,0.1)] text-[#6366f1]">
+              <span className="text-[11px] font-medium py-0.5 px-2 rounded-md border border-border text-secondary bg-[color-mix(in_srgb,var(--text)_6%,transparent)]">
                 Shared
               </span>
             </div>
