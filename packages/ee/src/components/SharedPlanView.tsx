@@ -171,6 +171,7 @@ export function SharedPlanView({ token }: { token: string }) {
   const [unlockedPlan, setUnlockedPlan] = useState<UnlockedPlan | null>(null);
   const [outlineHidden, setOutlineHidden] = useState(() => {
     if (typeof window === 'undefined') return false;
+    
     try {
       return localStorage.getItem(OUTLINE_PREF_STORAGE_KEY) === 'true';
     } catch {
