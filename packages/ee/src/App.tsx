@@ -57,6 +57,7 @@ import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { APP_URL } from './lib/auth-client.ts';
+import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
 const PlanEditor = lazy(() =>
   import('@agendex/web').then((m) => ({
@@ -84,7 +85,6 @@ const PlanHistoryDrawer = lazy(() =>
 
 const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
-const OUTLINE_PREF_KEY = 'agendex_outline_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
 
@@ -864,7 +864,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     showPricingModal: false,
     sidebarHidden: localStorage.getItem(SIDEBAR_PREF_KEY) === 'true',
     sidebarPeek: false,
-    outlineHidden: localStorage.getItem(OUTLINE_PREF_KEY) === 'true',
+    outlineHidden: localStorage.getItem(OUTLINE_PREF_STORAGE_KEY) === 'true',
   });
 
   const {
@@ -940,7 +940,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   }, [sidebarHidden]);
 
   useEffect(() => {
-    localStorage.setItem(OUTLINE_PREF_KEY, outlineHidden ? 'true' : 'false');
+    localStorage.setItem(OUTLINE_PREF_STORAGE_KEY, outlineHidden ? 'true' : 'false');
   }, [outlineHidden]);
 
   const selectedPlan = useMemo(() => {
