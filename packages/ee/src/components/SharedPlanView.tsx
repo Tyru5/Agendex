@@ -171,7 +171,7 @@ export function SharedPlanView({ token }: { token: string }) {
   const [unlockedPlan, setUnlockedPlan] = useState<UnlockedPlan | null>(null);
   const [outlineHidden, setOutlineHidden] = useState(() => {
     if (typeof window === 'undefined') return false;
-    
+
     try {
       return localStorage.getItem(OUTLINE_PREF_STORAGE_KEY) === 'true';
     } catch {
@@ -254,9 +254,7 @@ export function SharedPlanView({ token }: { token: string }) {
         className={fullscreen.isFullscreen ? 'main-scroll' : undefined}
       >
         <div
-          className={`min-h-screen bg-bg text-text${
-            fullscreen.isFullscreen ? '' : ' main-scroll'
-          }`}
+          className={`min-h-screen bg-bg text-text${fullscreen.isFullscreen ? '' : ' main-scroll'}`}
         >
           {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
             <PlanOutline entries={entries} pinned={!outlineHidden} />
@@ -330,11 +328,7 @@ export function SharedPlanView({ token }: { token: string }) {
                       }
 
                       return (
-                        <MarkdownCodeBlock
-                          className={className}
-                          code={code}
-                          language={language}
-                        />
+                        <MarkdownCodeBlock className={className} code={code} language={language} />
                       );
                     },
                   }}
