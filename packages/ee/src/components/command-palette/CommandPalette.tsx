@@ -17,6 +17,7 @@ export function CommandPalette({
   onSelectPlan,
   isPro,
   mode,
+  hideTrigger = false,
   onNewPlan,
   onUpload,
   onHistory,
@@ -35,6 +36,7 @@ export function CommandPalette({
   onSelectPlan: (plan: Plan) => void;
   isPro: boolean;
   mode: 'local' | 'cloud';
+  hideTrigger?: boolean;
   onNewPlan: () => void;
   onUpload: () => void;
   onHistory: () => void;
@@ -320,19 +322,21 @@ export function CommandPalette({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openModal}
-        className="flex items-center gap-2 rounded-lg py-[5px] px-2 border border-border bg-transparent min-w-0 w-full max-w-[150px] overflow-hidden text-secondary cursor-pointer"
-      >
-        <SearchIcon />
-        <span className="text-[12px] flex-1 min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis">
-          Search
-        </span>
-        <kbd className="font-[inherit] text-[10px] leading-none shrink-0 text-tertiary border border-border rounded-[4px] py-[3px] px-1 bg-hover">
-          {isMac ? '⌘K' : 'Ctrl+K'}
-        </kbd>
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={openModal}
+          className="flex items-center gap-2 rounded-lg py-[5px] px-2 border border-border bg-transparent min-w-0 w-full max-w-[150px] overflow-hidden text-secondary cursor-pointer"
+        >
+          <SearchIcon />
+          <span className="text-[12px] flex-1 min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis">
+            Search
+          </span>
+          <kbd className="font-[inherit] text-[10px] leading-none shrink-0 text-tertiary border border-border rounded-[4px] py-[3px] px-1 bg-hover">
+            {isMac ? '⌘K' : 'Ctrl+K'}
+          </kbd>
+        </button>
+      )}
 
       {mounted && (
         <div

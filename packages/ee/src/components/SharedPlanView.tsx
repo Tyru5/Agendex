@@ -14,12 +14,16 @@ import { api } from '@convex/_generated/api';
 import { useAction, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useHotkey } from '@tanstack/react-hotkeys';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './CommentThread.tsx';
+import { OUTLINE_PREF_STORAGE_KEY } from '../outlinePref.ts';
+import { CommandPalette } from './command-palette/CommandPalette.tsx';
+import { useLocation } from 'wouter';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -162,7 +166,29 @@ function PasswordGate({
 export function SharedPlanView({ token }: { token: string }) {
   const queryResult = useQuery(api.plans.getPlanByShareToken, { token });
   const fullscreen = useFullscreen<HTMLDivElement>();
+  const [, navigate] = useLocation();
+  const [paletteSearch, setPaletteSearch] = useState('');
   const [unlockedPlan, setUnlockedPlan] = useState<UnlockedPlan | null>(null);
+  const [outlineHidden, setOutlineHidden] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem(OUTLINE_PREF_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleOutline = useCallback(() => setOutlineHidden((v) => !v), []);
+  useHotkey('Mod+Shift+O', toggleOutline);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(OUTLINE_PREF_STORAGE_KEY, outlineHidden ? 'true' : 'false');
+    } catch {
+      // ignore
+    }
+  }, [outlineHidden]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: must reset when navigating to another shared link
   useEffect(() => {
@@ -187,22 +213,21 @@ export function SharedPlanView({ token }: { token: string }) {
     [plan],
   );
 
+  const sharedHome = useCallback(() => navigate('/'), [navigate]);
+
+  let body: React.ReactNode;
   if (queryResult === undefined) {
-    return (
+    body = (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="share-reveal w-full max-w-[600px] p-6 [--share-delay:0ms]">
           <SkeletonBlock lines={5} />
         </div>
       </div>
     );
-  }
-
-  if (needsPassword && !unlockedPlan) {
-    return <PasswordGate token={token} onUnlock={setUnlockedPlan} />;
-  }
-
-  if (!plan || !outline) {
-    return (
+  } else if (needsPassword && !unlockedPlan) {
+    body = <PasswordGate token={token} onUnlock={setUnlockedPlan} />;
+  } else if (!plan || !outline) {
+    body = (
       <div className="min-h-screen flex items-center justify-center bg-bg p-4">
         <div className="share-surface-in w-full max-w-[400px] rounded-2xl border border-border bg-surface px-8 py-9 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.25)] text-left">
           <h1 className="text-[17px] font-semibold text-text tracking-[-0.02em] mb-2">
@@ -214,115 +239,145 @@ export function SharedPlanView({ token }: { token: string }) {
         </div>
       </div>
     );
-  }
+  } else {
+    const { entries, renderContent, renderMode } = outline;
 
-  const { entries, renderContent, renderMode } = outline;
-
-  return (
-    <div
-      ref={fullscreen.ref}
-      style={
-        fullscreen.isFullscreen
-          ? { background: 'var(--bg)', overflow: 'auto', height: '100%' }
-          : undefined
-      }
-      className={fullscreen.isFullscreen ? 'main-scroll' : undefined}
-    >
+    body = (
       <div
-        className={`min-h-screen bg-bg text-text${fullscreen.isFullscreen ? '' : ' main-scroll'}`}
+        ref={fullscreen.ref}
+        style={
+          fullscreen.isFullscreen
+            ? { background: 'var(--bg)', overflow: 'auto', height: '100%' }
+            : undefined
+        }
+        className={fullscreen.isFullscreen ? 'main-scroll' : undefined}
       >
-        {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
-          <PlanOutline entries={entries} />
-        )}
         <div
-          key={plan._id}
-          className="share-reveal max-w-[720px] mx-auto px-8 pt-10 pb-20 [--share-delay:0ms]"
+          className={`min-h-screen bg-bg text-text${
+            fullscreen.isFullscreen ? '' : ' main-scroll'
+          }`}
         >
-          {/* Header */}
-          <div className="mb-8 pb-6 border-b border-border">
-            <div className="flex items-center gap-1 text-[12px] text-tertiary mb-2.5 font-[450]">
-              <span className="flex items-center gap-1.5">
-                <AgentIcon agent={plan.agent} size={13} />
-                <span>{getAgentLabel(plan.agent)}</span>
-              </span>
-            </div>
-
-            <h1 className="text-[26px] font-semibold tracking-[-0.03em] leading-[1.25] text-text mb-3">
-              {plan.title}
-            </h1>
-
-            <div className="flex items-center gap-5 text-[12.5px] text-secondary">
-              {plan.createdAt && (
-                <span className="flex items-center gap-1.5">
-                  <ClockIcon />
-                  {timeAgo(String(plan.createdAt))}
-                </span>
-              )}
-              <span className="flex items-center gap-1.5">
-                <DocIcon />
-                {plan.format.toUpperCase()}
-              </span>
-              <span className="text-[11px] font-medium py-0.5 px-2 rounded-md border border-border text-secondary bg-[color-mix(in_srgb,var(--text)_6%,transparent)]">
-                Shared
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 mt-4">
-              <button
-                type="button"
-                onClick={() => fullscreen.toggle()}
-                title={fullscreen.isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-                className="flex items-center gap-[5px] text-[12.5px] font-medium rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
-                style={{ padding: '5px 12px', fontFamily: 'inherit' }}
-              >
-                {fullscreen.isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
-                {fullscreen.isFullscreen ? 'Exit' : 'Fullscreen'}
-              </button>
-            </div>
-          </div>
-
-          {/* Body */}
-          {renderMode === 'markdown' ? (
-            <article className="plan-markdown">
-              <div id="plan-top" aria-hidden="true" />
-              <Markdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
-                components={{
-                  code({ className, children, node: _node, ...props }) {
-                    const code = String(children).replace(/\n$/, '');
-                    const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
-                    const isBlock = Boolean(language) || code.includes('\n');
-
-                    if (!isBlock) {
-                      return (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      );
-                    }
-
-                    return (
-                      <MarkdownCodeBlock className={className} code={code} language={language} />
-                    );
-                  },
-                }}
-              >
-                {renderContent}
-              </Markdown>
-            </article>
-          ) : (
-            <>
-              <div id="plan-top" aria-hidden="true" />
-              <pre className="plan-plain">{renderContent}</pre>
-            </>
+          {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
+            <PlanOutline entries={entries} pinned={!outlineHidden} />
           )}
+          <div
+            key={plan._id}
+            className="share-reveal max-w-[720px] mx-auto px-8 pt-10 pb-20 [--share-delay:0ms]"
+          >
+            {/* Header */}
+            <div className="mb-8 pb-6 border-b border-border">
+              <div className="flex items-center gap-1 text-[12px] text-tertiary mb-2.5 font-[450]">
+                <span className="flex items-center gap-1.5">
+                  <AgentIcon agent={plan.agent} size={13} />
+                  <span>{getAgentLabel(plan.agent)}</span>
+                </span>
+              </div>
 
-          {/* Comments */}
-          <CommentThread planId={plan._id} shareToken={token} />
+              <h1 className="text-[26px] font-semibold tracking-[-0.03em] leading-[1.25] text-text mb-3">
+                {plan.title}
+              </h1>
+
+              <div className="flex items-center gap-5 text-[12.5px] text-secondary">
+                {plan.createdAt && (
+                  <span className="flex items-center gap-1.5">
+                    <ClockIcon />
+                    {timeAgo(String(plan.createdAt))}
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5">
+                  <DocIcon />
+                  {plan.format.toUpperCase()}
+                </span>
+                <span className="text-[11px] font-medium py-0.5 px-2 rounded-md border border-border text-secondary bg-[color-mix(in_srgb,var(--text)_6%,transparent)]">
+                  Shared
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={() => fullscreen.toggle()}
+                  title={fullscreen.isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+                  className="flex items-center gap-[5px] text-[12.5px] font-medium rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+                  style={{ padding: '5px 12px', fontFamily: 'inherit' }}
+                >
+                  {fullscreen.isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
+                  {fullscreen.isFullscreen ? 'Exit' : 'Fullscreen'}
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            {renderMode === 'markdown' ? (
+              <article className="plan-markdown">
+                <div id="plan-top" aria-hidden="true" />
+                <Markdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
+                  components={{
+                    code({ className, children, node: _node, ...props }) {
+                      const code = String(children).replace(/\n$/, '');
+                      const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
+                      const isBlock = Boolean(language) || code.includes('\n');
+
+                      if (!isBlock) {
+                        return (
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        );
+                      }
+
+                      return (
+                        <MarkdownCodeBlock
+                          className={className}
+                          code={code}
+                          language={language}
+                        />
+                      );
+                    },
+                  }}
+                >
+                  {renderContent}
+                </Markdown>
+              </article>
+            ) : (
+              <>
+                <div id="plan-top" aria-hidden="true" />
+                <pre className="plan-plain">{renderContent}</pre>
+              </>
+            )}
+
+            {/* Comments */}
+            <CommentThread planId={plan._id} shareToken={token} />
+          </div>
         </div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <>
+      <CommandPalette
+        search={paletteSearch}
+        onSearch={setPaletteSearch}
+        plans={[]}
+        selectedId={undefined}
+        onSelectPlan={() => {
+          // No plan switching in shared view
+        }}
+        isPro={false}
+        mode="cloud"
+        hideTrigger
+        onNewPlan={sharedHome}
+        onUpload={sharedHome}
+        onHistory={sharedHome}
+        onNavigate={(path: string) => navigate(path)}
+        onShowPricing={sharedHome}
+        onToggleOutline={toggleOutline}
+      />
+      {body}
+    </>
   );
 }
 
