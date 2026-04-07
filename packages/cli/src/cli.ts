@@ -73,7 +73,7 @@ async function main(): Promise<number> {
         writeStderr('[agendex] usage: agendex view <shared-plan-url>');
         return 1;
       }
-      await openSharedPlan(url);
+      if (!(await openSharedPlan(url))) return 1;
       return 0;
     }
 

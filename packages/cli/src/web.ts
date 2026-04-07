@@ -13,21 +13,23 @@ export async function openAgendexWeb(siteUrlOverride?: string): Promise<void> {
 /**
  * Opens a shared Agendex plan URL in the system browser.
  * Validates the URL is well-formed and contains the `/shared/` path segment.
+ * @returns whether the browser was launched successfully
  */
-export async function openSharedPlan(url: string): Promise<void> {
+export async function openSharedPlan(url: string): Promise<boolean> {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    console.log(`[agendex] invalid URL: ${url}`);
-    return;
+    console.error(`[agendex] invalid URL: ${url}`);
+    return false;
   }
 
   if (!parsed.pathname.includes('/shared/')) {
-    console.log(`[agendex] not a shared plan URL: ${url}`);
-    console.log('[agendex] expected format: https://app.agendex.dev/shared/<token>');
-    return;
+    console.error(`[agendex] not a shared plan URL: ${url}`);
+    console.error('[agendex] expected format: https://app.agendex.dev/shared/<token>');
+    return false;
   }
 
   launchBrowser(url, 'shared plan in your browser');
+  return true;
 }
