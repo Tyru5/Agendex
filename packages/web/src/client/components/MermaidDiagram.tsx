@@ -184,6 +184,11 @@ const modalExitMs = 220;
 function MermaidExpandedModal({ svg, onClose }: { svg: string; onClose: () => void }) {
   const [open, setOpen] = useState(false);
 
+  const handleClose = useCallback(() => {
+    setOpen(false);
+    setTimeout(onClose, modalExitMs);
+  }, [onClose]);
+
   useEffect(() => {
     requestAnimationFrame(() => setOpen(true));
   }, []);
@@ -194,12 +199,7 @@ function MermaidExpandedModal({ svg, onClose }: { svg: string; onClose: () => vo
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  const handleClose = useCallback(() => {
-    setOpen(false);
-    setTimeout(onClose, modalExitMs);
-  }, [onClose]);
+  }, [handleClose]);
 
   return (
     <div
