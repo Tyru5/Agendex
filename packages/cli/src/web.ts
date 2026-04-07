@@ -1,4 +1,4 @@
-import { getDefaultSiteUrl, openBrowser } from './auth.ts';
+import { getDefaultSiteUrl, launchBrowser } from './auth.ts';
 
 /**
  * Opens the Agendex web app in the system browser (same base URL rules as `agendex login`).
@@ -7,12 +7,29 @@ export async function openAgendexWeb(siteUrlOverride?: string): Promise<void> {
   const base = siteUrlOverride ?? getDefaultSiteUrl();
   const url = base.replace(/\/$/, '');
 
-  console.log('[agendex] Opening Agendex in your browser...');
-  console.log(`[agendex] If it doesn't open, visit: ${url}`);
+  launchBrowser(url, 'Agendex in your browser');
+}
 
-  if (process.env.AGENDEX_DISABLE_BROWSER === '1') {
-    console.log('[agendex] Browser launch disabled by AGENDEX_DISABLE_BROWSER=1.');
-  } else {
-    openBrowser(url);
+/**
+ * Opens a shared Agendex plan URL in the system browser.
+ * Validates the URL is well-formed and contains the `/shared/` path segment.
+ * @returns whether the browser was launched successfully
+ */
+export async function openSharedPlan(url: string): Promise<boolean> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    console.error(`[agendex] invalid URL: ${url}`);
+    return false;
   }
+
+  if (!parsed.pathname.includes('/shared/')) {
+    console.error(`[agendex] not a shared plan URL: ${url}`);
+    console.error('[agendex] expected format: https://app.agendex.dev/shared/<token>');
+    return false;
+  }
+
+  launchBrowser(url, 'shared plan in your browser');
+  return true;
 }
