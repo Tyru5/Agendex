@@ -352,6 +352,43 @@ body {
   color: inherit;
 }
 
+.plan-markdown pre code.plan-mermaid-host {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.plan-markdown .plan-mermaid-svg {
+  display: block;
+  max-width: 100%;
+}
+
+.plan-markdown .plan-mermaid-svg :is(svg) {
+  max-width: 100%;
+  height: auto;
+}
+
+.plan-markdown .plan-mermaid-loading,
+.plan-markdown .plan-mermaid-error {
+  font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--code-fg);
+}
+
+.plan-markdown .plan-mermaid-error {
+  color: #ef4444;
+}
+
+.dark .plan-markdown .plan-mermaid-error {
+  color: #f87171;
+}
+
 .plan-markdown .hljs {
   display: block;
   color: var(--code-fg);
