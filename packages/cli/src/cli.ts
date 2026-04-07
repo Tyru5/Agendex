@@ -43,6 +43,7 @@ async function main(): Promise<number> {
     'login',
     'logout',
     'open',
+    'view',
     'cleanup',
     'help',
     '--help',
@@ -63,6 +64,17 @@ async function main(): Promise<number> {
       const urlIdx = args.indexOf('--url');
       const siteUrl = urlIdx !== -1 ? args[urlIdx + 1] : undefined;
       await openAgendexWeb(siteUrl);
+      return 0;
+    }
+
+    case 'view': {
+      const url = args.find((a) => a !== 'view' && a !== '--dev' && !a.startsWith('--'));
+      if (!url) {
+        writeStderr('[agendex] usage: agendex view <shared-plan-url>');
+        return 1;
+      }
+      const { openSharedPlan } = await import('./web.ts');
+      await openSharedPlan(url);
       return 0;
     }
 
@@ -310,6 +322,7 @@ Usage:
   agendex login --url <url>  Login to a self-hosted instance
   agendex open         Open the Agendex web app in your browser
   agendex open --url <url>  Open a self-hosted instance
+  agendex view <url>   Open a shared plan URL in your browser
   agendex logout       Clear stored cloud token
   agendex configure    Select which agents/adapters to index
   agendex sync         One-shot scan + sync to cloud (skips unchanged plans)
