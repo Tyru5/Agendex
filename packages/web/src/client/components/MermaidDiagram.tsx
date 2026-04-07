@@ -238,6 +238,14 @@ function MermaidExpandedModal({ svg, onClose }: { svg: string; onClose: () => vo
           <button
             type="button"
             className="plan-mermaid-toolbar-btn"
+            onClick={() => downloadPng(svg, 'diagram.png')}
+            title="Download PNG"
+          >
+            <DownloadIcon />
+          </button>
+          <button
+            type="button"
+            className="plan-mermaid-toolbar-btn"
             onClick={handleClose}
             title="Close"
           >
