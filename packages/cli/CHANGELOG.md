@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.10.1
+
+### Patch Changes
+
+- c0c7cf0: View shared plan url command addition
+
 ## 0.10.0
 
 ### Minor Changes
