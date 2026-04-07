@@ -12,7 +12,7 @@ import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
 import { syncAll } from './sync.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
-import { openAgendexWeb } from './web.ts';
+import { openAgendexWeb, openSharedPlan } from './web.ts';
 
 const args = process.argv.slice(2);
 const devFlag = args.includes('--dev');
@@ -73,7 +73,6 @@ async function main(): Promise<number> {
         writeStderr('[agendex] usage: agendex view <shared-plan-url>');
         return 1;
       }
-      const { openSharedPlan } = await import('./web.ts');
       await openSharedPlan(url);
       return 0;
     }
