@@ -395,6 +395,7 @@ body {
 
 /* ── Mermaid interactive container ── */
 .plan-mermaid-container {
+  display: block;
   position: relative;
 }
 
@@ -411,7 +412,7 @@ body {
   top: 6px;
   right: 6px;
   z-index: 2;
-  display: flex;
+  display: inline-flex;
   gap: 4px;
   opacity: 0;
   transition: opacity 150ms ease;
@@ -439,6 +440,7 @@ body {
 }
 
 .plan-mermaid-download-wrap {
+  display: inline-flex;
   position: relative;
 }
 
@@ -446,6 +448,8 @@ body {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
+  display: flex;
+  flex-direction: column;
   min-width: 140px;
   background: var(--surface);
   border: 1px solid var(--border);

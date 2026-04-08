@@ -134,7 +134,7 @@ function MermaidDownloadControls({
   resolvedTheme: ResolvedTheme;
 }) {
   const [downloadOpen, setDownloadOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (!downloadOpen) return;
@@ -148,7 +148,7 @@ function MermaidDownloadControls({
   }, [downloadOpen]);
 
   return (
-    <div ref={menuRef} className="plan-mermaid-download-wrap">
+    <span ref={menuRef} className="plan-mermaid-download-wrap">
       <button
         type="button"
         className="plan-mermaid-toolbar-btn"
@@ -158,7 +158,7 @@ function MermaidDownloadControls({
         <DownloadIcon />
       </button>
       {downloadOpen && (
-        <div className="plan-mermaid-download-menu">
+        <span className="plan-mermaid-download-menu">
           <button
             type="button"
             className="plan-mermaid-download-item"
@@ -179,9 +179,9 @@ function MermaidDownloadControls({
           >
             Download PNG
           </button>
-        </div>
+        </span>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -195,7 +195,7 @@ function MermaidToolbar({
   resolvedTheme: ResolvedTheme;
 }) {
   return (
-    <div className="plan-mermaid-toolbar">
+    <span className="plan-mermaid-toolbar">
       <button
         type="button"
         className="plan-mermaid-toolbar-btn"
@@ -205,7 +205,7 @@ function MermaidToolbar({
         <ExpandIcon />
       </button>
       <MermaidDownloadControls svg={svg} resolvedTheme={resolvedTheme} />
-    </div>
+    </span>
   );
 }
 
@@ -370,7 +370,7 @@ export function MermaidDiagram({
   return (
     <>
       <code className={mergedClassName}>
-        <div className="plan-mermaid-container">
+        <span className="plan-mermaid-container">
           {svg && (
             <MermaidToolbar
               svg={svg}
@@ -393,7 +393,7 @@ export function MermaidDiagram({
             tabIndex={0}
             aria-label="Click to expand diagram"
           />
-        </div>
+        </span>
       </code>
       {expandedModal}
     </>
