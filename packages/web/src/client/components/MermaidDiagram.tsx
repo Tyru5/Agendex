@@ -303,6 +303,7 @@ export function MermaidDiagram({
 
     if (prevDefinitionRef.current !== definition) {
       setSvg(null);
+      setExpanded(false);
       prevDefinitionRef.current = definition;
     }
 
@@ -322,6 +323,7 @@ export function MermaidDiagram({
       } catch (e) {
         if (cancelled) return;
         setSvg(null);
+        setExpanded(false);
         setError(e instanceof Error ? e.message : 'Invalid Mermaid diagram');
       } finally {
         if (!cancelled) setBusy(false);
