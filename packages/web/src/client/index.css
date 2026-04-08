@@ -415,10 +415,13 @@ body {
   display: inline-flex;
   gap: 4px;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 150ms ease;
 }
-.plan-mermaid-container:hover .plan-mermaid-toolbar {
+.plan-mermaid-container:hover .plan-mermaid-toolbar,
+.plan-mermaid-container:focus-within .plan-mermaid-toolbar {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .plan-mermaid-toolbar-btn {
