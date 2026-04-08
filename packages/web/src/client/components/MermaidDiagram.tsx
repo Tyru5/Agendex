@@ -87,7 +87,7 @@ function downloadPng(svgHtml: string, filename: string, canvasBackground: string
     width = Math.round(Number.parseFloat(w)) * 2;
     height = Math.round(Number.parseFloat(h)) * 2;
   } else if (viewBox) {
-    const parts = viewBox.split(/\s+|,/);
+    const parts = viewBox.split(/[\s,]+/);
     if (parts[2] && parts[3]) {
       width = Math.round(Number.parseFloat(parts[2])) * 2;
       height = Math.round(Number.parseFloat(parts[3])) * 2;
@@ -125,7 +125,13 @@ function downloadPng(svgHtml: string, filename: string, canvasBackground: string
   img.src = url;
 }
 
-function MermaidDownloadControls({ svg, resolvedTheme }: { svg: string; resolvedTheme: ResolvedTheme }) {
+function MermaidDownloadControls({
+  svg,
+  resolvedTheme,
+}: {
+  svg: string;
+  resolvedTheme: ResolvedTheme;
+}) {
   const [downloadOpen, setDownloadOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
