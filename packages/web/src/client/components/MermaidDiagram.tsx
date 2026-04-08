@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { ResolvedTheme } from './ThemeProvider.tsx';
 import { useTheme } from '../hooks/useTheme.ts';
+import type { ResolvedTheme } from './ThemeProvider.tsx';
 
 function canvasBackgroundForTheme(resolvedTheme: ResolvedTheme): string {
   if (typeof document === 'undefined') {
