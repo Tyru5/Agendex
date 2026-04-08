@@ -261,7 +261,6 @@ function MermaidExpandedModal({
           transform: open ? 'scale(1)' : 'scale(0.95)',
           transition: `opacity ${modalExitMs}ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)`,
         }}
-        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 right-0 z-10 flex justify-end p-3 gap-2">
           <MermaidDownloadControls svg={svg} resolvedTheme={resolvedTheme} />
