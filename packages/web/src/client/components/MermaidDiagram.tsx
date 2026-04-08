@@ -248,12 +248,15 @@ function MermaidExpandedModal({
   }, []);
 
   useEffect(() => {
+    if (!open) return;
+
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') handleClose();
     }
+
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [handleClose]);
+  }, [handleClose, open]);
 
   return (
     <div
@@ -264,6 +267,7 @@ function MermaidExpandedModal({
       style={{
         background: 'rgba(0,0,0,0.55)',
         opacity: open ? 1 : 0,
+        pointerEvents: open ? 'auto' : 'none',
         backdropFilter: open ? 'blur(4px)' : 'blur(0px)',
         transition: `opacity ${modalExitMs}ms ease, backdrop-filter 260ms ease`,
       }}
