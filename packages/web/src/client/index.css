@@ -478,6 +478,23 @@ body {
   background: var(--hover);
 }
 
+.plan-mermaid-download-item:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.plan-mermaid-download-status {
+  display: block;
+  padding: 0 12px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #ef4444;
+}
+
+.dark .plan-mermaid-download-status {
+  color: #f87171;
+}
+
 /* ── Mermaid expanded modal ── */
 .plan-mermaid-expanded-svg :is(svg) {
   max-width: 100%;

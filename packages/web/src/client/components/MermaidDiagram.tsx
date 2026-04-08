@@ -72,11 +72,19 @@ function downloadSvg(svgHtml: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function downloadPng(svgHtml: string, filename: string, canvasBackground: string) {
+const pngDownloadErrorMessage = 'Unable to export PNG from this diagram.';
+
+async function downloadPng(
+  svgHtml: string,
+  filename: string,
+  canvasBackground: string,
+): Promise<void> {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgHtml, 'image/svg+xml');
   const svgEl = doc.querySelector('svg');
-  if (!svgEl) return;
+  if (doc.querySelector('parsererror') || !svgEl) {
+    throw new Error(pngDownloadErrorMessage);
+  }
 
   const w = svgEl.getAttribute('width');
   const h = svgEl.getAttribute('height');
@@ -85,13 +93,31 @@ function downloadPng(svgHtml: string, filename: string, canvasBackground: string
   let height = 800;
 
   if (w && h) {
-    width = Math.round(Number.parseFloat(w)) * 2;
-    height = Math.round(Number.parseFloat(h)) * 2;
+    const parsedWidth = Math.round(Number.parseFloat(w));
+    const parsedHeight = Math.round(Number.parseFloat(h));
+    if (
+      Number.isFinite(parsedWidth) &&
+      parsedWidth > 0 &&
+      Number.isFinite(parsedHeight) &&
+      parsedHeight > 0
+    ) {
+      width = parsedWidth * 2;
+      height = parsedHeight * 2;
+    }
   } else if (viewBox) {
     const parts = viewBox.split(/[\s,]+/);
     if (parts[2] && parts[3]) {
-      width = Math.round(Number.parseFloat(parts[2])) * 2;
-      height = Math.round(Number.parseFloat(parts[3])) * 2;
+      const parsedWidth = Math.round(Number.parseFloat(parts[2]));
+      const parsedHeight = Math.round(Number.parseFloat(parts[3]));
+      if (
+        Number.isFinite(parsedWidth) &&
+        parsedWidth > 0 &&
+        Number.isFinite(parsedHeight) &&
+        parsedHeight > 0
+      ) {
+        width = parsedWidth * 2;
+        height = parsedHeight * 2;
+      }
     }
   }
 
@@ -99,31 +125,50 @@ function downloadPng(svgHtml: string, filename: string, canvasBackground: string
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  if (!ctx) {
+    throw new Error(pngDownloadErrorMessage);
+  }
 
   const img = new Image();
   const svgBlob = new Blob([svgHtml], { type: 'image/svg+xml;charset=utf-8' });
   const url = URL.createObjectURL(svgBlob);
 
-  img.onload = () => {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error(pngDownloadErrorMessage));
+      img.src = url;
+    });
+
     ctx.fillStyle = canvasBackground;
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(img, 0, 0, width, height);
-    URL.revokeObjectURL(url);
-
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const pngUrl = URL.createObjectURL(blob);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((pngBlob) => {
+        if (!pngBlob) {
+          reject(new Error(pngDownloadErrorMessage));
+          return;
+        }
+        resolve(pngBlob);
+      }, 'image/png');
+    });
+    const pngUrl = URL.createObjectURL(blob);
+    try {
       const a = document.createElement('a');
       a.href = pngUrl;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+    } finally {
       URL.revokeObjectURL(pngUrl);
-    }, 'image/png');
-  };
-  img.src = url;
+    }
+  } finally {
+    img.onload = null;
+    img.onerror = null;
+    img.src = '';
+    URL.revokeObjectURL(url);
+  }
 }
 
 function MermaidDownloadControls({
@@ -134,6 +179,8 @@ function MermaidDownloadControls({
   resolvedTheme: ResolvedTheme;
 }) {
   const [downloadOpen, setDownloadOpen] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [pngDownloadBusy, setPngDownloadBusy] = useState(false);
   const menuRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -147,12 +194,20 @@ function MermaidDownloadControls({
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [downloadOpen]);
 
+  useEffect(() => {
+    if (downloadOpen) return;
+    setDownloadError(null);
+  }, [downloadOpen]);
+
   return (
     <span ref={menuRef} className="plan-mermaid-download-wrap">
       <button
         type="button"
         className="plan-mermaid-toolbar-btn"
-        onClick={() => setDownloadOpen((p) => !p)}
+        onClick={() => {
+          setDownloadError(null);
+          setDownloadOpen((p) => !p);
+        }}
         title="Download diagram"
       >
         <DownloadIcon />
@@ -163,6 +218,7 @@ function MermaidDownloadControls({
             type="button"
             className="plan-mermaid-download-item"
             onClick={() => {
+              setDownloadError(null);
               downloadSvg(svg, 'diagram.svg');
               setDownloadOpen(false);
             }}
@@ -172,13 +228,32 @@ function MermaidDownloadControls({
           <button
             type="button"
             className="plan-mermaid-download-item"
+            disabled={pngDownloadBusy}
+            aria-busy={pngDownloadBusy}
             onClick={() => {
-              downloadPng(svg, 'diagram.png', canvasBackgroundForTheme(resolvedTheme));
-              setDownloadOpen(false);
+              setDownloadError(null);
+              setPngDownloadBusy(true);
+              void downloadPng(svg, 'diagram.png', canvasBackgroundForTheme(resolvedTheme))
+                .then(() => {
+                  setDownloadOpen(false);
+                })
+                .catch((error) => {
+                  setDownloadError(
+                    error instanceof Error ? error.message : pngDownloadErrorMessage,
+                  );
+                })
+                .finally(() => {
+                  setPngDownloadBusy(false);
+                });
             }}
           >
-            Download PNG
+            {pngDownloadBusy ? 'Preparing PNG…' : 'Download PNG'}
           </button>
+          {downloadError && (
+            <output className="plan-mermaid-download-status" aria-live="polite">
+              {downloadError}
+            </output>
+          )}
         </span>
       )}
     </span>
