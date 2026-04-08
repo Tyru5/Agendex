@@ -363,6 +363,10 @@ body {
   box-sizing: border-box;
 }
 
+.plan-markdown pre:has(> code.plan-mermaid-host) {
+  overflow: visible;
+}
+
 .plan-markdown .plan-mermaid-svg {
   display: block;
   max-width: 100%;
