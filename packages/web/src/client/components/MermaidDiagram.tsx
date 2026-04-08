@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ResolvedTheme } from './ThemeProvider.tsx';
 import { useTheme } from '../hooks/useTheme.ts';
+
+function canvasBackgroundForTheme(resolvedTheme: ResolvedTheme): string {
+  if (typeof document === 'undefined') {
+    return resolvedTheme === 'dark' ? '#161616' : '#ffffff';
+  }
+  const fromCss = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim();
+  return fromCss.length > 0 ? fromCss : resolvedTheme === 'dark' ? '#161616' : '#ffffff';
+}
 
 let mermaidIdSeq = 0;
 
@@ -62,7 +71,7 @@ function downloadSvg(svgHtml: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function downloadPng(svgHtml: string, filename: string) {
+function downloadPng(svgHtml: string, filename: string, canvasBackground: string) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgHtml, 'image/svg+xml');
   const svgEl = doc.querySelector('svg');
@@ -96,7 +105,7 @@ function downloadPng(svgHtml: string, filename: string) {
   const url = URL.createObjectURL(svgBlob);
 
   img.onload = () => {
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = canvasBackground;
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(img, 0, 0, width, height);
     URL.revokeObjectURL(url);
@@ -116,7 +125,7 @@ function downloadPng(svgHtml: string, filename: string) {
   img.src = url;
 }
 
-function MermaidDownloadControls({ svg }: { svg: string }) {
+function MermaidDownloadControls({ svg, resolvedTheme }: { svg: string; resolvedTheme: ResolvedTheme }) {
   const [downloadOpen, setDownloadOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -157,7 +166,7 @@ function MermaidDownloadControls({ svg }: { svg: string }) {
             type="button"
             className="plan-mermaid-download-item"
             onClick={() => {
-              downloadPng(svg, 'diagram.png');
+              downloadPng(svg, 'diagram.png', canvasBackgroundForTheme(resolvedTheme));
               setDownloadOpen(false);
             }}
           >
@@ -169,7 +178,15 @@ function MermaidDownloadControls({ svg }: { svg: string }) {
   );
 }
 
-function MermaidToolbar({ svg, onExpand }: { svg: string; onExpand: () => void }) {
+function MermaidToolbar({
+  svg,
+  onExpand,
+  resolvedTheme,
+}: {
+  svg: string;
+  onExpand: () => void;
+  resolvedTheme: ResolvedTheme;
+}) {
   return (
     <div className="plan-mermaid-toolbar">
       <button
@@ -180,14 +197,22 @@ function MermaidToolbar({ svg, onExpand }: { svg: string; onExpand: () => void }
       >
         <ExpandIcon />
       </button>
-      <MermaidDownloadControls svg={svg} />
+      <MermaidDownloadControls svg={svg} resolvedTheme={resolvedTheme} />
     </div>
   );
 }
 
 const modalExitMs = 220;
 
-function MermaidExpandedModal({ svg, onClose }: { svg: string; onClose: () => void }) {
+function MermaidExpandedModal({
+  svg,
+  onClose,
+  resolvedTheme,
+}: {
+  svg: string;
+  onClose: () => void;
+  resolvedTheme: ResolvedTheme;
+}) {
   const [open, setOpen] = useState(false);
 
   const handleClose = useCallback(() => {
@@ -233,7 +258,7 @@ function MermaidExpandedModal({ svg, onClose }: { svg: string; onClose: () => vo
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 right-0 z-10 flex justify-end p-3 gap-2">
-          <MermaidDownloadControls svg={svg} />
+          <MermaidDownloadControls svg={svg} resolvedTheme={resolvedTheme} />
           <button
             type="button"
             className="plan-mermaid-toolbar-btn"
@@ -327,7 +352,13 @@ export function MermaidDiagram({
     <>
       <code className={mergedClassName}>
         <div className="plan-mermaid-container">
-          {svg && <MermaidToolbar svg={svg} onExpand={() => setExpanded(true)} />}
+          {svg && (
+            <MermaidToolbar
+              svg={svg}
+              onExpand={() => setExpanded(true)}
+              resolvedTheme={resolvedTheme}
+            />
+          )}
           {/* biome-ignore lint/security/noDangerouslySetInnerHtml: SVG from Mermaid (trusted renderer) */}
           <span
             className="plan-mermaid-svg plan-mermaid-clickable"
@@ -345,7 +376,13 @@ export function MermaidDiagram({
           />
         </div>
       </code>
-      {expanded && svg && <MermaidExpandedModal svg={svg} onClose={() => setExpanded(false)} />}
+      {expanded && svg && (
+        <MermaidExpandedModal
+          svg={svg}
+          onClose={() => setExpanded(false)}
+          resolvedTheme={resolvedTheme}
+        />
+      )}
     </>
   );
 }
