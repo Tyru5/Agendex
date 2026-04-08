@@ -221,14 +221,30 @@ function MermaidExpandedModal({
   resolvedTheme: ResolvedTheme;
 }) {
   const [open, setOpen] = useState(false);
+  const closeTimeoutRef = useRef<number | null>(null);
+  const closeRequestedRef = useRef(false);
 
   const handleClose = useCallback(() => {
+    if (closeRequestedRef.current) return;
+    closeRequestedRef.current = true;
     setOpen(false);
-    setTimeout(onClose, modalExitMs);
+    closeTimeoutRef.current = window.setTimeout(() => {
+      closeTimeoutRef.current = null;
+      onClose();
+    }, modalExitMs);
   }, [onClose]);
 
   useEffect(() => {
-    requestAnimationFrame(() => setOpen(true));
+    const animationFrame = requestAnimationFrame(() => setOpen(true));
+    return () => cancelAnimationFrame(animationFrame);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current !== null) {
+        window.clearTimeout(closeTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
