@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ResolvedTheme } from './ThemeProvider.tsx';
 import { useTheme } from '../hooks/useTheme.ts';
 
@@ -338,6 +339,17 @@ export function MermaidDiagram({
   }, [definition, domId, resolvedTheme]);
 
   const mergedClassName = [className, 'plan-mermaid-host'].filter(Boolean).join(' ');
+  const expandedModal =
+    expanded && svg && typeof document !== 'undefined'
+      ? createPortal(
+          <MermaidExpandedModal
+            svg={svg}
+            onClose={() => setExpanded(false)}
+            resolvedTheme={resolvedTheme}
+          />,
+          document.body,
+        )
+      : null;
 
   if (error) {
     return (
@@ -383,13 +395,7 @@ export function MermaidDiagram({
           />
         </div>
       </code>
-      {expanded && svg && (
-        <MermaidExpandedModal
-          svg={svg}
-          onClose={() => setExpanded(false)}
-          resolvedTheme={resolvedTheme}
-        />
-      )}
+      {expandedModal}
     </>
   );
 }
