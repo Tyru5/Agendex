@@ -356,11 +356,15 @@ body {
   display: block;
   width: 100%;
   max-width: 100%;
-  overflow-x: auto;
+  overflow: visible;
   background: transparent;
   padding: 0;
   margin: 0;
   box-sizing: border-box;
+}
+
+.plan-markdown pre:has(> code.plan-mermaid-host) {
+  overflow: visible;
 }
 
 .plan-markdown .plan-mermaid-svg {
@@ -387,6 +391,115 @@ body {
 
 .dark .plan-markdown .plan-mermaid-error {
   color: #f87171;
+}
+
+/* ── Mermaid interactive container ── */
+.plan-mermaid-container {
+  display: block;
+  position: relative;
+}
+
+.plan-mermaid-clickable {
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+.plan-mermaid-clickable:hover {
+  opacity: 0.85;
+}
+
+.plan-mermaid-toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: inline-flex;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+.plan-mermaid-container:hover .plan-mermaid-toolbar,
+.plan-mermaid-container:focus-within .plan-mermaid-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.plan-mermaid-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.plan-mermaid-toolbar-btn:hover {
+  background: var(--hover);
+  color: var(--text-primary);
+}
+
+.plan-mermaid-download-wrap {
+  display: inline-flex;
+  position: relative;
+}
+
+.plan-mermaid-download-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  z-index: 10;
+}
+
+.plan-mermaid-download-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+.plan-mermaid-download-item:hover {
+  background: var(--hover);
+}
+
+.plan-mermaid-download-item:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.plan-mermaid-download-status {
+  display: block;
+  padding: 0 12px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #ef4444;
+}
+
+.dark .plan-mermaid-download-status {
+  color: #f87171;
+}
+
+/* ── Mermaid expanded modal ── */
+.plan-mermaid-expanded-svg :is(svg) {
+  max-width: 100%;
+  max-height: 75vh;
+  height: auto;
 }
 
 .plan-markdown .hljs {
