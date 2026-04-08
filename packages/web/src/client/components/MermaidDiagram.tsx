@@ -116,7 +116,7 @@ function downloadPng(svgHtml: string, filename: string) {
   img.src = url;
 }
 
-function MermaidToolbar({ svg, onExpand }: { svg: string; onExpand: () => void }) {
+function MermaidDownloadControls({ svg }: { svg: string }) {
   const [downloadOpen, setDownloadOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -132,6 +132,45 @@ function MermaidToolbar({ svg, onExpand }: { svg: string; onExpand: () => void }
   }, [downloadOpen]);
 
   return (
+    <div ref={menuRef} className="plan-mermaid-download-wrap">
+      <button
+        type="button"
+        className="plan-mermaid-toolbar-btn"
+        onClick={() => setDownloadOpen((p) => !p)}
+        title="Download diagram"
+      >
+        <DownloadIcon />
+      </button>
+      {downloadOpen && (
+        <div className="plan-mermaid-download-menu">
+          <button
+            type="button"
+            className="plan-mermaid-download-item"
+            onClick={() => {
+              downloadSvg(svg, 'diagram.svg');
+              setDownloadOpen(false);
+            }}
+          >
+            Download SVG
+          </button>
+          <button
+            type="button"
+            className="plan-mermaid-download-item"
+            onClick={() => {
+              downloadPng(svg, 'diagram.png');
+              setDownloadOpen(false);
+            }}
+          >
+            Download PNG
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MermaidToolbar({ svg, onExpand }: { svg: string; onExpand: () => void }) {
+  return (
     <div className="plan-mermaid-toolbar">
       <button
         type="button"
@@ -141,40 +180,7 @@ function MermaidToolbar({ svg, onExpand }: { svg: string; onExpand: () => void }
       >
         <ExpandIcon />
       </button>
-      <div ref={menuRef} className="plan-mermaid-download-wrap">
-        <button
-          type="button"
-          className="plan-mermaid-toolbar-btn"
-          onClick={() => setDownloadOpen((p) => !p)}
-          title="Download diagram"
-        >
-          <DownloadIcon />
-        </button>
-        {downloadOpen && (
-          <div className="plan-mermaid-download-menu">
-            <button
-              type="button"
-              className="plan-mermaid-download-item"
-              onClick={() => {
-                downloadSvg(svg, 'diagram.svg');
-                setDownloadOpen(false);
-              }}
-            >
-              Download SVG
-            </button>
-            <button
-              type="button"
-              className="plan-mermaid-download-item"
-              onClick={() => {
-                downloadPng(svg, 'diagram.png');
-                setDownloadOpen(false);
-              }}
-            >
-              Download PNG
-            </button>
-          </div>
-        )}
-      </div>
+      <MermaidDownloadControls svg={svg} />
     </div>
   );
 }
@@ -227,22 +233,7 @@ function MermaidExpandedModal({ svg, onClose }: { svg: string; onClose: () => vo
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 right-0 z-10 flex justify-end p-3 gap-2">
-          <button
-            type="button"
-            className="plan-mermaid-toolbar-btn"
-            onClick={() => downloadSvg(svg, 'diagram.svg')}
-            title="Download SVG"
-          >
-            <DownloadIcon />
-          </button>
-          <button
-            type="button"
-            className="plan-mermaid-toolbar-btn"
-            onClick={() => downloadPng(svg, 'diagram.png')}
-            title="Download PNG"
-          >
-            <DownloadIcon />
-          </button>
+          <MermaidDownloadControls svg={svg} />
           <button
             type="button"
             className="plan-mermaid-toolbar-btn"
