@@ -37,6 +37,7 @@ export function seedSeen(plans: { id: string; updatedAt: string }[]) {
     const seeded: SeenMap = {};
     for (const p of plans) seeded[p.id] = p.updatedAt;
     write(seeded);
+    return;
   }
 }
 
@@ -54,6 +55,14 @@ export function useSeenPlans() {
     write({ ...current, [planId]: updatedAt });
   }, []);
 
+  const markUnseen = useCallback((planId: string) => {
+    const current = snapshot();
+    if (!(planId in current)) return;
+    const next = { ...current };
+    delete next[planId];
+    write(next);
+  }, []);
+
   const markAllSeen = useCallback((plans: { id: string; updatedAt: string }[]) => {
     const current = snapshot();
     const next = { ...current };
@@ -67,5 +76,5 @@ export function useSeenPlans() {
     if (changed) write(next);
   }, []);
 
-  return { isUnseen, markSeen, markAllSeen };
+  return { isUnseen, markSeen, markUnseen, markAllSeen };
 }

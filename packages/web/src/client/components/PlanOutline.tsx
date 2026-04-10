@@ -1,22 +1,29 @@
 import { useScrollSpy } from '../hooks/useScrollSpy.ts';
 import type { OutlineEntry } from '../lib/extract-headings.ts';
+import { getVerticalScrollContainer, isViewportScrollContainer } from '../lib/scroll-container.ts';
 
-export function PlanOutline({ entries }: { entries: OutlineEntry[] }) {
+export function PlanOutline({ entries, pinned }: { entries: OutlineEntry[]; pinned?: boolean }) {
   const activeId = useScrollSpy(entries.map((entry) => entry.id));
 
   const scrollTo = (id: string) => {
-    const container = document.querySelector('.main-scroll');
     const target =
       document.querySelector(`[data-agendex-anchor="${id}"]`) ?? document.getElementById(id);
-    if (!container || !target) return;
+    if (!target) return;
+    const container = getVerticalScrollContainer(target);
+    const offset = 24;
+    if (isViewportScrollContainer(container)) {
+      const top = target.getBoundingClientRect().top + container.scrollTop - offset;
+      container.scrollTo({ top, behavior: 'smooth' });
+      return;
+    }
     const containerRect = container.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
-    const top = targetRect.top - containerRect.top + container.scrollTop - 24;
+    const top = targetRect.top - containerRect.top + container.scrollTop - offset;
     container.scrollTo({ top, behavior: 'smooth' });
   };
 
   return (
-    <div className="plan-outline-dock">
+    <div className="plan-outline-dock" data-pinned={pinned || undefined}>
       {/* Visible hint — tiny pills showing structure exists */}
       <div className="plan-outline-hint" aria-hidden="true">
         {entries.slice(0, 5).map((entry) => (

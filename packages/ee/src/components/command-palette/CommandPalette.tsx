@@ -1,4 +1,11 @@
-import { AgentIcon, getAgentLabel, type Plan, useSeenPlans, useTheme } from '@agendex/web';
+import {
+  AgentIcon,
+  getAgentLabel,
+  type Plan,
+  type PlanState,
+  usePlanState,
+  useTheme,
+} from '@agendex/web';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Command, type FlatItem, useCommandItems } from './useCommandItems';
 
@@ -10,6 +17,7 @@ export function CommandPalette({
   onSelectPlan,
   isPro,
   mode,
+  hideTrigger = false,
   onNewPlan,
   onUpload,
   onHistory,
@@ -18,6 +26,8 @@ export function CommandPalette({
   splitPlanId,
   onOpenInSplitView,
   onCloseSplit,
+  planState: planStateProp,
+  onToggleOutline,
 }: {
   search: string;
   onSearch: (q: string) => void;
@@ -26,6 +36,7 @@ export function CommandPalette({
   onSelectPlan: (plan: Plan) => void;
   isPro: boolean;
   mode: 'local' | 'cloud';
+  hideTrigger?: boolean;
   onNewPlan: () => void;
   onUpload: () => void;
   onHistory: () => void;
@@ -34,6 +45,8 @@ export function CommandPalette({
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
   onCloseSplit?: () => void;
+  planState?: PlanState;
+  onToggleOutline?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -41,17 +54,20 @@ export function CommandPalette({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame>>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { isUnseen, markSeen } = useSeenPlans();
+  const localPlanState = usePlanState();
+  const planState = planStateProp ?? localPlanState;
   const { resolvedTheme, setTheme } = useTheme();
   const modalExitMs = 220;
 
   const isMac = useMemo(() => {
     if (typeof navigator === 'undefined') return true;
+
     const platform =
       (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
         ?.platform ??
       navigator.platform ??
       '';
+
     return /Mac|iPhone|iPad/i.test(platform);
   }, []);
 
@@ -64,6 +80,7 @@ export function CommandPalette({
   const openModal = useCallback(() => {
     clearCloseTimer();
     if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
+
     setMounted(true);
     openFrameRef.current = requestAnimationFrame(() => {
       setOpen(true);
@@ -74,6 +91,7 @@ export function CommandPalette({
     if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
     setOpen(false);
     clearCloseTimer();
+
     closeTimerRef.current = setTimeout(() => {
       setMounted(false);
       closeTimerRef.current = undefined;
@@ -91,6 +109,7 @@ export function CommandPalette({
       }
     }
     window.addEventListener('keydown', onKeyDown);
+
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [closeModal, openModal]);
 
@@ -141,6 +160,17 @@ export function CommandPalette({
         }
       },
     });
+
+    if (onToggleOutline) {
+      cmds.push({
+        id: 'toggle-outline',
+        label: 'Toggle Outline',
+        group: 'actions',
+        icon: <OutlineIcon />,
+        footerHint: 'Show or hide plan outline (⇧⌘O)',
+        action: onToggleOutline,
+      });
+    }
 
     cmds.push({
       id: 'manage-history',
@@ -202,7 +232,7 @@ export function CommandPalette({
       group: 'support',
       icon: <BookIcon />,
       footerHint: 'Open documentation',
-      action: () => window.open('https://agendex.dev/docs', '_blank'),
+      action: () => window.open('https://github.com/Tyru5/Agendex/blob/main/README.md', '_blank'),
     });
 
     cmds.push({
@@ -211,7 +241,11 @@ export function CommandPalette({
       group: 'support',
       icon: <FlagIcon />,
       footerHint: 'Report a bug or issue',
-      action: () => window.open('https://github.com/agendex/agendex/issues', '_blank'),
+      action: () =>
+        window.open(
+          'https://github.com/Tyru5/Agendex/issues?q=sort%3Aupdated-desc+is%3Aissue+is%3Aopen',
+          '_blank',
+        ),
     });
 
     return cmds;
@@ -228,6 +262,7 @@ export function CommandPalette({
     onShowPricing,
     onSearch,
     toggleTheme,
+    onToggleOutline,
   ]);
 
   const {
@@ -263,16 +298,21 @@ export function CommandPalette({
       }
       return -1;
     },
+
     [focusableItems],
   );
 
   useEffect(() => {
     if (focusedIndex < 0) return;
+
     const container = scrollRef.current;
     const el = container?.querySelector('[data-focused="true"]') as HTMLElement | null;
+
     if (!container || !el) return;
+
     const cRect = container.getBoundingClientRect();
     const eRect = el.getBoundingClientRect();
+
     if (eRect.bottom > cRect.bottom) {
       container.scrollTop += eRect.bottom - cRect.bottom + 8;
     } else if (eRect.top < cRect.top) {
@@ -282,19 +322,21 @@ export function CommandPalette({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openModal}
-        className="flex items-center gap-2 rounded-lg py-[5px] px-2 border border-border bg-transparent min-w-0 w-full max-w-[150px] overflow-hidden text-secondary cursor-pointer"
-      >
-        <SearchIcon />
-        <span className="text-[12px] flex-1 min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis">
-          Search
-        </span>
-        <kbd className="font-[inherit] text-[10px] leading-none shrink-0 text-tertiary border border-border rounded-[4px] py-[3px] px-1 bg-hover">
-          {isMac ? '⌘K' : 'Ctrl+K'}
-        </kbd>
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={openModal}
+          className="flex items-center gap-2 rounded-lg py-[5px] px-2 border border-border bg-transparent min-w-0 w-full max-w-[150px] overflow-hidden text-secondary cursor-pointer"
+        >
+          <SearchIcon />
+          <span className="text-[12px] flex-1 min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis">
+            Search
+          </span>
+          <kbd className="font-[inherit] text-[10px] leading-none shrink-0 text-tertiary border border-border rounded-[4px] py-[3px] px-1 bg-hover">
+            {isMac ? '⌘K' : 'Ctrl+K'}
+          </kbd>
+        </button>
+      )}
 
       {mounted && (
         <div
@@ -404,7 +446,7 @@ export function CommandPalette({
                     const fi = getFocusableIndex(item);
                     const focused = fi === focusedIndex;
                     const unseen =
-                      isPro && isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId;
+                      planState.isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId;
 
                     return (
                       <div
@@ -423,7 +465,7 @@ export function CommandPalette({
                                 : 'transparent',
                           }}
                           onClick={() => {
-                            if (isPro) markSeen(plan.id, plan.updatedAt);
+                            planState.markSeen(plan.id, plan.updatedAt);
                             onSelectPlan(plan);
                             closeModal();
                           }}
@@ -449,7 +491,7 @@ export function CommandPalette({
                           <button
                             type="button"
                             onClick={() => {
-                              if (isPro) markSeen(plan.id, plan.updatedAt);
+                              planState.markSeen(plan.id, plan.updatedAt);
                               onOpenInSplitView(plan);
                               closeModal();
                             }}
@@ -740,6 +782,26 @@ function FlagIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5"
+      />
+    </svg>
+  );
+}
+
+function OutlineIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      className="w-[14px] h-[14px]"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
       />
     </svg>
   );

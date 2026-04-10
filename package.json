@@ -15,6 +15,7 @@
     "cli": "bun run --cwd ./packages/cli src/cli.ts",
     "cli:start": "bun run --cwd ./packages/cli src/cli.ts start",
     "cli:login": "bun run --cwd ./packages/cli src/cli.ts login",
+    "cli:open": "bun run --cwd ./packages/cli src/cli.ts open",
     "cli:configure": "bun run --cwd ./packages/cli src/cli.ts configure",
     "cli:sync": "bun run --cwd ./packages/cli src/cli.ts sync",
     "cli:stop": "bun run --cwd ./packages/cli src/cli.ts stop",
@@ -38,6 +39,7 @@
     "@types/bun": "^1.3.9",
     "@types/node": "^24.3.1",
     "@types/mdast": "^4.0.4",
+    "convex": "^1.34.1",
     "typescript": "^5"
   }
 }

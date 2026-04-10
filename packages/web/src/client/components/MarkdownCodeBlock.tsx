@@ -2,6 +2,7 @@ import type { LanguageFn } from 'highlight.js';
 import hljs from 'highlight.js/lib/core';
 import { useEffect, useMemo, useState } from 'react';
 import supportedLanguagesTable from '../../../node_modules/highlight.js/SUPPORTED_LANGUAGES.md?raw';
+import { MermaidDiagram } from './MermaidDiagram.tsx';
 
 type LanguageModule = {
   default: LanguageFn;
@@ -92,6 +93,11 @@ function buildLanguageAliases(
   aliases['obj-c++'] = 'objectivec';
 
   return aliases;
+}
+
+function isMermaidLanguage(language?: string): boolean {
+  if (!language) return false;
+  return normalizeLanguageLabel(language) === 'mermaid';
 }
 
 function resolveLanguageName(language?: string): string | undefined {
@@ -206,13 +212,16 @@ export function MarkdownCodeBlock({
   className?: string;
   language?: string;
 }) {
+  const isMermaid = isMermaidLanguage(language);
   const plainHtml = useMemo(() => escapeHtml(code), [code]);
   const [highlightedHtml, setHighlightedHtml] = useState(plainHtml);
   const [resolvedLanguage, setResolvedLanguage] = useState<string | undefined>(() =>
-    resolveLanguageName(language),
+    isMermaid ? undefined : resolveLanguageName(language),
   );
 
   useEffect(() => {
+    if (isMermaid) return;
+
     let cancelled = false;
 
     async function run() {
@@ -227,7 +236,11 @@ export function MarkdownCodeBlock({
     return () => {
       cancelled = true;
     };
-  }, [code, language]);
+  }, [code, language, isMermaid]);
+
+  if (isMermaid) {
+    return <MermaidDiagram className={className} code={code} />;
+  }
 
   const mergedClassName = [
     className,

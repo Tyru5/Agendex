@@ -7,19 +7,21 @@ import {
   OfflineView,
   type Plan,
   PlanList,
+  type PlanState,
   PlanViewer,
   SidebarFilters,
   SkeletonBlock,
   startViewTransition,
   useAgents,
   useBackendStatus,
+  usePlanState,
   usePlans,
-  useSeenPlans,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
+import { useHotkey } from '@tanstack/react-hotkeys';
 import {
   lazy,
   Suspense,
@@ -50,11 +52,13 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { useAuth } from './hooks/useAuth.ts';
+import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { APP_URL } from './lib/auth-client.ts';
+import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
 const PlanEditor = lazy(() =>
   import('@agendex/web').then((m) => ({
@@ -125,6 +129,8 @@ function useDashboardData(
   selectedTags: string[],
   selectedCollection: string | undefined,
   isPro: boolean,
+  localPlanState: PlanState,
+  cloudPlanState: PlanState,
 ) {
   const localEnabled = mode === 'local';
   const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
@@ -174,10 +180,12 @@ function useDashboardData(
       : 'skip',
   );
 
-  const { isUnseen } = useSeenPlans();
   const hasUnseenPlans = useMemo(
-    () => plans.some((p) => isUnseen(p.id, p.updatedAt)),
-    [plans, isUnseen],
+    () =>
+      plans.some((plan) =>
+        (mode === 'cloud' ? cloudPlanState : localPlanState).isUnseen(plan.id, plan.updatedAt),
+      ),
+    [plans, mode, cloudPlanState, localPlanState],
   );
 
   const collectionPlanIdSet = useMemo(
@@ -269,6 +277,7 @@ function useDashboardData(
     allCollections,
     filteredPlans,
     hasUnseenPlans,
+    planState: mode === 'cloud' ? cloudPlanState : localPlanState,
     totalPlans,
     activeAgents,
     backendIndicator,
@@ -327,12 +336,11 @@ function DashboardMain({
   onShare,
   onCloseShare,
   onChartWideChange,
-  onSwitchLocal,
   onSearch,
-  onRescan,
   isSplitView,
   splitPlan,
   onCloseSplit,
+  outlineHidden,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -353,12 +361,11 @@ function DashboardMain({
   onShare: () => void;
   onCloseShare: () => void;
   onChartWideChange: (wide: boolean) => void;
-  onSwitchLocal: () => void;
   onSearch: () => void;
-  onRescan: () => Promise<void>;
   isSplitView?: boolean;
   splitPlan?: Plan;
   onCloseSplit?: () => void;
+  outlineHidden?: boolean;
 }) {
   if (
     isSplitView &&
@@ -462,7 +469,7 @@ function DashboardMain({
       style={{ viewTransitionName: 'main-content' }}
     >
       {mode === 'cloud' && !isPro ? (
-        <CloudUpgrade onSwitchLocal={onSwitchLocal} />
+        <CloudUpgrade />
       ) : mode === 'cloud' && backendStatus === 'checking' ? (
         <BootLoadingView message="Connecting to cloud..." fullscreen={false} />
       ) : backendStatus === 'offline' ? (
@@ -531,6 +538,7 @@ function DashboardMain({
               onHistory={isPro ? onHistory : undefined}
               onShare={isPro ? onShare : undefined}
               headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
+              outlineHidden={outlineHidden}
             />
             {isPro && mode === 'cloud' && (
               <div className="max-w-[720px] mx-auto px-8 pb-16">
@@ -543,12 +551,7 @@ function DashboardMain({
           </>
         )
       ) : (
-        <EmptyStateView
-          onSearch={onSearch}
-          onRescan={onRescan}
-          planCount={totalPlans}
-          agents={agents}
-        />
+        <EmptyStateView onSearch={onSearch} planCount={totalPlans} agents={agents} />
       )}
     </div>
   );
@@ -585,6 +588,7 @@ function DashboardSidebar({
   onUpload,
   splitPlanId,
   onOpenInSplitView,
+  planState,
 }: {
   sidebarHidden: boolean;
   sidebarVisible: boolean;
@@ -616,6 +620,7 @@ function DashboardSidebar({
   onUpload: () => void;
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
+  planState: PlanState;
 }) {
   return (
     <aside
@@ -763,6 +768,7 @@ function DashboardSidebar({
             isPro={isPro}
             splitPlanId={splitPlanId}
             onOpenInSplitView={onOpenInSplitView}
+            planState={planState}
           />
         )}
       </div>
@@ -777,9 +783,9 @@ type DashState = {
   selectedCollection: string | undefined;
   activePanel: Panel;
   showPricingModal: boolean;
-  mode: DashboardMode;
   sidebarHidden: boolean;
   sidebarPeek: boolean;
+  outlineHidden: boolean;
 };
 
 type DashAction =
@@ -787,10 +793,10 @@ type DashAction =
   | { type: 'SET_COLLECTION'; value: string | undefined }
   | { type: 'SET_PANEL'; value: Panel }
   | { type: 'SET_PRICING_MODAL'; value: boolean }
-  | { type: 'SET_MODE'; value: DashboardMode }
   | { type: 'SET_SIDEBAR_HIDDEN'; value: boolean }
   | { type: 'TOGGLE_SIDEBAR' }
-  | { type: 'SET_SIDEBAR_PEEK'; value: boolean };
+  | { type: 'SET_SIDEBAR_PEEK'; value: boolean }
+  | { type: 'TOGGLE_OUTLINE' };
 
 function dashReducer(s: DashState, a: DashAction): DashState {
   switch (a.type) {
@@ -802,14 +808,14 @@ function dashReducer(s: DashState, a: DashAction): DashState {
       return { ...s, activePanel: a.value };
     case 'SET_PRICING_MODAL':
       return { ...s, showPricingModal: a.value };
-    case 'SET_MODE':
-      return { ...s, mode: a.value };
     case 'SET_SIDEBAR_HIDDEN':
       return { ...s, sidebarHidden: a.value, sidebarPeek: false };
     case 'TOGGLE_SIDEBAR':
       return { ...s, sidebarHidden: !s.sidebarHidden, sidebarPeek: false };
     case 'SET_SIDEBAR_PEEK':
       return { ...s, sidebarPeek: a.value };
+    case 'TOGGLE_OUTLINE':
+      return { ...s, outlineHidden: !s.outlineHidden };
   }
 }
 
@@ -857,9 +863,9 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     selectedCollection: undefined,
     activePanel: null,
     showPricingModal: false,
-    mode: autoMode,
     sidebarHidden: localStorage.getItem(SIDEBAR_PREF_KEY) === 'true',
     sidebarPeek: false,
+    outlineHidden: localStorage.getItem(OUTLINE_PREF_STORAGE_KEY) === 'true',
   });
 
   const {
@@ -867,16 +873,16 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     selectedCollection,
     activePanel,
     showPricingModal,
-    mode,
     sidebarHidden,
     sidebarPeek,
+    outlineHidden,
   } = ds;
+  const mode = autoMode;
   const setSelectedTags = (v: string[]) => dsd({ type: 'SET_TAGS', value: v });
   const setSelectedCollection = (v: string | undefined) =>
     dsd({ type: 'SET_COLLECTION', value: v });
   const setActivePanel = useCallback((v: Panel) => dsd({ type: 'SET_PANEL', value: v }), []);
   const setShowPricingModal = (v: boolean) => dsd({ type: 'SET_PRICING_MODAL', value: v });
-  const setMode = useCallback((v: DashboardMode) => dsd({ type: 'SET_MODE', value: v }), []);
   const setSidebarHidden = (v: boolean) => dsd({ type: 'SET_SIDEBAR_HIDDEN', value: v });
   const setSidebarPeek = (v: boolean) => dsd({ type: 'SET_SIDEBAR_PEEK', value: v });
 
@@ -887,6 +893,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const sharing = activePanel === 'sharing';
   const sidebarBeforeWide = useRef<boolean | null>(null);
   const { isActive: isPro } = useSubscription();
+  const localPlanState = usePlanState();
+  const cloudPlanState = useCloudPlanPreferences();
 
   const {
     agents,
@@ -899,6 +907,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     allCollections,
     filteredPlans,
     hasUnseenPlans,
+    planState,
     totalPlans,
     activeAgents,
     backendIndicator,
@@ -913,6 +922,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     selectedTags,
     selectedCollection,
     isPro,
+    localPlanState,
+    cloudPlanState,
   );
 
   const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
@@ -924,17 +935,14 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const peek = useSidebarPeek(sidebarHidden, setSidebarPeek);
   const [optimisticSelectedPlan, setOptimisticSelectedPlan] = useState<Plan | undefined>(undefined);
-  const previousAutoMode = useRef(autoMode);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
   }, [sidebarHidden]);
 
   useEffect(() => {
-    if (previousAutoMode.current === autoMode) return;
-    previousAutoMode.current = autoMode;
-    setMode(autoMode);
-  }, [autoMode, setMode]);
+    localStorage.setItem(OUTLINE_PREF_STORAGE_KEY, outlineHidden ? 'true' : 'false');
+  }, [outlineHidden]);
 
   const selectedPlan = useMemo(() => {
     if (selectedPlanId) {
@@ -1030,6 +1038,13 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     dsd({ type: 'TOGGLE_SIDEBAR' });
   }
 
+  function toggleOutline() {
+    dsd({ type: 'TOGGLE_OUTLINE' });
+  }
+
+  useHotkey('Mod+B', toggleSidebar);
+  useHotkey('Mod+Shift+O', toggleOutline);
+
   function handleNewPlan() {
     if (isPro) {
       startViewTransition(() => setActivePanel('creating'));
@@ -1079,7 +1094,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onSelectPlan={setSelectedPlan}
         onNewPlan={handleNewPlan}
         onUpload={handleUpload}
-        onToggleMode={() => setMode(mode === 'local' ? 'cloud' : 'local')}
         onHistory={() => startViewTransition(() => setActivePanel('history'))}
         onNavigate={(path: string) => startViewTransition(() => navigate(path))}
         daemonDevices={daemonDevices}
@@ -1088,6 +1102,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         splitPlanId={splitPlanId ?? undefined}
         onOpenInSplitView={openPlanInSplitView}
         onCloseSplit={splitPlanId ? closeSplitView : undefined}
+        planState={planState}
+        onToggleOutline={toggleOutline}
       />
 
       {sidebarHidden && (
@@ -1135,6 +1151,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onUpload={handleUpload}
         splitPlanId={splitPlanId ?? undefined}
         onOpenInSplitView={(plan: Plan) => startViewTransition(() => openPlanInSplitView(plan))}
+        planState={planState}
       />
 
       <DashboardMain
@@ -1163,18 +1180,15 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onShare={() => setActivePanel('sharing')}
         onCloseShare={() => setActivePanel(null)}
         onChartWideChange={handleChartWideChange}
-        onSwitchLocal={() => setMode('local')}
         onSearch={() => {
           window.dispatchEvent(
             new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }),
           );
         }}
-        onRescan={async () => {
-          await refresh();
-        }}
         isSplitView={isSplitView}
         splitPlan={splitPlan}
         onCloseSplit={closeSplitView}
+        outlineHidden={outlineHidden}
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}

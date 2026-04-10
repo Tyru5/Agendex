@@ -1,4 +1,4 @@
-import { type Plan, ThemeToggle } from '@agendex/web';
+import { type Plan, type PlanState, ThemeToggle } from '@agendex/web';
 import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
 import { AuthButton } from './AuthButton';
 import { CommandPalette } from './command-palette/CommandPalette';
@@ -28,7 +28,6 @@ export function DashboardTopbar({
   onSelectPlan,
   onNewPlan,
   onUpload,
-  onToggleMode,
   onHistory,
   onNavigate,
   daemonDevices,
@@ -37,6 +36,8 @@ export function DashboardTopbar({
   splitPlanId,
   onOpenInSplitView,
   onCloseSplit,
+  planState,
+  onToggleOutline,
 }: {
   sidebarPinnedOpen: boolean;
   sidebarHidden: boolean;
@@ -56,7 +57,6 @@ export function DashboardTopbar({
   onSelectPlan: (p: Plan | undefined) => void;
   onNewPlan: () => void;
   onUpload: () => void;
-  onToggleMode: () => void;
   onHistory: () => void;
   onNavigate: (path: string) => void;
   daemonDevices: DaemonDeviceInfo[];
@@ -65,6 +65,8 @@ export function DashboardTopbar({
   splitPlanId?: string;
   onOpenInSplitView: (plan: Plan) => void;
   onCloseSplit?: () => void;
+  planState: PlanState;
+  onToggleOutline?: () => void;
 }) {
   return (
     <div
@@ -82,6 +84,7 @@ export function DashboardTopbar({
         onToggleSidebar={onToggleSidebar}
         onNewPlan={onNewPlan}
         onUpload={onUpload}
+        onLogoClick={() => onSelectPlan(undefined)}
       />
 
       <div className="hidden md:flex flex-1 min-w-0 justify-center">
@@ -101,6 +104,8 @@ export function DashboardTopbar({
           splitPlanId={splitPlanId}
           onOpenInSplitView={onOpenInSplitView}
           onCloseSplit={onCloseSplit}
+          planState={planState}
+          onToggleOutline={onToggleOutline}
         />
       </div>
 
@@ -116,7 +121,6 @@ export function DashboardTopbar({
           backendIndicator={backendIndicator}
           totalPlans={totalPlans}
           activeAgents={activeAgents}
-          onToggleMode={onToggleMode}
         />
       </div>
     </div>

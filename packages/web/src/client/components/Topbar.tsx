@@ -1,3 +1,4 @@
+import { formatForDisplay } from '@tanstack/react-hotkeys';
 import { useMemo } from 'react';
 import type { AgentStats, Plan } from '../lib/api.ts';
 import { SIDEBAR_EXPANDED_WIDTH } from '../lib/constants.ts';
@@ -33,6 +34,8 @@ interface TopbarProps {
   plans: Plan[];
   selectedPlan?: Plan;
   onSelectPlan: (plan: Plan | undefined) => void;
+  splitPlanId?: string;
+  onOpenInSplitView?: (plan: Plan) => void;
   totalPlans: number;
   activeAgents: number;
   backendStatus: 'online' | 'offline' | 'checking';
@@ -48,11 +51,15 @@ export function Topbar({
   plans,
   selectedPlan,
   onSelectPlan,
+  splitPlanId,
+  onOpenInSplitView,
   totalPlans,
   activeAgents,
   backendStatus,
   height,
 }: TopbarProps) {
+  const shortcutLabel = formatForDisplay('Mod+B');
+
   const backendIndicator = useMemo(() => {
     if (backendStatus === 'online') return { label: 'Live', color: '#22c55e' };
     if (backendStatus === 'checking') return { label: 'Checking', color: '#f59e0b' };
@@ -81,8 +88,8 @@ export function Topbar({
           <button
             type="button"
             onClick={onToggleSidebar}
-            aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
-            title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+            aria-label={`${sidebarHidden ? 'Show' : 'Hide'} sidebar (${shortcutLabel})`}
+            title={`${sidebarHidden ? 'Show' : 'Hide'} sidebar (${shortcutLabel})`}
             className="w-[30px] h-[30px] rounded-lg border border-border text-text cursor-pointer flex items-center justify-center"
             style={{
               background: sidebarHidden ? 'var(--hover)' : 'transparent',
@@ -91,9 +98,13 @@ export function Topbar({
             <SidebarToggleIcon hidden={sidebarHidden} />
           </button>
         </div>
-        <span className="font-semibold text-sm tracking-[-0.02em] text-text whitespace-nowrap">
-          Agendex
-        </span>
+        <button
+          type="button"
+          onClick={() => onSelectPlan(undefined)}
+          className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[-0.02em] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
+        >
+          Agendex<span style={{ color: '#c8ff32' }}>.</span>
+        </button>
       </div>
 
       <div className="hidden md:flex min-w-0 justify-center">
@@ -103,6 +114,8 @@ export function Topbar({
           plans={plans}
           selectedId={selectedPlan?.id}
           onSelectPlan={onSelectPlan}
+          splitPlanId={splitPlanId}
+          onOpenInSplitView={onOpenInSplitView}
         />
       </div>
 

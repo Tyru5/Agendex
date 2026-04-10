@@ -1,10 +1,58 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
-import { httpAction, internalMutation, internalQuery, query } from './_generated/server';
+import type { Doc } from './_generated/dataModel';
+import { httpAction, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent, createAuth } from './auth';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+}
+
+async function authenticateRequest(
+  ctx: { runQuery: typeof import('./_generated/server').query extends never ? never : any },
+  request: Request,
+): Promise<{ ownerId: string } | Response> {
+  const auth = createAuth(ctx as any);
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user) {
+    return jsonResponse({ error: 'Unauthorized' }, 401);
+  }
+  return { ownerId: String(session.user.id) };
+}
+
+interface HeartbeatDevice {
+  lastSeenAt: number;
+  deviceId: string | null;
+  hostname: string | null;
+  startedAtMs: number | null;
+  pid: number | null;
+}
+
+function collectDevices(
+  heartbeats: Array<{
+    lastSeenAt: number;
+    deviceId?: string;
+    hostname?: string;
+    startedAtMs?: number;
+    pid?: number;
+  }>,
+): HeartbeatDevice[] {
+  const cutoff = Date.now() - DAEMON_HEARTBEAT_RETENTION_MS;
+  return heartbeats
+    .filter((hb) => hb.lastSeenAt >= cutoff)
+    .map((hb) => ({
+      lastSeenAt: hb.lastSeenAt,
+      deviceId: hb.deviceId ?? null,
+      hostname: hb.hostname ?? null,
+      startedAtMs: hb.startedAtMs ?? null,
+      pid: hb.pid ?? null,
+    }));
+}
 
 export const findPlanByOwnerAndLocalId = internalQuery({
   args: { ownerId: v.string(), localPlanId: v.string() },
@@ -72,6 +120,12 @@ export const upsertPlan = internalMutation({
 export const hasUserSubscription = internalQuery({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
+    const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (bypassIds.includes(args.userId)) return true;
+
     const sub = await ctx.db
       .query('subscriptions')
       .withIndex('by_user', (q) => q.eq('userId', args.userId))
@@ -84,33 +138,19 @@ export const hasUserSubscription = internalQuery({
 
 export const sync = httpAction(async (ctx, request) => {
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
-  const auth = createAuth(ctx);
-  const session = await auth.api.getSession({ headers: request.headers });
-
-  if (!session?.user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const ownerId = session.user.id;
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+  const { ownerId } = authResult;
 
   try {
     const hasSub = await ctx.runQuery(internal.cli.hasUserSubscription, {
       userId: ownerId,
     });
     if (!hasSub) {
-      return new Response(JSON.stringify({ error: 'Cloud Pro subscription required' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'Cloud Pro subscription required' }, 403);
     }
 
     const body = await request.json();
@@ -122,11 +162,9 @@ export const sync = httpAction(async (ctx, request) => {
       typeof body.content !== 'string' ||
       typeof body.format !== 'string'
     ) {
-      return new Response(
-        JSON.stringify({
-          error: 'Missing required fields: localPlanId, agent, title, content, format',
-        }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      return jsonResponse(
+        { error: 'Missing required fields: localPlanId, agent, title, content, format' },
+        400,
       );
     }
 
@@ -136,10 +174,7 @@ export const sync = httpAction(async (ctx, request) => {
       (body.createdAt !== undefined && typeof body.createdAt !== 'number') ||
       (body.updatedAt !== undefined && typeof body.updatedAt !== 'number')
     ) {
-      return new Response(JSON.stringify({ error: 'Invalid optional field types' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'Invalid optional field types' }, 400);
     }
 
     const existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndLocalId, {
@@ -163,16 +198,10 @@ export const sync = httpAction(async (ctx, request) => {
       existingVersion: existing?.version,
     });
 
-    return new Response(JSON.stringify({ ok: true, planId }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ ok: true, planId });
   } catch (err) {
     console.error('Sync error:', err);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Internal server error' }, 500);
   }
 });
 
@@ -187,20 +216,27 @@ export const upsertHeartbeat = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
 
-    const existing = args.deviceId
-      ? await ctx.db
-          .query('daemonHeartbeats')
-          .withIndex('by_owner_device', (q) =>
-            q.eq('ownerId', args.ownerId).eq('deviceId', args.deviceId),
-          )
-          .first()
-      : await ctx.db
-          .query('daemonHeartbeats')
-          .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
-          .first();
+    let existing: Doc<'daemonHeartbeats'> | null = null;
+
+    if (args.deviceId) {
+      existing = await ctx.db
+        .query('daemonHeartbeats')
+        .withIndex('by_owner_device', (q) =>
+          q.eq('ownerId', args.ownerId).eq('deviceId', args.deviceId),
+        )
+        .first();
+    } else {
+      // Without a deviceId we can only safely match a row that also lacks one;
+      // grabbing an arbitrary owner row would clobber a different machine's record.
+      const candidates = await ctx.db
+        .query('daemonHeartbeats')
+        .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
+        .collect();
+      existing = candidates.find((hb) => !hb.deviceId) ?? null;
+    }
 
     let lastCleanedAt = existing?.lastCleanedAt ?? 0;
-    if (!existing && args.deviceId) {
+    if (!existing) {
       const sibling = await ctx.db
         .query('daemonHeartbeats')
         .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
@@ -247,46 +283,96 @@ export const upsertHeartbeat = internalMutation({
   },
 });
 
+export const deleteDaemons = internalMutation({
+  args: {
+    ownerId: v.string(),
+    deviceIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    let deleted = 0;
+    for (const deviceId of args.deviceIds) {
+      const row = await ctx.db
+        .query('daemonHeartbeats')
+        .withIndex('by_owner_device', (q) => q.eq('ownerId', args.ownerId).eq('deviceId', deviceId))
+        .first();
+      if (row) {
+        await ctx.db.delete(row._id);
+        deleted++;
+      }
+    }
+    return { deleted };
+  },
+});
+
+export const deleteDaemonsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== 'DELETE') {
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
+
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+  const { ownerId } = authResult;
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+
+  if (
+    !Array.isArray(body.deviceIds) ||
+    body.deviceIds.length === 0 ||
+    !body.deviceIds.every((id: unknown) => typeof id === 'string')
+  ) {
+    return jsonResponse({ error: 'deviceIds must be a non-empty array of strings' }, 400);
+  }
+
+  const result = await ctx.runMutation(internal.cli.deleteDaemons, {
+    ownerId,
+    deviceIds: body.deviceIds as string[],
+  });
+
+  return jsonResponse({ ok: true, deleted: result.deleted });
+});
+
 export const getDaemonStatus = query({
   handler: async (ctx) => {
     const user = await authComponent.safeGetAuthUser(ctx);
-    if (!user) return { devices: [] };
+    if (!user) return { devices: [] as HeartbeatDevice[] };
+    const ownerId: string = String(user._id);
     const heartbeats = await ctx.db
       .query('daemonHeartbeats')
-      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
+      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
       .collect();
-    const cutoff = Date.now() - DAEMON_HEARTBEAT_RETENTION_MS;
-    return {
-      devices: heartbeats
-        .filter((hb) => hb.lastSeenAt >= cutoff)
-        .map((hb) => ({
-          lastSeenAt: hb.lastSeenAt,
-          deviceId: hb.deviceId ?? null,
-          hostname: hb.hostname ?? null,
-          startedAtMs: hb.startedAtMs ?? null,
-          pid: hb.pid ?? null,
-        })),
-    };
+    return { devices: collectDevices(heartbeats) };
+  },
+});
+
+export const removeDaemon = mutation({
+  args: { deviceId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) throw new Error('Unauthorized');
+    const ownerId: string = String(user._id);
+    const row = await ctx.db
+      .query('daemonHeartbeats')
+      .withIndex('by_owner_device', (q) => q.eq('ownerId', ownerId).eq('deviceId', args.deviceId))
+      .first();
+    if (row) {
+      await ctx.db.delete(row._id);
+    }
   },
 });
 
 export const heartbeat = httpAction(async (ctx, request) => {
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
-  const auth = createAuth(ctx);
-  const session = await auth.api.getSession({ headers: request.headers });
-
-  if (!session?.user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+  const { ownerId } = authResult;
 
   let body: Record<string, unknown> = {};
   try {
@@ -301,46 +387,33 @@ export const heartbeat = httpAction(async (ctx, request) => {
   const startedAtMs = typeof body.startedAtMs === 'number' ? body.startedAtMs : undefined;
   const pid = typeof body.pid === 'number' ? body.pid : undefined;
 
+  if (!deviceId) {
+    console.warn('[heartbeat] received heartbeat without deviceId — upgrade CLI to latest version');
+  }
+
   await ctx.runMutation(internal.cli.upsertHeartbeat, {
-    ownerId: session.user.id,
+    ownerId,
     deviceId,
     hostname,
     startedAtMs,
     pid,
   });
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return jsonResponse({ ok: true });
 });
 
 export const devices = httpAction(async (ctx, request) => {
   if (request.method !== 'GET') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
-  const auth = createAuth(ctx);
-  const session = await auth.api.getSession({ headers: request.headers });
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+  const { ownerId } = authResult;
 
-  if (!session?.user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  const heartbeats = await ctx.runQuery(internal.cli.getDaemonHeartbeats, { ownerId });
 
-  const heartbeats = await ctx.runQuery(internal.cli.getDaemonHeartbeats, {
-    ownerId: session.user.id,
-  });
-
-  return new Response(JSON.stringify({ devices: heartbeats }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return jsonResponse({ devices: heartbeats });
 });
 
 export const getDaemonHeartbeats = internalQuery({
@@ -350,52 +423,28 @@ export const getDaemonHeartbeats = internalQuery({
       .query('daemonHeartbeats')
       .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
       .collect();
-    const cutoff = Date.now() - DAEMON_HEARTBEAT_RETENTION_MS;
-    return heartbeats
-      .filter((hb) => hb.lastSeenAt >= cutoff)
-      .map((hb) => ({
-        lastSeenAt: hb.lastSeenAt,
-        deviceId: hb.deviceId ?? null,
-        hostname: hb.hostname ?? null,
-        startedAtMs: hb.startedAtMs ?? null,
-        pid: hb.pid ?? null,
-      }));
+    return collectDevices(heartbeats);
   },
 });
 
 export const refresh = httpAction(async (ctx, request) => {
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
   const auth = createAuth(ctx);
   const session = await auth.api.getSession({ headers: request.headers });
 
   if (!session?.session) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 
   try {
-    return new Response(
-      JSON.stringify({
-        token: session.session.token,
-        expiresAt: session.session.expiresAt ? new Date(session.session.expiresAt).getTime() : 0,
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      },
-    );
-  } catch {
-    return new Response(JSON.stringify({ error: 'Failed to refresh' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+    return jsonResponse({
+      token: session.session.token,
+      expiresAt: session.session.expiresAt ? new Date(session.session.expiresAt).getTime() : 0,
     });
+  } catch {
+    return jsonResponse({ error: 'Failed to refresh' }, 500);
   }
 });

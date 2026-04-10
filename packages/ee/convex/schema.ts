@@ -24,7 +24,7 @@ export default defineSchema({
     token: v.string(),
     createdBy: v.string(),
     createdAt: v.number(),
-    revokedAt: v.optional(v.number()),
+    passwordHash: v.optional(v.string()),
   })
     .index('by_token', ['token'])
     .index('by_plan', ['planId']),
@@ -35,9 +35,50 @@ export default defineSchema({
     authorName: v.string(),
     authorAvatar: v.optional(v.string()),
     body: v.string(),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id('_storage'),
+          fileName: v.optional(v.string()),
+          contentType: v.string(),
+          size: v.number(),
+        }),
+      ),
+    ),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   }).index('by_plan', ['planId']),
+
+  commentAttachmentClaims: defineTable({
+    storageId: v.id('_storage'),
+    commentId: v.id('comments'),
+  })
+    .index('by_storage', ['storageId'])
+    .index('by_comment', ['commentId']),
+
+  commentUploadReservations: defineTable({
+    clientUploadId: v.optional(v.string()),
+    uploadedBy: v.string(),
+    planId: v.id('plans'),
+    createdAt: v.number(),
+  })
+    .index('by_createdAt', ['createdAt'])
+    .index('by_user_plan_createdAt', ['uploadedBy', 'planId', 'createdAt'])
+    .index('by_user_plan_clientUploadId', ['uploadedBy', 'planId', 'clientUploadId'])
+    .index('by_plan', ['planId'])
+    .index('by_uploadedBy', ['uploadedBy']),
+
+  pendingUploads: defineTable({
+    storageId: v.id('_storage'),
+    uploadedBy: v.string(),
+    planId: v.id('plans'),
+    createdAt: v.number(),
+  })
+    .index('by_storage', ['storageId'])
+    .index('by_user_storage', ['uploadedBy', 'storageId'])
+    .index('by_createdAt', ['createdAt'])
+    .index('by_plan', ['planId'])
+    .index('by_uploadedBy', ['uploadedBy']),
 
   subscriptions: defineTable({
     userId: v.string(),
@@ -149,6 +190,18 @@ export default defineSchema({
     .index('by_collection', ['collectionId'])
     .index('by_plan', ['planId'])
     .index('by_collection_plan', ['collectionId', 'planId']),
+
+  planPreferences: defineTable({
+    ownerId: v.string(),
+    planId: v.id('plans'),
+    pinned: v.boolean(),
+    lastSeenUpdatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_plan', ['ownerId', 'planId'])
+    .index('by_owner_pinned', ['ownerId', 'pinned']),
 
   daemonHeartbeats: defineTable({
     ownerId: v.string(),

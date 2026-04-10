@@ -156,13 +156,17 @@ export const getPlanByShareToken = query({
       .withIndex('by_token', (q) => q.eq('token', args.token))
       .first();
 
-    if (!shareLink || shareLink.revokedAt) {
+    if (!shareLink) {
       throw new ConvexError('Invalid or revoked share link');
     }
 
     const plan = await ctx.db.get(shareLink.planId);
     if (!plan) {
       throw new ConvexError('Plan not found');
+    }
+
+    if (shareLink.passwordHash) {
+      return { passwordRequired: true as const };
     }
 
     return plan;

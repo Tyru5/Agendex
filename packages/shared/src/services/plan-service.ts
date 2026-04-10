@@ -3,10 +3,13 @@ import { lstat, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promis
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
+import { getConfigDir } from '../config.ts';
 import { hashPath } from '../hash.ts';
 import type { Plan } from '../types.ts';
 
-const USER_PLANS_DIR = join(homedir(), '.agendex', 'plans');
+function getUserPlansDir(): string {
+  return join(getConfigDir(), 'plans');
+}
 
 const store = new Map<string, Plan>();
 const MAX_DEPTH = 6;
@@ -132,8 +135,9 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
 }
 
 async function scanUserPlans() {
-  if (!existsSync(USER_PLANS_DIR)) return;
-  const files = await walkDir(USER_PLANS_DIR);
+  const userPlansDir = getUserPlansDir();
+  if (!existsSync(userPlansDir)) return;
+  const files = await walkDir(userPlansDir);
   for (const file of files) {
     if (!file.endsWith('.md')) continue;
     try {
@@ -217,7 +221,7 @@ export function getById(id: string): Plan | undefined {
 }
 
 function isUserPlan(plan: Plan): boolean {
-  return resolve(plan.filePath).startsWith(resolve(USER_PLANS_DIR) + sep);
+  return resolve(plan.filePath).startsWith(resolve(getUserPlansDir()) + sep);
 }
 
 export async function update(id: string, content: string): Promise<boolean> {
@@ -272,14 +276,15 @@ export async function create(agentName: string, title: string, content: string):
   let filePath: string;
   let fileContent: string;
 
+  const userPlansDir = getUserPlansDir();
   if (adapter?.writable) {
-    const dir = adapter.getSearchPaths()[0] ?? USER_PLANS_DIR;
+    const dir = adapter.getSearchPaths()[0] ?? userPlansDir;
     await mkdir(dir, { recursive: true });
     filePath = join(dir, filename);
     fileContent = `# ${title}\n\n${content}`;
   } else {
-    await mkdir(USER_PLANS_DIR, { recursive: true });
-    filePath = join(USER_PLANS_DIR, filename);
+    await mkdir(userPlansDir, { recursive: true });
+    filePath = join(userPlansDir, filename);
     fileContent = `---\nagent: ${agentName}\n---\n# ${title}\n\n${content}`;
   }
 

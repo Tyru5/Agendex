@@ -1,13 +1,82 @@
-import { existsSync } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
-import type Database from 'better-sqlite3';
+import { basename, join } from 'node:path';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
-function quoteIdentifier(name: string): string {
-  return `"${name.replaceAll('"', '""')}"`;
+const cursorProjectsDir = join(homedir(), '.cursor', 'projects');
+
+function discoverCursorPlanDirs(): string[] {
+  if (!existsSync(cursorProjectsDir)) return [];
+
+  const dirs: string[] = [];
+  let entries: string[];
+  try {
+    entries = readdirSync(cursorProjectsDir);
+  } catch {
+    return [];
+  }
+
+  for (const entry of entries) {
+    const trustedFile = join(cursorProjectsDir, entry, '.workspace-trusted');
+    if (!existsSync(trustedFile)) continue;
+
+    try {
+      const raw = JSON.parse(readFileSync(trustedFile, 'utf-8')) as {
+        workspacePath?: string;
+      };
+      if (!raw.workspacePath) continue;
+
+      const plansDir = join(raw.workspacePath, '.cursor', 'plans');
+      if (existsSync(plansDir)) {
+        dirs.push(plansDir);
+      }
+    } catch {
+      // skip unreadable entries
+    }
+  }
+
+  return dirs;
+}
+
+function extractTitle(content: string, filename: string): string {
+  const match = content.match(/^#\s+(.+)/m);
+  if (match?.[1]) return match[1].replace(/^Plan:\s*/i, '').trim();
+  return basename(filename, '.plan.md')
+    .split('-')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function stripFrontmatter(raw: string): { body: string; metadata: Record<string, unknown> } {
+  const text = raw.replace(/^<!--\s*[\w-]+\s*-->\s*\n?/, '');
+
+  const fmMatch = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
+  if (!fmMatch) return { body: text.trim(), metadata: {} };
+
+  const metadata: Record<string, unknown> = {};
+  const fmBody = fmMatch[1] ?? '';
+
+  const todoIdMatches = fmBody.match(/^\s+-\s+id:\s/gm);
+  if (todoIdMatches) {
+    metadata.todoCount = todoIdMatches.length;
+  }
+
+  const projectMatch = fmBody.match(/^isProject:\s*(.+)$/m);
+  if (projectMatch?.[1]) {
+    metadata.isProject = projectMatch[1].trim() === 'true';
+  }
+
+  const body = text.slice(fmMatch[0].length).trim();
+  return { body, metadata };
+}
+
+function workspaceFromPlanPath(filePath: string): string | undefined {
+  const normalized = filePath.replaceAll('\\', '/');
+  const idx = normalized.indexOf('/.cursor/plans/');
+  if (idx === -1) return undefined;
+  return filePath.slice(0, idx);
 }
 
 export const cursorAdapter: AgentAdapter = {
@@ -15,67 +84,39 @@ export const cursorAdapter: AgentAdapter = {
   writable: false,
 
   getSearchPaths() {
-    return [join(homedir(), '.cursor', 'ai-tracking')];
+    return discoverCursorPlanDirs();
   },
 
   getWatchPaths() {
-    return [join(homedir(), '.cursor', 'ai-tracking')];
+    return discoverCursorPlanDirs();
   },
 
   matches(filePath: string) {
-    return filePath.endsWith('.db');
+    return filePath.endsWith('.plan.md');
   },
 
   async parse(filePath: string): Promise<Plan[]> {
-    if (!existsSync(filePath)) return [];
-
-    let db: Database.Database | null = null;
     try {
-      const { default: SqliteDatabase } = await import('better-sqlite3');
-      db = new SqliteDatabase(filePath, { fileMustExist: true, readonly: true });
-      const tables = db
-        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-        .all() as Array<{ name: string }>;
-
-      const plans: Plan[] = [];
+      const raw = await readFile(filePath, 'utf-8');
       const stats = await stat(filePath);
+      const { body, metadata } = stripFrontmatter(raw);
 
-      for (const table of tables) {
-        try {
-          const rows = db
-            .prepare(`SELECT * FROM ${quoteIdentifier(table.name)} LIMIT 50`)
-            .all() as Record<string, unknown>[];
-          if (rows.length === 0) continue;
-
-          const content = rows
-            .map((row) => {
-              return Object.entries(row)
-                .map(([k, v]) => `**${k}**: ${String(v)}`)
-                .join('\n');
-            })
-            .join('\n\n---\n\n');
-
-          plans.push({
-            id: hashPath(`${filePath}:${table.name}`),
-            agent: 'cursor',
-            title: `Cursor: ${table.name}`,
-            content,
-            filePath,
-            format: 'sqlite',
-            createdAt: stats.birthtime,
-            updatedAt: stats.mtime,
-            metadata: { table: table.name },
-          });
-        } catch {
-          // skip tables that can't be read
-        }
-      }
-
-      return plans;
+      return [
+        {
+          id: hashPath(filePath),
+          agent: 'cursor',
+          title: extractTitle(body, filePath),
+          content: body,
+          filePath,
+          format: 'md',
+          createdAt: stats.birthtime,
+          updatedAt: stats.mtime,
+          workspace: workspaceFromPlanPath(filePath),
+          metadata,
+        },
+      ];
     } catch {
       return [];
-    } finally {
-      db?.close();
     }
   },
 

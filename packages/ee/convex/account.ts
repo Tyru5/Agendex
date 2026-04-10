@@ -2,8 +2,9 @@ import type { GenericId } from 'convex/values';
 import { ConvexError, v } from 'convex/values';
 import Stripe from 'stripe';
 import { api, components, internal } from './_generated/api';
-import type { TableNames } from './_generated/dataModel';
+import type { Doc, TableNames } from './_generated/dataModel';
 import { action, internalMutation } from './_generated/server';
+import { deleteCommentWithAttachments, deletePendingUploadRecord } from './comments';
 
 export const deleteAccount = action({
   handler: async (ctx) => {
@@ -12,7 +13,10 @@ export const deleteAccount = action({
 
     const sub = await ctx.runQuery(api.subscriptions.getMySubscriptionQuery);
     if (sub?.stripeSubscriptionId) {
-      const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
+      const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeSecretKey) throw new ConvexError('STRIPE_SECRET_KEY not configured');
+
+      const stripeClient = new Stripe(stripeSecretKey);
       await stripeClient.subscriptions.cancel(sub.stripeSubscriptionId);
     }
 
@@ -56,6 +60,14 @@ export const purgeUserData = internalMutation({
       for (const row of rows) await ctx.db.delete(row._id);
     }
 
+    async function deletePendingUploads(
+      rows: Array<Pick<Doc<'pendingUploads'>, '_id' | 'storageId'>>,
+    ) {
+      for (const row of rows) {
+        await deletePendingUploadRecord(ctx, row);
+      }
+    }
+
     const plans = await ctx.db
       .query('plans')
       .withIndex('by_owner', (q) => q.eq('ownerId', userId))
@@ -68,9 +80,22 @@ export const purgeUserData = internalMutation({
           .withIndex('by_plan', (q) => q.eq('planId', plan._id))
           .collect(),
       );
+      const planComments = await ctx.db
+        .query('comments')
+        .withIndex('by_plan', (q) => q.eq('planId', plan._id))
+        .collect();
+      for (const comment of planComments) {
+        await deleteCommentWithAttachments(ctx, comment);
+      }
+      await deletePendingUploads(
+        await ctx.db
+          .query('pendingUploads')
+          .withIndex('by_plan', (q) => q.eq('planId', plan._id))
+          .collect(),
+      );
       await deleteRows(
         await ctx.db
-          .query('comments')
+          .query('commentUploadReservations')
           .withIndex('by_plan', (q) => q.eq('planId', plan._id))
           .collect(),
       );
@@ -90,6 +115,12 @@ export const purgeUserData = internalMutation({
         await ctx.db
           .query('collectionPlans')
           .withIndex('by_plan', (q) => q.eq('planId', plan._id))
+          .collect(),
+      );
+      await deleteRows(
+        await ctx.db
+          .query('planPreferences')
+          .withIndex('by_owner_plan', (q) => q.eq('ownerId', userId).eq('planId', plan._id))
           .collect(),
       );
       await ctx.db.delete(plan._id);
@@ -118,6 +149,12 @@ export const purgeUserData = internalMutation({
 
     await deleteRows(
       await ctx.db
+        .query('planPreferences')
+        .withIndex('by_owner', (q) => q.eq('ownerId', userId))
+        .collect(),
+    );
+    await deleteRows(
+      await ctx.db
         .query('subscriptions')
         .withIndex('by_user', (q) => q.eq('userId', userId))
         .collect(),
@@ -140,6 +177,19 @@ export const purgeUserData = internalMutation({
         .withIndex('by_owner', (q) => q.eq('ownerId', userId))
         .collect(),
     );
+    const authoredComments = await ctx.db
+      .query('comments')
+      .filter((q) => q.eq(q.field('authorId'), userId))
+      .collect();
+    for (const comment of authoredComments) {
+      await deleteCommentWithAttachments(ctx, comment);
+    }
+    await deletePendingUploads(
+      await ctx.db
+        .query('pendingUploads')
+        .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', userId))
+        .collect(),
+    );
     await deleteRows(
       await ctx.db
         .query('workspaceInvites')
@@ -148,8 +198,8 @@ export const purgeUserData = internalMutation({
     );
     await deleteRows(
       await ctx.db
-        .query('comments')
-        .filter((q) => q.eq(q.field('authorId'), userId))
+        .query('commentUploadReservations')
+        .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', userId))
         .collect(),
     );
   },

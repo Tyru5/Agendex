@@ -4,17 +4,30 @@ import { spawn } from 'node:child_process';
 import { writeSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, loadOrInitConfig } from '@agendex/shared';
+import { loadConfig, loadOrInitConfig, setDevMode } from '@agendex/shared';
 import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
-import { fetchDevices } from './api.ts';
+import { deleteDaemons, fetchDevices, sendShutdown } from './api.ts';
 import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
 import { syncAll } from './sync.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
+import { openAgendexWeb, openSharedPlan } from './web.ts';
 
 const args = process.argv.slice(2);
-const command = args[0] ?? 'start';
+const devFlag = args.includes('--dev');
+if (devFlag) setDevMode(true);
+
+/** Global flags that may appear before the subcommand; excluded from command resolution. */
+function firstCommandToken(argv: string[]): string | undefined {
+  for (const a of argv) {
+    if (a === '--dev') continue;
+    return a;
+  }
+  return undefined;
+}
+
+const command = firstCommandToken(args) ?? 'start';
 const cliEntry = resolve(process.argv[1] ?? fileURLToPath(import.meta.url));
 
 async function main(): Promise<number> {
@@ -24,9 +37,18 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  const isPassthrough = ['stop', 'status', 'login', 'logout', 'help', '--help', '-h'].includes(
-    command,
-  );
+  const isPassthrough = [
+    'stop',
+    'status',
+    'login',
+    'logout',
+    'open',
+    'view',
+    'cleanup',
+    'help',
+    '--help',
+    '-h',
+  ].includes(command);
 
   if (!isInternal && !isPassthrough) {
     const { updateAvailable, current, latest } = await checkForUpdate();
@@ -38,6 +60,23 @@ async function main(): Promise<number> {
   }
 
   switch (command) {
+    case 'open': {
+      const urlIdx = args.indexOf('--url');
+      const siteUrl = urlIdx !== -1 ? args[urlIdx + 1] : undefined;
+      await openAgendexWeb(siteUrl);
+      return 0;
+    }
+
+    case 'view': {
+      const url = args.find((a) => a !== 'view' && a !== '--dev' && !a.startsWith('--'));
+      if (!url) {
+        writeStderr('[agendex] usage: agendex view <shared-plan-url>');
+        return 1;
+      }
+      if (!(await openSharedPlan(url))) return 1;
+      return 0;
+    }
+
     case 'start': {
       if (args.includes('--daemon')) {
         await startSupervisor();
@@ -57,9 +96,13 @@ async function main(): Promise<number> {
 
       if (existingPid) removePid();
 
-      const child = spawn(process.execPath, [cliEntry, 'start', '--daemon'], {
+      const daemonArgs = [cliEntry, 'start', '--daemon'];
+      if (devFlag) daemonArgs.push('--dev');
+
+      const child = spawn(process.execPath, daemonArgs, {
         detached: true,
         stdio: 'ignore',
+        env: { ...process.env, ...(devFlag ? { AGENDEX_DEV: '1' } : {}) },
       });
       child.unref();
 
@@ -88,6 +131,7 @@ async function main(): Promise<number> {
         writeStderr('[agendex] daemon did not stop in time');
       } else {
         removePid();
+        await sendShutdown();
         writeStdout(`[agendex] daemon stopped (PID ${pid})`);
       }
       return isRunning(pid) ? 1 : 0;
@@ -112,15 +156,100 @@ async function main(): Promise<number> {
     }
 
     case 'sync': {
-      await syncAll();
+      const force = args.includes('--force');
+      await syncAll(force);
+      return 0;
+    }
+
+    case 'cleanup': {
+      const config = loadConfig();
+      if (!config?.cloudToken || !config?.convexUrl) {
+        writeStderr('[agendex] not logged in. Run `agendex login` first.');
+        return 1;
+      }
+
+      const allDevices = await fetchDevices();
+      if (allDevices.length === 0) {
+        writeStdout('[agendex] no daemons found');
+        return 0;
+      }
+
+      const now = Date.now();
+      const staleDevices = allDevices.filter((d) => {
+        const age = d.lastSeenAt ? now - d.lastSeenAt : Number.POSITIVE_INFINITY;
+        return age >= CLI_DAEMON_STALE_AFTER_MS;
+      });
+
+      if (args.includes('--stale')) {
+        if (staleDevices.length === 0) {
+          writeStdout('[agendex] no stale daemons to remove');
+          return 0;
+        }
+        const staleIds = staleDevices
+          .map((d) => d.deviceId)
+          .filter((id): id is string => id != null);
+        if (staleIds.length === 0) {
+          writeStdout('[agendex] stale daemons have no device IDs and cannot be removed');
+          return 0;
+        }
+        const result = await deleteDaemons(staleIds);
+        if (result.ok) {
+          writeStdout(`[agendex] removed ${result.deleted} stale daemon(s)`);
+        } else {
+          writeStderr('[agendex] failed to remove stale daemons');
+          return 1;
+        }
+        return 0;
+      }
+
+      // Interactive mode: use @clack/prompts multiselect (same pattern as configure)
+      if (!process.stdin.isTTY || !process.stdout.isTTY) {
+        writeStderr(
+          '[agendex] interactive cleanup requires a TTY. Use --stale to auto-remove stale daemons.',
+        );
+        return 1;
+      }
+
+      const { promptForDaemonCleanup } = await import('./cleanup.ts');
+      const deviceIds = allDevices
+        .filter((d) => d.deviceId != null)
+        .map((d) => {
+          const age = d.lastSeenAt ? now - d.lastSeenAt : Number.POSITIVE_INFINITY;
+          const status = age < CLI_DAEMON_STALE_AFTER_MS ? 'alive' : 'stale';
+          return {
+            deviceId: d.deviceId as string,
+            hostname: d.hostname ?? 'unknown',
+            pid: d.pid,
+            status: status as 'alive' | 'stale',
+          };
+        });
+
+      if (deviceIds.length === 0) {
+        writeStdout('[agendex] no daemons with device IDs to remove');
+        return 0;
+      }
+
+      const selected = await promptForDaemonCleanup(deviceIds);
+      if (!selected) return 0;
+
+      const result = await deleteDaemons(selected);
+      if (result.ok) {
+        writeStdout(`[agendex] removed ${result.deleted} daemon(s)`);
+      } else {
+        writeStderr('[agendex] failed to remove daemons');
+        return 1;
+      }
       return 0;
     }
 
     case 'status': {
       const config = loadConfig();
       const pidInfo = readPidInfo();
+
       const pid = pidInfo?.pid ?? null;
+
       const running = pid ? isRunning(pid) : false;
+
       writeStdout(`[agendex] Config version: ${config?.configVersion ?? 'none'}`);
       writeStdout(`[agendex] Local token: ${config?.token ? 'set' : 'not set'}`);
       writeStdout(`[agendex] Cloud token: ${config?.cloudToken ? 'set' : 'not set'}`);
@@ -152,6 +281,7 @@ async function main(): Promise<number> {
           const allDevices = await fetchDevices();
           if (allDevices.length > 0) {
             const now = Date.now();
+            const localDeviceId = config.deviceId;
             writeStdout(`[agendex] All daemons:`);
             for (const device of allDevices) {
               const age = device.lastSeenAt ? now - device.lastSeenAt : Number.POSITIVE_INFINITY;
@@ -160,8 +290,9 @@ async function main(): Promise<number> {
                 device.startedAtMs != null ? formatDuration(now - device.startedAtMs) : '~';
               const pidStr = device.pid != null ? String(device.pid) : '~';
               const hostnameStr = device.hostname ?? '~';
+              const isLocal = localDeviceId && device.deviceId === localDeviceId;
               writeStdout(
-                `- hostname: ${hostnameStr}\n  pid: ${pidStr}\n  uptime: ${uptimeStr}\n  status: ${status}`,
+                `- hostname: ${hostnameStr}${isLocal ? ' (this machine)' : ''}\n  pid: ${pidStr}\n  uptime: ${uptimeStr}\n  status: ${status}`,
               );
             }
           } else {
@@ -188,13 +319,22 @@ Usage:
   agendex stop         Stop the running daemon
   agendex login        Authenticate via browser OAuth (agendex.dev)
   agendex login --url <url>  Login to a self-hosted instance
+  agendex open         Open the Agendex web app in your browser
+  agendex open --url <url>  Open a self-hosted instance
+  agendex view <url>   Open a shared plan URL in your browser
   agendex logout       Clear stored cloud token
   agendex configure    Select which agents/adapters to index
-  agendex sync         One-shot scan + sync to cloud
+  agendex sync         One-shot scan + sync to cloud (skips unchanged plans)
+  agendex sync --force Re-sync all plans, ignoring cache
+  agendex cleanup      Interactively remove cloud daemons
+  agendex cleanup --stale  Auto-remove all stale daemons
   agendex status       Show current config state + daemon status
   agendex help         Show this help message
   agendex --version    Print CLI version
   agendex -v           Print CLI version
+
+Flags:
+  --dev                Use dev environment (~/.agendex-dev/ config dir)
 `.trim(),
       );
       return 0;

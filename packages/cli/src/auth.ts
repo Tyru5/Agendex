@@ -1,13 +1,29 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { type AgendexConfig, loadConfig, saveConfig } from '@agendex/shared';
+import { type AgendexConfig, isDevMode, loadConfig, saveConfig } from '@agendex/shared';
 
 const PROD_SITE_URL = 'https://app.agendex.dev';
 const DEV_SITE_URL = 'http://app.agendex.local:5174';
 
-function getDefaultSiteUrl(): string {
+export function getDefaultSiteUrl(): string {
   if (process.env.AGENDEX_SITE_URL) return process.env.AGENDEX_SITE_URL;
-  return process.env.AGENDEX_DEV === '1' ? DEV_SITE_URL : PROD_SITE_URL;
+
+  return isDevMode() ? DEV_SITE_URL : PROD_SITE_URL;
+}
+
+/**
+ * Prints the standard opening messages and opens the URL in the system browser,
+ * unless AGENDEX_DISABLE_BROWSER=1.
+ */
+export function launchBrowser(url: string, label: string): void {
+  console.log(`[agendex] Opening ${label}...`);
+  console.log(`[agendex] If it doesn't open, visit: ${url}`);
+
+  if (process.env.AGENDEX_DISABLE_BROWSER === '1') {
+    console.log('[agendex] Browser launch disabled by AGENDEX_DISABLE_BROWSER=1.');
+  } else {
+    openBrowser(url);
+  }
 }
 
 export async function login(siteUrlOverride?: string): Promise<void> {
@@ -17,14 +33,7 @@ export async function login(siteUrlOverride?: string): Promise<void> {
 
   const authUrl = `${siteUrl}/auth/cli?callback=${encodeURIComponent(callbackUrl)}`;
 
-  console.log(`[agendex] Opening browser for authentication...`);
-  console.log(`[agendex] If it doesn't open, visit: ${authUrl}`);
-
-  if (process.env.AGENDEX_DISABLE_BROWSER === '1') {
-    console.log('[agendex] Browser launch disabled by AGENDEX_DISABLE_BROWSER=1.');
-  } else {
-    openBrowser(authUrl);
-  }
+  launchBrowser(authUrl, 'browser for authentication');
 
   const callback = await result;
 
@@ -207,7 +216,7 @@ function callbackPage(success: boolean): string {
 </html>`;
 }
 
-function openBrowser(url: string): void {
+export function openBrowser(url: string): void {
   if (process.platform === 'darwin') {
     spawnBrowser('open', [url]);
     return;

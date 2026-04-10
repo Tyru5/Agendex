@@ -39,5 +39,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 .claude/
 .amp/
+.cursor/
 
 .impeccable.md

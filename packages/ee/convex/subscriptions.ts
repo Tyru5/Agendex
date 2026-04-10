@@ -45,8 +45,20 @@ export async function hasActiveSubscription(ctx: QueryCtx): Promise<boolean> {
   }
   if (!user) return false;
 
+  const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (bypassIds.includes(user._id)) return true;
+
   return hasActiveSubscriptionForUserId(ctx, user._id);
 }
+
+export const isProUser = query({
+  handler: async (ctx) => {
+    return hasActiveSubscription(ctx);
+  },
+});
 
 export const hasCompletedOnboarding = query({
   handler: async (ctx) => {
@@ -58,6 +70,12 @@ export const hasCompletedOnboarding = query({
       return true;
     }
     if (!user) return false;
+
+    const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (bypassIds.includes(user._id)) return true;
 
     const sub = await ctx.db
       .query('subscriptions')

@@ -5,7 +5,6 @@ import { AgentIcon } from './AgentIcon.tsx';
 
 interface EmptyStateViewProps {
   onSearch?: () => void;
-  onRescan?: () => Promise<void> | void;
   planCount?: number;
   agents?: AgentStats[];
 }
@@ -28,27 +27,6 @@ function SearchIcon() {
     >
       <circle cx="11" cy="11" r="8" />
       <path d="m21 21-4.3-4.3" />
-    </svg>
-  );
-}
-
-function RefreshIcon({ spinning }: { spinning?: boolean }) {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={spinning ? { animation: 'empty-state-spin 0.8s linear infinite' } : undefined}
-    >
-      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-      <path d="M3 3v5h5" />
-      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-      <path d="M16 21h5v-5" />
     </svg>
   );
 }
@@ -231,11 +209,9 @@ function RotatingText({ current, prev }: { current: string; prev: string | null 
 
 export function EmptyStateView({
   onSearch,
-  onRescan,
   planCount = 0,
   agents = EMPTY_AGENTS,
 }: EmptyStateViewProps) {
-  const [rescanning, setRescanning] = useState(false);
   const activeAgents = useMemo(() => agents.filter((a) => a.planCount > 0), [agents]);
   const activeAgentIds = useMemo(() => activeAgents.map((a) => a.agent), [activeAgents]);
   const { currentAgent, prevAgent } = useAgentRotation(activeAgentIds);
@@ -249,16 +225,6 @@ export function EmptyStateView({
       : `${getAgentLabel(agent)} plans`;
   }
 
-  async function handleRescan() {
-    if (rescanning || !onRescan) return;
-    setRescanning(true);
-    try {
-      await onRescan();
-    } finally {
-      setRescanning(false);
-    }
-  }
-
   return (
     <div className="h-full flex items-center justify-center bg-bg">
       <div className="empty-state-content flex flex-col items-center text-center max-w-[420px] p-6 gap-4">
@@ -268,7 +234,7 @@ export function EmptyStateView({
 
         <p className="text-[13px] text-tertiary m-0 leading-[1.6]">
           {planCount === 0
-            ? 'No plans detected yet. Start an AI agent or rescan.'
+            ? 'No plans detected yet. Start an AI agent to see plans here.'
             : `${planCount} plans across ${activeAgents.length} agent${activeAgents.length !== 1 ? 's' : ''}`}
         </p>
 
@@ -291,15 +257,6 @@ export function EmptyStateView({
               onClick={onSearch}
             />
           )}
-          {planCount > 0 && (
-            <SuggestionRow icon={<SearchIcon />} label="Search all plans" onClick={onSearch} />
-          )}
-          <SuggestionRow
-            icon={<RefreshIcon spinning={rescanning} />}
-            label={rescanning ? 'Scanning for plans...' : 'Rescan for new plans'}
-            disabled={rescanning}
-            onClick={handleRescan}
-          />
         </div>
 
         <p className="text-[11px] text-tertiary mt-1">Press {modKey}+K to search anytime</p>

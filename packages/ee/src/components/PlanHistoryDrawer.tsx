@@ -3,18 +3,8 @@ import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useEffect, useState } from 'react';
+import { timeAgo } from '../lib/formatTime.ts';
 import { PlanDiffViewer } from './PlanDiffViewer.tsx';
-
-function timeAgo(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
 
 function sourceLabel(source?: string): string {
   switch (source) {

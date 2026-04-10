@@ -11,15 +11,18 @@ interface UpdateResult {
   latest: string;
 }
 
-const CACHE_FILE = join(tmpdir(), '.agendex-update-cache.json');
+const CACHE_FILE =
+  process.env.AGENDEX_UPDATE_CACHE_FILE ?? join(tmpdir(), '.agendex-update-cache.json');
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const UPDATE_URL =
+  process.env.AGENDEX_UPDATE_URL ?? 'https://registry.npmjs.org/agendex-cli/latest';
 
-function readCache(): UpdateResult | null {
+function readCache(current: string): UpdateResult | null {
   try {
     if (!existsSync(CACHE_FILE)) return null;
     const { result, ts } = JSON.parse(readFileSync(CACHE_FILE, 'utf8'));
     if (Date.now() - ts > CACHE_TTL_MS) return null;
-    return result as UpdateResult;
+    return normalizeResult(result as Partial<UpdateResult>, current);
   } catch {
     return null;
   }
@@ -36,17 +39,16 @@ function writeCache(result: UpdateResult): void {
 export async function checkForUpdate(): Promise<UpdateResult> {
   const current = CLI_VERSION;
 
-  const cached = readCache();
-  if (cached) return { ...cached, current };
+  const cached = readCache(current);
+  if (cached) return cached;
 
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
 
-    const res = await fetch('https://registry.npmjs.org/agendex-cli/latest', {
+    const res = await fetch(UPDATE_URL, {
       signal: controller.signal,
-    });
-    clearTimeout(timeout);
+    }).finally(() => clearTimeout(timeout));
 
     if (!res.ok) {
       return { updateAvailable: false, current, latest: current };
@@ -61,6 +63,16 @@ export async function checkForUpdate(): Promise<UpdateResult> {
   } catch {
     return { updateAvailable: false, current, latest: current };
   }
+}
+
+function normalizeResult(result: Partial<UpdateResult>, current: string): UpdateResult | null {
+  if (typeof result.latest !== 'string') return null;
+
+  return {
+    updateAvailable: isNewer(result.latest, current),
+    current,
+    latest: result.latest,
+  };
 }
 
 function isNewer(latest: string, current: string): boolean {
