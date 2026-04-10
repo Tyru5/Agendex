@@ -46,6 +46,7 @@ import { OnboardingRoute } from './components/OnboardingRoute.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
+import { AcceptInvitePage } from './components/AcceptInvitePage.tsx';
 import { SettingsPage } from './components/SettingsPage.tsx';
 import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
@@ -55,6 +56,7 @@ import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
+import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { APP_URL } from './lib/auth-client.ts';
 import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
@@ -891,7 +893,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const showHistory = activePanel === 'history';
   const sharing = activePanel === 'sharing';
   const sidebarBeforeWide = useRef<boolean | null>(null);
-  const { isActive: isPro } = useSubscription();
+  const { canAccessCloud: isPro } = useWorkspaceAccess();
   const localPlanState = usePlanState();
   const cloudPlanState = useCloudPlanPreferences();
 
@@ -1359,6 +1361,7 @@ export default function App() {
           <WelcomeScreen />
         </OnboardingRoute>
       </Route>
+      <Route path="/invite/:token">{({ token }) => <AcceptInvitePage token={token} />}</Route>
       <Route path="/settings" component={SettingsPage} />
       <Route path="/" component={HomeRoute} />
     </Switch>

@@ -108,11 +108,28 @@ export default defineSchema({
     workspaceOwnerId: v.string(),
     memberId: v.string(),
     email: v.string(),
+    emailLc: v.string(),
     role: v.union(v.literal('owner'), v.literal('member')),
     addedAt: v.number(),
   })
     .index('by_workspace', ['workspaceOwnerId'])
-    .index('by_member', ['memberId']),
+    .index('by_member', ['memberId'])
+    .index('by_workspace_member', ['workspaceOwnerId', 'memberId'])
+    .index('by_workspace_emailLc', ['workspaceOwnerId', 'emailLc']),
+
+  workspaceInvites: defineTable({
+    workspaceOwnerId: v.string(),
+    email: v.string(),
+    emailLc: v.string(),
+    token: v.string(),
+    createdAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+  })
+    .index('by_workspace', ['workspaceOwnerId'])
+    .index('by_emailLc', ['emailLc'])
+    .index('by_token', ['token'])
+    .index('by_workspace_emailLc', ['workspaceOwnerId', 'emailLc']),
 
   planVersions: defineTable({
     ownerId: v.string(),

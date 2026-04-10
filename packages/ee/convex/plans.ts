@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { hasActiveSubscriptionForUserId } from './subscriptions';
 
 export const publishPlan = mutation({
   args: {
@@ -85,6 +86,25 @@ export const getMyPublishedPlans = query({
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return [];
 
+    const ownActive = await hasActiveSubscriptionForUserId(ctx, user._id);
+    if (!ownActive) {
+      const membership = await ctx.db
+        .query('workspaceMembers')
+        .withIndex('by_member', (q) => q.eq('memberId', user._id))
+        .first();
+
+      if (membership) {
+        const ownerActive = await hasActiveSubscriptionForUserId(ctx, membership.workspaceOwnerId);
+        if (ownerActive) {
+          return await ctx.db
+            .query('plans')
+            .withIndex('by_owner', (q) => q.eq('ownerId', membership.workspaceOwnerId))
+            .order('desc')
+            .collect();
+        }
+      }
+    }
+
     return await ctx.db
       .query('plans')
       .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
@@ -107,7 +127,21 @@ export const getPlan = query({
     }
 
     if (plan.ownerId !== user._id) {
-      throw new ConvexError('Access denied');
+      const membership = await ctx.db
+        .query('workspaceMembers')
+        .withIndex('by_workspace_member', (q) =>
+          q.eq('workspaceOwnerId', plan.ownerId).eq('memberId', user._id),
+        )
+        .first();
+
+      if (!membership) {
+        throw new ConvexError('Access denied');
+      }
+
+      const ownerActive = await hasActiveSubscriptionForUserId(ctx, plan.ownerId);
+      if (!ownerActive) {
+        throw new ConvexError('Access denied');
+      }
     }
 
     return plan;

@@ -1,9 +1,23 @@
 import { ConvexError, v } from 'convex/values';
 import Stripe from 'stripe';
 import { api, internal } from './_generated/api';
-import { action, internalMutation, type QueryCtx, query } from './_generated/server';
+import {
+  action,
+  internalMutation,
+  type MutationCtx,
+  type QueryCtx,
+  query,
+} from './_generated/server';
 import { authComponent } from './auth';
 import { stripe } from './stripe';
+
+function isProBypassUserId(userId: string): boolean {
+  const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return bypassIds.includes(userId);
+}
 
 export const getMySubscriptionQuery = query({
   handler: async (ctx) => {
@@ -22,7 +36,23 @@ export const getMySubscriptionQuery = query({
   },
 });
 
-export async function hasActiveSubscription(ctx: QueryCtx): Promise<boolean> {
+/** Shared DB read access for queries and mutations. */
+export type DbCtx = QueryCtx | MutationCtx;
+
+export async function hasActiveSubscriptionForUserId(ctx: DbCtx, userId: string): Promise<boolean> {
+  if (isProBypassUserId(userId)) return true;
+
+  const sub = await ctx.db
+    .query('subscriptions')
+    .withIndex('by_user', (q) => q.eq('userId', userId))
+    .first();
+
+  if (!sub) return false;
+  const valid = sub.currentPeriodEnd > Date.now();
+  return valid && (sub.status === 'active' || sub.status === 'trialing');
+}
+
+export async function hasActiveSubscription(ctx: DbCtx): Promise<boolean> {
   let user;
   try {
     user = await authComponent.getAuthUser(ctx);
@@ -31,20 +61,7 @@ export async function hasActiveSubscription(ctx: QueryCtx): Promise<boolean> {
   }
   if (!user) return false;
 
-  const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean);
-  if (bypassIds.includes(user._id)) return true;
-
-  const sub = await ctx.db
-    .query('subscriptions')
-    .withIndex('by_user', (q) => q.eq('userId', user._id))
-    .first();
-
-  if (!sub) return false;
-  const valid = sub.currentPeriodEnd > Date.now();
-  return valid && (sub.status === 'active' || sub.status === 'trialing');
+  return hasActiveSubscriptionForUserId(ctx, user._id);
 }
 
 export const isProUser = query({
@@ -64,18 +81,21 @@ export const hasCompletedOnboarding = query({
     }
     if (!user) return false;
 
-    const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
-    if (bypassIds.includes(user._id)) return true;
+    if (isProBypassUserId(user._id)) return true;
 
     const sub = await ctx.db
       .query('subscriptions')
       .withIndex('by_user', (q) => q.eq('userId', user._id))
       .first();
 
-    return sub !== null;
+    if (sub !== null) return true;
+
+    const membership = await ctx.db
+      .query('workspaceMembers')
+      .withIndex('by_member', (q) => q.eq('memberId', user._id))
+      .first();
+
+    return membership !== null;
   },
 });
 

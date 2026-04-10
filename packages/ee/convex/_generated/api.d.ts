@@ -24,6 +24,8 @@ import type * as sharing from "../sharing.js";
 import type * as stripe from "../stripe.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as tags from "../tags.js";
+import type * as workspaceAccess from "../workspaceAccess.js";
+import type * as workspaceMembers from "../workspaceMembers.js";
 
 import type {
   ApiFromModules,
@@ -48,6 +50,8 @@ declare const fullApi: ApiFromModules<{
   stripe: typeof stripe;
   subscriptions: typeof subscriptions;
   tags: typeof tags;
+  workspaceAccess: typeof workspaceAccess;
+  workspaceMembers: typeof workspaceMembers;
 }>;
 
 /**

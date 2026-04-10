@@ -1,7 +1,7 @@
 import { SkeletonBlock } from '@agendex/web';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { useSubscription } from '../hooks/useSubscription';
+import { useWorkspaceAccess } from '../hooks/useWorkspaceAccess';
 import { PricingModal } from './PricingModal';
 
 interface PaywallGuardProps {
@@ -95,7 +95,7 @@ function FeatureIcon({ type }: { type: string }) {
 }
 
 export function PaywallGuard({ children, fallback, onBack }: PaywallGuardProps) {
-  const { isActive, isLoading } = useSubscription();
+  const { canAccessCloud, isLoading } = useWorkspaceAccess();
   const [showModal, setShowModal] = useState(false);
 
   if (isLoading) {
@@ -106,7 +106,7 @@ export function PaywallGuard({ children, fallback, onBack }: PaywallGuardProps) 
     );
   }
 
-  if (!isActive) {
+  if (!canAccessCloud) {
     return (
       <>
         {fallback || (
