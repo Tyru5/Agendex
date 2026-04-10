@@ -273,8 +273,61 @@ function Dashboard() {
   );
 }
 
+function SessionExpiredBanner() {
+  const [visible, setVisible] = useState(() => {
+    const expired = sessionStorage.getItem('agendex_session_expired');
+    if (expired) {
+      sessionStorage.removeItem('agendex_session_expired');
+      return true;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (!visible) return;
+    const timer = setTimeout(() => setVisible(false), 8000);
+    return () => clearTimeout(timer);
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="session-expired-banner">
+      <span className="session-expired-icon">
+        <svg viewBox="0 0 16 16" fill="none" width="15" height="15">
+          <path
+            d="M8 1.33a6.67 6.67 0 1 0 0 13.34A6.67 6.67 0 0 0 8 1.33ZM8 5v3.33M8 10.67h.007"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
+      <span>Session expired — please log in again to continue.</span>
+      <button className="session-expired-dismiss" onClick={() => setVisible(false)} type="button">
+        <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+          <path
+            d="M12 4L4 12M4 4l8 8"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
-  if (!hasToken()) return <LandingPage />;
+  if (!hasToken()) {
+    return (
+      <>
+        <SessionExpiredBanner />
+        <LandingPage />
+      </>
+    );
+  }
 
   return <Dashboard />;
 }

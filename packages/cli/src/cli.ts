@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, loadOrInitConfig, setDevMode } from '@agendex/shared';
 import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
-import { deleteDaemons, fetchDevices, sendShutdown } from './api.ts';
+import { AuthExpiredError, deleteDaemons, fetchDevices, sendShutdown } from './api.ts';
 import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
@@ -168,7 +168,16 @@ async function main(): Promise<number> {
         return 1;
       }
 
-      const allDevices = await fetchDevices();
+      let allDevices;
+      try {
+        allDevices = await fetchDevices();
+      } catch (err) {
+        if (err instanceof AuthExpiredError) {
+          writeStderr('[agendex] cloud token expired. Run `agendex login` to re-authenticate.');
+          return 1;
+        }
+        throw err;
+      }
       if (allDevices.length === 0) {
         writeStdout('[agendex] no daemons found');
         return 0;
@@ -299,8 +308,14 @@ async function main(): Promise<number> {
             writeStdout(`[agendex] All daemons: none`);
           }
         }
-      } catch {
-        // Best-effort: skip daemon list if not logged in or network error
+      } catch (err) {
+        if (err instanceof AuthExpiredError) {
+          writeStderr(
+            `[agendex] Cloud token expired — cloud sync and daemon tracking are inactive.`,
+          );
+          writeStderr(`[agendex] Run \`agendex login\` to re-authenticate.`);
+        }
+        // Other errors (network, etc.) are best-effort — skip silently
       }
 
       return 0;

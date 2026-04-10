@@ -2619,3 +2619,80 @@ body {
 @media (max-width: 1100px) {
   .plan-outline-dock { display: none; }
 }
+
+/* ─── Session Expired Banner ─── */
+
+.session-expired-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(234, 179, 8, 0.25);
+  background: rgba(234, 179, 8, 0.08);
+  backdrop-filter: blur(12px);
+  color: #eab308;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  animation: session-expired-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.session-expired-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.session-expired-dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  padding: 2px;
+  border: none;
+  background: none;
+  color: rgba(234, 179, 8, 0.6);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.session-expired-dismiss:hover {
+  color: #eab308;
+  background: rgba(234, 179, 8, 0.12);
+}
+
+@keyframes session-expired-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.light .session-expired-banner {
+  border-color: rgba(161, 98, 7, 0.2);
+  background: rgba(254, 243, 199, 0.9);
+  color: #92400e;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.light .session-expired-dismiss {
+  color: rgba(161, 98, 7, 0.5);
+}
+
+.light .session-expired-dismiss:hover {
+  color: #92400e;
+  background: rgba(161, 98, 7, 0.08);
+}
