@@ -114,12 +114,29 @@
   animation-fill-mode: both;
 }
 
+/* Settings tab content transition */
+@keyframes settings-tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settings-tab-content {
+  animation: settings-tab-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .share-dialog-overlay,
   .share-dialog-panel,
   .share-surface-in,
   .share-reveal,
-  .share-link-row {
+  .share-link-row,
+  .settings-tab-content {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

@@ -1,3 +1,4 @@
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { SETTINGS_TABS, type SettingsTabId } from './constants';
 
 interface SettingsTabsProps {
@@ -6,9 +7,32 @@ interface SettingsTabsProps {
 }
 
 export function SettingsTabs({ activeTab, onChange }: SettingsTabsProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
+
+  const measure = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const activeEl = container.querySelector<HTMLButtonElement>('[aria-selected="true"]');
+    if (!activeEl) return;
+    const containerRect = container.getBoundingClientRect();
+    const btnRect = activeEl.getBoundingClientRect();
+    setIndicator({
+      left: btnRect.left - containerRect.left,
+      width: btnRect.width,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    measure();
+  }, [activeTab, measure]);
+
   return (
-    <div className="border-b border-border mb-8 overflow-x-auto scrollbar-none" role="tablist">
-      <div className="flex gap-0 min-w-max">
+    <div
+      className="relative border-b border-border mb-8 overflow-x-auto scrollbar-none"
+      role="tablist"
+    >
+      <div ref={containerRef} className="flex gap-0 min-w-max">
         {SETTINGS_TABS.map((tab) => {
           const isActive = tab.id === activeTab;
           const isDisabled = !tab.enabled;
@@ -33,13 +57,23 @@ export function SettingsTabs({ activeTab, onChange }: SettingsTabsProps) {
               ].join(' ')}
             >
               {tab.label}
-              {isActive && (
-                <span className="absolute bottom-0 left-4 right-4 h-[2px] rounded-full bg-text" />
-              )}
             </button>
           );
         })}
       </div>
+
+      {/* Sliding active indicator */}
+      {indicator && (
+        <span
+          className="absolute bottom-0 h-[2px] rounded-full bg-text"
+          style={{
+            left: indicator.left + 16,
+            width: indicator.width - 32,
+            transition:
+              'left 0.25s cubic-bezier(0.22, 1, 0.36, 1), width 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+          }}
+        />
+      )}
     </div>
   );
 }

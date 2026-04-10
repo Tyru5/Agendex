@@ -22,6 +22,9 @@ export const PRIMARY_RGB_FALLBACK = '139, 92, 246';
 export const MONTHLY_PRICE = 7;
 export const YEARLY_PRICE = 69;
 
-export const SETTINGS_TABS = [{ id: 'account', label: 'Account', enabled: true }] as const;
+export const SETTINGS_TABS = [
+  { id: 'account', label: 'Account', enabled: true },
+  { id: 'team', label: 'Team', enabled: true },
+] as const;
 
 export type SettingsTabId = (typeof SETTINGS_TABS)[number]['id'];
