@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.11.0
+
+### Minor Changes
+
+- 2801218: convex auth refresh update
+
 ## 0.10.1
 
 ### Patch Changes
