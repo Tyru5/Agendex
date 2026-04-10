@@ -1,7 +1,13 @@
 import { ConvexError, v } from 'convex/values';
 import Stripe from 'stripe';
 import { api, internal } from './_generated/api';
-import { action, internalMutation, type QueryCtx, query } from './_generated/server';
+import {
+  action,
+  internalMutation,
+  type MutationCtx,
+  type QueryCtx,
+  query,
+} from './_generated/server';
 import { authComponent } from './auth';
 import { stripe } from './stripe';
 
@@ -30,10 +36,10 @@ export const getMySubscriptionQuery = query({
   },
 });
 
-export async function hasActiveSubscriptionForUserId(
-  ctx: QueryCtx,
-  userId: string,
-): Promise<boolean> {
+/** Shared DB read access for queries and mutations. */
+export type DbCtx = QueryCtx | MutationCtx;
+
+export async function hasActiveSubscriptionForUserId(ctx: DbCtx, userId: string): Promise<boolean> {
   if (isProBypassUserId(userId)) return true;
 
   const sub = await ctx.db
@@ -46,7 +52,7 @@ export async function hasActiveSubscriptionForUserId(
   return valid && (sub.status === 'active' || sub.status === 'trialing');
 }
 
-export async function hasActiveSubscription(ctx: QueryCtx): Promise<boolean> {
+export async function hasActiveSubscription(ctx: DbCtx): Promise<boolean> {
   let user;
   try {
     user = await authComponent.getAuthUser(ctx);

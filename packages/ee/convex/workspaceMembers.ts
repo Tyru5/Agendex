@@ -7,19 +7,6 @@ import { hasActiveSubscriptionForUserId } from './subscriptions';
 
 const SEAT_LIMIT = 5;
 
-export const getMyMembership = query({
-  args: {},
-  handler: async (ctx) => {
-    const user = await authComponent.safeGetAuthUser(ctx);
-    if (!user) return null;
-
-    return await ctx.db
-      .query('workspaceMembers')
-      .withIndex('by_member', (q) => q.eq('memberId', user._id))
-      .first();
-  },
-});
-
 export const listWorkspaceMembers = query({
   args: {},
   handler: async (ctx) => {

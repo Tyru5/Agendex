@@ -1,6 +1,6 @@
-import { type QueryCtx, query } from './_generated/server';
+import { query } from './_generated/server';
 import { authComponent } from './auth';
-import { hasActiveSubscription, hasActiveSubscriptionForUserId } from './subscriptions';
+import { type DbCtx, hasActiveSubscription, hasActiveSubscriptionForUserId } from './subscriptions';
 
 export interface WorkspaceContext {
   role: 'owner' | 'member' | 'none';
@@ -8,7 +8,7 @@ export interface WorkspaceContext {
   canAccessCloud: boolean;
 }
 
-export async function resolveWorkspaceContext(ctx: QueryCtx): Promise<WorkspaceContext> {
+export async function resolveWorkspaceContext(ctx: DbCtx): Promise<WorkspaceContext> {
   const user = await authComponent.safeGetAuthUser(ctx);
   if (!user) return { role: 'none', workspaceOwnerId: null, canAccessCloud: false };
 
@@ -40,6 +40,12 @@ export async function resolveWorkspaceContext(ctx: QueryCtx): Promise<WorkspaceC
     workspaceOwnerId: null,
     canAccessCloud: false,
   };
+}
+
+/** True when the user has a personal Pro subscription or is a workspace member of an owner with an active subscription. */
+export async function hasProEntitlement(ctx: DbCtx): Promise<boolean> {
+  const w = await resolveWorkspaceContext(ctx);
+  return w.canAccessCloud;
 }
 
 /** Client hook should use this query so `canAccessCloud` matches server checks (incl. owner subscription for members). */
