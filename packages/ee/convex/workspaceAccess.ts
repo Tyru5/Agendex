@@ -1,4 +1,4 @@
-import type { QueryCtx } from './_generated/server';
+import { type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { hasActiveSubscription, hasActiveSubscriptionForUserId } from './subscriptions';
 
@@ -8,13 +8,8 @@ export interface WorkspaceContext {
   canAccessCloud: boolean;
 }
 
-export async function getWorkspaceContext(ctx: QueryCtx): Promise<WorkspaceContext> {
-  let user;
-  try {
-    user = await authComponent.getAuthUser(ctx);
-  } catch {
-    return { role: 'none', workspaceOwnerId: null, canAccessCloud: false };
-  }
+export async function resolveWorkspaceContext(ctx: QueryCtx): Promise<WorkspaceContext> {
+  const user = await authComponent.safeGetAuthUser(ctx);
   if (!user) return { role: 'none', workspaceOwnerId: null, canAccessCloud: false };
 
   const ownActive = await hasActiveSubscription(ctx);
@@ -46,3 +41,9 @@ export async function getWorkspaceContext(ctx: QueryCtx): Promise<WorkspaceConte
     canAccessCloud: false,
   };
 }
+
+/** Client hook should use this query so `canAccessCloud` matches server checks (incl. owner subscription for members). */
+export const getWorkspaceContext = query({
+  args: {},
+  handler: async (ctx) => resolveWorkspaceContext(ctx),
+});
