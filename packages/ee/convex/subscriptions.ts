@@ -5,6 +5,14 @@ import { action, internalMutation, type QueryCtx, query } from './_generated/ser
 import { authComponent } from './auth';
 import { stripe } from './stripe';
 
+function isProBypassUserId(userId: string): boolean {
+  const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return bypassIds.includes(userId);
+}
+
 export const getMySubscriptionQuery = query({
   handler: async (ctx) => {
     let user;
@@ -26,6 +34,8 @@ export async function hasActiveSubscriptionForUserId(
   ctx: QueryCtx,
   userId: string,
 ): Promise<boolean> {
+  if (isProBypassUserId(userId)) return true;
+
   const sub = await ctx.db
     .query('subscriptions')
     .withIndex('by_user', (q) => q.eq('userId', userId))
@@ -44,12 +54,6 @@ export async function hasActiveSubscription(ctx: QueryCtx): Promise<boolean> {
     return false;
   }
   if (!user) return false;
-
-  const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean);
-  if (bypassIds.includes(user._id)) return true;
 
   return hasActiveSubscriptionForUserId(ctx, user._id);
 }
@@ -71,11 +75,7 @@ export const hasCompletedOnboarding = query({
     }
     if (!user) return false;
 
-    const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
-    if (bypassIds.includes(user._id)) return true;
+    if (isProBypassUserId(user._id)) return true;
 
     const sub = await ctx.db
       .query('subscriptions')
