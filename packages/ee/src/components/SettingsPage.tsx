@@ -1,7 +1,6 @@
 import { startViewTransition } from '@agendex/web';
 import { api } from '@convex/_generated/api';
-import { useAction, useMutation, useQuery } from 'convex/react';
-import type { Id } from '@convex/_generated/dataModel';
+import { useAction, useMutation } from 'convex/react';
 import { useEffect, useState } from 'react';
 import { Redirect, useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
@@ -9,11 +8,11 @@ import { useDaemonStatus } from '../hooks/useDaemonStatus';
 import { useSubscription } from '../hooks/useSubscription';
 import { useSubscriptionView } from '../hooks/useSubscriptionView';
 import { authClient } from '../lib/auth-client';
-import { InviteWorkspaceMemberDialog } from './InviteWorkspaceMemberDialog';
 import { PricingModal } from './PricingModal';
 import { AccountTab } from './settings/AccountTab';
 import { SettingsSidebar } from './settings/SettingsSidebar';
 import { SettingsTabs } from './settings/SettingsTabs';
+import { TeamTab } from './settings/TeamTab';
 import type { SettingsTabId } from './settings/constants';
 
 function BackArrow() {
@@ -31,104 +30,6 @@ function BackArrow() {
     >
       <path d="M19 12H5M12 19l-7-7 7-7" />
     </svg>
-  );
-}
-
-function WorkspaceMembersSection() {
-  const [showInvite, setShowInvite] = useState(false);
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
-  const workspace = useQuery((api as any).workspaceMembers.listWorkspaceMembers);
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
-  const removeMember = useMutation((api as any).workspaceMembers.removeWorkspaceMember);
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
-  const revokeInvite = useMutation((api as any).workspaceMembers.revokeWorkspaceInvite);
-
-  if (!workspace) return null;
-
-  return (
-    <>
-      <section>
-        <h2 className="text-[14px] font-semibold text-text mb-3">Workspace Members</h2>
-        <div className="bg-surface border border-border rounded-default p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-[13px] text-secondary">
-              {workspace.usedSeats} / {workspace.seatLimit} seats used
-            </div>
-            {workspace.remainingSeats > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowInvite(true)}
-                className="text-[13px] px-3.5 py-1.5 rounded-default border-none text-white cursor-pointer font-semibold"
-                style={{ background: 'var(--primary)' }}
-              >
-                Invite member
-              </button>
-            )}
-          </div>
-
-          {workspace.members.length > 0 && (
-            <div className="flex flex-col gap-2 mb-3">
-              {workspace.members.map((member: { _id: string; email: string; addedAt: number }) => (
-                <div
-                  key={member._id}
-                  className="flex items-center justify-between py-2 px-3 rounded-default border border-border bg-bg"
-                >
-                  <div>
-                    <div className="text-[13px] text-text">{member.email}</div>
-                    <div className="text-[11px] text-tertiary mt-0.5">Member</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      removeMember({ membershipId: member._id as Id<'workspaceMembers'> })
-                    }
-                    className="text-[12px] px-2.5 py-1 rounded-default border border-border bg-transparent cursor-pointer font-medium transition-colors duration-150"
-                    style={{ color: '#ef4444' }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {workspace.pendingInvites.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {workspace.pendingInvites.map(
-                (invite: { _id: string; email: string; createdAt: number }) => (
-                  <div
-                    key={invite._id}
-                    className="flex items-center justify-between py-2 px-3 rounded-default border border-border bg-bg"
-                  >
-                    <div>
-                      <div className="text-[13px] text-text">{invite.email}</div>
-                      <div className="text-[11px] text-tertiary mt-0.5">Pending invite</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        revokeInvite({ inviteId: invite._id as Id<'workspaceInvites'> })
-                      }
-                      className="text-[12px] px-2.5 py-1 rounded-default border border-border bg-transparent cursor-pointer font-medium transition-colors duration-150 text-secondary hover:text-text"
-                    >
-                      Revoke
-                    </button>
-                  </div>
-                ),
-              )}
-            </div>
-          )}
-
-          {workspace.members.length === 0 && workspace.pendingInvites.length === 0 && (
-            <p className="text-[13px] text-secondary">
-              No members yet. Invite team members to give them read-only access to your plans.
-            </p>
-          )}
-        </div>
-      </section>
-
-      {showInvite && <InviteWorkspaceMemberDialog onClose={() => setShowInvite(false)} />}
-    </>
   );
 }
 
@@ -155,7 +56,6 @@ export function SettingsPage() {
       }
     });
   }, []);
-
 
   if (isLoading) return null;
   if (!isAuthenticated || !user) return <Redirect to="/" />;
@@ -231,23 +131,27 @@ export function SettingsPage() {
           <section className="min-w-0">
             <SettingsTabs activeTab={activeTab} onChange={setActiveTab} />
 
-            <AccountTab
-              user={user}
-              subscription={subscription}
-              isActive={isActive}
-              isTrialing={isTrialing}
-              trialDaysLeft={trialDaysLeft}
-              devices={devices}
-              createPortal={createPortal}
-              onUpgrade={() => setShowPricing(true)}
-              onDeleteDevice={async (deviceId) => {
-                await removeDaemonMutation({ deviceId });
-              }}
-              onDeleteAccount={handleDeleteAccount}
-              deleting={deleting}
-            />
+            <div key={activeTab} className="settings-tab-content">
+              {activeTab === 'account' && (
+                <AccountTab
+                  user={user}
+                  subscription={subscription}
+                  isActive={isActive}
+                  isTrialing={isTrialing}
+                  trialDaysLeft={trialDaysLeft}
+                  devices={devices}
+                  createPortal={createPortal}
+                  onUpgrade={() => setShowPricing(true)}
+                  onDeleteDevice={async (deviceId) => {
+                    await removeDaemonMutation({ deviceId });
+                  }}
+                  onDeleteAccount={handleDeleteAccount}
+                  deleting={deleting}
+                />
+              )}
 
-            {isActive && <WorkspaceMembersSection />}
+              {activeTab === 'team' && <TeamTab isActive={isActive} />}
+            </div>
           </section>
         </div>
       </main>
