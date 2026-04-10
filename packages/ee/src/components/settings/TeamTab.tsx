@@ -106,7 +106,10 @@ export function TeamTab({ isActive }: TeamTabProps) {
   const [showInvite, setShowInvite] = useState(false);
 
   // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
-  const workspace = useQuery((api as any).workspaceMembers.listWorkspaceMembers);
+  const workspace = useQuery(
+    (api as any).workspaceMembers.listWorkspaceMembers,
+    isActive ? {} : 'skip',
+  );
   // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
   const removeMember = useMutation((api as any).workspaceMembers.removeWorkspaceMember);
   // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
