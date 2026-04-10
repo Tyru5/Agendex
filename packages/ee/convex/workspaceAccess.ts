@@ -42,7 +42,11 @@ export async function resolveWorkspaceContext(ctx: DbCtx): Promise<WorkspaceCont
   };
 }
 
-/** True when the user has a personal Pro subscription or is a workspace member of an owner with an active subscription. */
+/**
+ * True when the user can treat the product as Pro for read/UI (personal subscription, or
+ * workspace member of an owner with an active subscription). Do not use this to gate write
+ * mutations — those must use `hasActiveSubscription` (subscriber on the caller's account only).
+ */
 export async function hasProEntitlement(ctx: DbCtx): Promise<boolean> {
   const w = await resolveWorkspaceContext(ctx);
   return w.canAccessCloud;
