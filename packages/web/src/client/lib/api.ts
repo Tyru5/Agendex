@@ -28,6 +28,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (res.status === 401) {
     clearToken();
+    sessionStorage.setItem('agendex_session_expired', '1');
     window.location.reload();
     throw new Error('unauthorized');
   }

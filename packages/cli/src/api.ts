@@ -4,6 +4,13 @@ import { hostname as osHostname } from 'node:os';
 import { loadConfig, loadOrCreateDeviceId, saveConfig } from '@agendex/shared';
 import { readPidInfo } from './pid.ts';
 
+export class AuthExpiredError extends Error {
+  constructor() {
+    super('Cloud token expired. Run `agendex login` to re-authenticate.');
+    this.name = 'AuthExpiredError';
+  }
+}
+
 let cachedDeviceId: string | undefined;
 
 function getCloudConfig() {
@@ -246,6 +253,10 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
         },
       });
     }
+  }
+
+  if (res.status === 401) {
+    throw new AuthExpiredError();
   }
 
   if (res.status < 200 || res.status >= 300) {
