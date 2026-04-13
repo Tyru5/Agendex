@@ -240,10 +240,6 @@ export function PlanList(props: PlanListProps) {
     return { pinnedPlans: pinned, unseenPlans: unseen, restPlans: rest };
   }, [plans, planState, selectedId, isPro]);
 
-  if (plans.length === 0) {
-    return <div className="p-4 text-[13px] text-tertiary">No plans found</div>;
-  }
-
   function handleClick(plan: Plan) {
     if (isPro) planState.markSeen(plan.id, plan.updatedAt);
     onSelect(plan);
@@ -275,6 +271,10 @@ export function PlanList(props: PlanListProps) {
     setRenamingPlanId(null);
     setRenameValue('');
   }, [renamingPlanId, renameValue, onRenamePlan]);
+
+  if (plans.length === 0) {
+    return <div className="p-4 text-[13px] text-tertiary">No plans found</div>;
+  }
 
   const contextPlan = contextMenu?.plan;
   const contextPlanPinned = contextPlan ? planState.isPinned(contextPlan.id) : false;
