@@ -173,6 +173,44 @@ export const getPlanByShareToken = query({
   },
 });
 
+export const renamePlan = mutation({
+  args: {
+    planId: v.id('plans'),
+    title: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new ConvexError('Unauthenticated');
+    }
+
+    await requireFeature(ctx, ProFeature.CLOUD_SYNC);
+
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) {
+      throw new ConvexError('Plan not found');
+    }
+
+    if (plan.ownerId !== user._id) {
+      throw new ConvexError('Access denied');
+    }
+
+    const title = args.title.trim();
+    if (!title) {
+      throw new ConvexError('Title cannot be empty');
+    }
+
+    if (plan.title === title) {
+      return;
+    }
+
+    await ctx.db.patch(args.planId, {
+      title,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const updatePlanContent = mutation({
   args: {
     planId: v.id('plans'),

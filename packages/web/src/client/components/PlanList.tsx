@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlanState } from '../hooks/usePlanState.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
@@ -24,6 +24,11 @@ function PlanRow({
   onClick,
   isSplit,
   onContextMenu,
+  isRenaming,
+  renameValue,
+  onRenameChange,
+  onRenameSubmit,
+  onRenameCancel,
 }: {
   plan: Plan;
   selected: boolean;
@@ -31,8 +36,14 @@ function PlanRow({
   onClick: () => void;
   isSplit?: boolean;
   onContextMenu?: (e: React.MouseEvent) => void;
+  isRenaming?: boolean;
+  renameValue?: string;
+  onRenameChange?: (value: string) => void;
+  onRenameSubmit?: () => void;
+  onRenameCancel?: () => void;
 }) {
   const titleRef = useRef<HTMLDivElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const [overflows, setOverflows] = useState(false);
 
   useLayoutEffect(() => {
@@ -41,10 +52,14 @@ function PlanRow({
     setOverflows(el.scrollWidth > el.clientWidth);
   });
 
+  useEffect(() => {
+    if (isRenaming) renameInputRef.current?.focus();
+  }, [isRenaming]);
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={isRenaming ? undefined : onClick}
       onContextMenu={onContextMenu}
       className={`w-full text-left block plan-row${selected ? ' plan-row--selected' : ''}${isSplit ? ' plan-row--split' : ''} py-2.5 px-2 rounded-[7px] cursor-pointer border-none font-[inherit]`}
       style={{
@@ -52,16 +67,34 @@ function PlanRow({
         border: isSplit ? '1px dashed var(--border)' : undefined,
       }}
     >
-      <div
-        ref={titleRef}
-        className={`plan-title${overflows ? ' plan-title--fade' : ''}`}
-        style={{ paddingLeft: unseen ? '14px' : undefined }}
-      >
-        {unseen && (
-          <span className="unseen-dot absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
-        )}
-        {plan.title}
-      </div>
+      {isRenaming ? (
+        <input
+          ref={renameInputRef}
+          type="text"
+          value={renameValue ?? ''}
+          onChange={(e) => onRenameChange?.(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') onRenameSubmit?.();
+            if (e.key === 'Escape') onRenameCancel?.();
+          }}
+          onBlur={() => onRenameCancel?.()}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full text-[13px] font-medium font-[inherit] bg-transparent border border-border rounded-[5px] px-1.5 py-0.5 outline-none text-text"
+          style={{ lineHeight: '1.35' }}
+        />
+      ) : (
+        <div
+          ref={titleRef}
+          className={`plan-title${overflows ? ' plan-title--fade' : ''}`}
+          style={{ paddingLeft: unseen ? '14px' : undefined }}
+        >
+          {unseen && (
+            <span className="unseen-dot absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
+          )}
+          {plan.title}
+        </div>
+      )}
       <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
         <AgentIcon agent={plan.agent} size={11} />
         <span>{getAgentLabel(plan.agent)}</span>
@@ -127,6 +160,7 @@ type PlanListProps = {
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
   planState?: PlanState;
+  onRenamePlan?: (planId: string, newTitle: string) => void;
 };
 
 export function PlanList(props: PlanListProps) {
@@ -138,10 +172,13 @@ export function PlanList(props: PlanListProps) {
     splitPlanId,
     onOpenInSplitView,
     planState: planStateProp,
+    onRenamePlan,
   } = props;
   const localPlanState = usePlanState();
   const planState = planStateProp ?? localPlanState;
   const [contextMenu, setContextMenu] = useState<{ plan: Plan; x: number; y: number } | null>(null);
+  const [renamingPlanId, setRenamingPlanId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const lastAutoSeenKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -203,10 +240,6 @@ export function PlanList(props: PlanListProps) {
     return { pinnedPlans: pinned, unseenPlans: unseen, restPlans: rest };
   }, [plans, planState, selectedId, isPro]);
 
-  if (plans.length === 0) {
-    return <div className="p-4 text-[13px] text-tertiary">No plans found</div>;
-  }
-
   function handleClick(plan: Plan) {
     if (isPro) planState.markSeen(plan.id, plan.updatedAt);
     onSelect(plan);
@@ -218,6 +251,29 @@ export function PlanList(props: PlanListProps) {
     const x = Math.min(e.clientX, window.innerWidth - 220);
     const y = Math.min(e.clientY, window.innerHeight - 120);
     setContextMenu({ plan, x, y });
+  }
+
+  const startRename = useCallback((plan: Plan) => {
+    setRenamingPlanId(plan.id);
+    setRenameValue(plan.title);
+  }, []);
+
+  const cancelRename = useCallback(() => {
+    setRenamingPlanId(null);
+    setRenameValue('');
+  }, []);
+
+  const submitRename = useCallback(() => {
+    const trimmed = renameValue.trim();
+    if (renamingPlanId && trimmed && onRenamePlan) {
+      onRenamePlan(renamingPlanId, trimmed);
+    }
+    setRenamingPlanId(null);
+    setRenameValue('');
+  }, [renamingPlanId, renameValue, onRenamePlan]);
+
+  if (plans.length === 0) {
+    return <div className="p-4 text-[13px] text-tertiary">No plans found</div>;
   }
 
   const contextPlan = contextMenu?.plan;
@@ -243,6 +299,11 @@ export function PlanList(props: PlanListProps) {
               onClick={() => handleClick(plan)}
               isSplit={plan.id === splitPlanId}
               onContextMenu={(e) => handleContextMenu(e, plan)}
+              isRenaming={renamingPlanId === plan.id}
+              renameValue={renameValue}
+              onRenameChange={setRenameValue}
+              onRenameSubmit={submitRename}
+              onRenameCancel={cancelRename}
             />
           ))}
           {(unseenPlans.length > 0 || restPlans.length > 0) && (
@@ -273,6 +334,11 @@ export function PlanList(props: PlanListProps) {
               onClick={() => handleClick(plan)}
               isSplit={plan.id === splitPlanId}
               onContextMenu={(e) => handleContextMenu(e, plan)}
+              isRenaming={renamingPlanId === plan.id}
+              renameValue={renameValue}
+              onRenameChange={setRenameValue}
+              onRenameSubmit={submitRename}
+              onRenameCancel={cancelRename}
             />
           ))}
           {restPlans.length > 0 && <div className="h-px bg-border mx-2 my-1.5" />}
@@ -287,6 +353,11 @@ export function PlanList(props: PlanListProps) {
           onClick={() => handleClick(plan)}
           isSplit={isPro && plan.id === splitPlanId}
           onContextMenu={isPro ? (e) => handleContextMenu(e, plan) : undefined}
+          isRenaming={renamingPlanId === plan.id}
+          renameValue={renameValue}
+          onRenameChange={setRenameValue}
+          onRenameSubmit={submitRename}
+          onRenameCancel={cancelRename}
         />
       ))}
       {isPro &&
@@ -325,6 +396,15 @@ export function PlanList(props: PlanListProps) {
                 setContextMenu(null);
               }}
             />
+            {onRenamePlan && (
+              <MenuButton
+                label="Rename"
+                onClick={() => {
+                  startRename(contextMenu.plan);
+                  setContextMenu(null);
+                }}
+              />
+            )}
             {onOpenInSplitView && (
               <MenuButton
                 label="Open in Split View"

@@ -19,7 +19,7 @@ import {
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import {
@@ -59,6 +59,7 @@ import { useSubscription } from './hooks/useSubscription.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { APP_URL } from './lib/auth-client.ts';
+import { CHART_PREF_STORAGE_KEY } from './chartPref.ts';
 import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
 const PlanEditor = lazy(() =>
@@ -342,6 +343,7 @@ function DashboardMain({
   splitPlan,
   onCloseSplit,
   outlineHidden,
+  chartHidden,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -367,6 +369,7 @@ function DashboardMain({
   splitPlan?: Plan;
   onCloseSplit?: () => void;
   outlineHidden?: boolean;
+  chartHidden?: boolean;
 }) {
   if (
     isSplitView &&
@@ -435,6 +438,7 @@ function DashboardMain({
             onHistory={isPro ? onHistory : undefined}
             onShare={isPro ? onShare : undefined}
             headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
+            chartHidden={chartHidden}
           />
           {isPro && mode === 'cloud' && (
             <div className="mx-auto px-6 pb-16">
@@ -450,6 +454,7 @@ function DashboardMain({
             onHistory={isPro ? onHistory : undefined}
             onShare={isPro ? onShare : undefined}
             headerExtra={isPro ? <PlanTagsBar planId={splitPlan.id} /> : undefined}
+            chartHidden={chartHidden}
           />
           {isPro && mode === 'cloud' && (
             <div className="mx-auto px-6 pb-16">
@@ -540,6 +545,7 @@ function DashboardMain({
               onShare={isPro ? onShare : undefined}
               headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
               outlineHidden={outlineHidden}
+              chartHidden={chartHidden}
             />
             {isPro && mode === 'cloud' && (
               <div className="max-w-[720px] mx-auto px-8 pb-16">
@@ -590,6 +596,7 @@ function DashboardSidebar({
   splitPlanId,
   onOpenInSplitView,
   planState,
+  onRenamePlan,
 }: {
   sidebarHidden: boolean;
   sidebarVisible: boolean;
@@ -622,6 +629,7 @@ function DashboardSidebar({
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
   planState: PlanState;
+  onRenamePlan?: (planId: string, newTitle: string) => void;
 }) {
   return (
     <aside
@@ -770,6 +778,7 @@ function DashboardSidebar({
             splitPlanId={splitPlanId}
             onOpenInSplitView={onOpenInSplitView}
             planState={planState}
+            onRenamePlan={onRenamePlan}
           />
         )}
       </div>
@@ -787,6 +796,7 @@ type DashState = {
   sidebarHidden: boolean;
   sidebarPeek: boolean;
   outlineHidden: boolean;
+  chartHidden: boolean;
 };
 
 type DashAction =
@@ -797,7 +807,8 @@ type DashAction =
   | { type: 'SET_SIDEBAR_HIDDEN'; value: boolean }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_SIDEBAR_PEEK'; value: boolean }
-  | { type: 'TOGGLE_OUTLINE' };
+  | { type: 'TOGGLE_OUTLINE' }
+  | { type: 'TOGGLE_CHART' };
 
 function dashReducer(s: DashState, a: DashAction): DashState {
   switch (a.type) {
@@ -817,6 +828,8 @@ function dashReducer(s: DashState, a: DashAction): DashState {
       return { ...s, sidebarPeek: a.value };
     case 'TOGGLE_OUTLINE':
       return { ...s, outlineHidden: !s.outlineHidden };
+    case 'TOGGLE_CHART':
+      return { ...s, chartHidden: !s.chartHidden };
   }
 }
 
@@ -867,6 +880,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     sidebarHidden: localStorage.getItem(SIDEBAR_PREF_KEY) === 'true',
     sidebarPeek: false,
     outlineHidden: localStorage.getItem(OUTLINE_PREF_STORAGE_KEY) === 'true',
+    chartHidden: localStorage.getItem(CHART_PREF_STORAGE_KEY) === 'true',
   });
 
   const {
@@ -877,6 +891,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     sidebarHidden,
     sidebarPeek,
     outlineHidden,
+    chartHidden,
   } = ds;
   const mode = autoMode;
   const setSelectedTags = (v: string[]) => dsd({ type: 'SET_TAGS', value: v });
@@ -893,7 +908,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const showHistory = activePanel === 'history';
   const sharing = activePanel === 'sharing';
   const sidebarBeforeWide = useRef<boolean | null>(null);
-  const { canAccessCloud: isPro } = useWorkspaceAccess();
+  const { canAccessCloud: isPro, isLoading: isWorkspaceAccessLoading } = useWorkspaceAccess();
   const localPlanState = usePlanState();
   const cloudPlanState = useCloudPlanPreferences();
 
@@ -945,6 +960,10 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     localStorage.setItem(OUTLINE_PREF_STORAGE_KEY, outlineHidden ? 'true' : 'false');
   }, [outlineHidden]);
 
+  useEffect(() => {
+    localStorage.setItem(CHART_PREF_STORAGE_KEY, chartHidden ? 'true' : 'false');
+  }, [chartHidden]);
+
   const selectedPlan = useMemo(() => {
     if (selectedPlanId) {
       return (
@@ -963,6 +982,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   }, [plansById, plans, splitPlanId]);
 
   const isSplitView = !!selectedPlan && !!splitPlan && selectedPlan.id !== splitPlan.id;
+  const effectiveChartHidden = !isPro && !isWorkspaceAccessLoading ? false : chartHidden;
 
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
@@ -1043,8 +1063,22 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     dsd({ type: 'TOGGLE_OUTLINE' });
   }
 
+  function restoreSidebarAfterWide() {
+    if (sidebarBeforeWide.current) setSidebarHidden(false);
+    sidebarBeforeWide.current = null;
+  }
+
+  function toggleChart() {
+    if (!isPro) return;
+    if (!chartHidden && sidebarBeforeWide.current !== null) {
+      restoreSidebarAfterWide();
+    }
+    dsd({ type: 'TOGGLE_CHART' });
+  }
+
   useHotkey('Mod+B', toggleSidebar);
   useHotkey('Mod+Shift+O', toggleOutline);
+  useHotkey('Mod+Shift+G', toggleChart);
 
   function handleNewPlan() {
     if (isPro) {
@@ -1058,13 +1092,21 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     startViewTransition(() => setActivePanel('uploading'));
   }
 
+  const renamePlanMutation = useMutation(api.plans.renamePlan);
+  const handleRenamePlan = useCallback(
+    async (planId: string, newTitle: string) => {
+      if (mode !== 'cloud' || !isPro) return;
+      await renamePlanMutation({ planId: planId as Id<'plans'>, title: newTitle });
+    },
+    [mode, isPro, renamePlanMutation],
+  );
+
   function handleChartWideChange(wide: boolean) {
     if (wide) {
       sidebarBeforeWide.current = !sidebarHidden;
       if (!sidebarHidden) setSidebarHidden(true);
     } else {
-      if (sidebarBeforeWide.current) setSidebarHidden(false);
-      sidebarBeforeWide.current = null;
+      restoreSidebarAfterWide();
     }
   }
 
@@ -1105,6 +1147,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onCloseSplit={splitPlanId ? closeSplitView : undefined}
         planState={planState}
         onToggleOutline={toggleOutline}
+        onToggleChart={isPro ? toggleChart : undefined}
       />
 
       {sidebarHidden && (
@@ -1153,6 +1196,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         splitPlanId={splitPlanId ?? undefined}
         onOpenInSplitView={(plan: Plan) => startViewTransition(() => openPlanInSplitView(plan))}
         planState={planState}
+        onRenamePlan={mode === 'cloud' && isPro ? handleRenamePlan : undefined}
       />
 
       <DashboardMain
@@ -1190,6 +1234,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         splitPlan={splitPlan}
         onCloseSplit={closeSplitView}
         outlineHidden={outlineHidden}
+        chartHidden={effectiveChartHidden}
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
