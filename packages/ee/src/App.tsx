@@ -1063,8 +1063,17 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     dsd({ type: 'TOGGLE_OUTLINE' });
   }
 
+  function restoreSidebarAfterWide() {
+    if (sidebarBeforeWide.current) setSidebarHidden(false);
+    sidebarBeforeWide.current = null;
+  }
+
   function toggleChart() {
-    if (isPro) dsd({ type: 'TOGGLE_CHART' });
+    if (!isPro) return;
+    if (!chartHidden && sidebarBeforeWide.current !== null) {
+      restoreSidebarAfterWide();
+    }
+    dsd({ type: 'TOGGLE_CHART' });
   }
 
   useHotkey('Mod+B', toggleSidebar);
@@ -1097,8 +1106,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       sidebarBeforeWide.current = !sidebarHidden;
       if (!sidebarHidden) setSidebarHidden(true);
     } else {
-      if (sidebarBeforeWide.current) setSidebarHidden(false);
-      sidebarBeforeWide.current = null;
+      restoreSidebarAfterWide();
     }
   }
 
