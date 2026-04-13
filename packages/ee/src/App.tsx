@@ -908,7 +908,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const showHistory = activePanel === 'history';
   const sharing = activePanel === 'sharing';
   const sidebarBeforeWide = useRef<boolean | null>(null);
-  const { canAccessCloud: isPro } = useWorkspaceAccess();
+  const { canAccessCloud: isPro, isLoading: isWorkspaceAccessLoading } = useWorkspaceAccess();
   const localPlanState = usePlanState();
   const cloudPlanState = useCloudPlanPreferences();
 
@@ -982,6 +982,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   }, [plansById, plans, splitPlanId]);
 
   const isSplitView = !!selectedPlan && !!splitPlan && selectedPlan.id !== splitPlan.id;
+  const effectiveChartHidden = !isPro && !isWorkspaceAccessLoading ? false : chartHidden;
 
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
@@ -1225,7 +1226,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         splitPlan={splitPlan}
         onCloseSplit={closeSplitView}
         outlineHidden={outlineHidden}
-        chartHidden={chartHidden}
+        chartHidden={effectiveChartHidden}
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
