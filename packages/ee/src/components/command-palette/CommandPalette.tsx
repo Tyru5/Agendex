@@ -28,6 +28,7 @@ export function CommandPalette({
   onCloseSplit,
   planState: planStateProp,
   onToggleOutline,
+  onToggleChart,
 }: {
   search: string;
   onSearch: (q: string) => void;
@@ -47,6 +48,7 @@ export function CommandPalette({
   onCloseSplit?: () => void;
   planState?: PlanState;
   onToggleOutline?: () => void;
+  onToggleChart?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -172,6 +174,18 @@ export function CommandPalette({
       });
     }
 
+    if (onToggleChart) {
+      cmds.push({
+        id: 'toggle-chart',
+        label: 'Toggle Tech Chart',
+        group: 'actions',
+        icon: <ChartIcon />,
+        footerHint: 'Show or hide tech dependency chart (⇧⌘G)',
+        action: onToggleChart,
+        proOnly: true,
+      });
+    }
+
     cmds.push({
       id: 'manage-history',
       label: 'Manage Plan History',
@@ -263,6 +277,7 @@ export function CommandPalette({
     onSearch,
     toggleTheme,
     onToggleOutline,
+    onToggleChart,
   ]);
 
   const {
@@ -782,6 +797,26 @@ function FlagIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M3 3v1.5M3 21v-6m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 1-.005-10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 4.5M3 15V4.5"
+      />
+    </svg>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      className="w-[14px] h-[14px]"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z"
       />
     </svg>
   );

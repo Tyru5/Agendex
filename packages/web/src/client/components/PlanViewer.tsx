@@ -38,6 +38,7 @@ type PlanViewerProps = {
   onChartWideChange?: (wide: boolean) => void;
   mode?: 'single' | 'split';
   outlineHidden?: boolean;
+  chartHidden?: boolean;
 };
 
 export function PlanViewer({
@@ -49,6 +50,7 @@ export function PlanViewer({
   onChartWideChange,
   mode = 'single',
   outlineHidden,
+  chartHidden,
 }: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
   const fullscreen = useFullscreen<HTMLDivElement>();
@@ -208,7 +210,7 @@ export function PlanViewer({
           </div>
         </div>
 
-        {onChartWideChange && (
+        {onChartWideChange && !chartHidden && (
           <div style={{ marginTop: '8px', marginBottom: '24px' }}>
             <TechDependencyChart plan={plan} onWideChange={onChartWideChange} />
           </div>
