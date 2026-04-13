@@ -338,6 +338,7 @@ function DashboardMain({
   onShare,
   onCloseShare,
   onChartWideChange,
+  onToggleChart,
   onSearch,
   isSplitView,
   splitPlan,
@@ -364,6 +365,7 @@ function DashboardMain({
   onShare: () => void;
   onCloseShare: () => void;
   onChartWideChange: (wide: boolean) => void;
+  onToggleChart?: () => void;
   onSearch: () => void;
   isSplitView?: boolean;
   splitPlan?: Plan;
@@ -435,6 +437,7 @@ function DashboardMain({
             mode="split"
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
+            onToggleChart={onToggleChart}
             onHistory={isPro ? onHistory : undefined}
             onShare={isPro ? onShare : undefined}
             headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
@@ -451,6 +454,7 @@ function DashboardMain({
             plan={splitPlan}
             mode="split"
             onChartWideChange={onChartWideChange}
+            onToggleChart={onToggleChart}
             onHistory={isPro ? onHistory : undefined}
             onShare={isPro ? onShare : undefined}
             headerExtra={isPro ? <PlanTagsBar planId={splitPlan.id} /> : undefined}
@@ -541,6 +545,7 @@ function DashboardMain({
               plan={selectedPlan}
               onEdit={onEdit}
               onChartWideChange={onChartWideChange}
+              onToggleChart={onToggleChart}
               onHistory={isPro ? onHistory : undefined}
               onShare={isPro ? onShare : undefined}
               headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
@@ -1225,6 +1230,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onShare={() => setActivePanel('sharing')}
         onCloseShare={() => setActivePanel(null)}
         onChartWideChange={handleChartWideChange}
+        onToggleChart={isPro ? toggleChart : undefined}
         onSearch={() => {
           window.dispatchEvent(
             new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }),

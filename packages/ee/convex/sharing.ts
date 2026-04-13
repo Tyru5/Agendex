@@ -89,7 +89,7 @@ function generateShareLinkSecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(SHARE_LINK_SECRET_BYTES));
   let binary = '';
   for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]);
+    binary += String.fromCharCode(bytes[i]!);
   }
   const b64 = btoa(binary);
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -132,7 +132,7 @@ function constantTimeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
 
   let mismatch = 0;
   for (let i = 0; i < a.length; i += 1) {
-    mismatch |= a[i] ^ b[i];
+    mismatch |= a[i]! ^ b[i]!;
   }
   return mismatch === 0;
 }

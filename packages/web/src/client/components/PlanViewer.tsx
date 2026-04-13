@@ -36,6 +36,7 @@ type PlanViewerProps = {
   onHistory?: () => void;
   onShare?: () => void;
   onChartWideChange?: (wide: boolean) => void;
+  onToggleChart?: () => void;
   mode?: 'single' | 'split';
   outlineHidden?: boolean;
   chartHidden?: boolean;
@@ -48,6 +49,7 @@ export function PlanViewer({
   onHistory,
   onShare,
   onChartWideChange,
+  onToggleChart,
   mode = 'single',
   outlineHidden,
   chartHidden,
@@ -196,6 +198,17 @@ export function PlanViewer({
               >
                 <HistoryIcon />
                 History
+              </button>
+            )}
+            {onToggleChart && (
+              <button
+                type="button"
+                onClick={onToggleChart}
+                title={chartHidden ? 'Show tech chart (⇧⌘G)' : 'Hide tech chart (⇧⌘G)'}
+                className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+              >
+                <ChartIcon />
+                {chartHidden ? 'Show Chart' : 'Hide Chart'}
               </button>
             )}
             <button
@@ -489,6 +502,26 @@ function HistoryIcon() {
       />
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v5h5" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l4 2" />
+    </svg>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-[13px] h-[13px]"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z"
+      />
     </svg>
   );
 }
