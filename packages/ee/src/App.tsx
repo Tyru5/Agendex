@@ -1115,16 +1115,19 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       if (mode !== 'cloud' || !isPro) return;
       await deletePlanMutation({ planId: planId as Id<'plans'> });
       startViewTransition(() =>
-        setSelectedPlan((prev) => {
-          if (prev?.id === planId) {
-            return undefined;
-          }
-          return prev;
-        }),
+        setSelectedPlan(selectedPlan?.id === planId ? undefined : selectedPlan),
       );
       setSplitPlanId((prev) => (prev === planId ? null : prev));
     },
-    [mode, isPro, deletePlanMutation, startViewTransition, setSelectedPlan, setSplitPlanId],
+    [
+      mode,
+      isPro,
+      deletePlanMutation,
+      startViewTransition,
+      setSelectedPlan,
+      setSplitPlanId,
+      selectedPlan,
+    ],
   );
 
   function handleChartWideChange(wide: boolean) {
