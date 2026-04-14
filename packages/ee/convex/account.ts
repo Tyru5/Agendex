@@ -5,6 +5,7 @@ import { api, components, internal } from './_generated/api';
 import type { Doc, TableNames } from './_generated/dataModel';
 import { action, internalMutation } from './_generated/server';
 import { deleteCommentWithAttachments, deletePendingUploadRecord } from './comments';
+import { deletePlanRelatedData } from './planDeletion';
 
 export const deleteAccount = action({
   handler: async (ctx) => {
@@ -74,55 +75,7 @@ export const purgeUserData = internalMutation({
       .collect();
 
     for (const plan of plans) {
-      await deleteRows(
-        await ctx.db
-          .query('shareLinks')
-          .withIndex('by_plan', (q) => q.eq('planId', plan._id))
-          .collect(),
-      );
-      const planComments = await ctx.db
-        .query('comments')
-        .withIndex('by_plan', (q) => q.eq('planId', plan._id))
-        .collect();
-      for (const comment of planComments) {
-        await deleteCommentWithAttachments(ctx, comment);
-      }
-      await deletePendingUploads(
-        await ctx.db
-          .query('pendingUploads')
-          .withIndex('by_plan', (q) => q.eq('planId', plan._id))
-          .collect(),
-      );
-      await deleteRows(
-        await ctx.db
-          .query('commentUploadReservations')
-          .withIndex('by_plan', (q) => q.eq('planId', plan._id))
-          .collect(),
-      );
-      await deleteRows(
-        await ctx.db
-          .query('planVersions')
-          .withIndex('by_plan', (q) => q.eq('planId', plan._id))
-          .collect(),
-      );
-      await deleteRows(
-        await ctx.db
-          .query('planTags')
-          .withIndex('by_plan', (q) => q.eq('planId', plan._id))
-          .collect(),
-      );
-      await deleteRows(
-        await ctx.db
-          .query('collectionPlans')
-          .withIndex('by_plan', (q) => q.eq('planId', plan._id))
-          .collect(),
-      );
-      await deleteRows(
-        await ctx.db
-          .query('planPreferences')
-          .withIndex('by_owner_plan', (q) => q.eq('ownerId', userId).eq('planId', plan._id))
-          .collect(),
-      );
+      await deletePlanRelatedData(ctx, { planId: plan._id, ownerId: userId });
       await ctx.db.delete(plan._id);
     }
 
