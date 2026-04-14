@@ -1113,15 +1113,18 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const handleDeletePlan = useCallback(
     async (planId: string) => {
       if (mode !== 'cloud' || !isPro) return;
-      if (selectedPlan?.id === planId) {
-        startViewTransition(() => setSelectedPlan(undefined));
-      }
-      if (splitPlanId === planId) {
-        setSplitPlanId(null);
-      }
       await deletePlanMutation({ planId: planId as Id<'plans'> });
+      startViewTransition(() =>
+        setSelectedPlan((prev) => {
+          if (prev?.id === planId) {
+            return undefined;
+          }
+          return prev;
+        }),
+      );
+      setSplitPlanId((prev) => (prev === planId ? null : prev));
     },
-    [mode, isPro, deletePlanMutation, selectedPlan, setSelectedPlan, splitPlanId, setSplitPlanId],
+    [mode, isPro, deletePlanMutation, startViewTransition, setSelectedPlan, setSplitPlanId],
   );
 
   function handleChartWideChange(wide: boolean) {
