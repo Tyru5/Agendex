@@ -39,6 +39,7 @@ export function DashboardTopbar({
   planState,
   onToggleOutline,
   onToggleChart,
+  onDeletePlan,
 }: {
   sidebarPinnedOpen: boolean;
   sidebarHidden: boolean;
@@ -69,6 +70,7 @@ export function DashboardTopbar({
   planState: PlanState;
   onToggleOutline?: () => void;
   onToggleChart?: () => void;
+  onDeletePlan?: (planId: string) => void;
 }) {
   return (
     <div
@@ -109,6 +111,7 @@ export function DashboardTopbar({
           planState={planState}
           onToggleOutline={onToggleOutline}
           onToggleChart={onToggleChart}
+          onDeletePlan={onDeletePlan}
         />
       </div>
 

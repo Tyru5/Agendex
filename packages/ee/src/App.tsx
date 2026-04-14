@@ -602,6 +602,7 @@ function DashboardSidebar({
   onOpenInSplitView,
   planState,
   onRenamePlan,
+  onDeletePlan,
 }: {
   sidebarHidden: boolean;
   sidebarVisible: boolean;
@@ -635,6 +636,7 @@ function DashboardSidebar({
   onOpenInSplitView?: (plan: Plan) => void;
   planState: PlanState;
   onRenamePlan?: (planId: string, newTitle: string) => void;
+  onDeletePlan?: (planId: string) => void;
 }) {
   return (
     <aside
@@ -784,6 +786,7 @@ function DashboardSidebar({
             onOpenInSplitView={onOpenInSplitView}
             planState={planState}
             onRenamePlan={onRenamePlan}
+            onDeletePlan={onDeletePlan}
           />
         )}
       </div>
@@ -1106,6 +1109,21 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     [mode, isPro, renamePlanMutation],
   );
 
+  const deletePlanMutation = useMutation(api.plans.deletePlan);
+  const handleDeletePlan = useCallback(
+    async (planId: string) => {
+      if (mode !== 'cloud' || !isPro) return;
+      if (selectedPlan?.id === planId) {
+        startViewTransition(() => setSelectedPlan(undefined));
+      }
+      if (splitPlanId === planId) {
+        setSplitPlanId(null);
+      }
+      await deletePlanMutation({ planId: planId as Id<'plans'> });
+    },
+    [mode, isPro, deletePlanMutation, selectedPlan, setSelectedPlan, splitPlanId, setSplitPlanId],
+  );
+
   function handleChartWideChange(wide: boolean) {
     if (wide) {
       sidebarBeforeWide.current = !sidebarHidden;
@@ -1153,6 +1171,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         planState={planState}
         onToggleOutline={toggleOutline}
         onToggleChart={isPro ? toggleChart : undefined}
+        onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
       />
 
       {sidebarHidden && (
@@ -1202,6 +1221,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onOpenInSplitView={(plan: Plan) => startViewTransition(() => openPlanInSplitView(plan))}
         planState={planState}
         onRenamePlan={mode === 'cloud' && isPro ? handleRenamePlan : undefined}
+        onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
       />
 
       <DashboardMain

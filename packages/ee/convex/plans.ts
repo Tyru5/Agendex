@@ -2,6 +2,7 @@ import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
+import { deleteCommentWithAttachments, deletePendingUploadRecord } from './comments';
 import { requireFeature } from './entitlements';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
 
@@ -261,5 +262,80 @@ export const updatePlanContent = mutation({
       source: 'editor',
       createdAt: now,
     });
+  },
+});
+
+export const deletePlan = mutation({
+  args: { planId: v.id('plans') },
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new ConvexError('Unauthenticated');
+    }
+
+    await requireFeature(ctx, ProFeature.CLOUD_SYNC);
+
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) {
+      throw new ConvexError('Plan not found');
+    }
+
+    if (plan.ownerId !== user._id) {
+      throw new ConvexError('Access denied');
+    }
+
+    const shareLinks = await ctx.db
+      .query('shareLinks')
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+      .collect();
+    for (const row of shareLinks) await ctx.db.delete(row._id);
+
+    const comments = await ctx.db
+      .query('comments')
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+      .collect();
+    for (const comment of comments) {
+      await deleteCommentWithAttachments(ctx, comment);
+    }
+
+    const pendingUploads = await ctx.db
+      .query('pendingUploads')
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+      .collect();
+    for (const row of pendingUploads) {
+      await deletePendingUploadRecord(ctx, row);
+    }
+
+    const commentUploadReservations = await ctx.db
+      .query('commentUploadReservations')
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+      .collect();
+    for (const row of commentUploadReservations) await ctx.db.delete(row._id);
+
+    const planVersions = await ctx.db
+      .query('planVersions')
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+      .collect();
+    for (const row of planVersions) await ctx.db.delete(row._id);
+
+    const planTags = await ctx.db
+      .query('planTags')
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+      .collect();
+    for (const row of planTags) await ctx.db.delete(row._id);
+
+    const collectionPlans = await ctx.db
+      .query('collectionPlans')
+      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+      .collect();
+    for (const row of collectionPlans) await ctx.db.delete(row._id);
+
+    const planPreferences = await ctx.db
+      .query('planPreferences')
+      .withIndex('by_owner_plan', (q) => q.eq('ownerId', user._id).eq('planId', args.planId))
+      .collect();
+    for (const row of planPreferences) await ctx.db.delete(row._id);
+
+    await ctx.db.delete(args.planId);
   },
 });
