@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import { createBunWebSocket, serveStatic } from 'hono/bun';
 import { cors } from 'hono/cors';
 import { AUTH_TOKEN, authMiddleware } from './auth.ts';
-import { plans } from './routes/plans.ts';
+import { plans, setPlanSourcesWatcherCallback } from './routes/plans.ts';
 import { rebuildIndex } from './services/search.ts';
 
 const app = new Hono();
@@ -40,7 +40,9 @@ const startup = loadOrInitConfig({ configureAdapters })
     return scan();
   })
   .then(() => {
-    startWatching((plans) => broadcast('plan:updated', plans));
+    const watcherCallback = (plans: unknown[]) => broadcast('plan:updated', plans);
+    setPlanSourcesWatcherCallback(watcherCallback);
+    startWatching(watcherCallback);
 
     // Fallback polling for environments where fs.watch is unreliable (WSL, network mounts)
     let lastFingerprint = buildFingerprint();

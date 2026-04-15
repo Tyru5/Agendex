@@ -3,7 +3,7 @@ import { lstat, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promis
 import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
-import { getConfigDir } from '../config.ts';
+import { getConfigDir, loadConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
 import type { Plan } from '../types.ts';
 
@@ -134,41 +134,88 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
   return files;
 }
 
+async function parseGenericMarkdownPlan(
+  filePath: string,
+  extraMetadata: Record<string, unknown>,
+): Promise<Plan | null> {
+  try {
+    const content = await readFile(filePath, 'utf-8');
+    const stats = await stat(filePath);
+
+    let agent = 'unknown';
+    const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
+    if (fmMatch) {
+      const agentLine = fmMatch[1]?.match(/^agent:\s*(.+)$/m);
+      if (agentLine?.[1]) agent = agentLine[1].trim();
+    }
+
+    const bodyContent = fmMatch ? content.slice(fmMatch[0].length) : content;
+    const titleMatch = bodyContent.match(/^#\s+(.+)/m);
+    const title =
+      titleMatch?.[1]?.trim() || filePath.split('/').pop()?.replace('.md', '') || 'Untitled';
+
+    return {
+      id: hashPath(filePath),
+      agent,
+      title,
+      content: bodyContent,
+      filePath,
+      format: 'md',
+      createdAt: stats.birthtime,
+      updatedAt: stats.mtime,
+      metadata: extraMetadata,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function scanUserPlans() {
   const userPlansDir = getUserPlansDir();
   if (!existsSync(userPlansDir)) return;
   const files = await walkDir(userPlansDir);
   for (const file of files) {
     if (!file.endsWith('.md')) continue;
-    try {
-      const content = await readFile(file, 'utf-8');
-      const stats = await stat(file);
+    const plan = await parseGenericMarkdownPlan(file, { userCreated: true });
+    if (plan) store.set(plan.id, plan);
+  }
+}
 
-      let agent = 'unknown';
-      const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
-      if (fmMatch) {
-        const agentLine = fmMatch[1]?.match(/^agent:\s*(.+)$/m);
-        if (agentLine?.[1]) agent = agentLine[1].trim();
+export function getCustomPlanDirs(): string[] {
+  return loadConfig()?.customPlanDirs ?? [];
+}
+
+async function scanCustomPlanDirs(coveredPaths: Set<string>) {
+  const dirs = getCustomPlanDirs();
+  const userPlansDir = resolve(getUserPlansDir());
+  for (const dir of dirs) {
+    const resolved = resolve(dir);
+    if (coveredPaths.has(resolved)) {
+      console.log(`[agendex] skipping custom dir (already covered by adapter): ${dir}`);
+      continue;
+    }
+    if (resolved.startsWith(userPlansDir + sep) || resolved === userPlansDir) {
+      console.log(`[agendex] skipping custom dir (overlaps user plans): ${dir}`);
+      continue;
+    }
+    if (!existsSync(dir)) {
+      console.log(`[agendex] skipping custom dir (not found): ${dir}`);
+      continue;
+    }
+    const files = await walkDir(dir);
+    let count = 0;
+    for (const file of files) {
+      if (!file.endsWith('.md')) continue;
+      const plan = await parseGenericMarkdownPlan(file, {
+        source: 'custom-dir',
+        customDir: dir,
+      });
+      if (plan) {
+        store.set(plan.id, plan);
+        count++;
       }
-
-      const bodyContent = fmMatch ? content.slice(fmMatch[0].length) : content;
-      const titleMatch = bodyContent.match(/^#\s+(.+)/m);
-      const title =
-        titleMatch?.[1]?.trim() || file.split('/').pop()?.replace('.md', '') || 'Untitled';
-
-      const plan: Plan = {
-        id: hashPath(file),
-        agent,
-        title,
-        content: bodyContent,
-        filePath: file,
-        format: 'md',
-        createdAt: stats.birthtime,
-        updatedAt: stats.mtime,
-        metadata: { userCreated: true },
-      };
-      store.set(plan.id, plan);
-    } catch {}
+    }
+    console.log(`[agendex] custom dir: ${dir} (${count} plans)`);
   }
 }
 
@@ -208,6 +255,7 @@ export async function scan() {
   }
 
   await scanUserPlans();
+  await scanCustomPlanDirs(coveredPaths);
   notifyPlansChanged();
   console.log(`[agendex] indexed ${store.size} plans from ${adapters.length} adapters`);
 }
@@ -353,6 +401,39 @@ export async function rescanFile(filePath: string) {
     }
     notifyPlansChanged();
     return plans;
+  }
+
+  // Check user plans dir
+  const userPlansDir = resolve(getUserPlansDir());
+  if (
+    normalized.endsWith('.md') &&
+    (normalized.startsWith(userPlansDir + sep) || normalized === userPlansDir)
+  ) {
+    const plan = await parseGenericMarkdownPlan(filePath, { userCreated: true });
+    if (plan) {
+      store.set(plan.id, plan);
+      notifyPlansChanged();
+      return [plan];
+    }
+  }
+
+  // Check custom plan dirs
+  if (normalized.endsWith('.md')) {
+    const customDirs = getCustomPlanDirs();
+    for (const dir of customDirs) {
+      const resolvedDir = resolve(dir);
+      if (normalized.startsWith(resolvedDir + sep) || normalized === resolvedDir) {
+        const plan = await parseGenericMarkdownPlan(filePath, {
+          source: 'custom-dir',
+          customDir: dir,
+        });
+        if (plan) {
+          store.set(plan.id, plan);
+          notifyPlansChanged();
+          return [plan];
+        }
+      }
+    }
   }
 
   return [];

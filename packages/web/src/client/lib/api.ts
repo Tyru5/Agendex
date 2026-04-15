@@ -90,4 +90,18 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ content }),
     }),
+
+  getPlanSources: () => request<{ customPlanDirs: string[] }>('/plan-sources'),
+
+  addPlanSource: (path: string) =>
+    request<{ customPlanDirs: string[] }>('/plan-sources', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    }),
+
+  removePlanSource: (path: string) =>
+    request<{ customPlanDirs: string[] }>('/plan-sources', {
+      method: 'DELETE',
+      body: JSON.stringify({ path }),
+    }),
 };

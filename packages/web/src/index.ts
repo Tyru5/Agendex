@@ -15,6 +15,7 @@ export { PlanCreator } from './client/components/PlanCreator.tsx';
 export { PlanEditor } from './client/components/PlanEditor.tsx';
 export { PlanList } from './client/components/PlanList.tsx';
 export { PlanOutline } from './client/components/PlanOutline.tsx';
+export { PlanSourcesDialog } from './client/components/PlanSourcesDialog.tsx';
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export { PlanViewer } from './client/components/PlanViewer.tsx';
 export { SearchBar } from './client/components/SearchBar.tsx';
@@ -57,13 +58,13 @@ export {
   hasToken,
   setToken,
 } from './client/lib/api.ts';
+export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
 export type { OutlineEntry } from './client/lib/extract-headings.ts';
 export { buildPlanOutline } from './client/lib/extract-headings.ts';
 export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-markdown.ts';
 export { filterPlans } from './client/lib/plan-search.ts';
 export type { PlanState, PlanStatePlan } from './client/lib/plan-state.ts';
 export { sanitizeSchema } from './client/lib/sanitize-schema.ts';
-export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
 export type { DetectedTech, TechCategory } from './client/lib/tech-extract.ts';
 export { extractTechnologies } from './client/lib/tech-extract.ts';
 export type { TechEdge, TechGraph, TechNode, TechNodeData } from './client/lib/tech-graph.ts';

@@ -44,6 +44,7 @@ export async function login(siteUrlOverride?: string): Promise<void> {
     cloudToken: callback.token,
     convexUrl: callback.convexUrl,
     enabledAdapters: existing?.enabledAdapters ?? [],
+    customPlanDirs: existing?.customPlanDirs ?? [],
   };
   saveConfig(config);
 
@@ -64,6 +65,7 @@ export function logout(): void {
     cloudToken: undefined,
     convexUrl: undefined,
     enabledAdapters: existing.enabledAdapters,
+    customPlanDirs: existing.customPlanDirs,
   };
   saveConfig(config);
   console.log('[agendex] Logged out. Cloud token removed.');

@@ -1,4 +1,15 @@
-import { getAgentStats, getAll, getById, scan } from '@agendex/shared';
+import { existsSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+  getAgentStats,
+  getAll,
+  getById,
+  loadConfig,
+  normalizeCustomPlanDirs,
+  refreshWatching,
+  saveConfig,
+  scan,
+} from '@agendex/shared';
 import { Hono } from 'hono';
 import { search } from '../services/search.ts';
 
@@ -56,6 +67,63 @@ plans.get('/agents', (c) => {
 plans.post('/rescan', async (c) => {
   await scan();
   return c.json({ ok: true });
+});
+
+// Custom plan directory management
+let watcherOnChange: ((plans: unknown[]) => void) | undefined;
+
+export function setPlanSourcesWatcherCallback(cb: (plans: unknown[]) => void) {
+  watcherOnChange = cb;
+}
+
+plans.get('/plan-sources', (c) => {
+  const config = loadConfig();
+  return c.json({ customPlanDirs: config?.customPlanDirs ?? [] });
+});
+
+plans.post('/plan-sources', async (c) => {
+  const body = await c.req.json<{ path?: string }>();
+  if (!body.path || typeof body.path !== 'string') {
+    return c.json({ error: 'path is required' }, 400);
+  }
+  const resolved = resolve(body.path);
+  if (!existsSync(resolved)) {
+    return c.json({ error: `path does not exist: ${resolved}` }, 400);
+  }
+  if (!statSync(resolved).isDirectory()) {
+    return c.json({ error: `path is not a directory: ${resolved}` }, 400);
+  }
+  const config = loadConfig();
+  const currentDirs = config?.customPlanDirs ?? [];
+  const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
+  saveConfig({
+    ...(config ?? { configVersion: 3, enabledAdapters: [] }),
+    customPlanDirs: updated,
+  });
+  await scan();
+  refreshWatching(watcherOnChange);
+  return c.json({ customPlanDirs: updated });
+});
+
+plans.delete('/plan-sources', async (c) => {
+  const body = await c.req.json<{ path?: string }>();
+  if (!body.path || typeof body.path !== 'string') {
+    return c.json({ error: 'path is required' }, 400);
+  }
+  const resolved = resolve(body.path);
+  const config = loadConfig();
+  const currentDirs = config?.customPlanDirs ?? [];
+  const updated = currentDirs.filter((d) => d !== resolved);
+  if (updated.length === currentDirs.length) {
+    return c.json({ error: `directory not in custom plan dirs: ${resolved}` }, 404);
+  }
+  saveConfig({
+    ...(config ?? { configVersion: 3, enabledAdapters: [] }),
+    customPlanDirs: updated,
+  });
+  await scan();
+  refreshWatching(watcherOnChange);
+  return c.json({ customPlanDirs: updated });
 });
 
 export { plans };
