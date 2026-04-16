@@ -240,7 +240,8 @@ export async function scan() {
 
   const discovered = discoverProjectPlanDirs();
   for (const { dir, agent } of discovered) {
-    if (coveredPaths.has(resolve(dir))) continue;
+    const resolvedDir = resolve(dir);
+    if (coveredPaths.has(resolvedDir)) continue;
     const adapter = adapters.find((a) => a.agent === agent);
     if (!adapter) continue;
     const files = await walkDir(dir);
@@ -251,6 +252,7 @@ export async function scan() {
         store.set(plan.id, plan);
       }
     }
+    coveredPaths.add(resolvedDir);
     console.log(`[agendex] discovered project plans: ${dir}`);
   }
 
