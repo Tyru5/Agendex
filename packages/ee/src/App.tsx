@@ -1183,33 +1183,35 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       />
 
       {mode === 'local' && (
-        <button
-          type="button"
-          onClick={() => setSourcesOpen(true)}
-          title="Manage plan sources"
-          className="fixed z-50 w-[30px] h-[30px] rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
-          style={{ top: 20, right: 60 }}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <>
+          <button
+            type="button"
+            onClick={() => setSourcesOpen(true)}
+            title="Manage plan sources"
+            className="fixed z-50 w-[30px] h-[30px] rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+            style={{ top: 20, right: 60 }}
           >
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
-        </button>
-      )}
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
 
-      <PlanSourcesDialog
-        open={sourcesOpen}
-        onClose={() => setSourcesOpen(false)}
-        onSourcesChanged={() => refresh()}
-      />
+          <PlanSourcesDialog
+            open={sourcesOpen}
+            onClose={() => setSourcesOpen(false)}
+            onSourcesChanged={() => refresh()}
+          />
+        </>
+      )}
 
       {sidebarHidden && (
         <div

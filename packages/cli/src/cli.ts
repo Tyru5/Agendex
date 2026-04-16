@@ -263,7 +263,7 @@ async function main(): Promise<number> {
 
     case 'add-dir': {
       const dirPath = args.find((a) => a !== 'add-dir' && a !== '--dev' && !a.startsWith('--'));
-      if (!dirPath) {
+      if (!dirPath || !dirPath.trim()) {
         writeStderr('[agendex] usage: agendex add-dir <path>');
         return 1;
       }
@@ -290,7 +290,7 @@ async function main(): Promise<number> {
 
     case 'remove-dir': {
       const dirPath = args.find((a) => a !== 'remove-dir' && a !== '--dev' && !a.startsWith('--'));
-      if (!dirPath) {
+      if (!dirPath || !dirPath.trim()) {
         writeStderr('[agendex] usage: agendex remove-dir <path>');
         return 1;
       }

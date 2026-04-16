@@ -83,7 +83,7 @@ plans.get('/plan-sources', (c) => {
 
 plans.post('/plan-sources', async (c) => {
   const body = await c.req.json<{ path?: string }>();
-  if (!body.path || typeof body.path !== 'string') {
+  if (typeof body.path !== 'string' || !body.path.trim()) {
     return c.json({ error: 'path is required' }, 400);
   }
   const resolved = resolveCustomPlanDirPath(body.path);
@@ -107,7 +107,7 @@ plans.post('/plan-sources', async (c) => {
 
 plans.delete('/plan-sources', async (c) => {
   const body = await c.req.json<{ path?: string }>();
-  if (!body.path || typeof body.path !== 'string') {
+  if (typeof body.path !== 'string' || !body.path.trim()) {
     return c.json({ error: 'path is required' }, 400);
   }
   const resolved = resolveCustomPlanDirPath(body.path);

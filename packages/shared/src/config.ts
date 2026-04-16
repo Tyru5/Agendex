@@ -75,6 +75,9 @@ function expandHomePath(p: string): string {
 /** Resolves a user-supplied plan directory path (expands `~`, then `path.resolve`). */
 export function resolveCustomPlanDirPath(userPath: string): string {
   const trimmed = userPath.trim();
+  if (!trimmed) {
+    throw new Error('Custom plan directory path must not be empty');
+  }
   return resolve(expandHomePath(trimmed));
 }
 
