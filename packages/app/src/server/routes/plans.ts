@@ -1,11 +1,11 @@
 import { existsSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
 import {
   getAgentStats,
   getAll,
   getById,
   loadConfig,
   normalizeCustomPlanDirs,
+  resolveCustomPlanDirPath,
   saveConfig,
   scan,
   startWatching,
@@ -86,7 +86,7 @@ plans.post('/plan-sources', async (c) => {
   if (!body.path || typeof body.path !== 'string') {
     return c.json({ error: 'path is required' }, 400);
   }
-  const resolved = resolve(body.path);
+  const resolved = resolveCustomPlanDirPath(body.path);
   if (!existsSync(resolved)) {
     return c.json({ error: `path does not exist: ${resolved}` }, 400);
   }
@@ -110,7 +110,7 @@ plans.delete('/plan-sources', async (c) => {
   if (!body.path || typeof body.path !== 'string') {
     return c.json({ error: 'path is required' }, 400);
   }
-  const resolved = resolve(body.path);
+  const resolved = resolveCustomPlanDirPath(body.path);
   const config = loadConfig();
   const currentDirs = config?.customPlanDirs ?? [];
   const updated = currentDirs.filter((d) => d !== resolved);

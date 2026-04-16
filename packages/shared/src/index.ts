@@ -18,6 +18,7 @@ export {
   loadOrCreateToken,
   loadOrInitConfig,
   normalizeCustomPlanDirs,
+  resolveCustomPlanDirPath,
   saveConfig,
   setDevMode,
 } from './config.ts';

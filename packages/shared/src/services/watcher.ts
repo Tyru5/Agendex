@@ -15,6 +15,11 @@ const pendingFiles = new Set<string>();
 const activeWatchers: FSWatcher[] = [];
 
 function closeAllWatchers() {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  pendingFiles.clear();
   for (const watcher of activeWatchers) {
     try {
       watcher.close();

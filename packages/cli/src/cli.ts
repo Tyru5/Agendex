@@ -8,6 +8,7 @@ import {
   loadConfig,
   loadOrInitConfig,
   normalizeCustomPlanDirs,
+  resolveCustomPlanDirPath,
   saveConfig,
   setDevMode,
 } from '@agendex/shared';
@@ -266,7 +267,7 @@ async function main(): Promise<number> {
         writeStderr('[agendex] usage: agendex add-dir <path>');
         return 1;
       }
-      const resolved = resolve(dirPath);
+      const resolved = resolveCustomPlanDirPath(dirPath);
       if (!existsSync(resolved)) {
         writeStderr(`[agendex] path does not exist: ${resolved}`);
         return 1;
@@ -293,7 +294,7 @@ async function main(): Promise<number> {
         writeStderr('[agendex] usage: agendex remove-dir <path>');
         return 1;
       }
-      const resolved = resolve(dirPath);
+      const resolved = resolveCustomPlanDirPath(dirPath);
       const cfg = loadConfig();
       const currentDirs = cfg?.customPlanDirs ?? [];
       const updated = currentDirs.filter((d) => d !== resolved);

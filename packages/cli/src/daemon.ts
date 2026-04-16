@@ -12,6 +12,7 @@ import {
   setActiveAdapters,
   setOnPlansChanged,
   startWatching,
+  stopWatching,
 } from '@agendex/shared';
 import {
   refreshToken,
@@ -176,6 +177,7 @@ export async function runWorker(): Promise<void> {
   console.log(`[agendex] daemon running. Watching for file changes...`);
 
   async function gracefulShutdown() {
+    stopWatching();
     await sendShutdown();
     process.exit(0);
   }

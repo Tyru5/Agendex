@@ -72,6 +72,12 @@ function expandHomePath(p: string): string {
   return p;
 }
 
+/** Resolves a user-supplied plan directory path (expands `~`, then `path.resolve`). */
+export function resolveCustomPlanDirPath(userPath: string): string {
+  const trimmed = userPath.trim();
+  return resolve(expandHomePath(trimmed));
+}
+
 export function normalizeCustomPlanDirs(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   const seen = new Set<string>();
@@ -80,7 +86,7 @@ export function normalizeCustomPlanDirs(input: unknown): string[] {
     if (typeof item !== 'string') continue;
     const trimmed = item.trim();
     if (!trimmed) continue;
-    const normalized = resolve(expandHomePath(trimmed));
+    const normalized = resolveCustomPlanDirPath(trimmed);
     if (seen.has(normalized)) continue;
     seen.add(normalized);
     result.push(normalized);
