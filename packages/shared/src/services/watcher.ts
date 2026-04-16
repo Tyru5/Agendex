@@ -1,7 +1,12 @@
 import { existsSync, type FSWatcher, watch } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
-import { discoverProjectPlanDirs, getCustomPlanDirs, rescanFile } from './plan-service.ts';
+import {
+  discoverProjectPlanDirs,
+  getCustomPlanDirs,
+  pathsOverlapFilesystemTree,
+  rescanFile,
+} from './plan-service.ts';
 
 type ChangeCallback = (plans: unknown[]) => void;
 
@@ -75,8 +80,16 @@ function setupWatchers(onChange?: ChangeCallback) {
 
   const customDirs = getCustomPlanDirs();
   for (const dir of customDirs) {
-    if (watchedPaths.has(resolve(dir))) continue;
-    watchedPaths.add(resolve(dir));
+    const resolvedCustom = resolve(dir);
+    let overlaps = false;
+    for (const watched of watchedPaths) {
+      if (pathsOverlapFilesystemTree(resolvedCustom, watched)) {
+        overlaps = true;
+        break;
+      }
+    }
+    if (overlaps) continue;
+    watchedPaths.add(resolvedCustom);
     watchDir(dir, (f) => f.endsWith('.md'), onChange);
   }
 }

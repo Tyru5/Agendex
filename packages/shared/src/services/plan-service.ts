@@ -11,7 +11,8 @@ function getUserPlansDir(): string {
   return join(getConfigDir(), 'plans');
 }
 
-const store = new Map<string, Plan>();
+/** Live index; replaced atomically at end of `scan()` so readers never see a cleared/partial map. */
+let store = new Map<string, Plan>();
 const MAX_DEPTH = 6;
 const DISCOVERY_MAX_DEPTH = 4;
 
@@ -170,14 +171,14 @@ async function parseGenericMarkdownPlan(
   }
 }
 
-async function scanUserPlans() {
+async function scanUserPlans(into: Map<string, Plan>) {
   const userPlansDir = getUserPlansDir();
   if (!existsSync(userPlansDir)) return;
   const files = await walkDir(userPlansDir);
   for (const file of files) {
     if (!file.endsWith('.md')) continue;
     const plan = await parseGenericMarkdownPlan(file, { userCreated: true });
-    if (plan) store.set(plan.id, plan);
+    if (plan) into.set(plan.id, plan);
   }
 }
 
@@ -185,16 +186,34 @@ export function getCustomPlanDirs(): string[] {
   return loadConfig()?.customPlanDirs ?? [];
 }
 
-async function scanCustomPlanDirs(coveredPaths: Set<string>) {
+/** True if paths are equal or one is a descendant of the other in the filesystem tree. */
+export function pathsOverlapFilesystemTree(a: string, b: string): boolean {
+  const ra = resolve(a);
+  const rb = resolve(b);
+  if (ra === rb) return true;
+  if (ra.startsWith(rb + sep)) return true;
+  if (rb.startsWith(ra + sep)) return true;
+  return false;
+}
+
+function overlapsAnyRoot(candidate: string, roots: Iterable<string>): boolean {
+  const resolvedCandidate = resolve(candidate);
+  for (const root of roots) {
+    if (pathsOverlapFilesystemTree(resolvedCandidate, root)) return true;
+  }
+  return false;
+}
+
+async function scanCustomPlanDirs(coveredPaths: Set<string>, into: Map<string, Plan>) {
   const dirs = getCustomPlanDirs();
   const userPlansDir = resolve(getUserPlansDir());
   for (const dir of dirs) {
     const resolved = resolve(dir);
-    if (coveredPaths.has(resolved)) {
-      console.log(`[agendex] skipping custom dir (already covered by adapter): ${dir}`);
+    if (overlapsAnyRoot(resolved, coveredPaths)) {
+      console.log(`[agendex] skipping custom dir (overlaps adapter / discovered coverage): ${dir}`);
       continue;
     }
-    if (resolved.startsWith(userPlansDir + sep) || resolved === userPlansDir) {
+    if (pathsOverlapFilesystemTree(resolved, userPlansDir)) {
       console.log(`[agendex] skipping custom dir (overlaps user plans): ${dir}`);
       continue;
     }
@@ -211,7 +230,7 @@ async function scanCustomPlanDirs(coveredPaths: Set<string>) {
         customDir: dir,
       });
       if (plan) {
-        store.set(plan.id, plan);
+        into.set(plan.id, plan);
         count++;
       }
     }
@@ -221,7 +240,7 @@ async function scanCustomPlanDirs(coveredPaths: Set<string>) {
 
 export async function scan() {
   const adapters = getActiveAdapters();
-  store.clear();
+  const next = new Map<string, Plan>();
 
   const coveredPaths = new Set<string>();
   for (const adapter of adapters) {
@@ -232,7 +251,7 @@ export async function scan() {
         if (!adapter.matches(file)) continue;
         const plans = await adapter.parse(file);
         for (const plan of plans) {
-          store.set(plan.id, plan);
+          next.set(plan.id, plan);
         }
       }
     }
@@ -249,15 +268,17 @@ export async function scan() {
       if (!adapter.matches(file)) continue;
       const plans = await adapter.parse(file);
       for (const plan of plans) {
-        store.set(plan.id, plan);
+        next.set(plan.id, plan);
       }
     }
     coveredPaths.add(resolvedDir);
     console.log(`[agendex] discovered project plans: ${dir}`);
   }
 
-  await scanUserPlans();
-  await scanCustomPlanDirs(coveredPaths);
+  await scanUserPlans(next);
+  await scanCustomPlanDirs(coveredPaths, next);
+
+  store = next;
   notifyPlansChanged();
   console.log(`[agendex] indexed ${store.size} plans from ${adapters.length} adapters`);
 }
