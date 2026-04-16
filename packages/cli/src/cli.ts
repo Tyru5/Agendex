@@ -1,10 +1,17 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
-import { writeSync } from 'node:fs';
+import { existsSync, statSync, writeSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, loadOrInitConfig, setDevMode } from '@agendex/shared';
+import {
+  loadConfig,
+  loadOrInitConfig,
+  normalizeCustomPlanDirs,
+  resolveCustomPlanDirPath,
+  saveConfig,
+  setDevMode,
+} from '@agendex/shared';
 import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
 import { AuthExpiredError, deleteDaemons, fetchDevices, sendShutdown } from './api.ts';
 import { login, logout } from './auth.ts';
@@ -45,6 +52,9 @@ async function main(): Promise<number> {
     'open',
     'view',
     'cleanup',
+    'add-dir',
+    'remove-dir',
+    'list-dirs',
     'help',
     '--help',
     '-h',
@@ -251,6 +261,69 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'add-dir': {
+      const dirPath = args.find((a) => a !== 'add-dir' && a !== '--dev' && !a.startsWith('--'));
+      if (!dirPath || !dirPath.trim()) {
+        writeStderr('[agendex] usage: agendex add-dir <path>');
+        return 1;
+      }
+      const resolved = resolveCustomPlanDirPath(dirPath);
+      if (!existsSync(resolved)) {
+        writeStderr(`[agendex] path does not exist: ${resolved}`);
+        return 1;
+      }
+      if (!statSync(resolved).isDirectory()) {
+        writeStderr(`[agendex] path is not a directory: ${resolved}`);
+        return 1;
+      }
+      const cfg = loadConfig();
+      const currentDirs = cfg?.customPlanDirs ?? [];
+      const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
+      saveConfig({
+        ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
+        customPlanDirs: updated,
+      });
+      writeStdout(`[agendex] added custom plan dir: ${resolved}`);
+      writeStdout(`[agendex] daemon will pick up the change automatically`);
+      return 0;
+    }
+
+    case 'remove-dir': {
+      const dirPath = args.find((a) => a !== 'remove-dir' && a !== '--dev' && !a.startsWith('--'));
+      if (!dirPath || !dirPath.trim()) {
+        writeStderr('[agendex] usage: agendex remove-dir <path>');
+        return 1;
+      }
+      const resolved = resolveCustomPlanDirPath(dirPath);
+      const cfg = loadConfig();
+      const currentDirs = cfg?.customPlanDirs ?? [];
+      const updated = currentDirs.filter((d) => d !== resolved);
+      if (updated.length === currentDirs.length) {
+        writeStderr(`[agendex] directory not in custom plan dirs: ${resolved}`);
+        return 1;
+      }
+      saveConfig({
+        ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
+        customPlanDirs: updated,
+      });
+      writeStdout(`[agendex] removed custom plan dir: ${resolved}`);
+      return 0;
+    }
+
+    case 'list-dirs': {
+      const cfg = loadConfig();
+      const dirs = cfg?.customPlanDirs ?? [];
+      if (dirs.length === 0) {
+        writeStdout('[agendex] no custom plan directories configured');
+      } else {
+        writeStdout(`[agendex] custom plan directories (${dirs.length}):`);
+        for (const dir of dirs) {
+          writeStdout(`  - ${dir}`);
+        }
+      }
+      return 0;
+    }
+
     case 'status': {
       const config = loadConfig();
       const pidInfo = readPidInfo();
@@ -264,6 +337,13 @@ async function main(): Promise<number> {
       writeStdout(`[agendex] Cloud token: ${config?.cloudToken ? 'set' : 'not set'}`);
       writeStdout(`[agendex] Convex URL: ${config?.convexUrl ?? 'not set'}`);
       writeStdout(`[agendex] Enabled adapters: ${config?.enabledAdapters.join(', ') || 'none'}`);
+      const customDirs = config?.customPlanDirs ?? [];
+      writeStdout(
+        `[agendex] Custom plan dirs: ${customDirs.length > 0 ? customDirs.length : 'none'}`,
+      );
+      for (const dir of customDirs) {
+        writeStdout(`  - ${dir}`);
+      }
       writeStdout(`[agendex] Daemon: ${running ? `running (PID ${pid})` : 'not running'}`);
 
       if (running && pidInfo?.startedAtMs) {
@@ -339,6 +419,9 @@ Usage:
   agendex view <url>   Open a shared plan URL in your browser
   agendex logout       Clear stored cloud token
   agendex configure    Select which agents/adapters to index
+  agendex add-dir <path>  Add a custom directory to scan for plans
+  agendex remove-dir <path>  Remove a custom directory
+  agendex list-dirs    List custom plan directories
   agendex sync         One-shot scan + sync to cloud (skips unchanged plans)
   agendex sync --force Re-sync all plans, ignoring cache
   agendex cleanup      Interactively remove cloud daemons

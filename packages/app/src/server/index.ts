@@ -6,12 +6,13 @@ import {
   setActiveAdapters,
   setOnPlansChanged,
   startWatching,
+  stopWatching,
 } from '@agendex/shared';
 import { Hono } from 'hono';
 import { createBunWebSocket, serveStatic } from 'hono/bun';
 import { cors } from 'hono/cors';
 import { AUTH_TOKEN, authMiddleware } from './auth.ts';
-import { plans } from './routes/plans.ts';
+import { plans, setPlanSourcesWatcherCallback } from './routes/plans.ts';
 import { rebuildIndex } from './services/search.ts';
 
 const app = new Hono();
@@ -40,7 +41,9 @@ const startup = loadOrInitConfig({ configureAdapters })
     return scan();
   })
   .then(() => {
-    startWatching((plans) => broadcast('plan:updated', plans));
+    const watcherCallback = (plans: unknown[]) => broadcast('plan:updated', plans);
+    setPlanSourcesWatcherCallback(watcherCallback);
+    startWatching(watcherCallback);
 
     // Fallback polling for environments where fs.watch is unreliable (WSL, network mounts)
     let lastFingerprint = buildFingerprint();
@@ -106,6 +109,13 @@ app.use('/*', serveStatic({ root: './src/client/dist' }));
 app.get('/*', serveStatic({ path: './src/client/dist/index.html' }));
 
 const PORT = parseInt(process.env.PORT ?? '4890', 10);
+
+function shutdown() {
+  stopWatching();
+  process.exit(0);
+}
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);
 
 console.log(`[agendex] http://localhost:${PORT}`);
 console.log(`[agendex] token: ${AUTH_TOKEN}`);

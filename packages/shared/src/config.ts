@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { AdapterId } from './adapters/catalog.ts';
 import { getDefaultAdapterIds, sanitizeEnabledAdapterIds } from './adapters/registry.ts';
 import { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
@@ -28,6 +28,7 @@ export interface AgendexConfig {
   convexUrl?: string;
   deviceId?: string;
   enabledAdapters: AdapterId[];
+  customPlanDirs: string[];
 }
 
 interface StoredConfig {
@@ -37,6 +38,7 @@ interface StoredConfig {
   convexUrl?: unknown;
   deviceId?: unknown;
   enabledAdapters?: unknown;
+  customPlanDirs?: unknown;
 }
 
 function ensureConfigDir() {
@@ -65,6 +67,36 @@ function normalizeAdapterIds(input: unknown): AdapterId[] {
   );
 }
 
+function expandHomePath(p: string): string {
+  if (p.startsWith('~/') || p === '~') return join(homedir(), p.slice(1));
+  return p;
+}
+
+/** Resolves a user-supplied plan directory path (expands `~`, then `path.resolve`). */
+export function resolveCustomPlanDirPath(userPath: string): string {
+  const trimmed = userPath.trim();
+  if (!trimmed) {
+    throw new Error('Custom plan directory path must not be empty');
+  }
+  return resolve(expandHomePath(trimmed));
+}
+
+export function normalizeCustomPlanDirs(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of input) {
+    if (typeof item !== 'string') continue;
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    const normalized = resolveCustomPlanDirPath(trimmed);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
 function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
   if (!raw) return null;
 
@@ -83,6 +115,7 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     convexUrl,
     deviceId,
     enabledAdapters: normalizeAdapterIds(raw.enabledAdapters),
+    customPlanDirs: normalizeCustomPlanDirs(raw.customPlanDirs),
   };
 }
 
@@ -99,6 +132,7 @@ export function saveConfig(config: AgendexConfig) {
     convexUrl: config.convexUrl,
     deviceId: config.deviceId,
     enabledAdapters: sanitizeEnabledAdapterIds(config.enabledAdapters),
+    customPlanDirs: normalizeCustomPlanDirs(config.customPlanDirs),
   };
   writeFileSync(getConfigPath(), JSON.stringify(payload, null, 2));
 }
@@ -118,6 +152,7 @@ export function loadOrCreateToken(): string {
     configVersion: 3,
     token,
     enabledAdapters: existing?.enabledAdapters ?? [],
+    customPlanDirs: existing?.customPlanDirs ?? [],
   });
   console.log(`\n[agendex] generated auth token: ${token}`);
   console.log(`[agendex] saved to ${getConfigPath()}\n`);
@@ -134,6 +169,7 @@ export function loadOrCreateDeviceId(): string {
     configVersion: 3,
     deviceId,
     enabledAdapters: existing?.enabledAdapters ?? [],
+    customPlanDirs: existing?.customPlanDirs ?? [],
   });
   return deviceId;
 }
@@ -186,6 +222,7 @@ export async function loadOrInitConfig(options: InitConfigOptions = {}): Promise
     convexUrl: existing?.convexUrl,
     deviceId,
     enabledAdapters,
+    customPlanDirs: existing?.customPlanDirs ?? [],
   };
   saveConfig(nextConfig);
 

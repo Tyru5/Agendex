@@ -17,6 +17,8 @@ export {
   loadOrCreateDeviceId,
   loadOrCreateToken,
   loadOrInitConfig,
+  normalizeCustomPlanDirs,
+  resolveCustomPlanDirPath,
   saveConfig,
   setDevMode,
 } from './config.ts';
@@ -33,12 +35,13 @@ export {
   getAgentStats,
   getAll,
   getById,
+  getCustomPlanDirs,
   rescanFile,
   scan,
   setOnPlansChanged,
   update,
 } from './services/plan-service.ts';
-export { startWatching } from './services/watcher.ts';
+export { startWatching, stopWatching } from './services/watcher.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 export type { AgentAdapter, Plan } from './types.ts';
 export { ProFeature } from './types.ts';

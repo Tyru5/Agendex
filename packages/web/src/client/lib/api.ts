@@ -1,5 +1,10 @@
 const BASE = '/api/v1';
 
+type ErrorResponse = {
+  error?: unknown;
+  message?: unknown;
+};
+
 function getToken(): string | null {
   return localStorage.getItem('agendex_token');
 }
@@ -14,6 +19,25 @@ export function clearToken() {
 
 export function hasToken(): boolean {
   return !!getToken();
+}
+
+async function getErrorMessage(res: Response): Promise<string> {
+  const fallback = `${res.status} ${res.statusText}`;
+  const contentType = res.headers.get('content-type') ?? '';
+
+  try {
+    if (contentType.includes('application/json')) {
+      const body = (await res.json()) as ErrorResponse;
+      if (typeof body.error === 'string' && body.error.trim()) return body.error;
+      if (typeof body.message === 'string' && body.message.trim()) return body.message;
+      return fallback;
+    }
+
+    const text = await res.text();
+    return text.trim() || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -32,7 +56,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     window.location.reload();
     throw new Error('unauthorized');
   }
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) throw new Error(await getErrorMessage(res));
   return res.json();
 }
 
@@ -89,5 +113,19 @@ export const api = {
     request<Plan>(`/plans/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ content }),
+    }),
+
+  getPlanSources: () => request<{ customPlanDirs: string[] }>('/plan-sources'),
+
+  addPlanSource: (path: string) =>
+    request<{ customPlanDirs: string[] }>('/plan-sources', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    }),
+
+  removePlanSource: (path: string) =>
+    request<{ customPlanDirs: string[] }>('/plan-sources', {
+      method: 'DELETE',
+      body: JSON.stringify({ path }),
     }),
 };
