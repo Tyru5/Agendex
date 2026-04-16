@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.12.0
+
+### Minor Changes
+
+- c3c4113: ability to add a new dir to sync
+
 ## 0.11.0
 
 ### Minor Changes
