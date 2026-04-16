@@ -40,7 +40,7 @@ export {
   setOnPlansChanged,
   update,
 } from './services/plan-service.ts';
-export { refreshWatching, startWatching, stopWatching } from './services/watcher.ts';
+export { startWatching, stopWatching } from './services/watcher.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 export type { AgentAdapter, Plan } from './types.ts';
 export { ProFeature } from './types.ts';

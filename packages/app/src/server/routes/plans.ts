@@ -6,9 +6,9 @@ import {
   getById,
   loadConfig,
   normalizeCustomPlanDirs,
-  refreshWatching,
   saveConfig,
   scan,
+  startWatching,
 } from '@agendex/shared';
 import { Hono } from 'hono';
 import { search } from '../services/search.ts';
@@ -101,7 +101,7 @@ plans.post('/plan-sources', async (c) => {
     customPlanDirs: updated,
   });
   await scan();
-  refreshWatching(watcherOnChange);
+  startWatching(watcherOnChange);
   return c.json({ customPlanDirs: updated });
 });
 
@@ -122,7 +122,7 @@ plans.delete('/plan-sources', async (c) => {
     customPlanDirs: updated,
   });
   await scan();
-  refreshWatching(watcherOnChange);
+  startWatching(watcherOnChange);
   return c.json({ customPlanDirs: updated });
 });
 

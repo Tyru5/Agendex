@@ -49,11 +49,6 @@ export function startWatching(onChange?: ChangeCallback) {
   setupWatchers(onChange);
 }
 
-export function refreshWatching(onChange?: ChangeCallback) {
-  closeAllWatchers();
-  setupWatchers(onChange);
-}
-
 export function stopWatching() {
   closeAllWatchers();
 }
