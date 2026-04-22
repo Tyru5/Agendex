@@ -100,7 +100,7 @@ function FolderContextMenu({
         position: 'fixed',
         top: y,
         left: x,
-        zIndex: 200,
+        zIndex: 50,
         minWidth: '180px',
         padding: '4px',
         background: 'var(--surface)',

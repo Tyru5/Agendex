@@ -7,8 +7,6 @@ import { BrandSection } from './topbar/BrandSection';
 import { MachinesIndicator } from './topbar/MachinesIndicator';
 import { StatusPopover } from './topbar/StatusPopover';
 
-const SIDEBAR_EXPANDED_WIDTH = 260;
-
 export function DashboardTopbar({
   sidebarPinnedOpen,
   sidebarHidden,
@@ -40,6 +38,7 @@ export function DashboardTopbar({
   onToggleOutline,
   onToggleChart,
   onDeletePlan,
+  sidebarWidth: sidebarWidthProp,
 }: {
   sidebarPinnedOpen: boolean;
   sidebarHidden: boolean;
@@ -71,6 +70,7 @@ export function DashboardTopbar({
   onToggleOutline?: () => void;
   onToggleChart?: () => void;
   onDeletePlan?: (planId: string) => void;
+  sidebarWidth?: number;
 }) {
   return (
     <div
@@ -80,7 +80,7 @@ export function DashboardTopbar({
       <BrandSection
         sidebarPinnedOpen={sidebarPinnedOpen}
         sidebarHidden={sidebarHidden}
-        sidebarWidth={SIDEBAR_EXPANDED_WIDTH}
+        sidebarWidth={sidebarWidthProp ?? 260}
         isPro={isPro}
         hasUnseenPlans={hasUnseenPlans}
         mode={mode}

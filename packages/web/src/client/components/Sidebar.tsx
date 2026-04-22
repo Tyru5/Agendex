@@ -1,10 +1,11 @@
 import { usePlanFolders } from '../hooks/usePlanFolders.ts';
+import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
 import type { AgentStats, Plan } from '../lib/api.ts';
-import { SIDEBAR_EXPANDED_WIDTH } from '../lib/constants.ts';
 import { MAX_FOLDERS } from '../lib/plan-folders.ts';
 import { startViewTransition } from '../lib/view-transition.ts';
 import { PlanList } from './PlanList.tsx';
 import { SidebarFilters } from './SidebarFilters.tsx';
+import { SidebarResizeHandle } from './SidebarResizeHandle.tsx';
 import { SkeletonBlock } from './Skeleton.tsx';
 
 interface SidebarProps {
@@ -28,6 +29,8 @@ interface SidebarProps {
   onOpenInSplitView?: (plan: Plan) => void;
   loading: boolean;
   error: string | null;
+  width?: number;
+  onResize?: (width: number) => void;
 }
 
 export function Sidebar({
@@ -51,6 +54,8 @@ export function Sidebar({
   onOpenInSplitView,
   loading,
   error,
+  width,
+  onResize,
 }: SidebarProps) {
   const folderState = usePlanFolders();
 
@@ -67,7 +72,7 @@ export function Sidebar({
         top: sidebarHidden ? 0 : undefined,
         left: sidebarHidden ? 0 : undefined,
         height: sidebarHidden ? '100%' : undefined,
-        width: `${SIDEBAR_EXPANDED_WIDTH}px`,
+        width: `${width ?? SIDEBAR_DEFAULT_WIDTH}px`,
         zIndex: sidebarHidden ? 45 : undefined,
         borderRight: sidebarVisible ? '1px solid var(--border)' : 'none',
         opacity: sidebarHidden ? (sidebarPeekOpen ? 1 : 0) : 1,
@@ -84,6 +89,7 @@ export function Sidebar({
           : 'opacity 120ms ease',
       }}
     >
+      {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
       <div className="px-3 pt-3 pb-2">
         <SidebarFilters
           sortBy={sortBy}

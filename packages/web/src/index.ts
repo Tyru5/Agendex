@@ -22,6 +22,7 @@ export { PlanViewer } from './client/components/PlanViewer.tsx';
 export { SearchBar } from './client/components/SearchBar.tsx';
 export { Sidebar } from './client/components/Sidebar.tsx';
 export { SidebarFilters } from './client/components/SidebarFilters.tsx';
+export { SidebarResizeHandle } from './client/components/SidebarResizeHandle.tsx';
 export { Skeleton, SkeletonBlock, SkeletonLine } from './client/components/Skeleton.tsx';
 export { TechDependencyChart } from './client/components/TechDependencyChart.tsx';
 export type {
@@ -43,6 +44,12 @@ export { usePlanFolders } from './client/hooks/usePlanFolders.ts';
 export { useAgents, usePlans } from './client/hooks/usePlans.ts';
 export { useScrollSpy } from './client/hooks/useScrollSpy.ts';
 export { seedSeen, useSeenPlans } from './client/hooks/useSeenPlans.ts';
+export {
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  useSidebarWidth,
+} from './client/hooks/useSidebarWidth.ts';
 export { useSocketEvent } from './client/hooks/useSocket.ts';
 export { useTheme } from './client/hooks/useTheme.ts';
 

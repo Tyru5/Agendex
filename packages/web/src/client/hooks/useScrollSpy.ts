@@ -32,13 +32,12 @@ export function useScrollSpy(headingIds: string[]): string | null {
       { root: observerRoot, rootMargin: '0px 0px -80% 0px', threshold: 0 },
     );
 
-    const elements = headingIds
-      .map(
-        (id) =>
-          searchRoot.querySelector(`[data-agendex-anchor="${id}"]`) ??
-          searchRoot.querySelector(`#${CSS.escape(id)}`),
-      )
-      .filter(Boolean) as Element[];
+    const elements = headingIds.flatMap((id) => {
+      const el =
+        searchRoot.querySelector(`[data-agendex-anchor="${id}"]`) ??
+        searchRoot.querySelector(`#${CSS.escape(id)}`);
+      return el ? [el] : [];
+    });
 
     for (const el of elements) observer.observe(el);
 

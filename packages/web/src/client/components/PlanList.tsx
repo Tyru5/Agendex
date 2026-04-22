@@ -3,9 +3,11 @@ import { createPortal } from 'react-dom';
 import { usePlanState } from '../hooks/usePlanState.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
+import { isCustomDirPlan } from '../lib/custom-plan-tree.ts';
 import type { FolderState } from '../lib/plan-folders.ts';
 import type { PlanState } from '../lib/plan-state.ts';
 import { AgentIcon } from './AgentIcon.tsx';
+import { CustomDirTree } from './CustomDirTree.tsx';
 import { FolderTree, MoveToFolderMenu } from './FolderTree.tsx';
 
 function timeAgo(dateStr: string): string {
@@ -231,14 +233,27 @@ export function PlanList(props: PlanListProps) {
     planState.markSeen(selectedPlan.id, selectedPlan.updatedAt);
   }, [selectedPlan, planState, isPro]);
 
-  const { pinnedPlans, unseenPlans, restPlans } = useMemo(() => {
-    if (!isPro) return { pinnedPlans: [], unseenPlans: [], restPlans: plans };
+  const { customDirPlans, nonCustomPlans } = useMemo(() => {
+    const custom: Plan[] = [];
+    const regular: Plan[] = [];
+    for (const plan of plans) {
+      if (isCustomDirPlan(plan)) {
+        custom.push(plan);
+      } else {
+        regular.push(plan);
+      }
+    }
+    return { customDirPlans: custom, nonCustomPlans: regular };
+  }, [plans]);
+
+  const { pinnedPlans, unseenPlans, regularPlans } = useMemo(() => {
+    if (!isPro) return { pinnedPlans: [], unseenPlans: [], regularPlans: nonCustomPlans };
 
     const pinned: Plan[] = [];
     const unseen: Plan[] = [];
     const rest: Plan[] = [];
 
-    for (const plan of plans) {
+    for (const plan of nonCustomPlans) {
       const pinnedPlan = planState.isPinned(plan.id);
       const unseenPlan = planState.isUnseen(plan.id, plan.updatedAt);
       if (pinnedPlan) {
@@ -250,8 +265,8 @@ export function PlanList(props: PlanListProps) {
       }
     }
 
-    return { pinnedPlans: pinned, unseenPlans: unseen, restPlans: rest };
-  }, [plans, planState, selectedId, isPro]);
+    return { pinnedPlans: pinned, unseenPlans: unseen, regularPlans: rest };
+  }, [nonCustomPlans, planState, selectedId, isPro]);
 
   function handleClick(plan: Plan) {
     if (isPro) planState.markSeen(plan.id, plan.updatedAt);
@@ -298,6 +313,32 @@ export function PlanList(props: PlanListProps) {
 
   return (
     <div className="w-full">
+      {customDirPlans.length > 0 && (
+        <>
+          <CustomDirTree
+            plans={customDirPlans}
+            renderPlan={(plan) => (
+              <PlanRow
+                key={plan.id}
+                plan={plan}
+                selected={plan.id === selectedId}
+                unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
+                onClick={() => handleClick(plan)}
+                isSplit={isPro && plan.id === splitPlanId}
+                onContextMenu={(e) => handleContextMenu(e, plan)}
+                isRenaming={renamingPlanId === plan.id}
+                renameValue={renameValue}
+                onRenameChange={setRenameValue}
+                onRenameSubmit={submitRename}
+                onRenameCancel={cancelRename}
+              />
+            )}
+          />
+          {(pinnedPlans.length > 0 || unseenPlans.length > 0 || regularPlans.length > 0) && (
+            <div className="h-px bg-border mx-2 my-1.5" />
+          )}
+        </>
+      )}
       {pinnedPlans.length > 0 && (
         <div className="mb-2">
           <div className="px-2 pt-1.5 pb-1 w-full text-[11px] font-semibold text-tertiary tracking-[0.04em] uppercase">
@@ -319,7 +360,7 @@ export function PlanList(props: PlanListProps) {
               onRenameCancel={cancelRename}
             />
           ))}
-          {(unseenPlans.length > 0 || restPlans.length > 0) && (
+          {(unseenPlans.length > 0 || regularPlans.length > 0) && (
             <div className="h-px bg-border mx-2 my-1.5" />
           )}
         </div>
@@ -354,13 +395,13 @@ export function PlanList(props: PlanListProps) {
               onRenameCancel={cancelRename}
             />
           ))}
-          {restPlans.length > 0 && <div className="h-px bg-border mx-2 my-1.5" />}
+          {regularPlans.length > 0 && <div className="h-px bg-border mx-2 my-1.5" />}
         </div>
       )}
       {folderState && folderState.folders.length > 0 ? (
         <FolderTree
           folderState={folderState}
-          plans={restPlans}
+          plans={regularPlans}
           renderPlan={(plan) => (
             <PlanRow
               key={plan.id}
@@ -379,7 +420,7 @@ export function PlanList(props: PlanListProps) {
           )}
         />
       ) : (
-        restPlans.map((plan) => (
+        regularPlans.map((plan) => (
           <PlanRow
             key={plan.id}
             plan={plan}
@@ -404,7 +445,7 @@ export function PlanList(props: PlanListProps) {
               position: 'fixed',
               top: contextMenu.y,
               left: contextMenu.x,
-              zIndex: 200,
+              zIndex: 50,
               minWidth: '196px',
               padding: '4px',
               background: 'var(--surface)',
@@ -540,7 +581,7 @@ export function PlanList(props: PlanListProps) {
               position: 'fixed',
               top: contextMenu.y,
               left: contextMenu.x,
-              zIndex: 200,
+              zIndex: 50,
               minWidth: '196px',
               padding: '4px',
               background: 'var(--surface)',
