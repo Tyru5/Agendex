@@ -3,8 +3,10 @@ import { createPortal } from 'react-dom';
 import { usePlanState } from '../hooks/usePlanState.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
+import type { FolderState } from '../lib/plan-folders.ts';
 import type { PlanState } from '../lib/plan-state.ts';
 import { AgentIcon } from './AgentIcon.tsx';
+import { FolderTree, MoveToFolderMenu } from './FolderTree.tsx';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -164,6 +166,7 @@ type PlanListProps = {
   planState?: PlanState;
   onRenamePlan?: (planId: string, newTitle: string) => void;
   onDeletePlan?: (planId: string) => void;
+  folderState?: FolderState;
 };
 
 export function PlanList(props: PlanListProps) {
@@ -177,10 +180,16 @@ export function PlanList(props: PlanListProps) {
     planState: planStateProp,
     onRenamePlan,
     onDeletePlan,
+    folderState,
   } = props;
   const localPlanState = usePlanState();
   const planState = planStateProp ?? localPlanState;
   const [contextMenu, setContextMenu] = useState<{ plan: Plan; x: number; y: number } | null>(null);
+  const [moveToFolderMenu, setMoveToFolderMenu] = useState<{
+    planId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [renamingPlanId, setRenamingPlanId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const lastAutoSeenKeyRef = useRef<string | null>(null);
@@ -250,7 +259,7 @@ export function PlanList(props: PlanListProps) {
   }
 
   function handleContextMenu(e: React.MouseEvent, plan: Plan) {
-    if (!isPro) return;
+    if (!isPro && !folderState) return;
     e.preventDefault();
     const x = Math.min(e.clientX, window.innerWidth - 220);
     const y = Math.min(e.clientY, window.innerHeight - 120);
@@ -348,22 +357,45 @@ export function PlanList(props: PlanListProps) {
           {restPlans.length > 0 && <div className="h-px bg-border mx-2 my-1.5" />}
         </div>
       )}
-      {restPlans.map((plan) => (
-        <PlanRow
-          key={plan.id}
-          plan={plan}
-          selected={plan.id === selectedId}
-          unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
-          onClick={() => handleClick(plan)}
-          isSplit={isPro && plan.id === splitPlanId}
-          onContextMenu={isPro ? (e) => handleContextMenu(e, plan) : undefined}
-          isRenaming={renamingPlanId === plan.id}
-          renameValue={renameValue}
-          onRenameChange={setRenameValue}
-          onRenameSubmit={submitRename}
-          onRenameCancel={cancelRename}
+      {folderState && folderState.folders.length > 0 ? (
+        <FolderTree
+          folderState={folderState}
+          plans={restPlans}
+          renderPlan={(plan) => (
+            <PlanRow
+              key={plan.id}
+              plan={plan}
+              selected={plan.id === selectedId}
+              unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
+              onClick={() => handleClick(plan)}
+              isSplit={isPro && plan.id === splitPlanId}
+              onContextMenu={(e) => handleContextMenu(e, plan)}
+              isRenaming={renamingPlanId === plan.id}
+              renameValue={renameValue}
+              onRenameChange={setRenameValue}
+              onRenameSubmit={submitRename}
+              onRenameCancel={cancelRename}
+            />
+          )}
         />
-      ))}
+      ) : (
+        restPlans.map((plan) => (
+          <PlanRow
+            key={plan.id}
+            plan={plan}
+            selected={plan.id === selectedId}
+            unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
+            onClick={() => handleClick(plan)}
+            isSplit={isPro && plan.id === splitPlanId}
+            onContextMenu={isPro || folderState ? (e) => handleContextMenu(e, plan) : undefined}
+            isRenaming={renamingPlanId === plan.id}
+            renameValue={renameValue}
+            onRenameChange={setRenameValue}
+            onRenameSubmit={submitRename}
+            onRenameCancel={cancelRename}
+          />
+        ))
+      )}
       {isPro &&
         contextMenu &&
         createPortal(
@@ -400,6 +432,34 @@ export function PlanList(props: PlanListProps) {
                 setContextMenu(null);
               }}
             />
+            {folderState && (
+              <MenuButton
+                label="Move to folder…"
+                onClick={() => {
+                  setMoveToFolderMenu({
+                    planId: contextMenu.plan.id,
+                    x: contextMenu.x + 196,
+                    y: contextMenu.y,
+                  });
+                  setContextMenu(null);
+                }}
+              >
+                <svg
+                  aria-hidden="true"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0 }}
+                >
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+              </MenuButton>
+            )}
             {onRenamePlan && (
               <MenuButton
                 label="Rename"
@@ -471,6 +531,63 @@ export function PlanList(props: PlanListProps) {
           </div>,
           document.body,
         )}
+      {!isPro &&
+        folderState &&
+        contextMenu &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              top: contextMenu.y,
+              left: contextMenu.x,
+              zIndex: 200,
+              minWidth: '196px',
+              padding: '4px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)',
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <MenuButton
+              label="Move to folder…"
+              onClick={() => {
+                setMoveToFolderMenu({
+                  planId: contextMenu.plan.id,
+                  x: contextMenu.x + 196,
+                  y: contextMenu.y,
+                });
+                setContextMenu(null);
+              }}
+            >
+              <svg
+                aria-hidden="true"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ flexShrink: 0 }}
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            </MenuButton>
+          </div>,
+          document.body,
+        )}
+      {folderState && moveToFolderMenu && (
+        <MoveToFolderMenu
+          planId={moveToFolderMenu.planId}
+          x={Math.min(moveToFolderMenu.x, window.innerWidth - 220)}
+          y={Math.min(moveToFolderMenu.y, window.innerHeight - 320)}
+          folderState={folderState}
+          onClose={() => setMoveToFolderMenu(null)}
+        />
+      )}
     </div>
   );
 }
