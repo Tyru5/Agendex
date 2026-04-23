@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import {
   type FolderState,
+  generateId,
   getAncestorPath,
   getChildFolderIds,
   isDescendantOf,
@@ -37,10 +38,6 @@ function write(next: PlanFolderStore) {
   cached = next;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   for (const cb of listeners) cb();
-}
-
-function generateId(): string {
-  return `f-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 export function usePlanFolders(): FolderState {

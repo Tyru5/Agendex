@@ -33,7 +33,7 @@ export type FolderState = {
 
 export const MAX_FOLDERS = 10;
 
-function generateId(): string {
+export function generateId(): string {
   return `f-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
