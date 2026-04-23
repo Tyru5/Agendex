@@ -1,4 +1,4 @@
-import { filterPlans, type Plan } from '@agendex/web';
+import type { Plan } from '@agendex/web';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
 
 export interface Command {
@@ -26,34 +26,44 @@ const GROUP_LABELS: Record<Command['group'], string> = {
   support: 'Support',
 };
 
+function getFlatItemKey(item: FlatItem): string | null {
+  if (item.type === 'command' && item.command) return `command:${item.command.id}`;
+  if (item.type === 'plan' && item.plan) return `plan:${item.plan.id}`;
+  return null;
+}
+
 export function useCommandItems({
   commands,
-  plans,
+  filteredPlans,
   search,
-  selectedPlanId,
-  isPro,
+  selectedPlanId: _selectedPlanId,
+  isPro: _isPro,
   onClose,
   onSelectPlan,
   onOpenInSplitView,
+  planLimit = Number.POSITIVE_INFINITY,
+  onRequestMorePlans,
 }: {
   commands: Command[];
-  plans: Plan[];
+  filteredPlans: Plan[];
   search: string;
   selectedPlanId: string | undefined;
   isPro: boolean;
   onClose: () => void;
   onSelectPlan?: (plan: Plan) => void;
   onOpenInSplitView?: (plan: Plan) => void;
+  planLimit?: number;
+  onRequestMorePlans?: () => void;
 }) {
   const [focusedIndex, setFocusedIndex] = useState(0);
 
   const filteredCommands = useMemo(() => {
     if (!search.trim()) return commands;
     const q = search.toLowerCase();
-    return commands.filter((c) => c.label.toLowerCase().includes(q));
+    return commands.filter((command) => command.label.toLowerCase().includes(q));
   }, [commands, search]);
 
-  const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
+  const visiblePlans = useMemo(() => filteredPlans.slice(0, planLimit), [filteredPlans, planLimit]);
 
   const flatItems = useMemo(() => {
     const items: FlatItem[] = [];
@@ -71,20 +81,31 @@ export function useCommandItems({
       }
     }
 
-    if (filteredPlans.length > 0) {
+    if (visiblePlans.length > 0) {
       items.push({ type: 'group-header', groupLabel: `Results (${filteredPlans.length})` });
-      for (const plan of filteredPlans) {
+      for (const plan of visiblePlans) {
         items.push({ type: 'plan', plan });
       }
     }
 
     return items;
-  }, [filteredCommands, filteredPlans]);
+  }, [filteredCommands, visiblePlans, filteredPlans.length]);
 
   const focusableItems = useMemo(
     () => flatItems.filter((item) => item.type !== 'group-header'),
     [flatItems],
   );
+
+  const focusableIndexByKey = useMemo(() => {
+    const indexByKey = new Map<string, number>();
+
+    for (const [index, item] of focusableItems.entries()) {
+      const key = getFlatItemKey(item);
+      if (key) indexByKey.set(key, index);
+    }
+
+    return indexByKey;
+  }, [focusableItems]);
 
   const focusedItem = focusableItems[focusedIndex];
   const footerHint =
@@ -103,11 +124,25 @@ export function useCommandItems({
     [onClose, onSelectPlan],
   );
 
+  const getFocusableIndex = useCallback(
+    (item: FlatItem) => {
+      const key = getFlatItemKey(item);
+      return key ? (focusableIndexByKey.get(key) ?? -1) : -1;
+    },
+    [focusableIndexByKey],
+  );
+
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setFocusedIndex((i) => Math.min(i + 1, focusableItems.length - 1));
+        setFocusedIndex((i) => {
+          const next = Math.min(i + 1, focusableItems.length - 1);
+          if (next === focusableItems.length - 1) {
+            onRequestMorePlans?.();
+          }
+          return next;
+        });
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setFocusedIndex((i) => Math.max(i - 1, 0));
@@ -123,7 +158,14 @@ export function useCommandItems({
         }
       }
     },
-    [focusableItems.length, focusedItem, executeItem, onOpenInSplitView, onClose],
+    [
+      focusableItems.length,
+      focusedItem,
+      executeItem,
+      onOpenInSplitView,
+      onClose,
+      onRequestMorePlans,
+    ],
   );
 
   const resetFocus = useCallback(() => setFocusedIndex(0), []);
@@ -137,6 +179,9 @@ export function useCommandItems({
     footerHint,
     onKeyDown,
     resetFocus,
-    filteredPlans,
+    getFocusableIndex,
+    hasMorePlans: visiblePlans.length < filteredPlans.length,
+    visiblePlanCount: visiblePlans.length,
+    filteredPlansCount: filteredPlans.length,
   };
 }

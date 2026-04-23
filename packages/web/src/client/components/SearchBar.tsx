@@ -6,6 +6,9 @@ import { filterPlans } from '../lib/plan-search.ts';
 import type { PlanState } from '../lib/plan-state.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
+const INITIAL_PLAN_BATCH_SIZE = 100;
+const PLAN_BATCH_SIZE = 100;
+
 type SearchBarProps = {
   search: string;
   onSearch: (q: string) => void;
@@ -22,9 +25,11 @@ export function SearchBar(props: SearchBarProps) {
   const { search, onSearch, plans, selectedId, onSelectPlan, planState: planStateProp } = props;
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [visiblePlanCount, setVisiblePlanCount] = useState(INITIAL_PLAN_BATCH_SIZE);
   const inputRef = useRef<HTMLInputElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | undefined>(undefined);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
   const localPlanState = usePlanState();
   const planState = planStateProp ?? localPlanState;
@@ -43,6 +48,17 @@ export function SearchBar(props: SearchBarProps) {
     return { unseenFiltered: unseen, restFiltered: rest };
   }, [filteredPlans, planState, selectedId]);
 
+  const { visibleUnseenFiltered, visibleRestFiltered, hasMorePlans } = useMemo(() => {
+    const visibleUnseenCount = Math.min(visiblePlanCount, unseenFiltered.length);
+    const remainingVisibleCount = Math.max(visiblePlanCount - visibleUnseenCount, 0);
+
+    return {
+      visibleUnseenFiltered: unseenFiltered.slice(0, visibleUnseenCount),
+      visibleRestFiltered: restFiltered.slice(0, remainingVisibleCount),
+      hasMorePlans: visiblePlanCount < filteredPlans.length,
+    };
+  }, [filteredPlans.length, restFiltered, unseenFiltered, visiblePlanCount]);
+
   const isMac = useMemo(() => {
     if (typeof navigator === 'undefined') return true;
     return /Mac|iPhone|iPad/i.test(navigator.platform);
@@ -57,6 +73,7 @@ export function SearchBar(props: SearchBarProps) {
   const openModal = useCallback(() => {
     clearCloseTimer();
     if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
+    setVisiblePlanCount(INITIAL_PLAN_BATCH_SIZE);
     setMounted(true);
     openFrameRef.current = requestAnimationFrame(() => {
       setOpen(true);
@@ -107,6 +124,35 @@ export function SearchBar(props: SearchBarProps) {
     closeModal();
   }
 
+  function handleMarkAllRead() {
+    if (unseenFiltered.length === 0) return;
+    planState.markAllSeen(unseenFiltered);
+  }
+
+  const loadMorePlans = useCallback(() => {
+    setVisiblePlanCount((current) => Math.min(current + PLAN_BATCH_SIZE, filteredPlans.length));
+  }, [filteredPlans.length]);
+
+  const handleResultsScroll = useCallback(() => {
+    const container = scrollRef.current;
+    if (!container || !hasMorePlans) return;
+
+    const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (remaining <= 160) {
+      loadMorePlans();
+    }
+  }, [hasMorePlans, loadMorePlans]);
+
+  function handlePrimaryEnterAction() {
+    if (unseenFiltered.length > 0) {
+      handleMarkAllRead();
+      return;
+    }
+    if (filteredPlans[0]) {
+      handleSelect(filteredPlans[0]);
+    }
+  }
+
   return (
     <>
       <button
@@ -155,10 +201,13 @@ export function SearchBar(props: SearchBarProps) {
                 ref={inputRef}
                 type="text"
                 value={search}
-                onChange={(e) => onSearch(e.target.value)}
+                onChange={(e) => {
+                  setVisiblePlanCount(INITIAL_PLAN_BATCH_SIZE);
+                  onSearch(e.target.value);
+                }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && filteredPlans[0]) {
-                    handleSelect(filteredPlans[0]);
+                  if (e.key === 'Enter') {
+                    handlePrimaryEnterAction();
                   }
                 }}
                 placeholder="Search plans..."
@@ -172,7 +221,11 @@ export function SearchBar(props: SearchBarProps) {
                 Esc
               </button>
             </div>
-            <div className="max-h-[380px] overflow-y-auto p-2">
+            <div
+              ref={scrollRef}
+              onScroll={handleResultsScroll}
+              className="max-h-[380px] overflow-y-auto p-2"
+            >
               <div className="pt-1 px-2 pb-2 text-[11px] text-tertiary tabular-nums">
                 {search.trim().length > 0
                   ? `${filteredPlans.length} of ${plans.length} plans`
@@ -185,10 +238,15 @@ export function SearchBar(props: SearchBarProps) {
                 <>
                   {unseenFiltered.length > 0 && (
                     <div className="mb-1">
+                      <SearchActionRow
+                        label="Mark All as Read"
+                        detail={`Mark ${unseenFiltered.length} updated plan${unseenFiltered.length === 1 ? '' : 's'} as read`}
+                        onClick={handleMarkAllRead}
+                      />
                       <div className="text-[11px] font-semibold text-[#3b82f6] tracking-[0.04em] uppercase px-2 pt-1.5 pb-1">
                         Updated ({unseenFiltered.length})
                       </div>
-                      {unseenFiltered.map((plan) => (
+                      {visibleUnseenFiltered.map((plan) => (
                         <SearchPlanRow
                           key={plan.id}
                           plan={plan}
@@ -200,7 +258,7 @@ export function SearchBar(props: SearchBarProps) {
                       <div className="h-px bg-border mx-2 my-1.5" />
                     </div>
                   )}
-                  {restFiltered.map((plan) => (
+                  {visibleRestFiltered.map((plan) => (
                     <SearchPlanRow
                       key={plan.id}
                       plan={plan}
@@ -209,6 +267,12 @@ export function SearchBar(props: SearchBarProps) {
                       onClick={() => handleSelect(plan)}
                     />
                   ))}
+                  {hasMorePlans && (
+                    <div className="px-2 pt-2 pb-1 text-[11px] text-tertiary">
+                      Showing {visibleUnseenFiltered.length + visibleRestFiltered.length} of{' '}
+                      {filteredPlans.length} plans, scroll to load more.
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -216,6 +280,34 @@ export function SearchBar(props: SearchBarProps) {
         </div>
       )}
     </>
+  );
+}
+
+function SearchActionRow({
+  label,
+  detail,
+  onClick,
+}: {
+  label: string;
+  detail: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left flex items-center gap-2 py-2.5 px-2.5 rounded-lg cursor-pointer border-none font-[inherit]"
+    >
+      <span className="shrink-0 flex items-center justify-center w-4 h-4 text-secondary">
+        <MarkReadIcon />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em]">
+          {label}
+        </span>
+        <span className="block mt-1 text-[11.5px] text-tertiary">{detail}</span>
+      </span>
+    </button>
   );
 }
 
@@ -285,6 +377,22 @@ function SearchIcon() {
         strokeLinejoin="round"
         d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
       />
+    </svg>
+  );
+}
+
+function MarkReadIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      className="w-3.5 h-3.5"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
     </svg>
   );
 }
