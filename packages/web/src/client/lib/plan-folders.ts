@@ -41,16 +41,32 @@ function emptyStore(): PlanFolderStore {
   return { version: 1, folders: {}, assignments: {}, expanded: {} };
 }
 
+function isPlanFolder(value: unknown): value is PlanFolder {
+  if (!value || typeof value !== 'object') return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.name === 'string' &&
+    (obj.parentId === null || typeof obj.parentId === 'string') &&
+    typeof obj.createdAt === 'string'
+  );
+}
+
 export function parseStore(raw: unknown): PlanFolderStore {
   if (!raw || typeof raw !== 'object') return emptyStore();
   const obj = raw as Record<string, unknown>;
   if (obj.version !== 1) return emptyStore();
+  const folders: Record<string, PlanFolder> = {};
+  if (typeof obj.folders === 'object' && obj.folders !== null) {
+    for (const [folderId, folder] of Object.entries(obj.folders)) {
+      if (isPlanFolder(folder) && folder.id === folderId) {
+        folders[folderId] = folder;
+      }
+    }
+  }
   return {
     version: 1,
-    folders: (typeof obj.folders === 'object' && obj.folders !== null ? obj.folders : {}) as Record<
-      string,
-      PlanFolder
-    >,
+    folders,
     assignments: (typeof obj.assignments === 'object' && obj.assignments !== null
       ? obj.assignments
       : {}) as Record<string, string>,
