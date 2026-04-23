@@ -404,6 +404,22 @@ function FolderRow({
   );
 }
 
+function countPlansInSubtree(
+  folderId: string,
+  plansByFolder: Map<string, Plan[]>,
+  allFolders: Record<string, PlanFolder>,
+): number {
+  const ownPlans = plansByFolder.get(folderId)?.length ?? 0;
+  const children = getChildFolders(folderId, allFolders);
+  return (
+    ownPlans +
+    children.reduce(
+      (sum, child) => sum + countPlansInSubtree(child.id, plansByFolder, allFolders),
+      0,
+    )
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Folder tree node (recursive)                                      */
 /* ------------------------------------------------------------------ */
@@ -442,12 +458,7 @@ function FolderTreeNode({
   const expanded = folderState.isExpanded(folder.id);
   const children = getChildFolders(folder.id, allFolders);
   const plans = plansByFolder.get(folder.id) ?? [];
-  const totalPlans =
-    plans.length +
-    children.reduce((sum, c) => {
-      const childPlans = plansByFolder.get(c.id) ?? [];
-      return sum + childPlans.length;
-    }, 0);
+  const totalPlans = countPlansInSubtree(folder.id, plansByFolder, allFolders);
 
   return (
     <div>
