@@ -288,36 +288,42 @@ async function main(): Promise<number> {
         const port = process.env.PORT ?? '4890';
         const { request } = await import('node:http');
         const body = JSON.stringify({ path: resolved });
-        const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
-          const req = request(
-            `http://localhost:${port}/api/v1/plan-sources`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'Content-Length': String(Buffer.byteLength(body)),
+        try {
+          const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+            const req = request(
+              `http://localhost:${port}/api/v1/plan-sources`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                  'Content-Length': String(Buffer.byteLength(body)),
+                },
               },
-            },
-            (res) => {
-              let data = '';
-              res.setEncoding('utf8');
-              res.on('data', (chunk) => {
-                data += chunk;
-              });
-              res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
-              res.on('error', reject);
-            },
-          );
-          req.on('error', reject);
-          req.write(body);
-          req.end();
-        });
-        if (res.status >= 200 && res.status < 300) {
-          writeStdout(`[agendex] added custom plan dir: ${resolved}`);
-          writeStdout(`[agendex] server notified — scanning + watching now`);
-        } else {
-          writeStderr(`[agendex] server returned ${res.status}: ${res.body}`);
+              (res) => {
+                let data = '';
+                res.setEncoding('utf8');
+                res.on('data', (chunk) => {
+                  data += chunk;
+                });
+                res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
+                res.on('error', reject);
+              },
+            );
+            req.on('error', reject);
+            req.write(body);
+            req.end();
+          });
+          if (res.status >= 200 && res.status < 300) {
+            writeStdout(`[agendex] added custom plan dir: ${resolved}`);
+            writeStdout(`[agendex] server notified — scanning + watching now`);
+          } else {
+            writeStderr(`[agendex] server returned ${res.status}: ${res.body}`);
+            return 1;
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          writeStderr(`[agendex] could not reach local server on port ${port}: ${msg}`);
           return 1;
         }
       } else {
