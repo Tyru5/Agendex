@@ -647,10 +647,31 @@ function DashboardSidebar({
   onResize?: (width: number) => void;
 }) {
   const folderState = usePlanFolders();
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const hasManyPlans = !loading && !error && filteredPlans.length > 12;
+
+  const updateScrollTopVisibility = useCallback(
+    (node: HTMLDivElement | null = scrollViewportRef.current) => {
+      const hasScrollableOverflow = node ? node.scrollHeight > node.clientHeight + 120 : false;
+      setShowScrollTop(
+        Boolean(node && hasManyPlans && hasScrollableOverflow && node.scrollTop > 220),
+      );
+    },
+    [hasManyPlans],
+  );
+
+  useEffect(() => {
+    updateScrollTopVisibility();
+  }, [updateScrollTopVisibility]);
+
+  function scrollSidebarToTop() {
+    scrollViewportRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   return (
     <aside
-      className="flex flex-col overflow-hidden col-start-1 row-start-2 bg-surface min-w-0 origin-top-left"
+      className="agendex-sidebar flex flex-col overflow-hidden col-start-1 row-start-2 bg-surface min-w-0 origin-top-left"
       onMouseEnter={onRevealHover}
       onMouseLeave={onScheduleClose}
       style={{
@@ -676,7 +697,7 @@ function DashboardSidebar({
     >
       {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
       <div
-        className="px-3 pt-3 pb-2"
+        className="sidebar-command-zone"
         style={
           backendStatus === 'offline'
             ? {
@@ -689,26 +710,11 @@ function DashboardSidebar({
         }
       >
         {(mode === 'local' || (mode === 'cloud' && isPro)) && (
-          <div className="flex gap-1.5 mb-2">
+          <div className="sidebar-command-strip">
             <button
               type="button"
               onClick={onNewPlan}
-              className="sidebar-new-btn flex-1 h-8 px-3 text-[12px] font-semibold tracking-[-0.01em] rounded-lg cursor-pointer flex items-center justify-center gap-1.5 border-none transition-all duration-150"
-              style={{
-                background: '#c8ff32',
-                color: '#111',
-                boxShadow: '0 0 0 1px rgba(200,255,50,0.15), 0 1px 3px rgba(0,0,0,0.3)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#d4ff5c';
-                e.currentTarget.style.boxShadow =
-                  '0 0 0 1px rgba(200,255,50,0.3), 0 2px 8px rgba(200,255,50,0.15)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#c8ff32';
-                e.currentTarget.style.boxShadow =
-                  '0 0 0 1px rgba(200,255,50,0.15), 0 1px 3px rgba(0,0,0,0.3)';
-              }}
+              className="sidebar-primary-action flex-1 px-3 text-[12px] font-semibold tracking-[-0.01em] cursor-pointer flex items-center justify-center gap-1.5 border-none"
             >
               <svg
                 aria-hidden="true"
@@ -729,7 +735,7 @@ function DashboardSidebar({
               onClick={onUpload}
               aria-label="Upload plan"
               title="Upload plan"
-              className="h-8 w-8 shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center transition-all duration-150 hover:text-secondary hover:border-[rgba(255,255,255,0.12)] hover:bg-hover"
+              className="sidebar-icon-action"
             >
               <svg
                 aria-hidden="true"
@@ -767,7 +773,9 @@ function DashboardSidebar({
       </div>
 
       <div
-        className="flex-1 overflow-auto sidebar-scroll px-3 pb-3"
+        ref={scrollViewportRef}
+        className="flex-1 overflow-auto sidebar-scroll sidebar-content-list"
+        onScroll={(event) => updateScrollTopVisibility(event.currentTarget)}
         style={
           backendStatus === 'offline'
             ? {
@@ -803,13 +811,38 @@ function DashboardSidebar({
         )}
       </div>
 
+      {showScrollTop && (
+        <button
+          type="button"
+          className="sidebar-scroll-top"
+          onClick={scrollSidebarToTop}
+          aria-label="Scroll sidebar to top"
+          title="Scroll to top"
+        >
+          <svg
+            aria-hidden="true"
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M8 13V3" />
+            <path d="M4 7 8 3l4 4" />
+          </svg>
+        </button>
+      )}
+
       {!loading && !error && folderState.folders.length === 0 && (
-        <div className="px-3 pb-3">
+        <div className="px-[10px] pb-3">
           <button
             type="button"
             disabled={folderState.folderCount >= MAX_FOLDERS}
             onClick={() => folderState.createFolder('New folder')}
-            className="w-full py-1.5 rounded-[7px] border border-dashed border-border bg-transparent text-[11.5px] text-tertiary font-[inherit] cursor-pointer flex items-center justify-center gap-1.5"
+            className="sidebar-folder-button"
             style={{
               opacity: folderState.folderCount >= MAX_FOLDERS ? 0.4 : 1,
             }}

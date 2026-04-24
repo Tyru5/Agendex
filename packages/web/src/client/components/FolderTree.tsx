@@ -363,16 +363,10 @@ function FolderRow({
       type="button"
       onClick={isRenaming ? undefined : onToggle}
       onContextMenu={onContextMenu}
-      className="w-full flex items-center gap-1.5 py-1.5 rounded-[7px] cursor-pointer select-none border-none bg-transparent font-[inherit] text-left"
+      className="sidebar-tree-row select-none"
       style={{
         paddingLeft: `${8 + depth * 14}px`,
         paddingRight: '8px',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--hover)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
       }}
     >
       <ChevronIcon expanded={expanded} />
@@ -394,10 +388,8 @@ function FolderRow({
         />
       ) : (
         <>
-          <span className="text-[12.5px] font-medium text-text truncate flex-1">{folder.name}</span>
-          {childCount > 0 && (
-            <span className="text-[10.5px] text-tertiary tabular-nums">{childCount}</span>
-          )}
+          <span className="sidebar-tree-label">{folder.name}</span>
+          {childCount > 0 && <span className="sidebar-count-pill">{childCount}</span>}
         </>
       )}
     </button>
@@ -579,20 +571,23 @@ export function FolderTree({
     <div>
       {/* Folder header with add button */}
       {(rootFolders.length > 0 || folderState.folderCount > 0) && (
-        <div className="flex items-center justify-between px-2 pt-2 pb-1">
-          <span className="text-[11px] font-semibold text-tertiary tracking-[0.04em] uppercase">
-            Folders ({folderState.folderCount}/{MAX_FOLDERS})
-          </span>
-          <button
-            type="button"
-            disabled={atLimit}
-            onClick={() => folderState.createFolder('New folder')}
-            className="text-[11px] text-tertiary bg-none border-none cursor-pointer p-0 font-[inherit]"
-            style={{ opacity: atLimit ? 0.4 : 1, cursor: atLimit ? 'not-allowed' : 'pointer' }}
-            title={atLimit ? 'Folder limit reached' : 'New folder'}
-          >
-            + New
-          </button>
+        <div className="sidebar-section-header">
+          <span className="sidebar-section-title">Folders</span>
+          <div className="flex items-center gap-2">
+            <span className="sidebar-count-pill">
+              {folderState.folderCount}/{MAX_FOLDERS}
+            </span>
+            <button
+              type="button"
+              disabled={atLimit}
+              onClick={() => folderState.createFolder('New folder')}
+              className="sidebar-section-action"
+              style={{ opacity: atLimit ? 0.4 : 1, cursor: atLimit ? 'not-allowed' : 'pointer' }}
+              title={atLimit ? 'Folder limit reached' : 'New folder'}
+            >
+              + New
+            </button>
+          </div>
         </div>
       )}
 
@@ -618,9 +613,7 @@ export function FolderTree({
       ))}
 
       {/* Unassigned plans */}
-      {rootFolders.length > 0 && unassigned.length > 0 && (
-        <div className="h-px bg-border mx-2 my-1.5" />
-      )}
+      {rootFolders.length > 0 && unassigned.length > 0 && <div className="sidebar-ghost-divider" />}
       {unassigned.map((plan) => renderPlan(plan))}
 
       {/* Context menu */}

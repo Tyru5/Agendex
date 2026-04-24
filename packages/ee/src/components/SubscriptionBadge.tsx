@@ -87,8 +87,8 @@ export function SubscriptionBadge() {
         <button
           type="button"
           onClick={() => setShowMenu(!showMenu)}
-          className="border-none py-2 px-3 rounded-default font-semibold text-[14px] cursor-pointer flex items-center gap-1.5 text-white"
-          style={{ background: 'var(--primary)' }}
+          className="border-none py-2 px-3 rounded-default font-semibold text-[14px] cursor-pointer flex items-center gap-1.5"
+          style={{ background: 'var(--accent)', color: 'var(--accent-contrast)' }}
         >
           Pro
           <span className="text-[12px]">▼</span>

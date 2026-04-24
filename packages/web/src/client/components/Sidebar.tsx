@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePlanFolders } from '../hooks/usePlanFolders.ts';
 import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
 import type { AgentStats, Plan } from '../lib/api.ts';
@@ -33,6 +34,9 @@ interface SidebarProps {
   onResize?: (width: number) => void;
 }
 
+const SCROLL_TOP_PLAN_THRESHOLD = 12;
+const SCROLL_TOP_OFFSET = 220;
+
 export function Sidebar({
   sidebarHidden,
   sidebarVisible,
@@ -58,11 +62,34 @@ export function Sidebar({
   onResize,
 }: SidebarProps) {
   const folderState = usePlanFolders();
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const hasManyPlans = !loading && !error && filteredPlans.length > SCROLL_TOP_PLAN_THRESHOLD;
+
+  const updateScrollTopVisibility = useCallback(
+    (node: HTMLDivElement | null = scrollViewportRef.current) => {
+      const hasScrollableOverflow = node ? node.scrollHeight > node.clientHeight + 120 : false;
+      setShowScrollTop(
+        Boolean(
+          node && hasManyPlans && hasScrollableOverflow && node.scrollTop > SCROLL_TOP_OFFSET,
+        ),
+      );
+    },
+    [hasManyPlans],
+  );
+
+  useEffect(() => {
+    updateScrollTopVisibility();
+  }, [updateScrollTopVisibility]);
+
+  function scrollSidebarToTop() {
+    scrollViewportRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: hover-reveal sidebar container
     <div
-      className="flex flex-col overflow-hidden bg-surface min-w-0 origin-top-left"
+      className="agendex-sidebar flex flex-col overflow-hidden bg-surface min-w-0 origin-top-left"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={{
@@ -90,7 +117,7 @@ export function Sidebar({
       }}
     >
       {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
-      <div className="px-3 pt-3 pb-2">
+      <div className="sidebar-command-zone">
         <SidebarFilters
           sortBy={sortBy}
           onSortChange={onSortChange}
@@ -102,7 +129,11 @@ export function Sidebar({
         />
       </div>
 
-      <div className="flex-1 overflow-auto sidebar-scroll px-3 pb-3">
+      <div
+        ref={scrollViewportRef}
+        className="flex-1 overflow-auto sidebar-scroll sidebar-content-list"
+        onScroll={(event) => updateScrollTopVisibility(event.currentTarget)}
+      >
         {loading ? (
           <div className="p-4">
             <SkeletonBlock lines={5} />
@@ -122,13 +153,38 @@ export function Sidebar({
         )}
       </div>
 
+      {showScrollTop && (
+        <button
+          type="button"
+          className="sidebar-scroll-top"
+          onClick={scrollSidebarToTop}
+          aria-label="Scroll sidebar to top"
+          title="Scroll to top"
+        >
+          <svg
+            aria-hidden="true"
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M8 13V3" />
+            <path d="M4 7 8 3l4 4" />
+          </svg>
+        </button>
+      )}
+
       {!loading && !error && folderState.folders.length === 0 && (
-        <div className="px-3 pb-3">
+        <div className="px-[10px] pb-3">
           <button
             type="button"
             disabled={folderState.folderCount >= MAX_FOLDERS}
             onClick={() => folderState.createFolder('New folder')}
-            className="w-full py-1.5 rounded-[7px] border border-dashed border-border bg-transparent text-[11.5px] text-tertiary font-[inherit] cursor-pointer flex items-center justify-center gap-1.5"
+            className="sidebar-folder-button"
             style={{
               opacity: folderState.folderCount >= MAX_FOLDERS ? 0.4 : 1,
             }}
