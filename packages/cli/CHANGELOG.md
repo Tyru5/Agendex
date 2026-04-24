@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.13.0
+
+### Minor Changes
+
+- d108217: Updates to sync logic
+
 ## 0.12.0
 
 ### Minor Changes
