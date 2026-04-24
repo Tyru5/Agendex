@@ -33,24 +33,16 @@ function DirRow({
     <button
       type="button"
       onClick={onToggle}
-      className="w-full flex items-center gap-1.5 py-1.5 rounded-[7px] cursor-pointer select-none border-none bg-transparent font-[inherit] text-left"
+      className="sidebar-tree-row select-none"
       style={{
         paddingLeft: `${8 + depth * 14}px`,
         paddingRight: '8px',
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--hover)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-      }}
     >
       <ChevronIcon expanded={expanded} />
       <FolderIcon open={expanded} />
-      <span className="text-[12.5px] font-medium text-text truncate flex-1">{name}</span>
-      {childCount > 0 && (
-        <span className="text-[10.5px] text-tertiary tabular-nums">{childCount}</span>
-      )}
+      <span className="sidebar-tree-label">{name}</span>
+      {childCount > 0 && <span className="sidebar-count-pill">{childCount}</span>}
     </button>
   );
 }
@@ -156,10 +148,8 @@ export function CustomDirTree({
 
   return (
     <div>
-      <div className="flex items-center justify-between px-2 pt-2 pb-1">
-        <span className="text-[11px] font-semibold text-tertiary tracking-[0.04em] uppercase">
-          Sources
-        </span>
+      <div className="sidebar-section-header">
+        <span className="sidebar-section-title">Sources</span>
       </div>
       {tree.map((node) => (
         <CustomDirNode

@@ -65,7 +65,7 @@ function PlanRow({
       type="button"
       onClick={isRenaming ? undefined : onClick}
       onContextMenu={onContextMenu}
-      className={`w-full text-left block plan-row${selected ? ' plan-row--selected' : ''}${isSplit ? ' plan-row--split' : ''} py-2.5 px-2 rounded-[7px] cursor-pointer border-none font-[inherit]`}
+      className={`w-full text-left block plan-row sidebar-plan-row${selected ? ' plan-row--selected' : ''}${isSplit ? ' plan-row--split' : ''} cursor-pointer font-[inherit]`}
       style={{
         background: selected ? 'var(--active)' : isSplit ? 'var(--hover)' : 'transparent',
         border: isSplit ? '1px dashed var(--border)' : undefined,
@@ -93,16 +93,14 @@ function PlanRow({
           className={`plan-title${overflows ? ' plan-title--fade' : ''}`}
           style={{ paddingLeft: unseen ? '14px' : undefined }}
         >
-          {unseen && (
-            <span className="unseen-dot absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
-          )}
+          {unseen && <span className="sidebar-unread-dot" />}
           {plan.title}
         </div>
       )}
-      <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
-        <AgentIcon agent={plan.agent} size={11} />
-        <span>{getAgentLabel(plan.agent)}</span>
-        <span>&middot;</span>
+      <div className="sidebar-plan-meta">
+        <AgentIcon agent={plan.agent} size={10} />
+        <span className="sidebar-plan-meta-label">{getAgentLabel(plan.agent)}</span>
+        <span aria-hidden="true">·</span>
         <span>{timeAgo(plan.updatedAt)}</span>
       </div>
     </button>
@@ -301,7 +299,7 @@ export function PlanList(props: PlanListProps) {
   }, [renamingPlanId, renameValue, onRenamePlan]);
 
   if (plans.length === 0) {
-    return <div className="p-4 text-[13px] text-tertiary">No plans found</div>;
+    return <div className="sidebar-empty-state">No plans found</div>;
   }
 
   const contextPlan = contextMenu?.plan;
@@ -335,14 +333,22 @@ export function PlanList(props: PlanListProps) {
             )}
           />
           {(pinnedPlans.length > 0 || unseenPlans.length > 0 || regularPlans.length > 0) && (
-            <div className="h-px bg-border mx-2 my-1.5" />
+            <div className="sidebar-ghost-divider" />
           )}
         </>
       )}
+      {nonCustomPlans.length > 0 && (
+        <div className="sidebar-section-header">
+          <span className="sidebar-section-title">
+            Plans <span className="sidebar-section-count">({nonCustomPlans.length})</span>
+          </span>
+        </div>
+      )}
       {pinnedPlans.length > 0 && (
         <div className="mb-2">
-          <div className="px-2 pt-1.5 pb-1 w-full text-[11px] font-semibold text-tertiary tracking-[0.04em] uppercase">
-            Pinned ({pinnedPlans.length})
+          <div className="sidebar-section-header">
+            <span className="sidebar-section-title">Pinned</span>
+            <span className="sidebar-count-pill">{pinnedPlans.length}</span>
           </div>
           {pinnedPlans.map((plan) => (
             <PlanRow
@@ -361,23 +367,24 @@ export function PlanList(props: PlanListProps) {
             />
           ))}
           {(unseenPlans.length > 0 || regularPlans.length > 0) && (
-            <div className="h-px bg-border mx-2 my-1.5" />
+            <div className="sidebar-ghost-divider" />
           )}
         </div>
       )}
       {unseenPlans.length > 0 && (
         <div className="mb-2">
-          <div className="flex items-center justify-between px-2 pt-1.5 pb-1 w-full">
-            <span className="text-[11px] font-semibold text-[#3b82f6] tracking-[0.04em] uppercase">
-              Updated ({unseenPlans.length})
-            </span>
-            <button
-              type="button"
-              onClick={() => planState.markAllSeen(unseenPlans)}
-              className="text-[11px] text-tertiary bg-none border-none cursor-pointer p-0 font-[inherit] whitespace-nowrap"
-            >
-              Mark all read
-            </button>
+          <div className="sidebar-section-header sidebar-section-header--accent">
+            <span className="sidebar-section-title">Updated</span>
+            <div className="flex items-center gap-2">
+              <span className="sidebar-count-pill">{unseenPlans.length}</span>
+              <button
+                type="button"
+                onClick={() => planState.markAllSeen(unseenPlans)}
+                className="sidebar-section-action whitespace-nowrap"
+              >
+                Mark read
+              </button>
+            </div>
           </div>
           {unseenPlans.map((plan) => (
             <PlanRow
@@ -395,7 +402,7 @@ export function PlanList(props: PlanListProps) {
               onRenameCancel={cancelRename}
             />
           ))}
-          {regularPlans.length > 0 && <div className="h-px bg-border mx-2 my-1.5" />}
+          {regularPlans.length > 0 && <div className="sidebar-ghost-divider" />}
         </div>
       )}
       {folderState && folderState.folders.length > 0 ? (
