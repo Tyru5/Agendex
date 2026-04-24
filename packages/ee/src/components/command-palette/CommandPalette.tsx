@@ -1,5 +1,6 @@
 import {
   AgentIcon,
+  filterPlans,
   getAgentLabel,
   type Plan,
   type PlanState,
@@ -7,7 +8,10 @@ import {
   useTheme,
 } from '@agendex/web';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type Command, type FlatItem, useCommandItems } from './useCommandItems';
+import { type Command, useCommandItems } from './useCommandItems';
+
+const INITIAL_PLAN_BATCH_SIZE = 100;
+const PLAN_BATCH_SIZE = 100;
 
 export function CommandPalette({
   search,
@@ -54,6 +58,7 @@ export function CommandPalette({
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [visiblePlanCount, setVisiblePlanCount] = useState(INITIAL_PLAN_BATCH_SIZE);
   const inputRef = useRef<HTMLInputElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame>>(undefined);
@@ -85,6 +90,7 @@ export function CommandPalette({
     clearCloseTimer();
     if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
 
+    setVisiblePlanCount(INITIAL_PLAN_BATCH_SIZE);
     setMounted(true);
     openFrameRef.current = requestAnimationFrame(() => {
       setOpen(true);
@@ -134,6 +140,16 @@ export function CommandPalette({
     const next = resolvedTheme === 'dark' ? 'light' : 'dark';
     setTheme(next);
   }, [resolvedTheme, setTheme]);
+
+  const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
+
+  const visibleUnseenPlans = useMemo(
+    () =>
+      filteredPlans.filter(
+        (plan) => plan.id !== selectedId && planState.isUnseen(plan.id, plan.updatedAt),
+      ),
+    [filteredPlans, planState, selectedId],
+  );
 
   const commands = useMemo<Command[]>(() => {
     const cmds: Command[] = [];
@@ -203,6 +219,19 @@ export function CommandPalette({
         }
       },
     });
+
+    if (visibleUnseenPlans.length > 0) {
+      cmds.push({
+        id: 'mark-all-read',
+        label: 'Mark All as Read',
+        group: 'plans',
+        icon: <MarkReadIcon />,
+        footerHint: `Mark ${visibleUnseenPlans.length} updated plan${visibleUnseenPlans.length === 1 ? '' : 's'} as read`,
+        action: () => {
+          planState.markAllSeen(visibleUnseenPlans);
+        },
+      });
+    }
 
     cmds.push({
       id: 'view-agents',
@@ -297,7 +326,13 @@ export function CommandPalette({
     onToggleChart,
     onDeletePlan,
     selectedId,
+    planState,
+    visibleUnseenPlans,
   ]);
+
+  const loadMorePlans = useCallback(() => {
+    setVisiblePlanCount((current) => Math.min(current + PLAN_BATCH_SIZE, filteredPlans.length));
+  }, [filteredPlans.length]);
 
   const {
     flatItems,
@@ -307,34 +342,44 @@ export function CommandPalette({
     footerHint,
     onKeyDown,
     resetFocus,
+    getFocusableIndex,
+    hasMorePlans,
+    visiblePlanCount: renderedPlanCount,
+    filteredPlansCount,
   } = useCommandItems({
     commands,
-    plans,
+    filteredPlans,
     search,
     selectedPlanId: selectedId,
     isPro,
     onClose: closeModal,
     onSelectPlan,
     onOpenInSplitView,
+    planLimit: visiblePlanCount,
+    onRequestMorePlans: loadMorePlans,
   });
 
-  const getFocusableIndex = useCallback(
-    (item: FlatItem) => {
-      if (item.type === 'command') {
-        return focusableItems.findIndex(
-          (fi) => fi.type === 'command' && fi.command?.id === item.command?.id,
-        );
-      }
-      if (item.type === 'plan') {
-        return focusableItems.findIndex(
-          (fi) => fi.type === 'plan' && fi.plan?.id === item.plan?.id,
-        );
-      }
-      return -1;
-    },
+  const handleResultsScroll = useCallback(() => {
+    const container = scrollRef.current;
+    if (!container || !hasMorePlans) return;
 
-    [focusableItems],
-  );
+    const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (remaining <= 160) {
+      loadMorePlans();
+    }
+  }, [hasMorePlans, loadMorePlans]);
+
+  useEffect(() => {
+    if (!open) return;
+    resetFocus();
+  }, [open, resetFocus]);
+
+  useEffect(() => {
+    if (!hasMorePlans || focusableItems.length === 0) return;
+    if (focusedIndex >= focusableItems.length - 1) {
+      loadMorePlans();
+    }
+  }, [focusedIndex, focusableItems.length, hasMorePlans, loadMorePlans]);
 
   useEffect(() => {
     if (focusedIndex < 0) return;
@@ -406,6 +451,7 @@ export function CommandPalette({
                 type="text"
                 value={search}
                 onChange={(e) => {
+                  setVisiblePlanCount(INITIAL_PLAN_BATCH_SIZE);
                   onSearch(e.target.value);
                   resetFocus();
                 }}
@@ -422,163 +468,173 @@ export function CommandPalette({
               </button>
             </div>
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-2">
+            <div
+              ref={scrollRef}
+              onScroll={handleResultsScroll}
+              className="flex-1 overflow-y-auto p-2"
+            >
               {flatItems.length === 0 ? (
                 <div className="p-3 text-[12px] text-tertiary text-center">No results</div>
               ) : (
-                flatItems.map((item) => {
-                  if (item.type === 'group-header') {
-                    return (
-                      <div
-                        key={`gh-${item.groupLabel}`}
-                        className="text-[11px] font-medium text-tertiary tracking-[0.04em] uppercase px-2 pt-3 pb-1.5"
-                      >
-                        {item.groupLabel}
-                      </div>
-                    );
-                  }
+                <>
+                  {flatItems.map((item) => {
+                    if (item.type === 'group-header') {
+                      return (
+                        <div
+                          key={`gh-${item.groupLabel}`}
+                          className="text-[11px] font-medium text-tertiary tracking-[0.04em] uppercase px-2 pt-3 pb-1.5"
+                        >
+                          {item.groupLabel}
+                        </div>
+                      );
+                    }
 
-                  if (item.type === 'command' && item.command) {
-                    const cmd = item.command;
-                    const fi = getFocusableIndex(item);
-                    const focused = fi === focusedIndex;
-                    const gated = cmd.proOnly && !isPro;
+                    if (item.type === 'command' && item.command) {
+                      const cmd = item.command;
+                      const fi = getFocusableIndex(item);
+                      const focused = fi === focusedIndex;
+                      const gated = cmd.proOnly && !isPro;
 
-                    return (
-                      <button
-                        key={cmd.id}
-                        type="button"
-                        data-focused={focused || undefined}
-                        className="w-full text-left flex items-center gap-2.5 py-2 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
-                        style={{
-                          background: focused ? 'var(--hover)' : 'transparent',
-                          opacity: gated ? 0.5 : 1,
-                        }}
-                        onClick={() => {
-                          cmd.action();
-                          closeModal();
-                        }}
-                        onMouseEnter={() => setFocusedIndex(fi)}
-                      >
-                        <span className="shrink-0 text-secondary w-[18px] h-[18px] flex items-center justify-center">
-                          {cmd.icon}
-                        </span>
-                        <span className="flex-1 text-[13px] text-text font-medium">
-                          {cmd.label}
-                        </span>
-                        {gated && (
-                          <span className="text-[10px] font-semibold text-tertiary border border-border rounded px-1.5 py-0.5 uppercase tracking-wider">
-                            Pro
-                          </span>
-                        )}
-                      </button>
-                    );
-                  }
-
-                  if (item.type === 'plan' && item.plan) {
-                    const plan = item.plan;
-                    const fi = getFocusableIndex(item);
-                    const focused = fi === focusedIndex;
-                    const unseen =
-                      planState.isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId;
-
-                    return (
-                      <div
-                        key={plan.id}
-                        className="flex items-stretch gap-1"
-                        data-focused={focused || undefined}
-                      >
+                      return (
                         <button
+                          key={cmd.id}
                           type="button"
-                          className="flex-1 min-w-0 text-left block py-2.5 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
+                          data-focused={focused || undefined}
+                          className="w-full text-left flex items-center gap-2.5 py-2 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
                           style={{
-                            background: focused
-                              ? 'var(--hover)'
-                              : plan.id === selectedId
-                                ? 'var(--active)'
-                                : 'transparent',
+                            background: focused ? 'var(--hover)' : 'transparent',
+                            opacity: gated ? 0.5 : 1,
                           }}
                           onClick={() => {
-                            planState.markSeen(plan.id, plan.updatedAt);
-                            onSelectPlan(plan);
+                            cmd.action();
                             closeModal();
                           }}
                           onMouseEnter={() => setFocusedIndex(fi)}
                         >
-                          <div
-                            className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
-                            style={{ paddingLeft: unseen ? '14px' : undefined }}
-                          >
-                            {unseen && (
-                              <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
-                            )}
-                            {plan.title}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
-                            <AgentIcon agent={plan.agent} size={11} />
-                            <span>{getAgentLabel(plan.agent)}</span>
-                            <span>&middot;</span>
-                            <span>{timeAgo(plan.updatedAt)}</span>
-                          </div>
+                          <span className="shrink-0 text-secondary w-[18px] h-[18px] flex items-center justify-center">
+                            {cmd.icon}
+                          </span>
+                          <span className="flex-1 text-[13px] text-text font-medium">
+                            {cmd.label}
+                          </span>
+                          {gated && (
+                            <span className="text-[10px] font-semibold text-tertiary border border-border rounded px-1.5 py-0.5 uppercase tracking-wider">
+                              Pro
+                            </span>
+                          )}
                         </button>
-                        {onOpenInSplitView && (
+                      );
+                    }
+
+                    if (item.type === 'plan' && item.plan) {
+                      const plan = item.plan;
+                      const fi = getFocusableIndex(item);
+                      const focused = fi === focusedIndex;
+                      const unseen =
+                        planState.isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId;
+
+                      return (
+                        <div
+                          key={plan.id}
+                          className="flex items-stretch gap-1"
+                          data-focused={focused || undefined}
+                        >
                           <button
                             type="button"
+                            className="flex-1 min-w-0 text-left block py-2.5 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
+                            style={{
+                              background: focused
+                                ? 'var(--hover)'
+                                : plan.id === selectedId
+                                  ? 'var(--active)'
+                                  : 'transparent',
+                            }}
                             onClick={() => {
                               planState.markSeen(plan.id, plan.updatedAt);
-                              onOpenInSplitView(plan);
+                              onSelectPlan(plan);
                               closeModal();
                             }}
-                            disabled={plan.id === selectedId || plan.id === splitPlanId}
-                            title="Open in split view"
-                            className="shrink-0 flex items-center justify-center w-9 rounded-lg border border-border bg-transparent cursor-pointer transition-[opacity,background] duration-150"
-                            style={{
-                              color:
-                                plan.id === selectedId || plan.id === splitPlanId
-                                  ? 'var(--tertiary)'
-                                  : 'var(--secondary)',
-                              opacity:
-                                plan.id === selectedId || plan.id === splitPlanId ? 0.4 : 0.6,
-                              cursor:
-                                plan.id === selectedId || plan.id === splitPlanId
-                                  ? 'not-allowed'
-                                  : 'pointer',
-                            }}
-                            onMouseEnter={(e) => {
-                              if (plan.id !== selectedId && plan.id !== splitPlanId) {
-                                e.currentTarget.style.opacity = '1';
-                                e.currentTarget.style.background = 'var(--hover)';
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.opacity =
-                                plan.id === selectedId || plan.id === splitPlanId ? '0.4' : '0.6';
-                              e.currentTarget.style.background = 'transparent';
-                            }}
+                            onMouseEnter={() => setFocusedIndex(fi)}
                           >
-                            <svg
-                              aria-hidden="true"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              strokeWidth={1.5}
-                              stroke="currentColor"
-                              className="w-3.5 h-3.5"
+                            <div
+                              className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
+                              style={{ paddingLeft: unseen ? '14px' : undefined }}
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5Z"
-                              />
-                            </svg>
+                              {unseen && (
+                                <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
+                              )}
+                              {plan.title}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
+                              <AgentIcon agent={plan.agent} size={11} />
+                              <span>{getAgentLabel(plan.agent)}</span>
+                              <span>&middot;</span>
+                              <span>{timeAgo(plan.updatedAt)}</span>
+                            </div>
                           </button>
-                        )}
-                      </div>
-                    );
-                  }
+                          {onOpenInSplitView && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                planState.markSeen(plan.id, plan.updatedAt);
+                                onOpenInSplitView(plan);
+                                closeModal();
+                              }}
+                              disabled={plan.id === selectedId || plan.id === splitPlanId}
+                              title="Open in split view"
+                              className="shrink-0 flex items-center justify-center w-9 cursor-pointer"
+                              style={{
+                                color:
+                                  plan.id === selectedId || plan.id === splitPlanId
+                                    ? 'var(--tertiary)'
+                                    : 'var(--secondary)',
+                                opacity:
+                                  plan.id === selectedId || plan.id === splitPlanId ? 0.4 : 0.6,
+                                cursor:
+                                  plan.id === selectedId || plan.id === splitPlanId
+                                    ? 'not-allowed'
+                                    : 'pointer',
+                              }}
+                              onMouseEnter={(e) => {
+                                if (plan.id !== selectedId && plan.id !== splitPlanId) {
+                                  e.currentTarget.style.opacity = '0.9';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.opacity =
+                                  plan.id === selectedId || plan.id === splitPlanId ? '0.4' : '0.6';
+                              }}
+                            >
+                              <svg
+                                aria-hidden="true"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={1.5}
+                                stroke="currentColor"
+                                className="w-3.5 h-3.5"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5Z"
+                                />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    }
 
-                  return null;
-                })
+                    return null;
+                  })}
+                  {hasMorePlans && (
+                    <div className="px-2.5 pt-2 pb-1 text-[11px] text-tertiary">
+                      Showing {renderedPlanCount} of {filteredPlansCount} plans, scroll to load
+                      more.
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -677,6 +733,22 @@ function ClockIcon() {
         strokeLinejoin="round"
         d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
       />
+    </svg>
+  );
+}
+
+function MarkReadIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      className="w-[14px] h-[14px]"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
     </svg>
   );
 }
