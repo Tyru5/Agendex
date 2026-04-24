@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getAgentLabel } from '../lib/agent-colors.ts';
@@ -45,7 +45,7 @@ export function PlanUploader({
   onCreated: (plan: Plan) => void;
 }) {
   const [step, setStep] = useState<Step>('pick');
-  const [agent, setAgent] = useState(agents[0]?.agent ?? '');
+  const [agent, setAgent] = useState(() => agents[0]?.agent ?? '');
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [previewIdx, setPreviewIdx] = useState(0);
   const [uploading, setUploading] = useState(false);
@@ -53,12 +53,6 @@ export function PlanUploader({
   const [error, setError] = useState<string>();
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!agent && agents.length > 0 && agents[0]) {
-      setAgent(agents[0].agent);
-    }
-  }, [agents, agent]);
 
   const handleFiles = useCallback(async (fileList: FileList) => {
     const mdFiles = Array.from(fileList).filter((f) => f.name.endsWith('.md'));
@@ -112,7 +106,7 @@ export function PlanUploader({
         const f = valid[i]!;
         const plan = await api.createPlan(agent, f.title.trim(), f.content.trim());
         if (i === 0) firstPlan = plan;
-        setUploadProgress(i + 1);
+        setUploadProgress(() => i + 1);
       }
       if (firstPlan) onCreated(firstPlan);
     } catch (e) {

@@ -276,15 +276,67 @@ async function main(): Promise<number> {
         writeStderr(`[agendex] path is not a directory: ${resolved}`);
         return 1;
       }
-      const cfg = loadConfig();
-      const currentDirs = cfg?.customPlanDirs ?? [];
-      const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
-      saveConfig({
-        ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
-        customPlanDirs: updated,
-      });
-      writeStdout(`[agendex] added custom plan dir: ${resolved}`);
-      writeStdout(`[agendex] daemon will pick up the change automatically`);
+
+      if (args.includes('--live')) {
+        // POST to the running local server so it scans + watches immediately
+        const cfg = loadConfig();
+        const token = cfg?.token;
+        if (!token) {
+          writeStderr('[agendex] no local token found in config — is the server running?');
+          return 1;
+        }
+        const port = process.env.PORT ?? '4890';
+        const { request } = await import('node:http');
+        const body = JSON.stringify({ path: resolved });
+        try {
+          const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+            const req = request(
+              `http://localhost:${port}/api/v1/plan-sources`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                  'Content-Length': String(Buffer.byteLength(body)),
+                },
+              },
+              (res) => {
+                let data = '';
+                res.setEncoding('utf8');
+                res.on('data', (chunk) => {
+                  data += chunk;
+                });
+                res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
+                res.on('error', reject);
+              },
+            );
+            req.on('error', reject);
+            req.write(body);
+            req.end();
+          });
+          if (res.status >= 200 && res.status < 300) {
+            writeStdout(`[agendex] added custom plan dir: ${resolved}`);
+            writeStdout(`[agendex] server notified — scanning + watching now`);
+          } else {
+            writeStderr(`[agendex] server returned ${res.status}: ${res.body}`);
+            return 1;
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          writeStderr(`[agendex] could not reach local server on port ${port}: ${msg}`);
+          return 1;
+        }
+      } else {
+        const cfg = loadConfig();
+        const currentDirs = cfg?.customPlanDirs ?? [];
+        const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
+        saveConfig({
+          ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
+          customPlanDirs: updated,
+        });
+        writeStdout(`[agendex] added custom plan dir: ${resolved}`);
+        writeStdout(`[agendex] daemon will pick up the change automatically`);
+      }
       return 0;
     }
 
@@ -420,6 +472,7 @@ Usage:
   agendex logout       Clear stored cloud token
   agendex configure    Select which agents/adapters to index
   agendex add-dir <path>  Add a custom directory to scan for plans
+  agendex add-dir <path> --live  Add dir and notify running server immediately
   agendex remove-dir <path>  Remove a custom directory
   agendex list-dirs    List custom plan directories
   agendex sync         One-shot scan + sync to cloud (skips unchanged plans)

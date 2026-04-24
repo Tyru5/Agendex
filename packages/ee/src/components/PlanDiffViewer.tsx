@@ -119,7 +119,7 @@ export function PlanDiffViewer({
     <div className="border border-border rounded-lg overflow-hidden text-[12.5px] font-['SF_Mono','JetBrains_Mono',monospace] leading-[1.6]">
       {lines.map((line, idx) => (
         <div
-          key={idx}
+          key={`${line.type}-${idx}`}
           className="px-3 py-px whitespace-pre-wrap break-words"
           style={{
             borderBottom: idx < lines.length - 1 ? '1px solid rgba(128,128,128,0.06)' : undefined,

@@ -149,7 +149,7 @@ export function CloudPlanUploader({
         if (i === 0) {
           firstPlan = makeCloudPlan(planId, agent, trimmedTitle, trimmedContent);
         }
-        setUploadProgress(i + 1);
+        setUploadProgress(() => i + 1);
       }
       if (firstPlan) onCreated(firstPlan);
     } catch (e) {

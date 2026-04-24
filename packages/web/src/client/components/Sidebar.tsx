@@ -1,8 +1,11 @@
+import { usePlanFolders } from '../hooks/usePlanFolders.ts';
+import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
 import type { AgentStats, Plan } from '../lib/api.ts';
-import { SIDEBAR_EXPANDED_WIDTH } from '../lib/constants.ts';
+import { MAX_FOLDERS } from '../lib/plan-folders.ts';
 import { startViewTransition } from '../lib/view-transition.ts';
 import { PlanList } from './PlanList.tsx';
 import { SidebarFilters } from './SidebarFilters.tsx';
+import { SidebarResizeHandle } from './SidebarResizeHandle.tsx';
 import { SkeletonBlock } from './Skeleton.tsx';
 
 interface SidebarProps {
@@ -26,6 +29,8 @@ interface SidebarProps {
   onOpenInSplitView?: (plan: Plan) => void;
   loading: boolean;
   error: string | null;
+  width?: number;
+  onResize?: (width: number) => void;
 }
 
 export function Sidebar({
@@ -49,7 +54,11 @@ export function Sidebar({
   onOpenInSplitView,
   loading,
   error,
+  width,
+  onResize,
 }: SidebarProps) {
+  const folderState = usePlanFolders();
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: hover-reveal sidebar container
     <div
@@ -63,7 +72,7 @@ export function Sidebar({
         top: sidebarHidden ? 0 : undefined,
         left: sidebarHidden ? 0 : undefined,
         height: sidebarHidden ? '100%' : undefined,
-        width: `${SIDEBAR_EXPANDED_WIDTH}px`,
+        width: `${width ?? SIDEBAR_DEFAULT_WIDTH}px`,
         zIndex: sidebarHidden ? 45 : undefined,
         borderRight: sidebarVisible ? '1px solid var(--border)' : 'none',
         opacity: sidebarHidden ? (sidebarPeekOpen ? 1 : 0) : 1,
@@ -80,6 +89,7 @@ export function Sidebar({
           : 'opacity 120ms ease',
       }}
     >
+      {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
       <div className="px-3 pt-3 pb-2">
         <SidebarFilters
           sortBy={sortBy}
@@ -107,9 +117,41 @@ export function Sidebar({
             splitPlanId={splitPlanId}
             onSelect={(plan) => startViewTransition(() => onSelectPlan(plan))}
             onOpenInSplitView={onOpenInSplitView}
+            folderState={folderState}
           />
         )}
       </div>
+
+      {!loading && !error && folderState.folders.length === 0 && (
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            disabled={folderState.folderCount >= MAX_FOLDERS}
+            onClick={() => folderState.createFolder('New folder')}
+            className="w-full py-1.5 rounded-[7px] border border-dashed border-border bg-transparent text-[11.5px] text-tertiary font-[inherit] cursor-pointer flex items-center justify-center gap-1.5"
+            style={{
+              opacity: folderState.folderCount >= MAX_FOLDERS ? 0.4 : 1,
+            }}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              <line x1="12" y1="11" x2="12" y2="17" />
+              <line x1="9" y1="14" x2="15" y2="14" />
+            </svg>
+            New folder
+          </button>
+        </div>
+      )}
     </div>
   );
 }

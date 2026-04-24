@@ -143,7 +143,8 @@ async function parseGenericMarkdownPlan(
     const content = await readFile(filePath, 'utf-8');
     const stats = await stat(filePath);
 
-    let agent = 'unknown';
+    let agent =
+      (typeof extraMetadata.agentHint === 'string' ? extraMetadata.agentHint : '') || 'unknown';
     const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
     if (fmMatch) {
       const agentLine = fmMatch[1]?.match(/^agent:\s*(.+)$/m);
@@ -222,12 +223,18 @@ async function scanCustomPlanDirs(coveredPaths: Set<string>, into: Map<string, P
       continue;
     }
     const files = await walkDir(dir);
+    const dirBasename =
+      dir
+        .replace(/[\\/]+$/, '')
+        .split(/[\\/]/)
+        .pop() ?? 'custom';
     let count = 0;
     for (const file of files) {
       if (!file.endsWith('.md')) continue;
       const plan = await parseGenericMarkdownPlan(file, {
         source: 'custom-dir',
         customDir: dir,
+        agentHint: dirBasename,
       });
       if (plan) {
         into.set(plan.id, plan);

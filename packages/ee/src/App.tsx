@@ -4,25 +4,29 @@ import {
   filterPlans,
   hasToken,
   LandingPage,
+  MAX_FOLDERS,
   OfflineView,
   type Plan,
   PlanList,
-  type PlanState,
   PlanSourcesDialog,
+  type PlanState,
   PlanViewer,
   SidebarFilters,
+  SidebarResizeHandle,
   SkeletonBlock,
   startViewTransition,
   useAgents,
   useBackendStatus,
+  usePlanFolders,
   usePlanState,
   usePlans,
+  useSidebarWidth,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { useMutation, useQuery } from 'convex/react';
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
-import { useHotkey } from '@tanstack/react-hotkeys';
 import {
   lazy,
   Suspense,
@@ -34,7 +38,9 @@ import {
   useState,
 } from 'react';
 import { Redirect, Route, Switch, useLocation } from 'wouter';
+import { CHART_PREF_STORAGE_KEY } from './chartPref.ts';
 import { AboutMePage } from './components/AboutMePage.tsx';
+import { AcceptInvitePage } from './components/AcceptInvitePage.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
 import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
@@ -47,7 +53,6 @@ import { OnboardingRoute } from './components/OnboardingRoute.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
-import { AcceptInvitePage } from './components/AcceptInvitePage.tsx';
 import { SettingsPage } from './components/SettingsPage.tsx';
 import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
@@ -57,10 +62,9 @@ import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
-import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
+import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { APP_URL } from './lib/auth-client.ts';
-import { CHART_PREF_STORAGE_KEY } from './chartPref.ts';
 import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
 const PlanEditor = lazy(() =>
@@ -87,7 +91,6 @@ const PlanHistoryDrawer = lazy(() =>
   })),
 );
 
-const SIDEBAR_EXPANDED_WIDTH = 260;
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
@@ -604,6 +607,8 @@ function DashboardSidebar({
   planState,
   onRenamePlan,
   onDeletePlan,
+  width,
+  onResize,
 }: {
   sidebarHidden: boolean;
   sidebarVisible: boolean;
@@ -638,7 +643,11 @@ function DashboardSidebar({
   planState: PlanState;
   onRenamePlan?: (planId: string, newTitle: string) => void;
   onDeletePlan?: (planId: string) => void;
+  width?: number;
+  onResize?: (width: number) => void;
 }) {
+  const folderState = usePlanFolders();
+
   return (
     <aside
       className="flex flex-col overflow-hidden col-start-1 row-start-2 bg-surface min-w-0 origin-top-left"
@@ -649,7 +658,7 @@ function DashboardSidebar({
         top: sidebarHidden ? 0 : undefined,
         left: sidebarHidden ? 0 : undefined,
         height: sidebarHidden ? '100%' : undefined,
-        width: `${SIDEBAR_EXPANDED_WIDTH}px`,
+        width: `${width ?? 260}px`,
         zIndex: sidebarHidden ? 45 : undefined,
         borderRight: sidebarVisible ? '1px solid var(--border)' : 'none',
         opacity: sidebarHidden ? (sidebarPeekOpen ? 1 : 0) : 1,
@@ -665,6 +674,7 @@ function DashboardSidebar({
           : 'opacity 120ms ease',
       }}
     >
+      {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
       <div
         className="px-3 pt-3 pb-2"
         style={
@@ -788,9 +798,41 @@ function DashboardSidebar({
             planState={planState}
             onRenamePlan={onRenamePlan}
             onDeletePlan={onDeletePlan}
+            folderState={folderState}
           />
         )}
       </div>
+
+      {!loading && !error && folderState.folders.length === 0 && (
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            disabled={folderState.folderCount >= MAX_FOLDERS}
+            onClick={() => folderState.createFolder('New folder')}
+            className="w-full py-1.5 rounded-[7px] border border-dashed border-border bg-transparent text-[11.5px] text-tertiary font-[inherit] cursor-pointer flex items-center justify-center gap-1.5"
+            style={{
+              opacity: folderState.folderCount >= MAX_FOLDERS ? 0.4 : 1,
+            }}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              <line x1="12" y1="11" x2="12" y2="17" />
+              <line x1="9" y1="14" x2="15" y2="14" />
+            </svg>
+            New folder
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
@@ -954,10 +996,12 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
 
+  const [expandedWidth, setExpandedWidth] = useSidebarWidth();
+
   const sidebarPinnedOpen = !sidebarHidden;
   const sidebarPeekOpen = sidebarHidden && sidebarPeek;
   const sidebarVisible = sidebarPinnedOpen || sidebarPeekOpen;
-  const sidebarWidth = sidebarPinnedOpen ? SIDEBAR_EXPANDED_WIDTH : 0;
+  const sidebarWidth = sidebarPinnedOpen ? expandedWidth : 0;
 
   const peek = useSidebarPeek(sidebarHidden, setSidebarPeek);
   const [optimisticSelectedPlan, setOptimisticSelectedPlan] = useState<Plan | undefined>(undefined);
@@ -1180,6 +1224,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onToggleOutline={toggleOutline}
         onToggleChart={isPro ? toggleChart : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
+        sidebarWidth={expandedWidth}
       />
 
       {mode === 'local' && (
@@ -1261,6 +1306,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         planState={planState}
         onRenamePlan={mode === 'cloud' && isPro ? handleRenamePlan : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
+        width={expandedWidth}
+        onResize={setExpandedWidth}
       />
 
       <DashboardMain

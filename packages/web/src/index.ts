@@ -13,6 +13,7 @@ export { GitHubIcon, GoogleIcon } from './client/components/OAuthIcons.tsx';
 export { OfflineView } from './client/components/OfflineView.tsx';
 export { PlanCreator } from './client/components/PlanCreator.tsx';
 export { PlanEditor } from './client/components/PlanEditor.tsx';
+export { FolderTree, MoveToFolderMenu } from './client/components/FolderTree.tsx';
 export { PlanList } from './client/components/PlanList.tsx';
 export { PlanOutline } from './client/components/PlanOutline.tsx';
 export { PlanSourcesDialog } from './client/components/PlanSourcesDialog.tsx';
@@ -21,6 +22,7 @@ export { PlanViewer } from './client/components/PlanViewer.tsx';
 export { SearchBar } from './client/components/SearchBar.tsx';
 export { Sidebar } from './client/components/Sidebar.tsx';
 export { SidebarFilters } from './client/components/SidebarFilters.tsx';
+export { SidebarResizeHandle } from './client/components/SidebarResizeHandle.tsx';
 export { Skeleton, SkeletonBlock, SkeletonLine } from './client/components/Skeleton.tsx';
 export { TechDependencyChart } from './client/components/TechDependencyChart.tsx';
 export type {
@@ -38,9 +40,16 @@ export { useBackendStatus } from './client/hooks/useBackendStatus.ts';
 export { useFullscreen } from './client/hooks/useFullscreen.ts';
 export { usePinnedPlans } from './client/hooks/usePinnedPlans.ts';
 export { usePlanState } from './client/hooks/usePlanState.ts';
+export { usePlanFolders } from './client/hooks/usePlanFolders.ts';
 export { useAgents, usePlans } from './client/hooks/usePlans.ts';
 export { useScrollSpy } from './client/hooks/useScrollSpy.ts';
 export { seedSeen, useSeenPlans } from './client/hooks/useSeenPlans.ts';
+export {
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  useSidebarWidth,
+} from './client/hooks/useSidebarWidth.ts';
 export { useSocketEvent } from './client/hooks/useSocket.ts';
 export { useTheme } from './client/hooks/useTheme.ts';
 
@@ -59,6 +68,8 @@ export {
   setToken,
 } from './client/lib/api.ts';
 export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
+export type { FolderState, PlanFolder, PlanFolderStore } from './client/lib/plan-folders.ts';
+export { MAX_FOLDERS } from './client/lib/plan-folders.ts';
 export type { OutlineEntry } from './client/lib/extract-headings.ts';
 export { buildPlanOutline } from './client/lib/extract-headings.ts';
 export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-markdown.ts';

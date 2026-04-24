@@ -1,2 +1,14 @@
 
 .env.local
+
+# Local Convex agent/editor skill artifacts
+.*/skills/convex*/
+
+# Local editor sync directories
+.augment/
+.codebuddy/
+.continue/
+.factory/
+.kilocode/
+.kiro/
+.pi/

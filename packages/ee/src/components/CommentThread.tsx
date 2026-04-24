@@ -611,6 +611,7 @@ export function CommentThread({
       <AnimatePresence>
         {lightbox && (
           <ImageLightbox
+            key={lightbox.index}
             images={lightbox.images}
             initialIndex={lightbox.index}
             onClose={() => setLightbox(null)}

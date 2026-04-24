@@ -7,12 +7,12 @@ import {
   type Plan,
   PlanSourcesDialog,
   PlanViewer,
-  SIDEBAR_EXPANDED_WIDTH,
   Sidebar,
   Topbar,
   useAgents,
   useBackendStatus,
   usePlans,
+  useSidebarWidth,
 } from '@agendex/web';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
@@ -107,10 +107,12 @@ function Dashboard() {
 
   const activeAgents = agents.filter((a) => a.planCount > 0).length;
 
+  const [expandedWidth, setExpandedWidth] = useSidebarWidth();
+
   const sidebarPinnedOpen = !sidebarHidden;
   const sidebarPeekOpen = sidebarHidden && sidebarPeek;
   const sidebarVisible = sidebarPinnedOpen || sidebarPeekOpen;
-  const sidebarWidth = sidebarPinnedOpen ? SIDEBAR_EXPANDED_WIDTH : 0;
+  const sidebarWidth = sidebarPinnedOpen ? expandedWidth : 0;
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
@@ -206,6 +208,7 @@ function Dashboard() {
         activeAgents={activeAgents}
         backendStatus={backendStatus}
         height={TOPBAR_HEIGHT}
+        sidebarWidth={expandedWidth}
       />
 
       {IS_LOCAL_WORKSPACE_SHELL && (
@@ -273,6 +276,8 @@ function Dashboard() {
         onSelectPlan={setSelectedPlan}
         loading={loading}
         error={error}
+        width={expandedWidth}
+        onResize={setExpandedWidth}
       />
 
       <div

@@ -1,7 +1,7 @@
 import { formatForDisplay } from '@tanstack/react-hotkeys';
 import { useMemo } from 'react';
+import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
 import type { AgentStats, Plan } from '../lib/api.ts';
-import { SIDEBAR_EXPANDED_WIDTH } from '../lib/constants.ts';
 import { SearchBar } from './SearchBar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 
@@ -40,6 +40,7 @@ interface TopbarProps {
   activeAgents: number;
   backendStatus: 'online' | 'offline' | 'checking';
   height: number;
+  sidebarWidth?: number;
 }
 
 export function Topbar({
@@ -57,6 +58,7 @@ export function Topbar({
   activeAgents,
   backendStatus,
   height,
+  sidebarWidth: sidebarWidthProp,
 }: TopbarProps) {
   const shortcutLabel = formatForDisplay('Mod+B');
 
@@ -78,7 +80,7 @@ export function Topbar({
       <div
         className="flex items-center gap-3 min-w-0 h-full overflow-hidden pl-4"
         style={{
-          width: sidebarPinnedOpen ? `${SIDEBAR_EXPANDED_WIDTH}px` : undefined,
+          width: sidebarPinnedOpen ? `${sidebarWidthProp ?? SIDEBAR_DEFAULT_WIDTH}px` : undefined,
           flex: sidebarPinnedOpen ? '0 0 auto' : '1 1 auto',
           paddingRight: sidebarPinnedOpen ? '12px' : undefined,
           borderRight: sidebarPinnedOpen ? '1px solid var(--border)' : 'none',
