@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.14.0
+
+### Minor Changes
+
+- 896f2d9: Updates to the filtering of plans/sessions with no content; prune logic.
+
 ## 0.13.0
 
 ### Minor Changes
