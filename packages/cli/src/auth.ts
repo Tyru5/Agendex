@@ -43,6 +43,7 @@ export async function login(siteUrlOverride?: string): Promise<void> {
     token: existing?.token,
     cloudToken: callback.token,
     convexUrl: callback.convexUrl,
+    deviceId: existing?.deviceId,
     enabledAdapters: existing?.enabledAdapters ?? [],
     customPlanDirs: existing?.customPlanDirs ?? [],
   };
@@ -64,6 +65,7 @@ export function logout(): void {
     token: existing.token,
     cloudToken: undefined,
     convexUrl: undefined,
+    deviceId: existing.deviceId,
     enabledAdapters: existing.enabledAdapters,
     customPlanDirs: existing.customPlanDirs,
   };

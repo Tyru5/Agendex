@@ -1,15 +1,17 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
-import { setActiveAdapters, getActiveAdapters } from '../adapters/registry.ts';
+import { getActiveAdapters, setActiveAdapters } from '../adapters/registry.ts';
 import { saveConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 import { getAll, scan } from './plan-service.ts';
 
 const originalAdapters = getActiveAdapters();
+const originalCwd = process.cwd();
 const originalEnv: Record<string, string | undefined> = {
+  AGENDEX_CONFIG_DIR: process.env.AGENDEX_CONFIG_DIR,
   AGENDEX_DEV: process.env.AGENDEX_DEV,
   HOME: process.env.HOME,
   USERPROFILE: process.env.USERPROFILE,
@@ -27,6 +29,8 @@ function restoreEnv(name: keyof typeof originalEnv) {
 
 afterEach(async () => {
   setActiveAdapters(originalAdapters);
+  process.chdir(originalCwd);
+  restoreEnv('AGENDEX_CONFIG_DIR');
   restoreEnv('AGENDEX_DEV');
   restoreEnv('HOME');
   restoreEnv('USERPROFILE');
@@ -43,6 +47,7 @@ test('scan keeps adapter-parsed plans when a custom dir overlaps a discovered pr
   tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-'));
   const parsedHome = parse(tempHome);
 
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
   process.env.AGENDEX_DEV = '1';
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;
@@ -55,6 +60,8 @@ test('scan keeps adapter-parsed plans when a custom dir overlaps a discovered pr
 
   await mkdir(discoveredDir, { recursive: true });
   await writeFile(planPath, '# Generic title\n\nGeneric content\n', 'utf-8');
+  const canonicalPlanPath = await realpath(planPath);
+  process.chdir(workspaceDir);
 
   saveConfig({
     configVersion: 3,
@@ -81,7 +88,8 @@ test('scan keeps adapter-parsed plans when a custom dir overlaps a discovered pr
     getSearchPaths: () => [],
     getWatchPaths: () => [],
     matches: (filePath) => filePath.endsWith('.md'),
-    parse: async (filePath) => (filePath === planPath ? [adapterPlan] : []),
+    parse: async (filePath) =>
+      (await realpath(filePath)) === canonicalPlanPath ? [adapterPlan] : [],
     write: async () => false,
   };
 
@@ -104,6 +112,7 @@ test('scan keeps adapter-parsed plans when custom dir is a parent of adapter/dis
   tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-parent-'));
   const parsedHome = parse(tempHome);
 
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
   process.env.AGENDEX_DEV = '1';
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;
@@ -116,6 +125,8 @@ test('scan keeps adapter-parsed plans when custom dir is a parent of adapter/dis
 
   await mkdir(discoveredDir, { recursive: true });
   await writeFile(planPath, '# Generic title\n\nGeneric content\n', 'utf-8');
+  const canonicalPlanPath = await realpath(planPath);
+  process.chdir(workspaceDir);
 
   saveConfig({
     configVersion: 3,
@@ -142,7 +153,8 @@ test('scan keeps adapter-parsed plans when custom dir is a parent of adapter/dis
     getSearchPaths: () => [],
     getWatchPaths: () => [],
     matches: (filePath) => filePath.endsWith('.md'),
-    parse: async (filePath) => (filePath === planPath ? [adapterPlan] : []),
+    parse: async (filePath) =>
+      (await realpath(filePath)) === canonicalPlanPath ? [adapterPlan] : [],
     write: async () => false,
   };
 
@@ -165,6 +177,7 @@ test('concurrent getAll during scan sees previous snapshot until scan completes'
   tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-race-'));
   const parsedHome = parse(tempHome);
 
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
   process.env.AGENDEX_DEV = '1';
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;

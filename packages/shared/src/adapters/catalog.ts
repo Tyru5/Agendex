@@ -6,6 +6,7 @@ import { codexCliAdapter } from './codex-cli.ts';
 import { continueIdeAdapter } from './continue-ide.ts';
 import { cursorAdapter } from './cursor.ts';
 import { ohMyOpencodeAdapter } from './oh-my-opencode.ts';
+import { plannotatorAdapter } from './plannotator.ts';
 import { createStubAdapter } from './stub.ts';
 
 export type AdapterGroup = 'universal' | 'other';
@@ -39,6 +40,7 @@ export type SkillsAdapterId =
   | 'opencode'
   | 'openhands'
   | 'pi'
+  | 'plannotator'
   | 'qoder'
   | 'qwen-code'
   | 'replit'
@@ -94,6 +96,7 @@ export const ADAPTER_AGENT_ALIASES: Record<AdapterId, string> = {
   opencode: 'oh-my-opencode',
   openhands: 'openhands',
   pi: 'pi',
+  plannotator: 'plannotator',
   qoder: 'qoder',
   'qwen-code': 'qwen-code',
   replit: 'replit',
@@ -354,6 +357,14 @@ const CATALOG: AdapterCatalogEntry[] = [
     implemented: false,
     defaultEnabled: false,
     createAdapter: () => createStubAdapter('pi', [join(home, '.pi', 'agent')], '.md'),
+  },
+  {
+    id: 'plannotator',
+    displayName: 'Plannotator',
+    group: 'universal',
+    implemented: true,
+    defaultEnabled: false,
+    createAdapter: () => plannotatorAdapter,
   },
   {
     id: 'qoder',

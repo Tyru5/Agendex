@@ -3,7 +3,15 @@ import { httpRouter } from 'convex/server';
 import type Stripe from 'stripe';
 import { internal } from './_generated/api';
 import { authComponent, createAuth } from './auth';
-import { deleteDaemonsHttp, devices, heartbeat, refresh, sync } from './cli';
+import {
+  deleteDaemonsHttp,
+  devices,
+  heartbeat,
+  plannotatorWritebackReport,
+  plannotatorWritebacks,
+  refresh,
+  sync,
+} from './cli';
 import { stripeComponent } from './stripe';
 
 const http = httpRouter();
@@ -60,5 +68,15 @@ http.route({ path: '/api/cli/refresh', method: 'POST', handler: refresh });
 http.route({ path: '/api/cli/heartbeat', method: 'POST', handler: heartbeat });
 http.route({ path: '/api/cli/devices', method: 'GET', handler: devices });
 http.route({ path: '/api/cli/devices', method: 'DELETE', handler: deleteDaemonsHttp });
+http.route({
+  path: '/api/cli/plannotator/writebacks',
+  method: 'GET',
+  handler: plannotatorWritebacks,
+});
+http.route({
+  path: '/api/cli/plannotator/writebacks/report',
+  method: 'POST',
+  handler: plannotatorWritebackReport,
+});
 
 export default http;

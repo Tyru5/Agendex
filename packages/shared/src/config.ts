@@ -18,6 +18,9 @@ export function isDevMode(): boolean {
 }
 
 export function getConfigDir(): string {
+  const override = process.env.AGENDEX_CONFIG_DIR?.trim();
+  if (override) return resolve(expandHomePath(override));
+
   return join(homedir(), isDevMode() ? '.agendex-dev' : '.agendex');
 }
 
@@ -149,6 +152,7 @@ export function loadOrCreateToken(): string {
 
   const token = generateToken();
   saveConfig({
+    ...(existing ?? {}),
     configVersion: 3,
     token,
     enabledAdapters: existing?.enabledAdapters ?? [],

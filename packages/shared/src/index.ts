@@ -36,6 +36,7 @@ export {
   getAll,
   getById,
   getCustomPlanDirs,
+  requestChanges,
   rescanFile,
   scan,
   setOnPlansChanged,
@@ -43,5 +44,15 @@ export {
 } from './services/plan-service.ts';
 export { startWatching, stopWatching } from './services/watcher.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
-export type { AgentAdapter, Plan } from './types.ts';
+export type {
+  AgentAdapter,
+  Plan,
+  PlannotatorFeedbackAnnotation,
+  PlannotatorMetadata,
+  PlannotatorMode,
+  PlannotatorPlanAnnotation,
+  PlannotatorReviewAnnotation,
+  PlannotatorStatus,
+  PlannotatorWritebackPayload,
+} from './types.ts';
 export { ProFeature } from './types.ts';

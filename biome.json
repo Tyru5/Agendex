@@ -52,6 +52,7 @@
       "!**/dist",
       "!**/convex/_generated",
       "!**/convex/_generated/**",
+      "!packages/ee/**/skills/convex*",
       "!packages/web/src/client/dist",
       "!**/*.css"
     ]
