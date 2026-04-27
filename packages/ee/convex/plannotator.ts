@@ -95,6 +95,17 @@ export const enqueueWriteback = mutation({
       throw new ConvexError('Feedback or revised content is required');
     }
 
+    const existing = await ctx.db
+      .query('plannotatorWritebacks')
+      .withIndex('by_owner_localPlanId', (q) =>
+        q.eq('ownerId', user._id).eq('localPlanId', plan.localPlanId),
+      )
+      .filter((q) => q.eq(q.field('status'), 'pending'))
+      .first();
+    if (existing) {
+      throw new ConvexError('A write-back is already pending for this plan');
+    }
+
     const now = Date.now();
     return await ctx.db.insert('plannotatorWritebacks', {
       ownerId: user._id,

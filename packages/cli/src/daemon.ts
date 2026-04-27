@@ -172,11 +172,9 @@ export async function runWorker(): Promise<void> {
     // daemon, so absence after a scan is actionable failure.
     if (!localPlan) {
       if (job.deviceId) {
-        await reportPlannotatorWriteback(
-          job._id,
-          'failed',
-          'Target daemon could not find the live Plannotator session.',
-        );
+        pendingWritebackReports.set(job._id, 'failed');
+        persistPendingWritebackReports();
+        await reportPendingWriteback(job._id);
       }
       return;
     }

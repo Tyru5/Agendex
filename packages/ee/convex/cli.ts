@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { httpAction, internalMutation, internalQuery, mutation, query } from './_generated/server';
@@ -478,12 +478,20 @@ export const plannotatorWritebackReport = httpAction(async (ctx, request) => {
     return jsonResponse({ error: 'status must be sent, failed, or expired' }, 400);
   }
 
-  await ctx.runMutation(internal.plannotator.reportWritebackStatus, {
-    ownerId,
-    writebackId: body.writebackId as Id<'plannotatorWritebacks'>,
-    status: body.status,
-    error: typeof body.error === 'string' ? body.error : undefined,
-  });
+  try {
+    await ctx.runMutation(internal.plannotator.reportWritebackStatus, {
+      ownerId,
+      writebackId: body.writebackId as Id<'plannotatorWritebacks'>,
+      status: body.status,
+      error: typeof body.error === 'string' ? body.error : undefined,
+    });
+  } catch (err) {
+    if (err instanceof ConvexError) {
+      const message = typeof err.data === 'string' ? err.data : 'Write-back not found';
+      return jsonResponse({ error: message }, 404);
+    }
+    throw err;
+  }
 
   return jsonResponse({ ok: true });
 });
