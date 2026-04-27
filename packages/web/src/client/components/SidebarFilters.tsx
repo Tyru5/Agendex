@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { AgentStats } from '../lib/api.ts';
 import { AgentFilter } from './AgentFilter.tsx';
@@ -21,6 +21,8 @@ const DATE_OPTIONS: Array<{ value: DateBucket; label: string; chip: string }> = 
   { value: '7d', label: '7d', chip: '7d' },
   { value: '30d', label: '30d', chip: '30d' },
 ];
+
+const FILTER_DRAWER_EXIT_MS = 160;
 
 function SlidersIcon() {
   return (
@@ -97,7 +99,46 @@ export function SidebarFilters({
   onCollectionSelect?: (id: string | undefined) => void;
 }) {
   const drawerId = useId();
-  const [expanded, setExpanded] = useState(false);
+  const [manuallyExpanded, setManuallyExpanded] = useState(false);
+  const [hoverExpanded, setHoverExpanded] = useState(false);
+  const [hoverSuppressed, setHoverSuppressed] = useState(false);
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  const expanded = manuallyExpanded || (hoverExpanded && !hoverSuppressed);
+
+  useEffect(() => {
+    if (expanded) {
+      setDrawerMounted(true);
+      return;
+    }
+
+    if (!drawerMounted) return;
+
+    const timeout = window.setTimeout(() => setDrawerMounted(false), FILTER_DRAWER_EXIT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [expanded, drawerMounted]);
+
+  function showOnHover() {
+    setHoverExpanded(true);
+    setHoverSuppressed(false);
+    setDrawerMounted(true);
+  }
+
+  function hideOnHover() {
+    setHoverExpanded(false);
+    setHoverSuppressed(false);
+  }
+
+  function toggleExpanded() {
+    if (manuallyExpanded) {
+      setManuallyExpanded(false);
+      setHoverSuppressed(hoverExpanded);
+      return;
+    }
+
+    setDrawerMounted(true);
+    setHoverSuppressed(false);
+    setManuallyExpanded(true);
+  }
 
   const selectedTagIds = selectedTags ?? [];
   const selectedTagSet = useMemo(() => new Set(selectedTagIds), [selectedTagIds]);
@@ -139,14 +180,15 @@ export function SidebarFilters({
   ];
 
   return (
-    <div className="sidebar-filter-card">
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover reveal has the summary button as a keyboard/click equivalent
+    <div className="sidebar-filter-card" onMouseEnter={showOnHover} onMouseLeave={hideOnHover}>
       <button
         type="button"
         className="sidebar-filter-summary"
         data-expanded={expanded}
         aria-expanded={expanded}
         aria-controls={drawerId}
-        onClick={() => setExpanded((current) => !current)}
+        onClick={toggleExpanded}
       >
         <span className="sidebar-summary-icon">
           <SlidersIcon />
@@ -168,8 +210,14 @@ export function SidebarFilters({
         <ChevronDownIcon />
       </button>
 
-      {expanded && (
-        <div id={drawerId} className="sidebar-filter-drawer">
+      {drawerMounted && (
+        <div
+          id={drawerId}
+          className="sidebar-filter-drawer"
+          data-state={expanded ? 'open' : 'closed'}
+          aria-hidden={!expanded}
+          inert={!expanded}
+        >
           <div className="sidebar-control-block">
             <div className="sidebar-control-header">
               <span className="sidebar-control-label">Sort</span>
@@ -178,6 +226,7 @@ export function SidebarFilters({
               value={sortBy}
               onChange={(e) => onSortChange(e.target.value as SortBy)}
               className="sidebar-select"
+              aria-label="Sort plans"
             >
               {SORT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -272,6 +321,7 @@ export function SidebarFilters({
                 value={selectedCollection ?? ''}
                 onChange={(e) => onCollectionSelect(e.target.value || undefined)}
                 className="sidebar-select"
+                aria-label="Collection"
               >
                 <option value="">All plans</option>
                 {selectedCollection && !selectedCollectionRecord && (
