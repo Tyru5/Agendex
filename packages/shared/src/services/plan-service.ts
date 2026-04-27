@@ -78,6 +78,7 @@ export function discoverProjectPlanDirs(): DiscoveredPlanDir[] {
   const home = canonicalPath(getRuntimeHomeDir());
   const results: DiscoveredPlanDir[] = [];
   const seen = new Set<string>();
+  let nearestAncestorMarkerRoot: string | undefined;
 
   function addResult(dir: string, agent: string) {
     const resolved = canonicalPath(dir);
@@ -102,7 +103,10 @@ export function discoverProjectPlanDirs(): DiscoveredPlanDir[] {
   function walkAncestorsForCurrentProject() {
     let dir = canonicalPath(process.cwd());
     while (true) {
-      inspectMarkers(dir);
+      if (inspectMarkers(dir)) {
+        nearestAncestorMarkerRoot = dir;
+        return;
+      }
       if (dir === home) return;
       const parent = dirname(dir);
       if (parent === dir) return;
@@ -110,10 +114,15 @@ export function discoverProjectPlanDirs(): DiscoveredPlanDir[] {
     }
   }
 
+  function isAncestorOfNearestMarker(dir: string): boolean {
+    return Boolean(nearestAncestorMarkerRoot?.startsWith(dir + sep));
+  }
+
   function walk(dir: string, depth: number) {
     if (depth > DISCOVERY_MAX_DEPTH) return;
 
-    if (inspectMarkers(dir)) return;
+    const resolved = canonicalPath(dir);
+    if (!isAncestorOfNearestMarker(resolved) && inspectMarkers(dir)) return;
 
     let names: string[];
     try {
@@ -489,7 +498,16 @@ export function getAgentStats() {
   }));
 }
 
-function removePlansForPath(filePath: string): Plan[] {
+function planBelongsToAdapter(plan: Plan, adapter: AgentAdapter): boolean {
+  if (plan.agent === adapter.agent) return true;
+  return (
+    adapter.agent === 'plannotator' &&
+    typeof plan.metadata.plannotator === 'object' &&
+    plan.metadata.plannotator !== null
+  );
+}
+
+function removePlansForPath(filePath: string, adapter?: AgentAdapter): Plan[] {
   const normalized = resolve(filePath);
   const removed: Plan[] = [];
   for (const [id, plan] of store.entries()) {
@@ -498,7 +516,10 @@ function removePlansForPath(filePath: string): Plan[] {
       typeof plan.metadata.plannotator === 'object' && plan.metadata.plannotator !== null
         ? (plan.metadata.plannotator as Record<string, unknown>).sessionPath
         : undefined;
-    if (planPath === normalized || sessionPath === normalized) {
+    if (
+      (planPath === normalized || sessionPath === normalized) &&
+      (!adapter || planBelongsToAdapter(plan, adapter))
+    ) {
       removed.push(plan);
       store.delete(id);
     }
@@ -510,6 +531,7 @@ function removePlansForPath(filePath: string): Plan[] {
 export async function rescanFile(filePath: string) {
   const adapters = getActiveAdapters();
   const normalized = resolve(filePath);
+  const removedPlans: Plan[] = [];
 
   for (const adapter of adapters) {
     if (!adapter.matches(filePath)) continue;
@@ -531,7 +553,8 @@ export async function rescanFile(filePath: string) {
 
     const plans = await adapter.parse(filePath);
     if (plans.length === 0) {
-      return removePlansForPath(filePath);
+      removedPlans.push(...removePlansForPath(filePath, adapter));
+      continue;
     }
     for (const plan of plans) {
       store.set(plan.id, plan);
@@ -539,6 +562,8 @@ export async function rescanFile(filePath: string) {
     notifyPlansChanged();
     return plans;
   }
+
+  if (removedPlans.length > 0) return removedPlans;
 
   // Check user plans dir
   const userPlansDir = resolve(getUserPlansDir());

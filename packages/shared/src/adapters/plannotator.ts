@@ -454,7 +454,7 @@ export const plannotatorAdapter: AgentAdapter = {
   },
 
   getWatchPaths() {
-    return [getPlannotatorDir(), getPlansDir(), getSessionsDir()];
+    return [getPlansDir(), getSessionsDir()];
   },
 
   matches(filePath: string) {

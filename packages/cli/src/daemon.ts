@@ -17,7 +17,7 @@ import {
   startWatching,
   stopWatching,
 } from '@agendex/shared';
-import { resolveCliAdapterIds } from './adapters.ts';
+import { resolveCliAdapterIds, shouldEnablePlannotatorSync } from './adapters.ts';
 import {
   fetchPlannotatorWritebacks,
   type PlannotatorWritebackJob,
@@ -230,8 +230,10 @@ export async function runWorker(): Promise<void> {
   await processSyncQueue();
 
   setInterval(() => void sendHeartbeat(), CLI_DAEMON_HEARTBEAT_INTERVAL_MS);
-  setInterval(() => void pollPlannotatorWritebacks(), PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS);
-  void pollPlannotatorWritebacks();
+  if (shouldEnablePlannotatorSync(config)) {
+    setInterval(() => void pollPlannotatorWritebacks(), PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS);
+    void pollPlannotatorWritebacks();
+  }
 
   startWatching((changedPlans) => {
     for (const plan of changedPlans as Plan[]) {
