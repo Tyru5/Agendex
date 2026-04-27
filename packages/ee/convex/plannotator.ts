@@ -190,6 +190,9 @@ export const reportWritebackStatus = internalMutation({
     if (!row || row.ownerId !== args.ownerId) {
       throw new ConvexError('Write-back not found');
     }
+    if (row.status !== 'pending') {
+      return;
+    }
 
     const now = Date.now();
     await ctx.db.patch(args.writebackId, {
