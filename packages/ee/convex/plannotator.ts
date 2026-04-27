@@ -6,6 +6,7 @@ import { requireFeature } from './entitlements';
 
 const WRITEBACK_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_POLL_LIMIT = 25;
+const MAX_EXPIRED_WRITEBACK_SWEEP = 200;
 
 const planAnnotation = v.object({
   id: v.optional(v.string()),
@@ -161,7 +162,7 @@ export const markExpiredWritebacks = internalMutation({
     const pending = await ctx.db
       .query('plannotatorWritebacks')
       .withIndex('by_owner_status', (q) => q.eq('ownerId', args.ownerId).eq('status', 'pending'))
-      .collect();
+      .take(MAX_EXPIRED_WRITEBACK_SWEEP);
 
     let expired = 0;
     for (const row of pending) {

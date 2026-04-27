@@ -49,6 +49,7 @@ export async function runWorker(): Promise<void> {
 
   const syncCache = loadSyncCache();
   const syncQueue: SyncPlanPayload[] = [];
+  const locallyDeliveredWritebacks = new Set<string>();
   let syncing = false;
 
   async function tryRefreshToken(): Promise<boolean> {
@@ -108,7 +109,25 @@ export async function runWorker(): Promise<void> {
     if (syncQueue.length > 0) processSyncQueue();
   }
 
+  async function reportDeliveredWriteback(writebackId: string): Promise<void> {
+    const reported = await reportPlannotatorWriteback(writebackId, 'sent');
+    if (reported) {
+      locallyDeliveredWritebacks.delete(writebackId);
+    } else {
+      console.error(
+        '[agendex] failed to report write-back status for',
+        writebackId,
+        '- will retry',
+      );
+    }
+  }
+
   async function handlePlannotatorWriteback(job: PlannotatorWritebackJob): Promise<void> {
+    if (locallyDeliveredWritebacks.has(job._id)) {
+      await reportDeliveredWriteback(job._id);
+      return;
+    }
+
     if (job.expiresAt <= Date.now()) {
       await reportPlannotatorWriteback(job._id, 'expired', 'Write-back expired before delivery.');
       return;
@@ -147,7 +166,8 @@ export async function runWorker(): Promise<void> {
     if (ok) {
       const updatedPlan = getById(job.localPlanId);
       if (updatedPlan) syncQueue.push(planToSyncPayload(updatedPlan, config.deviceId));
-      await reportPlannotatorWriteback(job._id, 'sent');
+      locallyDeliveredWritebacks.add(job._id);
+      await reportDeliveredWriteback(job._id);
       processSyncQueue();
       return;
     }
