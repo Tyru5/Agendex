@@ -6,7 +6,14 @@ import { getActiveAdapters, setActiveAdapters } from '../adapters/registry.ts';
 import { getConfigDir, saveConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
-import { getAll, rescanFile, scan } from './plan-service.ts';
+import {
+  getAgentStats,
+  getAll,
+  getIndexableById,
+  getIndexablePlans,
+  rescanFile,
+  scan,
+} from './plan-service.ts';
 
 const originalAdapters = getActiveAdapters();
 const originalEnv: Record<string, string | undefined> = {
@@ -229,7 +236,7 @@ test('concurrent getAll during scan sees previous snapshot until scan completes'
   expect(getAll()).toHaveLength(1);
 });
 
-test('scan annotates low-value adapter-derived plans while keeping them indexed', async () => {
+test('scan annotates low-value adapter-derived plans while excluding them from indexable results', async () => {
   const home = await useTempHome('agendex-plan-service-low-value-');
   const plansDir = join(home, 'adapter-plans');
   const planPath = join(plansDir, 'prompt.md');
@@ -272,6 +279,9 @@ test('scan annotates low-value adapter-derived plans while keeping them indexed'
   expect(plans[0]?.metadata.source).toBe('adapter');
   expect(plans[0]?.metadata.lowValue).toBe(true);
   expect(plans[0]?.metadata.lowValueReasons).toContain('prompt-like');
+  expect(getIndexablePlans()).toHaveLength(0);
+  expect(getIndexableById(adapterPlan.id)).toBeUndefined();
+  expect(getAgentStats().find((stat) => stat.agent === 'test-agent')?.planCount).toBe(0);
 });
 
 test('rescanFile annotates low-value adapter-derived plans', async () => {
@@ -310,6 +320,8 @@ test('rescanFile annotates low-value adapter-derived plans', async () => {
   expect(plans).toHaveLength(1);
   expect(plans[0]?.metadata.lowValue).toBe(true);
   expect(getAll().find((plan) => plan.id === adapterPlan.id)?.metadata.lowValue).toBe(true);
+  expect(getIndexablePlans()).toHaveLength(0);
+  expect(getIndexableById(adapterPlan.id)).toBeUndefined();
 });
 
 test('scan does not annotate user-created or custom markdown plans', async () => {
@@ -343,4 +355,5 @@ test('scan does not annotate user-created or custom markdown plans', async () =>
   expect(userPlan?.metadata.lowValue).toBeUndefined();
   expect(customPlan?.metadata.source).toBe('custom-dir');
   expect(customPlan?.metadata.lowValue).toBeUndefined();
+  expect(getIndexablePlans()).toHaveLength(2);
 });

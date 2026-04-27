@@ -5,6 +5,7 @@ import type { Doc } from './_generated/dataModel';
 import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { isVisiblePlan } from './planVisibility';
 
 // Random salt via Web Crypto — only safe from actions, not from deterministic mutations/queries (Convex runtimes docs).
 async function hashPassword(password: string): Promise<string> {
@@ -185,7 +186,7 @@ export const createShareLinkInternal = internalMutation({
   },
   handler: async (ctx, args) => {
     const plan = await ctx.db.get(args.planId);
-    if (!plan) {
+    if (!plan || !isVisiblePlan(plan)) {
       throw new ConvexError('Plan not found');
     }
 
@@ -238,7 +239,7 @@ export const getShareLinks = query({
     await requireFeature(ctx, ProFeature.SHARE_LINKS);
 
     const plan = await ctx.db.get(args.planId);
-    if (!plan) {
+    if (!plan || !isVisiblePlan(plan)) {
       throw new ConvexError('Plan not found');
     }
 
@@ -271,7 +272,7 @@ export const getShareLinkAndPlanInternal = internalQuery({
     if (!shareLink) return null;
 
     const plan = await ctx.db.get(shareLink.planId);
-    if (!plan) return null;
+    if (!plan || !isVisiblePlan(plan)) return null;
 
     return { shareLink, plan };
   },

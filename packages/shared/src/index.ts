@@ -12,6 +12,7 @@ export type { AgendexConfig, InitConfigOptions } from './config.ts';
 export {
   getConfigDir,
   getConfigPath,
+  getHomeDir,
   isDevMode,
   loadConfig,
   loadOrCreateDeviceId,
@@ -36,11 +37,14 @@ export {
   getAll,
   getById,
   getCustomPlanDirs,
+  getIndexableById,
+  getIndexablePlans,
   rescanFile,
   scan,
   setOnPlansChanged,
   update,
 } from './services/plan-service.ts';
+export { isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
 export { startWatching, stopWatching } from './services/watcher.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 export type { AgentAdapter, Plan } from './types.ts';

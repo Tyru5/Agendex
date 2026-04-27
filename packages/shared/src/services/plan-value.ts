@@ -20,6 +20,24 @@ export interface AssessPlanValueInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface PlanVisibilityInput {
+  metadata?: unknown;
+}
+
+export function isLowValuePlan(plan: PlanVisibilityInput): boolean {
+  const metadata = plan.metadata;
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    !Array.isArray(metadata) &&
+    (metadata as Record<string, unknown>).lowValue === true
+  );
+}
+
+export function isIndexablePlan(plan: PlanVisibilityInput): boolean {
+  return !isLowValuePlan(plan);
+}
+
 const PROPOSED_PLAN_TAG_REGEX = /<\s*\/?\s*proposed_plan\s*>/gi;
 const ESCAPED_PROPOSED_PLAN_TAG_REGEX = /&lt;\s*\/?\s*proposed_plan\s*&gt;/gi;
 const VISIBLE_TEXT_REGEX = /[\p{L}\p{N}]/u;

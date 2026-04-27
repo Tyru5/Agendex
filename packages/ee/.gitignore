@@ -3,6 +3,9 @@
 
 # Local Convex agent/editor skill artifacts
 .*/skills/convex*/
+.*/skills/convex*
+skills/convex*/
+skills/convex*
 
 # Local editor sync directories
 .augment/
