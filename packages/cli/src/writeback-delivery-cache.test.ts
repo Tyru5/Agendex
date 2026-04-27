@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  loadDeliveredWritebackIds,
-  saveDeliveredWritebackIds,
+  loadPendingWritebackReports,
+  savePendingWritebackReports,
 } from './writeback-delivery-cache.ts';
 
 const originalConfigDir = process.env.AGENDEX_CONFIG_DIR;
@@ -26,12 +26,41 @@ afterEach(async () => {
   }
 });
 
-test('persists delivered Plannotator write-back ids in the config dir', async () => {
+test('persists pending Plannotator write-back reports in the config dir', async () => {
   await useTempConfigDir();
 
-  expect(saveDeliveredWritebackIds(new Set(['job-1', 'job-2']))).toBe(true);
+  expect(
+    savePendingWritebackReports(
+      new Map([
+        ['job-1', 'sent'],
+        ['job-2', 'expired'],
+      ]),
+    ),
+  ).toBe(true);
 
-  expect(loadDeliveredWritebackIds()).toEqual(new Set(['job-1', 'job-2']));
+  expect(loadPendingWritebackReports()).toEqual(
+    new Map([
+      ['job-1', 'sent'],
+      ['job-2', 'expired'],
+    ]),
+  );
+});
+
+test('loads legacy delivered write-back id cache files as sent reports', async () => {
+  const configDir = await useTempConfigDir();
+  await mkdir(configDir, { recursive: true });
+  await writeFile(
+    join(configDir, 'plannotator-writebacks-delivered.json'),
+    JSON.stringify(['job-1', 'job-2']),
+    'utf-8',
+  );
+
+  expect(loadPendingWritebackReports()).toEqual(
+    new Map([
+      ['job-1', 'sent'],
+      ['job-2', 'sent'],
+    ]),
+  );
 });
 
 test('ignores malformed delivered write-back cache files', async () => {
@@ -39,5 +68,5 @@ test('ignores malformed delivered write-back cache files', async () => {
   await mkdir(configDir, { recursive: true });
   await writeFile(join(configDir, 'plannotator-writebacks-delivered.json'), 'not json', 'utf-8');
 
-  expect(loadDeliveredWritebackIds()).toEqual(new Set());
+  expect(loadPendingWritebackReports()).toEqual(new Map());
 });
