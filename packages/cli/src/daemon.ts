@@ -31,6 +31,10 @@ import {
 import { planToSyncPayload } from './payload.ts';
 import { removePid, writePid } from './pid.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
+import {
+  loadDeliveredWritebackIds,
+  saveDeliveredWritebackIds,
+} from './writeback-delivery-cache.ts';
 
 const MAX_RESTARTS = 5;
 const RESTART_WINDOW_MS = 60_000;
@@ -49,7 +53,7 @@ export async function runWorker(): Promise<void> {
 
   const syncCache = loadSyncCache();
   const syncQueue: SyncPlanPayload[] = [];
-  const locallyDeliveredWritebacks = new Set<string>();
+  const locallyDeliveredWritebacks = loadDeliveredWritebackIds();
   let syncing = false;
 
   async function tryRefreshToken(): Promise<boolean> {
@@ -113,6 +117,9 @@ export async function runWorker(): Promise<void> {
     const reported = await reportPlannotatorWriteback(writebackId, 'sent');
     if (reported) {
       locallyDeliveredWritebacks.delete(writebackId);
+      if (!saveDeliveredWritebackIds(locallyDeliveredWritebacks)) {
+        console.error('[agendex] failed to persist Plannotator write-back delivery cache');
+      }
     } else {
       console.error(
         '[agendex] failed to report write-back status for',
@@ -167,6 +174,9 @@ export async function runWorker(): Promise<void> {
       const updatedPlan = getById(job.localPlanId);
       if (updatedPlan) syncQueue.push(planToSyncPayload(updatedPlan, config.deviceId));
       locallyDeliveredWritebacks.add(job._id);
+      if (!saveDeliveredWritebackIds(locallyDeliveredWritebacks)) {
+        console.error('[agendex] failed to persist Plannotator write-back delivery cache');
+      }
       await reportDeliveredWriteback(job._id);
       processSyncQueue();
       return;
