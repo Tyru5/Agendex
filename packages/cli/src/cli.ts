@@ -13,6 +13,7 @@ import {
   setDevMode,
 } from '@agendex/shared';
 import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
+import type { DeviceInfo } from './api.ts';
 import { AuthExpiredError, deleteDaemons, fetchDevices, sendShutdown } from './api.ts';
 import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
@@ -178,7 +179,7 @@ async function main(): Promise<number> {
         return 1;
       }
 
-      let allDevices;
+      let allDevices: DeviceInfo[];
       try {
         allDevices = await fetchDevices();
       } catch (err) {

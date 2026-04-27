@@ -3,6 +3,8 @@ import { internal } from './_generated/api';
 import type { Doc } from './_generated/dataModel';
 import { httpAction, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent, createAuth } from './auth';
+import { deletePlanRelatedData } from './planDeletion';
+import { hasLowValueMetadata } from './planVisibility';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
@@ -117,6 +119,21 @@ export const upsertPlan = internalMutation({
   },
 });
 
+export const deleteSyncedPlan = internalMutation({
+  args: {
+    ownerId: v.string(),
+    planId: v.id('plans'),
+  },
+  handler: async (ctx, args) => {
+    const plan = await ctx.db.get(args.planId);
+    if (!plan || plan.ownerId !== args.ownerId) return false;
+
+    await deletePlanRelatedData(ctx, { planId: args.planId, ownerId: args.ownerId });
+    await ctx.db.delete(args.planId);
+    return true;
+  },
+});
+
 export const hasUserSubscription = internalQuery({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
@@ -181,6 +198,17 @@ export const sync = httpAction(async (ctx, request) => {
       ownerId,
       localPlanId: body.localPlanId,
     });
+
+    if (hasLowValueMetadata(body.metadata)) {
+      const deleted = existing
+        ? await ctx.runMutation(internal.cli.deleteSyncedPlan, {
+            ownerId,
+            planId: existing._id,
+          })
+        : false;
+
+      return jsonResponse({ ok: true, skippedLowValue: true, deleted });
+    }
 
     const planId = await ctx.runMutation(internal.cli.upsertPlan, {
       ownerId,

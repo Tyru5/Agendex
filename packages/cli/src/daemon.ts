@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import {
   CLI_DAEMON_HEARTBEAT_INTERVAL_MS,
   getAll,
+  isIndexablePlan,
+  isLowValuePlan,
   loadConfig,
   loadOrInitConfig,
   resolveAdapters,
@@ -85,6 +87,8 @@ export async function runWorker(): Promise<void> {
 
     const batch = syncQueue.splice(0);
     let syncedCount = 0;
+    let lowValueSkippedCount = 0;
+    let lowValueDeletedCount = 0;
     let failedCount = 0;
     try {
       for (const payload of batch) {
@@ -107,19 +111,32 @@ export async function runWorker(): Promise<void> {
           failedCount++;
           console.error(`[agendex] sync failed for "${payload.title}": ${result.error}`);
         } else {
-          syncedCount++;
+          if (result.skippedLowValue) {
+            lowValueSkippedCount++;
+            if (result.deleted) lowValueDeletedCount++;
+          } else {
+            syncedCount++;
+          }
           syncCache[payload.localPlanId] = computePayloadHash(payload);
         }
       }
     } catch (err) {
       console.error('[agendex] sync error:', err);
-      syncQueue.unshift(...batch.slice(syncedCount + failedCount));
+      syncQueue.unshift(...batch.slice(syncedCount + lowValueSkippedCount + failedCount));
     } finally {
       syncing = false;
     }
-    if (syncedCount > 0 || failedCount > 0) {
+    if (syncedCount > 0 || lowValueSkippedCount > 0 || failedCount > 0) {
       saveSyncCache(syncCache);
-      console.log(`[agendex] sync complete: ${syncedCount} synced, ${failedCount} failed`);
+      const lowValueSuffix =
+        lowValueSkippedCount > 0
+          ? `, ${lowValueSkippedCount} low-value skipped/pruned${
+              lowValueDeletedCount > 0 ? ` (${lowValueDeletedCount} deleted)` : ''
+            }`
+          : '';
+      console.log(
+        `[agendex] sync complete: ${syncedCount} synced${lowValueSuffix}, ${failedCount} failed`,
+      );
     }
     if (syncQueue.length > 0) processSyncQueue();
   }
@@ -130,7 +147,11 @@ export async function runWorker(): Promise<void> {
   await scan();
 
   const plans = getAll();
+  const syncablePlanCount = plans.filter(isIndexablePlan).length;
+  const lowValuePlanCount = plans.length - syncablePlanCount;
   let initialSkipped = 0;
+  let initialQueuedSyncable = 0;
+  let initialQueuedLowValue = 0;
 
   for (const plan of plans) {
     const payload = planToPayload(plan);
@@ -141,6 +162,11 @@ export async function runWorker(): Promise<void> {
       continue;
     }
 
+    if (isLowValuePlan(plan)) {
+      initialQueuedLowValue++;
+    } else {
+      initialQueuedSyncable++;
+    }
     syncQueue.push(payload);
   }
 
@@ -151,7 +177,11 @@ export async function runWorker(): Promise<void> {
   }
   saveSyncCache(syncCache, { replace: true });
 
-  console.log(`[agendex] syncing ${syncQueue.length} plans (${initialSkipped} unchanged)...`);
+  const lowValueSuffix =
+    lowValuePlanCount > 0 ? `, ${lowValuePlanCount} low-value hidden/pruned` : '';
+  console.log(
+    `[agendex] syncing ${initialQueuedSyncable} plans${lowValueSuffix} (${initialQueuedLowValue} low-value queued, ${initialSkipped} unchanged)...`,
+  );
   await processSyncQueue();
 
   setInterval(() => void sendHeartbeat(), CLI_DAEMON_HEARTBEAT_INTERVAL_MS);

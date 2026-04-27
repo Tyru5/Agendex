@@ -6,6 +6,8 @@ export type PlanLowValueReason =
   | 'prompt-like'
   | 'system-context'
   | 'execution-report'
+  | 'review-output'
+  | 'wrapper-title'
   | 'no-plan-signals';
 
 export interface PlanValueAssessment {
@@ -294,6 +296,46 @@ function isPromptLikeOneLiner(line: string): boolean {
   ].some((pattern) => pattern.test(cleaned));
 }
 
+function normalizedTitle(title: string | undefined): string {
+  return cleanMarkdownLine(title ?? '').toLowerCase();
+}
+
+function looksLikeWrapperTitle(title: string | undefined): boolean {
+  return /^<user_(?:action|instructions|prompt)>$/i.test((title ?? '').trim());
+}
+
+function looksLikePromptTitle(title: string | undefined): boolean {
+  const cleaned = normalizedTitle(title);
+  if (!cleaned) return false;
+
+  return [
+    /^(?:important:\s*)?work in\b/,
+    /^review the code changes against\b/,
+    /^perform a .*review\b/,
+    /^(?:please|pls)\b/,
+    /^(?:can|could|would|will)\s+you\b/,
+    /^(?:i|we)\s+(?:need|want|would like|have to)\b/,
+    /^(?:help|fix|implement|create|add|update|remove|delete|refactor|write|review|investigate|debug|plan)\b/,
+    /\?$/,
+    /\b(?:repository|repo|existing branch|worktree|pull request|pr)\b/,
+  ].some((pattern) => pattern.test(cleaned));
+}
+
+function looksLikeReviewOutput(normalized: string, title: string | undefined): boolean {
+  const cleanedTitle = normalizedTitle(title);
+  const lower = normalized.toLowerCase();
+
+  return (
+    /^review the code changes against\b/.test(cleanedTitle) ||
+    /^perform a .*review\b/.test(cleanedTitle) ||
+    /"findings"\s*:\s*\[/.test(normalized) ||
+    /"overall_correctness"\s*:/.test(normalized) ||
+    /\bfull review comments\s*:/i.test(normalized) ||
+    /\bthe patch (?:currently )?(?:breaks|introduces|regresses)\b/i.test(normalized) ||
+    /\bshould not be considered correct\b/i.test(lower)
+  );
+}
+
 function looksLikeSystemContext(normalized: string, lines: string[]): boolean {
   const lower = normalized.toLowerCase();
   if (
@@ -326,10 +368,13 @@ function looksLikeToolLog(normalized: string): boolean {
 
 function looksLikeExecutionReport(normalized: string): boolean {
   const hasPastCompletion =
-    /\b(?:fixed|pushed|committed|completed|done|implemented|updated|changed|patched|merged|deployed|passed|failed)\b/i.test(
+    /\b(?:fixed|pushed|committed|completed|done|implemented|updated|changed|patched|merged|deployed|passed|failed|resolved|reverted)\b/i.test(
       normalized,
     );
   const hasReportSection = /^\s*(?:summary|result|results|changes|verification|status)\s*:/im.test(
+    normalized,
+  );
+  const hasReviewReportMarker = /\b(?:review findings?|review issues?|review comments?)\b/i.test(
     normalized,
   );
   const hasCommandMarker =
@@ -337,7 +382,7 @@ function looksLikeExecutionReport(normalized: string): boolean {
     /`[^`]*(?:bun|npm|pnpm|yarn|git|tsc|biome)[^`]*`/i.test(normalized) ||
     /\b(?:git\s+(?:stage|commit|push|status)|bunx?\s+|npm\s+|pnpm\s+|yarn\s+)\b/i.test(normalized);
 
-  return hasPastCompletion && (hasReportSection || hasCommandMarker);
+  return hasPastCompletion && (hasReportSection || hasCommandMarker || hasReviewReportMarker);
 }
 
 function lowValueAssessment(reasons: PlanLowValueReason[], signals: string[]): PlanValueAssessment {
@@ -364,14 +409,21 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
     return lowValueAssessment(['heading-only'], [...signals, 'negative:heading-only']);
   }
 
+  const explicitPlanBlock = metadataHasPlanBlocks(metadata);
   const strongPositive = hasStrongPlanSignal(positiveSignals);
   const systemContext = looksLikeSystemContext(normalized, lines);
   const toolLog = looksLikeToolLog(normalized);
   const executionReport = looksLikeExecutionReport(normalized);
+  const wrapperTitle = looksLikeWrapperTitle(input.title);
+  const promptTitle = looksLikePromptTitle(input.title);
+  const reviewOutput = looksLikeReviewOutput(normalized, input.title);
 
   if (systemContext) signals.push('negative:system-context');
   if (toolLog) signals.push('negative:tool-log');
   if (executionReport) signals.push('negative:execution-report');
+  if (wrapperTitle) signals.push('negative:wrapper-title');
+  if (promptTitle) signals.push('negative:prompt-title');
+  if (reviewOutput) signals.push('negative:review-output');
   if (lines.length === 1) signals.push('shape:single-line');
 
   if (lines.length === 1 && positiveSignals.length === 0) {
@@ -380,6 +432,9 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
 
   if (systemContext && !strongPositive) reasons.push('system-context');
   if (executionReport && !strongPositive) reasons.push('execution-report');
+  if (wrapperTitle && !explicitPlanBlock) reasons.push('wrapper-title');
+  if (reviewOutput && !explicitPlanBlock) reasons.push('review-output');
+  if (promptTitle && !strongPositive && positiveSignals.length === 0) reasons.push('prompt-like');
   if (toolLog && !strongPositive && positiveSignals.length === 0) reasons.push('no-plan-signals');
 
   if (reasons.length === 0 && positiveSignals.length === 0 && lines.length <= 3) {

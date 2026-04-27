@@ -68,6 +68,34 @@ Verification:
   expect(assessment.reasons).toContain('execution-report');
 });
 
+test('marks Codex wrapper-title final answers as low-value when they are not plans', () => {
+  const assessment = assessPlanValue({
+    title: '<user_action>',
+    content: `The patch introduces a regression and should not be considered correct as-is.
+
+Full review comments:
+- [P1] Wire the selected bridge into recording behavior
+- [P2] Fix keyboard interaction`,
+    metadata: { sessionId: 'codex-session' },
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('wrapper-title');
+  expect(assessment.reasons).toContain('review-output');
+});
+
+test('marks review JSON outputs as low-value', () => {
+  const assessment = assessPlanValue({
+    title: "Review the code changes against the base branch 'main'.",
+    content:
+      '{"findings":[{"title":"[P1] Fix the bug","body":"Details"}],"overall_correctness":"patch is incorrect"}',
+    metadata: { sessionId: 'codex-session' },
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('review-output');
+});
+
 test('keeps structured implementation plans as valuable', () => {
   const assessment = assessPlanValue({
     content: `# Plan: Add login validation
