@@ -4,14 +4,14 @@ import { getConfigDir } from '@agendex/shared';
 
 const MAX_PENDING_WRITEBACK_REPORTS = 1000;
 
-export type PendingWritebackReportStatus = 'sent' | 'expired';
+export type PendingWritebackReportStatus = 'sent' | 'failed' | 'expired';
 
 function getCachePath(): string {
   return join(getConfigDir(), 'plannotator-writebacks-delivered.json');
 }
 
 function isPendingWritebackReportStatus(value: unknown): value is PendingWritebackReportStatus {
-  return value === 'sent' || value === 'expired';
+  return value === 'sent' || value === 'failed' || value === 'expired';
 }
 
 function normalizeReports(input: unknown): [string, PendingWritebackReportStatus][] {

@@ -33,7 +33,8 @@ test('persists pending Plannotator write-back reports in the config dir', async 
     savePendingWritebackReports(
       new Map([
         ['job-1', 'sent'],
-        ['job-2', 'expired'],
+        ['job-2', 'failed'],
+        ['job-3', 'expired'],
       ]),
     ),
   ).toBe(true);
@@ -41,7 +42,8 @@ test('persists pending Plannotator write-back reports in the config dir', async 
   expect(loadPendingWritebackReports()).toEqual(
     new Map([
       ['job-1', 'sent'],
-      ['job-2', 'expired'],
+      ['job-2', 'failed'],
+      ['job-3', 'expired'],
     ]),
   );
 });

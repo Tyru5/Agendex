@@ -41,6 +41,8 @@ const RESTART_WINDOW_MS = 60_000;
 const RESTART_DELAY_MS = 5_000;
 const PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS = 15_000;
 const PLANNOTATOR_WRITEBACK_EXPIRED_ERROR = 'Write-back expired before delivery.';
+const PLANNOTATOR_WRITEBACK_FAILED_ERROR =
+  'No live Plannotator session accepted the request-changes payload.';
 
 export async function runWorker(): Promise<void> {
   const config = await loadOrInitConfig();
@@ -127,7 +129,11 @@ export async function runWorker(): Promise<void> {
     const reported = await reportPlannotatorWriteback(
       writebackId,
       status,
-      status === 'expired' ? PLANNOTATOR_WRITEBACK_EXPIRED_ERROR : undefined,
+      status === 'expired'
+        ? PLANNOTATOR_WRITEBACK_EXPIRED_ERROR
+        : status === 'failed'
+          ? PLANNOTATOR_WRITEBACK_FAILED_ERROR
+          : undefined,
     );
     if (reported) {
       pendingWritebackReports.delete(writebackId);
@@ -194,11 +200,9 @@ export async function runWorker(): Promise<void> {
       return;
     }
 
-    await reportPlannotatorWriteback(
-      job._id,
-      'failed',
-      'No live Plannotator session accepted the request-changes payload.',
-    );
+    pendingWritebackReports.set(job._id, 'failed');
+    persistPendingWritebackReports();
+    await reportPendingWriteback(job._id);
   }
 
   let pollingWritebacks = false;
