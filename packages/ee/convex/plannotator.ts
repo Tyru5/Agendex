@@ -84,7 +84,8 @@ export const enqueueWriteback = mutation({
     const plan = await ctx.db.get(args.planId);
     if (!plan) throw new ConvexError('Plan not found');
     if (plan.ownerId !== user._id) throw new ConvexError('Access denied');
-    if (!plan.localPlanId) throw new ConvexError('Plan is not linked to a local daemon record');
+    const localPlanId = plan.localPlanId;
+    if (!localPlanId) throw new ConvexError('Plan is not linked to a local daemon record');
     if (!planHasLivePlannotatorMetadata(plan)) {
       throw new ConvexError('Plan is not a live Plannotator session');
     }
@@ -98,7 +99,7 @@ export const enqueueWriteback = mutation({
     const existing = await ctx.db
       .query('plannotatorWritebacks')
       .withIndex('by_owner_localPlanId', (q) =>
-        q.eq('ownerId', user._id).eq('localPlanId', plan.localPlanId),
+        q.eq('ownerId', user._id).eq('localPlanId', localPlanId),
       )
       .filter((q) => q.eq(q.field('status'), 'pending'))
       .first();
@@ -110,7 +111,7 @@ export const enqueueWriteback = mutation({
     return await ctx.db.insert('plannotatorWritebacks', {
       ownerId: user._id,
       planId: args.planId,
-      localPlanId: plan.localPlanId,
+      localPlanId,
       deviceId: args.deviceId ?? getPlanSyncDeviceId(plan),
       feedback,
       revisedContent,
@@ -134,11 +135,13 @@ export const listWritebacksForPlan = query({
     if (!plan) throw new ConvexError('Plan not found');
     if (plan.ownerId !== user._id) throw new ConvexError('Access denied');
 
-    return await ctx.db
-      .query('plannotatorWritebacks')
-      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
-      .order('desc')
-      .take(20);
+    return (
+      await ctx.db
+        .query('plannotatorWritebacks')
+        .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+        .order('desc')
+        .take(20)
+    ).filter((writeback) => writeback.ownerId === user._id);
   },
 });
 
@@ -152,18 +155,33 @@ export const pollPendingWritebacks = internalQuery({
     const now = Date.now();
     const limit = Math.min(Math.max(args.limit ?? 10, 1), MAX_POLL_LIMIT);
 
+    const queryLimit = limit * 4;
+
+    if (args.deviceId) {
+      const targetedRows = await ctx.db
+        .query('plannotatorWritebacks')
+        .withIndex('by_owner_device_status', (q) =>
+          q.eq('ownerId', args.ownerId).eq('deviceId', args.deviceId).eq('status', 'pending'),
+        )
+        .take(queryLimit);
+      const untargetedRows = await ctx.db
+        .query('plannotatorWritebacks')
+        .withIndex('by_owner_device_status', (q) =>
+          q.eq('ownerId', args.ownerId).eq('deviceId', undefined).eq('status', 'pending'),
+        )
+        .take(queryLimit);
+
+      return [...targetedRows, ...untargetedRows]
+        .filter((row) => row.expiresAt > now)
+        .slice(0, limit);
+    }
+
     const rows = await ctx.db
       .query('plannotatorWritebacks')
       .withIndex('by_owner_status', (q) => q.eq('ownerId', args.ownerId).eq('status', 'pending'))
-      .take(limit * 4);
+      .take(queryLimit);
 
-    return rows
-      .filter((row) => {
-        if (row.expiresAt <= now) return false;
-        if (!args.deviceId) return true;
-        return !row.deviceId || row.deviceId === args.deviceId;
-      })
-      .slice(0, limit);
+    return rows.filter((row) => row.expiresAt > now).slice(0, limit);
   },
 });
 
