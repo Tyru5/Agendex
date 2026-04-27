@@ -6,6 +6,7 @@ import { getActiveAdapters } from '../adapters/registry.ts';
 import { getConfigDir, loadConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
 import type { Plan } from '../types.ts';
+import { annotatePlanValueMetadata } from './plan-value.ts';
 
 function getUserPlansDir(): string {
   return join(getConfigDir(), 'plans');
@@ -258,7 +259,8 @@ export async function scan() {
         if (!adapter.matches(file)) continue;
         const plans = await adapter.parse(file);
         for (const plan of plans) {
-          next.set(plan.id, plan);
+          const annotated = annotatePlanValueMetadata(plan);
+          next.set(annotated.id, annotated);
         }
       }
     }
@@ -275,7 +277,8 @@ export async function scan() {
       if (!adapter.matches(file)) continue;
       const plans = await adapter.parse(file);
       for (const plan of plans) {
-        next.set(plan.id, plan);
+        const annotated = annotatePlanValueMetadata(plan);
+        next.set(annotated.id, annotated);
       }
     }
     coveredPaths.add(resolvedDir);
@@ -425,7 +428,7 @@ export async function rescanFile(filePath: string) {
 
     if (!isInSearchPath) continue;
 
-    const plans = await adapter.parse(filePath);
+    const plans = (await adapter.parse(filePath)).map(annotatePlanValueMetadata);
     for (const plan of plans) {
       store.set(plan.id, plan);
     }
