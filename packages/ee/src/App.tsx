@@ -325,6 +325,7 @@ function useSidebarPeek(sidebarHidden: boolean, setSidebarPeek: (v: boolean) => 
 function DashboardMain({
   mode,
   isPro,
+  isWorkspaceAccessLoading,
   backendStatus,
   uploading,
   creating,
@@ -352,6 +353,7 @@ function DashboardMain({
 }: {
   mode: DashboardMode;
   isPro: boolean;
+  isWorkspaceAccessLoading: boolean;
   backendStatus: string;
   uploading: boolean;
   creating: boolean;
@@ -377,6 +379,18 @@ function DashboardMain({
   outlineHidden?: boolean;
   chartHidden?: boolean;
 }) {
+  // Entitlements resolve after auth/session rehydration; don't show the paywall during that gap.
+  if (mode === 'cloud' && isWorkspaceAccessLoading) {
+    return (
+      <div
+        className="overflow-auto main-scroll col-start-2 row-start-2 bg-bg"
+        style={{ viewTransitionName: 'main-content' }}
+      >
+        <BootLoadingView fullscreen={false} />
+      </div>
+    );
+  }
+
   if (
     isSplitView &&
     splitPlan &&
@@ -1357,6 +1371,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       <DashboardMain
         mode={mode}
         isPro={isPro}
+        isWorkspaceAccessLoading={isWorkspaceAccessLoading}
         backendStatus={backendStatus}
         uploading={uploading}
         creating={creating}
