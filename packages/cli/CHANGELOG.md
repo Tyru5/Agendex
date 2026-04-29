@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.15.0
+
+### Minor Changes
+
+- 7f42cc5: Plannotator integration cli updates
+
 ## 0.14.0
 
 ### Minor Changes
