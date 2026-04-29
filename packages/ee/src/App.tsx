@@ -347,6 +347,7 @@ function PlanHeaderExtra({
 function DashboardMain({
   mode,
   isPro,
+  isWorkspaceAccessLoading,
   backendStatus,
   uploading,
   creating,
@@ -374,6 +375,7 @@ function DashboardMain({
 }: {
   mode: DashboardMode;
   isPro: boolean;
+  isWorkspaceAccessLoading: boolean;
   backendStatus: string;
   uploading: boolean;
   creating: boolean;
@@ -399,6 +401,18 @@ function DashboardMain({
   outlineHidden?: boolean;
   chartHidden?: boolean;
 }) {
+  // Entitlements resolve after auth/session rehydration; don't show the paywall during that gap.
+  if (mode === 'cloud' && isWorkspaceAccessLoading) {
+    return (
+      <div
+        className="overflow-auto main-scroll col-start-2 row-start-2 bg-bg"
+        style={{ viewTransitionName: 'main-content' }}
+      >
+        <BootLoadingView fullscreen={false} />
+      </div>
+    );
+  }
+
   if (
     isSplitView &&
     splitPlan &&
@@ -660,7 +674,7 @@ function DashboardSidebar({
   onAgentSelect: (v: string | undefined) => void;
   onTagSelect: (v: string[]) => void;
   onCollectionSelect: (v: string | undefined) => void;
-  onSelectPlan: (plan: Plan) => void;
+  onSelectPlan: (plan: Plan | undefined) => void;
   onNewPlan: () => void;
   onUpload: () => void;
   splitPlanId?: string;
@@ -1063,6 +1077,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const peek = useSidebarPeek(sidebarHidden, setSidebarPeek);
   const [optimisticSelectedPlan, setOptimisticSelectedPlan] = useState<Plan | undefined>(undefined);
+  const [localAutoSelectSuppressed, setLocalAutoSelectSuppressed] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
@@ -1077,16 +1092,25 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   }, [chartHidden]);
 
   const selectedPlan = useMemo(() => {
+    const localFallback =
+      mode === 'local' && !localAutoSelectSuppressed ? filteredPlans[0] : undefined;
     if (selectedPlanId) {
       return (
         filteredPlans.find((p) => p.id === selectedPlanId) ??
         plans.find((p) => p.id === selectedPlanId) ??
         (optimisticSelectedPlan?.id === selectedPlanId ? optimisticSelectedPlan : undefined) ??
-        (mode === 'local' ? filteredPlans[0] : undefined)
+        localFallback
       );
     }
-    return mode === 'local' ? filteredPlans[0] : undefined;
-  }, [filteredPlans, plans, optimisticSelectedPlan, selectedPlanId, mode]);
+    return localFallback;
+  }, [
+    filteredPlans,
+    plans,
+    optimisticSelectedPlan,
+    selectedPlanId,
+    mode,
+    localAutoSelectSuppressed,
+  ]);
 
   const splitPlan = useMemo(() => {
     if (!splitPlanId) return undefined;
@@ -1098,6 +1122,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
+      setLocalAutoSelectSuppressed(!plan);
       setOptimisticSelectedPlan(plan);
       setSelectedPlanId(plan?.id ?? null);
       if (!plan || splitPlanId === plan.id) {
@@ -1371,6 +1396,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       <DashboardMain
         mode={mode}
         isPro={isPro}
+        isWorkspaceAccessLoading={isWorkspaceAccessLoading}
         backendStatus={backendStatus}
         uploading={uploading}
         creating={creating}

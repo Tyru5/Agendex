@@ -1,6 +1,6 @@
-import { Id } from './_generated/dataModel';
+import type { Id } from './_generated/dataModel';
+import type { MutationCtx } from './_generated/server';
 import { deleteCommentWithAttachments, deletePendingUploadRecord } from './comments';
-import { type MutationCtx } from './_generated/server';
 
 type PlanDeletionCtx = Pick<MutationCtx, 'db' | 'storage'>;
 
@@ -16,7 +16,7 @@ export async function deletePlanRelatedData(
 ): Promise<void> {
   const shareLinks = await ctx.db
     .query('shareLinks')
-    .withIndex('by_plan', (q: any) => q.eq('planId', planId))
+    .withIndex('by_plan', (q) => q.eq('planId', planId))
     .collect();
   for (const row of shareLinks) await ctx.db.delete(row._id);
 

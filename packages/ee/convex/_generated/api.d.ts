@@ -20,6 +20,7 @@ import type * as planDeletion from "../planDeletion.js";
 import type * as planPreferences from "../planPreferences.js";
 import type * as planTags from "../planTags.js";
 import type * as planVersions from "../planVersions.js";
+import type * as planVisibility from "../planVisibility.js";
 import type * as plannotator from "../plannotator.js";
 import type * as plans from "../plans.js";
 import type * as sharing from "../sharing.js";
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   planPreferences: typeof planPreferences;
   planTags: typeof planTags;
   planVersions: typeof planVersions;
+  planVisibility: typeof planVisibility;
   plannotator: typeof plannotator;
   plans: typeof plans;
   sharing: typeof sharing;

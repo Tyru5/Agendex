@@ -2,8 +2,9 @@ import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
-import { deletePlanRelatedData } from './planDeletion';
 import { requireFeature } from './entitlements';
+import { deletePlanRelatedData } from './planDeletion';
+import { filterVisiblePlans, isVisiblePlan } from './planVisibility';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
 
 export const publishPlan = mutation({
@@ -97,20 +98,22 @@ export const getMyPublishedPlans = query({
       if (membership) {
         const ownerActive = await hasActiveSubscriptionForUserId(ctx, membership.workspaceOwnerId);
         if (ownerActive) {
-          return await ctx.db
+          const workspacePlans = await ctx.db
             .query('plans')
             .withIndex('by_owner', (q) => q.eq('ownerId', membership.workspaceOwnerId))
             .order('desc')
             .collect();
+          return filterVisiblePlans(workspacePlans);
         }
       }
     }
 
-    return await ctx.db
+    const plans = await ctx.db
       .query('plans')
       .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
       .order('desc')
       .collect();
+    return filterVisiblePlans(plans);
   },
 });
 
@@ -145,6 +148,10 @@ export const getPlan = query({
       }
     }
 
+    if (!isVisiblePlan(plan)) {
+      throw new ConvexError('Plan not found');
+    }
+
     return plan;
   },
 });
@@ -162,7 +169,7 @@ export const getPlanByShareToken = query({
     }
 
     const plan = await ctx.db.get(shareLink.planId);
-    if (!plan) {
+    if (!plan || !isVisiblePlan(plan)) {
       throw new ConvexError('Plan not found');
     }
 

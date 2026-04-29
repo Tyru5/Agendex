@@ -24,26 +24,10 @@ function SearchIcon() {
       strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <circle cx="11" cy="11" r="8" />
       <path d="m21 21-4.3-4.3" />
-    </svg>
-  );
-}
-
-function ChevronIcon() {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m9 18 6-6-6-6" />
     </svg>
   );
 }
@@ -53,69 +37,47 @@ function ActionPill({
   label,
   kbd,
   onClick,
+  disabled = false,
 }: {
   icon: React.ReactNode;
   label: string;
   kbd?: string;
   onClick?: () => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="inline-flex items-center gap-[7px] py-2 px-3.5 rounded-[10px] border border-border text-text text-[13px] font-medium font-[inherit] cursor-pointer transition-[background,border-color] duration-150"
-      style={{
-        background: hovered ? 'var(--hover)' : 'transparent',
-        borderColor: hovered ? 'var(--active)' : undefined,
-      }}
-    >
-      <span className="flex text-secondary">{icon}</span>
-      {label}
-      {kbd && (
-        <span className="text-[10.5px] font-semibold tracking-[0.02em] py-0.5 px-1.5 rounded-[5px] bg-hover border border-border text-tertiary">
-          {kbd}
-        </span>
-      )}
-    </button>
-  );
-}
-
-function SuggestionRow({
-  icon,
-  label,
-  disabled,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: React.ReactNode;
   disabled?: boolean;
-  onClick?: () => void;
 }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="w-full flex items-center gap-2.5 py-2.5 px-3.5 rounded-[10px] border border-border text-text text-[13px] font-[450] font-[inherit] transition-[background,border-color,opacity] duration-150"
-      style={{
-        background: hovered && !disabled ? 'var(--hover)' : 'transparent',
-        cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.6 : 1,
-        borderColor: hovered && !disabled ? 'var(--active)' : undefined,
-      }}
+      className="empty-state-pill empty-state-pill--accent"
     >
-      <span className="flex text-secondary shrink-0">{icon}</span>
-      <span className="flex-1 text-left">{label}</span>
-      <span className="flex text-tertiary shrink-0">
-        <ChevronIcon />
-      </span>
+      <span className="empty-state-pill-icon">{icon}</span>
+      <span>{label}</span>
+      {kbd && <span className="empty-state-pill-kbd">{kbd}</span>}
     </button>
+  );
+}
+
+function StageCard({
+  className,
+  lines,
+}: {
+  className: string;
+  lines: Array<'long' | 'mid' | 'short'>;
+}) {
+  return (
+    <div className={className} data-empty-card>
+      <span className="empty-state-stage-chip" />
+      <div className="empty-state-stage-lines">
+        {lines.map((line) => (
+          <span
+            key={`${className}-${line}`}
+            className={`empty-state-stage-line empty-state-stage-line--${line}`}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -129,16 +91,24 @@ function useAgentRotation(agentIds: string[]) {
 
   useEffect(() => {
     if (count <= 1) return;
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      return;
+    }
     const id = setInterval(() => {
-      setIndices((s) => ({ current: (s.current + 1) % count, prev: s.current }));
-    }, 5000);
+      setIndices((state) => ({ current: (state.current + 1) % count, prev: state.current }));
+    }, 4200);
     return () => clearInterval(id);
   }, [count]);
 
   useEffect(() => {
     if (indices.prev === null) return;
     clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setIndices((s) => ({ ...s, prev: null })), 400);
+    timeoutRef.current = setTimeout(() => {
+      setIndices((state) => ({ ...state, prev: null }));
+    }, 360);
     return () => clearTimeout(timeoutRef.current);
   }, [indices.prev]);
 
@@ -152,33 +122,29 @@ function useAgentRotation(agentIds: string[]) {
 }
 
 function RotatingAgentIcon({
-  size = 16,
   currentAgent,
   prevAgent,
 }: {
-  size?: number;
   currentAgent: string;
   prevAgent: string | null;
 }) {
-  const dim = `${size}px`;
-
   return (
-    <span className="inline-flex relative overflow-hidden" style={{ width: dim, height: dim }}>
+    <span className="empty-state-agent-icon">
       {prevAgent && (
         <span
           key={`out-${prevAgent}`}
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ animation: 'rolodex-out 0.4s ease-in forwards' }}
+          className="empty-state-agent-icon-layer"
+          style={{ animation: 'rolodex-out 0.36s ease-in forwards' }}
         >
-          <AgentIcon agent={prevAgent} size={size} />
+          <AgentIcon agent={prevAgent} size={14} />
         </span>
       )}
       <span
         key={`in-${currentAgent}`}
-        className="absolute inset-0 flex items-center justify-center"
-        style={{ animation: prevAgent ? 'rolodex-in 0.4s ease-out forwards' : undefined }}
+        className="empty-state-agent-icon-layer"
+        style={{ animation: prevAgent ? 'rolodex-in 0.36s ease-out forwards' : undefined }}
       >
-        <AgentIcon agent={currentAgent} size={size} />
+        <AgentIcon agent={currentAgent} size={14} />
       </span>
     </span>
   );
@@ -186,20 +152,20 @@ function RotatingAgentIcon({
 
 function RotatingText({ current, prev }: { current: string; prev: string | null }) {
   return (
-    <span className="relative inline-flex overflow-hidden">
+    <span className="empty-state-rotating-text">
       {prev && (
         <span
           key={`text-out-${prev}`}
-          className="absolute inset-0 whitespace-nowrap"
-          style={{ animation: 'rolodex-out-inv 0.4s ease-in forwards' }}
+          className="empty-state-rotating-text-layer empty-state-rotating-text-layer--out"
+          style={{ animation: 'rolodex-out-inv 0.36s ease-in forwards' }}
         >
           {prev}
         </span>
       )}
       <span
         key={`text-in-${current}`}
-        className="whitespace-nowrap"
-        style={{ animation: prev ? 'rolodex-in-inv 0.4s ease-out forwards' : undefined }}
+        className="empty-state-rotating-text-layer"
+        style={{ animation: prev ? 'rolodex-in-inv 0.36s ease-out forwards' : undefined }}
       >
         {current}
       </span>
@@ -212,54 +178,158 @@ export function EmptyStateView({
   planCount = 0,
   agents = EMPTY_AGENTS,
 }: EmptyStateViewProps) {
-  const activeAgents = useMemo(() => agents.filter((a) => a.planCount > 0), [agents]);
-  const activeAgentIds = useMemo(() => activeAgents.map((a) => a.agent), [activeAgents]);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const activeAgents = useMemo(
+    () => agents.filter((agent) => agent.planCount > 0).sort((a, b) => b.planCount - a.planCount),
+    [agents],
+  );
+  const activeAgentIds = useMemo(() => activeAgents.map((agent) => agent.agent), [activeAgents]);
   const { currentAgent, prevAgent } = useAgentRotation(activeAgentIds);
 
-  const agentStats = currentAgent ? agents.find((a) => a.agent === currentAgent) : null;
-  const prevAgentStats = prevAgent ? agents.find((a) => a.agent === prevAgent) : null;
+  const currentAgentStats = currentAgent
+    ? (activeAgents.find((agent) => agent.agent === currentAgent) ?? null)
+    : null;
+  const prevAgentStats = prevAgent
+    ? (activeAgents.find((agent) => agent.agent === prevAgent) ?? null)
+    : null;
 
-  function agentLabel(agent: string, stats: AgentStats | null | undefined) {
-    return stats && stats.planCount > 0
-      ? `${stats.planCount} plans from ${getAgentLabel(agent)}`
-      : `${getAgentLabel(agent)} plans`;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let disposed = false;
+    let teardown = () => {};
+
+    void import('gsap').then(({ gsap }) => {
+      if (disposed || !shellRef.current) return;
+
+      const shell = shellRef.current;
+      const ctx = gsap.context(() => {
+        const timeline = gsap.timeline({ defaults: { ease: 'power4.out' } });
+
+        timeline
+          .fromTo(
+            '[data-empty-stage="ambient"]',
+            { autoAlpha: 0 },
+            { autoAlpha: 1, duration: 0.45 },
+            0,
+          )
+          .fromTo(
+            '[data-empty-animate="title"]',
+            { autoAlpha: 0, y: 26 },
+            { autoAlpha: 1, y: 0, duration: 0.58 },
+            0.08,
+          )
+          .fromTo(
+            '[data-empty-animate="description"]',
+            { autoAlpha: 0, y: 20 },
+            { autoAlpha: 1, y: 0, duration: 0.48 },
+            0.16,
+          )
+          .fromTo(
+            '[data-empty-animate="action"]',
+            { autoAlpha: 0, y: 18 },
+            { autoAlpha: 1, y: 0, duration: 0.42 },
+            0.24,
+          )
+          .fromTo(
+            '[data-empty-animate="agent"]',
+            { autoAlpha: 0, y: 16 },
+            { autoAlpha: 1, y: 0, duration: 0.42 },
+            0.28,
+          )
+          .fromTo(
+            '[data-empty-animate="stage"]',
+            { autoAlpha: 0, x: 28 },
+            { autoAlpha: 1, x: 0, duration: 0.62 },
+            0.12,
+          )
+          .fromTo(
+            '[data-empty-card]',
+            { autoAlpha: 0, y: 24, scale: 0.985 },
+            { autoAlpha: 1, y: 0, scale: 1, duration: 0.52, stagger: 0.07 },
+            0.24,
+          );
+      }, shell);
+
+      teardown = () => ctx.revert();
+    });
+
+    return () => {
+      disposed = true;
+      teardown();
+    };
+  }, []);
+
+  const hasPlans = planCount > 0;
+  const heading = hasPlans ? 'Pick a plan.' : 'No plans yet.';
+  const description = hasPlans
+    ? 'Open search and jump straight to what you need.'
+    : 'Run an agent and Agendex will collect its plans here.';
+
+  function agentSummary(agent: string, stats: AgentStats | null) {
+    const count = stats?.planCount ?? 0;
+    const noun = count === 1 ? 'plan' : 'plans';
+    return `${count} ${noun} from ${getAgentLabel(agent)}`;
   }
 
   return (
-    <div className="h-full flex items-center justify-center bg-bg">
-      <div className="empty-state-content flex flex-col items-center text-center max-w-[420px] p-6 gap-4">
-        <h2 className="text-[20px] font-semibold text-text m-0 tracking-[-0.02em]">
-          What would you like to do?
-        </h2>
+    <div ref={shellRef} className="h-full empty-state-shell">
+      <div className="empty-state-ambient" aria-hidden="true" data-empty-stage="ambient">
+        <span className="empty-state-halo empty-state-halo--left" />
+        <span className="empty-state-halo empty-state-halo--right" />
+      </div>
 
-        <p className="text-[13px] text-tertiary m-0 leading-[1.6]">
-          {planCount === 0
-            ? 'No plans detected yet. Start an AI agent to see plans here.'
-            : `${planCount} plans across ${activeAgents.length} agent${activeAgents.length !== 1 ? 's' : ''}`}
-        </p>
+      <div className="empty-state-content">
+        <div className="empty-state-layout">
+          <div className="empty-state-copy">
+            <h2 className="empty-state-title" data-empty-animate="title">
+              {heading}
+            </h2>
+            <p className="empty-state-description" data-empty-animate="description">
+              {description}
+            </p>
 
-        <div className="flex gap-2 flex-wrap justify-center">
-          <ActionPill icon={<SearchIcon />} label="Search" kbd={`${modKey}+K`} onClick={onSearch} />
-        </div>
-
-        <div className="w-full flex flex-col gap-1.5 mt-1">
-          {currentAgent && (
-            <SuggestionRow
-              icon={
-                <RotatingAgentIcon size={16} currentAgent={currentAgent} prevAgent={prevAgent} />
-              }
-              label={
-                <RotatingText
-                  current={agentLabel(currentAgent, agentStats)}
-                  prev={prevAgent ? agentLabel(prevAgent, prevAgentStats ?? null) : null}
+            {onSearch && (
+              <div className="empty-state-actions" data-empty-animate="action">
+                <ActionPill
+                  icon={<SearchIcon />}
+                  label={hasPlans ? 'Search plans' : 'Open search'}
+                  kbd={`${modKey}+K`}
+                  onClick={onSearch}
                 />
-              }
-              onClick={onSearch}
-            />
-          )}
-        </div>
+              </div>
+            )}
 
-        <p className="text-[11px] text-tertiary mt-1">Press {modKey}+K to search anytime</p>
+            {currentAgent && currentAgentStats && (
+              <div className="empty-state-agent-note" data-empty-animate="agent">
+                <RotatingAgentIcon currentAgent={currentAgent} prevAgent={prevAgent} />
+                <RotatingText
+                  current={agentSummary(currentAgent, currentAgentStats)}
+                  prev={prevAgent ? agentSummary(prevAgent, prevAgentStats) : null}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="empty-state-stage" aria-hidden="true" data-empty-animate="stage">
+            <div className="empty-state-stage-shell">
+              <span className="empty-state-stage-beam" />
+              <StageCard
+                className="empty-state-stage-card empty-state-stage-card--back"
+                lines={['long', 'mid']}
+              />
+              <StageCard
+                className="empty-state-stage-card empty-state-stage-card--middle"
+                lines={['long', 'short']}
+              />
+              <StageCard
+                className="empty-state-stage-card empty-state-stage-card--front"
+                lines={['long', 'mid', 'short']}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

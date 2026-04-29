@@ -1,4 +1,4 @@
-import type { Plan } from '@agendex/shared';
+import { isIndexablePlan, type Plan } from '@agendex/shared';
 import Fuse from 'fuse.js';
 
 const fuse = new Fuse<Plan>([], {
@@ -13,9 +13,12 @@ const fuse = new Fuse<Plan>([], {
 });
 
 export function rebuildIndex(plans: Plan[]) {
-  fuse.setCollection(plans);
+  fuse.setCollection(plans.filter(isIndexablePlan));
 }
 
 export function search(query: string): Plan[] {
-  return fuse.search(query).map((r) => r.item);
+  return fuse
+    .search(query)
+    .map((r) => r.item)
+    .filter(isIndexablePlan);
 }

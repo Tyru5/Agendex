@@ -1,8 +1,8 @@
 import { existsSync, statSync } from 'node:fs';
 import {
   getAgentStats,
-  getAll,
-  getById,
+  getIndexableById,
+  getIndexablePlans,
   loadConfig,
   normalizeCustomPlanDirs,
   resolveCustomPlanDirPath,
@@ -23,7 +23,7 @@ plans.get('/plans', (c) => {
   const limit = parseInt(c.req.query('limit') ?? '50', 10);
   const offset = parseInt(c.req.query('offset') ?? '0', 10);
 
-  let results = q ? search(q) : getAll();
+  let results = q ? search(q) : getIndexablePlans();
 
   if (agent) results = results.filter((p) => p.agent === agent);
   if (workspace) results = results.filter((p) => p.workspace?.includes(workspace));
@@ -41,13 +41,13 @@ plans.get('/plans', (c) => {
 });
 
 plans.get('/plans/:id', (c) => {
-  const plan = getById(c.req.param('id'));
+  const plan = getIndexableById(c.req.param('id'));
   if (!plan) return c.json({ error: 'not found' }, 404);
   return c.json(plan);
 });
 
 plans.get('/plans/:id/raw', (c) => {
-  const plan = getById(c.req.param('id'));
+  const plan = getIndexableById(c.req.param('id'));
   if (!plan) return c.json({ error: 'not found' }, 404);
   return c.text(plan.content);
 });

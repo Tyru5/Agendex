@@ -3,10 +3,18 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
 import { getActiveAdapters, setActiveAdapters } from '../adapters/registry.ts';
-import { saveConfig } from '../config.ts';
+import { getConfigDir, saveConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
-import { discoverProjectPlanDirs, getAll, rescanFile, scan } from './plan-service.ts';
+import {
+  discoverProjectPlanDirs,
+  getAgentStats,
+  getAll,
+  getIndexableById,
+  getIndexablePlans,
+  rescanFile,
+  scan,
+} from './plan-service.ts';
 
 const originalAdapters = getActiveAdapters();
 const originalCwd = process.cwd();
@@ -42,6 +50,20 @@ afterEach(async () => {
     tempHome = undefined;
   }
 });
+
+async function useTempHome(prefix: string): Promise<string> {
+  tempHome = await mkdtemp(join(tmpdir(), prefix));
+  const parsedHome = parse(tempHome);
+
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
+  process.env.AGENDEX_DEV = '1';
+  process.env.HOME = tempHome;
+  process.env.USERPROFILE = tempHome;
+  process.env.HOMEDRIVE = parsedHome.root.slice(0, 2);
+  process.env.HOMEPATH = tempHome.slice(parsedHome.root.length - 1);
+
+  return tempHome;
+}
 
 test('scan keeps adapter-parsed plans when a custom dir overlaps a discovered project dir', async () => {
   tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-'));
@@ -366,4 +388,126 @@ test('discoverProjectPlanDirs keeps the nearest current-project marker when ance
 
   expect(discovered).toContain(await realpath(projectPlansDir));
   expect(discovered).not.toContain(await realpath(parentPlansDir));
+});
+
+test('scan annotates low-value adapter-derived plans while excluding them from indexable results', async () => {
+  const home = await useTempHome('agendex-plan-service-low-value-');
+  const plansDir = join(home, 'adapter-plans');
+  const planPath = join(plansDir, 'prompt.md');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(planPath, 'Please fix the login bug', 'utf-8');
+
+  saveConfig({
+    configVersion: 3,
+    enabledAdapters: [],
+    customPlanDirs: [],
+  });
+
+  const adapterPlan: Plan = {
+    id: hashPath(planPath),
+    agent: 'test-agent',
+    title: 'Prompt',
+    content: 'Please fix the login bug',
+    filePath: planPath,
+    format: 'md',
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    metadata: { source: 'adapter' },
+  };
+
+  const adapter: AgentAdapter = {
+    agent: 'test-agent',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath.endsWith('.md'),
+    parse: async (filePath) => (filePath === planPath ? [adapterPlan] : []),
+    write: async () => false,
+  };
+
+  setActiveAdapters([adapter]);
+  await scan();
+
+  const plans = getAll();
+  expect(plans).toHaveLength(1);
+  expect(plans[0]?.metadata.source).toBe('adapter');
+  expect(plans[0]?.metadata.lowValue).toBe(true);
+  expect(plans[0]?.metadata.lowValueReasons).toContain('prompt-like');
+  expect(getIndexablePlans()).toHaveLength(0);
+  expect(getIndexableById(adapterPlan.id)).toBeUndefined();
+  expect(getAgentStats().find((stat) => stat.agent === 'test-agent')?.planCount).toBe(0);
+});
+
+test('rescanFile annotates low-value adapter-derived plans', async () => {
+  const home = await useTempHome('agendex-plan-service-rescan-low-value-');
+  const plansDir = join(home, 'adapter-plans');
+  const planPath = join(plansDir, 'prompt.md');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(planPath, 'Please update the README', 'utf-8');
+
+  const adapterPlan: Plan = {
+    id: hashPath(planPath),
+    agent: 'test-agent',
+    title: 'Prompt',
+    content: 'Please update the README',
+    filePath: planPath,
+    format: 'md',
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    metadata: { source: 'adapter' },
+  };
+
+  const adapter: AgentAdapter = {
+    agent: 'test-agent',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath.endsWith('.md'),
+    parse: async (filePath) => (filePath === planPath ? [adapterPlan] : []),
+    write: async () => false,
+  };
+
+  setActiveAdapters([adapter]);
+
+  const plans = await rescanFile(planPath);
+
+  expect(plans).toHaveLength(1);
+  expect(plans[0]?.metadata.lowValue).toBe(true);
+  expect(getAll().find((plan) => plan.id === adapterPlan.id)?.metadata.lowValue).toBe(true);
+  expect(getIndexablePlans()).toHaveLength(0);
+  expect(getIndexableById(adapterPlan.id)).toBeUndefined();
+});
+
+test('scan does not annotate user-created or custom markdown plans', async () => {
+  const home = await useTempHome('agendex-plan-service-source-scope-');
+  const userPlansDir = join(getConfigDir(), 'plans');
+  const userPlanPath = join(userPlansDir, 'heading-only.md');
+  const customDir = join(home, 'custom-plans');
+  const customPlanPath = join(customDir, 'prompt.md');
+
+  await mkdir(userPlansDir, { recursive: true });
+  await mkdir(customDir, { recursive: true });
+  await writeFile(userPlanPath, '# Heading Only\n', 'utf-8');
+  await writeFile(customPlanPath, 'Please fix login', 'utf-8');
+
+  saveConfig({
+    configVersion: 3,
+    enabledAdapters: [],
+    customPlanDirs: [customDir],
+  });
+  setActiveAdapters([]);
+
+  await scan();
+
+  const plans = getAll();
+  expect(plans).toHaveLength(2);
+
+  const userPlan = plans.find((plan) => plan.filePath === userPlanPath);
+  const customPlan = plans.find((plan) => plan.filePath === customPlanPath);
+
+  expect(userPlan?.metadata.userCreated).toBe(true);
+  expect(userPlan?.metadata.lowValue).toBeUndefined();
+  expect(customPlan?.metadata.source).toBe('custom-dir');
+  expect(customPlan?.metadata.lowValue).toBeUndefined();
+  expect(getIndexablePlans()).toHaveLength(2);
 });

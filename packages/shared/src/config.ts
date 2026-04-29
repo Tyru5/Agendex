@@ -8,6 +8,15 @@ import { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter
 
 let devModeOverride: boolean | undefined;
 
+export function getHomeDir(): string {
+  if (process.env.HOME) return process.env.HOME;
+  if (process.env.USERPROFILE) return process.env.USERPROFILE;
+  if (process.env.HOMEDRIVE && process.env.HOMEPATH) {
+    return `${process.env.HOMEDRIVE}${process.env.HOMEPATH}`;
+  }
+  return homedir();
+}
+
 export function setDevMode(dev: boolean): void {
   devModeOverride = dev;
 }
@@ -21,7 +30,7 @@ export function getConfigDir(): string {
   const override = process.env.AGENDEX_CONFIG_DIR?.trim();
   if (override) return resolve(expandHomePath(override));
 
-  return join(homedir(), isDevMode() ? '.agendex-dev' : '.agendex');
+  return join(getHomeDir(), isDevMode() ? '.agendex-dev' : '.agendex');
 }
 
 export interface AgendexConfig {
@@ -71,7 +80,7 @@ function normalizeAdapterIds(input: unknown): AdapterId[] {
 }
 
 function expandHomePath(p: string): string {
-  if (p.startsWith('~/') || p === '~') return join(homedir(), p.slice(1));
+  if (p.startsWith('~/') || p === '~') return join(getHomeDir(), p.slice(1));
   return p;
 }
 

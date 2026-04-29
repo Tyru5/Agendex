@@ -5,7 +5,8 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
 import { getConfigDir, loadConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
-import type { Plan, PlannotatorWritebackPayload } from '../types.ts';
+import type { AgentAdapter, Plan, PlannotatorWritebackPayload } from '../types.ts';
+import { annotatePlanValueMetadata, isIndexablePlan } from './plan-value.ts';
 
 function getUserPlansDir(): string {
   return join(getConfigDir(), 'plans');
@@ -317,7 +318,8 @@ export async function scan() {
         if (!adapter.matches(file)) continue;
         const plans = await adapter.parse(file);
         for (const plan of plans) {
-          next.set(plan.id, plan);
+          const annotated = annotatePlanValueMetadata(plan);
+          next.set(annotated.id, annotated);
         }
       }
     }
@@ -334,7 +336,8 @@ export async function scan() {
       if (!adapter.matches(file)) continue;
       const plans = await adapter.parse(file);
       for (const plan of plans) {
-        next.set(plan.id, plan);
+        const annotated = annotatePlanValueMetadata(plan);
+        next.set(annotated.id, annotated);
       }
     }
     coveredPaths.add(resolvedDir);
@@ -346,15 +349,29 @@ export async function scan() {
 
   store = next;
   notifyPlansChanged();
-  console.log(`[agendex] indexed ${store.size} plans from ${adapters.length} adapters`);
+  const indexableCount = getIndexablePlans().length;
+  const hiddenCount = store.size - indexableCount;
+  const hiddenSuffix = hiddenCount > 0 ? ` (${hiddenCount} hidden as low-value)` : '';
+  console.log(
+    `[agendex] indexed ${indexableCount} plans${hiddenSuffix} from ${adapters.length} adapters`,
+  );
 }
 
 export function getAll(): Plan[] {
   return Array.from(store.values());
 }
 
+export function getIndexablePlans(): Plan[] {
+  return getAll().filter(isIndexablePlan);
+}
+
 export function getById(id: string): Plan | undefined {
   return store.get(id);
+}
+
+export function getIndexableById(id: string): Plan | undefined {
+  const plan = store.get(id);
+  return plan && isIndexablePlan(plan) ? plan : undefined;
 }
 
 function isUserPlan(plan: Plan): boolean {
@@ -488,6 +505,7 @@ export function getAgentStats() {
     stats.set(adapter.agent, { count: 0, writable: adapter.writable });
   }
   for (const plan of store.values()) {
+    if (!isIndexablePlan(plan)) continue;
     const s = stats.get(plan.agent);
     if (s) s.count++;
   }
@@ -551,11 +569,12 @@ export async function rescanFile(filePath: string) {
 
     if (!isInSearchPath) continue;
 
-    const plans = await adapter.parse(filePath);
-    if (plans.length === 0) {
+    const rawPlans = await adapter.parse(filePath);
+    if (rawPlans.length === 0) {
       removedPlans.push(...removePlansForPath(filePath, adapter));
       continue;
     }
+    const plans = rawPlans.map(annotatePlanValueMetadata);
     for (const plan of plans) {
       store.set(plan.id, plan);
     }

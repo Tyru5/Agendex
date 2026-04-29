@@ -43,7 +43,31 @@ export interface SyncPlanPayload {
   updatedAt?: number;
 }
 
-export async function syncPlan(plan: SyncPlanPayload): Promise<{ ok: boolean; error?: string }> {
+export interface SyncPlanResult {
+  ok: boolean;
+  error?: string;
+  skippedLowValue?: boolean;
+  deleted?: boolean;
+}
+
+function parseSyncSuccess(body: string): SyncPlanResult {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return { ok: true };
+    }
+    const result = parsed as Record<string, unknown>;
+    return {
+      ok: true,
+      skippedLowValue: result.skippedLowValue === true,
+      deleted: result.deleted === true,
+    };
+  } catch {
+    return { ok: true };
+  }
+}
+
+export async function syncPlan(plan: SyncPlanPayload): Promise<SyncPlanResult> {
   const { token, convexUrl } = getCloudConfig();
   const url = `${convexUrl}/api/cli/sync`;
   let activeToken = token;
@@ -78,7 +102,7 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<{ ok: boolean; er
     return { ok: false, error: `${res.status}: ${res.body}` };
   }
 
-  return { ok: true };
+  return parseSyncSuccess(res.body);
 }
 
 async function refreshStoredToken(currentToken: string, convexUrl: string): Promise<string | null> {

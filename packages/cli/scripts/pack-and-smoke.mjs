@@ -121,7 +121,7 @@ async function exerciseSyncParse(env) {
 
     const sync = runSync(nodeBin, [workspaceCli, 'sync'], { env });
     assert.notEqual(sync.status, 0, 'expected sync against an unreachable host to fail');
-    assert.match(sync.stdout, /Found 1 plans/);
+    assert.match(sync.stdout, /Found 1 syncable plans/);
   } finally {
     config.convexUrl = originalConvexUrl;
     await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
@@ -178,7 +178,7 @@ async function exerciseUpdateCheck(
   const blocked = runCli(binary, ['sync'], { cwd, env }, executeDirectly);
   assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
   assert.match(blocked.stderr, /update required/);
-  assert.doesNotMatch(blocked.stdout, /Found 1 plans/);
+  assert.doesNotMatch(blocked.stdout, /Found 1 syncable plans/);
 
   const bypassed = runCli(binary, [bypassCommand], { cwd, env }, executeDirectly);
   assert.equal(bypassed.status, 0, bypassed.stderr || bypassed.stdout);
@@ -193,7 +193,7 @@ async function exerciseUpdateCheck(
   const allowed = await withUnreachableConvexUrl(env, () =>
     runCli(binary, ['sync'], { cwd, env }, executeDirectly),
   );
-  assert.match(allowed.stdout, /Found 1 plans/);
+  assert.match(allowed.stdout, /Found 1 syncable plans/);
   assert.doesNotMatch(allowed.stderr, /update required/);
 }
 
@@ -380,7 +380,7 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
     assert.notEqual(sync.status, 0, `${name} sync should fail against an unreachable cloud`);
     assert.match(
       sync.stdout,
-      /Found 1 plans/,
+      /Found 1 syncable plans/,
       `${name} sync did not parse the installed SQLite adapter`,
     );
   } finally {

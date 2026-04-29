@@ -62,7 +62,7 @@
     },
     "packages/cli": {
       "name": "agendex-cli",
-      "version": "0.10.0",
+      "version": "0.14.0",
       "bin": {
         "agendex": "./dist/cli.js",
       },
@@ -134,6 +134,7 @@
         "codemirror": "^6.0.2",
         "fuse.js": "^7.1.0",
         "github-slugger": "^2.0.0",
+        "gsap": "^3.15.0",
         "highlight.js": "^11.11.1",
         "mermaid": "^11.12.2",
         "nuqs": "^2.8.8",
@@ -976,6 +977,8 @@
     "gopd": ["gopd@1.2.0", "", {}, "sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg=="],
 
     "graceful-fs": ["graceful-fs@4.2.11", "", {}, "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ=="],
+
+    "gsap": ["gsap@3.15.0", "", {}, "sha512-dMW4CWBTUK1AEEDeZc1g4xpPGIrSf9fJF960qbTZmN/QwZIWY5wgliS6JWl9/25fpTGJrMRtSjGtOmPnfjZB+A=="],
 
     "hachure-fill": ["hachure-fill@0.5.2", "", {}, "sha512-3GKBOn+m2LX9iq+JC1064cSFprJY4jL1jCXTcpnfER5HYE2l/4EfWSGzkPa/ZDBmYI0ZOEj5VHV/eKnPGkHuOg=="],
 
