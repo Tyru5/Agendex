@@ -159,7 +159,7 @@ function MenuButton({
 type PlanListProps = {
   plans: Plan[];
   selectedId: string | undefined;
-  onSelect: (plan: Plan) => void;
+  onSelect: (plan: Plan | undefined) => void;
   isPro?: boolean;
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
@@ -267,8 +267,9 @@ export function PlanList(props: PlanListProps) {
   }, [nonCustomPlans, planState, selectedId, isPro]);
 
   function handleClick(plan: Plan) {
-    if (isPro) planState.markSeen(plan.id, plan.updatedAt);
-    onSelect(plan);
+    const nextPlan = plan.id === selectedId ? undefined : plan;
+    if (nextPlan && isPro) planState.markSeen(nextPlan.id, nextPlan.updatedAt);
+    onSelect(nextPlan);
   }
 
   function handleContextMenu(e: React.MouseEvent, plan: Plan) {
