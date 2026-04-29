@@ -1,10 +1,11 @@
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { lstat, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { join, resolve, sep } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join, resolve, sep } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
-import { getConfigDir, getHomeDir, loadConfig } from '../config.ts';
+import { getConfigDir, loadConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
-import type { Plan } from '../types.ts';
+import type { AgentAdapter, Plan, PlannotatorWritebackPayload } from '../types.ts';
 import { annotatePlanValueMetadata, isIndexablePlan } from './plan-value.ts';
 
 function getUserPlansDir(): string {
@@ -16,7 +17,10 @@ let store = new Map<string, Plan>();
 const MAX_DEPTH = 6;
 const DISCOVERY_MAX_DEPTH = 4;
 
-const PROJECT_PLAN_MARKERS = [{ marker: '.sisyphus/plans', agent: 'oh-my-opencode' }];
+const PROJECT_PLAN_MARKERS = [
+  { marker: '.sisyphus/plans', agent: 'oh-my-opencode' },
+  { marker: '@plans', agent: 'plannotator' },
+];
 
 const SKIP_DIRS = new Set([
   'node_modules',
@@ -60,20 +64,66 @@ export interface DiscoveredPlanDir {
   agent: string;
 }
 
+function getRuntimeHomeDir(): string {
+  const homeFromEnv =
+    process.env.HOME ||
+    process.env.USERPROFILE ||
+    (process.env.HOMEDRIVE && process.env.HOMEPATH
+      ? `${process.env.HOMEDRIVE}${process.env.HOMEPATH}`
+      : undefined);
+
+  return resolve(homeFromEnv || homedir());
+}
+
 export function discoverProjectPlanDirs(): DiscoveredPlanDir[] {
-  const home = getHomeDir();
+  const home = canonicalPath(getRuntimeHomeDir());
   const results: DiscoveredPlanDir[] = [];
+  const seen = new Set<string>();
+  let nearestAncestorMarkerRoot: string | undefined;
+
+  function addResult(dir: string, agent: string) {
+    const resolved = canonicalPath(dir);
+    const key = `${agent}:${resolved}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    results.push({ dir: resolved, agent });
+  }
+
+  function inspectMarkers(dir: string): boolean {
+    let found = false;
+    for (const { marker, agent } of PROJECT_PLAN_MARKERS) {
+      const candidate = join(dir, marker);
+      if (existsSync(candidate)) {
+        addResult(candidate, agent);
+        found = true;
+      }
+    }
+    return found;
+  }
+
+  function walkAncestorsForCurrentProject() {
+    let dir = canonicalPath(process.cwd());
+    while (true) {
+      if (inspectMarkers(dir)) {
+        nearestAncestorMarkerRoot = dir;
+        return;
+      }
+      if (dir === home) return;
+      const parent = dirname(dir);
+      if (parent === dir) return;
+      dir = parent;
+    }
+  }
+
+  function isAncestorOfNearestMarker(dir: string): boolean {
+    return Boolean(nearestAncestorMarkerRoot?.startsWith(dir + sep));
+  }
 
   function walk(dir: string, depth: number) {
     if (depth > DISCOVERY_MAX_DEPTH) return;
 
-    for (const { marker, agent } of PROJECT_PLAN_MARKERS) {
-      const candidate = join(dir, marker);
-      if (existsSync(candidate)) {
-        results.push({ dir: candidate, agent });
-        return;
-      }
-    }
+    const resolved = canonicalPath(dir);
+    if (!isAncestorOfNearestMarker(resolved) && inspectMarkers(dir)) return;
 
     let names: string[];
     try {
@@ -92,6 +142,7 @@ export function discoverProjectPlanDirs(): DiscoveredPlanDir[] {
     }
   }
 
+  walkAncestorsForCurrentProject();
   walk(home, 0);
   return results;
 }
@@ -187,10 +238,19 @@ export function getCustomPlanDirs(): string[] {
   return loadConfig()?.customPlanDirs ?? [];
 }
 
+function canonicalPath(path: string): string {
+  const resolved = resolve(path);
+  try {
+    return realpathSync(resolved);
+  } catch {
+    return resolved;
+  }
+}
+
 /** True if paths are equal or one is a descendant of the other in the filesystem tree. */
 export function pathsOverlapFilesystemTree(a: string, b: string): boolean {
-  const ra = resolve(a);
-  const rb = resolve(b);
+  const ra = canonicalPath(a);
+  const rb = canonicalPath(b);
   if (ra === rb) return true;
   if (ra.startsWith(rb + sep)) return true;
   if (rb.startsWith(ra + sep)) return true;
@@ -198,7 +258,7 @@ export function pathsOverlapFilesystemTree(a: string, b: string): boolean {
 }
 
 function overlapsAnyRoot(candidate: string, roots: Iterable<string>): boolean {
-  const resolvedCandidate = resolve(candidate);
+  const resolvedCandidate = canonicalPath(candidate);
   for (const root of roots) {
     if (pathsOverlapFilesystemTree(resolvedCandidate, root)) return true;
   }
@@ -207,9 +267,9 @@ function overlapsAnyRoot(candidate: string, roots: Iterable<string>): boolean {
 
 async function scanCustomPlanDirs(coveredPaths: Set<string>, into: Map<string, Plan>) {
   const dirs = getCustomPlanDirs();
-  const userPlansDir = resolve(getUserPlansDir());
+  const userPlansDir = canonicalPath(getUserPlansDir());
   for (const dir of dirs) {
-    const resolved = resolve(dir);
+    const resolved = canonicalPath(dir);
     if (overlapsAnyRoot(resolved, coveredPaths)) {
       console.log(`[agendex] skipping custom dir (overlaps adapter / discovered coverage): ${dir}`);
       continue;
@@ -252,7 +312,7 @@ export async function scan() {
   const coveredPaths = new Set<string>();
   for (const adapter of adapters) {
     for (const searchPath of adapter.getSearchPaths()) {
-      coveredPaths.add(resolve(searchPath));
+      coveredPaths.add(canonicalPath(searchPath));
       const files = await walkDir(searchPath);
       for (const file of files) {
         if (!adapter.matches(file)) continue;
@@ -267,7 +327,7 @@ export async function scan() {
 
   const discovered = discoverProjectPlanDirs();
   for (const { dir, agent } of discovered) {
-    const resolvedDir = resolve(dir);
+    const resolvedDir = canonicalPath(dir);
     if (coveredPaths.has(resolvedDir)) continue;
     const adapter = adapters.find((a) => a.agent === agent);
     if (!adapter) continue;
@@ -318,6 +378,20 @@ function isUserPlan(plan: Plan): boolean {
   return resolve(plan.filePath).startsWith(resolve(getUserPlansDir()) + sep);
 }
 
+function getPlanSourceAdapter(plan: Plan): string | undefined {
+  const sourceAdapter = plan.metadata.sourceAdapter;
+  return typeof sourceAdapter === 'string' && sourceAdapter.trim() ? sourceAdapter : undefined;
+}
+
+function findAdapterForPlan(plan: Plan) {
+  const adapters = getActiveAdapters();
+  const sourceAdapter = getPlanSourceAdapter(plan);
+  return (
+    adapters.find((adapter) => adapter.agent === sourceAdapter) ??
+    adapters.find((adapter) => adapter.agent === plan.agent)
+  );
+}
+
 export async function update(id: string, content: string): Promise<boolean> {
   const plan = store.get(id);
   if (!plan) return false;
@@ -337,8 +411,7 @@ export async function update(id: string, content: string): Promise<boolean> {
     }
   }
 
-  const adapters = getActiveAdapters();
-  const adapter = adapters.find((a) => a.agent === plan.agent);
+  const adapter = findAdapterForPlan(plan);
   if (!adapter?.writable) return false;
 
   const ok = await adapter.write(plan, content);
@@ -358,6 +431,29 @@ function slugify(title: string): string {
       .replace(/^-|-$/g, '')
       .slice(0, 60) || 'plan'
   );
+}
+
+export async function requestChanges(
+  id: string,
+  payload: PlannotatorWritebackPayload,
+): Promise<boolean> {
+  const plan = store.get(id);
+  if (!plan) return false;
+
+  const adapter = findAdapterForPlan(plan);
+  if (!adapter?.requestChanges) return false;
+
+  const ok = await adapter.requestChanges(plan, payload);
+  if (ok) {
+    const plannotator =
+      typeof plan.metadata.plannotator === 'object' && plan.metadata.plannotator !== null
+        ? { ...plan.metadata.plannotator, lastWritebackStatus: 'sent', lastWritebackAt: Date.now() }
+        : undefined;
+    if (plannotator) plan.metadata = { ...plan.metadata, plannotator };
+    plan.updatedAt = new Date();
+    notifyPlansChanged();
+  }
+  return ok;
 }
 
 export async function create(agentName: string, title: string, content: string): Promise<Plan> {
@@ -420,9 +516,40 @@ export function getAgentStats() {
   }));
 }
 
+function planBelongsToAdapter(plan: Plan, adapter: AgentAdapter): boolean {
+  if (plan.agent === adapter.agent) return true;
+  return (
+    adapter.agent === 'plannotator' &&
+    typeof plan.metadata.plannotator === 'object' &&
+    plan.metadata.plannotator !== null
+  );
+}
+
+function removePlansForPath(filePath: string, adapter?: AgentAdapter): Plan[] {
+  const normalized = resolve(filePath);
+  const removed: Plan[] = [];
+  for (const [id, plan] of store.entries()) {
+    const planPath = resolve(plan.filePath);
+    const sessionPath =
+      typeof plan.metadata.plannotator === 'object' && plan.metadata.plannotator !== null
+        ? (plan.metadata.plannotator as Record<string, unknown>).sessionPath
+        : undefined;
+    if (
+      (planPath === normalized || sessionPath === normalized) &&
+      (!adapter || planBelongsToAdapter(plan, adapter))
+    ) {
+      removed.push(plan);
+      store.delete(id);
+    }
+  }
+  if (removed.length > 0) notifyPlansChanged();
+  return removed;
+}
+
 export async function rescanFile(filePath: string) {
   const adapters = getActiveAdapters();
   const normalized = resolve(filePath);
+  const removedPlans: Plan[] = [];
 
   for (const adapter of adapters) {
     if (!adapter.matches(filePath)) continue;
@@ -442,13 +569,20 @@ export async function rescanFile(filePath: string) {
 
     if (!isInSearchPath) continue;
 
-    const plans = (await adapter.parse(filePath)).map(annotatePlanValueMetadata);
+    const rawPlans = await adapter.parse(filePath);
+    if (rawPlans.length === 0) {
+      removedPlans.push(...removePlansForPath(filePath, adapter));
+      continue;
+    }
+    const plans = rawPlans.map(annotatePlanValueMetadata);
     for (const plan of plans) {
       store.set(plan.id, plan);
     }
     notifyPlansChanged();
     return plans;
   }
+
+  if (removedPlans.length > 0) return removedPlans;
 
   // Check user plans dir
   const userPlansDir = resolve(getUserPlansDir());

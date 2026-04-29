@@ -1,7 +1,12 @@
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { hostname as osHostname } from 'node:os';
-import { loadConfig, loadOrCreateDeviceId, saveConfig } from '@agendex/shared';
+import {
+  loadConfig,
+  loadOrCreateDeviceId,
+  type PlannotatorFeedbackAnnotation,
+  saveConfig,
+} from '@agendex/shared';
 import { readPidInfo } from './pid.ts';
 
 export class AuthExpiredError extends Error {
@@ -160,6 +165,7 @@ export async function sendHeartbeat(): Promise<void> {
 
 export async function sendShutdown(): Promise<void> {
   try {
+    getCloudConfig();
     cachedDeviceId ??= loadOrCreateDeviceId();
     await deleteDaemons([cachedDeviceId]);
   } catch {
@@ -240,6 +246,85 @@ function requestText(urlString: string, options: RequestOptions): Promise<TextRe
 
     req.end();
   });
+}
+
+export interface PlannotatorWritebackJob {
+  _id: string;
+  localPlanId: string;
+  deviceId?: string;
+  feedback: string;
+  revisedContent?: string;
+  annotations?: PlannotatorFeedbackAnnotation[];
+  source: string;
+  expiresAt: number;
+}
+
+function authHeaders(token: string, contentType = false): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    Connection: 'close',
+    ...(contentType && { 'Content-Type': 'application/json' }),
+  };
+}
+
+export async function fetchPlannotatorWritebacks(limit = 10): Promise<PlannotatorWritebackJob[]> {
+  const { token, convexUrl } = getCloudConfig();
+  cachedDeviceId ??= loadOrCreateDeviceId();
+  const url = `${convexUrl}/api/cli/plannotator/writebacks?deviceId=${encodeURIComponent(cachedDeviceId)}&limit=${limit}`;
+  let activeToken = token;
+
+  let res = await requestText(url, {
+    method: 'GET',
+    headers: authHeaders(activeToken),
+  });
+
+  if (res.status === 401) {
+    const refreshed = await refreshStoredToken(activeToken, convexUrl);
+    if (refreshed) {
+      activeToken = refreshed;
+      res = await requestText(url, {
+        method: 'GET',
+        headers: authHeaders(activeToken),
+      });
+    }
+  }
+
+  if (res.status === 401) throw new AuthExpiredError();
+  if (res.status < 200 || res.status >= 300) return [];
+
+  const body = JSON.parse(res.body) as { writebacks?: PlannotatorWritebackJob[] };
+  return body.writebacks ?? [];
+}
+
+export async function reportPlannotatorWriteback(
+  writebackId: string,
+  status: 'sent' | 'failed' | 'expired',
+  error?: string,
+): Promise<boolean> {
+  const { token, convexUrl } = getCloudConfig();
+  const url = `${convexUrl}/api/cli/plannotator/writebacks/report`;
+  let activeToken = token;
+  const body = JSON.stringify({ writebackId, status, error });
+
+  let res = await requestText(url, {
+    method: 'POST',
+    headers: authHeaders(activeToken, true),
+    body,
+  });
+
+  if (res.status === 401) {
+    const refreshed = await refreshStoredToken(activeToken, convexUrl);
+    if (refreshed) {
+      activeToken = refreshed;
+      res = await requestText(url, {
+        method: 'POST',
+        headers: authHeaders(activeToken, true),
+        body,
+      });
+    }
+  }
+
+  return res.status >= 200 && res.status < 300;
 }
 
 export interface DeviceInfo {

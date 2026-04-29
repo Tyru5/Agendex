@@ -39,6 +39,7 @@ export {
   getCustomPlanDirs,
   getIndexableById,
   getIndexablePlans,
+  requestChanges,
   rescanFile,
   scan,
   setOnPlansChanged,
@@ -47,5 +48,15 @@ export {
 export { isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
 export { startWatching, stopWatching } from './services/watcher.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
-export type { AgentAdapter, Plan } from './types.ts';
+export type {
+  AgentAdapter,
+  Plan,
+  PlannotatorFeedbackAnnotation,
+  PlannotatorMetadata,
+  PlannotatorMode,
+  PlannotatorPlanAnnotation,
+  PlannotatorReviewAnnotation,
+  PlannotatorStatus,
+  PlannotatorWritebackPayload,
+} from './types.ts';
 export { ProFeature } from './types.ts';

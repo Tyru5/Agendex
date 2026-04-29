@@ -7,27 +7,15 @@ import {
   scan,
   setActiveAdapters,
 } from '@agendex/shared';
-import { type SyncPlanPayload, syncPlan } from './api.ts';
+import { resolveCliAdapterIds } from './adapters.ts';
+import { syncPlan } from './api.ts';
+import { planToSyncPayload } from './payload.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
-
-function planToPayload(plan: ReturnType<typeof getAll>[number]): SyncPlanPayload {
-  return {
-    localPlanId: plan.id,
-    agent: plan.agent,
-    title: plan.title,
-    content: plan.content,
-    format: plan.format,
-    filePath: plan.filePath,
-    workspace: plan.workspace,
-    metadata: plan.metadata,
-    createdAt: plan.createdAt.getTime(),
-    updatedAt: plan.updatedAt.getTime(),
-  };
-}
 
 export async function syncAll(force = false): Promise<void> {
   const config = await loadOrInitConfig();
-  const adapters = resolveAdapters(config.enabledAdapters);
+  const adapterIds = resolveCliAdapterIds(config);
+  const adapters = resolveAdapters(adapterIds);
   setActiveAdapters(adapters);
 
   console.log(`[agendex] Scanning local plans...`);
@@ -54,7 +42,8 @@ export async function syncAll(force = false): Promise<void> {
   for (const plan of [...syncablePlans, ...lowValuePlans]) {
     activePlanIds.add(plan.id);
 
-    const payload = planToPayload(plan);
+    const payload = planToSyncPayload(plan, config.deviceId);
+
     const hash = computePayloadHash(payload);
 
     if (!force && cache[plan.id] === hash) {

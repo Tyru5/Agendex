@@ -44,6 +44,10 @@ import { AcceptInvitePage } from './components/AcceptInvitePage.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
 import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
+import {
+  CloudPlannotatorBadge,
+  CloudPlannotatorWritebackPanel,
+} from './components/CloudPlannotatorPanel.tsx';
 import { CloudPlanUploader } from './components/CloudPlanUploader.tsx';
 import { CloudUpgrade } from './components/CloudUpgrade.tsx';
 import { CommentThread } from './components/CommentThread.tsx';
@@ -322,6 +326,24 @@ function useSidebarPeek(sidebarHidden: boolean, setSidebarPeek: (v: boolean) => 
   return { clear, reveal, scheduleClose };
 }
 
+function PlanHeaderExtra({
+  plan,
+  isPro,
+  mode,
+}: {
+  plan: Plan;
+  isPro: boolean;
+  mode: DashboardMode;
+}) {
+  if (!isPro) return undefined;
+  return (
+    <>
+      <PlanTagsBar planId={plan.id} />
+      {mode === 'cloud' && <CloudPlannotatorBadge plan={plan} />}
+    </>
+  );
+}
+
 function DashboardMain({
   mode,
   isPro,
@@ -458,11 +480,12 @@ function DashboardMain({
             onToggleChart={onToggleChart}
             onHistory={isPro ? onHistory : undefined}
             onShare={isPro ? onShare : undefined}
-            headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
+            headerExtra={<PlanHeaderExtra plan={selectedPlan} isPro={isPro} mode={mode} />}
             chartHidden={chartHidden}
           />
           {isPro && mode === 'cloud' && (
             <div className="mx-auto px-6 pb-16">
+              <CloudPlannotatorWritebackPanel plan={selectedPlan} />
               <CommentThread planId={selectedPlan.id} isOwner />
             </div>
           )}
@@ -475,11 +498,12 @@ function DashboardMain({
             onToggleChart={onToggleChart}
             onHistory={isPro ? onHistory : undefined}
             onShare={isPro ? onShare : undefined}
-            headerExtra={isPro ? <PlanTagsBar planId={splitPlan.id} /> : undefined}
+            headerExtra={<PlanHeaderExtra plan={splitPlan} isPro={isPro} mode={mode} />}
             chartHidden={chartHidden}
           />
           {isPro && mode === 'cloud' && (
             <div className="mx-auto px-6 pb-16">
+              <CloudPlannotatorWritebackPanel plan={splitPlan} />
               <CommentThread planId={splitPlan.id} isOwner />
             </div>
           )}
@@ -566,12 +590,13 @@ function DashboardMain({
               onToggleChart={onToggleChart}
               onHistory={isPro ? onHistory : undefined}
               onShare={isPro ? onShare : undefined}
-              headerExtra={isPro ? <PlanTagsBar planId={selectedPlan.id} /> : undefined}
+              headerExtra={<PlanHeaderExtra plan={selectedPlan} isPro={isPro} mode={mode} />}
               outlineHidden={outlineHidden}
               chartHidden={chartHidden}
             />
             {isPro && mode === 'cloud' && (
               <div className="max-w-[720px] mx-auto px-8 pb-16">
+                <CloudPlannotatorWritebackPanel plan={selectedPlan} />
                 <CommentThread planId={selectedPlan.id} isOwner />
               </div>
             )}

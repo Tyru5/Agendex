@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
 import { getActiveAdapters, setActiveAdapters } from '../adapters/registry.ts';
@@ -7,6 +7,7 @@ import { getConfigDir, saveConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 import {
+  discoverProjectPlanDirs,
   getAgentStats,
   getAll,
   getIndexableById,
@@ -16,7 +17,9 @@ import {
 } from './plan-service.ts';
 
 const originalAdapters = getActiveAdapters();
+const originalCwd = process.cwd();
 const originalEnv: Record<string, string | undefined> = {
+  AGENDEX_CONFIG_DIR: process.env.AGENDEX_CONFIG_DIR,
   AGENDEX_DEV: process.env.AGENDEX_DEV,
   HOME: process.env.HOME,
   USERPROFILE: process.env.USERPROFILE,
@@ -32,21 +35,10 @@ function restoreEnv(name: keyof typeof originalEnv) {
   else process.env[name] = value;
 }
 
-async function useTempHome(prefix: string): Promise<string> {
-  tempHome = await mkdtemp(join(tmpdir(), prefix));
-  const parsedHome = parse(tempHome);
-
-  process.env.AGENDEX_DEV = '1';
-  process.env.HOME = tempHome;
-  process.env.USERPROFILE = tempHome;
-  process.env.HOMEDRIVE = parsedHome.root.slice(0, 2);
-  process.env.HOMEPATH = tempHome.slice(parsedHome.root.length - 1);
-
-  return tempHome;
-}
-
 afterEach(async () => {
   setActiveAdapters(originalAdapters);
+  process.chdir(originalCwd);
+  restoreEnv('AGENDEX_CONFIG_DIR');
   restoreEnv('AGENDEX_DEV');
   restoreEnv('HOME');
   restoreEnv('USERPROFILE');
@@ -59,10 +51,25 @@ afterEach(async () => {
   }
 });
 
+async function useTempHome(prefix: string): Promise<string> {
+  tempHome = await mkdtemp(join(tmpdir(), prefix));
+  const parsedHome = parse(tempHome);
+
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
+  process.env.AGENDEX_DEV = '1';
+  process.env.HOME = tempHome;
+  process.env.USERPROFILE = tempHome;
+  process.env.HOMEDRIVE = parsedHome.root.slice(0, 2);
+  process.env.HOMEPATH = tempHome.slice(parsedHome.root.length - 1);
+
+  return tempHome;
+}
+
 test('scan keeps adapter-parsed plans when a custom dir overlaps a discovered project dir', async () => {
   tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-'));
   const parsedHome = parse(tempHome);
 
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
   process.env.AGENDEX_DEV = '1';
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;
@@ -75,6 +82,8 @@ test('scan keeps adapter-parsed plans when a custom dir overlaps a discovered pr
 
   await mkdir(discoveredDir, { recursive: true });
   await writeFile(planPath, '# Generic title\n\nGeneric content\n', 'utf-8');
+  const canonicalPlanPath = await realpath(planPath);
+  process.chdir(workspaceDir);
 
   saveConfig({
     configVersion: 3,
@@ -101,7 +110,8 @@ test('scan keeps adapter-parsed plans when a custom dir overlaps a discovered pr
     getSearchPaths: () => [],
     getWatchPaths: () => [],
     matches: (filePath) => filePath.endsWith('.md'),
-    parse: async (filePath) => (filePath === planPath ? [adapterPlan] : []),
+    parse: async (filePath) =>
+      (await realpath(filePath)) === canonicalPlanPath ? [adapterPlan] : [],
     write: async () => false,
   };
 
@@ -124,6 +134,7 @@ test('scan keeps adapter-parsed plans when custom dir is a parent of adapter/dis
   tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-parent-'));
   const parsedHome = parse(tempHome);
 
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
   process.env.AGENDEX_DEV = '1';
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;
@@ -136,6 +147,8 @@ test('scan keeps adapter-parsed plans when custom dir is a parent of adapter/dis
 
   await mkdir(discoveredDir, { recursive: true });
   await writeFile(planPath, '# Generic title\n\nGeneric content\n', 'utf-8');
+  const canonicalPlanPath = await realpath(planPath);
+  process.chdir(workspaceDir);
 
   saveConfig({
     configVersion: 3,
@@ -162,7 +175,8 @@ test('scan keeps adapter-parsed plans when custom dir is a parent of adapter/dis
     getSearchPaths: () => [],
     getWatchPaths: () => [],
     matches: (filePath) => filePath.endsWith('.md'),
-    parse: async (filePath) => (filePath === planPath ? [adapterPlan] : []),
+    parse: async (filePath) =>
+      (await realpath(filePath)) === canonicalPlanPath ? [adapterPlan] : [],
     write: async () => false,
   };
 
@@ -185,6 +199,7 @@ test('concurrent getAll during scan sees previous snapshot until scan completes'
   tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-race-'));
   const parsedHome = parse(tempHome);
 
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
   process.env.AGENDEX_DEV = '1';
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;
@@ -234,6 +249,145 @@ test('concurrent getAll during scan sees previous snapshot until scan completes'
   expect(getAll()).toHaveLength(1);
   await second;
   expect(getAll()).toHaveLength(1);
+});
+
+test('rescanFile continues to later matching adapters when an empty adapter does not own the stored plan', async () => {
+  tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-rescan-'));
+  const parsedHome = parse(tempHome);
+
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
+  process.env.AGENDEX_DEV = '1';
+  process.env.HOME = tempHome;
+  process.env.USERPROFILE = tempHome;
+  process.env.HOMEDRIVE = parsedHome.root.slice(0, 2);
+  process.env.HOMEPATH = tempHome.slice(parsedHome.root.length - 1);
+
+  const plansDir = join(tempHome, 'plans');
+  const planPath = join(plansDir, 'p.md');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(planPath, '# T\n\nbody\n', 'utf-8');
+
+  const adapterPlan: Plan = {
+    id: hashPath(planPath),
+    agent: 'second-agent',
+    title: 'T',
+    content: 'body',
+    filePath: planPath,
+    format: 'md',
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    metadata: {},
+  };
+
+  const emptyAdapter: AgentAdapter = {
+    agent: 'first-agent',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath.endsWith('.md'),
+    parse: async () => [],
+    write: async () => false,
+  };
+  const owningAdapter: AgentAdapter = {
+    agent: 'second-agent',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath.endsWith('.md'),
+    parse: async (filePath) => (filePath === planPath ? [adapterPlan] : []),
+    write: async () => false,
+  };
+
+  setActiveAdapters([emptyAdapter, owningAdapter]);
+  await scan();
+  expect(getAll()).toHaveLength(1);
+
+  const rescanned = await rescanFile(planPath);
+
+  expect(rescanned).toHaveLength(1);
+  expect(getAll()).toHaveLength(1);
+  expect(getAll()[0]).toMatchObject({ id: adapterPlan.id, agent: 'second-agent' });
+});
+
+test('rescanFile removes empty results owned by the matching adapter', async () => {
+  tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-rescan-owned-'));
+  const parsedHome = parse(tempHome);
+
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
+  process.env.AGENDEX_DEV = '1';
+  process.env.HOME = tempHome;
+  process.env.USERPROFILE = tempHome;
+  process.env.HOMEDRIVE = parsedHome.root.slice(0, 2);
+  process.env.HOMEPATH = tempHome.slice(parsedHome.root.length - 1);
+
+  const plansDir = join(tempHome, 'plans');
+  const planPath = join(plansDir, 'p.md');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(planPath, '# T\n\nbody\n', 'utf-8');
+
+  const adapterPlan: Plan = {
+    id: hashPath(planPath),
+    agent: 'owned-agent',
+    title: 'T',
+    content: 'body',
+    filePath: planPath,
+    format: 'md',
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    metadata: {},
+  };
+
+  let shouldParse = true;
+  const adapter: AgentAdapter = {
+    agent: 'owned-agent',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath.endsWith('.md'),
+    parse: async (filePath) => (shouldParse && filePath === planPath ? [adapterPlan] : []),
+    write: async () => false,
+  };
+
+  setActiveAdapters([adapter]);
+  await scan();
+  expect(getAll()).toHaveLength(1);
+
+  shouldParse = false;
+  const rescanned = await rescanFile(planPath);
+
+  expect(rescanned).toHaveLength(1);
+  expect(rescanned[0]).toMatchObject({ id: adapterPlan.id, agent: 'owned-agent' });
+  expect(getAll()).toHaveLength(0);
+});
+
+test('discoverProjectPlanDirs keeps the nearest current-project marker when ancestors also match', async () => {
+  tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-nearest-marker-'));
+  const parsedHome = parse(tempHome);
+
+  process.env.AGENDEX_CONFIG_DIR = join(tempHome, '.agendex-dev');
+  process.env.AGENDEX_DEV = '1';
+  process.env.HOME = tempHome;
+  process.env.USERPROFILE = tempHome;
+  process.env.HOMEDRIVE = parsedHome.root.slice(0, 2);
+  process.env.HOMEPATH = tempHome.slice(parsedHome.root.length - 1);
+
+  const workspaceDir = join(tempHome, 'workspace');
+  const projectDir = join(workspaceDir, 'project');
+  const cwd = join(projectDir, 'src');
+  const parentPlansDir = join(workspaceDir, '@plans');
+  const projectPlansDir = join(projectDir, '@plans');
+
+  await mkdir(parentPlansDir, { recursive: true });
+  await mkdir(projectPlansDir, { recursive: true });
+  await mkdir(cwd, { recursive: true });
+  process.chdir(cwd);
+
+  const discovered = discoverProjectPlanDirs()
+    .filter((dir) => dir.agent === 'plannotator')
+    .map((dir) => dir.dir);
+
+  expect(discovered).toContain(await realpath(projectPlansDir));
+  expect(discovered).not.toContain(await realpath(parentPlansDir));
 });
 
 test('scan annotates low-value adapter-derived plans while excluding them from indexable results', async () => {

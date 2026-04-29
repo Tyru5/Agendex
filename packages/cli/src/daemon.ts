@@ -4,10 +4,13 @@ import { fileURLToPath } from 'node:url';
 import {
   CLI_DAEMON_HEARTBEAT_INTERVAL_MS,
   getAll,
+  getById,
   isIndexablePlan,
   isLowValuePlan,
   loadConfig,
   loadOrInitConfig,
+  type Plan,
+  requestChanges,
   resolveAdapters,
   saveConfig,
   scan,
@@ -16,57 +19,46 @@ import {
   startWatching,
   stopWatching,
 } from '@agendex/shared';
+import { resolveCliAdapterIds, shouldEnablePlannotatorSync } from './adapters.ts';
 import {
+  fetchPlannotatorWritebacks,
+  type PlannotatorWritebackJob,
   refreshToken,
+  reportPlannotatorWriteback,
   type SyncPlanPayload,
   sendHeartbeat,
   sendShutdown,
   syncPlan,
 } from './api.ts';
+import { planToSyncPayload } from './payload.ts';
 import { removePid, writePid } from './pid.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
+import {
+  loadPendingWritebackReports,
+  savePendingWritebackReports,
+} from './writeback-delivery-cache.ts';
 
 const MAX_RESTARTS = 5;
 const RESTART_WINDOW_MS = 60_000;
 const RESTART_DELAY_MS = 5_000;
-
-function planToPayload(plan: {
-  id: string;
-  agent: string;
-  title: string;
-  content: string;
-  format: string;
-  filePath: string;
-  workspace?: string;
-  metadata: Record<string, unknown>;
-  createdAt: Date;
-  updatedAt: Date;
-}): SyncPlanPayload {
-  return {
-    localPlanId: plan.id,
-    agent: plan.agent,
-    title: plan.title,
-    content: plan.content,
-    format: plan.format,
-    filePath: plan.filePath,
-    workspace: plan.workspace,
-    metadata: plan.metadata,
-    createdAt: plan.createdAt.getTime(),
-    updatedAt: plan.updatedAt.getTime(),
-  };
-}
+const PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS = 15_000;
+const PLANNOTATOR_WRITEBACK_EXPIRED_ERROR = 'Write-back expired before delivery.';
+const PLANNOTATOR_WRITEBACK_FAILED_ERROR =
+  'No live Plannotator session accepted the request-changes payload.';
 
 export async function runWorker(): Promise<void> {
   const config = await loadOrInitConfig();
-  const adapters = resolveAdapters(config.enabledAdapters);
+  const adapterIds = resolveCliAdapterIds(config);
+  const adapters = resolveAdapters(adapterIds);
   setActiveAdapters(adapters);
 
-  console.log(`[agendex] daemon starting with ${config.enabledAdapters.length} adapters`);
+  console.log(`[agendex] daemon starting with ${adapterIds.length} adapters`);
 
   await sendHeartbeat();
 
   const syncCache = loadSyncCache();
   const syncQueue: SyncPlanPayload[] = [];
+  const pendingWritebackReports = loadPendingWritebackReports();
   let syncing = false;
 
   async function tryRefreshToken(): Promise<boolean> {
@@ -141,6 +133,113 @@ export async function runWorker(): Promise<void> {
     if (syncQueue.length > 0) processSyncQueue();
   }
 
+  function persistPendingWritebackReports(): void {
+    if (!savePendingWritebackReports(pendingWritebackReports)) {
+      console.error('[agendex] failed to persist Plannotator write-back delivery cache');
+    }
+  }
+
+  async function reportPendingWriteback(writebackId: string): Promise<void> {
+    const status = pendingWritebackReports.get(writebackId);
+    if (!status) return;
+
+    const reported = await reportPlannotatorWriteback(
+      writebackId,
+      status,
+      status === 'expired'
+        ? PLANNOTATOR_WRITEBACK_EXPIRED_ERROR
+        : status === 'failed'
+          ? PLANNOTATOR_WRITEBACK_FAILED_ERROR
+          : undefined,
+    );
+    if (reported) {
+      pendingWritebackReports.delete(writebackId);
+      persistPendingWritebackReports();
+    } else {
+      console.error(
+        '[agendex] failed to report write-back status for',
+        writebackId,
+        '- will retry',
+      );
+    }
+  }
+
+  async function handlePlannotatorWriteback(job: PlannotatorWritebackJob): Promise<void> {
+    if (pendingWritebackReports.has(job._id)) {
+      await reportPendingWriteback(job._id);
+      return;
+    }
+
+    if (job.expiresAt <= Date.now()) {
+      pendingWritebackReports.set(job._id, 'expired');
+      persistPendingWritebackReports();
+      await reportPendingWriteback(job._id);
+      return;
+    }
+
+    let localPlan = getById(job.localPlanId);
+    if (!localPlan) {
+      await scan();
+      localPlan = getById(job.localPlanId);
+    }
+
+    // Untargeted jobs may be visible to multiple daemons. If this machine does
+    // not have the live session, leave the job pending so the correct daemon can
+    // claim it before expiry. Targeted jobs should only reach their intended
+    // daemon, so absence after a scan is actionable failure.
+    if (!localPlan) {
+      if (job.deviceId) {
+        pendingWritebackReports.set(job._id, 'failed');
+        persistPendingWritebackReports();
+        await reportPendingWriteback(job._id);
+      }
+      return;
+    }
+
+    const ok = await requestChanges(job.localPlanId, {
+      feedback: job.feedback,
+      revisedContent: job.revisedContent,
+      annotations: job.annotations,
+      source: job.source,
+      writebackId: job._id,
+      requestedAt: Date.now(),
+    });
+
+    if (ok) {
+      const updatedPlan = getById(job.localPlanId);
+      if (updatedPlan) syncQueue.push(planToSyncPayload(updatedPlan, config.deviceId));
+      pendingWritebackReports.set(job._id, 'sent');
+      persistPendingWritebackReports();
+      await reportPendingWriteback(job._id);
+      processSyncQueue();
+      return;
+    }
+
+    pendingWritebackReports.set(job._id, 'failed');
+    persistPendingWritebackReports();
+    await reportPendingWriteback(job._id);
+  }
+
+  let pollingWritebacks = false;
+  async function pollPlannotatorWritebacks(): Promise<void> {
+    if (pollingWritebacks) return;
+    pollingWritebacks = true;
+    try {
+      const jobs = await fetchPlannotatorWritebacks();
+      for (const job of jobs) {
+        await handlePlannotatorWriteback(job);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AuthExpiredError') {
+        console.error('[agendex] session expired. Run `agendex login` to re-authenticate.');
+      } else {
+        console.error('[agendex] Plannotator write-back polling failed:', err);
+      }
+    } finally {
+      pollingWritebacks = false;
+    }
+  }
+
   setOnPlansChanged(() => {});
 
   console.log(`[agendex] initial scan...`);
@@ -154,7 +253,7 @@ export async function runWorker(): Promise<void> {
   let initialQueuedLowValue = 0;
 
   for (const plan of plans) {
-    const payload = planToPayload(plan);
+    const payload = planToSyncPayload(plan, config.deviceId);
     const hash = computePayloadHash(payload);
 
     if (syncCache[plan.id] === hash) {
@@ -185,21 +284,14 @@ export async function runWorker(): Promise<void> {
   await processSyncQueue();
 
   setInterval(() => void sendHeartbeat(), CLI_DAEMON_HEARTBEAT_INTERVAL_MS);
+  if (shouldEnablePlannotatorSync(config)) {
+    setInterval(() => void pollPlannotatorWritebacks(), PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS);
+    void pollPlannotatorWritebacks();
+  }
 
   startWatching((changedPlans) => {
-    for (const plan of changedPlans as Array<{
-      id: string;
-      agent: string;
-      title: string;
-      content: string;
-      format: string;
-      filePath: string;
-      workspace?: string;
-      metadata: Record<string, unknown>;
-      createdAt: Date;
-      updatedAt: Date;
-    }>) {
-      syncQueue.push(planToPayload(plan));
+    for (const plan of changedPlans as Plan[]) {
+      syncQueue.push(planToSyncPayload(plan, config.deviceId));
     }
     processSyncQueue();
   });

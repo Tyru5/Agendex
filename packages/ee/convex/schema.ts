@@ -1,6 +1,50 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+const plannotatorPlanAnnotation = v.object({
+  id: v.optional(v.string()),
+  source: v.optional(v.string()),
+  author: v.optional(v.string()),
+  type: v.union(
+    v.literal('DELETION'),
+    v.literal('REPLACEMENT'),
+    v.literal('INSERTION'),
+    v.literal('COMMENT'),
+    v.literal('GLOBAL_COMMENT'),
+  ),
+  text: v.optional(v.string()),
+  originalText: v.optional(v.string()),
+  replacementText: v.optional(v.string()),
+  insertionText: v.optional(v.string()),
+  blockId: v.optional(v.string()),
+  startOffset: v.optional(v.number()),
+  endOffset: v.optional(v.number()),
+  createdAt: v.optional(v.number()),
+});
+
+const plannotatorReviewAnnotation = v.object({
+  id: v.optional(v.string()),
+  source: v.optional(v.string()),
+  author: v.optional(v.string()),
+  type: v.union(v.literal('comment'), v.literal('suggestion'), v.literal('concern')),
+  scope: v.optional(v.union(v.literal('line'), v.literal('file'))),
+  filePath: v.string(),
+  lineStart: v.number(),
+  lineEnd: v.number(),
+  side: v.optional(v.union(v.literal('old'), v.literal('new'))),
+  text: v.optional(v.string()),
+  suggestedCode: v.optional(v.string()),
+  originalCode: v.optional(v.string()),
+  severity: v.optional(v.string()),
+  reasoning: v.optional(v.string()),
+  createdAt: v.optional(v.number()),
+});
+
+export const plannotatorFeedbackAnnotation = v.union(
+  plannotatorPlanAnnotation,
+  plannotatorReviewAnnotation,
+);
+
 export default defineSchema({
   plans: defineTable({
     ownerId: v.string(),
@@ -214,4 +258,30 @@ export default defineSchema({
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_device', ['ownerId', 'deviceId']),
+
+  plannotatorWritebacks: defineTable({
+    ownerId: v.string(),
+    planId: v.id('plans'),
+    localPlanId: v.string(),
+    deviceId: v.optional(v.string()),
+    feedback: v.string(),
+    revisedContent: v.optional(v.string()),
+    annotations: v.optional(v.array(plannotatorFeedbackAnnotation)),
+    source: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('sent'),
+      v.literal('failed'),
+      v.literal('expired'),
+    ),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    expiresAt: v.number(),
+    sentAt: v.optional(v.number()),
+  })
+    .index('by_owner_status', ['ownerId', 'status'])
+    .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
+    .index('by_owner_device_status', ['ownerId', 'deviceId', 'status'])
+    .index('by_plan', ['planId']),
 });

@@ -1,6 +1,6 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
-import type { Doc } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { httpAction, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent, createAuth } from './auth';
 import { deletePlanRelatedData } from './planDeletion';
@@ -16,10 +16,10 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
 }
 
 async function authenticateRequest(
-  ctx: { runQuery: typeof import('./_generated/server').query extends never ? never : any },
+  ctx: Parameters<typeof createAuth>[0],
   request: Request,
 ): Promise<{ ownerId: string } | Response> {
-  const auth = createAuth(ctx as any);
+  const auth = createAuth(ctx);
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
@@ -453,6 +453,75 @@ export const getDaemonHeartbeats = internalQuery({
       .collect();
     return collectDevices(heartbeats);
   },
+});
+
+export const plannotatorWritebacks = httpAction(async (ctx, request) => {
+  if (request.method !== 'GET') {
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
+
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+  const { ownerId } = authResult;
+
+  const url = new URL(request.url);
+  const deviceId = url.searchParams.get('deviceId') || undefined;
+  const rawLimit = Number.parseInt(url.searchParams.get('limit') ?? '10', 10);
+  const limit = Number.isFinite(rawLimit) ? rawLimit : 10;
+
+  await ctx.runMutation(internal.plannotator.markExpiredWritebacks, {
+    ownerId,
+    now: Date.now(),
+  });
+
+  const writebacks = await ctx.runQuery(internal.plannotator.pollPendingWritebacks, {
+    ownerId,
+    deviceId,
+    limit,
+  });
+
+  return jsonResponse({ writebacks });
+});
+
+export const plannotatorWritebackReport = httpAction(async (ctx, request) => {
+  if (request.method !== 'POST') {
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
+
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+  const { ownerId } = authResult;
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+
+  if (typeof body.writebackId !== 'string') {
+    return jsonResponse({ error: 'writebackId is required' }, 400);
+  }
+  if (body.status !== 'sent' && body.status !== 'failed' && body.status !== 'expired') {
+    return jsonResponse({ error: 'status must be sent, failed, or expired' }, 400);
+  }
+
+  try {
+    await ctx.runMutation(internal.plannotator.reportWritebackStatus, {
+      ownerId,
+      writebackId: body.writebackId as Id<'plannotatorWritebacks'>,
+      status: body.status,
+      error: typeof body.error === 'string' ? body.error : undefined,
+    });
+  } catch (err) {
+    if (err instanceof ConvexError) {
+      const message = typeof err.data === 'string' ? err.data : 'Write-back not found';
+      return jsonResponse({ error: message }, 404);
+    }
+    throw err;
+  }
+
+  return jsonResponse({ ok: true });
 });
 
 export const refresh = httpAction(async (ctx, request) => {
