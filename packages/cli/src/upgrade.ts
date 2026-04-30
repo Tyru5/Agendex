@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,24 +50,70 @@ interface UpgradeCommand {
   display: string;
 }
 
-function buildGlobalInstallCommand(pm: PackageManager): UpgradeCommand {
+type UpgradeCommandResult =
+  | { supported: true; command: UpgradeCommand }
+  | { supported: false; reason: string; manualCommand: string };
+
+function readYarnVersion(): string | null {
+  const result = spawnSync('yarn', ['--version'], {
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  });
+  if (result.error || result.status !== 0) return null;
+  return result.stdout.trim() || null;
+}
+
+function parseMajorVersion(version: string): number | null {
+  const match = version.match(/^(\d+)/);
+  if (!match) return null;
+  const major = Number(match[1]);
+  return Number.isFinite(major) ? major : null;
+}
+
+function buildGlobalInstallCommand(pm: PackageManager): UpgradeCommandResult {
   const pkgSpec = `${PACKAGE_NAME}@latest`;
   switch (pm) {
     case 'bun':
-      return { bin: 'bun', args: ['add', '-g', pkgSpec], display: `bun add -g ${pkgSpec}` };
-    case 'pnpm':
-      return { bin: 'pnpm', args: ['add', '-g', pkgSpec], display: `pnpm add -g ${pkgSpec}` };
-    case 'yarn':
       return {
-        bin: 'yarn',
-        args: ['global', 'add', pkgSpec],
-        display: `yarn global add ${pkgSpec}`,
+        supported: true,
+        command: { bin: 'bun', args: ['add', '-g', pkgSpec], display: `bun add -g ${pkgSpec}` },
       };
+    case 'pnpm':
+      return {
+        supported: true,
+        command: {
+          bin: 'pnpm',
+          args: ['add', '-g', pkgSpec],
+          display: `pnpm add -g ${pkgSpec}`,
+        },
+      };
+    case 'yarn': {
+      const yarnVersion = readYarnVersion();
+      const yarnMajorVersion = yarnVersion ? parseMajorVersion(yarnVersion) : null;
+      if (yarnMajorVersion !== null && yarnMajorVersion >= 2) {
+        return {
+          supported: false,
+          reason: `automatic upgrade with Yarn only supports Yarn Classic (v1); detected Yarn v${yarnVersion}.`,
+          manualCommand: `npm install -g ${pkgSpec}`,
+        };
+      }
+      return {
+        supported: true,
+        command: {
+          bin: 'yarn',
+          args: ['global', 'add', pkgSpec],
+          display: `yarn global add ${pkgSpec}`,
+        },
+      };
+    }
     default:
       return {
-        bin: 'npm',
-        args: ['install', '-g', pkgSpec],
-        display: `npm install -g ${pkgSpec}`,
+        supported: true,
+        command: {
+          bin: 'npm',
+          args: ['install', '-g', pkgSpec],
+          display: `npm install -g ${pkgSpec}`,
+        },
       };
   }
 }
@@ -129,7 +175,15 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
     );
   }
 
-  const cmd = buildGlobalInstallCommand(pm);
+  const commandResult = buildGlobalInstallCommand(pm);
+  if (!commandResult.supported) {
+    process.stderr.write(`[agendex] ${commandResult.reason}\n`);
+    process.stderr.write(
+      `[agendex] install the latest CLI manually, e.g. \`${commandResult.manualCommand}\`.\n`,
+    );
+    return 1;
+  }
+  const cmd = commandResult.command;
 
   if (checked && updateAvailable) {
     process.stdout.write(`[agendex] upgrading: v${current} → v${latest}\n`);
@@ -144,7 +198,9 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
       shell: process.platform === 'win32',
       env: process.env,
     });
+    let didError = false;
     child.on('error', (err) => {
+      didError = true;
       process.stderr.write(
         `[agendex] failed to run ${cmd.bin}: ${err instanceof Error ? err.message : String(err)}\n`,
       );
@@ -152,6 +208,7 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
       resolveExit(1);
     });
     child.on('close', (code) => {
+      if (didError) return;
       if (code === 0) {
         process.stdout.write(`[agendex] upgrade complete.\n`);
         process.stdout.write(

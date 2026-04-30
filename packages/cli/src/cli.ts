@@ -66,6 +66,8 @@ async function main(): Promise<number> {
   if (!isInternal && !isPassthrough) {
     const { checked, updateAvailable, current, latest } = await checkForUpdate();
     if (checked && updateAvailable) {
+      // Intentionally advisory: old clients can still run unless a specific command hits
+      // an explicit server/client compatibility failure.
       writeStderr(`[agendex] update available: v${current} → v${latest}`);
       writeStderr(`[agendex] run: agendex upgrade`);
     }
