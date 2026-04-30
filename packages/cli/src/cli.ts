@@ -19,6 +19,7 @@ import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
 import { syncAll } from './sync.ts';
+import { runUpgrade } from './upgrade.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
 import { openAgendexWeb, openSharedPlan } from './web.ts';
 
@@ -56,17 +57,19 @@ async function main(): Promise<number> {
     'add-dir',
     'remove-dir',
     'list-dirs',
+    'upgrade',
     'help',
     '--help',
     '-h',
   ].includes(command);
 
   if (!isInternal && !isPassthrough) {
-    const { updateAvailable, current, latest } = await checkForUpdate();
-    if (updateAvailable) {
-      writeStderr(`[agendex] update required: v${current} → v${latest}`);
-      writeStderr(`[agendex] run: npm i -g agendex-cli`);
-      return 1;
+    const { checked, updateAvailable, current, latest } = await checkForUpdate();
+    if (checked && updateAvailable) {
+      // Intentionally advisory: old clients can still run unless a specific command hits
+      // an explicit server/client compatibility failure.
+      writeStderr(`[agendex] update available: v${current} → v${latest}`);
+      writeStderr(`[agendex] run: agendex upgrade`);
     }
   }
 
@@ -454,6 +457,10 @@ async function main(): Promise<number> {
       return 0;
     }
 
+    case 'upgrade': {
+      return await runUpgrade({ force: args.includes('--force') });
+    }
+
     case 'help':
     case '--help':
     case '-h': {
@@ -481,6 +488,8 @@ Usage:
   agendex cleanup      Interactively remove cloud daemons
   agendex cleanup --stale  Auto-remove all stale daemons
   agendex status       Show current config state + daemon status
+  agendex upgrade      Upgrade the globally installed CLI to the latest version
+  agendex upgrade --force  Reinstall latest even if already up to date
   agendex help         Show this help message
   agendex --version    Print CLI version
   agendex -v           Print CLI version
