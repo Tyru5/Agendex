@@ -6,9 +6,16 @@ import pkg from '../package.json';
 export const CLI_VERSION: string = pkg.version;
 
 interface UpdateResult {
+  /** True if the latest version was successfully fetched (from network or cache). */
+  checked: boolean;
   updateAvailable: boolean;
   current: string;
   latest: string;
+}
+
+interface CheckForUpdateOptions {
+  /** Bypass the on-disk TTL cache and force a network fetch. */
+  forceRefresh?: boolean;
 }
 
 const CACHE_FILE =
@@ -36,11 +43,13 @@ function writeCache(result: UpdateResult): void {
   }
 }
 
-export async function checkForUpdate(): Promise<UpdateResult> {
+export async function checkForUpdate(options: CheckForUpdateOptions = {}): Promise<UpdateResult> {
   const current = CLI_VERSION;
 
-  const cached = readCache(current);
-  if (cached) return cached;
+  if (!options.forceRefresh) {
+    const cached = readCache(current);
+    if (cached) return cached;
+  }
 
   try {
     const controller = new AbortController();
@@ -51,17 +60,22 @@ export async function checkForUpdate(): Promise<UpdateResult> {
     }).finally(() => clearTimeout(timeout));
 
     if (!res.ok) {
-      return { updateAvailable: false, current, latest: current };
+      return { checked: false, updateAvailable: false, current, latest: current };
     }
 
     const data = (await res.json()) as { version: string };
     const latest = data.version;
 
-    const result: UpdateResult = { updateAvailable: isNewer(latest, current), current, latest };
+    const result: UpdateResult = {
+      checked: true,
+      updateAvailable: isNewer(latest, current),
+      current,
+      latest,
+    };
     writeCache(result);
     return result;
   } catch {
-    return { updateAvailable: false, current, latest: current };
+    return { checked: false, updateAvailable: false, current, latest: current };
   }
 }
 
@@ -69,6 +83,7 @@ function normalizeResult(result: Partial<UpdateResult>, current: string): Update
   if (typeof result.latest !== 'string') return null;
 
   return {
+    checked: true,
     updateAvailable: isNewer(result.latest, current),
     current,
     latest: result.latest,
