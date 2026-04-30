@@ -175,14 +175,16 @@ async function exerciseUpdateCheck(
 
   await writeUpdateCache(cacheFile, { updateAvailable: true, current: '0.0.1', latest: '999.0.0' });
 
-  const blocked = runCli(binary, ['sync'], { cwd, env }, executeDirectly);
-  assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
-  assert.match(blocked.stderr, /update required/);
-  assert.doesNotMatch(blocked.stdout, /Found 1 syncable plans/);
+  // Update model is advisory: the CLI prints the notice but still runs the command.
+  const advised = await withUnreachableConvexUrl(env, () =>
+    runCli(binary, ['sync'], { cwd, env }, executeDirectly),
+  );
+  assert.match(advised.stderr, /update available/, advised.stderr || advised.stdout);
+  assert.match(advised.stdout, /Found 1 syncable plans/, advised.stderr || advised.stdout);
 
   const bypassed = runCli(binary, [bypassCommand], { cwd, env }, executeDirectly);
   assert.equal(bypassed.status, 0, bypassed.stderr || bypassed.stdout);
-  assert.doesNotMatch(bypassed.stderr, /update required/);
+  assert.doesNotMatch(bypassed.stderr, /update available/);
 
   await writeUpdateCache(cacheFile, {
     updateAvailable: true,
@@ -194,7 +196,7 @@ async function exerciseUpdateCheck(
     runCli(binary, ['sync'], { cwd, env }, executeDirectly),
   );
   assert.match(allowed.stdout, /Found 1 syncable plans/);
-  assert.doesNotMatch(allowed.stderr, /update required/);
+  assert.doesNotMatch(allowed.stderr, /update available/);
 }
 
 async function withUnreachableConvexUrl(env, run) {

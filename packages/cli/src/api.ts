@@ -204,6 +204,8 @@ interface TextResponse {
   body: string;
 }
 
+const REQUEST_TIMEOUT_MS = Number.parseInt(process.env.AGENDEX_HTTP_TIMEOUT_MS ?? '', 10) || 10_000;
+
 function requestText(urlString: string, options: RequestOptions): Promise<TextResponse> {
   const url = new URL(urlString);
 
@@ -221,6 +223,7 @@ function requestText(urlString: string, options: RequestOptions): Promise<TextRe
         agent: false,
         headers,
         method: options.method,
+        timeout: REQUEST_TIMEOUT_MS,
       },
       (res) => {
         let body = '';
@@ -239,6 +242,9 @@ function requestText(urlString: string, options: RequestOptions): Promise<TextRe
     );
 
     req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy(new Error(`Request to ${url.host} timed out after ${REQUEST_TIMEOUT_MS}ms`));
+    });
 
     if (options.body) {
       req.write(options.body);
