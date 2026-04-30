@@ -8,7 +8,7 @@ Agendex is a Bun workspaces monorepo:
 
 - `packages/shared` - shared domain logic, types, config, scanning, watcher, setup helpers, and daemon status helpers
 - `packages/app` - OSS local app (`@agendex/app`) with the Hono API and OSS Vite client
-- `packages/web` - shared React/web UI package consumed by the EE app
+- `packages/web` - shared React/web UI package consumed by the OSS and EE apps
 - `packages/ee` - cloud/pro package (`@agendex/ee`) with Convex auth, subscriptions, sharing, comments, and EE dashboard flows
 - `packages/cli` - CLI (`agendex-cli`) for login, sync, daemon, and status workflows
 
@@ -16,31 +16,35 @@ Agendex is a Bun workspaces monorepo:
 
 ### Free (Local OSS)
 
-- Local plan indexing and full-text search
-- Live file watching and WebSocket updates
+- Local plan indexing, full-text search, and automatic low-value plan hiding
+- Live file watching, polling fallback, and WebSocket updates
 - Agent and workspace filtering with read-only plan viewing
 - Local API with token-based auth
-- Adapter selection and rescanning
+- Adapter selection, rescanning, and custom plan source directories
 - No Convex or Stripe required for local-only usage
 
 ### Cloud Pro / EE
 
 - Convex-backed auth and cloud dashboard flows
-- Shareable plan links
-- Comment threads
+- Cloud sync via CLI or daemon, with unchanged-plan caching and low-value pruning
+- Shareable plan links, comment threads, tags, collections, and plan history
+- Workspace members, daemon status/cleanup, and collaboration features
+- Dashboard plan creation, uploads, and editing
+- Pro Plannotator sync and daemon-mediated request-changes write-back
 - Trial and subscription flows
-- Cloud sync via CLI
-- Dashboard plan creation and collaboration features
 
 ## Adapter Status
 
-Agendex currently has **5 implemented adapters**:
+Agendex currently has **6 implemented adapters**:
 
 - `claude-code`
 - `codex`
 - `continue`
 - `cursor`
 - `opencode`
+- `plannotator`
+
+`plannotator` is implemented but not default-enabled in the OSS local app. CLI sync and daemon workflows auto-enable it when a cloud login target is configured; set `AGENDEX_PLANNOTATOR_SYNC=0` to opt out or `AGENDEX_PLANNOTATOR_SYNC=1` to force it on.
 
 The adapter catalog also includes additional non-implemented or stub entries for broader ecosystem coverage.
 
@@ -81,6 +85,25 @@ bun run dev -- --configure-adapters
 bun run --cwd ./packages/app start -- --configure-adapters
 ```
 
+## Custom Plan Sources
+
+Agendex also scans:
+
+- User-created fallback plans in `<config-dir>/plans/`
+- Project-local plan directories discovered as `.sisyphus/plans` and `@plans`
+- User-configured custom plan directories
+
+Manage custom directories from the local app's plan sources dialog, the local API, or the CLI:
+
+```bash
+bun run cli -- add-dir ~/path/to/plans
+bun run cli -- add-dir ~/path/to/plans --live
+bun run cli -- list-dirs
+bun run cli -- remove-dir ~/path/to/plans
+```
+
+`--live` notifies a running local server so it scans and watches the new directory immediately.
+
 ## Useful Commands
 
 From repo root:
@@ -93,15 +116,21 @@ bun run build               # build OSS client bundle
 bun run build:cloud         # build EE client bundle
 
 bun run cli:start           # start cloud sync daemon
-bun run cli:login           # browser login using https://agendex.dev
+bun run cli:login           # browser login using https://app.agendex.dev
 bun run cli:login -- --url https://example.com
 bun run cli:login -- --dev  # login using dev config dir (~/.agendex-dev) + dev default site URL
 bun run cli:open            # open the Agendex web app in your default browser
 bun run cli:open -- --url https://example.com
+bun run cli -- view https://app.agendex.dev/shared/<token>
+bun run cli -- logout       # clear stored cloud token
 bun run cli:configure       # select which agents/adapters to index
 bun run cli:sync            # one-shot cloud sync
+bun run cli:sync -- --force # re-sync all plans, ignoring cache
 bun run cli:stop            # stop daemon
+bun run cli -- cleanup      # interactively remove cloud daemon records
+bun run cli -- cleanup --stale
 bun run cli:status          # print current local/cloud config state
+bun run cli -- upgrade      # upgrade the globally installed CLI
 # Append `-- --dev` to any `cli:*` script to use ~/.agendex-dev (see packages/cli README)
 
 bun run changeset           # create a release note for agendex-cli
@@ -110,15 +139,15 @@ bun run build:cli:release   # generate packages/cli/.release
 bun run pack:cli:dry-run    # inspect the generated npm tarball
 bun run smoke:cli:release   # smoke-test the packed CLI under Node
 
-bun run format              # biome format
-bun run format:check
+bun run fmt                 # biome format
+bun run fmt:check
 bun run lint
 bun run lint:fix
 bun run check
 bun run check:fix
 ```
 
-The published CLI is Node-compatible and can be installed with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev …` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
+The published CLI is Node-compatible and can be installed with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://app.agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev ...` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
 
 ## Local API (OSS)
 
@@ -132,6 +161,9 @@ Key endpoints:
 - `GET /api/v1/plans/:id/raw`
 - `GET /api/v1/agents`
 - `POST /api/v1/rescan`
+- `GET /api/v1/plan-sources`
+- `POST /api/v1/plan-sources` with `{ "path": "/path/to/plans" }`
+- `DELETE /api/v1/plan-sources` with `{ "path": "/path/to/plans" }`
 - `PUT /api/v1/plans/:id` -> returns `403` in OSS (Cloud Pro only)
 - `POST /api/v1/plans` -> returns `403` in OSS (Cloud Pro only)
 
@@ -145,14 +177,17 @@ Local config (from `@agendex/shared`, used by the OSS API and the CLI):
 
 - **Prod (default):** `~/.agendex/config.json`
 - **Dev:** `~/.agendex-dev/config.json` when `AGENDEX_DEV=1` is set in the process environment (the CLI also accepts a `--dev` flag; see [`packages/cli/README.md`](./packages/cli/README.md))
+- **Override:** `AGENDEX_CONFIG_DIR=/custom/path`
 
-The same prod vs dev directory applies to CLI-only files: `daemon.pid` and `sync-cache.json` live next to `config.json` in that folder.
+The same config directory also contains CLI/runtime files such as `daemon.pid`, `sync-cache.json`, `plannotator-writebacks-delivered.json`, and the `plans/` fallback directory.
 
 Config fields:
 
 - `token` (local API auth token)
 - `cloudToken` and `convexUrl` (after CLI login)
+- `deviceId` (cloud daemon identity)
 - `enabledAdapters`
+- `customPlanDirs`
 
 Common environment variables:
 
@@ -160,12 +195,15 @@ Common environment variables:
   - `PORT` (default `4890`)
   - `AGENDEX_TOKEN` (override generated local token)
   - `AGENDEX_DEV=1` (use `~/.agendex-dev/` for shared config; align with `agendex --dev` when running both server and CLI)
+  - `AGENDEX_CONFIG_DIR` (override the config directory)
   - `VITE_ALLOWED_HOSTS` (comma-separated extra Vite allowed hosts)
 - CLI (see `packages/cli/README.md` for full list):
-  - `AGENDEX_DEV=1` or `agendex --dev` — dev config directory and dev default login URL
-  - `AGENDEX_SITE_URL` — override login and `agendex open` site URL
-  - `AGENDEX_DISABLE_BROWSER=1` — skip launching the browser for `login` and `open` (URL is still printed)
-  - `AGENDEX_TOKEN` — override local token read from config
+  - `AGENDEX_DEV=1` or `agendex --dev` - dev config directory and dev default login URL
+  - `AGENDEX_CONFIG_DIR` - override the config directory
+  - `AGENDEX_SITE_URL` - override login and `agendex open` site URL
+  - `AGENDEX_DISABLE_BROWSER=1` - skip launching the browser for `login` and `open` (URL is still printed)
+  - `AGENDEX_TOKEN` - override local token read from config
+  - `AGENDEX_PLANNOTATOR_SYNC=0|1` - disable or force Plannotator sync/write-back polling
 - EE client:
   - `VITE_CONVEX_URL`
   - `VITE_CONVEX_SITE_URL`
