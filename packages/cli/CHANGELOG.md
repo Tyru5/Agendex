@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.16.0
+
+### Minor Changes
+
+- 5bec2b5: upgrade cli option
+
 ## 0.15.0
 
 ### Minor Changes
