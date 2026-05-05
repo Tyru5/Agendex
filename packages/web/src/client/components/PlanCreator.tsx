@@ -151,7 +151,8 @@ export function PlanCreator({
         />
 
         {/* Drag handle */}
-        {/* biome-ignore lint/a11y/noStaticElementInteractions: resize drag handle */}
+        {/* resize drag handle */}
+        {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions */}
         <div
           onMouseDown={handleMouseDown}
           className="w-[5px] cursor-col-resize bg-border shrink-0 transition-[background] duration-[120ms]"

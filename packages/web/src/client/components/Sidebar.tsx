@@ -87,7 +87,8 @@ export function Sidebar({
   }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: hover-reveal sidebar container
+    // hover-reveal sidebar container
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       className="agendex-sidebar flex flex-col overflow-hidden bg-surface min-w-0 origin-top-left"
       onMouseEnter={onMouseEnter}

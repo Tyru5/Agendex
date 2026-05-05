@@ -54,7 +54,7 @@ Changes:
 - [plannotator.ts] bounds expiry sweeps to 200 pending write-backs per poll.
 
 Verification:
-- \`bunx biome check packages/cli/src/daemon.ts packages/ee/convex/plannotator.ts\` passed.
+- \`bun run lint -- packages/cli/src/daemon.ts packages/ee/convex/plannotator.ts\` passed.
 - \`bun test\` passed.
 - Full \`bun run check\` still fails on unrelated diagnostics.
 

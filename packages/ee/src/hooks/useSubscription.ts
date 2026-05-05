@@ -29,33 +29,44 @@ type UseSubscriptionOptions = {
 export function useSubscription(options: UseSubscriptionOptions = {}) {
   const enabled = options.enabled ?? true;
 
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const subscription = useQuery(
-    // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+    // Convex component API not in generated types
+    // oxlint-disable-next-line typescript/no-explicit-any
     (api as any).subscriptions.getMySubscriptionQuery,
     enabled ? {} : 'skip',
   );
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const isProUser = useQuery(
-    // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+    // Convex component API not in generated types
+    // oxlint-disable-next-line typescript/no-explicit-any
     (api as any).subscriptions.isProUser,
     enabled ? {} : 'skip',
   );
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const onboardingDone = useQuery(
-    // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+    // Convex component API not in generated types
+    // oxlint-disable-next-line typescript/no-explicit-any
     (api as any).subscriptions.hasCompletedOnboarding,
     enabled ? {} : 'skip',
   );
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const createCheckout = useAction((api as any).subscriptions.createCheckoutSession);
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const createPortal = useAction((api as any).subscriptions.createPortalSession);
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const reactivate = useAction((api as any).subscriptions.reactivateSubscription);
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const startTrialFn = useAction((api as any).subscriptions.startTrialAction);
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const skipTrialFn = useAction((api as any).subscriptions.skipTrialAction);
 
   const sub = subscription as Subscription | null | undefined;

@@ -48,22 +48,22 @@ In the [Convex dashboard](https://dashboard.convex.dev), configure these variabl
 
 ### Backend and auth
 
-| Variable | Value |
-| --- | --- |
-| `SITE_URL` | Public EE dashboard URL, for example `https://agendex.yourdomain.com` |
-| `CONVEX_SITE_URL` | Convex site URL from `.env.local` |
-| `GITHUB_CLIENT_ID` | GitHub OAuth app client ID |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
-| `BETTER_AUTH_SECRET` | Generate with `openssl rand -base64 32` |
+| Variable               | Value                                                                 |
+| ---------------------- | --------------------------------------------------------------------- |
+| `SITE_URL`             | Public EE dashboard URL, for example `https://agendex.yourdomain.com` |
+| `CONVEX_SITE_URL`      | Convex site URL from `.env.local`                                     |
+| `GITHUB_CLIENT_ID`     | GitHub OAuth app client ID                                            |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret                                        |
+| `BETTER_AUTH_SECRET`   | Generate with `openssl rand -base64 32`                               |
 
 ### Billing
 
-| Variable | Value |
-| --- | --- |
-| `STRIPE_SECRET_KEY` | Stripe secret key for the EE deployment |
-| `STRIPE_WEBHOOK_SECRET` | Webhook secret for `/stripe/webhook` |
-| `STRIPE_MONTHLY_PRICE_ID` | Stripe price ID for monthly plans |
-| `STRIPE_YEARLY_PRICE_ID` | Stripe price ID for yearly plans |
+| Variable                  | Value                                   |
+| ------------------------- | --------------------------------------- |
+| `STRIPE_SECRET_KEY`       | Stripe secret key for the EE deployment |
+| `STRIPE_WEBHOOK_SECRET`   | Webhook secret for `/stripe/webhook`    |
+| `STRIPE_MONTHLY_PRICE_ID` | Stripe price ID for monthly plans       |
+| `STRIPE_YEARLY_PRICE_ID`  | Stripe price ID for yearly plans        |
 
 Stripe is only required once you want checkout, customer portal, or paid subscription renewals. You can defer these while bringing up auth and the EE UI locally, but Cloud Pro usage beyond the built-in trial flow depends on subscription state being configured correctly.
 

@@ -14,7 +14,8 @@ export function useCloudPlans(): {
   }
 
   try {
-    // biome-ignore lint/suspicious/noExplicitAny: Convex query returns untyped documents
+    // Convex query returns untyped documents
+    // oxlint-disable-next-line typescript/no-explicit-any
     const plans: Plan[] = result.map((p: any) => ({
       id: p._id,
       agent: p.agent,

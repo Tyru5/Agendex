@@ -53,7 +53,8 @@ export function buildCustomDirTree(plans: Plan[]): FsTreeNode[] {
       const segments = relative.split('/');
       const fileName = segments.pop() ?? relative;
 
-      // biome-ignore lint/style/noNonNullAssertion: root dir always exists in map
+      // root dir always exists in map
+      // oxlint-disable-next-line typescript/no-non-null-assertion
       let currentDir = dirMap.get('')!;
       let currentPath = '';
 

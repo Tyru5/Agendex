@@ -180,7 +180,8 @@ export function SidebarFilters({
   ];
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: hover reveal has the summary button as a keyboard/click equivalent
+    // hover reveal has the summary button as a keyboard/click equivalent
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions
     <div className="sidebar-filter-card" onMouseEnter={showOnHover} onMouseLeave={hideOnHover}>
       <button
         type="button"

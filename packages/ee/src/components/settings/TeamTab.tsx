@@ -105,14 +105,18 @@ interface TeamTabProps {
 export function TeamTab({ isActive }: TeamTabProps) {
   const [showInvite, setShowInvite] = useState(false);
 
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const workspace = useQuery(
+    // oxlint-disable-next-line typescript/no-explicit-any
     (api as any).workspaceMembers.listWorkspaceMembers,
     isActive ? {} : 'skip',
   );
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const removeMember = useMutation((api as any).workspaceMembers.removeWorkspaceMember);
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const revokeInvite = useMutation((api as any).workspaceMembers.revokeWorkspaceInvite);
 
   if (!isActive) {

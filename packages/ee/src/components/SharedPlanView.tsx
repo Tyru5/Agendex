@@ -191,7 +191,8 @@ export function SharedPlanView({ token }: { token: string }) {
     }
   }, [outlineHidden]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: must reset when navigating to another shared link
+  // must reset when navigating to another shared link
+  // oxlint-disable-next-line react/exhaustive-deps
   useEffect(() => {
     setUnlockedPlan(null);
   }, [token]);

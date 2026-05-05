@@ -139,7 +139,7 @@ bun run build:cli:release   # generate packages/cli/.release
 bun run pack:cli:dry-run    # inspect the generated npm tarball
 bun run smoke:cli:release   # smoke-test the packed CLI under Node
 
-bun run fmt                 # biome format
+bun run fmt                 # oxfmt
 bun run fmt:check
 bun run lint
 bun run lint:fix

@@ -33,7 +33,8 @@ export function SkeletonBlock({ lines = 3 }: { lines?: number }) {
   return (
     <div className="flex flex-col gap-2.5">
       {Array.from({ length: lines }, (_, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton lines never reorder
+        // static skeleton lines never reorder
+        // oxlint-disable-next-line react/no-array-index-key
         <SkeletonLine key={i} width={widths[i % widths.length]} />
       ))}
     </div>

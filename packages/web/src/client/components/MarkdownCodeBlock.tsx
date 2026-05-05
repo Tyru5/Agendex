@@ -250,6 +250,7 @@ export function MarkdownCodeBlock({
     .filter(Boolean)
     .join(' ');
 
-  // biome-ignore lint/security/noDangerouslySetInnerHtml: syntax-highlighted HTML from highlight.js
+  // syntax-highlighted HTML from highlight.js
+  // oxlint-disable-next-line react/no-danger
   return <code className={mergedClassName} dangerouslySetInnerHTML={{ __html: highlightedHtml }} />;
 }

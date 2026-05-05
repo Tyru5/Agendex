@@ -125,7 +125,8 @@ export function PlanUploader({
         <div className="upload-noise" />
 
         <div className="upload-content">
-          {/* biome-ignore lint/a11y/useSemanticElements: dropzone requires div for drag/drop */}
+          {/* dropzone requires div for drag/drop */}
+          {/* oxlint-disable jsx-a11y/prefer-tag-over-role */}
           <div
             role="button"
             tabIndex={0}
@@ -174,6 +175,7 @@ export function PlanUploader({
               className="hidden"
             />
           </div>
+          {/* oxlint-enable jsx-a11y/prefer-tag-over-role */}
 
           {error && <div className="upload-error">{error}</div>}
 

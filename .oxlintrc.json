@@ -1,0 +1,45 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "jsx-a11y"],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2024": true
+  },
+  "globals": {
+    "Bun": "readonly"
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    "**/node_modules/**",
+    "out/**",
+    "dist/**",
+    "**/dist/**",
+    "coverage/**",
+    "packages/cli/.release/**",
+    "**/convex/_generated/**",
+    "packages/ee/**/skills/convex*",
+    "packages/ee/**/skills/convex*/**",
+    "packages/web/src/client/dist/**"
+  ],
+  "rules": {
+    "typescript/no-explicit-any": "warn",
+    "array-callback-return": "warn",
+    "typescript/no-non-null-assertion": "warn",
+    "react/no-danger": "warn",
+    "react/exhaustive-deps": "warn",
+    "react/button-has-type": "warn",
+    "react/no-array-index-key": "warn",
+    "jsx-a11y/no-static-element-interactions": "warn",
+    "jsx-a11y/click-events-have-key-events": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["packages/web/convex/**"],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "typescript/no-non-null-assertion": "off"
+      }
+    }
+  ]
+}

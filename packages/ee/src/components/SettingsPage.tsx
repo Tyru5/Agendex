@@ -43,7 +43,8 @@ export function SettingsPage() {
   const [provider, setProvider] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SettingsTabId>('account');
 
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const deleteAccountAction = useAction((api as any).account.deleteAccount);
   const removeDaemonMutation = useMutation(api.cli.removeDaemon);
 

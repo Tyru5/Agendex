@@ -11,14 +11,17 @@ export function AcceptInvitePage({ token }: { token: string }) {
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const invite = useQuery(
-    // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+    // Convex component API not in generated types
+    // oxlint-disable-next-line typescript/no-explicit-any
     (api as any).workspaceMembers.getWorkspaceInviteByToken,
     { token },
   );
 
-  // biome-ignore lint/suspicious/noExplicitAny: Convex component API not in generated types
+  // Convex component API not in generated types
+  // oxlint-disable-next-line typescript/no-explicit-any
   const acceptInvite = useMutation((api as any).workspaceMembers.acceptWorkspaceInvite);
 
   async function handleAccept() {

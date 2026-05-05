@@ -370,8 +370,10 @@ function MermaidExpandedModal({
           </button>
         </div>
         <div className="flex items-center justify-center p-6 pt-0 plan-mermaid-expanded-svg">
-          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: SVG from Mermaid (trusted renderer) */}
+          {/* SVG from Mermaid (trusted renderer) */}
+          {/* oxlint-disable react/no-danger */}
           <div dangerouslySetInnerHTML={{ __html: svg }} />
+          {/* oxlint-enable react/no-danger */}
         </div>
       </div>
     </div>
@@ -473,7 +475,8 @@ export function MermaidDiagram({
               resolvedTheme={resolvedTheme}
             />
           )}
-          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: SVG from Mermaid (trusted renderer) */}
+          {/* SVG from Mermaid (trusted renderer) */}
+          {/* oxlint-disable react/no-danger */}
           <span
             className="plan-mermaid-svg plan-mermaid-clickable"
             dangerouslySetInnerHTML={{ __html: svg ?? '' }}
@@ -488,6 +491,7 @@ export function MermaidDiagram({
             tabIndex={0}
             aria-label="Click to expand diagram"
           />
+          {/* oxlint-enable react/no-danger */}
         </span>
       </code>
       {expandedModal}

@@ -240,6 +240,8 @@ const TECH_DICTIONARY: TechEntry[] = [
   { canonical: 'PostCSS', aliases: ['postcss'], category: 'tooling', iconSlug: 'postcss' },
   { canonical: 'ESLint', aliases: ['eslint'], category: 'tooling', iconSlug: 'eslint' },
   { canonical: 'Prettier', aliases: ['prettier'], category: 'tooling', iconSlug: 'prettier' },
+  { canonical: 'Oxfmt', aliases: ['oxfmt'], category: 'tooling' },
+  { canonical: 'Oxlint', aliases: ['oxlint'], category: 'tooling' },
   { canonical: 'Biome', aliases: ['biome', 'biomejs'], category: 'tooling' },
   { canonical: 'Docker', aliases: ['docker'], category: 'tooling', iconSlug: 'docker' },
   {

@@ -176,7 +176,7 @@ Agendex can start with current Plannotator CLI session files, but robust Pi/Open
 
 - Run targeted adapter/service tests for Plannotator parsing, typed annotation payloads, and request-changes routing.
 - Run Convex/CLI tests for write-back queue polling and status reporting.
-- Run `bun run check` / Biome checks after implementation.
+- Run `bun run check` / Oxfmt and Oxlint checks after implementation.
 - Verify OSS local app behavior remains unchanged: no Plannotator Pro UI, no OSS request-changes route, and no default Plannotator adapter exposure.
 - Manual Claude Code Pro flow:
   - Start Plannotator plan review from `ExitPlanMode`.

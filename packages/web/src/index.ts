@@ -61,12 +61,7 @@ export {
   getAgentLabel,
 } from './client/lib/agent-colors.ts';
 export type { AgentStats, Plan, PlansResponse } from './client/lib/api.ts';
-export {
-  api,
-  clearToken,
-  hasToken,
-  setToken,
-} from './client/lib/api.ts';
+export { api, clearToken, hasToken, setToken } from './client/lib/api.ts';
 export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
 export type { FolderState, PlanFolder, PlanFolderStore } from './client/lib/plan-folders.ts';
 export { MAX_FOLDERS } from './client/lib/plan-folders.ts';

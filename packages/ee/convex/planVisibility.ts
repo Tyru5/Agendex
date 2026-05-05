@@ -200,7 +200,7 @@ function looksLikeExecutionReport(normalized: string): boolean {
   );
   const hasCommandMarker =
     /::[a-z0-9_-]+(?:\{|\[|\s*$)/im.test(normalized) ||
-    /`[^`]*(?:bun|npm|pnpm|yarn|git|tsc|biome)[^`]*`/i.test(normalized) ||
+    /`[^`]*(?:bun|npm|pnpm|yarn|git|tsc|oxfmt|oxlint|biome)[^`]*`/i.test(normalized) ||
     /\b(?:git\s+(?:stage|commit|push|status)|bunx?\s+|npm\s+|pnpm\s+|yarn\s+)\b/i.test(normalized);
 
   return hasPastCompletion && (hasReportSection || hasReviewReportMarker || hasCommandMarker);
