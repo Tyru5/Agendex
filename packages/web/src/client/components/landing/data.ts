@@ -5,27 +5,27 @@ export { setToken };
 export const FAQ_ITEMS = [
   {
     q: 'What is Agendex?',
-    a: "Agendex indexes the plan/todo files that AI coding agents create (like Claude Code's plan.md) and surfaces them in a single dashboard. Search, comment, share, and track plans across all your agents.",
+    a: 'Agendex indexes the plan and todo files your AI coding agents create, then gives you one place to search, review, comment, share, and track follow-up.',
   },
   {
     q: 'Which agents are supported?',
-    a: 'Claude Code, Cursor, Codex CLI, Windsurf, Amp, Cline, GitHub Copilot, OpenCode, Continue, Aider, Droid, Kilo Code, Roo Code, Goose, Gemini CLI, and more. Adding a new agent is just implementing a single adapter interface.',
+    a: 'Built-in adapters cover Claude Code, Cursor, Codex CLI, Windsurf, Amp, Cline, GitHub Copilot, OpenCode, Continue, Aider, Droid, Kilo Code, Roo Code, Goose, Gemini CLI, and more. Adding another agent means implementing one adapter.',
   },
   {
     q: 'Is my data private?',
-    a: 'With self-hosted, your data never leaves your machine. With Cloud, plans are synced to your account and only accessible to you unless you explicitly share them.',
+    a: 'Self-hosted data stays on your machine. Cloud sync sends plan data to your Agendex account, and nothing becomes public unless you share it.',
   },
   {
     q: 'Can I switch from self-hosted to Cloud later?',
-    a: 'Yes. Install the CLI, run `agendex login`, and start the daemon. Your local plans sync to the cloud automatically — no migration needed.',
+    a: 'Yes. Install the CLI, run `agendex login`, and start the daemon. Your local plans sync to Cloud without a migration step.',
   },
   {
     q: 'Do I need to pay to use Agendex?',
-    a: 'Self-hosted is completely free and open source. Cloud Pro is $7/month ($69/year) and includes cloud sync, sharing, comments, technology dependency charts, new plan tracking, plan creation from the dashboard, workspace collaboration for up to 5 members, and access from any device.',
+    a: 'No. Self-hosted is free and open source. Cloud Pro is $7/month or $69/year for sync, sharing, comments, charts, plan creation, and up to five workspace members.',
   },
   {
     q: 'How does Cloud sync work?',
-    a: 'The CLI daemon watches your local plan files and pushes changes to the cloud in real time. Plans are synced automatically — just run `agendex start`.',
+    a: 'The CLI daemon watches configured plan directories and pushes changes to your account in real time while leaving local files readable on disk.',
   },
 ];
 
@@ -51,7 +51,7 @@ export const LOCAL_STEPS = [
   {
     number: '1',
     title: 'Clone & Install',
-    code: `git clone https://github.com/Tyru5/agendex.git\ncd agendex && bun install`,
+    code: `git clone https://github.com/tiru5/agendex.git\ncd agendex && bun install`,
   },
   {
     number: '2',
@@ -127,25 +127,25 @@ export const FEATURES = [
 ];
 
 export const FREE_FEATURES = [
-  'Local plan indexing & search',
+  'Local plan indexing and search',
   'All agent adapters',
   'Full source access',
-  'No accounts or dependencies',
+  'No account required',
 ];
 
 export const PRO_FEATURES = [
-  'Everything in Self-Hosted',
-  'Cloud sync via CLI daemon',
+  'Everything in Self-hosted',
+  'Cloud sync from the CLI daemon',
   'Shareable plan links',
   'Comment threads',
   'Technology dependency charts',
-  'New plan tracking & indicators',
-  'Plan creation from dashboard',
-  'Up to 5 workspace members',
+  'New plan indicators',
+  'Plan creation from the dashboard',
+  'Up to five workspace members',
   'Access from any device',
 ];
 
 export const MONEY_BACK_GUARANTEE = {
   label: '14-day money-back guarantee',
-  body: "If Cloud Pro is not a fit for your workflow in the first 14 days, I'll give you a full refund. No questions asked.",
+  body: 'If Cloud Pro is not a fit in your first 14 days, you get a full refund. No questions asked.',
 } as const;

@@ -114,7 +114,7 @@ export function PlanViewer({
             )}
           </div>
 
-          <h1 className="text-[26px] font-semibold tracking-[-0.03em] leading-[1.25] text-text mb-3">
+          <h1 className="text-[26px] font-semibold tracking-[0] leading-[1.25] text-text mb-3">
             {plan.title}
           </h1>
 
@@ -128,7 +128,7 @@ export function PlanViewer({
               {plan.format.toUpperCase()}
             </span>
             <span
-              className="text-[11px] px-[7px] py-[2px] rounded-[5px] bg-[rgba(100,116,139,0.1)] text-[#64748b]"
+              className="plan-readonly-badge text-[11px] px-[7px] py-[2px] rounded-[5px]"
               style={{ fontWeight: 550 }}
             >
               Read-only
@@ -142,8 +142,8 @@ export function PlanViewer({
               type="button"
               onClick={handleCopy}
               title={copied ? 'Copied!' : 'Copy plan'}
-              className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent cursor-pointer transition-colors duration-200"
-              style={{ color: copied ? '#16a34a' : 'var(--secondary)' }}
+              className="plan-action-button"
+              style={{ color: copied ? 'var(--success)' : 'var(--secondary)' }}
             >
               <span className="relative flex items-center justify-center w-[13px] h-[13px]">
                 <span
@@ -172,7 +172,7 @@ export function PlanViewer({
                 type="button"
                 onClick={onEdit}
                 title="Edit plan"
-                className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+                className="plan-action-button"
               >
                 <EditIcon />
                 Edit
@@ -183,7 +183,7 @@ export function PlanViewer({
                 type="button"
                 onClick={onShare}
                 title="Share plan"
-                className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+                className="plan-action-button"
               >
                 <ShareIcon />
                 Share
@@ -194,7 +194,7 @@ export function PlanViewer({
                 type="button"
                 onClick={onHistory}
                 title="Version history"
-                className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+                className="plan-action-button"
               >
                 <HistoryIcon />
                 History
@@ -205,7 +205,7 @@ export function PlanViewer({
                 type="button"
                 onClick={onToggleChart}
                 title={chartHidden ? 'Show tech chart (⇧⌘G)' : 'Hide tech chart (⇧⌘G)'}
-                className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+                className="plan-action-button"
               >
                 <ChartIcon />
                 {chartHidden ? 'Show Chart' : 'Hide Chart'}
@@ -215,7 +215,7 @@ export function PlanViewer({
               type="button"
               onClick={() => fullscreen.toggle()}
               title={fullscreen.isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-              className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border bg-transparent text-secondary cursor-pointer"
+              className="plan-action-button"
             >
               {fullscreen.isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
               {fullscreen.isFullscreen ? 'Exit' : 'Fullscreen'}
@@ -314,7 +314,7 @@ function CopyPathButton({ path }: { path: string }) {
         <CopyIcon />
       </span>
       <span
-        className="absolute flex text-[#16a34a] transition-[opacity,transform] duration-200 ease-in-out"
+        className="absolute flex text-[var(--success)] transition-[opacity,transform] duration-200 ease-in-out"
         style={{
           opacity: copied ? 1 : 0,
           transform: copied ? 'scale(1)' : 'scale(0.5)',
@@ -350,7 +350,7 @@ function ScrollToTop() {
       type="button"
       onClick={scrollToTop}
       aria-label="Scroll to top"
-      className="scroll-to-top fixed bottom-7 right-7 w-[38px] h-[38px] rounded-[10px] border border-border bg-surface text-secondary cursor-pointer flex items-center justify-center shadow-[0_2px_12px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.02)] z-50 transition-[opacity,transform,border-color,background] duration-200"
+      className="scroll-to-top fixed bottom-7 right-7 w-[38px] h-[38px] rounded-[10px] border border-border bg-surface text-secondary cursor-pointer flex items-center justify-center shadow-[0_2px_12px_rgba(0,0,0,0.08),0_0_0_1px_rgba(0,0,0,0.02)] z-50 transition-[opacity,transform,border-color,background-color] duration-200"
       data-visible={visible}
       style={{
         opacity: visible ? 1 : 0,

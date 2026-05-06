@@ -30,7 +30,7 @@ export function StatusPopover({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-xs text-tertiary hover:text-secondary transition-colors duration-150 cursor-pointer"
+        className="agendex-topbar-button flex items-center gap-1.5 text-xs rounded-lg border border-transparent px-2 py-1.5 cursor-pointer"
       >
         <span
           className="size-1.5 rounded-full status-pulse shadow-[0_0_0_2px_var(--surface)]"
@@ -56,7 +56,7 @@ export function StatusPopover({
 
       {open && (
         <div
-          className="absolute top-full right-0 mt-2 bg-surface border border-border rounded-default min-w-[180px] z-[1000] p-3 flex flex-col gap-2.5"
+          className="agendex-popover absolute top-full right-0 mt-2 rounded-default min-w-[180px] z-[1000] p-3 flex flex-col gap-2.5"
           style={{
             animation: 'statusPopoverIn 150ms ease-out',
           }}

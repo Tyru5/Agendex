@@ -76,14 +76,14 @@ function computeDiff(oldText: string, newText: string): DiffLine[] {
 
 const lineStyles: Record<DiffLine['type'], React.CSSProperties> = {
   added: {
-    background: 'rgba(34,197,94,0.10)',
-    color: '#16a34a',
+    background: 'color-mix(in oklch, var(--success) 12%, transparent)',
+    color: 'var(--success)',
   },
   removed: {
-    background: 'rgba(239,68,68,0.10)',
-    color: '#ef4444',
+    background: 'color-mix(in oklch, var(--danger) 12%, transparent)',
+    color: 'var(--danger)',
     textDecoration: 'line-through',
-    textDecorationColor: 'rgba(239,68,68,0.3)',
+    textDecorationColor: 'color-mix(in oklch, var(--danger) 34%, transparent)',
   },
   unchanged: {
     color: 'var(--tertiary)',

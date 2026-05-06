@@ -247,7 +247,7 @@ export function LandingMascot({ greetings, onActivate, triggerElementId }: Landi
       }}
     >
       <span
-        className="relative whitespace-nowrap rounded-full border px-4 py-2 text-[13px] font-medium tracking-[-0.01em] text-white shadow-[0_18px_42px_rgba(0,0,0,0.38)]"
+        className="relative whitespace-nowrap rounded-full border px-4 py-2 text-[13px] font-medium tracking-[0] text-white shadow-[0_18px_42px_rgba(0,0,0,0.38)]"
         style={{
           background: hovered
             ? 'rgba(24,24,24,0.96)'

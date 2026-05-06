@@ -113,7 +113,7 @@ export function Sidebar({
         pointerEvents: sidebarVisible ? 'auto' : 'none',
         boxShadow: sidebarPeekOpen ? '0 18px 40px rgba(0,0,0,0.20)' : 'none',
         transition: sidebarHidden
-          ? 'transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease'
+          ? 'transform 250ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease'
           : 'opacity 120ms ease',
       }}
     >
@@ -140,7 +140,7 @@ export function Sidebar({
             <SkeletonBlock lines={5} />
           </div>
         ) : error ? (
-          <div className="p-4 text-[13px] text-[#ef4444]">Failed to load plans.</div>
+          <div className="p-4 text-[13px] text-[var(--danger)]">Failed to load plans.</div>
         ) : (
           <PlanList
             plans={filteredPlans}

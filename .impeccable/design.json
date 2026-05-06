@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-05T09:58:12-06:00",
+  "title": "Design System: Agendex",
+  "extensions": {
+    "northStar": "The Agent Plan Room",
+    "visualReferences": [
+      {
+        "name": "Supplied Amp reference set",
+        "takeaways": [
+          "Deep green-black editorial field",
+          "Ivory text on dark tinted surfaces",
+          "Fine column grid and hairline separators",
+          "Sparse lime and orange accent moments",
+          "Dense cards and rows with calm negative space",
+          "Editorial display scale reserved for brand surfaces"
+        ],
+        "translation": "Borrow structure, atmosphere, and restraint. Do not copy Amp branding or move marketing composition into the product dashboard."
+      }
+    ],
+    "colorMeta": {
+      "deep-grid-bg": {
+        "role": "neutral",
+        "displayName": "Deep Grid Background",
+        "canonical": "#041f1d",
+        "tonalRamp": ["#031615", "#041f1d", "#082724", "#102f2b"]
+      },
+      "ivory-text": {
+        "role": "neutral",
+        "displayName": "Ivory Text",
+        "canonical": "#eef4e8",
+        "tonalRamp": ["#879891", "#b7c4bc", "#eef4e8", "#f7f9f3"]
+      },
+      "acid-lime": {
+        "role": "primary",
+        "displayName": "Acid Lime",
+        "canonical": "#c8ff32",
+        "tonalRamp": ["#31420a", "#6e9813", "#c8ff32", "#e5ff94"]
+      },
+      "signal-orange": {
+        "role": "secondary",
+        "displayName": "Signal Orange",
+        "canonical": "#ff7a2f",
+        "tonalRamp": ["#4f1f0b", "#a34314", "#ff7a2f", "#ffb587"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Editorial Display",
+        "purpose": "Landing, onboarding, empty states, and public shared-plan page titles only."
+      },
+      "body": {
+        "displayName": "Dense Product Sans",
+        "purpose": "Primary dashboard, plan list, settings, comments, filters, and all repeated product surfaces."
+      },
+      "mono": {
+        "displayName": "Plan Fragment Mono",
+        "purpose": "Code blocks, CLI snippets, plan fragments, paths, and logs."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ambient-popover",
+        "value": "0 18px 40px rgba(0, 0, 0, 0.24)",
+        "purpose": "Menus, command palettes, status popovers, and temporary overlays."
+      },
+      {
+        "name": "accent-lift",
+        "value": "0 10px 26px rgba(200, 255, 50, 0.14)",
+        "purpose": "Primary action hover only."
+      },
+      {
+        "name": "editor-lift",
+        "value": "0 8px 24px rgba(0, 0, 0, 0.18)",
+        "purpose": "Code blocks, markdown preview surfaces, and editor panels."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-quick",
+        "value": "150ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Hover, focus, active, selected, and compact feedback transitions."
+      },
+      {
+        "name": "reveal-medium",
+        "value": "240ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Popover and panel reveal transitions using opacity and transform."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ],
+    "rules": [
+      "Borrow the supplied references for grid, atmosphere, and restraint, not for dashboard composition.",
+      "Keep product controls sans, compact, familiar, and keyboard-first.",
+      "Use lime for primary action and selected state, orange for conversion only.",
+      "Avoid pure black, pure white, gradient text, decorative glass, side-stripe borders, and marketing card grids."
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Rare high-signal action button for primary task completion.",
+      "html": "<button class=\"ds-btn-primary\">Create plan</button>",
+      "css": ".ds-btn-primary { background: #c8ff32; color: #121610; border: 1px solid rgba(200, 255, 50, 0.44); border-radius: 10px; padding: 8px 14px; font: 650 12.5px/1.2 Inter, system-ui, sans-serif; letter-spacing: 0; transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 150ms cubic-bezier(0.22, 1, 0.36, 1), filter 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(200, 255, 50, 0.14); filter: brightness(1.03); }"
+    },
+    {
+      "name": "Plan Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Flat tonal container for plan lists, viewers, comments, and settings regions.",
+      "html": "<section class=\"ds-plan-panel\"><h2>Recent plans</h2></section>",
+      "css": ".ds-plan-panel { background: #082724; color: #eef4e8; border: 1px solid #173d38; border-radius: 14px; padding: 16px; box-shadow: none; } .ds-plan-panel h2 { margin: 0; font: 650 14px/1.35 Inter, system-ui, sans-serif; letter-spacing: 0; }"
+    },
+    {
+      "name": "Metadata Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Compact metadata or filter chip that stays quiet until selected.",
+      "html": "<span class=\"ds-chip\">Codex</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 6px; background: #102f2b; color: #879891; border: 1px solid #173d38; border-radius: 5px; padding: 3px 8px; font: 650 11.5px/1.2 Inter, system-ui, sans-serif; letter-spacing: 0; }"
+    }
+  ]
+}

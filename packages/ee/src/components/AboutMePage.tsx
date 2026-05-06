@@ -5,6 +5,79 @@ import { useLocation } from 'wouter';
 const DINO_SIZE = 84;
 const DINO_FRAMES = 4;
 
+const STORY_SECTIONS = [
+  {
+    number: '01',
+    label: 'Builder',
+    title: 'I build tools for the moments software starts to sprawl.',
+    paragraphs: [
+      'I am an adaptable software engineer who likes turning practical friction into clear, usable interfaces.',
+      'I tend to notice the small decisions in a project: naming, state, layout, and the moment a useful workflow starts feeling harder than it should. Shipping Agendex beyond my own machine is part of that work.',
+    ],
+  },
+  {
+    number: '02',
+    label: 'Origin',
+    title: 'Agendex started as a specific annoyance in agent-heavy coding.',
+    paragraphs: [
+      'Coding agents create a lot of plans, but those plans usually scatter across sessions, folders, and machines. The context is valuable, yet it becomes hard to search, compare, and revisit.',
+      'Agendex gives those plans a proper workspace. You can inspect what agents intended, edit the work, organize it, and keep local files and cloud collaboration connected.',
+    ],
+  },
+  {
+    number: '03',
+    label: 'Direction',
+    title: 'The project is moving toward calmer coordination for agent work.',
+    paragraphs: [
+      'The next version of agent tooling should make intent easier to read, not bury people under another task board. I want Agendex to stay precise, fast, and useful when the amount of agent work grows.',
+      'Contributions, sharp feedback, and real workflow stories are welcome. The best features usually start as a small point of friction someone can describe clearly.',
+    ],
+  },
+];
+
+const PRINCIPLES = [
+  'Plans should stay readable after the fourth agent gets involved.',
+  'Local work should feel connected to cloud collaboration, not replaced by it.',
+  'Polish matters most on the screens people return to every day.',
+];
+
+function BackArrow() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M19 12H5" />
+      <path d="m12 19-7-7 7-7" />
+    </svg>
+  );
+}
+
+function MascotSprite() {
+  return (
+    <span aria-hidden="true" className="about-mascot">
+      <img src={dinoShadow} alt="" className="about-mascot-shadow" />
+      <span
+        className="about-mascot-sprite"
+        style={{
+          width: `${DINO_SIZE}px`,
+          height: `${DINO_SIZE}px`,
+          backgroundImage: `url(${dinoVitaIdleStrip})`,
+          backgroundSize: `${DINO_SIZE * DINO_FRAMES}px ${DINO_SIZE}px`,
+          animation: `about-dino-idle 0.72s steps(${DINO_FRAMES}) infinite`,
+        }}
+      />
+    </span>
+  );
+}
+
 export function AboutMePage() {
   const [, navigate] = useLocation();
 
@@ -13,149 +86,737 @@ export function AboutMePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-[rgba(200,255,50,0.25)]">
+    <div className="about-page">
       <style>{`
         @keyframes about-in {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .about-in { animation: about-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
-        .about-d1 { animation-delay: 60ms; }
-        .about-d2 { animation-delay: 140ms; }
+
         @keyframes about-dino-idle {
           from { background-position: 0 0; }
           to { background-position: -${DINO_SIZE * DINO_FRAMES}px 0; }
         }
+
+        .about-page {
+          --about-bg: oklch(17.5% 0.04 184);
+          --about-bg-deep: oklch(13.5% 0.03 184);
+          --about-surface: oklch(22% 0.043 184);
+          --about-raised: oklch(27% 0.04 184);
+          --about-text: oklch(95% 0.018 127);
+          --about-muted: oklch(68% 0.028 170);
+          --about-faint: oklch(51% 0.028 171);
+          --about-border: color-mix(in oklch, var(--about-text) 13%, transparent);
+          --about-border-strong: color-mix(in oklch, var(--about-text) 21%, transparent);
+          --about-grid: color-mix(in oklch, var(--about-text) 7%, transparent);
+          --about-accent: oklch(90% 0.22 129);
+          --about-accent-soft: color-mix(in oklch, var(--about-accent) 12%, transparent);
+
+          min-height: 100vh;
+          position: relative;
+          overflow-x: clip;
+          background-color: var(--about-bg);
+          background-image:
+            repeating-linear-gradient(
+              to right,
+              transparent 0,
+              transparent calc(25% - 1px),
+              var(--about-grid) calc(25% - 1px),
+              var(--about-grid) 25%
+            ),
+            repeating-linear-gradient(
+              to bottom,
+              transparent 0,
+              transparent 159px,
+              var(--about-grid) 160px
+            );
+          color: var(--about-text);
+          font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+          letter-spacing: 0;
+        }
+
+        .about-page *,
+        .about-page *::before,
+        .about-page *::after {
+          box-sizing: border-box;
+        }
+
+        .about-page::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
+          opacity: 0.04;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' fill='%23041f1d' filter='url(%23n)'/%3E%3C/svg%3E");
+          background-repeat: repeat;
+          background-size: 256px 256px;
+        }
+
+        .about-page::selection {
+          background: color-mix(in oklch, var(--about-accent) 34%, transparent);
+          color: var(--about-text);
+        }
+
+        .about-page a,
+        .about-page button {
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .about-page a:focus-visible,
+        .about-page button:focus-visible {
+          outline: 2px solid color-mix(in oklch, var(--about-accent) 72%, var(--about-text));
+          outline-offset: 3px;
+        }
+
+        .about-shell {
+          position: relative;
+          z-index: 1;
+          width: min(100%, 1180px);
+          margin: 0 auto;
+          padding: 24px 24px 84px;
+        }
+
+        .about-nav {
+          min-height: 42px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          animation: about-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        .about-back {
+          min-height: 38px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          border: 1px solid var(--about-border);
+          border-radius: 8px;
+          background: color-mix(in oklch, var(--about-surface) 72%, transparent);
+          color: var(--about-muted);
+          padding: 0 12px;
+          font: inherit;
+          font-size: 12.5px;
+          font-weight: 700;
+          cursor: pointer;
+          transition:
+            color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+            background 150ms cubic-bezier(0.22, 1, 0.36, 1),
+            border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+            transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .about-back:hover {
+          transform: translateY(-1px);
+          border-color: var(--about-border-strong);
+          background: var(--about-surface);
+          color: var(--about-text);
+        }
+
+        .about-brand {
+          color: var(--about-muted);
+          font-family: Unbounded, Inter, system-ui, sans-serif;
+          font-size: 13px;
+          font-weight: 430;
+          text-decoration: none;
+        }
+
+        .about-brand-dot {
+          color: var(--about-accent);
+        }
+
+        .about-hero {
+          min-height: min(680px, calc(100svh - 112px));
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 320px;
+          align-items: end;
+          gap: 48px;
+          padding: 72px 0 64px;
+          border-bottom: 1px solid var(--about-border);
+          animation: about-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) 70ms both;
+        }
+
+        .about-kicker {
+          display: inline-flex;
+          align-items: center;
+          gap: 9px;
+          color: var(--about-muted);
+          font-size: 11.5px;
+          font-weight: 800;
+        }
+
+        .about-kicker::before {
+          content: "";
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: var(--about-accent);
+          box-shadow: 0 0 16px color-mix(in oklch, var(--about-accent) 45%, transparent);
+        }
+
+        .about-title {
+          max-width: 790px;
+          margin: 22px 0 0;
+          color: var(--about-text);
+          font-family: Unbounded, Inter, system-ui, sans-serif;
+          font-size: 64px;
+          font-weight: 430;
+          line-height: 0.98;
+          letter-spacing: 0;
+        }
+
+        .about-title-link {
+          color: inherit;
+          text-decoration: underline;
+          text-decoration-color: color-mix(in oklch, var(--about-text) 24%, transparent);
+          text-decoration-thickness: 1px;
+          text-underline-offset: 5px;
+          transition:
+            color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+            text-decoration-color 150ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .about-title-link:hover {
+          color: var(--about-accent);
+          text-decoration-color: color-mix(in oklch, var(--about-accent) 52%, transparent);
+        }
+
+        .about-title-dot {
+          color: var(--about-accent);
+        }
+
+        .about-lead {
+          max-width: 620px;
+          margin: 28px 0 0;
+          color: var(--about-muted);
+          font-size: 16px;
+          line-height: 1.75;
+        }
+
+        .about-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 30px;
+        }
+
+        .about-link {
+          min-height: 42px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid var(--about-border);
+          border-radius: 8px;
+          background: color-mix(in oklch, var(--about-surface) 72%, transparent);
+          color: var(--about-text);
+          padding: 0 14px;
+          font-size: 12.5px;
+          font-weight: 800;
+          text-decoration: none;
+          transition:
+            background 150ms cubic-bezier(0.22, 1, 0.36, 1),
+            border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+            transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .about-link:hover {
+          transform: translateY(-1px);
+          border-color: var(--about-border-strong);
+          background: var(--about-surface);
+        }
+
+        .about-link-primary {
+          border-color: color-mix(in oklch, var(--about-accent) 44%, transparent);
+          background: var(--about-accent);
+          color: var(--about-bg-deep);
+        }
+
+        .about-link-primary:hover {
+          border-color: color-mix(in oklch, var(--about-accent) 62%, transparent);
+          background: color-mix(in oklch, var(--about-accent) 92%, var(--about-text));
+        }
+
+        .about-dossier {
+          border: 1px solid var(--about-border);
+          border-radius: 8px;
+          overflow: hidden;
+          background: color-mix(in oklch, var(--about-surface) 82%, transparent);
+          box-shadow: 0 18px 40px color-mix(in oklch, var(--about-bg-deep) 58%, transparent);
+        }
+
+        .about-mascot-stage {
+          min-height: 178px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-bottom: 1px solid var(--about-border);
+          background:
+            linear-gradient(
+              to bottom,
+              color-mix(in oklch, var(--about-raised) 56%, transparent),
+              color-mix(in oklch, var(--about-bg) 74%, transparent)
+            );
+        }
+
+        .about-mascot {
+          position: relative;
+          display: block;
+          width: ${DINO_SIZE}px;
+          height: ${DINO_SIZE}px;
+        }
+
+        .about-mascot-shadow {
+          position: absolute;
+          left: 10px;
+          bottom: -2px;
+          width: 64px;
+          image-rendering: pixelated;
+          opacity: 0.58;
+        }
+
+        .about-mascot-sprite {
+          position: relative;
+          display: block;
+          overflow: hidden;
+          background-repeat: no-repeat;
+          background-position: 0 0;
+          image-rendering: pixelated;
+          filter: drop-shadow(0 14px 24px oklch(12% 0.02 184 / 0.36));
+        }
+
+        .about-dossier-body {
+          padding: 15px;
+        }
+
+        .about-dossier-heading {
+          margin: 0 0 12px;
+          color: var(--about-text);
+          font-size: 13px;
+          font-weight: 800;
+          line-height: 1.25;
+        }
+
+        .about-dossier-row {
+          display: grid;
+          grid-template-columns: 86px minmax(0, 1fr);
+          gap: 12px;
+          border-top: 1px solid var(--about-border);
+          padding: 10px 0;
+        }
+
+        .about-dossier-row:first-of-type {
+          border-top: 0;
+        }
+
+        .about-dossier-term {
+          color: var(--about-faint);
+          font-family: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+          font-size: 11.5px;
+          line-height: 1.5;
+        }
+
+        .about-dossier-value {
+          min-width: 0;
+          color: var(--about-muted);
+          font-size: 12.5px;
+          font-weight: 700;
+          line-height: 1.5;
+        }
+
+        .about-story {
+          display: grid;
+          grid-template-columns: 210px minmax(0, 1fr);
+          gap: 54px;
+          padding: 70px 0 78px;
+          border-bottom: 1px solid var(--about-border);
+        }
+
+        .about-section-label {
+          color: var(--about-faint);
+          font-size: 12px;
+          font-weight: 800;
+          line-height: 1.4;
+        }
+
+        .about-story-list {
+          border-top: 1px solid var(--about-border);
+        }
+
+        .about-story-row {
+          display: grid;
+          grid-template-columns: 64px minmax(0, 1fr);
+          gap: 28px;
+          border-bottom: 1px solid var(--about-border);
+          padding: 34px 0 38px;
+        }
+
+        .about-index {
+          color: color-mix(in oklch, var(--about-accent) 66%, var(--about-muted));
+          font-family: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+          font-size: 12px;
+          font-weight: 800;
+          line-height: 1.7;
+        }
+
+        .about-story-label {
+          margin: 0 0 10px;
+          color: var(--about-faint);
+          font-size: 12px;
+          font-weight: 800;
+          line-height: 1.4;
+        }
+
+        .about-story-title {
+          max-width: 680px;
+          margin: 0;
+          color: var(--about-text);
+          font-size: 25px;
+          font-weight: 760;
+          line-height: 1.22;
+          letter-spacing: 0;
+        }
+
+        .about-story-copy {
+          max-width: 700px;
+          margin: 18px 0 0;
+          color: var(--about-muted);
+          font-size: 15px;
+          line-height: 1.78;
+        }
+
+        .about-story-copy p {
+          margin: 0;
+        }
+
+        .about-story-copy p + p {
+          margin-top: 15px;
+        }
+
+        .about-principles {
+          display: grid;
+          grid-template-columns: 210px minmax(0, 1fr);
+          gap: 54px;
+          padding: 66px 0 74px;
+          border-bottom: 1px solid var(--about-border);
+        }
+
+        .about-principles-title {
+          max-width: 650px;
+          margin: 0 0 22px;
+          color: var(--about-text);
+          font-size: 28px;
+          font-weight: 780;
+          line-height: 1.2;
+        }
+
+        .about-principles-list {
+          margin: 0;
+          padding: 0;
+          border-top: 1px solid var(--about-border);
+          list-style: none;
+        }
+
+        .about-principle {
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr);
+          gap: 18px;
+          align-items: start;
+          border-bottom: 1px solid var(--about-border);
+          padding: 18px 0;
+          color: var(--about-muted);
+          font-size: 14px;
+          font-weight: 650;
+          line-height: 1.6;
+        }
+
+        .about-principle-mark {
+          width: 8px;
+          height: 8px;
+          margin-top: 8px;
+          border-radius: 2px;
+          background: var(--about-accent);
+        }
+
+        .about-footer {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 320px;
+          gap: 48px;
+          padding-top: 40px;
+          color: var(--about-muted);
+        }
+
+        .about-footer-message {
+          max-width: 600px;
+          margin: 0;
+          font-size: 15px;
+          line-height: 1.75;
+        }
+
+        .about-footer-meta {
+          margin: 0;
+          color: var(--about-faint);
+          font-size: 11.5px;
+          line-height: 1.6;
+        }
+
+        .about-footer-meta a {
+          color: var(--about-muted);
+          text-decoration: underline;
+          text-decoration-color: color-mix(in oklch, var(--about-muted) 34%, transparent);
+          text-underline-offset: 3px;
+          transition: color 150ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .about-footer-meta a:hover {
+          color: var(--about-accent);
+        }
+
+        @media (max-width: 980px) {
+          .about-shell {
+            padding-inline: 20px;
+          }
+
+          .about-hero,
+          .about-story,
+          .about-principles,
+          .about-footer {
+            grid-template-columns: 1fr;
+          }
+
+          .about-hero {
+            min-height: 0;
+            gap: 38px;
+            padding-top: 66px;
+          }
+
+          .about-title {
+            font-size: 52px;
+          }
+
+          .about-dossier {
+            max-width: 420px;
+          }
+
+          .about-story,
+          .about-principles {
+            gap: 24px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .about-shell {
+            padding: 18px 16px 62px;
+          }
+
+          .about-nav {
+            align-items: flex-start;
+          }
+
+          .about-brand {
+            padding-top: 10px;
+          }
+
+          .about-hero {
+            padding: 54px 0 48px;
+          }
+
+          .about-title {
+            font-size: 40px;
+            line-height: 1.04;
+          }
+
+          .about-lead {
+            font-size: 14.5px;
+          }
+
+          .about-actions {
+            flex-direction: column;
+          }
+
+          .about-link {
+            width: 100%;
+          }
+
+          .about-dossier {
+            max-width: none;
+          }
+
+          .about-story,
+          .about-principles {
+            padding: 52px 0 58px;
+          }
+
+          .about-story-row {
+            grid-template-columns: 1fr;
+            gap: 10px;
+            padding: 30px 0 34px;
+          }
+
+          .about-story-title {
+            font-size: 22px;
+          }
+
+          .about-principles-title {
+            font-size: 24px;
+          }
+
+          .about-principle {
+            grid-template-columns: 22px minmax(0, 1fr);
+            gap: 14px;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .about-page *,
+          .about-page *::before,
+          .about-page *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            scroll-behavior: auto !important;
+            transition-duration: 0.01ms !important;
+          }
+
+          .about-mascot-sprite {
+            animation: none !important;
+          }
+        }
       `}</style>
 
-      <span aria-hidden="true" className="pointer-events-none fixed right-6 top-6 z-[100]">
-        <img
-          src={dinoShadow}
-          alt=""
-          style={{
-            position: 'absolute',
-            left: '10px',
-            bottom: '-2px',
-            width: '64px',
-            imageRendering: 'pixelated',
-            opacity: 0.6,
-          }}
-        />
-        <span
-          className="block overflow-hidden"
-          style={{
-            width: `${DINO_SIZE}px`,
-            height: `${DINO_SIZE}px`,
-            backgroundImage: `url(${dinoVitaIdleStrip})`,
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: `${DINO_SIZE * DINO_FRAMES}px ${DINO_SIZE}px`,
-            backgroundPosition: '0 0',
-            imageRendering: 'pixelated',
-            filter: 'drop-shadow(0 14px 24px rgba(0,0,0,0.28))',
-            animation: `about-dino-idle 0.72s steps(${DINO_FRAMES}) infinite`,
-          }}
-        />
-      </span>
-
-      <main className="relative mx-auto max-w-[840px] px-6 pb-28 pt-10">
-        <nav className="about-in">
+      <main className="about-shell">
+        <nav className="about-nav" aria-label="About page navigation">
           <button
             type="button"
             onClick={() => startViewTransition(() => navigate('/'))}
-            className="group inline-flex items-center gap-1.5 text-[13px] text-[rgba(255,255,255,0.35)] transition-colors hover:text-white"
+            className="about-back"
           >
-            <span
-              className="inline-block transition-transform duration-150 group-hover:-translate-x-0.5"
-              aria-hidden="true"
-            >
-              ←
-            </span>
-            Back
+            <BackArrow />
+            Back to Agendex
           </button>
+
+          <a className="about-brand" href="/">
+            Agendex<span className="about-brand-dot">.</span>
+          </a>
         </nav>
 
-        <header className="about-in about-d1 mb-20 mt-24">
-          <h1 className="font-[Unbounded,sans-serif] text-[clamp(48px,8vw,86px)] font-normal leading-[0.92] tracking-[-0.05em]">
-            Hi, I&apos;m{' '}
-            <a
-              href="https://tiru5.me"
-              target="_blank"
-              rel="noreferrer"
-              className="underline decoration-[rgba(255,255,255,0.2)] underline-offset-[3px] transition-colors hover:text-[#c8ff32]"
-            >
-              Ti
-            </a>
-            <span className="text-[#c8ff32]">.</span>
-          </h1>
-          <p className="mt-10 max-w-[28rem] text-[17px] leading-[1.9] text-[rgba(255,255,255,0.5)]">
-            This is where I explain the project in my own voice instead of through a product grid!
-            😅
-          </p>
+        <header className="about-hero">
+          <div>
+            <div className="about-kicker">Maintainer note</div>
+
+            <h1 className="about-title">
+              Hi, I&apos;m{' '}
+              <a
+                href="https://tiru5.me"
+                target="_blank"
+                rel="noreferrer"
+                className="about-title-link"
+              >
+                Ti
+              </a>
+              <span className="about-title-dot">.</span>
+            </h1>
+
+            <p className="about-lead">
+              Agendex came from a real workflow problem: coding agents make useful plans, but those
+              plans need a place to stay readable, searchable, and worth returning to.
+            </p>
+
+            <div className="about-actions" aria-label="About Ti links">
+              <a
+                href="https://github.com/tiru5/agendex"
+                target="_blank"
+                rel="noreferrer"
+                className="about-link about-link-primary"
+              >
+                View the project
+              </a>
+              <a href="https://tiru5.me" target="_blank" rel="noreferrer" className="about-link">
+                Visit tiru5.me
+              </a>
+            </div>
+          </div>
+
+          <aside className="about-dossier" aria-label="Project note">
+            <div className="about-mascot-stage">
+              <MascotSprite />
+            </div>
+            <div className="about-dossier-body">
+              <h2 className="about-dossier-heading">Project file</h2>
+              <div className="about-dossier-row">
+                <span className="about-dossier-term">Author</span>
+                <span className="about-dossier-value">Ti, software engineer</span>
+              </div>
+              <div className="about-dossier-row">
+                <span className="about-dossier-term">Focus</span>
+                <span className="about-dossier-value">Agent plans, provenance, collaboration</span>
+              </div>
+              <div className="about-dossier-row">
+                <span className="about-dossier-term">Mood</span>
+                <span className="about-dossier-value">
+                  Calm tool room, sharp edges, low ceremony
+                </span>
+              </div>
+            </div>
+          </aside>
         </header>
 
-        <div className="about-in about-d2">
-          <section className="border-t border-[rgba(255,255,255,0.06)] pb-14 pt-10">
-            <span className="font-mono text-[11px] text-[rgba(255,255,255,0.18)]">01</span>
-            <h2 className="mt-4 text-[clamp(24px,3.2vw,36px)] font-normal leading-[1.3] tracking-[-0.03em] text-[rgba(255,255,255,0.92)]">
-              The person behind this project.
+        <section className="about-story" aria-labelledby="about-story-title">
+          <div>
+            <h2 id="about-story-title" className="about-section-label">
+              The short version
             </h2>
-            <p className="mt-5 max-w-[32rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.48)]">
-              I'm adaptable Software Engineer that loves solving problems with code 🔎. <br />{' '}
-              <br />
-              I'm the type of engineer, and honestly person, that obsessively obssess on evey little
-              aspect of a project. So, the fact that I was able to release an deploy this for others
-              to check out and potentially use is an achievement for sure! <br /> <br />I love
-              working in this ever-changing, dynamic, fast-paced industry and honestly if I'm able
-              to effect even one person with a tool I create that's a win for me!
-            </p>
-          </section>
+          </div>
 
-          <section className="border-t border-[rgba(255,255,255,0.06)] pb-14 pt-10">
-            <span className="font-mono text-[11px] text-[rgba(255,255,255,0.18)]">02</span>
-            <div className="ml-4 mt-6 border-l-[2px] border-[rgba(200,255,50,0.3)] pl-6 sm:ml-8 sm:pl-8">
-              <p className="font-[Unbounded,sans-serif] text-[clamp(22px,3vw,30px)] font-normal leading-[1.35] tracking-[-0.03em] text-[rgba(255,255,255,0.88)]">
-                What felt missing.
-              </p>
-              <p className="mt-5 max-w-[34rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.48)]">
-                I honestly started this project intially to solve a problem/annoyance I was running
-                into in this agentic age of programming. This tool allows you to view, edit, and
-                interact with plans that are created by any and all models/agents. I've found it to
-                be super helpful, and I hope you do to.
-              </p>
-            </div>
-          </section>
+          <div className="about-story-list">
+            {STORY_SECTIONS.map((section) => (
+              <article key={section.number} className="about-story-row">
+                <span className="about-index">{section.number}</span>
+                <div>
+                  <p className="about-story-label">{section.label}</p>
+                  <h3 className="about-story-title">{section.title}</h3>
+                  <div className="about-story-copy">
+                    {section.paragraphs.map((paragraph) => (
+                      <p key={paragraph}>{paragraph}</p>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
 
-          <section className="border-t border-[rgba(255,255,255,0.06)] pb-14 pt-10">
-            <span className="font-mono text-[11px] text-[rgba(200,255,50,0.5)]">04</span>
-            <h2 className="mt-4 font-[Unbounded,sans-serif] text-[clamp(24px,3.2vw,36px)] font-normal leading-[1.3] tracking-[-0.04em] text-white">
-              Where this is heading<span className="text-[#c8ff32]">.</span>
+        <section className="about-principles" aria-labelledby="about-principles-title">
+          <div className="about-section-label">What matters</div>
+
+          <div>
+            <h2 id="about-principles-title" className="about-principles-title">
+              I want this to feel useful before it feels impressive.
             </h2>
-            <p className="mt-5 max-w-[32rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.48)]">
-              Forward! I have so many ideas on cool/helpful features to implement and would love
-              any/all contributions!
-            </p>
-          </section>
-        </div>
 
-        <footer className="border-t border-[rgba(255,255,255,0.06)] pt-10">
-          <p className="max-w-[28rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.38)]">
-            Thanks for checking this project out, I greatly appreciate it! <br /> <br />
-            Never stop being you ❤️
-            <br /> <br />
-            <br /> <br />
-            Onwards and Upwards 🚀
+            <ul className="about-principles-list">
+              {PRINCIPLES.map((principle) => (
+                <li key={principle} className="about-principle">
+                  <span className="about-principle-mark" aria-hidden="true" />
+                  <span>{principle}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <footer className="about-footer">
+          <p className="about-footer-message">
+            Thanks for checking out Agendex. Every issue, contribution, and workflow note helps
+            shape the tool into something more useful for people building with agents.
           </p>
-          <p className="mt-8 text-[11px] text-[rgba(255,255,255,0.2)]">
+
+          <p className="about-footer-meta">
             Mascot sprite by{' '}
-            <a
-              href="https://arks.itch.io/dino-characters"
-              target="_blank"
-              rel="noreferrer"
-              className="underline decoration-[rgba(255,255,255,0.1)] underline-offset-[3px] transition-colors hover:text-[rgba(200,255,50,0.6)]"
-            >
+            <a href="https://arks.itch.io/dino-characters" target="_blank" rel="noreferrer">
               Arks
-            </a>{' '}
-            · CC BY 4.0
+            </a>
+            , CC BY 4.0.
           </p>
         </footer>
       </main>

@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { startViewTransition } from '../lib/view-transition.ts';
 import {
@@ -22,10 +22,8 @@ import {
 import { LandingMascot, type LandingMascotProps } from './landing/LandingMascot.tsx';
 import { NavbarAuth, HeroCta, PricingCta } from './landing/LandingSlots.tsx';
 import type { SlotRenderFn, SlotComponent } from './landing/LandingSlots.tsx';
-import { FAQBackground } from './landing/FAQBackground.tsx';
-import { IconCloud } from './landing/IconCloud.tsx';
 import { TopoNeurons } from './landing/TopoNeurons.tsx';
-import { GitHubIcon, GoogleIcon } from './OAuthIcons.tsx';
+import { GitHubIcon } from './OAuthIcons.tsx';
 
 function Spinner({ size = 14, color }: { size?: number; color?: string }) {
   return (
@@ -55,30 +53,11 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
   );
 }
 
-const OPENAI_SVG = `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100" height="100"><path fill="white" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>')}`;
-
-const AGENT_ICON_IMAGES = [
-  'https://cdn.simpleicons.org/claude/ffffff', // Claude Code
-  'https://cdn.simpleicons.org/cursor/ffffff', // Cursor
-  OPENAI_SVG, // Codex (OpenAI)
-  'https://cdn.simpleicons.org/githubcopilot/ffffff', // GitHub Copilot
-  'https://cdn.simpleicons.org/googlegemini/ffffff', // Gemini CLI
-  'https://cdn.simpleicons.org/amp/ffffff', // Amp
-  'https://cdn.simpleicons.org/replit/ffffff', // Replit
-  'https://cdn.simpleicons.org/jetbrains/ffffff', // Junie
-  'https://cdn.simpleicons.org/mistralai/ffffff', // Mistral Vibe
-  'https://cdn.simpleicons.org/neovim/ffffff', // Neovate
-];
-
 const ACCENT = '#c8ff32';
-const BG = '#0a0a0a';
-const SURFACE = '#141414';
-const BORDER = 'rgba(255,255,255,0.06)';
-const TEXT_PRIMARY = '#ffffff';
-const TEXT_SECONDARY = '#999';
-const TEXT_MUTED = '#666';
-const RADIUS = 20;
-const CARD_PAD = 36;
+const BG = '#041f1d';
+const BORDER = 'rgba(238,244,232,0.12)';
+const TEXT_PRIMARY = '#eef4e8';
+const TEXT_MUTED = '#61736b';
 const LANDING_ANCHOR_OFFSET = 96;
 const LANDING_SECTIONS = [
   { id: 'features', label: 'Features' },
@@ -91,335 +70,307 @@ export interface LandingPageProps {
   mascot?: LandingMascotProps;
 }
 
-const BENTO_MAP: { colSpan: number; rowSpan: number }[] = [
-  { colSpan: 2, rowSpan: 1 }, // Instant Indexing
-  { colSpan: 1, rowSpan: 1 }, // Share Plans
-  { colSpan: 1, rowSpan: 1 }, // Comments
-  { colSpan: 1, rowSpan: 1 }, // Cloud Sync
-  { colSpan: 1, rowSpan: 1 }, // Fuzzy Search
-  { colSpan: 2, rowSpan: 1 }, // Adapter System
-  { colSpan: 1, rowSpan: 1 }, // Tech Charts
-  { colSpan: 1, rowSpan: 1 }, // New Plan Tracking
-  { colSpan: 2, rowSpan: 1 }, // Plan Creation
-];
+const DEMO_PLAN_ROWS = [
+  {
+    agent: 'Claude Code',
+    title: 'checkout-refactor.plan.md',
+    path: '~/work/storefront/.claude/plans',
+    status: 'Indexed 14s ago',
+  },
+  {
+    agent: 'Codex',
+    title: 'rate-limit-rollout.md',
+    path: '~/work/api/.codex/tasks',
+    status: '2 comments',
+  },
+  {
+    agent: 'Cursor',
+    title: 'billing-ui-followup.md',
+    path: '~/work/app/.cursor/plans',
+    status: 'Shared',
+  },
+] as const;
 
-function IndexingViz() {
-  const dots = Array.from({ length: 6 });
-  return (
-    <div className="relative h-20 mt-4">
-      <style>{`
-        @keyframes d3-dot-appear {
-          0% { opacity: 0; transform: scale(0); }
-          50% { opacity: 1; transform: scale(1.2); }
-          100% { opacity: 0.7; transform: scale(1); }
-        }
-        @keyframes d3-line-draw {
-          from { stroke-dashoffset: 60; }
-          to { stroke-dashoffset: 0; }
-        }
-      `}</style>
-      <svg width="100%" height="80" viewBox="0 0 320 80" fill="none">
-        {dots.map((_, i) => {
-          const cx = 30 + i * 56;
-          const cy = 40 + (i % 2 === 0 ? -12 : 12);
-          return (
-            <g key={`dot-${cx}-${cy}`}>
-              {i > 0 && (
-                <line
-                  x1={30 + (i - 1) * 56}
-                  y1={40 + ((i - 1) % 2 === 0 ? -12 : 12)}
-                  x2={cx}
-                  y2={cy}
-                  stroke={ACCENT}
-                  strokeWidth={1.5}
-                  strokeDasharray="60"
-                  opacity={0.3}
-                  style={{
-                    animation: `d3-line-draw 0.6s ${i * 0.3 + 0.2}s ease forwards`,
-                    strokeDashoffset: 60,
-                  }}
-                />
-              )}
-              <circle
-                cx={cx}
-                cy={cy}
-                r={6}
-                fill={ACCENT}
-                opacity={0}
-                style={{
-                  animation: `d3-dot-appear 0.5s ${i * 0.3}s ease forwards`,
-                }}
-              />
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
+const HERO_PROOF_POINTS = [
+  'Local files stay readable',
+  'Search spans every agent',
+  'Cloud review is optional',
+] as const;
 
-function SearchMockup() {
-  return (
-    <div className="mt-4 bg-[rgba(255,255,255,0.04)] rounded-[10px] px-3.5 py-2.5 flex items-center gap-2 text-[13px] text-[#666] font-mono">
-      <span className="opacity-50">{'>'}</span>
-      <span>search plans...</span>
-      <span className="ml-auto text-[11px] bg-[rgba(255,255,255,0.06)] px-1.5 py-0.5 rounded">
-        ⌘K
-      </span>
-    </div>
-  );
-}
+const REVIEW_EVENTS = [
+  { label: 'Source', value: 'line-linked file path' },
+  { label: 'Search', value: 'auth refactor, owner:codex' },
+  { label: 'State', value: 'unseen changes highlighted' },
+] as const;
 
-function CloudIcon() {
-  return (
-    <div className="mt-4 text-center">
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-        <path
-          d="M16 34h16a8 8 0 100-16 1 1 0 01-1-1 9 9 0 00-17.5 1A7 7 0 0016 34z"
-          stroke={ACCENT}
-          strokeWidth={1.5}
-          fill="none"
-          opacity={0.6}
-        />
-        <path
-          d="M24 28v-8m0 0l-3 3m3-3l3 3"
-          stroke={ACCENT}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={0.8}
-        />
-      </svg>
-    </div>
-  );
-}
+const TEAM_EVENTS = [
+  { label: 'Share link', value: 'token scoped to one plan' },
+  { label: 'Thread', value: 'review note on migration step' },
+  { label: 'Sync', value: 'local stays readable on disk' },
+] as const;
 
-function LinkIcon() {
-  return (
-    <div className="mt-4 text-center">
-      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-        <path
-          d="M17 23a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"
-          stroke={ACCENT}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          opacity={0.7}
-        />
-        <path
-          d="M23 17a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.71-1.71"
-          stroke={ACCENT}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          opacity={0.7}
-        />
-      </svg>
-    </div>
-  );
-}
+const PRICING_PATH = [
+  {
+    number: '01',
+    title: 'Start local',
+    body: 'Index plans on your machine with every adapter included.',
+  },
+  {
+    number: '02',
+    title: 'Add sync',
+    body: 'Let the daemon mirror selected plans when work moves devices.',
+  },
+  {
+    number: '03',
+    title: 'Review together',
+    body: 'Use comments, links, and workspace access for team follow-up.',
+  },
+] as const;
 
-function SpeechBubble() {
-  return (
-    <div className="mt-4 text-center">
-      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-        <path
-          d="M8 12a4 4 0 014-4h16a4 4 0 014 4v10a4 4 0 01-4 4H16l-5 4v-4H8V12z"
-          stroke={ACCENT}
-          strokeWidth={1.5}
-          fill="none"
-          opacity={0.6}
-        />
-        <circle cx="15" cy="17" r="1.5" fill={ACCENT} opacity={0.5} />
-        <circle cx="20" cy="17" r="1.5" fill={ACCENT} opacity={0.5} />
-        <circle cx="25" cy="17" r="1.5" fill={ACCENT} opacity={0.5} />
-      </svg>
-    </div>
-  );
-}
+const FAQ_SUPPORT_POINTS = [
+  {
+    label: 'Local first',
+    body: 'Self-hosted works without an account and keeps files on disk.',
+  },
+  {
+    label: 'Cloud later',
+    body: 'Upgrade by signing in and starting the same CLI daemon.',
+  },
+  {
+    label: 'Adapter based',
+    body: 'New agent sources plug into the same plan index model.',
+  },
+] as const;
 
-function AdapterDots() {
-  const names = AGENTS.slice(0, 10);
+function DemoPanel({
+  eyebrow,
+  title,
+  body,
+  children,
+  className = '',
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="mt-4 flex gap-2 flex-wrap items-center">
-      {names.map((name) => (
-        <span
-          key={name}
-          className="text-[11px] font-mono bg-[rgba(200,255,50,0.08)] text-[#c8ff32] px-2.5 py-1 rounded-md border border-[rgba(200,255,50,0.12)]"
-        >
-          {name}
+    <article
+      className={`relative min-w-0 overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_82%,transparent)] p-[22px] before:pointer-events-none before:absolute before:inset-0 before:opacity-45 before:[background-image:linear-gradient(var(--landing-border)_1px,transparent_1px),linear-gradient(90deg,var(--landing-border)_1px,transparent_1px)] before:[background-size:64px_64px] before:[mask-image:linear-gradient(to_bottom,black,transparent_72%)] max-sm:p-[18px] ${className}`}
+    >
+      <div className="relative z-[1] mb-5 flex items-center justify-between gap-3">
+        <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold uppercase text-[var(--landing-accent)]">
+          {eyebrow}
         </span>
-      ))}
-      <span className="text-xs text-[#666]">+{AGENTS.length - 10} more</span>
-    </div>
+      </div>
+      <h3 className="relative z-[1] m-0 max-w-[460px] text-[18px] font-bold leading-[1.22] text-[var(--landing-text)]">
+        {title}
+      </h3>
+      <p className="relative z-[1] mt-2 mb-5 max-w-[520px] text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
+        {body}
+      </p>
+      <div className="relative z-[1]">{children}</div>
+    </article>
   );
 }
 
-function TechNodes() {
+function IndexDemoPanel() {
   return (
-    <div className="mt-4 text-center">
-      <svg width="60" height="60" viewBox="0 0 60 60" fill="none">
-        <circle cx="30" cy="15" r="5" stroke={ACCENT} strokeWidth={1.5} opacity={0.6} />
-        <circle cx="15" cy="45" r="5" stroke={ACCENT} strokeWidth={1.5} opacity={0.6} />
-        <circle cx="45" cy="45" r="5" stroke={ACCENT} strokeWidth={1.5} opacity={0.6} />
-        <line x1="30" y1="20" x2="15" y2="40" stroke={ACCENT} strokeWidth={1} opacity={0.3} />
-        <line x1="30" y1="20" x2="45" y2="40" stroke={ACCENT} strokeWidth={1} opacity={0.3} />
-        <line x1="15" y1="45" x2="45" y2="45" stroke={ACCENT} strokeWidth={1} opacity={0.15} />
-      </svg>
-    </div>
+    <DemoPanel
+      eyebrow="01 / Index"
+      title="Watch every agent plan as it lands."
+      body="Agendex keeps the local source visible, so a plan never becomes detached from the repo and agent that produced it."
+      className="lg:col-span-5"
+    >
+      <div className="flex flex-col gap-2">
+        {DEMO_PLAN_ROWS.map((row) => (
+          <div
+            key={row.title}
+            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-[var(--landing-border)] py-3 first:border-t-0 first:pt-0"
+          >
+            <div className="min-w-0">
+              <div className="truncate text-[13px] font-bold text-[var(--landing-text)]">
+                {row.title}
+              </div>
+              <div className="mt-1 truncate font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] text-[var(--landing-faint)]">
+                {row.path}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[11px] font-bold text-[var(--landing-muted)]">{row.agent}</div>
+              <div className="mt-1 text-[11px] text-[var(--landing-accent)]">{row.status}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 rounded-[7px] border border-[color-mix(in_oklch,var(--landing-accent)_22%,transparent)] bg-[color-mix(in_oklch,var(--landing-accent)_7%,transparent)] px-3 py-2 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11.5px] leading-[1.55] text-[var(--landing-accent)]">
+        daemon: 3 new plans indexed, zero manual refreshes
+      </div>
+    </DemoPanel>
   );
 }
 
-function NotificationDot() {
+function ReviewDemoPanel() {
   return (
-    <div className="mt-4 text-center">
-      <style>{`
-        @keyframes d3-pulse {
-          0%, 100% { opacity: 0.4; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.3); }
-        }
-      `}</style>
-      <div className="relative inline-block">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <rect
-            x="6"
-            y="8"
-            width="28"
-            height="24"
-            rx="4"
-            stroke={ACCENT}
-            strokeWidth={1.5}
-            opacity={0.4}
-          />
-          <line
-            x1="10"
-            y1="16"
-            x2="24"
-            y2="16"
-            stroke="rgba(255,255,255,0.15)"
-            strokeWidth={2}
-            strokeLinecap="round"
-          />
-          <line
-            x1="10"
-            y1="22"
-            x2="20"
-            y2="22"
-            stroke="rgba(255,255,255,0.1)"
-            strokeWidth={2}
-            strokeLinecap="round"
-          />
-        </svg>
+    <DemoPanel
+      eyebrow="02 / Review"
+      title="Search, inspect, and trace the source."
+      body="The plan viewer connects search, markdown, source path, and review state without forcing users back through each agent tool."
+      className="lg:col-span-4"
+    >
+      <div className="rounded-[7px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] p-3">
+        <div className="flex items-center gap-2 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] text-[var(--landing-muted)]">
+          <span className="text-[var(--landing-accent)]">{'>'}</span>
+          <span className="min-w-0 truncate">auth refactor owner:codex</span>
+          <span className="ml-auto rounded border border-[var(--landing-border)] px-[5px] py-0.5 text-[10.5px] text-[var(--landing-faint)]">
+            cmd k
+          </span>
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        {REVIEW_EVENTS.map((event) => (
+          <div
+            key={event.label}
+            className="flex min-h-[42px] items-center justify-between gap-4 border-b border-[var(--landing-border)] pb-2 text-[12.5px] last:border-b-0 last:pb-0"
+          >
+            <span className="font-bold text-[var(--landing-text)]">{event.label}</span>
+            <span className="min-w-0 truncate text-right text-[var(--landing-muted)]">
+              {event.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </DemoPanel>
+  );
+}
+
+function TeamDemoPanel() {
+  return (
+    <DemoPanel
+      eyebrow="03 / Share"
+      title="Add team review only when it earns its place."
+      body="Cloud sync layers links, comments, and workspace access onto the same plans that remain readable locally."
+      className="lg:col-span-3"
+    >
+      <div className="space-y-2">
+        {TEAM_EVENTS.map((event, index) => (
+          <div
+            key={event.label}
+            className="rounded-[7px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_72%,transparent)] p-3"
+          >
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-accent)]">
+              {String(index + 1).padStart(2, '0')}
+              <span className="text-[var(--landing-text)]">{event.label}</span>
+            </div>
+            <div className="mt-1 text-[12.5px] leading-[1.5] text-[var(--landing-muted)]">
+              {event.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    </DemoPanel>
+  );
+}
+
+function CapabilityList() {
+  return (
+    <div className="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-border)] max-lg:grid-cols-2 max-sm:grid-cols-1">
+      {FEATURES.map((feature, index) => (
         <div
-          className="absolute top-1 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#c8ff32]"
-          style={{ animation: 'd3-pulse 2s ease infinite' }}
-        />
-      </div>
+          key={feature.title}
+          className="min-w-0 bg-[color-mix(in_oklch,var(--landing-bg)_91%,transparent)] p-4"
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[var(--landing-accent)]">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <span className="truncate text-[13px] font-bold text-[var(--landing-text)]">
+              {feature.title}
+            </span>
+          </div>
+          <p className="m-0 line-clamp-2 text-[12.5px] leading-[1.55] text-[var(--landing-muted)]">
+            {feature.desc}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }
 
-function EditorMockup() {
-  return (
-    <div className="mt-4 bg-[rgba(255,255,255,0.03)] rounded-[10px] p-4 font-mono text-xs leading-[1.7] text-[#666]">
-      <div>
-        <span className="text-[#c8ff32] opacity-60"># </span>
-        <span className="text-white opacity-70">New Plan</span>
-      </div>
-      <div className="opacity-40">
-        <span className="text-[#c8ff32] opacity-60">- </span>
-        Refactor auth module
-      </div>
-      <div className="opacity-30">
-        <span className="text-[#c8ff32] opacity-60">- </span>
-        Add rate limiting
-      </div>
-      <div
-        className="inline-block w-0.5 h-3.5 bg-[#c8ff32] opacity-60 ml-0.5"
-        style={{ animation: 'd3-pulse 1s ease infinite' }}
-      />
-    </div>
-  );
-}
-
-const CARD_VISUALS: Record<number, () => React.ReactNode> = {
-  0: () => <IndexingViz />,
-  1: () => <LinkIcon />,
-  2: () => <SpeechBubble />,
-  3: () => <CloudIcon />,
-  4: () => <SearchMockup />,
-  5: () => <AdapterDots />,
-  6: () => <TechNodes />,
-  7: () => <NotificationDot />,
-  8: () => <EditorMockup />,
-};
-
-function BentoCard({
-  feature,
-  layout,
-  index,
+function ProductDemoSection({
+  sectionRef,
   inView,
 }: {
-  feature: (typeof FEATURES)[number];
-  layout: (typeof BENTO_MAP)[number];
-  index: number;
-  inView?: boolean;
+  sectionRef: React.RefObject<HTMLElement | null>;
+  inView: boolean;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const delay = index * 0.07;
   return (
-    <div
-      className={`d3-bento-card${inView ? ' d3-bento-active' : ''} relative rounded-[20px] p-px cursor-default`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        gridColumn: `span ${layout.colSpan}`,
-        gridRow: `span ${layout.rowSpan}`,
-        transition: 'transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.4s ease',
-        transform: hovered ? 'translateY(-4px)' : 'none',
-        boxShadow: hovered
-          ? '0 0 30px rgba(200,255,50,0.08), 0 8px 32px rgba(0,0,0,0.4)'
-          : '0 2px 8px rgba(0,0,0,0.2)',
-        opacity: inView ? 1 : 0,
-        animationDelay: `${delay}s`,
-      }}
+    <section
+      id="features"
+      ref={sectionRef}
+      className="relative z-[1] border-b border-[var(--landing-border)] px-[clamp(20px,5vw,88px)] py-[76px] max-sm:px-4 max-sm:py-[58px]"
+      style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
     >
-      <div className="bg-[#0a0a0a] rounded-[19px] p-9 h-full transition-[background] duration-400 overflow-hidden">
-        <div
-          className="w-[42px] h-[42px] rounded-xl border border-[rgba(200,255,50,0.1)] flex items-center justify-center text-lg transition-[background,border-color] duration-300"
-          style={{
-            background: hovered ? 'rgba(200,255,50,0.12)' : 'rgba(200,255,50,0.06)',
-          }}
-        >
-          {feature.icon}
+      <div className="mb-[44px] grid grid-cols-[minmax(160px,0.35fr)_minmax(0,0.65fr)] gap-[clamp(22px,5vw,72px)] max-lg:grid-cols-1 max-lg:gap-5">
+        <div className="flex items-baseline gap-3 self-start max-lg:w-full">
+          <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
+            01
+          </span>
+          <span
+            aria-hidden="true"
+            className="h-px min-w-[28px] flex-1 translate-y-[-3px] bg-[var(--landing-border)] max-lg:hidden"
+          />
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
+            Product flow
+          </span>
         </div>
-        <h3 className="mt-4 mb-2 text-lg font-semibold text-white font-[Inter,-apple-system,system-ui,sans-serif]">
-          {feature.title}
-        </h3>
-        <p className="m-0 text-sm leading-relaxed text-[#999] font-[Inter,-apple-system,system-ui,sans-serif] font-normal">
-          {feature.desc}
+        <h2 className="m-0 max-w-[860px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[clamp(42px,4.8vw,60px)] font-[500] leading-[1.0] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[34px] max-sm:leading-[1.04]">
+          From scattered agent files to reviewed work.
+        </h2>
+        <p className="col-start-2 mt-3 mb-0 max-w-[560px] text-[15px] leading-[1.7] text-[var(--landing-muted)] max-lg:col-start-1 max-lg:mt-0">
+          Watch local plans, find the right thread, then share context with a team when the work
+          needs review.
         </p>
-        {inView && CARD_VISUALS[index]?.()}
       </div>
-    </div>
+
+      <div
+        className={`grid grid-cols-12 gap-3.5 max-lg:grid-cols-1 ${
+          inView ? 'animate-[landing-panel-in_260ms_cubic-bezier(0.22,1,0.36,1)_both]' : ''
+        }`}
+      >
+        <IndexDemoPanel />
+        <ReviewDemoPanel />
+        <TeamDemoPanel />
+      </div>
+
+      <CapabilityList />
+    </section>
   );
 }
 
 function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div className="inline-flex max-w-full flex-wrap justify-center bg-[#141414] border border-[rgba(255,255,255,0.06)] rounded-[30px] p-1 gap-0.5">
+    <div
+      className="col-start-2 inline-flex w-fit max-w-full gap-1 rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] p-1 max-lg:col-start-1"
+      aria-label="Billing cadence"
+    >
       {(['Monthly', 'Yearly'] as const).map((label) => {
         const active = label === 'Yearly' ? yearly : !yearly;
         return (
           <button
             key={label}
+            type="button"
             onClick={() => onChange(label === 'Yearly')}
-            className="px-4 sm:px-5 py-2 rounded-[26px] border-none text-[13px] font-medium font-[Inter,-apple-system,system-ui,sans-serif] cursor-pointer transition-[background,color] duration-200"
-            style={{
-              background: active ? ACCENT : 'transparent',
-              color: active ? '#0a0a0a' : TEXT_SECONDARY,
-            }}
+            className="min-h-[34px] rounded-md border border-transparent bg-transparent px-[13px] text-[12.5px] font-bold leading-[1.2] text-[var(--landing-muted)] data-[active=true]:border-[color-mix(in_oklch,var(--landing-accent)_20%,var(--landing-border))] data-[active=true]:bg-[color-mix(in_oklch,var(--landing-accent)_10%,var(--landing-surface-raised))] data-[active=true]:text-[var(--landing-text)]"
+            data-active={active}
           >
             {label}
-            {label === 'Yearly' && <span className="text-[11px] ml-1 opacity-70">Save 17%</span>}
+            {label === 'Yearly' && (
+              <span className="ml-1.5 text-[11px] font-semibold text-[color-mix(in_oklch,var(--landing-accent)_68%,var(--landing-muted))]">
+                Save 17%
+              </span>
+            )}
           </button>
         );
       })}
@@ -429,6 +380,8 @@ function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: bo
 
 function PricingCard({
   title,
+  eyebrow,
+  summary,
   price,
   period,
   features,
@@ -437,8 +390,11 @@ function PricingCard({
   onCta,
   loading,
   ctaButtons,
+  note,
 }: {
   title: string;
+  eyebrow: string;
+  summary: string;
   price: string;
   period: string;
   features: string[];
@@ -447,67 +403,106 @@ function PricingCard({
   onCta?: () => void;
   loading?: boolean;
   ctaButtons?: React.ReactNode;
+  note?: typeof MONEY_BACK_GUARANTEE;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="flex-1 bg-[#141414] rounded-[20px] p-6 sm:p-8 md:p-10 relative overflow-hidden transition-[transform,border-color] duration-300"
+      className={`relative flex min-h-[430px] flex-col overflow-hidden rounded-[8px] border p-7 transition-[transform,border-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] max-sm:min-h-0 max-sm:p-[22px] ${
+        isPro
+          ? 'border-[color-mix(in_oklch,var(--landing-accent)_18%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-surface)_86%,var(--landing-bg))]'
+          : 'border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_78%,transparent)]'
+      } hover:border-[var(--landing-border-strong)]`}
       style={{
-        border: `1px solid ${isPro ? 'rgba(200,255,50,0.25)' : BORDER}`,
-        transform: hovered ? 'translateY(-2px)' : 'none',
+        transform: hovered ? 'translateY(-1px)' : 'none',
       }}
     >
-      {isPro && (
-        <div
-          className="absolute top-0 left-0 right-0 h-0.5"
-          style={{
-            background: `linear-gradient(90deg, transparent, ${ACCENT}, transparent)`,
-          }}
-        />
-      )}
-      <div
-        className="text-sm font-medium font-[Inter,-apple-system,system-ui,sans-serif] mb-4 uppercase tracking-[1px]"
-        style={{ color: isPro ? ACCENT : TEXT_SECONDARY }}
-      >
-        {title}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div
+            className={`mb-3 text-[11px] font-bold uppercase ${
+              isPro
+                ? 'text-[color-mix(in_oklch,var(--landing-accent)_68%,var(--landing-muted))]'
+                : 'text-[var(--landing-muted)]'
+            }`}
+          >
+            {eyebrow}
+          </div>
+          <h3 className="m-0 text-[20px] font-bold leading-[1.15] text-[var(--landing-text)]">
+            {title}
+          </h3>
+        </div>
+        {isPro && (
+          <div className="shrink-0 rounded-[5px] border border-[color-mix(in_oklch,var(--landing-accent)_22%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_7%,transparent)] px-2 py-1 text-[11px] font-bold uppercase text-[color-mix(in_oklch,var(--landing-accent)_70%,var(--landing-muted))]">
+            Cloud Pro
+          </div>
+        )}
       </div>
-      <div className="flex items-baseline gap-1 mb-2">
-        <span className="text-[40px] sm:text-[44px] md:text-[48px] font-normal text-white font-[Unbounded,sans-serif] tracking-[-0.03em]">
+
+      <p className="mt-4 mb-0 max-w-[430px] text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
+        {summary}
+      </p>
+
+      <div className="mt-8 mb-6 flex items-end gap-2">
+        <span className="font-[Unbounded,Inter,system-ui,sans-serif] text-[48px] font-[430] leading-none text-[var(--landing-text)]">
           {price}
         </span>
         {period && (
-          <span className="text-sm text-[#666] font-[Inter,-apple-system,system-ui,sans-serif]">
-            {period}
-          </span>
+          <span className="text-[14px] font-semibold text-[var(--landing-muted)]">{period}</span>
         )}
       </div>
-      <ul className="list-none p-0 mt-7 mb-9 flex flex-col gap-3">
+
+      <div className="border-t border-[var(--landing-border)] pt-5">
+        <div className="mb-3 text-[11px] font-bold uppercase text-[var(--landing-muted)]">
+          Included
+        </div>
+      </div>
+      <ul
+        className={`m-0 mb-7 flex flex-1 list-none flex-col gap-3 p-0 ${
+          isPro ? 'min-[1120px]:grid min-[1120px]:grid-cols-2 min-[1120px]:gap-x-5' : ''
+        }`}
+      >
         {features.map((f) => (
           <li
             key={f}
-            className="text-sm text-[#999] font-[Inter,-apple-system,system-ui,sans-serif] flex items-center gap-2.5"
+            className="flex items-start gap-2.5 text-[13.5px] leading-[1.5] text-[var(--landing-muted)]"
           >
-            <span className="text-[#c8ff32] text-sm">{'✓'}</span>
+            <span
+              aria-hidden="true"
+              className="font-bold text-[color-mix(in_oklch,var(--landing-accent)_62%,var(--landing-muted))]"
+            >
+              {'✓'}
+            </span>
             {f}
           </li>
         ))}
       </ul>
+      {note && (
+        <div className="mb-4 border-t border-[color-mix(in_oklch,var(--landing-accent)_14%,var(--landing-border))] pt-4">
+          <div className="text-[12px] font-bold text-[var(--landing-text)]">{note.label}</div>
+          <p className="m-0 mt-1 text-[12px] leading-[1.55] text-[var(--landing-muted)]">
+            {note.body}
+          </p>
+        </div>
+      )}
       {ctaButtons || (
         <button
+          type="button"
           disabled={loading}
           onClick={onCta}
-          className="w-full py-3.5 rounded-xl text-[15px] font-semibold font-[Inter,-apple-system,system-ui,sans-serif] flex items-center justify-center gap-2 transition-opacity duration-200"
+          className={`inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[8px] border text-[13px] font-bold leading-[1.2] ${
+            isPro
+              ? 'border-[color-mix(in_oklch,var(--landing-accent)_28%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_11%,var(--landing-surface-raised))] text-[var(--landing-text)]'
+              : 'border-[var(--landing-border)] bg-transparent text-[var(--landing-text)]'
+          }`}
           style={{
-            border: isPro ? 'none' : `1px solid ${BORDER}`,
-            background: isPro ? ACCENT : 'transparent',
-            color: isPro ? '#0a0a0a' : TEXT_PRIMARY,
             cursor: loading ? 'default' : 'pointer',
             opacity: loading ? 0.7 : 1,
           }}
         >
-          {loading && <Spinner size={15} color={isPro ? '#0a0a0a' : undefined} />}
+          {loading && <Spinner size={15} color={isPro ? TEXT_PRIMARY : undefined} />}
           {loading ? 'Redirecting…' : cta}
         </button>
       )}
@@ -515,56 +510,127 @@ function PricingCard({
   );
 }
 
-function GuaranteePanel() {
+function PricingBridge() {
   return (
-    <div className="d3-guarantee-panel mt-4 mb-7 flex flex-col items-center gap-1.5">
-      <div className="text-[13px] font-medium tracking-[-0.01em] text-[rgba(255,255,255,0.82)] text-center">
-        {MONEY_BACK_GUARANTEE.label}
-      </div>
-      <p className="d3-guarantee-copy m-0 max-w-[460px] text-center text-[12.5px] leading-[1.6] text-[#666]">
-        {MONEY_BACK_GUARANTEE.body}
-      </p>
+    <div className="grid max-w-[820px] grid-cols-3 gap-px overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-border)] max-md:grid-cols-1">
+      {PRICING_PATH.map((step) => (
+        <div
+          key={step.number}
+          className="bg-[color-mix(in_oklch,var(--landing-bg)_91%,transparent)] p-3.5"
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[color-mix(in_oklch,var(--landing-accent)_66%,var(--landing-muted))]">
+              {step.number}
+            </span>
+            <span className="text-[12px] font-bold text-[var(--landing-text)]">{step.title}</span>
+          </div>
+          <p className="m-0 text-[12.5px] leading-[1.55] text-[var(--landing-muted)]">
+            {step.body}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }
 
 function LoginModal({
   tokenValue,
+  tokenError,
   onTokenChange,
   onSubmit,
   onClose,
 }: {
   tokenValue: string;
+  tokenError?: string;
   onTokenChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+  const inputId = useId();
+  const hintId = useId();
+  const errorId = useId();
+  const describedBy = tokenError ? `${hintId} ${errorId}` : hintId;
+
+  useEffect(() => {
+    inputRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      onClose();
+      return;
+    }
+
+    if (e.key !== 'Tab') return;
+
+    const focusable = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    );
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) return;
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
   return (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[rgba(0,0,0,0.7)] backdrop-blur-[8px] p-4 sm:p-5"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[color-mix(in_oklch,var(--landing-bg)_82%,transparent)] p-5 backdrop-blur-xl"
       onClick={(e) => {
-        if (e.target === e.currentTarget) startViewTransition(onClose);
+        if (e.target === e.currentTarget) onClose();
       }}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') startViewTransition(onClose);
-      }}
+      onKeyDown={handleKeyDown}
     >
-      <div className="bg-[#141414] border border-[rgba(255,255,255,0.06)] rounded-[20px] p-6 sm:p-8 md:p-10 w-full max-w-[420px]">
-        <h2 className="m-0 mb-2 text-2xl font-semibold text-white font-[Inter,-apple-system,system-ui,sans-serif]">
+      <div
+        ref={dialogRef}
+        className="w-[min(100%,430px)] rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-surface)] p-7 shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_68%,transparent)]"
+      >
+        <h2 id={titleId} className="m-0 mb-2 text-[20px] font-bold text-[var(--landing-text)]">
           Connect to Agendex
         </h2>
-        <p className="m-0 mb-7 text-sm text-[#999] font-[Inter,-apple-system,system-ui,sans-serif] leading-normal">
-          Paste the auth token from your terminal to connect.
+        <p
+          id={descriptionId}
+          className="m-0 mb-6 text-[13.5px] leading-[1.6] text-[var(--landing-muted)]"
+        >
+          Run the local server, copy the token printed in your terminal, then paste it here.
         </p>
-        <form onSubmit={onSubmit}>
+        <form onSubmit={onSubmit} noValidate>
+          <label
+            htmlFor={inputId}
+            className="mb-2 block text-[12px] font-bold text-[var(--landing-text)]"
+          >
+            Auth token
+          </label>
           <input
+            ref={inputRef}
+            id={inputId}
             type="password"
             value={tokenValue}
             onChange={(e) => onTokenChange(e.target.value)}
             placeholder="Paste your token"
-            className="w-full px-4 py-3.5 rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.04)] text-white text-sm font-mono outline-none box-border transition-[border-color] duration-200"
+            required
+            aria-invalid={tokenError ? 'true' : undefined}
+            aria-describedby={describedBy}
+            className="w-full rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] px-3.5 py-[13px] font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[13px] leading-[1.4] text-[var(--landing-text)] outline-none placeholder:text-[var(--landing-faint)]"
             onFocus={(e) => {
               e.currentTarget.style.borderColor = 'rgba(200,255,50,0.4)';
             }}
@@ -572,16 +638,32 @@ function LoginModal({
               e.currentTarget.style.borderColor = BORDER;
             }}
           />
+          <p
+            id={hintId}
+            className="mt-2 mb-0 text-[12px] leading-[1.55] text-[var(--landing-muted)]"
+          >
+            The token is local-only and stored in this browser.
+          </p>
+          {tokenError && (
+            <p
+              id={errorId}
+              role="alert"
+              className="mt-2 mb-0 text-[12px] font-semibold leading-[1.5] text-[color-mix(in_oklch,var(--landing-orange)_82%,var(--landing-text))]"
+            >
+              {tokenError}
+            </p>
+          )}
           <button
             type="submit"
-            className="w-full py-3.5 mt-4 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold font-[Inter,-apple-system,system-ui,sans-serif] cursor-pointer transition-opacity duration-200"
+            className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[8px] border border-[color-mix(in_oklch,var(--landing-accent)_46%,transparent)] bg-[var(--landing-accent)] text-[13px] font-bold text-[var(--landing-bg)]"
           >
             Connect
           </button>
         </form>
         <button
+          type="button"
           onClick={onClose}
-          className="w-full py-3 mt-2 rounded-xl border-none bg-transparent text-[#666] text-sm font-[Inter,-apple-system,system-ui,sans-serif] cursor-pointer"
+          className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-[8px] border border-transparent bg-transparent text-[13px] font-bold text-[var(--landing-muted)]"
         >
           Cancel
         </button>
@@ -602,22 +684,33 @@ function PkgManagerInstall() {
   }
 
   return (
-    <div className="landing-pkg-install">
-      <div className="landing-pkg-tabs">
+    <div className="m-0 bg-[color-mix(in_oklch,var(--landing-bg)_88%,transparent)] p-3">
+      <div className="mb-2.5 flex flex-wrap gap-[5px]">
         {PKG_MANAGERS.map((pm) => (
           <button
             key={pm.id}
             type="button"
-            className={`landing-pkg-tab ${activePkg === pm.id ? 'landing-pkg-tab-active' : ''}`}
+            className={`min-h-7 rounded-[5px] border-0 px-[9px] font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-semibold leading-none ${
+              activePkg === pm.id
+                ? 'bg-[color-mix(in_oklch,var(--landing-accent)_14%,transparent)] text-[var(--landing-accent)]'
+                : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
+            }`}
             onClick={() => setActivePkg(pm.id)}
           >
             {pm.label}
           </button>
         ))}
       </div>
-      <div className="landing-pkg-cmd">
-        <code>{cmd}</code>
-        <button type="button" className="landing-pkg-copy" onClick={copy} aria-label="Copy command">
+      <div className="flex items-center gap-2.5">
+        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12.5px] leading-[1.6] text-[var(--landing-accent)]">
+          {cmd}
+        </code>
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--landing-border)] bg-transparent text-[var(--landing-muted)] hover:border-[var(--landing-border-strong)] hover:text-[var(--landing-text)]"
+          onClick={copy}
+          aria-label="Copy command"
+        >
           {copied ? (
             <svg
               aria-hidden="true"
@@ -658,14 +751,17 @@ function StepsList({ steps }: { steps: typeof LOCAL_STEPS | typeof CLOUD_STEPS }
   return (
     <>
       {steps.map((step) => (
-        <div key={step.number} className="landing-step-block">
-          <div className="landing-step-bar">
-            {step.number} — {step.title.toUpperCase()}
+        <div
+          key={step.number}
+          className="overflow-hidden rounded-[7px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)]"
+        >
+          <div className="border-b border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface-raised)_80%,transparent)] px-3 py-2.5 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold uppercase leading-[1.2] text-[var(--landing-text)]">
+            {step.number} / {step.title.toUpperCase()}
           </div>
           {'hasPkgManager' in step && step.hasPkgManager ? (
             <PkgManagerInstall />
           ) : (
-            <pre className="landing-step-code">
+            <pre className="m-0 overflow-x-auto bg-[color-mix(in_oklch,var(--landing-bg)_88%,transparent)] p-3.5 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12.5px] leading-[1.65] text-[var(--landing-accent)] max-sm:whitespace-pre-wrap max-sm:[overflow-wrap:anywhere]">
               <code>{step.code}</code>
             </pre>
           )}
@@ -676,44 +772,11 @@ function StepsList({ steps }: { steps: typeof LOCAL_STEPS | typeof CLOUD_STEPS }
 }
 
 function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const prevHeightRef = useRef(0);
-  const prevTab = useRef(activeTab);
-
-  if (containerRef.current) {
-    prevHeightRef.current = containerRef.current.offsetHeight;
-  }
-
-  useLayoutEffect(() => {
-    if (prevTab.current === activeTab) return;
-    prevTab.current = activeTab;
-
-    const el = containerRef.current;
-    if (!el) return;
-
-    const startHeight = prevHeightRef.current;
-    const endHeight = el.offsetHeight;
-    if (startHeight === endHeight) return;
-
-    el.style.overflow = 'hidden';
-    el.style.height = `${startHeight}px`;
-
-    requestAnimationFrame(() => {
-      el.style.transition = 'height 0.3s ease';
-      el.style.height = `${endHeight}px`;
-
-      const onEnd = () => {
-        el.style.height = '';
-        el.style.transition = '';
-        el.style.overflow = '';
-        el.removeEventListener('transitionend', onEnd);
-      };
-      el.addEventListener('transitionend', onEnd);
-    });
-  }, [activeTab]);
-
   return (
-    <div ref={containerRef} className="flex flex-col gap-3">
+    <div
+      className="relative z-[1] flex animate-[landing-panel-in_220ms_cubic-bezier(0.22,1,0.36,1)_both] flex-col gap-2.5 p-2.5"
+      key={activeTab}
+    >
       <StepsList steps={activeTab === 'cloud' ? CLOUD_STEPS : LOCAL_STEPS} />
     </div>
   );
@@ -744,7 +807,7 @@ function LandingNavbar({
         onMobileMenuClose();
         onSignIn();
       }}
-      className="landing-auth-button text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 inline-flex items-center justify-center gap-1.5"
+      className="inline-flex min-h-[38px] items-center justify-center gap-2 rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_76%,transparent)] px-4 text-[12.5px] font-semibold leading-[1.2] text-[var(--landing-text)] transition-[background-color,border-color,color] duration-150 hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-surface-raised)]"
       style={{
         cursor: signingIn ? 'default' : 'pointer',
         opacity: signingIn ? 0.6 : 1,
@@ -756,22 +819,22 @@ function LandingNavbar({
   );
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-[100] border-b border-[rgba(255,255,255,0.06)] bg-[rgba(10,10,10,0.85)] backdrop-blur-[8px]">
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
-        <div className="flex min-w-0 items-center gap-4 sm:gap-7">
+    <nav className="fixed inset-x-0 top-0 z-[100] border-b border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_88%,transparent)] backdrop-blur-[14px]">
+      <div className="flex min-h-16 items-center justify-between gap-5 px-[clamp(20px,5vw,88px)] max-sm:min-h-[58px] max-sm:px-4">
+        <div className="flex min-w-0 items-center gap-9">
           <a
             href="#overview"
             onClick={onMobileMenuClose}
-            className="shrink-0 font-[Unbounded,sans-serif] text-[15px] font-medium text-white tracking-[-0.02em] no-underline sm:text-base"
+            className="shrink-0 font-[Unbounded,Inter,system-ui,sans-serif] text-[15px] font-[430] text-[var(--landing-text)] no-underline"
           >
-            Agendex<span style={{ color: '#c8ff32' }}>.</span>
+            Agendex<span className="text-[var(--landing-accent)]">.</span>
           </a>
-          <div className="landing-nav-links hidden items-center gap-[18px] md:flex">
+          <div className="flex items-center gap-6 max-[980px]:hidden">
             {LANDING_SECTIONS.map((section) => (
               <a
                 key={section.id}
                 href={`#${section.id}`}
-                className="text-[13px] text-[#666] no-underline font-medium tracking-[-0.01em] transition-colors duration-200 hover:text-white"
+                className="text-[12.5px] font-semibold text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
               >
                 {section.label}
               </a>
@@ -779,7 +842,9 @@ function LandingNavbar({
           </div>
         </div>
 
-        <div className="hidden shrink-0 md:block">{authAction}</div>
+        <div className="block shrink-0 max-[980px]:hidden [&>button]:min-h-[38px] [&>button]:rounded-[8px] [&>button]:border-[var(--landing-border)] [&>button]:bg-[color-mix(in_oklch,var(--landing-surface)_76%,transparent)] [&>button]:text-[var(--landing-text)] [&>div>button:first-child]:min-h-[38px] [&>div>button:first-child]:rounded-[8px] [&>div>button:first-child]:border-[var(--landing-border)] [&>div>button:first-child]:bg-[color-mix(in_oklch,var(--landing-surface)_76%,transparent)] [&>div>button:first-child]:text-[var(--landing-text)]">
+          {authAction}
+        </div>
 
         <button
           type="button"
@@ -787,7 +852,7 @@ function LandingNavbar({
           aria-expanded={mobileMenuOpen}
           aria-controls="landing-mobile-menu"
           onClick={onMobileMenuToggle}
-          className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] text-white transition-[border-color,background-color] duration-200 md:hidden"
+          className="hidden size-[42px] shrink-0 items-center justify-center rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_70%,transparent)] text-[var(--landing-text)] max-[980px]:inline-flex"
         >
           <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none">
             {mobileMenuOpen ? (
@@ -811,22 +876,22 @@ function LandingNavbar({
 
       <div
         id="landing-mobile-menu"
-        className={`border-t border-[rgba(255,255,255,0.06)] px-4 py-4 md:hidden ${
+        className={`border-t border-[var(--landing-border)] px-5 py-4 min-[981px]:hidden ${
           mobileMenuOpen ? 'block' : 'hidden'
         }`}
       >
-        <div className="mx-auto flex max-w-[1200px] flex-col gap-3">
+        <div className="flex flex-col gap-2.5">
           {LANDING_SECTIONS.map((section) => (
             <a
               key={section.id}
               href={`#${section.id}`}
               onClick={onMobileMenuClose}
-              className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] px-4 py-3 text-[14px] font-medium text-white no-underline transition-[border-color,background-color] duration-200"
+              className="flex min-h-11 items-center rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_72%,transparent)] px-3.5 text-[14px] font-semibold text-[var(--landing-text)] no-underline"
             >
               {section.label}
             </a>
           ))}
-          <div className="landing-mobile-auth pt-1">{authSlot ? authSlot() : authAction}</div>
+          <div className="pt-1 [&>*]:w-full">{authSlot ? authSlot() : authAction}</div>
         </div>
       </div>
     </nav>
@@ -835,126 +900,212 @@ function LandingNavbar({
 
 function LandingFooter() {
   return (
-    <footer className="flex flex-col items-center gap-3 border-t border-[rgba(255,255,255,0.06)] bg-[rgba(10,10,10,0.85)] px-4 py-5 text-center text-[13px] text-[#666] backdrop-blur-[8px] sm:px-6 md:flex-row md:justify-between md:gap-6 md:text-left">
-      <span className="md:flex-1">© {new Date().getFullYear()} Agendex</span>
-      <span className="md:flex-1 md:text-center">
-        Made With ❤️ by{' '}
-        <a
-          href="https://tiru5.me"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:opacity-80 transition-opacity"
-        >
-          Tyrus Malmstrom
-        </a>
-      </span>
-      <span className="md:flex-1 md:text-right">
+    <footer className="relative z-[1] flex min-h-[220px] items-end justify-between gap-8 border-t border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_94%,oklch(12%_0.03_184))] px-[clamp(20px,5vw,88px)] py-11 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start max-sm:px-4 max-sm:py-8">
+      <div className="flex flex-col gap-3 text-[12.5px]">
+        <span className="font-[Unbounded,Inter,system-ui,sans-serif] text-[42px] font-[430] leading-none text-[var(--landing-text)]">
+          Agendex<span className="text-[var(--landing-accent)]">.</span>
+        </span>
+        <span>© {new Date().getFullYear()} / All systems indexed</span>
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-3 max-sm:justify-start [&>a]:text-[12.5px] [&>a]:font-semibold [&>a]:text-[var(--landing-muted)] [&>a]:no-underline [&>a:hover]:text-[var(--landing-text)]">
+        <a href="#overview">Overview</a>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
         <a
           href="https://github.com/tiru5/agendex"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[13px] px-5 py-2 rounded-lg border border-[rgba(255,255,255,0.06)] bg-transparent text-white cursor-pointer font-medium font-[Inter,-apple-system,system-ui,sans-serif] transition-[border-color] duration-200 no-underline inline-flex items-center justify-center gap-2"
+          className="inline-flex min-h-[38px] items-center gap-2 rounded-[8px] border border-[var(--landing-border)] px-[13px] !text-[var(--landing-text)]"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
           </svg>
           View on GitHub
         </a>
-      </span>
+      </div>
     </footer>
   );
 }
 
 const GitHubIcon16 = () => <GitHubIcon />;
-const GoogleIcon16 = () => <GoogleIcon />;
+
+function HeroPlanRoom({
+  activeTab,
+  onSetActiveTab,
+}: {
+  activeTab: 'local' | 'cloud';
+  onSetActiveTab: (v: 'local' | 'cloud') => void;
+}) {
+  return (
+    <div className="relative z-[1] flex min-w-0 flex-col gap-3 max-[980px]:max-w-[720px]">
+      <div className="flex w-full items-center justify-between gap-2 text-[11px] font-bold uppercase text-[var(--landing-muted)] max-sm:flex-col max-sm:items-start">
+        <span>Plan room preview</span>
+        <span>{activeTab === 'cloud' ? 'Cloud sync path' : 'Local first path'}</span>
+      </div>
+
+      <div className="relative overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[linear-gradient(135deg,color-mix(in_oklch,var(--landing-surface-raised)_58%,transparent),color-mix(in_oklch,var(--landing-bg)_92%,transparent))] shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_64%,transparent)] before:pointer-events-none before:absolute before:inset-0 before:opacity-50 before:[background-image:linear-gradient(var(--landing-border)_1px,transparent_1px),linear-gradient(90deg,var(--landing-border)_1px,transparent_1px)] before:[background-size:64px_64px] before:[mask-image:linear-gradient(to_bottom,black,transparent_72%)]">
+        <div className="relative z-[1] border-b border-[var(--landing-border)] p-4 max-sm:p-3.5">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-accent)]">
+                <span
+                  aria-hidden="true"
+                  className="size-[6px] rounded-full bg-[var(--landing-accent)]"
+                />
+                Live index
+              </div>
+              <h2 className="mt-2 mb-0 text-[19px] font-bold leading-[1.18] text-[var(--landing-text)]">
+                Plans arrive with source, owner, and review state.
+              </h2>
+            </div>
+            <div className="shrink-0 rounded-[5px] border border-[var(--landing-border)] px-2 py-1 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[var(--landing-muted)]">
+              daemon online
+            </div>
+          </div>
+
+          <div className="grid gap-px overflow-hidden rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-border)]">
+            {DEMO_PLAN_ROWS.map((row) => (
+              <div
+                key={`hero-${row.title}`}
+                className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 bg-[color-mix(in_oklch,var(--landing-bg)_86%,transparent)] px-3.5 py-3"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-bold text-[var(--landing-text)]">
+                    {row.title}
+                  </div>
+                  <div className="mt-1 truncate font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] text-[var(--landing-faint)]">
+                    {row.path}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[11px] font-bold text-[var(--landing-muted)]">
+                    {row.agent}
+                  </div>
+                  <div className="mt-1 text-[11px] text-[var(--landing-accent)]">{row.status}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {HERO_PROOF_POINTS.map((point) => (
+              <span
+                key={point}
+                className="rounded-full border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_60%,transparent)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[var(--landing-muted)]"
+              >
+                {point}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative z-[1] border-b border-[var(--landing-border)] p-2.5">
+          <div className="grid grid-cols-2 gap-1.5 rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_72%,transparent)] p-1">
+            <button
+              type="button"
+              className={`min-h-9 rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
+                activeTab === 'local'
+                  ? 'bg-[var(--landing-surface-raised)] text-[var(--landing-text)]'
+                  : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
+              }`}
+              onClick={() => onSetActiveTab('local')}
+            >
+              Self-hosted
+            </button>
+            <button
+              type="button"
+              className={`min-h-9 rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
+                activeTab === 'cloud'
+                  ? 'bg-[var(--landing-surface-raised)] text-[var(--landing-text)]'
+                  : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
+              }`}
+              onClick={() => onSetActiveTab('cloud')}
+            >
+              Cloud sync
+            </button>
+          </div>
+        </div>
+
+        <AnimatedSteps activeTab={activeTab} />
+      </div>
+    </div>
+  );
+}
 
 function LandingHero({
   activeTab,
-  agentIconImages,
   onShowLogin,
   onSetActiveTab,
   ctaSlot,
 }: {
   activeTab: 'local' | 'cloud';
-  agentIconImages: string[];
   onShowLogin: () => void;
   onSetActiveTab: (v: 'local' | 'cloud') => void;
   ctaSlot?: ReactNode;
 }) {
   return (
-    <div className="relative overflow-hidden">
-      <FAQBackground />
+    <div className="relative z-[1]">
       <section
         id="overview"
-        className="d3-hero relative grid grid-cols-1 items-center max-w-[1100px] mx-auto px-4 sm:px-6 md:grid-cols-2"
-        style={{
-          gap: 64,
-          padding: 'calc(52px + clamp(80px, 15vh, 160px)) 24px clamp(60px, 10vh, 100px)',
-          scrollMarginTop: LANDING_ANCHOR_OFFSET,
-        }}
+        className="d3-hero grid min-h-[min(820px,88svh)] grid-cols-[minmax(0,0.96fr)_minmax(440px,1.04fr)] items-end gap-[clamp(24px,3vw,46px)] border-b border-[var(--landing-border)] px-[clamp(20px,5vw,88px)] pt-[116px] pb-[70px] max-[980px]:min-h-0 max-[980px]:grid-cols-1 max-[980px]:gap-6 max-[980px]:pt-[104px] max-sm:gap-5 max-sm:px-4 max-sm:pt-[92px] max-sm:pb-[54px]"
+        style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
       >
-        <div className="landing-hero-cloud absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.15]">
-          <IconCloud images={agentIconImages} />
-        </div>
-        <div className="relative z-[1] text-center md:text-left">
-          <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[20px] bg-[rgba(200,255,50,0.08)] border border-[rgba(200,255,50,0.15)] text-[13px] font-medium text-[#c8ff32] mb-6 sm:mb-8">
-            <span className="text-[8px] leading-none">{'●'}</span>
-            Open Source
+        <div className="relative z-[1] max-w-[800px]">
+          <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-muted)]">
+            <span
+              aria-hidden="true"
+              className="size-[7px] rounded-full bg-[var(--landing-accent)] shadow-[0_0_16px_color-mix(in_oklch,var(--landing-accent)_45%,transparent)]"
+            />
+            Agent plan index
           </div>
 
-          <h1 className="text-balance font-[Unbounded,sans-serif] text-[clamp(32px,10vw,56px)] font-normal leading-[1.08] tracking-[-0.03em] m-0 mb-5 text-white">
-            One dashboard for
-            <br />
-            <span className="text-[#c8ff32]">every coding agent.</span>
+          <h1 className="mt-[22px] mb-6 max-w-[760px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[74px] font-[430] leading-[0.98] text-[var(--landing-text)] max-[980px]:text-[54px] max-sm:text-[40px] max-sm:leading-[1.04]">
+            Your agents make plans. <br />
+            Agendex keeps watch.
           </h1>
 
-          <p className="text-pretty text-[15px] leading-[1.7] text-[#777] m-0 mb-8 font-normal max-w-[440px] mx-auto md:mx-0">
-            Agendex indexes the plans your AI agents create and surfaces them in a single,
-            searchable interface.
+          <p className="m-0 max-w-[620px] text-pretty text-[16px] leading-[1.75] text-[var(--landing-muted)] max-sm:text-[14.5px]">
+            Index local plan files from Claude Code, Codex, Cursor, and more. Search the source,
+            review changes, and add Cloud only when the work needs shared context.
           </p>
 
-          <div className="landing-hero-actions flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:justify-center md:justify-start">
+          <div className="mt-[34px] flex flex-wrap gap-3 max-sm:[&>*]:w-full [&>a]:inline-flex [&>a]:min-h-[46px] [&>a]:items-center [&>a]:justify-center [&>a]:gap-[9px] [&>a]:rounded-[8px] [&>a]:px-[18px] [&>a]:text-[13px] [&>a]:font-bold [&>a]:leading-[1.2] [&>a]:no-underline [&>button]:inline-flex [&>button]:min-h-[46px] [&>button]:items-center [&>button]:justify-center [&>button]:gap-[9px] [&>button]:rounded-[8px] [&>button]:px-[18px] [&>button]:text-[13px] [&>button]:font-bold [&>button]:leading-[1.2]">
             {ctaSlot || (
               <button
+                type="button"
                 onClick={onShowLogin}
-                className="landing-hero-action inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border-none bg-[#c8ff32] px-7 py-3 text-[15px] font-semibold text-[#0a0a0a] cursor-pointer transition-[opacity,transform] duration-200 sm:w-auto"
+                className="border border-[color-mix(in_oklch,var(--landing-accent)_48%,transparent)] bg-[var(--landing-accent)] text-[var(--landing-bg)]"
               >
                 Get Started
               </button>
             )}
             <a
-              href="https://github.com/Tyru5/agendex"
+              href="https://github.com/tiru5/agendex"
               target="_blank"
               rel="noopener noreferrer"
-              className="landing-hero-action inline-flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[rgba(255,255,255,0.06)] bg-transparent px-7 py-3 text-[15px] font-medium text-white cursor-pointer no-underline transition-[border-color] duration-200 sm:w-auto"
+              className="border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_78%,transparent)] text-[var(--landing-text)]"
             >
               <GitHubIcon16 />
               View on GitHub
             </a>
           </div>
-        </div>
 
-        <div className="relative z-[1]">
-          <div className="landing-steps-panel">
-            <div className="landing-steps-tabs">
-              <button
-                type="button"
-                className={`landing-steps-tab ${activeTab === 'local' ? 'landing-steps-tab-active' : ''}`}
-                onClick={() => onSetActiveTab('local')}
+          <div
+            className="mt-[38px] flex max-w-[620px] flex-wrap gap-2 max-sm:mt-7"
+            aria-label="Supported coding agents"
+          >
+            {AGENTS.slice(0, 6).map((agent) => (
+              <span
+                key={agent}
+                className="rounded-full border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_64%,transparent)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[var(--landing-muted)]"
               >
-                Self-Hosted
-              </button>
-              <button
-                type="button"
-                className={`landing-steps-tab ${activeTab === 'cloud' ? 'landing-steps-tab-active' : ''}`}
-                onClick={() => onSetActiveTab('cloud')}
-              >
-                Cloud
-              </button>
-            </div>
-            <AnimatedSteps activeTab={activeTab} />
+                {agent}
+              </span>
+            ))}
           </div>
         </div>
+
+        <HeroPlanRoom activeTab={activeTab} onSetActiveTab={onSetActiveTab} />
       </section>
     </div>
   );
@@ -976,25 +1127,41 @@ function LandingPricing({
   return (
     <section
       id="pricing"
-      className="max-w-[880px] mx-auto px-6"
-      style={{
-        padding: 'clamp(60px, 10vh, 120px) 24px',
-        scrollMarginTop: LANDING_ANCHOR_OFFSET,
-      }}
+      className="relative z-[1] border-b border-[var(--landing-border)] px-[clamp(20px,5vw,88px)] py-[86px] max-sm:px-4 max-sm:py-[58px]"
+      style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
     >
-      <div className="text-center mb-12">
-        <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0 mb-3">
-          Simple pricing. Run it your way.
-        </h2>
-        <p className="text-base text-[#999] m-0 mb-7 font-normal">
-          Free forever for local use. Upgrade for cloud features.
-        </p>
-        <PricingToggle yearly={yearly} onChange={onSetYearly} />
-        <GuaranteePanel />
+      <div className="mb-12 grid grid-cols-[minmax(160px,0.32fr)_minmax(0,0.68fr)] gap-[clamp(22px,5vw,72px)] max-lg:grid-cols-1 max-lg:gap-5">
+        <div className="flex items-baseline gap-3 self-start max-lg:w-full">
+          <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
+            02
+          </span>
+          <span
+            aria-hidden="true"
+            className="h-px min-w-[28px] flex-1 translate-y-[-3px] bg-[var(--landing-border)] max-lg:hidden"
+          />
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
+            Pricing
+          </span>
+        </div>
+        <div className="min-w-0">
+          <h2 className="m-0 max-w-[860px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[clamp(42px,4.8vw,60px)] font-[500] leading-[1.0] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[34px] max-sm:leading-[1.04]">
+            Start local. Upgrade when review becomes shared.
+          </h2>
+          <p className="mt-4 mb-0 max-w-[600px] text-[15px] leading-[1.7] text-[var(--landing-muted)]">
+            The free path is a complete local index. Cloud Pro adds sync, comments, links, and
+            workspace access without changing where plans originate.
+          </p>
+          <div className="mt-7 flex flex-col gap-4">
+            <PricingBridge />
+            <PricingToggle yearly={yearly} onChange={onSetYearly} />
+          </div>
+        </div>
       </div>
-      <div className="d3-pricing-row flex gap-4 items-stretch">
+      <div className="d3-pricing-row grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-3.5 max-lg:grid-cols-1">
         <PricingCard
-          title="Self-Hosted"
+          title="Self-hosted"
+          eyebrow="Local OSS"
+          summary="For solo review, private experiments, and teams that want the full source path before adding collaboration."
           price="$0"
           period=""
           features={FREE_FEATURES}
@@ -1002,7 +1169,9 @@ function LandingPricing({
           onCta={onShowLogin}
         />
         <PricingCard
-          title="Pro"
+          title="Cloud Pro"
+          eyebrow="Team review"
+          summary="For shared plan review across machines, links, comments, and workspace access on top of the local daemon."
           price={yearly ? '$69' : '$7'}
           period={yearly ? '/year' : '/month'}
           features={PRO_FEATURES}
@@ -1011,6 +1180,7 @@ function LandingPricing({
           onCta={proCtaSlot ? undefined : onShowLogin}
           loading={!proCtaSlot ? signingIn : undefined}
           ctaButtons={proCtaSlot}
+          note={MONEY_BACK_GUARANTEE}
         />
       </div>
     </section>
@@ -1027,31 +1197,55 @@ function LandingFAQ({
   return (
     <section
       id="faq"
-      className="max-w-[720px] mx-auto px-6"
-      style={{
-        padding: 'clamp(40px, 8vh, 80px) 24px clamp(80px, 12vh, 140px)',
-        scrollMarginTop: LANDING_ANCHOR_OFFSET,
-      }}
+      className="relative z-[1] border-b border-[var(--landing-border)] px-[clamp(20px,5vw,88px)] pt-[84px] pb-[110px] max-sm:px-4 max-sm:py-[58px]"
+      style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
     >
-      <div className="text-center mb-12">
-        <span className="inline-block text-xs font-semibold tracking-[0.1em] uppercase text-[#c8ff32] font-[Inter,-apple-system,system-ui,sans-serif] mb-3">
-          Support
-        </span>
-        <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0">
-          Frequently asked questions
-        </h2>
-      </div>
-      <div className="flex flex-col">
-        {FAQ_ITEMS.map((item, i) => (
-          <FAQItem
-            key={item.q}
-            question={item.q}
-            answer={item.a}
-            open={openFaq === i}
-            onToggle={() => onSetOpenFaq(openFaq === i ? null : i)}
-            isFirst={i === 0}
-          />
-        ))}
+      <div className="grid grid-cols-[minmax(230px,0.34fr)_minmax(0,0.66fr)] gap-[clamp(28px,6vw,88px)] max-lg:grid-cols-1">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-3">
+            <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
+              03
+            </span>
+            <span
+              aria-hidden="true"
+              className="h-px min-w-[28px] flex-1 translate-y-[-3px] bg-[var(--landing-border)]"
+            />
+            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
+              Support
+            </span>
+          </div>
+          <h2 className="mt-7 mb-0 max-w-[640px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[clamp(42px,4.8vw,60px)] font-[500] leading-[1.0] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[34px] max-sm:leading-[1.04]">
+            Answers before you install.
+          </h2>
+          <p className="mt-4 mb-0 max-w-[430px] text-[14.5px] leading-[1.7] text-[var(--landing-muted)]">
+            Privacy, adapters, and Cloud sync in plain terms. No account is required to start
+            self-hosted.
+          </p>
+          <div className="mt-8 border-t border-[var(--landing-border)]">
+            {FAQ_SUPPORT_POINTS.map((point) => (
+              <div key={point.label} className="border-b border-[var(--landing-border)] py-4">
+                <div className="text-[12px] font-bold text-[var(--landing-text)]">
+                  {point.label}
+                </div>
+                <p className="m-0 mt-1 text-[12.5px] leading-[1.55] text-[var(--landing-muted)]">
+                  {point.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="min-w-0 border-t border-[var(--landing-border)]">
+          {FAQ_ITEMS.map((item, i) => (
+            <FAQItem
+              key={item.q}
+              index={i + 1}
+              question={item.q}
+              answer={item.a}
+              open={openFaq === i}
+              onToggle={() => onSetOpenFaq(openFaq === i ? null : i)}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -1077,8 +1271,12 @@ function extractSlots(children: ReactNode): Record<string, SlotRenderFn> {
 function LandingPageInner({ children, mascot }: LandingPageProps) {
   const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [tokenError, setTokenError] = useState('');
   const { token, showLogin, yearly, openFaq, activeTab, bentoInView, signingIn } = state;
-  const setTokenValue = (v: string) => dispatch({ type: 'SET_TOKEN', value: v });
+  const setTokenValue = (v: string) => {
+    if (tokenError) setTokenError('');
+    dispatch({ type: 'SET_TOKEN', value: v });
+  };
   const setShowLogin = (v: boolean) => dispatch({ type: 'SET_SHOW_LOGIN', value: v });
   const setYearly = (v: boolean) => dispatch({ type: 'SET_YEARLY', value: v });
   const setOpenFaq = (v: number | null) => dispatch({ type: 'SET_OPEN_FAQ', value: v });
@@ -1181,82 +1379,24 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (token.trim()) {
-      setToken(token.trim());
-      window.location.reload();
+    const trimmed = token.trim();
+    if (!trimmed) {
+      setTokenError('Paste the token printed by the Agendex CLI before connecting.');
+      return;
     }
+    setToken(trimmed);
+    window.location.reload();
   }
 
-  const agentIconImages = AGENT_ICON_IMAGES;
+  function closeLogin() {
+    setTokenError('');
+    setShowLogin(false);
+  }
 
   return (
     <LandingContext.Provider value={ctxValue}>
-      <div className="landing-page min-h-screen bg-[#0a0a0a] text-white font-[Inter,-apple-system,system-ui,sans-serif] overflow-x-hidden">
+      <div className="landing-page">
         <TopoNeurons />
-        <style>{`
-          @media (max-width: 768px) {
-            .d3-hero {
-              grid-template-columns: 1fr !important;
-              text-align: center;
-            }
-            .d3-bento-grid {
-              grid-template-columns: 1fr !important;
-            }
-            .d3-bento-grid > div {
-              grid-column: span 1 !important;
-            }
-            .d3-pricing-row {
-              flex-direction: column !important;
-            }
-            .d3-guarantee-panel {
-              flex-direction: column;
-            }
-            .d3-guarantee-copy {
-              width: 100%;
-            }
-            .landing-hero-cloud {
-              opacity: 0.08 !important;
-              transform: scale(0.82);
-            }
-            .d3-bento-card {
-              transform: none !important;
-            }
-            .d3-bento-card > div {
-              padding: 1.4rem !important;
-            }
-          }
-          @property --border-angle {
-            syntax: '<angle>';
-            initial-value: 0deg;
-            inherits: false;
-          }
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-          @keyframes d3-bento-enter {
-            from { opacity: 0; transform: translateY(24px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          @keyframes d3-border-spin {
-            to { --border-angle: 360deg; }
-          }
-          .d3-bento-card {
-            --border-angle: 0deg;
-            background: ${BORDER};
-          }
-          .d3-bento-card.d3-bento-active {
-            animation: d3-bento-enter 0.5s ease both;
-          }
-          .d3-bento-card.d3-bento-active:hover {
-            background: conic-gradient(
-              from var(--border-angle),
-              transparent 30%,
-              rgba(200,255,50,0.5) 50%,
-              transparent 70%
-            );
-            animation: d3-bento-enter 0.5s ease both, d3-border-spin 4s linear infinite;
-          }
-        `}</style>
 
         <LandingNavbar
           signingIn={signingIn}
@@ -1269,43 +1409,12 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
 
         <LandingHero
           activeTab={activeTab}
-          agentIconImages={agentIconImages}
           onShowLogin={() => startViewTransition(() => setShowLogin(true))}
           onSetActiveTab={setActiveTab}
           ctaSlot={heroCtaNode}
         />
 
-        {/* Bento Feature Grid */}
-        <section
-          id="features"
-          ref={bentoRef}
-          className="max-w-[1100px] mx-auto px-4 sm:px-6"
-          style={{
-            padding: 'clamp(60px, 10vh, 120px) 24px',
-            scrollMarginTop: LANDING_ANCHOR_OFFSET,
-          }}
-        >
-          <div className="text-center mb-10 sm:mb-14">
-            <h2 className="font-[Unbounded,sans-serif] text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.025em] m-0 mb-3">
-              Everything you need
-            </h2>
-            <p className="text-base text-[#999] m-0 font-normal">
-              A complete toolkit for managing AI agent plans.
-            </p>
-          </div>
-
-          <div className="d3-bento-grid grid grid-cols-[repeat(4,1fr)] grid-rows-[auto] gap-4">
-            {FEATURES.map((feature, i) => (
-              <BentoCard
-                key={feature.title}
-                feature={feature}
-                layout={BENTO_MAP[i] ?? { colSpan: 1, rowSpan: 1 }}
-                index={i}
-                inView={bentoInView}
-              />
-            ))}
-          </div>
-        </section>
+        <ProductDemoSection sectionRef={bentoRef} inView={bentoInView} />
 
         <LandingPricing
           yearly={yearly}
@@ -1330,9 +1439,10 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
         {showLogin && (
           <LoginModal
             tokenValue={token}
+            tokenError={tokenError}
             onTokenChange={setTokenValue}
             onSubmit={submit}
-            onClose={() => startViewTransition(() => setShowLogin(false))}
+            onClose={() => startViewTransition(closeLogin)}
           />
         )}
       </div>
@@ -1349,43 +1459,44 @@ LandingPage.HeroCta = HeroCta;
 LandingPage.PricingCta = PricingCta;
 
 function FAQItem({
+  index,
   question,
   answer,
   open,
   onToggle,
-  isFirst,
 }: {
+  index: number;
   question: string;
   answer: string;
   open: boolean;
   onToggle: () => void;
-  isFirst: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
+  const buttonId = useId();
+  const contentId = useId();
   return (
-    <div
-      className="border-b border-[rgba(255,255,255,0.06)]"
-      style={{
-        borderTop: isFirst ? `1px solid ${BORDER}` : 'none',
-      }}
-    >
+    <div className="border-b border-[var(--landing-border)]">
       <button
+        id={buttonId}
+        type="button"
         onClick={onToggle}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         aria-expanded={open}
-        className="w-full px-1 py-[22px] bg-none border-none text-[15px] font-medium font-[Inter,-apple-system,system-ui,sans-serif] text-left cursor-pointer flex justify-between items-start gap-4 transition-colors duration-200"
+        aria-controls={contentId}
+        className="group grid min-h-[76px] w-full cursor-pointer grid-cols-[38px_minmax(0,1fr)_30px] items-center gap-4 border-0 bg-transparent px-0 py-[19px] text-left text-[15px] font-bold leading-[1.45] text-[var(--landing-text)] transition-colors duration-150 max-sm:grid-cols-[30px_minmax(0,1fr)_30px] max-sm:gap-3"
         style={{
-          color: hovered || open ? TEXT_PRIMARY : 'rgba(255,255,255,0.85)',
+          color: hovered || open ? TEXT_PRIMARY : undefined,
         }}
       >
-        <span className="text-pretty leading-[1.5]">{question}</span>
+        <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold text-[var(--landing-accent)]">
+          {String(index).padStart(2, '0')}
+        </span>
+        <span className="text-pretty">{question}</span>
         <div
-          className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+          className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-full transition-[background-color,border-color] duration-200"
           style={{
             border: `1px solid ${open ? ACCENT : hovered ? 'rgba(255,255,255,0.2)' : BORDER}`,
-            transition:
-              'border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             background: open ? ACCENT : 'transparent',
           }}
         >
@@ -1401,7 +1512,7 @@ function FAQItem({
           >
             <path
               d="M2.5 4.5L6 8L9.5 4.5"
-              stroke={open ? '#000' : TEXT_MUTED}
+              stroke={open ? BG : TEXT_MUTED}
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -1409,15 +1520,18 @@ function FAQItem({
           </svg>
         </div>
       </button>
-      <div
-        className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+      <section
+        id={contentId}
+        aria-labelledby={buttonId}
+        aria-hidden={!open}
+        className="grid"
         style={{
           gridTemplateRows: open ? '1fr' : '0fr',
         }}
       >
         <div className="overflow-hidden">
           <p
-            className="px-1 pb-[22px] m-0 text-sm leading-[1.75] text-[#999] font-[Inter,-apple-system,system-ui,sans-serif] max-w-[580px]"
+            className="m-0 max-w-[650px] pb-[24px] pl-[52px] text-[14px] leading-[1.75] text-[var(--landing-muted)] max-sm:pl-[42px]"
             style={{
               opacity: open ? 1 : 0,
               transform: open ? 'translateY(0)' : 'translateY(-4px)',
@@ -1427,7 +1541,7 @@ function FAQItem({
             {answer}
           </p>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

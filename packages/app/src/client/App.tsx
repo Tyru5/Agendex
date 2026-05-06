@@ -187,12 +187,12 @@ function Dashboard() {
 
   return (
     <div
-      className="h-screen grid overflow-clip"
+      className="agendex-app-shell h-screen grid overflow-clip"
+      data-plan-open={selectedPlan ? 'true' : undefined}
       style={{
         position: 'relative',
         gridTemplateColumns: `${sidebarWidth}px 1fr`,
         gridTemplateRows: `${TOPBAR_HEIGHT}px 1fr`,
-        transition: 'grid-template-columns 180ms ease',
       }}
     >
       <Topbar
@@ -281,10 +281,11 @@ function Dashboard() {
       />
 
       <div
+        className="agendex-main-pane"
         style={{
           gridColumn: '2 / 3',
           gridRow: '2 / 3',
-          background: 'var(--bg)',
+          background: 'transparent',
           viewTransitionName: 'main-content',
           overflow: 'hidden',
           minWidth: 0,

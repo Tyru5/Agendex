@@ -209,7 +209,7 @@ export function SharePlanDialog({ plan, mode, onClose }: SharePlanDialogProps) {
   const canNativeShare = typeof navigator.share === 'function';
 
   const btnMotion =
-    'select-none transition-[transform,opacity,colors] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97] disabled:active:scale-100';
+    'select-none transition-[transform,opacity,color,background-color,border-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97] disabled:active:scale-100';
 
   return (
     <div
@@ -251,7 +251,7 @@ export function SharePlanDialog({ plan, mode, onClose }: SharePlanDialogProps) {
           <div className="min-w-0 flex-1">
             <h2
               id={titleId}
-              className="text-[17px] font-semibold text-text tracking-[-0.02em] leading-tight"
+              className="text-[17px] font-semibold text-text tracking-[0] leading-tight"
             >
               Share plan
             </h2>

@@ -111,6 +111,7 @@ export function EEHeroCta({ onLogin }: { onLogin: (provider: 'github' | 'google'
     if (signingIn) {
       return (
         <button
+          type="button"
           disabled
           className="w-full sm:w-auto px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap opacity-70"
         >
@@ -122,14 +123,16 @@ export function EEHeroCta({ onLogin }: { onLogin: (provider: 'github' | 'google'
     return (
       <>
         <button
+          type="button"
           onClick={() => handleLogin('github')}
           className="w-full sm:w-auto px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
         >
           <GitHubIcon /> GitHub
         </button>
         <button
+          type="button"
           onClick={() => handleLogin('google')}
-          className="w-full sm:w-auto px-7 py-3 rounded-xl border border-[rgba(255,255,255,0.1)] bg-white text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
+          className="w-full sm:w-auto px-7 py-3 rounded-xl border border-[rgba(238,244,232,0.16)] bg-[color-mix(in_oklch,#eef4e8_8%,#041f1d)] text-[#eef4e8] text-[15px] font-semibold cursor-pointer transition-[background-color,border-color,opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap hover:border-[rgba(238,244,232,0.24)] hover:bg-[color-mix(in_oklch,#eef4e8_12%,#041f1d)]"
         >
           <GoogleIcon /> Google
         </button>
@@ -139,6 +142,7 @@ export function EEHeroCta({ onLogin }: { onLogin: (provider: 'github' | 'google'
 
   return (
     <button
+      type="button"
       onClick={showLogin}
       className="w-full sm:w-auto px-7 py-3 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[15px] font-semibold cursor-pointer transition-[opacity,transform] duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap"
     >
@@ -162,9 +166,10 @@ export function EEPricingCta({ onLogin }: { onLogin: (provider: 'github' | 'goog
   return (
     <div className="flex w-full flex-col gap-2 sm:flex-row">
       <button
+        type="button"
         disabled={signingIn}
         onClick={() => handleLogin('github')}
-        className="flex-1 py-3.5 rounded-xl border-none bg-[#c8ff32] text-[#0a0a0a] text-[14px] font-semibold cursor-pointer flex items-center justify-center gap-2 transition-opacity duration-200"
+        className="flex-1 py-3.5 rounded-xl border border-[color-mix(in_oklch,#c8ff32_28%,rgba(238,244,232,0.12))] bg-[color-mix(in_oklch,#c8ff32_11%,#041f1d)] text-[#eef4e8] text-[14px] font-semibold cursor-pointer flex items-center justify-center gap-2 transition-opacity duration-200"
         style={{
           opacity: signingIn ? 0.7 : 1,
           cursor: signingIn ? 'default' : 'pointer',
@@ -173,9 +178,10 @@ export function EEPricingCta({ onLogin }: { onLogin: (provider: 'github' | 'goog
         <GitHubIcon /> GitHub
       </button>
       <button
+        type="button"
         disabled={signingIn}
         onClick={() => handleLogin('google')}
-        className="flex-1 py-3.5 rounded-xl border border-[rgba(255,255,255,0.1)] bg-white text-[#0a0a0a] text-[14px] font-semibold cursor-pointer flex items-center justify-center gap-2 transition-opacity duration-200"
+        className="flex-1 py-3.5 rounded-xl border border-[rgba(238,244,232,0.16)] bg-[color-mix(in_oklch,#eef4e8_8%,#041f1d)] text-[#eef4e8] text-[14px] font-semibold cursor-pointer flex items-center justify-center gap-2 transition-[background-color,border-color,opacity] duration-200 hover:border-[rgba(238,244,232,0.24)] hover:bg-[color-mix(in_oklch,#eef4e8_12%,#041f1d)]"
         style={{
           opacity: signingIn ? 0.7 : 1,
           cursor: signingIn ? 'default' : 'pointer',

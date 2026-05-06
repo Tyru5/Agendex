@@ -74,7 +74,7 @@ export function DashboardTopbar({
 }) {
   return (
     <div
-      className="flex items-center min-w-0 col-span-full border-b border-border bg-surface z-50 box-border"
+      className="agendex-topbar flex items-center min-w-0 col-span-full border-b border-border z-50 box-border"
       style={{ height: `${height}px` }}
     >
       <BrandSection

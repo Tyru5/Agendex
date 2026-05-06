@@ -32,7 +32,11 @@ export function MachinesIndicator({
 
   const aliveCount = devices.filter((d) => d.status === 'alive').length;
   const dotColor =
-    aggregateStatus === 'alive' ? '#22c55e' : aggregateStatus === 'stale' ? '#eab308' : '#71717a';
+    aggregateStatus === 'alive'
+      ? 'var(--success)'
+      : aggregateStatus === 'stale'
+        ? 'var(--warning)'
+        : 'var(--tertiary)';
 
   return (
     <div className="relative" ref={ref}>
@@ -41,7 +45,7 @@ export function MachinesIndicator({
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="flex items-center gap-1.5 text-xs text-tertiary hover:text-secondary transition-colors duration-150 cursor-pointer"
+        className="agendex-topbar-button flex items-center gap-1.5 text-xs rounded-lg border border-transparent px-2 py-1.5 cursor-pointer"
         aria-label={`Machines: ${aliveCount} of ${devices.length} online`}
       >
         <svg
@@ -70,7 +74,7 @@ export function MachinesIndicator({
 
       {open && (
         <div
-          className="absolute top-full right-0 mt-2 bg-surface border border-border rounded-default min-w-[220px] z-[1000] p-3 flex flex-col gap-0"
+          className="agendex-popover absolute top-full right-0 mt-2 rounded-default min-w-[220px] z-[1000] p-3 flex flex-col gap-0"
           style={{ animation: 'statusPopoverIn 150ms ease-out' }}
         >
           {devices.length === 0 ? (
@@ -99,7 +103,7 @@ export function MachinesIndicator({
                   <div className="flex items-center gap-1.5 shrink-0 ml-3">
                     <span
                       className="inline-block size-1.5 rounded-full"
-                      style={{ background: isAlive ? '#22c55e' : '#eab308' }}
+                      style={{ background: isAlive ? 'var(--success)' : 'var(--warning)' }}
                     />
                     <span className={isAlive ? 'text-secondary' : 'text-tertiary'}>
                       {isAlive ? 'Online' : 'Stale'}
