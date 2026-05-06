@@ -1,7 +1,7 @@
 import { formatForDisplay } from '@tanstack/react-hotkeys';
 import { useMemo } from 'react';
 import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
-import type { AgentStats, Plan } from '../lib/api.ts';
+import type { Plan } from '../lib/api.ts';
 import { SearchBar } from './SearchBar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 
@@ -63,14 +63,14 @@ export function Topbar({
   const shortcutLabel = formatForDisplay('Mod+B');
 
   const backendIndicator = useMemo(() => {
-    if (backendStatus === 'online') return { label: 'Live', color: '#22c55e' };
-    if (backendStatus === 'checking') return { label: 'Checking', color: '#f59e0b' };
-    return { label: 'Offline', color: '#ef4444' };
+    if (backendStatus === 'online') return { label: 'Live', color: 'var(--success)' };
+    if (backendStatus === 'checking') return { label: 'Checking', color: 'var(--warning)' };
+    return { label: 'Offline', color: 'var(--danger)' };
   }, [backendStatus]);
 
   return (
     <div
-      className="grid items-center min-w-0 border-b border-border bg-surface z-50 gap-x-3"
+      className="agendex-topbar grid items-center min-w-0 border-b border-border z-50 gap-x-3"
       style={{
         gridColumn: '1 / -1',
         height: `${height}px`,
@@ -92,7 +92,7 @@ export function Topbar({
             onClick={onToggleSidebar}
             aria-label={`${sidebarHidden ? 'Show' : 'Hide'} sidebar (${shortcutLabel})`}
             title={`${sidebarHidden ? 'Show' : 'Hide'} sidebar (${shortcutLabel})`}
-            className="w-[30px] h-[30px] rounded-lg border border-border text-text cursor-pointer flex items-center justify-center"
+            className="agendex-topbar-button w-[30px] h-[30px] rounded-lg border border-border cursor-pointer flex items-center justify-center"
             style={{
               background: sidebarHidden ? 'var(--hover)' : 'transparent',
             }}
@@ -103,9 +103,9 @@ export function Topbar({
         <button
           type="button"
           onClick={() => onSelectPlan(undefined)}
-          className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[-0.02em] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
+          className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[0] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
         >
-          Agendex<span style={{ color: '#c8ff32' }}>.</span>
+          Agendex<span className="agendex-brand-mark">.</span>
         </button>
       </div>
 

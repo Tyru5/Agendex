@@ -88,24 +88,24 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="agendex-app-shell min-h-screen">
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-border bg-bg/80 backdrop-blur-xl">
+      <header className="agendex-topbar sticky top-0 z-20 border-b border-border">
         <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-4 lg:px-6">
           <button
             type="button"
             onClick={() => startViewTransition(() => navigate('/'))}
-            className="flex items-center gap-2 p-1.5 -ml-1.5 rounded-default border-none bg-transparent text-secondary cursor-pointer transition-colors duration-150 hover:text-text"
+            className="agendex-topbar-button flex items-center gap-2 p-1.5 -ml-1.5 rounded-default border border-transparent cursor-pointer"
             aria-label="Back to dashboard"
           >
             <BackArrow />
-            <span className="text-[13px] font-medium">Back to Chat</span>
+            <span className="text-[13px] font-medium">Back to dashboard</span>
           </button>
 
           <button
             type="button"
             onClick={handleSignOut}
-            className="text-[13px] px-3.5 py-1.5 rounded-default border border-border bg-transparent text-secondary cursor-pointer font-medium transition-colors duration-150 hover:text-text hover:bg-hover"
+            className="agendex-topbar-button text-[13px] px-3.5 py-1.5 rounded-default border border-border cursor-pointer font-medium"
           >
             Sign out
           </button>

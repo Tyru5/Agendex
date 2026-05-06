@@ -263,17 +263,17 @@ function useDashboardData(
   const syncIndicator = useSyncIndicator(plans, loading);
   const syncing = syncIndicator || (refreshing && !loading);
   const backendIndicator = useMemo(() => {
-    if (syncing) return { label: 'Syncing', color: '#f59e0b' };
+    if (syncing) return { label: 'Syncing', color: 'var(--warning)' };
     if (mode === 'cloud') {
       if (backendStatus === 'online' && plans.length === 0 && !error)
-        return { label: 'Syncing', color: '#f59e0b' };
-      if (backendStatus === 'online') return { label: 'Cloud', color: '#22c55e' };
-      if (backendStatus === 'checking') return { label: 'Checking', color: '#f59e0b' };
-      return { label: 'Offline', color: '#ef4444' };
+        return { label: 'Syncing', color: 'var(--warning)' };
+      if (backendStatus === 'online') return { label: 'Cloud', color: 'var(--success)' };
+      if (backendStatus === 'checking') return { label: 'Checking', color: 'var(--warning)' };
+      return { label: 'Offline', color: 'var(--danger)' };
     }
-    if (backendStatus === 'online') return { label: 'Live', color: '#22c55e' };
-    if (backendStatus === 'checking') return { label: 'Checking', color: '#f59e0b' };
-    return { label: 'Offline', color: '#ef4444' };
+    if (backendStatus === 'online') return { label: 'Live', color: 'var(--success)' };
+    if (backendStatus === 'checking') return { label: 'Checking', color: 'var(--warning)' };
+    return { label: 'Offline', color: 'var(--danger)' };
   }, [backendStatus, mode, syncing, plans.length, error]);
 
   return {
@@ -405,7 +405,7 @@ function DashboardMain({
   if (mode === 'cloud' && isWorkspaceAccessLoading) {
     return (
       <div
-        className="overflow-auto main-scroll col-start-2 row-start-2 bg-bg"
+        className="agendex-main-pane overflow-auto main-scroll col-start-2 row-start-2 bg-transparent"
         style={{ viewTransitionName: 'main-content' }}
       >
         <BootLoadingView fullscreen={false} />
@@ -424,7 +424,7 @@ function DashboardMain({
   ) {
     return (
       <div
-        className="col-start-2 row-start-2 bg-bg grid overflow-hidden"
+        className="agendex-main-pane col-start-2 row-start-2 bg-transparent grid overflow-hidden"
         style={{
           gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
           gridTemplateRows: 'auto 1fr',
@@ -517,7 +517,7 @@ function DashboardMain({
 
   return (
     <div
-      className="overflow-auto main-scroll col-start-2 row-start-2 bg-bg"
+      className="agendex-main-pane overflow-auto main-scroll col-start-2 row-start-2 bg-transparent"
       style={{ viewTransitionName: 'main-content' }}
     >
       {mode === 'cloud' && !isPro ? (
@@ -730,7 +730,7 @@ function DashboardSidebar({
         pointerEvents: sidebarVisible ? 'auto' : 'none',
         boxShadow: sidebarPeekOpen ? '0 18px 40px rgba(0,0,0,0.20)' : 'none',
         transition: sidebarHidden
-          ? 'transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease'
+          ? 'transform 250ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease'
           : 'opacity 120ms ease',
       }}
     >
@@ -753,7 +753,7 @@ function DashboardSidebar({
             <button
               type="button"
               onClick={onNewPlan}
-              className="sidebar-primary-action flex-1 px-3 text-[12px] font-semibold tracking-[-0.01em] cursor-pointer flex items-center justify-center gap-1.5 border-none"
+              className="sidebar-primary-action flex-1 px-3 text-[12px] font-semibold tracking-[0] cursor-pointer flex items-center justify-center gap-1.5 border-none"
             >
               <svg
                 aria-hidden="true"
@@ -1270,7 +1270,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   return (
     <div
-      className="h-screen grid overflow-clip relative transition-[grid-template-columns] duration-[180ms] ease-in-out"
+      className="agendex-app-shell h-screen grid overflow-clip relative"
       style={{
         gridTemplateColumns: `${sidebarWidth}px 1fr`,
         gridTemplateRows: `${TOPBAR_HEIGHT}px 1fr`,

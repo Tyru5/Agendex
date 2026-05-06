@@ -31,13 +31,13 @@ export function AuthButton() {
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="text-[12px] px-2.5 py-1 rounded-[6px] border border-border bg-surface text-text cursor-pointer font-medium"
+          className="agendex-topbar-button text-[12px] px-2.5 py-1 rounded-[6px] border border-border cursor-pointer font-medium"
         >
           Sign in
         </button>
         {open && (
           <div
-            className="absolute top-full right-0 mt-1.5 bg-surface border border-border rounded-default min-w-[180px] z-[1000] py-1"
+            className="agendex-popover absolute top-full right-0 mt-1.5 rounded-default min-w-[180px] z-[1000] py-1"
             style={{ animation: 'statusPopoverIn 120ms ease-out' }}
           >
             <button
@@ -75,7 +75,7 @@ export function AuthButton() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="size-7 rounded-full overflow-hidden cursor-pointer border-none p-0 bg-transparent flex items-center justify-center transition-opacity duration-150 hover:opacity-80"
+        className="size-7 rounded-full overflow-hidden cursor-pointer border border-border p-0 bg-transparent flex items-center justify-center transition-[border-color,opacity] duration-150 hover:opacity-90 hover:border-[var(--border-strong)]"
       >
         {user?.image ? (
           <img src={user.image} alt="" className="size-7 rounded-full object-cover" />
@@ -88,7 +88,7 @@ export function AuthButton() {
 
       {open && (
         <div
-          className="absolute top-full right-0 mt-1.5 bg-surface border border-border rounded-default min-w-[160px] z-[1000] py-1"
+          className="agendex-popover absolute top-full right-0 mt-1.5 rounded-default min-w-[160px] z-[1000] py-1"
           style={{ animation: 'statusPopoverIn 120ms ease-out' }}
         >
           <div className="px-3 py-2 border-b border-border">

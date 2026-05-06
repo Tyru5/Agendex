@@ -24,9 +24,9 @@ function SeatMeter({ used, total }: { used: number; total: number }) {
       </div>
       <div className="h-1.5 rounded-full bg-hover overflow-hidden">
         <div
-          className="h-full rounded-full transition-all duration-500 ease-out"
+          className="h-full w-full origin-left rounded-full transition-transform duration-500 ease-out"
           style={{
-            width: `${pct}%`,
+            transform: `scaleX(${pct / 100})`,
             background: isFull ? '#ef4444' : isNearLimit ? '#eab308' : 'var(--primary, #8b5cf6)',
           }}
         />
@@ -86,7 +86,7 @@ function MemberRow({
         type="button"
         onClick={onAction}
         className={[
-          'text-[12px] px-3 py-1.5 rounded-lg border bg-transparent cursor-pointer font-medium transition-all duration-150 opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0',
+          'text-[12px] px-3 py-1.5 rounded-lg border bg-transparent cursor-pointer font-medium transition-[opacity,background-color,color,border-color] duration-150 opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0',
           actionDanger
             ? 'border-[rgba(239,68,68,0.3)] text-[#ef4444] hover:bg-[rgba(239,68,68,0.1)]'
             : 'border-border text-secondary hover:text-text hover:bg-hover',

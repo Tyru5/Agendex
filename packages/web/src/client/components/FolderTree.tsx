@@ -140,7 +140,7 @@ function FolderContextMenu({
           borderRadius: '7px',
           border: 'none',
           background: 'transparent',
-          color: '#ef4444',
+          color: 'var(--danger)',
           cursor: 'pointer',
         }}
         onMouseEnter={(e) => {
@@ -221,7 +221,7 @@ export function MoveToFolderMenu({
           borderRadius: '7px',
           border: 'none',
           background: 'transparent',
-          color: currentFolderId === folder.id ? 'var(--accent, #3b82f6)' : 'var(--text)',
+          color: currentFolderId === folder.id ? 'var(--accent)' : 'var(--text)',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',

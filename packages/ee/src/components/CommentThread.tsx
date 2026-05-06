@@ -311,7 +311,7 @@ export function CommentThread({
 
   return (
     <div className="mt-10">
-      <h3 className="text-[13px] font-semibold text-text tracking-[-0.01em] mb-4">
+      <h3 className="text-[13px] font-semibold text-text tracking-[0] mb-4">
         Comments
         {comments && comments.length > 0 && (
           <span className="ml-1.5 text-[11.5px] font-[450] text-tertiary">({comments.length})</span>

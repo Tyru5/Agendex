@@ -32,10 +32,14 @@ function isSafeLoopbackUrl(rawUrl: string | undefined): boolean {
 }
 
 function statusColor(status: string | undefined): string {
-  if (status === 'approved' || status === 'sent') return '#22c55e';
-  if (status === 'denied' || status === 'failed') return '#ef4444';
-  if (status === 'pending') return '#f59e0b';
-  return '#64748b';
+  if (status === 'approved' || status === 'sent') return 'var(--success)';
+  if (status === 'denied' || status === 'failed') return 'var(--danger)';
+  if (status === 'pending') return 'var(--warning)';
+  return 'var(--secondary)';
+}
+
+function statusBorderColor(status: string | undefined): string {
+  return `color-mix(in oklch, ${statusColor(status)} 42%, transparent)`;
 }
 
 export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
@@ -54,7 +58,7 @@ export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
     <div className="flex flex-wrap items-center gap-2 mb-3">
       <span
         className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold"
-        style={{ borderColor: `${statusColor(status)}66`, color: statusColor(status) }}
+        style={{ borderColor: statusBorderColor(status), color: statusColor(status) }}
       >
         <span
           className="h-1.5 w-1.5 rounded-full"
@@ -134,7 +138,7 @@ export function CloudPlannotatorWritebackPanel({ plan }: { plan: Plan }) {
           <span
             className="rounded-full border px-2 py-1 text-[11px] font-semibold"
             style={{
-              borderColor: `${statusColor(latest.status)}66`,
+              borderColor: statusBorderColor(latest.status),
               color: statusColor(latest.status),
             }}
           >
@@ -160,7 +164,7 @@ export function CloudPlannotatorWritebackPanel({ plan }: { plan: Plan }) {
           <div className="flex items-center justify-between gap-3">
             <div className="text-[11px] text-tertiary">
               {queued && 'Queued for daemon delivery.'}
-              {error && <span className="text-[#ef4444]">{error}</span>}
+              {error && <span className="text-[var(--danger)]">{error}</span>}
               {!queued && !error && latest?.error ? latest.error : null}
             </div>
             <button

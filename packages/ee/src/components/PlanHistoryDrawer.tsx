@@ -82,7 +82,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
           </svg>
           Back
         </button>
-        <h2 className="text-[15px] font-semibold text-text tracking-[-0.01em]">Version History</h2>
+        <h2 className="text-[15px] font-semibold text-text tracking-[0]">Version History</h2>
       </div>
 
       {versions === undefined ? (
@@ -111,7 +111,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
       ) : (
         <>
           <div className="mb-6">
-            <h3 className="text-[13px] font-semibold text-text tracking-[-0.01em] mb-2.5">
+            <h3 className="text-[13px] font-semibold text-text tracking-[0] mb-2.5">
               Versions
               <span className="ml-1.5 text-[11.5px] font-[450] text-tertiary">
                 ({versions.length})
@@ -147,7 +147,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
                     </span>
                   )}
                   {idx === 0 && (
-                    <span className="text-[10px] font-semibold py-px px-[5px] rounded-[4px] bg-[rgba(59,130,246,0.1)] text-[#3b82f6]">
+                    <span className="text-[10px] font-semibold py-px px-[5px] rounded-[4px] bg-[var(--accent-soft)] text-[var(--accent)]">
                       Current
                     </span>
                   )}

@@ -158,7 +158,7 @@ export function SearchBar(props: SearchBarProps) {
       <button
         type="button"
         onClick={openModal}
-        className="flex items-center gap-2 rounded-lg py-[5px] px-2 border border-border bg-transparent min-w-0 w-full max-w-[150px] overflow-hidden text-secondary cursor-pointer"
+        className="agendex-topbar-button flex items-center gap-2 rounded-lg py-[5px] px-2 border border-border min-w-0 w-full max-w-[150px] overflow-hidden cursor-pointer"
       >
         <SearchIcon />
         <span className="text-[12px] flex-1 min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis">
@@ -175,7 +175,7 @@ export function SearchBar(props: SearchBarProps) {
           aria-modal="true"
           className="fixed inset-0 z-[120] flex items-center justify-center px-4"
           style={{
-            background: 'rgba(0,0,0,0.44)',
+            background: 'color-mix(in oklch, var(--bg) 72%, transparent)',
             opacity: open ? 1 : 0,
             backdropFilter: open ? 'blur(3px)' : 'blur(0px)',
             transition: 'opacity 220ms ease, backdrop-filter 260ms ease',
@@ -185,7 +185,7 @@ export function SearchBar(props: SearchBarProps) {
           }}
         >
           <div
-            className="w-[min(720px,100%)] h-fit border border-border rounded-[14px] bg-surface shadow-[0_24px_50px_rgba(0,0,0,0.22)] overflow-hidden"
+            className="agendex-popover w-[min(720px,100%)] h-fit rounded-[14px] overflow-hidden"
             style={{
               opacity: open ? 1 : 0,
               transform: open ? 'translateY(0px) scale(1)' : 'translateY(-10px) scale(0.98)',
@@ -243,7 +243,7 @@ export function SearchBar(props: SearchBarProps) {
                         detail={`Mark ${unseenFiltered.length} updated plan${unseenFiltered.length === 1 ? '' : 's'} as read`}
                         onClick={handleMarkAllRead}
                       />
-                      <div className="text-[11px] font-semibold text-[#3b82f6] tracking-[0.04em] uppercase px-2 pt-1.5 pb-1">
+                      <div className="text-[11px] font-semibold text-[var(--accent)] tracking-[0.04em] uppercase px-2 pt-1.5 pb-1">
                         Updated ({unseenFiltered.length})
                       </div>
                       {visibleUnseenFiltered.map((plan) => (
@@ -302,7 +302,7 @@ function SearchActionRow({
         <MarkReadIcon />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em]">
+        <span className="block font-medium text-[13px] leading-[1.35] text-text tracking-[0]">
           {label}
         </span>
         <span className="block mt-1 text-[11.5px] text-tertiary">{detail}</span>
@@ -332,11 +332,11 @@ function SearchPlanRow({
       }}
     >
       <div
-        className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[-0.01em] overflow-hidden line-clamp-2"
+        className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[0] overflow-hidden line-clamp-2"
         style={{ paddingLeft: unseen ? '14px' : undefined }}
       >
         {unseen && (
-          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
+          <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
         )}
         {plan.title}
       </div>

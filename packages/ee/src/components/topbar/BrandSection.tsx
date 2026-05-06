@@ -1,4 +1,4 @@
-import { NewPlanIcon, SidebarToggleIcon, UploadIcon } from './TopbarIcons';
+import { SidebarToggleIcon, UploadIcon } from './TopbarIcons';
 
 export function BrandSection({
   sidebarPinnedOpen,
@@ -41,7 +41,7 @@ export function BrandSection({
           onClick={onToggleSidebar}
           aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
           title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
-          className="size-[30px] rounded-lg border border-border text-secondary cursor-pointer flex items-center justify-center transition-colors duration-150 hover:bg-hover hover:text-text"
+          className="agendex-topbar-button size-[30px] rounded-lg border border-border cursor-pointer flex items-center justify-center"
           style={{
             background: sidebarHidden ? 'var(--hover)' : 'transparent',
           }}
@@ -49,16 +49,16 @@ export function BrandSection({
           <SidebarToggleIcon hidden={sidebarHidden} />
         </button>
         {sidebarHidden && isPro && hasUnseenPlans && (
-          <span className="sidebar-dot absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-blue-500 pointer-events-none" />
+          <span className="sidebar-dot absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-[var(--accent)] pointer-events-none" />
         )}
       </div>
 
       <button
         type="button"
         onClick={onLogoClick}
-        className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[-0.02em] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
+        className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[0] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
       >
-        Agendex<span style={{ color: '#c8ff32' }}>.</span>
+        Agendex<span className="agendex-brand-mark">.</span>
       </button>
 
       {(mode === 'local' || (mode === 'cloud' && isPro)) && (
@@ -76,7 +76,7 @@ export function BrandSection({
             onClick={onNewPlan}
             aria-label="Create new plan"
             title="Create new plan"
-            className="h-7 px-2.5 rounded-lg text-[11.5px] font-semibold tracking-[-0.01em] cursor-pointer flex items-center gap-1 border-none transition-all duration-150 bg-[#c8ff32] text-[#111] shadow-[0_0_0_1px_rgba(200,255,50,0.15),0_1px_3px_rgba(0,0,0,0.3)] hover:bg-[#d4ff5c] hover:shadow-[0_0_0_1px_rgba(200,255,50,0.3),0_2px_8px_rgba(200,255,50,0.15)] focus-visible:bg-[#d4ff5c] focus-visible:shadow-[0_0_0_1px_rgba(200,255,50,0.3),0_2px_8px_rgba(200,255,50,0.15)]"
+            className="agendex-topbar-primary h-7 px-2.5 rounded-lg text-[11.5px] font-semibold cursor-pointer flex items-center gap-1"
           >
             <svg
               aria-hidden="true"
@@ -97,7 +97,7 @@ export function BrandSection({
             onClick={onUpload}
             aria-label="Upload plan"
             title="Upload plan"
-            className="size-7 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center transition-all duration-150 hover:text-secondary hover:border-[rgba(255,255,255,0.12)] hover:bg-hover"
+            className="agendex-topbar-button size-7 rounded-lg border border-border cursor-pointer flex items-center justify-center"
           >
             <UploadIcon />
           </button>

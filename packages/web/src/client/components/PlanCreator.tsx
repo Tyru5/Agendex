@@ -155,7 +155,7 @@ export function PlanCreator({
         {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions */}
         <div
           onMouseDown={handleMouseDown}
-          className="w-[5px] cursor-col-resize bg-border shrink-0 transition-[background] duration-[120ms]"
+          className="w-[5px] cursor-col-resize bg-border shrink-0 transition-[background-color] duration-[120ms]"
           onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--text)')}
           onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--border)')}
         />

@@ -5,10 +5,14 @@ import type { ResolvedTheme } from './ThemeProvider.tsx';
 
 function canvasBackgroundForTheme(resolvedTheme: ResolvedTheme): string {
   if (typeof document === 'undefined') {
-    return resolvedTheme === 'dark' ? '#161616' : '#ffffff';
+    return resolvedTheme === 'dark' ? 'oklch(20.2% 0.038 184)' : 'oklch(99% 0.009 128)';
   }
   const fromCss = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim();
-  return fromCss.length > 0 ? fromCss : resolvedTheme === 'dark' ? '#161616' : '#ffffff';
+  return fromCss.length > 0
+    ? fromCss
+    : resolvedTheme === 'dark'
+      ? 'oklch(20.2% 0.038 184)'
+      : 'oklch(99% 0.009 128)';
 }
 
 let mermaidIdSeq = 0;

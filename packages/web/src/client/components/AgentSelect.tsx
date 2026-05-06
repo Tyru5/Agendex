@@ -45,7 +45,7 @@ export function AgentSelect({
             role="tab"
             aria-selected={active}
             onClick={() => onSelect(tab.value)}
-            className="border-0 rounded-[9px] p-[6px_14px] whitespace-nowrap font-[inherit] cursor-pointer transition-[background,color] duration-[140ms] ease-[ease] flex flex-col items-center gap-[3px] min-w-[96px]"
+            className="border-0 rounded-[9px] p-[6px_14px] whitespace-nowrap font-[inherit] cursor-pointer transition-[background-color,color] duration-[140ms] ease-[ease] flex flex-col items-center gap-[3px] min-w-[96px]"
             style={{
               color: active ? 'var(--text)' : 'var(--secondary)',
               background: active ? 'var(--surface)' : 'transparent',
@@ -54,7 +54,7 @@ export function AgentSelect({
             title={`${tab.label} (${tab.count})`}
           >
             <span
-              className="flex items-center gap-1.5 text-[12.5px] tracking-[-0.01em] leading-[1.1]"
+              className="flex items-center gap-1.5 text-[12.5px] tracking-[0] leading-[1.1]"
               style={{
                 fontWeight: active ? 600 : 500,
               }}

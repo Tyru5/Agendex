@@ -103,7 +103,7 @@ function CategoryFilters({
             type="button"
             key={cat}
             onClick={() => onToggle(cat)}
-            className="flex items-center gap-[5px] px-2.5 py-[3px] text-[11px] font-medium font-inherit rounded-[6px] cursor-pointer transition-all duration-150 capitalize"
+            className="flex items-center gap-[5px] px-2.5 py-[3px] text-[11px] font-medium font-inherit rounded-[6px] cursor-pointer transition-[background-color,border-color,color,opacity] duration-150 capitalize"
             style={{
               border: `1px solid ${active ? `${color}40` : 'var(--border)'}`,
               background: active ? `${color}15` : 'transparent',
@@ -212,7 +212,7 @@ function GraphContent({
           ...e.style,
           opacity: isConnected ? 0.8 : 0.04,
           strokeWidth: isConnected ? 2 : (e.style?.strokeWidth ?? 1),
-          transition: 'opacity 0.15s, stroke-width 0.15s',
+          transition: 'opacity 0.15s',
         },
       };
     });
@@ -377,7 +377,6 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
         </div>
       ) : (
         <div
-          className="transition-[margin,padding] duration-[250ms] ease-in-out"
           style={
             wide
               ? {
@@ -402,8 +401,8 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
                 title={wide ? 'Collapse width' : 'Expand width'}
                 className="flex items-center gap-[5px] px-3 py-[5px] text-[12.5px] font-medium font-inherit rounded-[7px] border border-border cursor-pointer"
                 style={{
-                  background: wide ? 'rgba(139,92,246,0.1)' : 'transparent',
-                  color: wide ? '#8b5cf6' : 'var(--secondary)',
+                  background: wide ? 'var(--accent-soft)' : 'transparent',
+                  color: wide ? 'var(--accent)' : 'var(--secondary)',
                 }}
               >
                 {wide ? <CollapseWidthIcon /> : <ExpandWidthIcon />}
@@ -425,7 +424,7 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
           <div className="mb-3">{filterPanel}</div>
 
           <div
-            className="w-full rounded-xl border border-border overflow-hidden transition-[height] duration-[250ms] ease-in-out"
+            className="w-full rounded-xl border border-border overflow-hidden"
             style={{ height: wide ? '650px' : '500px' }}
           >
             <GraphContent

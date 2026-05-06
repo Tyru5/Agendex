@@ -75,7 +75,7 @@ export function AboutMePage() {
         </nav>
 
         <header className="about-in about-d1 mb-20 mt-24">
-          <h1 className="font-[Unbounded,sans-serif] text-[clamp(48px,8vw,86px)] font-normal leading-[0.92] tracking-[-0.05em]">
+          <h1 className="font-[Unbounded,sans-serif] text-[clamp(48px,8vw,86px)] font-normal leading-[0.92] tracking-[0]">
             Hi, I&apos;m{' '}
             <a
               href="https://tiru5.me"
@@ -96,7 +96,7 @@ export function AboutMePage() {
         <div className="about-in about-d2">
           <section className="border-t border-[rgba(255,255,255,0.06)] pb-14 pt-10">
             <span className="font-mono text-[11px] text-[rgba(255,255,255,0.18)]">01</span>
-            <h2 className="mt-4 text-[clamp(24px,3.2vw,36px)] font-normal leading-[1.3] tracking-[-0.03em] text-[rgba(255,255,255,0.92)]">
+            <h2 className="mt-4 text-[clamp(24px,3.2vw,36px)] font-normal leading-[1.3] tracking-[0] text-[rgba(255,255,255,0.92)]">
               The person behind this project.
             </h2>
             <p className="mt-5 max-w-[32rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.48)]">
@@ -113,7 +113,7 @@ export function AboutMePage() {
           <section className="border-t border-[rgba(255,255,255,0.06)] pb-14 pt-10">
             <span className="font-mono text-[11px] text-[rgba(255,255,255,0.18)]">02</span>
             <div className="ml-4 mt-6 border-l-[2px] border-[rgba(200,255,50,0.3)] pl-6 sm:ml-8 sm:pl-8">
-              <p className="font-[Unbounded,sans-serif] text-[clamp(22px,3vw,30px)] font-normal leading-[1.35] tracking-[-0.03em] text-[rgba(255,255,255,0.88)]">
+              <p className="font-[Unbounded,sans-serif] text-[clamp(22px,3vw,30px)] font-normal leading-[1.35] tracking-[0] text-[rgba(255,255,255,0.88)]">
                 What felt missing.
               </p>
               <p className="mt-5 max-w-[34rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.48)]">
@@ -127,7 +127,7 @@ export function AboutMePage() {
 
           <section className="border-t border-[rgba(255,255,255,0.06)] pb-14 pt-10">
             <span className="font-mono text-[11px] text-[rgba(200,255,50,0.5)]">04</span>
-            <h2 className="mt-4 font-[Unbounded,sans-serif] text-[clamp(24px,3.2vw,36px)] font-normal leading-[1.3] tracking-[-0.04em] text-white">
+            <h2 className="mt-4 font-[Unbounded,sans-serif] text-[clamp(24px,3.2vw,36px)] font-normal leading-[1.3] tracking-[0] text-white">
               Where this is heading<span className="text-[#c8ff32]">.</span>
             </h2>
             <p className="mt-5 max-w-[32rem] text-[15px] leading-[1.9] text-[rgba(255,255,255,0.48)]">

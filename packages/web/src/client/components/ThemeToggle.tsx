@@ -67,12 +67,12 @@ export function ThemeToggle() {
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="agendex-topbar-control relative">
       <button
         type="button"
         aria-label="Toggle theme"
         onClick={() => setOpen((v) => !v)}
-        className="w-[30px] h-[30px] rounded-lg border border-border text-text cursor-pointer flex items-center justify-center"
+        className="agendex-topbar-button w-[30px] h-[30px] rounded-lg border border-border cursor-pointer flex items-center justify-center"
         style={{
           background: open ? 'var(--hover)' : 'transparent',
         }}
@@ -81,7 +81,7 @@ export function ThemeToggle() {
       </button>
 
       {open && (
-        <div className="absolute top-[calc(100%+6px)] right-0 min-w-[140px] bg-surface border border-border rounded-[10px] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)] z-[100]">
+        <div className="agendex-popover agendex-popover--enter absolute top-[calc(100%+6px)] right-0 min-w-[140px] rounded-[10px] p-1 z-[100]">
           {OPTIONS.map((opt) => (
             <button
               key={opt.value}

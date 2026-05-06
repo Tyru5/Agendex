@@ -10,8 +10,6 @@ interface EmptyStateViewProps {
 }
 
 const EMPTY_AGENTS: AgentStats[] = [];
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
-const modKey = isMac ? '\u2318' : 'Ctrl';
 
 function SearchIcon() {
   return (
@@ -35,13 +33,11 @@ function SearchIcon() {
 function ActionPill({
   icon,
   label,
-  kbd,
   onClick,
   disabled = false,
 }: {
   icon: React.ReactNode;
   label: string;
-  kbd?: string;
   onClick?: () => void;
   disabled?: boolean;
 }) {
@@ -54,7 +50,6 @@ function ActionPill({
     >
       <span className="empty-state-pill-icon">{icon}</span>
       <span>{label}</span>
-      {kbd && <span className="empty-state-pill-kbd">{kbd}</span>}
     </button>
   );
 }
@@ -62,12 +57,14 @@ function ActionPill({
 function StageCard({
   className,
   lines,
+  active = false,
 }: {
   className: string;
   lines: Array<'long' | 'mid' | 'short'>;
+  active?: boolean;
 }) {
   return (
-    <div className={className} data-empty-card>
+    <div className={`${className}${active ? ' empty-state-stage-card--active' : ''}`}>
       <span className="empty-state-stage-chip" />
       <div className="empty-state-stage-lines">
         {lines.map((line) => (
@@ -88,6 +85,11 @@ function useAgentRotation(agentIds: string[]) {
   });
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const count = agentIds.length;
+  const agentKey = agentIds.join('\u001f');
+
+  useEffect(() => {
+    setIndices({ current: 0, prev: null });
+  }, [agentKey]);
 
   useEffect(() => {
     if (count <= 1) return;
@@ -97,9 +99,11 @@ function useAgentRotation(agentIds: string[]) {
     ) {
       return;
     }
+
     const id = setInterval(() => {
       setIndices((state) => ({ current: (state.current + 1) % count, prev: state.current }));
     }, 4200);
+
     return () => clearInterval(id);
   }, [count]);
 
@@ -108,7 +112,7 @@ function useAgentRotation(agentIds: string[]) {
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       setIndices((state) => ({ ...state, prev: null }));
-    }, 360);
+    }, 430);
     return () => clearTimeout(timeoutRef.current);
   }, [indices.prev]);
 
@@ -121,55 +125,58 @@ function useAgentRotation(agentIds: string[]) {
   };
 }
 
-function RotatingAgentIcon({
+function FlippingAgentSummary({
   currentAgent,
+  currentText,
   prevAgent,
+  prevText,
+  widthCh,
 }: {
   currentAgent: string;
+  currentText: string;
   prevAgent: string | null;
+  prevText: string | null;
+  widthCh: number;
 }) {
   return (
-    <span className="empty-state-agent-icon">
-      {prevAgent && (
+    <div
+      className="empty-state-agent-note"
+      style={{ '--empty-agent-summary-width': `${widthCh}ch` } as React.CSSProperties}
+    >
+      <span className="empty-state-agent-icon" aria-hidden="true">
+        {prevAgent && (
+          <span
+            key={`agent-icon-out-${prevAgent}`}
+            className="empty-state-agent-icon-layer empty-state-agent-icon-layer--out"
+          >
+            <AgentIcon agent={prevAgent} size={14} />
+          </span>
+        )}
         <span
-          key={`out-${prevAgent}`}
-          className="empty-state-agent-icon-layer"
-          style={{ animation: 'rolodex-out 0.36s ease-in forwards' }}
+          key={`agent-icon-in-${currentAgent}`}
+          className={`empty-state-agent-icon-layer${prevAgent ? ' empty-state-agent-icon-layer--in' : ''}`}
         >
-          <AgentIcon agent={prevAgent} size={14} />
+          <AgentIcon agent={currentAgent} size={14} />
         </span>
-      )}
-      <span
-        key={`in-${currentAgent}`}
-        className="empty-state-agent-icon-layer"
-        style={{ animation: prevAgent ? 'rolodex-in 0.36s ease-out forwards' : undefined }}
-      >
-        <AgentIcon agent={currentAgent} size={14} />
       </span>
-    </span>
-  );
-}
 
-function RotatingText({ current, prev }: { current: string; prev: string | null }) {
-  return (
-    <span className="empty-state-rotating-text">
-      {prev && (
+      <span className="empty-state-agent-summary" aria-live="polite">
+        {prevText && (
+          <span
+            key={`agent-summary-out-${prevText}`}
+            className="empty-state-agent-summary-layer empty-state-agent-summary-layer--out"
+          >
+            {prevText}
+          </span>
+        )}
         <span
-          key={`text-out-${prev}`}
-          className="empty-state-rotating-text-layer empty-state-rotating-text-layer--out"
-          style={{ animation: 'rolodex-out-inv 0.36s ease-in forwards' }}
+          key={`agent-summary-in-${currentText}`}
+          className={`empty-state-agent-summary-layer${prevText ? ' empty-state-agent-summary-layer--in' : ''}`}
         >
-          {prev}
+          {currentText}
         </span>
-      )}
-      <span
-        key={`text-in-${current}`}
-        className="empty-state-rotating-text-layer"
-        style={{ animation: prev ? 'rolodex-in-inv 0.36s ease-out forwards' : undefined }}
-      >
-        {current}
       </span>
-    </span>
+    </div>
   );
 }
 
@@ -178,14 +185,12 @@ export function EmptyStateView({
   planCount = 0,
   agents = EMPTY_AGENTS,
 }: EmptyStateViewProps) {
-  const shellRef = useRef<HTMLDivElement>(null);
   const activeAgents = useMemo(
     () => agents.filter((agent) => agent.planCount > 0).sort((a, b) => b.planCount - a.planCount),
     [agents],
   );
   const activeAgentIds = useMemo(() => activeAgents.map((agent) => agent.agent), [activeAgents]);
   const { currentAgent, prevAgent } = useAgentRotation(activeAgentIds);
-
   const currentAgentStats = currentAgent
     ? (activeAgents.find((agent) => agent.agent === currentAgent) ?? null)
     : null;
@@ -193,79 +198,13 @@ export function EmptyStateView({
     ? (activeAgents.find((agent) => agent.agent === prevAgent) ?? null)
     : null;
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    let disposed = false;
-    let teardown = () => {};
-
-    void import('gsap').then(({ gsap }) => {
-      if (disposed || !shellRef.current) return;
-
-      const shell = shellRef.current;
-      const ctx = gsap.context(() => {
-        const timeline = gsap.timeline({ defaults: { ease: 'power4.out' } });
-
-        timeline
-          .fromTo(
-            '[data-empty-stage="ambient"]',
-            { autoAlpha: 0 },
-            { autoAlpha: 1, duration: 0.45 },
-            0,
-          )
-          .fromTo(
-            '[data-empty-animate="title"]',
-            { autoAlpha: 0, y: 26 },
-            { autoAlpha: 1, y: 0, duration: 0.58 },
-            0.08,
-          )
-          .fromTo(
-            '[data-empty-animate="description"]',
-            { autoAlpha: 0, y: 20 },
-            { autoAlpha: 1, y: 0, duration: 0.48 },
-            0.16,
-          )
-          .fromTo(
-            '[data-empty-animate="action"]',
-            { autoAlpha: 0, y: 18 },
-            { autoAlpha: 1, y: 0, duration: 0.42 },
-            0.24,
-          )
-          .fromTo(
-            '[data-empty-animate="agent"]',
-            { autoAlpha: 0, y: 16 },
-            { autoAlpha: 1, y: 0, duration: 0.42 },
-            0.28,
-          )
-          .fromTo(
-            '[data-empty-animate="stage"]',
-            { autoAlpha: 0, x: 28 },
-            { autoAlpha: 1, x: 0, duration: 0.62 },
-            0.12,
-          )
-          .fromTo(
-            '[data-empty-card]',
-            { autoAlpha: 0, y: 24, scale: 0.985 },
-            { autoAlpha: 1, y: 0, scale: 1, duration: 0.52, stagger: 0.07 },
-            0.24,
-          );
-      }, shell);
-
-      teardown = () => ctx.revert();
-    });
-
-    return () => {
-      disposed = true;
-      teardown();
-    };
-  }, []);
-
   const hasPlans = planCount > 0;
-  const heading = hasPlans ? 'Pick a plan.' : 'No plans yet.';
+  const heading = hasPlans ? 'Choose a plan' : 'No plans indexed';
   const description = hasPlans
-    ? 'Open search and jump straight to what you need.'
-    : 'Run an agent and Agendex will collect its plans here.';
+    ? 'Search by title, source, or agent, or pick one from the sidebar.'
+    : 'Plans from watched sources will appear here as soon as agents write them.';
+  const planNoun = planCount === 1 ? 'plan' : 'plans';
+  const status = hasPlans ? `${planCount} ${planNoun} indexed` : 'Plan index ready';
 
   function agentSummary(agent: string, stats: AgentStats | null) {
     const count = stats?.planCount ?? 0;
@@ -273,9 +212,17 @@ export function EmptyStateView({
     return `${count} ${noun} from ${getAgentLabel(agent)}`;
   }
 
+  const currentSummary =
+    currentAgent && currentAgentStats ? agentSummary(currentAgent, currentAgentStats) : null;
+  const prevSummary = prevAgent ? agentSummary(prevAgent, prevAgentStats) : null;
+  const maxSummaryLength = Math.max(
+    18,
+    ...activeAgents.map((agent) => agentSummary(agent.agent, agent).length),
+  );
+
   return (
-    <div ref={shellRef} className="h-full empty-state-shell">
-      <div className="empty-state-ambient" aria-hidden="true" data-empty-stage="ambient">
+    <div className="h-full empty-state-shell">
+      <div className="empty-state-ambient" aria-hidden="true">
         <span className="empty-state-halo empty-state-halo--left" />
         <span className="empty-state-halo empty-state-halo--right" />
       </div>
@@ -283,37 +230,33 @@ export function EmptyStateView({
       <div className="empty-state-content">
         <div className="empty-state-layout">
           <div className="empty-state-copy">
-            <h2 className="empty-state-title" data-empty-animate="title">
-              {heading}
-            </h2>
-            <p className="empty-state-description" data-empty-animate="description">
-              {description}
-            </p>
+            <div className="empty-state-kicker">
+              <span className="empty-state-kicker-dot" />
+              <span>{status}</span>
+            </div>
 
-            {onSearch && (
-              <div className="empty-state-actions" data-empty-animate="action">
-                <ActionPill
-                  icon={<SearchIcon />}
-                  label={hasPlans ? 'Search plans' : 'Open search'}
-                  kbd={`${modKey}+K`}
-                  onClick={onSearch}
-                />
+            <h2 className="empty-state-title">{heading}</h2>
+            <p className="empty-state-description">{description}</p>
+
+            {onSearch && hasPlans && (
+              <div className="empty-state-actions">
+                <ActionPill icon={<SearchIcon />} label="Search plans" onClick={onSearch} />
               </div>
             )}
 
-            {currentAgent && currentAgentStats && (
-              <div className="empty-state-agent-note" data-empty-animate="agent">
-                <RotatingAgentIcon currentAgent={currentAgent} prevAgent={prevAgent} />
-                <RotatingText
-                  current={agentSummary(currentAgent, currentAgentStats)}
-                  prev={prevAgent ? agentSummary(prevAgent, prevAgentStats) : null}
-                />
-              </div>
+            {currentAgent && currentSummary && (
+              <FlippingAgentSummary
+                currentAgent={currentAgent}
+                currentText={currentSummary}
+                prevAgent={prevAgent}
+                prevText={prevSummary}
+                widthCh={maxSummaryLength}
+              />
             )}
           </div>
 
-          <div className="empty-state-stage" aria-hidden="true" data-empty-animate="stage">
-            <div className="empty-state-stage-shell">
+          <div className="empty-state-stage" aria-hidden="true">
+            <div className={`empty-state-stage-shell${hasPlans ? ' is-populated' : ''}`}>
               <span className="empty-state-stage-beam" />
               <StageCard
                 className="empty-state-stage-card empty-state-stage-card--back"
@@ -322,10 +265,12 @@ export function EmptyStateView({
               <StageCard
                 className="empty-state-stage-card empty-state-stage-card--middle"
                 lines={['long', 'short']}
+                active={hasPlans}
               />
               <StageCard
                 className="empty-state-stage-card empty-state-stage-card--front"
                 lines={['long', 'mid', 'short']}
+                active={hasPlans}
               />
             </div>
           </div>

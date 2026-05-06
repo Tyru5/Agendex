@@ -115,7 +115,7 @@ function PasswordGate({
               />
             </svg>
           </div>
-          <h1 className="text-[17px] font-semibold text-text tracking-[-0.02em] mb-2">
+          <h1 className="text-[17px] font-semibold text-text tracking-[0] mb-2">
             Password required
           </h1>
           <p className="text-[13px] text-tertiary leading-[1.5]">
@@ -232,9 +232,7 @@ export function SharedPlanView({ token }: { token: string }) {
     body = (
       <div className="min-h-screen flex items-center justify-center bg-bg p-4">
         <div className="share-surface-in w-full max-w-[400px] rounded-2xl border border-border bg-surface px-8 py-9 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.25)] text-left">
-          <h1 className="text-[17px] font-semibold text-text tracking-[-0.02em] mb-2">
-            Plan not found
-          </h1>
+          <h1 className="text-[17px] font-semibold text-text tracking-[0] mb-2">Plan not found</h1>
           <p className="text-[13px] text-tertiary leading-[1.5]">
             This link may have been revoked or the plan no longer exists.
           </p>
@@ -273,7 +271,7 @@ export function SharedPlanView({ token }: { token: string }) {
                 </span>
               </div>
 
-              <h1 className="text-[26px] font-semibold tracking-[-0.03em] leading-[1.25] text-text mb-3">
+              <h1 className="text-[26px] font-semibold tracking-[0] leading-[1.25] text-text mb-3">
                 {plan.title}
               </h1>
 

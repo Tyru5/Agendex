@@ -135,7 +135,7 @@ function MenuButton({
         borderRadius: '7px',
         border: 'none',
         background: 'transparent',
-        color: disabled ? 'var(--tertiary)' : danger ? '#ef4444' : 'var(--text)',
+        color: disabled ? 'var(--tertiary)' : danger ? 'var(--danger)' : 'var(--text)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         display: 'flex',
         alignItems: 'center',
@@ -459,7 +459,7 @@ export function PlanList(props: PlanListProps) {
               background: 'var(--surface)',
               border: '1px solid var(--border)',
               borderRadius: '10px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)',
+              boxShadow: 'var(--shadow-popover)',
             }}
             onPointerDown={(e) => e.stopPropagation()}
           >
@@ -566,7 +566,7 @@ export function PlanList(props: PlanListProps) {
                     viewBox="0 0 24 24"
                     strokeWidth={1.5}
                     stroke="currentColor"
-                    style={{ width: '14px', height: '14px', flexShrink: 0, color: '#ef4444' }}
+                    style={{ width: '14px', height: '14px', flexShrink: 0, color: 'var(--danger)' }}
                   >
                     <path
                       strokeLinecap="round"
@@ -595,7 +595,7 @@ export function PlanList(props: PlanListProps) {
               background: 'var(--surface)',
               border: '1px solid var(--border)',
               borderRadius: '10px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)',
+              boxShadow: 'var(--shadow-popover)',
             }}
             onPointerDown={(e) => e.stopPropagation()}
           >
