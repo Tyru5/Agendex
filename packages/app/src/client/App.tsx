@@ -188,6 +188,7 @@ function Dashboard() {
   return (
     <div
       className="agendex-app-shell h-screen grid overflow-clip"
+      data-plan-open={selectedPlan ? 'true' : undefined}
       style={{
         position: 'relative',
         gridTemplateColumns: `${sidebarWidth}px 1fr`,

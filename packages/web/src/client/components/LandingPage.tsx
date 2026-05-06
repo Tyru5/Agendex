@@ -312,14 +312,23 @@ function ProductDemoSection({
       className="relative z-[1] border-b border-[var(--landing-border)] px-[clamp(20px,5vw,88px)] py-[76px] max-sm:px-4 max-sm:py-[58px]"
       style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
     >
-      <div className="mb-[34px] grid grid-cols-[minmax(160px,0.35fr)_minmax(0,0.65fr)] gap-[clamp(22px,5vw,72px)] max-lg:grid-cols-1 max-lg:gap-4">
-        <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-muted)]">
-          Product flow
-        </span>
-        <h2 className="m-0 max-w-[760px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[36px] font-[430] leading-[1.12] text-[var(--landing-text)] max-sm:text-[28px]">
+      <div className="mb-[44px] grid grid-cols-[minmax(160px,0.35fr)_minmax(0,0.65fr)] gap-[clamp(22px,5vw,72px)] max-lg:grid-cols-1 max-lg:gap-5">
+        <div className="flex items-baseline gap-3 self-start max-lg:w-full">
+          <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
+            01
+          </span>
+          <span
+            aria-hidden="true"
+            className="h-px min-w-[28px] flex-1 translate-y-[-3px] bg-[var(--landing-border)] max-lg:hidden"
+          />
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
+            Product flow
+          </span>
+        </div>
+        <h2 className="m-0 max-w-[860px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[clamp(42px,4.8vw,60px)] font-[500] leading-[1.0] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[34px] max-sm:leading-[1.04]">
           From scattered agent files to reviewed work.
         </h2>
-        <p className="col-start-2 mt-[-14px] mb-0 max-w-[560px] text-[15px] leading-[1.7] text-[var(--landing-muted)] max-lg:col-start-1 max-lg:mt-0">
+        <p className="col-start-2 mt-3 mb-0 max-w-[560px] text-[15px] leading-[1.7] text-[var(--landing-muted)] max-lg:col-start-1 max-lg:mt-0">
           Watch local plans, find the right thread, then share context with a team when the work
           needs review.
         </p>
@@ -1121,12 +1130,21 @@ function LandingPricing({
       className="relative z-[1] border-b border-[var(--landing-border)] px-[clamp(20px,5vw,88px)] py-[86px] max-sm:px-4 max-sm:py-[58px]"
       style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
     >
-      <div className="mb-10 grid grid-cols-[minmax(160px,0.32fr)_minmax(0,0.68fr)] gap-[clamp(22px,5vw,72px)] max-lg:grid-cols-1 max-lg:gap-4">
-        <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-muted)]">
-          Pricing
-        </span>
+      <div className="mb-12 grid grid-cols-[minmax(160px,0.32fr)_minmax(0,0.68fr)] gap-[clamp(22px,5vw,72px)] max-lg:grid-cols-1 max-lg:gap-5">
+        <div className="flex items-baseline gap-3 self-start max-lg:w-full">
+          <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
+            02
+          </span>
+          <span
+            aria-hidden="true"
+            className="h-px min-w-[28px] flex-1 translate-y-[-3px] bg-[var(--landing-border)] max-lg:hidden"
+          />
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
+            Pricing
+          </span>
+        </div>
         <div className="min-w-0">
-          <h2 className="m-0 max-w-[780px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[36px] font-[430] leading-[1.12] text-[var(--landing-text)] max-sm:text-[28px]">
+          <h2 className="m-0 max-w-[860px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[clamp(42px,4.8vw,60px)] font-[500] leading-[1.0] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[34px] max-sm:leading-[1.04]">
             Start local. Upgrade when review becomes shared.
           </h2>
           <p className="mt-4 mb-0 max-w-[600px] text-[15px] leading-[1.7] text-[var(--landing-muted)]">
@@ -1184,10 +1202,19 @@ function LandingFAQ({
     >
       <div className="grid grid-cols-[minmax(230px,0.34fr)_minmax(0,0.66fr)] gap-[clamp(28px,6vw,88px)] max-lg:grid-cols-1">
         <div className="min-w-0">
-          <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-muted)]">
-            Support
-          </span>
-          <h2 className="mt-6 mb-0 max-w-[520px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[36px] font-[430] leading-[1.12] text-[var(--landing-text)] max-sm:text-[28px]">
+          <div className="flex items-baseline gap-3">
+            <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
+              03
+            </span>
+            <span
+              aria-hidden="true"
+              className="h-px min-w-[28px] flex-1 translate-y-[-3px] bg-[var(--landing-border)]"
+            />
+            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
+              Support
+            </span>
+          </div>
+          <h2 className="mt-7 mb-0 max-w-[640px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[clamp(42px,4.8vw,60px)] font-[500] leading-[1.0] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[34px] max-sm:leading-[1.04]">
             Answers before you install.
           </h2>
           <p className="mt-4 mb-0 max-w-[430px] text-[14.5px] leading-[1.7] text-[var(--landing-muted)]">

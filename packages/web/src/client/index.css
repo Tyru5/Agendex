@@ -930,6 +930,15 @@ body {
     linear-gradient(180deg, var(--bg), color-mix(in oklch, var(--surface) 8%, var(--bg)));
 }
 
+/*
+ * Plan-first clarity: once a plan is open, drop the ambient radial wash so the
+ * reading surface sits flat against the background. The grid + plan content
+ * become the only visual layer in the main pane.
+ */
+.agendex-app-shell[data-plan-open='true'] {
+  background: var(--bg);
+}
+
 .agendex-topbar {
   background:
     linear-gradient(180deg, color-mix(in oklch, var(--surface) 96%, transparent), var(--surface));
