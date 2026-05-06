@@ -13,6 +13,14 @@ import { type Command, useCommandItems } from './useCommandItems';
 const INITIAL_PLAN_BATCH_SIZE = 100;
 const PLAN_BATCH_SIZE = 100;
 
+type PaletteView = 'commands' | 'agents';
+
+interface AgentRow {
+  agent: string;
+  planCount: number;
+  latestUpdatedAt: string;
+}
+
 export function CommandPalette({
   search,
   onSearch,
@@ -59,6 +67,8 @@ export function CommandPalette({
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [visiblePlanCount, setVisiblePlanCount] = useState(INITIAL_PLAN_BATCH_SIZE);
+  const [view, setView] = useState<PaletteView>('commands');
+  const [focusedAgentIndex, setFocusedAgentIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const openFrameRef = useRef<ReturnType<typeof requestAnimationFrame>>(undefined);
@@ -91,6 +101,8 @@ export function CommandPalette({
     if (openFrameRef.current) cancelAnimationFrame(openFrameRef.current);
 
     setVisiblePlanCount(INITIAL_PLAN_BATCH_SIZE);
+    setView('commands');
+    setFocusedAgentIndex(0);
     setMounted(true);
     openFrameRef.current = requestAnimationFrame(() => {
       setOpen(true);
@@ -115,19 +127,30 @@ export function CommandPalette({
         openModal();
       }
       if (e.key === 'Escape') {
-        closeModal();
+        if (mounted && view === 'agents') {
+          e.preventDefault();
+          setView('commands');
+          setFocusedAgentIndex(0);
+        } else {
+          closeModal();
+        }
       }
     }
     window.addEventListener('keydown', onKeyDown);
 
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [closeModal, openModal]);
+  }, [closeModal, openModal, mounted, view]);
 
   useEffect(() => {
     if (!open) return;
     const timerId = setTimeout(() => inputRef.current?.focus(), 0);
     return () => clearTimeout(timerId);
-  }, [open]);
+  }, [open, view]);
+
+  useEffect(() => {
+    if (!open) return;
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [open, view]);
 
   useEffect(() => {
     return () => {
@@ -142,6 +165,56 @@ export function CommandPalette({
   }, [resolvedTheme, setTheme]);
 
   const filteredPlans = useMemo(() => filterPlans(plans, search), [plans, search]);
+
+  const agentRows = useMemo<AgentRow[]>(() => {
+    const map = new Map<string, AgentRow>();
+    for (const plan of plans) {
+      const key = plan.agent.trim().toLowerCase();
+      if (!key) continue;
+      const existing = map.get(key);
+      if (existing) {
+        existing.planCount += 1;
+        if (new Date(plan.updatedAt).getTime() > new Date(existing.latestUpdatedAt).getTime()) {
+          existing.latestUpdatedAt = plan.updatedAt;
+        }
+      } else {
+        map.set(key, {
+          agent: plan.agent,
+          planCount: 1,
+          latestUpdatedAt: plan.updatedAt,
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.planCount !== a.planCount) return b.planCount - a.planCount;
+      return getAgentLabel(a.agent).localeCompare(getAgentLabel(b.agent));
+    });
+  }, [plans]);
+
+  const filteredAgentRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return agentRows;
+    return agentRows.filter(
+      (row) =>
+        row.agent.toLowerCase().includes(q) || getAgentLabel(row.agent).toLowerCase().includes(q),
+    );
+  }, [agentRows, search]);
+
+  useEffect(() => {
+    if (view !== 'agents') return;
+    if (focusedAgentIndex > Math.max(0, filteredAgentRows.length - 1)) {
+      setFocusedAgentIndex(0);
+    }
+  }, [view, filteredAgentRows.length, focusedAgentIndex]);
+
+  const applyAgent = useCallback(
+    (agent: string) => {
+      onSearch(agent);
+      setView('commands');
+      setFocusedAgentIndex(0);
+    },
+    [onSearch],
+  );
 
   const visibleUnseenPlans = useMemo(
     () =>
@@ -238,9 +311,12 @@ export function CommandPalette({
       label: 'View All Agents',
       group: 'plans',
       icon: <BoxIcon />,
-      footerHint: 'Browse available agents',
+      footerHint: 'Browse all sync’d agents creating plans',
+      closeOnSelect: false,
       action: () => {
         onSearch('');
+        setFocusedAgentIndex(0);
+        setView('agents');
       },
     });
 
@@ -339,10 +415,11 @@ export function CommandPalette({
     focusableItems,
     focusedIndex,
     setFocusedIndex,
-    footerHint,
-    onKeyDown,
+    footerHint: commandFooterHint,
+    onKeyDown: onCommandKeyDown,
     resetFocus,
     getFocusableIndex,
+    executeItem,
     hasMorePlans,
     visiblePlanCount: renderedPlanCount,
     filteredPlansCount,
@@ -361,13 +438,38 @@ export function CommandPalette({
 
   const handleResultsScroll = useCallback(() => {
     const container = scrollRef.current;
-    if (!container || !hasMorePlans) return;
+    if (!container || !hasMorePlans || view !== 'commands') return;
 
     const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;
     if (remaining <= 160) {
       loadMorePlans();
     }
-  }, [hasMorePlans, loadMorePlans]);
+  }, [hasMorePlans, loadMorePlans, view]);
+
+  const onAgentKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedAgentIndex((i) => Math.min(i + 1, Math.max(0, filteredAgentRows.length - 1)));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedAgentIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const row = filteredAgentRows[focusedAgentIndex];
+        if (row) applyAgent(row.agent);
+      }
+    },
+    [filteredAgentRows, focusedAgentIndex, applyAgent],
+  );
+
+  const onInputKeyDown = view === 'agents' ? onAgentKeyDown : onCommandKeyDown;
+  const footerHint =
+    view === 'agents'
+      ? filteredAgentRows.length > 0
+        ? 'Filter plans by this agent · Esc to go back'
+        : 'Esc to go back'
+      : commandFooterHint;
 
   useEffect(() => {
     if (!open) return;
@@ -397,7 +499,7 @@ export function CommandPalette({
     } else if (eRect.top < cRect.top) {
       container.scrollTop -= cRect.top - eRect.top + 8;
     }
-  }, [focusedIndex]);
+  }, [focusedIndex, focusedAgentIndex, view]);
 
   return (
     <>
@@ -445,18 +547,35 @@ export function CommandPalette({
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 py-3 px-3.5 border-b border-border shrink-0">
-              <SearchIcon />
+              {view === 'agents' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView('commands');
+                    setFocusedAgentIndex(0);
+                  }}
+                  title="Back to commands"
+                  className="shrink-0 inline-flex items-center justify-center w-5 h-5 text-secondary hover:text-text cursor-pointer border-none bg-transparent p-0"
+                >
+                  <ChevronLeftIcon />
+                </button>
+              ) : (
+                <SearchIcon />
+              )}
               <input
                 ref={inputRef}
                 type="text"
                 value={search}
                 onChange={(e) => {
                   setVisiblePlanCount(INITIAL_PLAN_BATCH_SIZE);
+                  setFocusedAgentIndex(0);
                   onSearch(e.target.value);
                   resetFocus();
                 }}
-                onKeyDown={onKeyDown}
-                placeholder="Type a command or search your plans..."
+                onKeyDown={onInputKeyDown}
+                placeholder={
+                  view === 'agents' ? 'Filter agents...' : 'Type a command or search your plans...'
+                }
                 className="flex-1 outline-none bg-transparent border-none font-[inherit] text-[14px] text-text"
               />
               <button
@@ -473,7 +592,15 @@ export function CommandPalette({
               onScroll={handleResultsScroll}
               className="flex-1 overflow-y-auto p-2"
             >
-              {flatItems.length === 0 ? (
+              {view === 'agents' ? (
+                <AgentsView
+                  rows={filteredAgentRows}
+                  totalCount={agentRows.length}
+                  focusedIndex={focusedAgentIndex}
+                  onFocus={setFocusedAgentIndex}
+                  onSelect={(agent) => applyAgent(agent)}
+                />
+              ) : flatItems.length === 0 ? (
                 <div className="p-3 text-[12px] text-tertiary text-center">No results</div>
               ) : (
                 <>
@@ -506,8 +633,7 @@ export function CommandPalette({
                             opacity: gated ? 0.5 : 1,
                           }}
                           onClick={() => {
-                            cmd.action();
-                            closeModal();
+                            executeItem(item);
                           }}
                           onMouseEnter={() => setFocusedIndex(fi)}
                         >
@@ -650,6 +776,81 @@ export function CommandPalette({
         </div>
       )}
     </>
+  );
+}
+
+function AgentsView({
+  rows,
+  totalCount,
+  focusedIndex,
+  onFocus,
+  onSelect,
+}: {
+  rows: AgentRow[];
+  totalCount: number;
+  focusedIndex: number;
+  onFocus: (index: number) => void;
+  onSelect: (agent: string) => void;
+}) {
+  return (
+    <>
+      <div className="text-[11px] font-medium text-tertiary tracking-[0.04em] uppercase px-2 pt-3 pb-1.5">
+        Agents ({totalCount})
+      </div>
+      {rows.length === 0 ? (
+        <div className="p-3 text-[12px] text-tertiary text-center">
+          {totalCount === 0 ? 'No agents have created plans yet.' : 'No agents match your search.'}
+        </div>
+      ) : (
+        rows.map((row, index) => {
+          const focused = index === focusedIndex;
+          return (
+            <button
+              key={row.agent}
+              type="button"
+              data-focused={focused || undefined}
+              className="w-full text-left flex items-center gap-2.5 py-2 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
+              style={{
+                background: focused ? 'var(--hover)' : 'transparent',
+              }}
+              onClick={() => onSelect(row.agent)}
+              onMouseEnter={() => onFocus(index)}
+            >
+              <span className="shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+                <AgentIcon agent={row.agent} size={14} />
+              </span>
+              <span className="flex-1 min-w-0 flex flex-col">
+                <span className="text-[13px] text-text font-medium truncate">
+                  {getAgentLabel(row.agent)}
+                </span>
+                <span className="text-[11.5px] text-tertiary truncate">
+                  Last plan {timeAgo(row.latestUpdatedAt)} ago
+                </span>
+              </span>
+              <span className="shrink-0 text-[11px] text-tertiary tabular-nums border border-border rounded-full px-2 py-0.5">
+                {row.planCount} {row.planCount === 1 ? 'plan' : 'plans'}
+              </span>
+            </button>
+          );
+        })
+      )}
+    </>
+  );
+}
+
+function ChevronLeftIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+      stroke="currentColor"
+      className="w-[14px] h-[14px]"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+    </svg>
   );
 }
 

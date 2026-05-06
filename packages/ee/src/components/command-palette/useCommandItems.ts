@@ -8,6 +8,7 @@ export interface Command {
   icon: ReactNode;
   footerHint: string;
   proOnly?: boolean;
+  closeOnSelect?: boolean;
   action: () => void;
 }
 
@@ -115,7 +116,7 @@ export function useCommandItems({
     (item: FlatItem) => {
       if (item.type === 'command' && item.command) {
         item.command.action();
-        onClose();
+        if (item.command.closeOnSelect !== false) onClose();
       } else if (item.type === 'plan' && item.plan && onSelectPlan) {
         onSelectPlan(item.plan);
         onClose();
@@ -180,6 +181,7 @@ export function useCommandItems({
     onKeyDown,
     resetFocus,
     getFocusableIndex,
+    executeItem,
     hasMorePlans: visiblePlans.length < filteredPlans.length,
     visiblePlanCount: visiblePlans.length,
     filteredPlansCount: filteredPlans.length,
