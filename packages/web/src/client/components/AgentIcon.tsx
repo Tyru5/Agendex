@@ -1,10 +1,46 @@
-import { getAgentColor, getAgentGlyph, getAgentIcon } from '../lib/agent-colors.ts';
+import { getAgentColor, getAgentGlyph, getAgentIcon, getAgentLabel } from '../lib/agent-colors.ts';
+import { useAgentAvatarUrl } from './AgentAvatarContext.tsx';
 
 const DARK_ICON_HEX = new Set(['000000', '0B100F', '191919']);
 
-export function AgentIcon({ agent, size = 14 }: { agent: string; size?: number }) {
-  const icon = getAgentIcon(agent);
+export function AgentIcon({
+  agent,
+  size = 14,
+  avatarUrl,
+}: {
+  agent: string;
+  size?: number;
+  avatarUrl?: string;
+}) {
+  const contextAvatar = useAgentAvatarUrl(agent);
+  const resolvedAvatarUrl = avatarUrl ?? contextAvatar;
   const dimension = `${size}px`;
+
+  if (resolvedAvatarUrl) {
+    return (
+      <span
+        aria-hidden="true"
+        className="inline-flex items-center justify-center shrink-0 overflow-hidden rounded-full bg-bg"
+        style={{
+          width: dimension,
+          height: dimension,
+          minWidth: dimension,
+          minHeight: dimension,
+        }}
+      >
+        <img
+          src={resolvedAvatarUrl}
+          alt={getAgentLabel(agent)}
+          width={size}
+          height={size}
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
+      </span>
+    );
+  }
+
+  const icon = getAgentIcon(agent);
 
   if (icon && (icon.path || icon.paths?.length)) {
     const iconHex = icon.hex.toUpperCase();

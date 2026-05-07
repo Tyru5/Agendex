@@ -1,4 +1,5 @@
 import {
+  ChangelogPage,
   EmptyStateView,
   filterPlans,
   hasToken,
@@ -363,6 +364,16 @@ function SessionExpiredBanner() {
 }
 
 export default function App() {
+  if (typeof window !== 'undefined' && window.location.pathname === '/changelog') {
+    return (
+      <ChangelogPage
+        onBack={() => {
+          window.location.href = '/';
+        }}
+      />
+    );
+  }
+
   if (!hasToken()) {
     return (
       <>

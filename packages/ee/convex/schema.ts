@@ -247,6 +247,16 @@ export default defineSchema({
     .index('by_owner_plan', ['ownerId', 'planId'])
     .index('by_owner_pinned', ['ownerId', 'pinned']),
 
+  agentAvatars: defineTable({
+    ownerId: v.string(),
+    agent: v.string(),
+    storageId: v.id('_storage'),
+    updatedAt: v.number(),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_agent', ['ownerId', 'agent'])
+    .index('by_storage', ['storageId']),
+
   daemonHeartbeats: defineTable({
     ownerId: v.string(),
     lastSeenAt: v.number(),

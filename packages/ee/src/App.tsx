@@ -1,5 +1,7 @@
 import {
+  AgentAvatarProvider,
   type AgentStats,
+  ChangelogPage,
   EmptyStateView,
   filterPlans,
   hasToken,
@@ -1308,6 +1310,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onToggleOutline={toggleOutline}
         onToggleChart={isPro ? toggleChart : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
+        onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
         sidebarWidth={expandedWidth}
       />
 
@@ -1437,6 +1440,11 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
     </div>
   );
+}
+
+function ChangelogRoute() {
+  const [, navigate] = useLocation();
+  return <ChangelogPage onBack={() => startViewTransition(() => navigate('/'))} />;
 }
 
 function CliAuthRoute() {
@@ -1591,21 +1599,30 @@ function HomeRoute() {
   );
 }
 
+function AppAvatarProvider({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
+  const avatars = useQuery(api.agentAvatars.listMyAgentAvatars, isAuthenticated ? {} : 'skip');
+  return <AgentAvatarProvider avatars={avatars ?? {}}>{children}</AgentAvatarProvider>;
+}
+
 export default function App() {
   return (
-    <Switch>
-      <Route path="/auth/check" component={AuthCheckRoute} />
-      <Route path="/auth/cli" component={CliAuthRoute} />
-      <Route path="/shared/:token">{({ token }) => <SharedPlanView token={token} />}</Route>
-      <Route path="/about-me" component={AboutMePage} />
-      <Route path="/welcome">
-        <OnboardingRoute>
-          <WelcomeScreen />
-        </OnboardingRoute>
-      </Route>
-      <Route path="/invite/:token">{({ token }) => <AcceptInvitePage token={token} />}</Route>
-      <Route path="/settings" component={SettingsPage} />
-      <Route path="/" component={HomeRoute} />
-    </Switch>
+    <AppAvatarProvider>
+      <Switch>
+        <Route path="/auth/check" component={AuthCheckRoute} />
+        <Route path="/auth/cli" component={CliAuthRoute} />
+        <Route path="/shared/:token">{({ token }) => <SharedPlanView token={token} />}</Route>
+        <Route path="/about-me" component={AboutMePage} />
+        <Route path="/changelog" component={ChangelogRoute} />
+        <Route path="/welcome">
+          <OnboardingRoute>
+            <WelcomeScreen />
+          </OnboardingRoute>
+        </Route>
+        <Route path="/invite/:token">{({ token }) => <AcceptInvitePage token={token} />}</Route>
+        <Route path="/settings" component={SettingsPage} />
+        <Route path="/" component={HomeRoute} />
+      </Switch>
+    </AppAvatarProvider>
   );
 }

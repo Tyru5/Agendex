@@ -839,6 +839,12 @@ function LandingNavbar({
                 {section.label}
               </a>
             ))}
+            <a
+              href="/changelog"
+              className="text-[12.5px] font-semibold text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
+            >
+              Changelog
+            </a>
           </div>
         </div>
 
@@ -891,6 +897,13 @@ function LandingNavbar({
               {section.label}
             </a>
           ))}
+          <a
+            href="/changelog"
+            onClick={onMobileMenuClose}
+            className="flex min-h-11 items-center rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_72%,transparent)] px-3.5 text-[14px] font-semibold text-[var(--landing-text)] no-underline"
+          >
+            Changelog
+          </a>
           <div className="pt-1 [&>*]:w-full">{authSlot ? authSlot() : authAction}</div>
         </div>
       </div>
@@ -911,6 +924,7 @@ function LandingFooter() {
         <a href="#overview">Overview</a>
         <a href="#features">Features</a>
         <a href="#pricing">Pricing</a>
+        <a href="/changelog">Changelog</a>
         <a
           href="https://github.com/tiru5/agendex"
           target="_blank"

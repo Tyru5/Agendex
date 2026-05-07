@@ -38,6 +38,7 @@ export function DashboardTopbar({
   onToggleOutline,
   onToggleChart,
   onDeletePlan,
+  onShowChangelog,
   sidebarWidth: sidebarWidthProp,
 }: {
   sidebarPinnedOpen: boolean;
@@ -70,6 +71,7 @@ export function DashboardTopbar({
   onToggleOutline?: () => void;
   onToggleChart?: () => void;
   onDeletePlan?: (planId: string) => void;
+  onShowChangelog?: () => void;
   sidebarWidth?: number;
 }) {
   return (
@@ -112,6 +114,7 @@ export function DashboardTopbar({
           onToggleOutline={onToggleOutline}
           onToggleChart={onToggleChart}
           onDeletePlan={onDeletePlan}
+          onShowChangelog={onShowChangelog}
         />
       </div>
 

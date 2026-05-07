@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { DaemonDeviceInfo } from '../../hooks/useDaemonStatus';
 import type { Subscription } from '../../hooks/useSubscription';
 import { formatRelativeTime, formatUptime } from '../../lib/formatTime';
+import { AgentAvatarsSection } from './AgentAvatarsSection';
 import { FREE_FEATURES, MONTHLY_PRICE, PRIMARY_RGB_FALLBACK, PRO_FEATURES } from './constants';
 
 interface AccountTabProps {
@@ -426,6 +427,9 @@ export function AccountTab({
           )}
         </div>
       </section>
+
+      {/* Agent Avatars */}
+      <AgentAvatarsSection />
 
       {/* Connected Machines */}
       <section>

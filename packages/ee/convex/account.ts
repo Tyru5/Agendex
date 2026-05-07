@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import { api, components, internal } from './_generated/api';
 import type { Doc, TableNames } from './_generated/dataModel';
 import { action, internalMutation } from './_generated/server';
+import { deleteAllAgentAvatarsForOwner } from './agentAvatars';
 import { deleteCommentWithAttachments, deletePendingUploadRecord } from './comments';
 import { deletePlanRelatedData } from './planDeletion';
 
@@ -155,5 +156,6 @@ export const purgeUserData = internalMutation({
         .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', userId))
         .collect(),
     );
+    await deleteAllAgentAvatarsForOwner(ctx, userId);
   },
 });
