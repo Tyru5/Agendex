@@ -144,6 +144,53 @@ const TIER_LABEL: Record<Tier, string> = {
 };
 
 /**
+ * Release dates sourced from the Changesets "Release agendex-cli" commits
+ * (`git log packages/cli/CHANGELOG.md`). When a new release ships, append
+ * its `version → ISO date` here so the changelog page can render it.
+ */
+const RELEASE_DATES: Record<string, string> = {
+  '0.16.0': '2026-04-30',
+  '0.15.0': '2026-04-29',
+  '0.14.0': '2026-04-27',
+  '0.13.0': '2026-04-24',
+  '0.12.0': '2026-04-16',
+  '0.11.0': '2026-04-10',
+  '0.10.1': '2026-04-07',
+  '0.10.0': '2026-04-03',
+  '0.9.1': '2026-04-01',
+  '0.9.0': '2026-04-01',
+  '0.8.5': '2026-03-31',
+  '0.8.4': '2026-03-31',
+  '0.8.3': '2026-03-27',
+  '0.8.2': '2026-03-27',
+  '0.8.1': '2026-03-27',
+  '0.8.0': '2026-03-27',
+  '0.7.0': '2026-03-23',
+  '0.6.0': '2026-03-20',
+  '0.5.0': '2026-03-20',
+  '0.4.0': '2026-03-19',
+  '0.3.2': '2026-03-19',
+  '0.3.1': '2026-03-19',
+  '0.3.0': '2026-03-18',
+  '0.2.0': '2026-03-14',
+};
+
+const RELEASE_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+});
+
+function formatReleaseDate(version: string): { display: string; iso: string } | null {
+  const iso = RELEASE_DATES[version];
+  if (!iso) return null;
+  const parsed = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return { display: RELEASE_DATE_FORMATTER.format(parsed), iso };
+}
+
+/**
  * Tier coloring stays **tonal only** to honor the Rare Signal Rule:
  * acid-lime is reserved for current-state / primary action,
  * signal-orange for conversion. Tiers differ by ivory weight + glyph.
@@ -272,86 +319,97 @@ export function ChangelogPage({ onBack, homeHref = '/' }: ChangelogPageProps = {
           </div>
         ) : (
           <ol className="m-0 list-none border-t border-[var(--landing-border)] p-0">
-            {parsed.entries.map((entry, index) => (
-              <li
-                key={entry.version}
-                className="grid grid-cols-[200px_minmax(0,1fr)] gap-x-10 gap-y-3 border-b border-[var(--landing-border)] py-7 max-sm:grid-cols-1 max-sm:gap-x-0 max-sm:gap-y-3 max-sm:py-5"
-              >
-                {/* Left rail: version + tier */}
-                <div className="flex flex-col gap-3 max-sm:flex-row max-sm:items-baseline max-sm:justify-between">
-                  <div className="flex items-baseline gap-2.5">
-                    <span
-                      aria-hidden="true"
-                      className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-[600] tabular-nums text-[var(--landing-faint)]"
-                    >
-                      {String(parsed.entries.length - index).padStart(2, '0')}
-                    </span>
-                    <h2 className="m-0 font-[Unbounded,Inter,system-ui,sans-serif] text-[24px] font-[430] leading-[1.0] tracking-[-0.01em] text-[var(--landing-text)]">
-                      {entry.version}
-                    </h2>
+            {parsed.entries.map((entry, index) => {
+              const released = formatReleaseDate(entry.version);
+              return (
+                <li
+                  key={entry.version}
+                  className="grid grid-cols-[200px_minmax(0,1fr)] gap-x-10 gap-y-3 border-b border-[var(--landing-border)] py-7 max-sm:grid-cols-1 max-sm:gap-x-0 max-sm:gap-y-3 max-sm:py-5"
+                >
+                  {/* Left rail: version + date + tier */}
+                  <div className="flex flex-col gap-3 max-sm:flex-row max-sm:flex-wrap max-sm:items-baseline max-sm:justify-between max-sm:gap-x-3">
+                    <div className="flex items-baseline gap-2.5">
+                      <span
+                        aria-hidden="true"
+                        className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-[600] tabular-nums text-[var(--landing-faint)]"
+                      >
+                        {String(parsed.entries.length - index).padStart(2, '0')}
+                      </span>
+                      <h2 className="m-0 font-[Unbounded,Inter,system-ui,sans-serif] text-[24px] font-[430] leading-[1.0] tracking-[-0.01em] text-[var(--landing-text)]">
+                        {entry.version}
+                      </h2>
+                    </div>
+                    {released && (
+                      <time
+                        dateTime={released.iso}
+                        className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-[500] uppercase tracking-[0.12em] text-[var(--landing-muted)]"
+                      >
+                        {released.display}
+                      </time>
+                    )}
+                    <div>
+                      <TierBadge tier={entry.topTier} />
+                    </div>
                   </div>
-                  <div>
-                    <TierBadge tier={entry.topTier} />
+
+                  {/* Right column: sections */}
+                  <div className="flex min-w-0 flex-col gap-5">
+                    {entry.sections.length === 0 ? (
+                      <p className="m-0 text-[13.5px] leading-[1.55] text-[var(--landing-muted)]">
+                        No notes recorded.
+                      </p>
+                    ) : (
+                      entry.sections.map((section) => (
+                        <section key={section.heading} className="min-w-0">
+                          <header className="mb-2.5 flex items-baseline gap-2.5">
+                            <span
+                              aria-hidden="true"
+                              className="h-px w-5 bg-[var(--landing-border)]"
+                            />
+                            <span className="font-[Inter,ui-sans-serif,system-ui] text-[11px] font-[650] uppercase tracking-[0.1em] text-[var(--landing-muted)]">
+                              {section.heading}
+                            </span>
+                          </header>
+
+                          {section.notes.length > 0 && (
+                            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                              {section.notes.map((note, noteIndex) => (
+                                <li
+                                  key={`${entry.version}-${section.heading}-${noteIndex}`}
+                                  className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-3 max-sm:grid-cols-1 max-sm:gap-1"
+                                >
+                                  {note.hash ? (
+                                    <code
+                                      className="select-all justify-self-start rounded-[4px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface-raised)_72%,transparent)] px-[7px] py-[2px] font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11.5px] font-[500] tabular-nums text-[var(--landing-muted)]"
+                                      title={`Commit ${note.hash}`}
+                                    >
+                                      {note.hash}
+                                    </code>
+                                  ) : (
+                                    <span aria-hidden="true" />
+                                  )}
+                                  <div className="changelog-note-body min-w-0 text-[14px] font-[450] leading-[1.6] text-[var(--landing-text)]">
+                                    <Markdown remarkPlugins={[remarkGfm]}>
+                                      {note.description}
+                                    </Markdown>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+
+                          {section.trailing && (
+                            <div className="changelog-note-body mt-2 text-[14px] font-[450] leading-[1.6] text-[var(--landing-text)]">
+                              <Markdown remarkPlugins={[remarkGfm]}>{section.trailing}</Markdown>
+                            </div>
+                          )}
+                        </section>
+                      ))
+                    )}
                   </div>
-                </div>
-
-                {/* Right column: sections */}
-                <div className="flex min-w-0 flex-col gap-5">
-                  {entry.sections.length === 0 ? (
-                    <p className="m-0 text-[13.5px] leading-[1.55] text-[var(--landing-muted)]">
-                      No notes recorded.
-                    </p>
-                  ) : (
-                    entry.sections.map((section) => (
-                      <section key={section.heading} className="min-w-0">
-                        <header className="mb-2.5 flex items-baseline gap-2.5">
-                          <span
-                            aria-hidden="true"
-                            className="h-px w-5 bg-[var(--landing-border)]"
-                          />
-                          <span className="font-[Inter,ui-sans-serif,system-ui] text-[11px] font-[650] uppercase tracking-[0.1em] text-[var(--landing-muted)]">
-                            {section.heading}
-                          </span>
-                        </header>
-
-                        {section.notes.length > 0 && (
-                          <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                            {section.notes.map((note, noteIndex) => (
-                              <li
-                                key={`${entry.version}-${section.heading}-${noteIndex}`}
-                                className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-3 max-sm:grid-cols-1 max-sm:gap-1"
-                              >
-                                {note.hash ? (
-                                  <code
-                                    className="select-all justify-self-start rounded-[4px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface-raised)_72%,transparent)] px-[7px] py-[2px] font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11.5px] font-[500] tabular-nums text-[var(--landing-muted)]"
-                                    title={`Commit ${note.hash}`}
-                                  >
-                                    {note.hash}
-                                  </code>
-                                ) : (
-                                  <span aria-hidden="true" />
-                                )}
-                                <div className="changelog-note-body min-w-0 text-[14px] font-[450] leading-[1.6] text-[var(--landing-text)]">
-                                  <Markdown remarkPlugins={[remarkGfm]}>
-                                    {note.description}
-                                  </Markdown>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-
-                        {section.trailing && (
-                          <div className="changelog-note-body mt-2 text-[14px] font-[450] leading-[1.6] text-[var(--landing-text)]">
-                            <Markdown remarkPlugins={[remarkGfm]}>{section.trailing}</Markdown>
-                          </div>
-                        )}
-                      </section>
-                    ))
-                  )}
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ol>
         )}
 
