@@ -1,4 +1,5 @@
 import {
+  AgentAvatarProvider,
   AgentIcon,
   buildPlanOutline,
   ExitFullscreenIcon,
@@ -164,6 +165,15 @@ function PasswordGate({
 }
 
 export function SharedPlanView({ token }: { token: string }) {
+  const sharedAvatars = useQuery(api.agentAvatars.listAgentAvatarsForShare, { token });
+  return (
+    <AgentAvatarProvider avatars={sharedAvatars ?? {}}>
+      <SharedPlanViewInner token={token} />
+    </AgentAvatarProvider>
+  );
+}
+
+function SharedPlanViewInner({ token }: { token: string }) {
   const queryResult = useQuery(api.plans.getPlanByShareToken, { token });
   const fullscreen = useFullscreen<HTMLDivElement>();
   const [, navigate] = useLocation();
@@ -369,6 +379,7 @@ export function SharedPlanView({ token }: { token: string }) {
         onNavigate={(path: string) => navigate(path)}
         onShowPricing={sharedHome}
         onToggleOutline={toggleOutline}
+        onShowChangelog={() => navigate('/changelog')}
       />
       {body}
     </>

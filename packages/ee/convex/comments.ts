@@ -8,6 +8,7 @@ import {
   type QueryCtx,
   query,
 } from './_generated/server';
+import { getAllAgentAvatarStorageIds } from './agentAvatars';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
@@ -559,6 +560,7 @@ export const cleanupStalePendingUploads = internalMutation({
     let deletedUntrackedFiles = 0;
     const commentReferencedStorageIds = await getCommentReferencedStorageIds(ctx);
     const pendingUploadStorageIds = await getPendingUploadStorageIds(ctx);
+    const agentAvatarStorageIds = await getAllAgentAvatarStorageIds(ctx);
 
     const staleReservations = await ctx.db
       .query('commentUploadReservations')
@@ -577,7 +579,10 @@ export const cleanupStalePendingUploads = internalMutation({
       .take(500);
 
     for (const record of stale) {
-      if (!commentReferencedStorageIds.has(record.storageId)) {
+      if (
+        !commentReferencedStorageIds.has(record.storageId) &&
+        !agentAvatarStorageIds.has(record.storageId)
+      ) {
         await deleteStorageFile(ctx, record.storageId);
       }
       await ctx.db.delete(record._id);
@@ -594,6 +599,7 @@ export const cleanupStalePendingUploads = internalMutation({
     for (const storageObject of staleStorageObjects) {
       if (commentReferencedStorageIds.has(storageObject._id)) continue;
       if (pendingUploadStorageIds.has(storageObject._id)) continue;
+      if (agentAvatarStorageIds.has(storageObject._id)) continue;
 
       await deleteStorageFile(ctx, storageObject._id);
       deletedUntrackedFiles++;
