@@ -60,11 +60,15 @@ export async function getAgentAvatarStorageIdsForOwner(
   return new Set(avatars.map((a) => a.storageId));
 }
 
-export async function getAllAgentAvatarStorageIds(
+export async function isAgentAvatarStorageId(
   ctx: Pick<QueryCtx, 'db'>,
-): Promise<Set<Id<'_storage'>>> {
-  const avatars = await ctx.db.query('agentAvatars').collect();
-  return new Set(avatars.map((a) => a.storageId));
+  storageId: Id<'_storage'>,
+): Promise<boolean> {
+  const avatar = await ctx.db
+    .query('agentAvatars')
+    .withIndex('by_storage', (q) => q.eq('storageId', storageId))
+    .first();
+  return avatar !== null;
 }
 
 export async function deleteAllAgentAvatarsForOwner(

@@ -254,7 +254,8 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_owner', ['ownerId'])
-    .index('by_owner_agent', ['ownerId', 'agent']),
+    .index('by_owner_agent', ['ownerId', 'agent'])
+    .index('by_storage', ['storageId']),
 
   daemonHeartbeats: defineTable({
     ownerId: v.string(),

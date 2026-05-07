@@ -8,7 +8,7 @@ import {
   type QueryCtx,
   query,
 } from './_generated/server';
-import { getAllAgentAvatarStorageIds } from './agentAvatars';
+import { isAgentAvatarStorageId } from './agentAvatars';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
@@ -17,10 +17,6 @@ const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_COMMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_TRACKED_UPLOAD_AGE_MS = 5 * 60 * 1000;
 const STALE_COMMENT_UPLOAD_AGE_MS = 15 * 60 * 1000;
-
-type CommentReadCtx = {
-  db: Pick<QueryCtx['db'], 'query' | 'system'>;
-};
 
 type CommentStorageCtx = Pick<MutationCtx, 'db' | 'storage'>;
 
@@ -54,28 +50,26 @@ async function validateCommentAccess(
   }
 }
 
-async function getCommentReferencedStorageIds(ctx: CommentReadCtx): Promise<Set<Id<'_storage'>>> {
-  const referencedIds = new Set<Id<'_storage'>>();
-  const allComments = await ctx.db.query('comments').collect();
-
-  for (const comment of allComments) {
-    for (const attachment of comment.attachments ?? []) {
-      referencedIds.add(attachment.storageId);
-    }
-  }
-
-  return referencedIds;
+async function isCommentReferencedStorageId(
+  ctx: Pick<QueryCtx, 'db'>,
+  storageId: Id<'_storage'>,
+): Promise<boolean> {
+  const claim = await ctx.db
+    .query('commentAttachmentClaims')
+    .withIndex('by_storage', (q) => q.eq('storageId', storageId))
+    .first();
+  return claim !== null;
 }
 
-async function getPendingUploadStorageIds(ctx: CommentReadCtx): Promise<Set<Id<'_storage'>>> {
-  const trackedIds = new Set<Id<'_storage'>>();
-  const pendingUploads = await ctx.db.query('pendingUploads').collect();
-
-  for (const pendingUpload of pendingUploads) {
-    trackedIds.add(pendingUpload.storageId);
-  }
-
-  return trackedIds;
+async function isPendingUploadStorageId(
+  ctx: Pick<QueryCtx, 'db'>,
+  storageId: Id<'_storage'>,
+): Promise<boolean> {
+  const pendingUpload = await ctx.db
+    .query('pendingUploads')
+    .withIndex('by_storage', (q) => q.eq('storageId', storageId))
+    .first();
+  return pendingUpload !== null;
 }
 
 async function createCommentAttachmentClaims(
@@ -558,9 +552,6 @@ export const cleanupStalePendingUploads = internalMutation({
     let deletedReservations = 0;
     let deletedPendingUploads = 0;
     let deletedUntrackedFiles = 0;
-    const commentReferencedStorageIds = await getCommentReferencedStorageIds(ctx);
-    const pendingUploadStorageIds = await getPendingUploadStorageIds(ctx);
-    const agentAvatarStorageIds = await getAllAgentAvatarStorageIds(ctx);
 
     const staleReservations = await ctx.db
       .query('commentUploadReservations')
@@ -580,13 +571,12 @@ export const cleanupStalePendingUploads = internalMutation({
 
     for (const record of stale) {
       if (
-        !commentReferencedStorageIds.has(record.storageId) &&
-        !agentAvatarStorageIds.has(record.storageId)
+        !(await isCommentReferencedStorageId(ctx, record.storageId)) &&
+        !(await isAgentAvatarStorageId(ctx, record.storageId))
       ) {
         await deleteStorageFile(ctx, record.storageId);
       }
       await ctx.db.delete(record._id);
-      pendingUploadStorageIds.delete(record.storageId);
       deletedPendingUploads++;
     }
 
@@ -597,9 +587,9 @@ export const cleanupStalePendingUploads = internalMutation({
       .take(500);
 
     for (const storageObject of staleStorageObjects) {
-      if (commentReferencedStorageIds.has(storageObject._id)) continue;
-      if (pendingUploadStorageIds.has(storageObject._id)) continue;
-      if (agentAvatarStorageIds.has(storageObject._id)) continue;
+      if (await isCommentReferencedStorageId(ctx, storageObject._id)) continue;
+      if (await isPendingUploadStorageId(ctx, storageObject._id)) continue;
+      if (await isAgentAvatarStorageId(ctx, storageObject._id)) continue;
 
       await deleteStorageFile(ctx, storageObject._id);
       deletedUntrackedFiles++;
