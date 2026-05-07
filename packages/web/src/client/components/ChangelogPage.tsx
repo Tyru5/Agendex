@@ -28,6 +28,7 @@ interface ChangeSection {
 interface ChangelogEntry {
   version: string;
   topTier: Tier;
+  preamble: string;
   sections: ChangeSection[];
 }
 
@@ -99,7 +100,15 @@ function parseChangelog(raw: string): ParsedChangelog {
   const entries: ChangelogEntry[] = [];
   let currentEntry: ChangelogEntry | null = null;
   let currentHeading = '';
+  let preambleBuffer: string[] = [];
   let buffer: string[] = [];
+
+  function flushPreamble() {
+    if (currentEntry && preambleBuffer.length > 0) {
+      currentEntry.preamble = preambleBuffer.join('\n').trim();
+    }
+    preambleBuffer = [];
+  }
 
   function flushSection() {
     if (currentEntry && currentHeading) {
@@ -116,6 +125,7 @@ function parseChangelog(raw: string): ParsedChangelog {
 
   function flushEntry() {
     flushSection();
+    flushPreamble();
     if (currentEntry) entries.push(currentEntry);
     currentEntry = null;
   }
@@ -124,12 +134,20 @@ function parseChangelog(raw: string): ParsedChangelog {
     const line = lines[i] ?? '';
     if (line.startsWith('## ')) {
       flushEntry();
-      currentEntry = { version: line.slice(3).trim(), topTier: 'patch', sections: [] };
+      currentEntry = {
+        version: line.slice(3).trim(),
+        topTier: 'patch',
+        preamble: '',
+        sections: [],
+      };
     } else if (line.startsWith('### ')) {
+      flushPreamble();
       flushSection();
       currentHeading = line.slice(4).trim();
     } else if (currentHeading) {
       buffer.push(line);
+    } else if (currentEntry) {
+      preambleBuffer.push(line);
     }
   }
   flushEntry();
@@ -354,7 +372,13 @@ export function ChangelogPage({ onBack, homeHref = '/' }: ChangelogPageProps = {
 
                   {/* Right column: sections */}
                   <div className="flex min-w-0 flex-col gap-5">
-                    {entry.sections.length === 0 ? (
+                    {entry.preamble && (
+                      <div className="changelog-note-body max-w-[68ch] text-[14px] font-[450] leading-[1.6] text-[var(--landing-text)]">
+                        <Markdown remarkPlugins={[remarkGfm]}>{entry.preamble}</Markdown>
+                      </div>
+                    )}
+
+                    {entry.sections.length === 0 && !entry.preamble ? (
                       <p className="m-0 text-[13.5px] leading-[1.55] text-[var(--landing-muted)]">
                         No notes recorded.
                       </p>
