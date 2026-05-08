@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { type AgendexConfig, isDevMode, loadConfig, saveConfig } from '@agendex/shared';
 
 const PROD_SITE_URL = 'https://app.agendex.dev';
-const DEV_SITE_URL = 'http://app.agendex.local:5174';
+const DEV_SITE_URL = 'http://app.agendex.localhost:5174';
 
 export function getDefaultSiteUrl(): string {
   if (process.env.AGENDEX_SITE_URL) return process.env.AGENDEX_SITE_URL;

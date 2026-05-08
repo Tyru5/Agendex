@@ -2,7 +2,6 @@ import React, { useEffect, useId, useMemo, useReducer, useRef, useState } from '
 import type { ReactNode } from 'react';
 import { startViewTransition } from '../lib/view-transition.ts';
 import {
-  AGENTS,
   CLOUD_STEPS,
   FAQ_ITEMS,
   FEATURES,
@@ -157,7 +156,7 @@ function DemoPanel({
 }) {
   return (
     <article
-      className={`relative min-w-0 overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_82%,transparent)] p-[22px] before:pointer-events-none before:absolute before:inset-0 before:opacity-45 before:[background-image:linear-gradient(var(--landing-border)_1px,transparent_1px),linear-gradient(90deg,var(--landing-border)_1px,transparent_1px)] before:[background-size:64px_64px] before:[mask-image:linear-gradient(to_bottom,black,transparent_72%)] max-sm:p-[18px] ${className}`}
+      className={`relative min-w-0 overflow-hidden rounded-[8px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-surface)_82%,transparent)] p-[22px] max-sm:p-[18px] ${className}`}
     >
       <div className="relative z-[1] mb-5 flex items-center justify-between gap-3">
         <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold uppercase text-[var(--landing-accent)]">
@@ -183,11 +182,11 @@ function IndexDemoPanel() {
       body="Agendex keeps the local source visible, so a plan never becomes detached from the repo and agent that produced it."
       className="lg:col-span-5"
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
         {DEMO_PLAN_ROWS.map((row) => (
           <div
             key={row.title}
-            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-[var(--landing-border)] py-3 first:border-t-0 first:pt-0"
+            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-[5px] py-2.5 px-2 -mx-2 hover:bg-[color-mix(in_oklch,var(--landing-surface-raised)_40%,transparent)]"
           >
             <div className="min-w-0">
               <div className="truncate text-[13px] font-bold text-[var(--landing-text)]">
@@ -219,20 +218,20 @@ function ReviewDemoPanel() {
       body="The plan viewer connects search, markdown, source path, and review state without forcing users back through each agent tool."
       className="lg:col-span-4"
     >
-      <div className="rounded-[7px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] p-3">
+      <div className="rounded-[7px] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] p-3">
         <div className="flex items-center gap-2 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] text-[var(--landing-muted)]">
           <span className="text-[var(--landing-accent)]">{'>'}</span>
           <span className="min-w-0 truncate">auth refactor owner:codex</span>
-          <span className="ml-auto rounded border border-[var(--landing-border)] px-[5px] py-0.5 text-[10.5px] text-[var(--landing-faint)]">
+          <span className="ml-auto rounded bg-[color-mix(in_oklch,var(--landing-surface-raised)_70%,transparent)] px-[5px] py-0.5 text-[10.5px] text-[var(--landing-faint)]">
             cmd k
           </span>
         </div>
       </div>
-      <div className="mt-4 space-y-2">
+      <div className="mt-4 space-y-1">
         {REVIEW_EVENTS.map((event) => (
           <div
             key={event.label}
-            className="flex min-h-[42px] items-center justify-between gap-4 border-b border-[var(--landing-border)] pb-2 text-[12.5px] last:border-b-0 last:pb-0"
+            className="flex min-h-[40px] items-center justify-between gap-4 text-[12.5px]"
           >
             <span className="font-bold text-[var(--landing-text)]">{event.label}</span>
             <span className="min-w-0 truncate text-right text-[var(--landing-muted)]">
@@ -257,7 +256,7 @@ function TeamDemoPanel() {
         {TEAM_EVENTS.map((event, index) => (
           <div
             key={event.label}
-            className="rounded-[7px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_72%,transparent)] p-3"
+            className="rounded-[7px] bg-[color-mix(in_oklch,var(--landing-bg)_72%,transparent)] p-3"
           >
             <div className="flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-accent)]">
               {String(index + 1).padStart(2, '0')}
@@ -275,11 +274,11 @@ function TeamDemoPanel() {
 
 function CapabilityList() {
   return (
-    <div className="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-border)] max-lg:grid-cols-2 max-sm:grid-cols-1">
+    <div className="mt-4 grid grid-cols-3 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
       {FEATURES.map((feature, index) => (
         <div
           key={feature.title}
-          className="min-w-0 bg-[color-mix(in_oklch,var(--landing-bg)_91%,transparent)] p-4"
+          className="min-w-0 rounded-[8px] bg-[color-mix(in_oklch,var(--landing-surface)_60%,transparent)] p-4"
         >
           <div className="mb-2 flex items-center gap-2">
             <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[var(--landing-accent)]">
@@ -309,7 +308,7 @@ function ProductDemoSection({
     <section
       id="features"
       ref={sectionRef}
-      className="relative z-[1] border-b border-[var(--landing-border)] px-[clamp(20px,5vw,88px)] py-[76px] max-sm:px-4 max-sm:py-[58px]"
+      className="relative z-[1] border-b border-[var(--landing-border-subtle)] px-[clamp(20px,5vw,88px)] py-[76px] max-sm:px-4 max-sm:py-[58px]"
       style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
     >
       <div className="mb-[44px] grid grid-cols-[minmax(160px,0.35fr)_minmax(0,0.65fr)] gap-[clamp(22px,5vw,72px)] max-lg:grid-cols-1 max-lg:gap-5">
@@ -317,10 +316,6 @@ function ProductDemoSection({
           <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
             01
           </span>
-          <span
-            aria-hidden="true"
-            className="h-px min-w-[28px] flex-1 translate-y-[-3px] bg-[var(--landing-border)] max-lg:hidden"
-          />
           <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
             Product flow
           </span>
@@ -336,7 +331,7 @@ function ProductDemoSection({
 
       <div
         className={`grid grid-cols-12 gap-3.5 max-lg:grid-cols-1 ${
-          inView ? 'animate-[landing-panel-in_260ms_cubic-bezier(0.22,1,0.36,1)_both]' : ''
+          inView ? 'animate-[landing-panel-in_260ms_cubic-bezier(0.22,1,0.36,1)_both]' : 'opacity-0'
         }`}
       >
         <IndexDemoPanel />
@@ -454,7 +449,7 @@ function PricingCard({
         )}
       </div>
 
-      <div className="border-t border-[var(--landing-border)] pt-5">
+      <div className="pt-5">
         <div className="mb-3 text-[11px] font-bold uppercase text-[var(--landing-muted)]">
           Included
         </div>
@@ -480,7 +475,7 @@ function PricingCard({
         ))}
       </ul>
       {note && (
-        <div className="mb-4 border-t border-[color-mix(in_oklch,var(--landing-accent)_14%,var(--landing-border))] pt-4">
+        <div className="mb-4 border-t border-[var(--landing-border-subtle)] pt-4">
           <div className="text-[12px] font-bold text-[var(--landing-text)]">{note.label}</div>
           <p className="m-0 mt-1 text-[12px] leading-[1.55] text-[var(--landing-muted)]">
             {note.body}
@@ -512,11 +507,11 @@ function PricingCard({
 
 function PricingBridge() {
   return (
-    <div className="grid max-w-[820px] grid-cols-3 gap-px overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-border)] max-md:grid-cols-1">
+    <div className="grid max-w-[820px] grid-cols-3 gap-2 max-md:grid-cols-1">
       {PRICING_PATH.map((step) => (
         <div
           key={step.number}
-          className="bg-[color-mix(in_oklch,var(--landing-bg)_91%,transparent)] p-3.5"
+          className="rounded-[8px] bg-[color-mix(in_oklch,var(--landing-surface)_55%,transparent)] p-3.5"
         >
           <div className="mb-2 flex items-center gap-2">
             <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[color-mix(in_oklch,var(--landing-accent)_66%,var(--landing-muted))]">
@@ -753,9 +748,9 @@ function StepsList({ steps }: { steps: typeof LOCAL_STEPS | typeof CLOUD_STEPS }
       {steps.map((step) => (
         <div
           key={step.number}
-          className="overflow-hidden rounded-[7px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)]"
+          className="overflow-hidden rounded-[7px] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)]"
         >
-          <div className="border-b border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface-raised)_80%,transparent)] px-3 py-2.5 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold uppercase leading-[1.2] text-[var(--landing-text)]">
+          <div className="bg-[color-mix(in_oklch,var(--landing-surface-raised)_80%,transparent)] px-3 py-2.5 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold uppercase leading-[1.2] text-[var(--landing-text)]">
             {step.number} / {step.title.toUpperCase()}
           </div>
           {'hasPkgManager' in step && step.hasPkgManager ? (
@@ -819,7 +814,7 @@ function LandingNavbar({
   );
 
   return (
-    <nav className="fixed inset-x-0 top-0 z-[100] border-b border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_88%,transparent)] backdrop-blur-[14px]">
+    <nav className="fixed inset-x-0 top-0 z-[100] border-b border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_88%,transparent)] backdrop-blur-[14px]">
       <div className="flex min-h-16 items-center justify-between gap-5 px-[clamp(20px,5vw,88px)] max-sm:min-h-[58px] max-sm:px-4">
         <div className="flex min-w-0 items-center gap-9">
           <a
@@ -913,7 +908,7 @@ function LandingNavbar({
 
 function LandingFooter() {
   return (
-    <footer className="relative z-[1] flex min-h-[220px] items-end justify-between gap-8 border-t border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_94%,oklch(12%_0.03_184))] px-[clamp(20px,5vw,88px)] py-11 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start max-sm:px-4 max-sm:py-8">
+    <footer className="relative z-[1] flex min-h-[220px] items-end justify-between gap-8 border-t border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_94%,oklch(12%_0.03_184))] px-[clamp(20px,5vw,88px)] py-11 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start max-sm:px-4 max-sm:py-8">
       <div className="flex flex-col gap-3 text-[12.5px]">
         <span className="font-[Unbounded,Inter,system-ui,sans-serif] text-[42px] font-[430] leading-none text-[var(--landing-text)]">
           Agendex<span className="text-[var(--landing-accent)]">.</span>
@@ -957,8 +952,8 @@ function HeroPlanRoom({
         <span>{activeTab === 'cloud' ? 'Cloud sync path' : 'Local first path'}</span>
       </div>
 
-      <div className="relative overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[linear-gradient(135deg,color-mix(in_oklch,var(--landing-surface-raised)_58%,transparent),color-mix(in_oklch,var(--landing-bg)_92%,transparent))] shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_64%,transparent)] before:pointer-events-none before:absolute before:inset-0 before:opacity-50 before:[background-image:linear-gradient(var(--landing-border)_1px,transparent_1px),linear-gradient(90deg,var(--landing-border)_1px,transparent_1px)] before:[background-size:64px_64px] before:[mask-image:linear-gradient(to_bottom,black,transparent_72%)]">
-        <div className="relative z-[1] border-b border-[var(--landing-border)] p-4 max-sm:p-3.5">
+      <div className="relative overflow-hidden rounded-[8px] border border-[var(--landing-border-subtle)] bg-[linear-gradient(135deg,color-mix(in_oklch,var(--landing-surface-raised)_58%,transparent),color-mix(in_oklch,var(--landing-bg)_92%,transparent))] shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_64%,transparent)]">
+        <div className="relative z-[1] border-b border-[var(--landing-border-subtle)] p-4 max-sm:p-3.5">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-accent)]">
@@ -972,16 +967,16 @@ function HeroPlanRoom({
                 Plans arrive with source, owner, and review state.
               </h2>
             </div>
-            <div className="shrink-0 rounded-[5px] border border-[var(--landing-border)] px-2 py-1 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[var(--landing-muted)]">
+            <div className="shrink-0 rounded-[5px] bg-[color-mix(in_oklch,var(--landing-surface-raised)_60%,transparent)] px-2 py-1 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[var(--landing-muted)]">
               daemon online
             </div>
           </div>
 
-          <div className="grid gap-px overflow-hidden rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-border)]">
+          <div className="overflow-hidden rounded-[7px] bg-[color-mix(in_oklch,var(--landing-bg)_86%,transparent)]">
             {DEMO_PLAN_ROWS.map((row) => (
               <div
                 key={`hero-${row.title}`}
-                className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 bg-[color-mix(in_oklch,var(--landing-bg)_86%,transparent)] px-3.5 py-3"
+                className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-3.5 py-3 odd:bg-[color-mix(in_oklch,var(--landing-surface)_22%,transparent)]"
               >
                 <div className="min-w-0">
                   <div className="truncate text-[13px] font-bold text-[var(--landing-text)]">
@@ -1005,7 +1000,7 @@ function HeroPlanRoom({
             {HERO_PROOF_POINTS.map((point) => (
               <span
                 key={point}
-                className="rounded-full border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_60%,transparent)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[var(--landing-muted)]"
+                className="rounded-full bg-[color-mix(in_oklch,var(--landing-surface)_60%,transparent)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[var(--landing-muted)]"
               >
                 {point}
               </span>
@@ -1013,11 +1008,11 @@ function HeroPlanRoom({
           </div>
         </div>
 
-        <div className="relative z-[1] border-b border-[var(--landing-border)] p-2.5">
-          <div className="grid grid-cols-2 gap-1.5 rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_72%,transparent)] p-1">
+        <div className="relative z-[1] p-2.5">
+          <div className="grid grid-cols-2 gap-1.5 rounded-[8px] bg-[color-mix(in_oklch,var(--landing-bg)_72%,transparent)] p-1">
             <button
               type="button"
-              className={`min-h-9 rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
+              className={`min-h-9 cursor-pointer rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
                 activeTab === 'local'
                   ? 'bg-[var(--landing-surface-raised)] text-[var(--landing-text)]'
                   : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
@@ -1028,7 +1023,7 @@ function HeroPlanRoom({
             </button>
             <button
               type="button"
-              className={`min-h-9 rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
+              className={`min-h-9 cursor-pointer rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
                 activeTab === 'cloud'
                   ? 'bg-[var(--landing-surface-raised)] text-[var(--landing-text)]'
                   : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
@@ -1061,61 +1056,57 @@ function LandingHero({
     <div className="relative z-[1]">
       <section
         id="overview"
-        className="d3-hero grid min-h-[min(820px,88svh)] grid-cols-[minmax(0,0.96fr)_minmax(440px,1.04fr)] items-end gap-[clamp(24px,3vw,46px)] border-b border-[var(--landing-border)] px-[clamp(20px,5vw,88px)] pt-[116px] pb-[70px] max-[980px]:min-h-0 max-[980px]:grid-cols-1 max-[980px]:gap-6 max-[980px]:pt-[104px] max-sm:gap-5 max-sm:px-4 max-sm:pt-[92px] max-sm:pb-[54px]"
+        className="d3-hero grid min-h-[min(820px,88svh)] grid-cols-[minmax(0,0.96fr)_minmax(440px,1.04fr)] items-end gap-[clamp(24px,3vw,46px)] border-b border-[var(--landing-border-subtle)] px-[clamp(20px,5vw,88px)] pt-[116px] pb-[70px] max-[980px]:min-h-0 max-[980px]:grid-cols-1 max-[980px]:gap-6 max-[980px]:pt-[104px] max-sm:gap-5 max-sm:px-4 max-sm:pt-[92px] max-sm:pb-[54px]"
         style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
       >
-        <div className="relative z-[1] max-w-[800px]">
-          <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-muted)]">
-            <span
-              aria-hidden="true"
-              className="size-[7px] rounded-full bg-[var(--landing-accent)] shadow-[0_0_16px_color-mix(in_oklch,var(--landing-accent)_45%,transparent)]"
-            />
-            Agent plan index
-          </div>
-
-          <h1 className="mt-[22px] mb-6 max-w-[760px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[74px] font-[430] leading-[0.98] text-[var(--landing-text)] max-[980px]:text-[54px] max-sm:text-[40px] max-sm:leading-[1.04]">
-            Your agents make plans. <br />
-            Agendex keeps watch.
-          </h1>
-
-          <p className="m-0 max-w-[620px] text-pretty text-[16px] leading-[1.75] text-[var(--landing-muted)] max-sm:text-[14.5px]">
-            Index local plan files from Claude Code, Codex, Cursor, and more. Search the source,
-            review changes, and add Cloud only when the work needs shared context.
-          </p>
-
-          <div className="mt-[34px] flex flex-wrap gap-3 max-sm:[&>*]:w-full [&>a]:inline-flex [&>a]:min-h-[46px] [&>a]:items-center [&>a]:justify-center [&>a]:gap-[9px] [&>a]:rounded-[8px] [&>a]:px-[18px] [&>a]:text-[13px] [&>a]:font-bold [&>a]:leading-[1.2] [&>a]:no-underline [&>button]:inline-flex [&>button]:min-h-[46px] [&>button]:items-center [&>button]:justify-center [&>button]:gap-[9px] [&>button]:rounded-[8px] [&>button]:px-[18px] [&>button]:text-[13px] [&>button]:font-bold [&>button]:leading-[1.2]">
-            {ctaSlot || (
-              <button
-                type="button"
-                onClick={onShowLogin}
-                className="border border-[color-mix(in_oklch,var(--landing-accent)_48%,transparent)] bg-[var(--landing-accent)] text-[var(--landing-bg)]"
-              >
-                Get Started
-              </button>
-            )}
-            <a
-              href="https://github.com/tiru5/agendex"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_78%,transparent)] text-[var(--landing-text)]"
-            >
-              <GitHubIcon16 />
-              View on GitHub
-            </a>
-          </div>
-
+        <div className="relative z-[1] flex h-full max-w-[800px] flex-col justify-between gap-12 max-[980px]:h-auto max-[980px]:gap-10">
           <div
-            className="mt-[38px] flex max-w-[620px] flex-wrap gap-2 max-sm:mt-7"
-            aria-label="Supported coding agents"
+            className="flex items-center gap-4 [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_both]"
+            aria-hidden="true"
           >
-            {AGENTS.slice(0, 6).map((agent) => (
-              <span
-                key={agent}
-                className="rounded-full border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_64%,transparent)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[var(--landing-muted)]"
+            <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+              <span className="absolute inset-[-3px] rounded-full bg-[color-mix(in_oklch,var(--landing-accent)_28%,transparent)] [animation:status-pulse_2.5s_ease-in-out_infinite]" />
+              <span className="relative h-2 w-2 rounded-full bg-[var(--landing-accent)]" />
+            </span>
+            <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--landing-text)]">
+              Plan Room
+            </span>
+            <span className="ml-auto font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-medium uppercase tracking-[0.22em] text-[var(--landing-faint)] max-sm:hidden">
+              Index · Review · Share
+            </span>
+          </div>
+
+          <div>
+            <h1 className="mb-6 max-w-[760px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[74px] font-[430] leading-[0.98] text-[var(--landing-text)] [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_60ms_both] max-[980px]:text-[54px] max-sm:text-[40px] max-sm:leading-[1.04]">
+              Your agents make plans. <br />
+              Agendex keeps watch.
+            </h1>
+
+            <p className="m-0 max-w-[620px] text-pretty text-[16px] leading-[1.75] text-[var(--landing-muted)] [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_180ms_both] max-sm:text-[14.5px]">
+              Index local plan files from Claude Code, Codex, Cursor, and more. Search the source,
+              review changes, and add Cloud only when the work needs shared context.
+            </p>
+
+            <div className="mt-[34px] flex flex-wrap gap-3 [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_300ms_both] max-sm:[&>*]:w-full [&>a]:inline-flex [&>a]:min-h-[46px] [&>a]:items-center [&>a]:justify-center [&>a]:gap-[9px] [&>a]:rounded-[8px] [&>a]:px-[18px] [&>a]:text-[13px] [&>a]:font-bold [&>a]:leading-[1.2] [&>a]:no-underline [&>button]:inline-flex [&>button]:min-h-[46px] [&>button]:items-center [&>button]:justify-center [&>button]:gap-[9px] [&>button]:rounded-[8px] [&>button]:px-[18px] [&>button]:text-[13px] [&>button]:font-bold [&>button]:leading-[1.2]">
+              {ctaSlot || (
+                <button
+                  type="button"
+                  onClick={onShowLogin}
+                  className="border border-[color-mix(in_oklch,var(--landing-accent)_48%,transparent)] bg-[var(--landing-accent)] text-[var(--landing-bg)]"
+                >
+                  Get Started
+                </button>
+              )}
+              <a
+                href="https://github.com/tiru5/agendex"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_78%,transparent)] text-[var(--landing-text)]"
               >
-                {agent}
-              </span>
-            ))}
+                <GitHubIcon16 />
+                View on GitHub
+              </a>
+            </div>
           </div>
         </div>
 
@@ -1141,7 +1132,7 @@ function LandingPricing({
   return (
     <section
       id="pricing"
-      className="relative z-[1] border-b border-[var(--landing-border)] px-[clamp(20px,5vw,88px)] py-[86px] max-sm:px-4 max-sm:py-[58px]"
+      className="relative z-[1] border-b border-[var(--landing-border-subtle)] px-[clamp(20px,5vw,88px)] py-[86px] max-sm:px-4 max-sm:py-[58px]"
       style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
     >
       <div className="mb-12 grid grid-cols-[minmax(160px,0.32fr)_minmax(0,0.68fr)] gap-[clamp(22px,5vw,72px)] max-lg:grid-cols-1 max-lg:gap-5">
@@ -1149,10 +1140,6 @@ function LandingPricing({
           <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
             02
           </span>
-          <span
-            aria-hidden="true"
-            className="h-px min-w-[28px] flex-1 translate-y-[-3px] bg-[var(--landing-border)] max-lg:hidden"
-          />
           <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
             Pricing
           </span>
@@ -1211,7 +1198,7 @@ function LandingFAQ({
   return (
     <section
       id="faq"
-      className="relative z-[1] border-b border-[var(--landing-border)] px-[clamp(20px,5vw,88px)] pt-[84px] pb-[110px] max-sm:px-4 max-sm:py-[58px]"
+      className="relative z-[1] border-b border-[var(--landing-border-subtle)] px-[clamp(20px,5vw,88px)] pt-[84px] pb-[110px] max-sm:px-4 max-sm:py-[58px]"
       style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
     >
       <div className="grid grid-cols-[minmax(230px,0.34fr)_minmax(0,0.66fr)] gap-[clamp(28px,6vw,88px)] max-lg:grid-cols-1">
@@ -1220,10 +1207,6 @@ function LandingFAQ({
             <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
               03
             </span>
-            <span
-              aria-hidden="true"
-              className="h-px min-w-[28px] flex-1 translate-y-[-3px] bg-[var(--landing-border)]"
-            />
             <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
               Support
             </span>
@@ -1235,9 +1218,12 @@ function LandingFAQ({
             Privacy, adapters, and Cloud sync in plain terms. No account is required to start
             self-hosted.
           </p>
-          <div className="mt-8 border-t border-[var(--landing-border)]">
+          <div className="mt-8 border-t border-[var(--landing-border-subtle)]">
             {FAQ_SUPPORT_POINTS.map((point) => (
-              <div key={point.label} className="border-b border-[var(--landing-border)] py-4">
+              <div
+                key={point.label}
+                className="border-b border-[var(--landing-border-subtle)] py-4"
+              >
                 <div className="text-[12px] font-bold text-[var(--landing-text)]">
                   {point.label}
                 </div>
@@ -1248,7 +1234,7 @@ function LandingFAQ({
             ))}
           </div>
         </div>
-        <div className="min-w-0 border-t border-[var(--landing-border)]">
+        <div className="min-w-0 border-t border-[var(--landing-border-subtle)]">
           {FAQ_ITEMS.map((item, i) => (
             <FAQItem
               key={item.q}
@@ -1316,7 +1302,6 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
   useEffect(() => {
     const el = bentoRef.current;
     if (!el) return;
-    const threshold = window.innerWidth < 768 ? 0.1 : 0.6;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
@@ -1324,7 +1309,7 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
           observer.disconnect();
         }
       },
-      { threshold },
+      { rootMargin: '0px 0px -10% 0px', threshold: 0 },
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -1355,40 +1340,59 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
 
   useEffect(() => {
     const ids = ['overview', ...LANDING_SECTIONS.map((section) => section.id)];
-    const sections = ids.map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
+    const sections = ids
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null)
+      .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
     if (!sections.length) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort(
-            (a, b) =>
-              Math.abs(a.boundingClientRect.top - LANDING_ANCHOR_OFFSET) -
-              Math.abs(b.boundingClientRect.top - LANDING_ANCHOR_OFFSET),
-          );
+    let frame = 0;
+    let currentId: string | null = null;
 
-        const nextId = visible[0]?.target.id;
-        if (!nextId) return;
+    function update() {
+      frame = 0;
+      const anchor = LANDING_ANCHOR_OFFSET + 1;
+      const doc = document.documentElement;
+      const atBottom = window.innerHeight + window.scrollY >= doc.scrollHeight - 2;
 
-        const url = new URL(window.location.href);
-        url.hash = nextId === 'overview' ? '' : nextId;
-        const next = `${url.pathname}${url.search}${url.hash}`;
-        const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-
-        if (next !== current) {
-          window.history.replaceState(window.history.state, '', next);
+      let activeId = sections[0].id;
+      if (atBottom) {
+        activeId = sections[sections.length - 1].id;
+      } else {
+        for (const section of sections) {
+          if (section.getBoundingClientRect().top <= anchor) {
+            activeId = section.id;
+          } else {
+            break;
+          }
         }
-      },
-      {
-        rootMargin: `-${LANDING_ANCHOR_OFFSET}px 0px -55% 0px`,
-        threshold: [0, 0.25, 0.6],
-      },
-    );
+      }
 
-    for (const section of sections) observer.observe(section);
+      if (activeId === currentId) return;
+      currentId = activeId;
 
-    return () => observer.disconnect();
+      const url = new URL(window.location.href);
+      url.hash = activeId === 'overview' ? '' : activeId;
+      const next = `${url.pathname}${url.search}${url.hash}`;
+      const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (next !== current) {
+        window.history.replaceState(window.history.state, '', next);
+      }
+    }
+
+    function schedule() {
+      if (frame) return;
+      frame = requestAnimationFrame(update);
+    }
+
+    update();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+    };
   }, []);
 
   function submit(e: React.FormEvent) {
@@ -1489,7 +1493,7 @@ function FAQItem({
   const buttonId = useId();
   const contentId = useId();
   return (
-    <div className="border-b border-[var(--landing-border)]">
+    <div className="border-b border-[var(--landing-border-subtle)]">
       <button
         id={buttonId}
         type="button"

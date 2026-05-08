@@ -76,6 +76,18 @@ export const CLOUD_STEPS = [
   { number: '1', title: 'Install CLI', code: 'npm install -g agendex-cli', hasPkgManager: true },
   { number: '2', title: 'Authenticate', code: 'agendex login        # opens browser OAuth' },
   { number: '3', title: 'Start Daemon', code: 'agendex start        # watches + syncs plans' },
+  {
+    number: '4',
+    title: 'Open Dashboard',
+    code: 'agendex open         # launches the web app in your browser',
+  },
+  {
+    number: '5',
+    title: 'Tune & Inspect',
+    code: `agendex configure    # pick which agents to index
+agendex add-dir <path>   # watch a custom plan directory
+agendex status       # daemon health + connected devices`,
+  },
 ];
 
 export const FEATURES = [

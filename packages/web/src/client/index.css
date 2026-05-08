@@ -1568,26 +1568,20 @@ body {
   --landing-faint: oklch(51% 0.028 171);
   --landing-border: color-mix(in oklch, var(--landing-text) 13%, transparent);
   --landing-border-strong: color-mix(in oklch, var(--landing-text) 22%, transparent);
-  --landing-grid: color-mix(in oklch, var(--landing-text) 7%, transparent);
+  --landing-border-subtle: color-mix(in oklch, var(--landing-text) 6%, transparent);
+  --landing-grid: color-mix(in oklch, var(--landing-text) 3.5%, transparent);
 
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
   background-color: var(--landing-bg);
-  background-image:
-    repeating-linear-gradient(
-      to right,
-      transparent 0,
-      transparent calc(25% - 1px),
-      var(--landing-grid) calc(25% - 1px),
-      var(--landing-grid) 25%
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent 159px,
-      var(--landing-grid) 160px
-    );
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(25% - 1px),
+    var(--landing-grid) calc(25% - 1px),
+    var(--landing-grid) 25%
+  );
   color: var(--landing-text);
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   letter-spacing: 0;
