@@ -57,6 +57,16 @@ AGENDEX_DEV=1 agendex sync
 
 In dev mode the default OAuth site (when you do not pass `--url` and do not set `AGENDEX_SITE_URL`) points at the local EE app URL used for development.
 
+## Sync Provenance
+
+`agendex sync` and the daemon include sync provenance in cloud payload metadata so the web app can show where a plan was synced from. This includes the device ID, hostname, and the host machine's local IP address when one is available.
+
+You can disable local IP address collection from Account settings in the cloud app. Managed or non-interactive environments can also omit the local IP address from sync payloads by setting:
+
+```bash
+AGENDEX_DISABLE_LOCAL_IP=1 agendex sync
+```
+
 ## Daemon Cleanup
 
 `agendex cleanup` manages registered daemon devices in the cloud.

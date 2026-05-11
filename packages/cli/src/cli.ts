@@ -435,9 +435,10 @@ async function main(): Promise<number> {
                 device.startedAtMs != null ? formatDuration(now - device.startedAtMs) : '~';
               const pidStr = device.pid != null ? String(device.pid) : '~';
               const hostnameStr = device.hostname ?? '~';
+              const ipStr = device.ipAddress ?? '~';
               const isLocal = localDeviceId && device.deviceId === localDeviceId;
               writeStdout(
-                `- hostname: ${hostnameStr}${isLocal ? ' (this machine)' : ''}\n  pid: ${pidStr}\n  uptime: ${uptimeStr}\n  status: ${status}`,
+                `- hostname: ${hostnameStr}${isLocal ? ' (this machine)' : ''}\n  ip: ${ipStr}\n  pid: ${pidStr}\n  uptime: ${uptimeStr}\n  status: ${status}`,
               );
             }
           } else {

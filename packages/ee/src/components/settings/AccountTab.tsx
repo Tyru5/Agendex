@@ -1,3 +1,5 @@
+import { api } from '@convex/_generated/api';
+import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import type { DaemonDeviceInfo } from '../../hooks/useDaemonStatus';
 import type { Subscription } from '../../hooks/useSubscription';
@@ -169,6 +171,87 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[20px] font-semibold text-text mb-4">{children}</h2>;
 }
 
+function PrivacySettingsSection() {
+  const prefs = useQuery(api.account.getMyPrivacyPreferences, {});
+  const updatePrivacyPreferences = useMutation(api.account.updatePrivacyPreferences);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const collectLocalIpAddress = prefs?.collectLocalIpAddress ?? true;
+  const loading = prefs === undefined;
+
+  async function toggleCollectLocalIpAddress() {
+    if (loading) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updatePrivacyPreferences({
+        collectLocalIpAddress: !collectLocalIpAddress,
+        acknowledgeLocalIpDisclosure: true,
+      });
+    } catch {
+      setError('Unable to update sync privacy. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section>
+      <SectionHeading>Sync Privacy</SectionHeading>
+      <div className="rounded-2xl border border-border bg-surface p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="text-[14px] font-medium text-text">Local IP address</div>
+            <p className="mt-1 max-w-[640px] text-[13px] leading-relaxed text-secondary">
+              When enabled, CLI sync may include this machine's local IP address in plan and machine
+              metadata. Turning it off omits the field and removes stored local IP metadata from
+              your cloud plans and connected machines.
+            </p>
+            <div className="mt-3 text-[12px] text-tertiary">
+              Managed environments can also set{' '}
+              <code className="rounded-default bg-hover px-1.5 py-0.5 text-[11.5px] text-secondary">
+                AGENDEX_DISABLE_LOCAL_IP=1
+              </code>
+              .
+            </div>
+            {error && (
+              <div className="mt-2 text-[12px] text-red-400" role="alert">
+                {error}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={collectLocalIpAddress}
+            disabled={loading || saving}
+            onClick={toggleCollectLocalIpAddress}
+            className={[
+              'relative h-7 w-12 shrink-0 rounded-full border transition-colors duration-150',
+              'disabled:cursor-default disabled:opacity-50',
+              collectLocalIpAddress ? 'border-transparent' : 'border-border bg-hover',
+            ].join(' ')}
+            style={collectLocalIpAddress ? { background: 'var(--primary, #c8ff32)' } : undefined}
+          >
+            <span
+              className="absolute top-1 size-5 rounded-full bg-surface shadow-[0_2px_8px_rgba(0,0,0,0.18)] transition-transform duration-150"
+              style={{
+                left: 4,
+                transform: collectLocalIpAddress ? 'translateX(20px)' : 'translateX(0)',
+              }}
+            />
+            <span className="sr-only">
+              {collectLocalIpAddress
+                ? 'Disable local IP address collection'
+                : 'Enable local IP address collection'}
+            </span>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function DeviceCard({
   device,
   onRemove,
@@ -221,6 +304,10 @@ function DeviceCard({
         </div>
       </div>
       <div className="flex gap-6 text-[13px]">
+        <div>
+          <span className="text-secondary">IP: </span>
+          <span className="text-text">{device.ipAddress ?? 'unavailable'}</span>
+        </div>
         <div>
           <span className="text-secondary">Uptime: </span>
           <span className="text-text">
@@ -427,6 +514,9 @@ export function AccountTab({
           )}
         </div>
       </section>
+
+      {/* Sync Privacy */}
+      <PrivacySettingsSection />
 
       {/* Agent Avatars */}
       <AgentAvatarsSection />

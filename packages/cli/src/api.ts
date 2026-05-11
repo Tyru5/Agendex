@@ -50,6 +50,10 @@ export interface SyncPlanResult {
   deleted?: boolean;
 }
 
+export interface CliPreferences {
+  collectLocalIpAddress: boolean;
+}
+
 function parseSyncSuccess(body: string): SyncPlanResult {
   try {
     const parsed = JSON.parse(body) as unknown;
@@ -117,7 +121,7 @@ async function refreshStoredToken(currentToken: string, convexUrl: string): Prom
   return refreshed.token;
 }
 
-export async function sendHeartbeat(): Promise<void> {
+export async function sendHeartbeat(ipAddress?: string): Promise<void> {
   try {
     const { token, convexUrl } = getCloudConfig();
     const pidInfo = readPidInfo();
@@ -127,6 +131,7 @@ export async function sendHeartbeat(): Promise<void> {
       hostname: pidInfo?.hostname ?? osHostname(),
       startedAtMs: pidInfo?.startedAtMs,
       pid: pidInfo?.pid,
+      ipAddress: ipAddress ?? null,
     });
     let activeToken = token;
     let res = await requestText(`${convexUrl}/api/cli/heartbeat`, {
@@ -191,6 +196,45 @@ export async function refreshToken(
   const body = JSON.parse(res.body) as { token?: string; expiresAt?: number };
   if (!body.token) return null;
   return { token: body.token, expiresAt: body.expiresAt ?? 0 };
+}
+
+export async function fetchCliPreferences(): Promise<CliPreferences | null> {
+  try {
+    const { token, convexUrl } = getCloudConfig();
+    let activeToken = token;
+    let res = await requestText(`${convexUrl}/api/cli/preferences`, {
+      method: 'GET',
+      headers: authHeaders(activeToken),
+    });
+
+    if (res.status === 401) {
+      const refreshed = await refreshStoredToken(activeToken, convexUrl);
+      if (refreshed) {
+        activeToken = refreshed;
+        res = await requestText(`${convexUrl}/api/cli/preferences`, {
+          method: 'GET',
+          headers: authHeaders(activeToken),
+        });
+      }
+    }
+
+    if (res.status < 200 || res.status >= 300) return null;
+
+    const body = JSON.parse(res.body) as { collectLocalIpAddress?: unknown };
+    if (typeof body.collectLocalIpAddress !== 'boolean') return null;
+
+    const config = loadConfig();
+    if (config) {
+      saveConfig({
+        ...config,
+        collectLocalIpAddress: body.collectLocalIpAddress,
+      });
+    }
+
+    return { collectLocalIpAddress: body.collectLocalIpAddress };
+  } catch {
+    return null;
+  }
 }
 
 interface RequestOptions {
@@ -336,6 +380,7 @@ export async function reportPlannotatorWriteback(
 export interface DeviceInfo {
   deviceId: string | null;
   hostname: string | null;
+  ipAddress: string | null;
   pid: number | null;
   startedAtMs: number | null;
   lastSeenAt: number | null;

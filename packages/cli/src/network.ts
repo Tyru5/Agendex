@@ -15,6 +15,15 @@ type LocalIpAddressOptions = {
   defaultRoute?: DefaultIpv4Route | null;
 };
 
+export const DISABLE_LOCAL_IP_ENV = 'AGENDEX_DISABLE_LOCAL_IP';
+
+export function shouldCollectLocalIpAddress(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const value = env[DISABLE_LOCAL_IP_ENV]?.trim().toLowerCase();
+  return !['1', 'true', 'yes', 'on'].includes(value ?? '');
+}
+
 /**
  * Returns the machine's primary non-internal IPv4 address, or `undefined` when
  * no such interface is available (e.g. fully offline). IPv6-only hosts fall

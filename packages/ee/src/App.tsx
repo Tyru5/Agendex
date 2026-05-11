@@ -55,6 +55,7 @@ import { CloudUpgrade } from './components/CloudUpgrade.tsx';
 import { CommentThread } from './components/CommentThread.tsx';
 import { DashboardTopbar } from './components/DashboardTopbar.tsx';
 import { EEHeroCta, EENavbarAuth, EEPricingCta } from './components/LandingAuthSlots.tsx';
+import { LocalIpDisclosureNotice } from './components/LocalIpDisclosureNotice.tsx';
 import { OnboardingRoute } from './components/OnboardingRoute.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
@@ -1438,6 +1439,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
+      <LocalIpDisclosureNotice enabled={mode === 'cloud' && isPro && !isWorkspaceAccessLoading} />
     </div>
   );
 }

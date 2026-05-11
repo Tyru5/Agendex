@@ -24,6 +24,7 @@ import type * as planVersions from "../planVersions.js";
 import type * as planVisibility from "../planVisibility.js";
 import type * as plannotator from "../plannotator.js";
 import type * as plans from "../plans.js";
+import type * as privacy from "../privacy.js";
 import type * as sharing from "../sharing.js";
 import type * as stripe from "../stripe.js";
 import type * as subscriptions from "../subscriptions.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   planVisibility: typeof planVisibility;
   plannotator: typeof plannotator;
   plans: typeof plans;
+  privacy: typeof privacy;
   sharing: typeof sharing;
   stripe: typeof stripe;
   subscriptions: typeof subscriptions;

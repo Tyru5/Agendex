@@ -130,22 +130,79 @@
   animation: settings-tab-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+@keyframes local-ip-disclosure-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes local-ip-disclosure-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.985);
+  }
+}
+
+.local-ip-disclosure {
+  animation: local-ip-disclosure-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: bottom right;
+  will-change: opacity, transform;
+}
+
+.local-ip-disclosure[data-state="closing"] {
+  animation: local-ip-disclosure-out 0.18s cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+
+.local-ip-disclosure-action {
+  cursor: pointer;
+  transition:
+    background-color 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.local-ip-disclosure-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.local-ip-disclosure-action:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .share-dialog-overlay,
   .share-dialog-panel,
   .share-surface-in,
   .share-reveal,
   .share-link-row,
-  .settings-tab-content {
+  .settings-tab-content,
+  .local-ip-disclosure {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
 
   .share-dialog-overlay.share-dialog-exiting,
-  .share-dialog-panel.share-dialog-exiting {
+  .share-dialog-panel.share-dialog-exiting,
+  .local-ip-disclosure[data-state="closing"] {
     animation: none !important;
     opacity: 0 !important;
     transform: none !important;
+  }
+
+  .local-ip-disclosure-action {
+    transition: none !important;
   }
 }

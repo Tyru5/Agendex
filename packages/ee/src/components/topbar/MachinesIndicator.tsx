@@ -74,7 +74,7 @@ export function MachinesIndicator({
 
       {open && (
         <div
-          className="agendex-popover absolute top-full right-0 mt-2 rounded-default min-w-[220px] z-[1000] p-3 flex flex-col gap-0"
+          className="agendex-popover absolute top-full right-0 mt-2 rounded-default min-w-[270px] z-[1000] p-3 flex flex-col gap-0"
           style={{ animation: 'statusPopoverIn 150ms ease-out' }}
         >
           {devices.length === 0 ? (
@@ -87,18 +87,31 @@ export function MachinesIndicator({
           ) : (
             devices.map((device, i) => {
               const isAlive = device.status === 'alive';
+              const lastSeen =
+                device.lastSeenAt != null ? formatRelativeTime(device.lastSeenAt) : 'Never';
               return (
                 <div
                   key={device.deviceId ?? `device-${i}`}
-                  className={`flex items-center justify-between py-2 text-xs${i < devices.length - 1 ? ' border-b border-border' : ''}`}
+                  className={`flex items-start justify-between gap-4 py-2.5 text-xs${i < devices.length - 1 ? ' border-b border-border' : ''}`}
                 >
-                  <div className="flex flex-col gap-0.5 min-w-0">
+                  <div className="flex min-w-0 flex-col gap-1">
                     <span className="text-secondary truncate" style={{ fontWeight: 550 }}>
                       {device.hostname ?? 'Unknown'}
                     </span>
-                    <span className="text-tertiary text-[11px]">
-                      {device.lastSeenAt != null ? formatRelativeTime(device.lastSeenAt) : 'Never'}
-                    </span>
+                    <span className="text-tertiary text-[11px]">{lastSeen}</span>
+                    <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
+                      <span className="shrink-0 text-tertiary">IP</span>
+                      {device.ipAddress ? (
+                        <code
+                          className="min-w-0 truncate rounded-[5px] border border-border bg-hover px-1.5 py-0.5 font-mono text-[10.5px] text-secondary"
+                          title={`IP ${device.ipAddress}`}
+                        >
+                          {device.ipAddress}
+                        </code>
+                      ) : (
+                        <span className="text-tertiary">unavailable</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 ml-3">
                     <span

@@ -2,4 +2,4 @@
 'agendex-cli': minor
 ---
 
-Added the ability for the cli to collect the IP address of the host machine from which the plan was sync'd to.
+Added sync provenance that includes the host machine's local IP address by default. Users can disable this in Account settings or by setting `AGENDEX_DISABLE_LOCAL_IP=1`.

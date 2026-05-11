@@ -257,12 +257,21 @@ export default defineSchema({
     .index('by_owner_agent', ['ownerId', 'agent'])
     .index('by_storage', ['storageId']),
 
+  accountPreferences: defineTable({
+    ownerId: v.string(),
+    collectLocalIpAddress: v.boolean(),
+    localIpDisclosureAcknowledgedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_owner', ['ownerId']),
+
   daemonHeartbeats: defineTable({
     ownerId: v.string(),
     lastSeenAt: v.number(),
     lastCleanedAt: v.optional(v.number()),
     deviceId: v.optional(v.string()),
     hostname: v.optional(v.string()),
+    ipAddress: v.optional(v.string()),
     startedAtMs: v.optional(v.number()),
     pid: v.optional(v.number()),
   })

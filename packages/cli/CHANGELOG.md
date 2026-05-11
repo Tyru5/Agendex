@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 0.17.0
+
+### Minor Changes
+
+- d051299: Added the ability for the cli to collect the IP address of the host machine from which the plan was sync'd to.
+
 ## 0.16.0
 
 ### Minor Changes

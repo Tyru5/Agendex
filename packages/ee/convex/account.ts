@@ -3,10 +3,177 @@ import { ConvexError, v } from 'convex/values';
 import Stripe from 'stripe';
 import { api, components, internal } from './_generated/api';
 import type { Doc, TableNames } from './_generated/dataModel';
-import { action, internalMutation } from './_generated/server';
+import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
+import type { DatabaseReader, DatabaseWriter, MutationCtx } from './_generated/server';
 import { deleteAllAgentAvatarsForOwner } from './agentAvatars';
+import { authComponent } from './auth';
 import { deleteCommentWithAttachments, deletePendingUploadRecord } from './comments';
 import { deletePlanRelatedData } from './planDeletion';
+import { stripLocalIpFromMetadata } from './privacy';
+
+const DEFAULT_COLLECT_LOCAL_IP_ADDRESS = true;
+const LOCAL_IP_SCRUB_BATCH_SIZE = 250;
+
+type LocalIpScrubPhase = 'plans' | 'planVersions' | 'daemonHeartbeats';
+
+async function findAccountPreferences(
+  ctx: { db: DatabaseReader | DatabaseWriter },
+  ownerId: string,
+) {
+  return await ctx.db
+    .query('accountPreferences')
+    .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+    .first();
+}
+
+async function scheduleLocalIpScrubBatch(
+  ctx: MutationCtx,
+  ownerId: string,
+  phase: LocalIpScrubPhase,
+  cursor: string | null,
+) {
+  await ctx.scheduler.runAfter(0, internal.account.scrubLocalIpAddressBatch, {
+    ownerId,
+    phase,
+    cursor,
+  });
+}
+
+export const getPrivacyPreferencesForOwner = internalQuery({
+  args: { ownerId: v.string() },
+  handler: async (ctx, { ownerId }) => {
+    const prefs = await findAccountPreferences(ctx, ownerId);
+    return {
+      collectLocalIpAddress: prefs?.collectLocalIpAddress ?? DEFAULT_COLLECT_LOCAL_IP_ADDRESS,
+      localIpDisclosureAcknowledgedAt: prefs?.localIpDisclosureAcknowledgedAt ?? null,
+    };
+  },
+});
+
+export const getMyPrivacyPreferences = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return null;
+
+    const ownerId = String(user._id);
+    const prefs = await findAccountPreferences(ctx, ownerId);
+    return {
+      collectLocalIpAddress: prefs?.collectLocalIpAddress ?? DEFAULT_COLLECT_LOCAL_IP_ADDRESS,
+      localIpDisclosureAcknowledgedAt: prefs?.localIpDisclosureAcknowledgedAt ?? null,
+    };
+  },
+});
+
+export const updatePrivacyPreferences = mutation({
+  args: {
+    collectLocalIpAddress: v.optional(v.boolean()),
+    acknowledgeLocalIpDisclosure: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) throw new ConvexError('Not authenticated');
+
+    const ownerId = String(user._id);
+    const existing = await findAccountPreferences(ctx, ownerId);
+    const now = Date.now();
+    const nextCollectLocalIpAddress =
+      args.collectLocalIpAddress ??
+      existing?.collectLocalIpAddress ??
+      DEFAULT_COLLECT_LOCAL_IP_ADDRESS;
+    const patch = {
+      collectLocalIpAddress: nextCollectLocalIpAddress,
+      ...(args.acknowledgeLocalIpDisclosure ? { localIpDisclosureAcknowledgedAt: now } : {}),
+      updatedAt: now,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      await ctx.db.insert('accountPreferences', {
+        ownerId,
+        createdAt: now,
+        ...patch,
+      });
+    }
+
+    if (args.collectLocalIpAddress === false) {
+      await scheduleLocalIpScrubBatch(ctx, ownerId, 'plans', null);
+    }
+
+    return {
+      collectLocalIpAddress: nextCollectLocalIpAddress,
+      localIpDisclosureAcknowledgedAt:
+        patch.localIpDisclosureAcknowledgedAt ?? existing?.localIpDisclosureAcknowledgedAt ?? null,
+    };
+  },
+});
+
+export const scrubLocalIpAddressBatch = internalMutation({
+  args: {
+    ownerId: v.string(),
+    phase: v.union(v.literal('plans'), v.literal('planVersions'), v.literal('daemonHeartbeats')),
+    cursor: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const prefs = await findAccountPreferences(ctx, args.ownerId);
+    if ((prefs?.collectLocalIpAddress ?? DEFAULT_COLLECT_LOCAL_IP_ADDRESS) !== false) return;
+
+    if (args.phase === 'plans') {
+      const result = await ctx.db
+        .query('plans')
+        .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
+        .paginate({ cursor: args.cursor, numItems: LOCAL_IP_SCRUB_BATCH_SIZE });
+
+      for (const plan of result.page) {
+        const scrubbed = stripLocalIpFromMetadata(plan.metadata);
+        if (scrubbed.changed) await ctx.db.patch(plan._id, { metadata: scrubbed.metadata });
+      }
+
+      await scheduleLocalIpScrubBatch(
+        ctx,
+        args.ownerId,
+        result.isDone ? 'planVersions' : 'plans',
+        result.isDone ? null : result.continueCursor,
+      );
+      return;
+    }
+
+    if (args.phase === 'planVersions') {
+      const result = await ctx.db
+        .query('planVersions')
+        .withIndex('by_owner_createdAt', (q) => q.eq('ownerId', args.ownerId))
+        .paginate({ cursor: args.cursor, numItems: LOCAL_IP_SCRUB_BATCH_SIZE });
+
+      for (const version of result.page) {
+        const scrubbed = stripLocalIpFromMetadata(version.metadata);
+        if (scrubbed.changed) await ctx.db.patch(version._id, { metadata: scrubbed.metadata });
+      }
+
+      await scheduleLocalIpScrubBatch(
+        ctx,
+        args.ownerId,
+        result.isDone ? 'daemonHeartbeats' : 'planVersions',
+        result.isDone ? null : result.continueCursor,
+      );
+      return;
+    }
+
+    const result = await ctx.db
+      .query('daemonHeartbeats')
+      .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
+      .paginate({ cursor: args.cursor, numItems: LOCAL_IP_SCRUB_BATCH_SIZE });
+
+    for (const heartbeat of result.page) {
+      if (heartbeat.ipAddress !== undefined)
+        await ctx.db.patch(heartbeat._id, { ipAddress: undefined });
+    }
+
+    if (!result.isDone) {
+      await scheduleLocalIpScrubBatch(ctx, args.ownerId, args.phase, result.continueCursor);
+    }
+  },
+});
 
 export const deleteAccount = action({
   handler: async (ctx) => {
@@ -111,6 +278,12 @@ export const purgeUserData = internalMutation({
       await ctx.db
         .query('subscriptions')
         .withIndex('by_user', (q) => q.eq('userId', userId))
+        .collect(),
+    );
+    await deleteRows(
+      await ctx.db
+        .query('accountPreferences')
+        .withIndex('by_owner', (q) => q.eq('ownerId', userId))
         .collect(),
     );
     await deleteRows(
