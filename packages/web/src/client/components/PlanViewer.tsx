@@ -140,6 +140,7 @@ export function PlanViewer({
                 className="flex items-center gap-1.5"
                 title={
                   [
+                    syncOrigin.hostname ? `Host: ${syncOrigin.hostname}` : null,
                     syncOrigin.deviceId ? `Device ID: ${syncOrigin.deviceId}` : null,
                     syncOrigin.ipAddress ? `IP: ${syncOrigin.ipAddress}` : null,
                   ]
