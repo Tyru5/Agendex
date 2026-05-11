@@ -441,14 +441,19 @@ export const heartbeat = httpAction(async (ctx, request) => {
     // Old CLIs send no body — tolerate gracefully
   }
 
+  const privacyPreferences = await ctx.runQuery(internal.account.getPrivacyPreferencesForOwner, {
+    ownerId,
+  });
+
   const deviceId = typeof body.deviceId === 'string' ? body.deviceId : undefined;
   const hostname = typeof body.hostname === 'string' ? body.hostname : undefined;
-  const ipAddress =
+  const rawIpAddress =
     typeof body.ipAddress === 'string'
       ? body.ipAddress
       : body.ipAddress === null
         ? null
         : undefined;
+  const ipAddress = privacyPreferences.collectLocalIpAddress === false ? null : rawIpAddress;
   const startedAtMs = typeof body.startedAtMs === 'number' ? body.startedAtMs : undefined;
   const pid = typeof body.pid === 'number' ? body.pid : undefined;
 
