@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process';
+import { hostname as osHostname } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -30,6 +31,7 @@ import {
   sendShutdown,
   syncPlan,
 } from './api.ts';
+import { getLocalIpAddress } from './network.ts';
 import { planToSyncPayload } from './payload.ts';
 import { removePid, writePid } from './pid.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
@@ -48,6 +50,8 @@ const PLANNOTATOR_WRITEBACK_FAILED_ERROR =
 
 export async function runWorker(): Promise<void> {
   const config = await loadOrInitConfig();
+  const hostname = osHostname();
+  const ipAddress = getLocalIpAddress();
   const adapterIds = resolveCliAdapterIds(config);
   const adapters = resolveAdapters(adapterIds);
   setActiveAdapters(adapters);
@@ -207,7 +211,8 @@ export async function runWorker(): Promise<void> {
 
     if (ok) {
       const updatedPlan = getById(job.localPlanId);
-      if (updatedPlan) syncQueue.push(planToSyncPayload(updatedPlan, config.deviceId));
+      if (updatedPlan)
+        syncQueue.push(planToSyncPayload(updatedPlan, config.deviceId, hostname, ipAddress));
       pendingWritebackReports.set(job._id, 'sent');
       persistPendingWritebackReports();
       await reportPendingWriteback(job._id);
@@ -253,7 +258,7 @@ export async function runWorker(): Promise<void> {
   let initialQueuedLowValue = 0;
 
   for (const plan of plans) {
-    const payload = planToSyncPayload(plan, config.deviceId);
+    const payload = planToSyncPayload(plan, config.deviceId, hostname, ipAddress);
     const hash = computePayloadHash(payload);
 
     if (syncCache[plan.id] === hash) {
@@ -291,7 +296,7 @@ export async function runWorker(): Promise<void> {
 
   startWatching((changedPlans) => {
     for (const plan of changedPlans as Plan[]) {
-      syncQueue.push(planToSyncPayload(plan, config.deviceId));
+      syncQueue.push(planToSyncPayload(plan, config.deviceId, hostname, ipAddress));
     }
     processSyncQueue();
   });

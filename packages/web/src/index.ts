@@ -78,6 +78,8 @@ export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-mark
 export { filterPlans } from './client/lib/plan-search.ts';
 export type { PlanState, PlanStatePlan } from './client/lib/plan-state.ts';
 export { sanitizeSchema } from './client/lib/sanitize-schema.ts';
+export type { PlanSyncOrigin } from './client/lib/sync-origin.ts';
+export { extractSyncOrigin, formatSyncOriginLabel } from './client/lib/sync-origin.ts';
 export type { DetectedTech, TechCategory } from './client/lib/tech-extract.ts';
 export { extractTechnologies } from './client/lib/tech-extract.ts';
 export type { TechEdge, TechGraph, TechNode, TechNodeData } from './client/lib/tech-graph.ts';
