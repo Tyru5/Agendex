@@ -203,9 +203,9 @@ function PrivacySettingsSection() {
           <div className="min-w-0">
             <div className="text-[14px] font-medium text-text">Local IP address</div>
             <p className="mt-1 max-w-[640px] text-[13px] leading-relaxed text-secondary">
-              When enabled, CLI sync may include this machine's local IP address in plan metadata.
-              Turning it off omits the field and removes stored local IP metadata from your cloud
-              plans.
+              When enabled, CLI sync may include this machine's local IP address in plan and machine
+              metadata. Turning it off omits the field and removes stored local IP metadata from
+              your cloud plans and connected machines.
             </p>
             <div className="mt-3 text-[12px] text-tertiary">
               Managed environments can also set{' '}
@@ -304,6 +304,10 @@ function DeviceCard({
         </div>
       </div>
       <div className="flex gap-6 text-[13px]">
+        <div>
+          <span className="text-secondary">IP: </span>
+          <span className="text-text">{device.ipAddress ?? 'unavailable'}</span>
+        </div>
         <div>
           <span className="text-secondary">Uptime: </span>
           <span className="text-text">

@@ -12,6 +12,9 @@ import { deletePlanRelatedData } from './planDeletion';
 import { stripLocalIpFromMetadata } from './privacy';
 
 const DEFAULT_COLLECT_LOCAL_IP_ADDRESS = true;
+const LOCAL_IP_SCRUB_BATCH_SIZE = 250;
+
+type LocalIpScrubPhase = 'plans' | 'planVersions' | 'daemonHeartbeats';
 
 async function findAccountPreferences(
   ctx: { db: DatabaseReader | DatabaseWriter },
@@ -23,24 +26,17 @@ async function findAccountPreferences(
     .first();
 }
 
-async function scrubLocalIpAddressForOwner(ctx: MutationCtx, ownerId: string) {
-  const plans = await ctx.db
-    .query('plans')
-    .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
-    .collect();
-  for (const plan of plans) {
-    const result = stripLocalIpFromMetadata(plan.metadata);
-    if (result.changed) await ctx.db.patch(plan._id, { metadata: result.metadata });
-  }
-
-  const versions = await ctx.db
-    .query('planVersions')
-    .withIndex('by_owner_createdAt', (q) => q.eq('ownerId', ownerId))
-    .collect();
-  for (const version of versions) {
-    const result = stripLocalIpFromMetadata(version.metadata);
-    if (result.changed) await ctx.db.patch(version._id, { metadata: result.metadata });
-  }
+async function scheduleLocalIpScrubBatch(
+  ctx: MutationCtx,
+  ownerId: string,
+  phase: LocalIpScrubPhase,
+  cursor: string | null,
+) {
+  await ctx.scheduler.runAfter(0, internal.account.scrubLocalIpAddressBatch, {
+    ownerId,
+    phase,
+    cursor,
+  });
 }
 
 export const getPrivacyPreferencesForOwner = internalQuery({
@@ -102,7 +98,7 @@ export const updatePrivacyPreferences = mutation({
     }
 
     if (args.collectLocalIpAddress === false) {
-      await scrubLocalIpAddressForOwner(ctx, ownerId);
+      await scheduleLocalIpScrubBatch(ctx, ownerId, 'plans', null);
     }
 
     return {
@@ -110,6 +106,72 @@ export const updatePrivacyPreferences = mutation({
       localIpDisclosureAcknowledgedAt:
         patch.localIpDisclosureAcknowledgedAt ?? existing?.localIpDisclosureAcknowledgedAt ?? null,
     };
+  },
+});
+
+export const scrubLocalIpAddressBatch = internalMutation({
+  args: {
+    ownerId: v.string(),
+    phase: v.union(v.literal('plans'), v.literal('planVersions'), v.literal('daemonHeartbeats')),
+    cursor: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const prefs = await findAccountPreferences(ctx, args.ownerId);
+    if ((prefs?.collectLocalIpAddress ?? DEFAULT_COLLECT_LOCAL_IP_ADDRESS) !== false) return;
+
+    if (args.phase === 'plans') {
+      const result = await ctx.db
+        .query('plans')
+        .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
+        .paginate({ cursor: args.cursor, numItems: LOCAL_IP_SCRUB_BATCH_SIZE });
+
+      for (const plan of result.page) {
+        const scrubbed = stripLocalIpFromMetadata(plan.metadata);
+        if (scrubbed.changed) await ctx.db.patch(plan._id, { metadata: scrubbed.metadata });
+      }
+
+      await scheduleLocalIpScrubBatch(
+        ctx,
+        args.ownerId,
+        result.isDone ? 'planVersions' : 'plans',
+        result.isDone ? null : result.continueCursor,
+      );
+      return;
+    }
+
+    if (args.phase === 'planVersions') {
+      const result = await ctx.db
+        .query('planVersions')
+        .withIndex('by_owner_createdAt', (q) => q.eq('ownerId', args.ownerId))
+        .paginate({ cursor: args.cursor, numItems: LOCAL_IP_SCRUB_BATCH_SIZE });
+
+      for (const version of result.page) {
+        const scrubbed = stripLocalIpFromMetadata(version.metadata);
+        if (scrubbed.changed) await ctx.db.patch(version._id, { metadata: scrubbed.metadata });
+      }
+
+      await scheduleLocalIpScrubBatch(
+        ctx,
+        args.ownerId,
+        result.isDone ? 'daemonHeartbeats' : 'planVersions',
+        result.isDone ? null : result.continueCursor,
+      );
+      return;
+    }
+
+    const result = await ctx.db
+      .query('daemonHeartbeats')
+      .withIndex('by_owner', (q) => q.eq('ownerId', args.ownerId))
+      .paginate({ cursor: args.cursor, numItems: LOCAL_IP_SCRUB_BATCH_SIZE });
+
+    for (const heartbeat of result.page) {
+      if (heartbeat.ipAddress !== undefined)
+        await ctx.db.patch(heartbeat._id, { ipAddress: undefined });
+    }
+
+    if (!result.isDone) {
+      await scheduleLocalIpScrubBatch(ctx, args.ownerId, args.phase, result.continueCursor);
+    }
   },
 });
 

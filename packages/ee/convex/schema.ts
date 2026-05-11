@@ -271,6 +271,7 @@ export default defineSchema({
     lastCleanedAt: v.optional(v.number()),
     deviceId: v.optional(v.string()),
     hostname: v.optional(v.string()),
+    ipAddress: v.optional(v.string()),
     startedAtMs: v.optional(v.number()),
     pid: v.optional(v.number()),
   })

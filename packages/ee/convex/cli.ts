@@ -32,6 +32,7 @@ interface HeartbeatDevice {
   lastSeenAt: number;
   deviceId: string | null;
   hostname: string | null;
+  ipAddress: string | null;
   startedAtMs: number | null;
   pid: number | null;
 }
@@ -41,6 +42,7 @@ function collectDevices(
     lastSeenAt: number;
     deviceId?: string;
     hostname?: string;
+    ipAddress?: string;
     startedAtMs?: number;
     pid?: number;
   }>,
@@ -52,6 +54,7 @@ function collectDevices(
       lastSeenAt: hb.lastSeenAt,
       deviceId: hb.deviceId ?? null,
       hostname: hb.hostname ?? null,
+      ipAddress: hb.ipAddress ?? null,
       startedAtMs: hb.startedAtMs ?? null,
       pid: hb.pid ?? null,
     }));
@@ -263,6 +266,7 @@ export const upsertHeartbeat = internalMutation({
     ownerId: v.string(),
     deviceId: v.optional(v.string()),
     hostname: v.optional(v.string()),
+    ipAddress: v.optional(v.union(v.string(), v.null())),
     startedAtMs: v.optional(v.number()),
     pid: v.optional(v.number()),
   },
@@ -317,6 +321,7 @@ export const upsertHeartbeat = internalMutation({
     if (shouldCleanup) patch.lastCleanedAt = now;
     if (args.deviceId !== undefined) patch.deviceId = args.deviceId;
     if (args.hostname !== undefined) patch.hostname = args.hostname;
+    if (args.ipAddress !== undefined) patch.ipAddress = args.ipAddress ?? undefined;
     if (args.startedAtMs !== undefined) patch.startedAtMs = args.startedAtMs;
     if (args.pid !== undefined) patch.pid = args.pid;
 
@@ -329,6 +334,7 @@ export const upsertHeartbeat = internalMutation({
         lastCleanedAt: shouldCleanup ? now : lastCleanedAt,
         ...(args.deviceId !== undefined && { deviceId: args.deviceId }),
         ...(args.hostname !== undefined && { hostname: args.hostname }),
+        ...(args.ipAddress ? { ipAddress: args.ipAddress } : {}),
         ...(args.startedAtMs !== undefined && { startedAtMs: args.startedAtMs }),
         ...(args.pid !== undefined && { pid: args.pid }),
       });
@@ -437,6 +443,12 @@ export const heartbeat = httpAction(async (ctx, request) => {
 
   const deviceId = typeof body.deviceId === 'string' ? body.deviceId : undefined;
   const hostname = typeof body.hostname === 'string' ? body.hostname : undefined;
+  const ipAddress =
+    typeof body.ipAddress === 'string'
+      ? body.ipAddress
+      : body.ipAddress === null
+        ? null
+        : undefined;
   const startedAtMs = typeof body.startedAtMs === 'number' ? body.startedAtMs : undefined;
   const pid = typeof body.pid === 'number' ? body.pid : undefined;
 
@@ -448,6 +460,7 @@ export const heartbeat = httpAction(async (ctx, request) => {
     ownerId,
     deviceId,
     hostname,
+    ipAddress,
     startedAtMs,
     pid,
   });

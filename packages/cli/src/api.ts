@@ -121,7 +121,7 @@ async function refreshStoredToken(currentToken: string, convexUrl: string): Prom
   return refreshed.token;
 }
 
-export async function sendHeartbeat(): Promise<void> {
+export async function sendHeartbeat(ipAddress?: string): Promise<void> {
   try {
     const { token, convexUrl } = getCloudConfig();
     const pidInfo = readPidInfo();
@@ -131,6 +131,7 @@ export async function sendHeartbeat(): Promise<void> {
       hostname: pidInfo?.hostname ?? osHostname(),
       startedAtMs: pidInfo?.startedAtMs,
       pid: pidInfo?.pid,
+      ipAddress: ipAddress ?? null,
     });
     let activeToken = token;
     let res = await requestText(`${convexUrl}/api/cli/heartbeat`, {
@@ -379,6 +380,7 @@ export async function reportPlannotatorWriteback(
 export interface DeviceInfo {
   deviceId: string | null;
   hostname: string | null;
+  ipAddress: string | null;
   pid: number | null;
   startedAtMs: number | null;
   lastSeenAt: number | null;

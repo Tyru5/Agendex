@@ -56,10 +56,6 @@ export async function runWorker(): Promise<void> {
   const adapters = resolveAdapters(adapterIds);
   setActiveAdapters(adapters);
 
-  console.log(`[agendex] daemon starting with ${adapterIds.length} adapters`);
-
-  await sendHeartbeat();
-
   const syncCache = loadSyncCache();
   const syncQueue: SyncPlanPayload[] = [];
   const pendingWritebackReports = loadPendingWritebackReports();
@@ -75,6 +71,10 @@ export async function runWorker(): Promise<void> {
     cachedIpAddress ??= getLocalIpAddress();
     return cachedIpAddress;
   }
+
+  console.log(`[agendex] daemon starting with ${adapterIds.length} adapters`);
+
+  await sendHeartbeat(await getSyncIpAddress());
 
   async function tryRefreshToken(): Promise<boolean> {
     const cfg = loadConfig();
@@ -303,7 +303,13 @@ export async function runWorker(): Promise<void> {
   );
   await processSyncQueue();
 
-  setInterval(() => void sendHeartbeat(), CLI_DAEMON_HEARTBEAT_INTERVAL_MS);
+  setInterval(() => {
+    void (async () => {
+      await sendHeartbeat(await getSyncIpAddress());
+    })().catch(() => {
+      // Heartbeats are best-effort; the next interval will retry.
+    });
+  }, CLI_DAEMON_HEARTBEAT_INTERVAL_MS);
   if (shouldEnablePlannotatorSync(config)) {
     setInterval(() => void pollPlannotatorWritebacks(), PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS);
     void pollPlannotatorWritebacks();

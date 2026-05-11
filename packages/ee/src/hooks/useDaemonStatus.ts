@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 export interface DaemonDeviceInfo {
   deviceId: string | null;
   hostname: string | null;
+  ipAddress: string | null;
   startedAtMs: number | null;
   uptimeMs: number | null;
   lastSeenAt: number | null;
@@ -38,6 +39,7 @@ export function useDaemonStatus(): DaemonStatusResult {
       return {
         deviceId: d.deviceId ?? null,
         hostname: d.hostname ?? null,
+        ipAddress: d.ipAddress ?? null,
         startedAtMs: d.startedAtMs ?? null,
         uptimeMs: d.startedAtMs != null ? now - d.startedAtMs : null,
         lastSeenAt: d.lastSeenAt ?? null,

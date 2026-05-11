@@ -8,6 +8,7 @@ import {
   fetchPlannotatorWritebacks,
   type PlannotatorWritebackJob,
   reportPlannotatorWriteback,
+  sendHeartbeat,
 } from './api.ts';
 
 const originalEnv: Record<string, string | undefined> = {
@@ -42,6 +43,7 @@ async function useTempHome() {
 
 function startCloudApi(writebacks: PlannotatorWritebackJob[]) {
   const reports: Record<string, unknown>[] = [];
+  const heartbeats: Record<string, unknown>[] = [];
   server = createServer((req, res) => {
     if (req.headers.authorization !== 'Bearer token') {
       res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -68,34 +70,53 @@ function startCloudApi(writebacks: PlannotatorWritebackJob[]) {
       return;
     }
 
+    if (req.url === '/api/cli/heartbeat' && req.method === 'POST') {
+      let raw = '';
+      req.on('data', (chunk) => {
+        raw += chunk;
+      });
+      req.on('end', () => {
+        heartbeats.push(JSON.parse(raw) as Record<string, unknown>);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      });
+      return;
+    }
+
     res.writeHead(404);
     res.end();
   });
 
-  return new Promise<{ url: string; reports: typeof reports }>((resolve) => {
-    server?.listen(0, '127.0.0.1', () => {
-      const address = server?.address();
-      if (!address || typeof address === 'string') throw new Error('No address');
-      resolve({ url: `http://127.0.0.1:${address.port}`, reports });
-    });
+  return new Promise<{ url: string; reports: typeof reports; heartbeats: typeof heartbeats }>(
+    (resolve) => {
+      server?.listen(0, '127.0.0.1', () => {
+        const address = server?.address();
+        if (!address || typeof address === 'string') throw new Error('No address');
+        resolve({ url: `http://127.0.0.1:${address.port}`, reports, heartbeats });
+      });
+    },
+  );
+}
+
+function saveCloudConfig(convexUrl: string) {
+  saveConfig({
+    configVersion: 3,
+    cloudToken: 'token',
+    convexUrl,
+    enabledAdapters: [],
+    customPlanDirs: [],
   });
 }
 
-afterEach(async () => {
-  if (server) {
-    await new Promise<void>((resolve) => server?.close(() => resolve()));
-    server = undefined;
-  }
-  restoreEnv('AGENDEX_CONFIG_DIR');
-  restoreEnv('AGENDEX_DEV');
-  restoreEnv('HOME');
-  restoreEnv('USERPROFILE');
-  restoreEnv('HOMEDRIVE');
-  restoreEnv('HOMEPATH');
-  if (tempHome) {
-    await rm(tempHome, { recursive: true, force: true });
-    tempHome = undefined;
-  }
+test('sends local IP address in heartbeat payload', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([]);
+  saveCloudConfig(cloud.url);
+
+  await sendHeartbeat('192.168.4.30');
+
+  expect(cloud.heartbeats).toHaveLength(1);
+  expect(cloud.heartbeats[0]).toMatchObject({ ipAddress: '192.168.4.30' });
 });
 
 test('fetches and reports Plannotator write-back queue jobs', async () => {
@@ -118,13 +139,7 @@ test('fetches and reports Plannotator write-back queue jobs', async () => {
     },
   ];
   const cloud = await startCloudApi(jobs);
-  saveConfig({
-    configVersion: 3,
-    cloudToken: 'token',
-    convexUrl: cloud.url,
-    enabledAdapters: [],
-    customPlanDirs: [],
-  });
+  saveCloudConfig(cloud.url);
 
   const fetched = await fetchPlannotatorWritebacks();
   expect(fetched).toHaveLength(1);
@@ -133,4 +148,21 @@ test('fetches and reports Plannotator write-back queue jobs', async () => {
   const ok = await reportPlannotatorWriteback('job-1', 'sent');
   expect(ok).toBe(true);
   expect(cloud.reports).toEqual([{ writebackId: 'job-1', status: 'sent' }]);
+});
+
+afterEach(async () => {
+  if (server) {
+    await new Promise<void>((resolve) => server?.close(() => resolve()));
+    server = undefined;
+  }
+  restoreEnv('AGENDEX_CONFIG_DIR');
+  restoreEnv('AGENDEX_DEV');
+  restoreEnv('HOME');
+  restoreEnv('USERPROFILE');
+  restoreEnv('HOMEDRIVE');
+  restoreEnv('HOMEPATH');
+  if (tempHome) {
+    await rm(tempHome, { recursive: true, force: true });
+    tempHome = undefined;
+  }
 });

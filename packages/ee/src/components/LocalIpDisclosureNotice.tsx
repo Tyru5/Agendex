@@ -98,8 +98,8 @@ export function LocalIpDisclosureNotice({ enabled }: LocalIpDisclosureNoticeProp
         <div className="min-w-0">
           <div className="text-[13px] font-semibold text-text">Sync provenance update</div>
           <p className="mt-1 text-[12.5px] leading-relaxed text-secondary">
-            Cloud sync can include this machine's local IP address with plan metadata. You can turn
-            it off now or change it later in Account settings.
+            Cloud sync can include this machine's local IP address with plan and machine metadata.
+            You can turn it off now or change it later in Account settings.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
