@@ -1,3 +1,4 @@
+import { hostname as osHostname } from 'node:os';
 import {
   getAll,
   isIndexablePlan,
@@ -9,11 +10,14 @@ import {
 } from '@agendex/shared';
 import { resolveCliAdapterIds } from './adapters.ts';
 import { syncPlan } from './api.ts';
+import { getLocalIpAddress } from './network.ts';
 import { planToSyncPayload } from './payload.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
 
 export async function syncAll(force = false): Promise<void> {
   const config = await loadOrInitConfig();
+  const hostname = osHostname();
+  const ipAddress = getLocalIpAddress();
   const adapterIds = resolveCliAdapterIds(config);
   const adapters = resolveAdapters(adapterIds);
   setActiveAdapters(adapters);
@@ -42,7 +46,7 @@ export async function syncAll(force = false): Promise<void> {
   for (const plan of [...syncablePlans, ...lowValuePlans]) {
     activePlanIds.add(plan.id);
 
-    const payload = planToSyncPayload(plan, config.deviceId);
+    const payload = planToSyncPayload(plan, config.deviceId, hostname, ipAddress);
 
     const hash = computePayloadHash(payload);
 

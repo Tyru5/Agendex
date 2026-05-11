@@ -9,6 +9,7 @@ import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import { buildPlanOutline } from '../lib/extract-headings.ts';
 import { sanitizeSchema } from '../lib/sanitize-schema.ts';
+import { extractSyncOrigin, formatSyncOriginLabel } from '../lib/sync-origin.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { ExitFullscreenIcon, FullscreenIcon } from './FullscreenIcons.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
@@ -64,6 +65,7 @@ export function PlanViewer({
     setTimeout(() => setCopied(false), 1500);
   };
   const workspace = extractWorkspace(plan);
+  const syncOrigin = extractSyncOrigin(plan);
 
   const outline = useMemo(
     () =>
@@ -133,6 +135,28 @@ export function PlanViewer({
             >
               Read-only
             </span>
+            {syncOrigin && (
+              <span
+                className="flex items-center gap-1.5"
+                title={
+                  [
+                    syncOrigin.hostname ? `Host: ${syncOrigin.hostname}` : null,
+                    syncOrigin.deviceId ? `Device ID: ${syncOrigin.deviceId}` : null,
+                    syncOrigin.ipAddress ? `IP: ${syncOrigin.ipAddress}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || 'Synced from this machine'
+                }
+              >
+                <MachineIcon />
+                <span>
+                  Synced from{' '}
+                  <span style={{ color: 'var(--text)', fontWeight: 500 }}>
+                    {formatSyncOriginLabel(syncOrigin)}
+                  </span>
+                </span>
+              </span>
+            )}
           </div>
 
           {headerExtra}
@@ -396,6 +420,26 @@ function ClockIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  );
+}
+
+function MachineIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-[13px] h-[13px] opacity-40"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25"
       />
     </svg>
   );
