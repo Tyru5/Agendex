@@ -15,6 +15,7 @@
     "@dagrejs/dagre": "^2.0.4",
     "@tanstack/react-hotkeys": "^0.7.0",
     "@xyflow/react": "^12.10.0",
+    "canvas-confetti": "^1.9.4",
     "codemirror": "^6.0.2",
     "fuse.js": "^7.1.0",
     "github-slugger": "^2.0.0",
@@ -33,6 +34,7 @@
     "unist-util-visit": "^5.1.0"
   },
   "devDependencies": {
+    "@types/canvas-confetti": "^1.9.0",
     "@types/mdast": "^4.0.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
