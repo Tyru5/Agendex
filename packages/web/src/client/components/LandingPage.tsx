@@ -921,7 +921,7 @@ function LandingFooter() {
         <a href="#pricing">Pricing</a>
         <a href="/changelog">Changelog</a>
         <a
-          href="https://github.com/tiru5/agendex"
+          href="https://github.com/Tyru5/Agendex"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex min-h-[38px] items-center gap-2 rounded-[8px] border border-[var(--landing-border)] px-[13px] !text-[var(--landing-text)]"
@@ -1098,7 +1098,7 @@ function LandingHero({
                 </button>
               )}
               <a
-                href="https://github.com/tiru5/agendex"
+                href="https://github.com/Tyru5/Agendex"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_78%,transparent)] text-[var(--landing-text)]"
