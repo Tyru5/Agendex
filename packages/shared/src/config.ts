@@ -39,6 +39,7 @@ export interface AgendexConfig {
   cloudToken?: string;
   convexUrl?: string;
   deviceId?: string;
+  collectLocalIpAddress?: boolean;
   enabledAdapters: AdapterId[];
   customPlanDirs: string[];
 }
@@ -49,6 +50,7 @@ interface StoredConfig {
   cloudToken?: unknown;
   convexUrl?: unknown;
   deviceId?: unknown;
+  collectLocalIpAddress?: unknown;
   enabledAdapters?: unknown;
   customPlanDirs?: unknown;
 }
@@ -119,6 +121,8 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     typeof raw.convexUrl === 'string' && raw.convexUrl.trim() ? raw.convexUrl : undefined;
   const deviceId =
     typeof raw.deviceId === 'string' && raw.deviceId.trim() ? raw.deviceId : undefined;
+  const collectLocalIpAddress =
+    typeof raw.collectLocalIpAddress === 'boolean' ? raw.collectLocalIpAddress : undefined;
 
   return {
     configVersion: 3, //TODO: implement actual logic here for incrementing the configVersion
@@ -126,6 +130,7 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     cloudToken,
     convexUrl,
     deviceId,
+    collectLocalIpAddress,
     enabledAdapters: normalizeAdapterIds(raw.enabledAdapters),
     customPlanDirs: normalizeCustomPlanDirs(raw.customPlanDirs),
   };
@@ -143,6 +148,7 @@ export function saveConfig(config: AgendexConfig) {
     cloudToken: config.cloudToken,
     convexUrl: config.convexUrl,
     deviceId: config.deviceId,
+    collectLocalIpAddress: config.collectLocalIpAddress,
     enabledAdapters: sanitizeEnabledAdapterIds(config.enabledAdapters),
     customPlanDirs: normalizeCustomPlanDirs(config.customPlanDirs),
   };

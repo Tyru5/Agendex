@@ -5,6 +5,7 @@ import { httpAction, internalMutation, internalQuery, mutation, query } from './
 import { authComponent, createAuth } from './auth';
 import { deletePlanRelatedData } from './planDeletion';
 import { hasLowValueMetadata } from './planVisibility';
+import { stripLocalIpFromMetadata } from './privacy';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
@@ -171,6 +172,9 @@ export const sync = httpAction(async (ctx, request) => {
     }
 
     const body = await request.json();
+    const privacyPreferences = await ctx.runQuery(internal.account.getPrivacyPreferencesForOwner, {
+      ownerId,
+    });
 
     if (
       typeof body.localPlanId !== 'string' ||
@@ -194,12 +198,17 @@ export const sync = httpAction(async (ctx, request) => {
       return jsonResponse({ error: 'Invalid optional field types' }, 400);
     }
 
+    const metadata =
+      privacyPreferences.collectLocalIpAddress === false
+        ? stripLocalIpFromMetadata(body.metadata).metadata
+        : body.metadata;
+
     const existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndLocalId, {
       ownerId,
       localPlanId: body.localPlanId,
     });
 
-    if (hasLowValueMetadata(body.metadata)) {
+    if (hasLowValueMetadata(metadata)) {
       const deleted = existing
         ? await ctx.runMutation(internal.cli.deleteSyncedPlan, {
             ownerId,
@@ -219,7 +228,7 @@ export const sync = httpAction(async (ctx, request) => {
       format: body.format,
       filePath: body.filePath,
       workspace: body.workspace,
-      metadata: body.metadata,
+      metadata,
       createdAt: body.createdAt,
       updatedAt: body.updatedAt,
       existingId: existing?._id,
@@ -231,6 +240,22 @@ export const sync = httpAction(async (ctx, request) => {
     console.error('Sync error:', err);
     return jsonResponse({ error: 'Internal server error' }, 500);
   }
+});
+
+export const preferences = httpAction(async (ctx, request) => {
+  if (request.method !== 'GET') {
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
+
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+  const { ownerId } = authResult;
+
+  const prefs = await ctx.runQuery(internal.account.getPrivacyPreferencesForOwner, { ownerId });
+
+  return jsonResponse({
+    collectLocalIpAddress: prefs.collectLocalIpAddress,
+  });
 });
 
 export const upsertHeartbeat = internalMutation({

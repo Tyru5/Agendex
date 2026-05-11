@@ -13,11 +13,12 @@ import { syncPlan } from './api.ts';
 import { getLocalIpAddress } from './network.ts';
 import { planToSyncPayload } from './payload.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
+import { shouldIncludeLocalIpAddressInSync } from './sync-privacy.ts';
 
 export async function syncAll(force = false): Promise<void> {
   const config = await loadOrInitConfig();
   const hostname = osHostname();
-  const ipAddress = getLocalIpAddress();
+  const ipAddress = (await shouldIncludeLocalIpAddressInSync()) ? getLocalIpAddress() : undefined;
   const adapterIds = resolveCliAdapterIds(config);
   const adapters = resolveAdapters(adapterIds);
   setActiveAdapters(adapters);

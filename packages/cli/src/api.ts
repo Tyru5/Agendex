@@ -50,6 +50,10 @@ export interface SyncPlanResult {
   deleted?: boolean;
 }
 
+export interface CliPreferences {
+  collectLocalIpAddress: boolean;
+}
+
 function parseSyncSuccess(body: string): SyncPlanResult {
   try {
     const parsed = JSON.parse(body) as unknown;
@@ -191,6 +195,45 @@ export async function refreshToken(
   const body = JSON.parse(res.body) as { token?: string; expiresAt?: number };
   if (!body.token) return null;
   return { token: body.token, expiresAt: body.expiresAt ?? 0 };
+}
+
+export async function fetchCliPreferences(): Promise<CliPreferences | null> {
+  try {
+    const { token, convexUrl } = getCloudConfig();
+    let activeToken = token;
+    let res = await requestText(`${convexUrl}/api/cli/preferences`, {
+      method: 'GET',
+      headers: authHeaders(activeToken),
+    });
+
+    if (res.status === 401) {
+      const refreshed = await refreshStoredToken(activeToken, convexUrl);
+      if (refreshed) {
+        activeToken = refreshed;
+        res = await requestText(`${convexUrl}/api/cli/preferences`, {
+          method: 'GET',
+          headers: authHeaders(activeToken),
+        });
+      }
+    }
+
+    if (res.status < 200 || res.status >= 300) return null;
+
+    const body = JSON.parse(res.body) as { collectLocalIpAddress?: unknown };
+    if (typeof body.collectLocalIpAddress !== 'boolean') return null;
+
+    const config = loadConfig();
+    if (config) {
+      saveConfig({
+        ...config,
+        collectLocalIpAddress: body.collectLocalIpAddress,
+      });
+    }
+
+    return { collectLocalIpAddress: body.collectLocalIpAddress };
+  } catch {
+    return null;
+  }
 }
 
 interface RequestOptions {

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { NetworkInterfaceInfo } from 'node:os';
-import { getLocalIpAddress } from './network.ts';
+import { DISABLE_LOCAL_IP_ENV, getLocalIpAddress, shouldCollectLocalIpAddress } from './network.ts';
 
 function ipv4(address: string): NetworkInterfaceInfo {
   return {
@@ -60,4 +60,14 @@ test('getLocalIpAddress falls back to IPv6 when no IPv4 address is available', (
   });
 
   expect(ipAddress).toBe('2001:db8::24');
+});
+
+test('shouldCollectLocalIpAddress defaults to enabled', () => {
+  expect(shouldCollectLocalIpAddress({})).toBe(true);
+});
+
+test('shouldCollectLocalIpAddress honors the local IP opt-out env var', () => {
+  expect(shouldCollectLocalIpAddress({ [DISABLE_LOCAL_IP_ENV]: '1' })).toBe(false);
+  expect(shouldCollectLocalIpAddress({ [DISABLE_LOCAL_IP_ENV]: 'true' })).toBe(false);
+  expect(shouldCollectLocalIpAddress({ [DISABLE_LOCAL_IP_ENV]: '0' })).toBe(true);
 });

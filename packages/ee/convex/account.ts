@@ -3,10 +3,115 @@ import { ConvexError, v } from 'convex/values';
 import Stripe from 'stripe';
 import { api, components, internal } from './_generated/api';
 import type { Doc, TableNames } from './_generated/dataModel';
-import { action, internalMutation } from './_generated/server';
+import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
+import type { DatabaseReader, DatabaseWriter, MutationCtx } from './_generated/server';
 import { deleteAllAgentAvatarsForOwner } from './agentAvatars';
+import { authComponent } from './auth';
 import { deleteCommentWithAttachments, deletePendingUploadRecord } from './comments';
 import { deletePlanRelatedData } from './planDeletion';
+import { stripLocalIpFromMetadata } from './privacy';
+
+const DEFAULT_COLLECT_LOCAL_IP_ADDRESS = true;
+
+async function findAccountPreferences(
+  ctx: { db: DatabaseReader | DatabaseWriter },
+  ownerId: string,
+) {
+  return await ctx.db
+    .query('accountPreferences')
+    .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+    .first();
+}
+
+async function scrubLocalIpAddressForOwner(ctx: MutationCtx, ownerId: string) {
+  const plans = await ctx.db
+    .query('plans')
+    .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+    .collect();
+  for (const plan of plans) {
+    const result = stripLocalIpFromMetadata(plan.metadata);
+    if (result.changed) await ctx.db.patch(plan._id, { metadata: result.metadata });
+  }
+
+  const versions = await ctx.db
+    .query('planVersions')
+    .withIndex('by_owner_createdAt', (q) => q.eq('ownerId', ownerId))
+    .collect();
+  for (const version of versions) {
+    const result = stripLocalIpFromMetadata(version.metadata);
+    if (result.changed) await ctx.db.patch(version._id, { metadata: result.metadata });
+  }
+}
+
+export const getPrivacyPreferencesForOwner = internalQuery({
+  args: { ownerId: v.string() },
+  handler: async (ctx, { ownerId }) => {
+    const prefs = await findAccountPreferences(ctx, ownerId);
+    return {
+      collectLocalIpAddress: prefs?.collectLocalIpAddress ?? DEFAULT_COLLECT_LOCAL_IP_ADDRESS,
+      localIpDisclosureAcknowledgedAt: prefs?.localIpDisclosureAcknowledgedAt ?? null,
+    };
+  },
+});
+
+export const getMyPrivacyPreferences = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return null;
+
+    const ownerId = String(user._id);
+    const prefs = await findAccountPreferences(ctx, ownerId);
+    return {
+      collectLocalIpAddress: prefs?.collectLocalIpAddress ?? DEFAULT_COLLECT_LOCAL_IP_ADDRESS,
+      localIpDisclosureAcknowledgedAt: prefs?.localIpDisclosureAcknowledgedAt ?? null,
+    };
+  },
+});
+
+export const updatePrivacyPreferences = mutation({
+  args: {
+    collectLocalIpAddress: v.optional(v.boolean()),
+    acknowledgeLocalIpDisclosure: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) throw new ConvexError('Not authenticated');
+
+    const ownerId = String(user._id);
+    const existing = await findAccountPreferences(ctx, ownerId);
+    const now = Date.now();
+    const nextCollectLocalIpAddress =
+      args.collectLocalIpAddress ??
+      existing?.collectLocalIpAddress ??
+      DEFAULT_COLLECT_LOCAL_IP_ADDRESS;
+    const patch = {
+      collectLocalIpAddress: nextCollectLocalIpAddress,
+      ...(args.acknowledgeLocalIpDisclosure ? { localIpDisclosureAcknowledgedAt: now } : {}),
+      updatedAt: now,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      await ctx.db.insert('accountPreferences', {
+        ownerId,
+        createdAt: now,
+        ...patch,
+      });
+    }
+
+    if (args.collectLocalIpAddress === false) {
+      await scrubLocalIpAddressForOwner(ctx, ownerId);
+    }
+
+    return {
+      collectLocalIpAddress: nextCollectLocalIpAddress,
+      localIpDisclosureAcknowledgedAt:
+        patch.localIpDisclosureAcknowledgedAt ?? existing?.localIpDisclosureAcknowledgedAt ?? null,
+    };
+  },
+});
 
 export const deleteAccount = action({
   handler: async (ctx) => {
@@ -111,6 +216,12 @@ export const purgeUserData = internalMutation({
       await ctx.db
         .query('subscriptions')
         .withIndex('by_user', (q) => q.eq('userId', userId))
+        .collect(),
+    );
+    await deleteRows(
+      await ctx.db
+        .query('accountPreferences')
+        .withIndex('by_owner', (q) => q.eq('ownerId', userId))
         .collect(),
     );
     await deleteRows(

@@ -35,6 +35,7 @@ import { getLocalIpAddress } from './network.ts';
 import { planToSyncPayload } from './payload.ts';
 import { removePid, writePid } from './pid.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
+import { shouldIncludeLocalIpAddressInSync } from './sync-privacy.ts';
 import {
   loadPendingWritebackReports,
   savePendingWritebackReports,
@@ -51,7 +52,6 @@ const PLANNOTATOR_WRITEBACK_FAILED_ERROR =
 export async function runWorker(): Promise<void> {
   const config = await loadOrInitConfig();
   const hostname = osHostname();
-  const ipAddress = getLocalIpAddress();
   const adapterIds = resolveCliAdapterIds(config);
   const adapters = resolveAdapters(adapterIds);
   setActiveAdapters(adapters);
@@ -64,6 +64,17 @@ export async function runWorker(): Promise<void> {
   const syncQueue: SyncPlanPayload[] = [];
   const pendingWritebackReports = loadPendingWritebackReports();
   let syncing = false;
+  let cachedIpAddress: string | undefined;
+
+  async function getSyncIpAddress(): Promise<string | undefined> {
+    if (!(await shouldIncludeLocalIpAddressInSync())) {
+      cachedIpAddress = undefined;
+      return undefined;
+    }
+
+    cachedIpAddress ??= getLocalIpAddress();
+    return cachedIpAddress;
+  }
 
   async function tryRefreshToken(): Promise<boolean> {
     const cfg = loadConfig();
@@ -211,8 +222,11 @@ export async function runWorker(): Promise<void> {
 
     if (ok) {
       const updatedPlan = getById(job.localPlanId);
-      if (updatedPlan)
-        syncQueue.push(planToSyncPayload(updatedPlan, config.deviceId, hostname, ipAddress));
+      if (updatedPlan) {
+        syncQueue.push(
+          planToSyncPayload(updatedPlan, config.deviceId, hostname, await getSyncIpAddress()),
+        );
+      }
       pendingWritebackReports.set(job._id, 'sent');
       persistPendingWritebackReports();
       await reportPendingWriteback(job._id);
@@ -257,8 +271,9 @@ export async function runWorker(): Promise<void> {
   let initialQueuedSyncable = 0;
   let initialQueuedLowValue = 0;
 
+  const initialIpAddress = await getSyncIpAddress();
   for (const plan of plans) {
-    const payload = planToSyncPayload(plan, config.deviceId, hostname, ipAddress);
+    const payload = planToSyncPayload(plan, config.deviceId, hostname, initialIpAddress);
     const hash = computePayloadHash(payload);
 
     if (syncCache[plan.id] === hash) {
@@ -295,10 +310,15 @@ export async function runWorker(): Promise<void> {
   }
 
   startWatching((changedPlans) => {
-    for (const plan of changedPlans as Plan[]) {
-      syncQueue.push(planToSyncPayload(plan, config.deviceId, hostname, ipAddress));
-    }
-    processSyncQueue();
+    void (async () => {
+      const ipAddress = await getSyncIpAddress();
+      for (const plan of changedPlans as Plan[]) {
+        syncQueue.push(planToSyncPayload(plan, config.deviceId, hostname, ipAddress));
+      }
+      processSyncQueue();
+    })().catch((err) => {
+      console.error('[agendex] failed to queue changed plans:', err);
+    });
   });
 
   console.log(`[agendex] daemon running. Watching for file changes...`);
