@@ -1413,7 +1413,7 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
 
   return (
     <LandingContext.Provider value={ctxValue}>
-      <div className="landing-page">
+      <div className="landing-page [&_a[href]]:cursor-pointer [&_button:not(:disabled)]:cursor-pointer">
         <TopoNeurons />
 
         <LandingNavbar
