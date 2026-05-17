@@ -40,12 +40,12 @@ export async function login(siteUrlOverride?: string): Promise<void> {
   const existing = loadConfig();
   const config: AgendexConfig = {
     configVersion: 3,
-    token: existing?.token,
     cloudToken: callback.token,
     convexUrl: callback.convexUrl,
-    deviceId: existing?.deviceId,
     enabledAdapters: existing?.enabledAdapters ?? [],
     customPlanDirs: existing?.customPlanDirs ?? [],
+    ...(existing?.token ? { token: existing.token } : {}),
+    ...(existing?.deviceId ? { deviceId: existing.deviceId } : {}),
   };
   saveConfig(config);
 
@@ -62,12 +62,10 @@ export function logout(): void {
 
   const config: AgendexConfig = {
     configVersion: 3,
-    token: existing.token,
-    cloudToken: undefined,
-    convexUrl: undefined,
-    deviceId: existing.deviceId,
     enabledAdapters: existing.enabledAdapters,
     customPlanDirs: existing.customPlanDirs,
+    ...(existing.token ? { token: existing.token } : {}),
+    ...(existing.deviceId ? { deviceId: existing.deviceId } : {}),
   };
   saveConfig(config);
   console.log('[agendex] Logged out. Cloud token removed.');
@@ -179,43 +177,31 @@ async function startCallbackServer(): Promise<{ port: number; result: Promise<Ca
 }
 
 function callbackPage(success: boolean): string {
-  const title = success ? 'Login successful' : 'Login failed';
-  const message = success
-    ? 'You can close this tab and return to your terminal.'
-    : 'Missing token. Please try again.';
-  const icon = success
-    ? '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:32px;height:32px;color:#22c55e"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>'
-    : '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:32px;height:32px;color:#ef4444"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>';
-
+  const title = success ? 'Signed in' : 'Sign in failed';
+  const message = success ? 'Return to your terminal.' : 'Run agendex login again.';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>${title} — Agendex</title>
+  <title>${title} | Agendex</title>
   <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    @media(prefers-color-scheme:dark){
-      :root{--bg:#111;--surface:#161616;--text:#e8e8e8;--secondary:#888;--tertiary:#555;--border:rgba(255,255,255,0.06)}
-    }
-    @media(prefers-color-scheme:light){
-      :root{--bg:#fafafa;--surface:#fff;--text:#111;--secondary:#666;--tertiary:#999;--border:rgba(0,0,0,0.06)}
-    }
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;min-height:100vh;-webkit-font-smoothing:antialiased}
-    .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:40px 48px;text-align:center;max-width:400px;width:100%;box-shadow:0 2px 16px rgba(0,0,0,0.04)}
-    .icon{margin-bottom:16px;display:flex;justify-content:center}
-    h1{font-size:18px;font-weight:600;letter-spacing:-0.02em;margin-bottom:8px}
-    p{font-size:13px;color:var(--secondary);line-height:1.5}
-    .brand{margin-top:24px;font-size:11px;color:var(--tertiary);letter-spacing:0.04em;font-weight:500}
+    *{box-sizing:border-box}
+    :root{color-scheme:dark light;--bg:oklch(13% 0.018 180);--text:oklch(91% 0.012 125);--muted:oklch(58% 0.018 160);--accent:oklch(90% 0.23 125);--err:oklch(64% 0.2 25)}
+    @media(prefers-color-scheme:light){:root{--bg:oklch(97% 0.014 125);--text:oklch(18% 0.016 135);--muted:oklch(48% 0.018 155)}}
+    body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;display:grid;place-items:center;padding:32px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+    main{width:min(100%,340px)}
+    h1{font-size:21px;font-weight:560;line-height:1.25;letter-spacing:-.02em;margin:0}
+    p{font-size:15px;line-height:1.5;color:var(--muted);margin:9px 0 0}
+    .brand{font-family:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,monospace;font-size:12px;line-height:1;color:var(--accent);margin-top:42px;letter-spacing:.02em}
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="icon">${icon}</div>
-    <h1>${title}</h1>
+  <main aria-labelledby="callback-title">
+    <h1 id="callback-title">${title}</h1>
     <p>${message}</p>
-    <div class="brand">AGENDEX</div>
-  </div>
+    <div class="brand">agendex</div>
+  </main>
 </body>
 </html>`;
 }

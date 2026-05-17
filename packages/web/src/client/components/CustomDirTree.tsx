@@ -113,29 +113,31 @@ export function CustomDirTree({
   renderPlan: (plan: Plan) => React.ReactNode;
 }): React.ReactNode {
   const tree = useMemo(() => buildCustomDirTree(plans), [plans]);
-  const rootDirKeys = useMemo(
-    () => tree.flatMap((node) => (node.type === 'dir' ? [node.key] : [])),
-    [tree],
-  );
+  const rootDirKeys = useMemo(() => {
+    const keys: string[] = [];
 
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    for (const key of rootDirKeys) {
-      init[key] = true;
+    for (const node of tree) {
+      if (node.type === 'dir') keys.push(node.key);
     }
-    return init;
-  });
+
+    return keys;
+  }, [tree]);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(rootDirKeys.map((key) => [key, true])),
+  );
 
   useEffect(() => {
     setExpanded((prev) => {
-      let changed = false;
       const next = { ...prev };
+      let changed = false;
+
       for (const key of rootDirKeys) {
         if (!(key in next)) {
           next[key] = true;
           changed = true;
         }
       }
+
       return changed ? next : prev;
     });
   }, [rootDirKeys]);

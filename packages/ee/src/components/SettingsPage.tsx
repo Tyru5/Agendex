@@ -123,7 +123,6 @@ export function SettingsPage() {
             isActive={isActive}
             isTrialing={isTrialing}
             trialDaysLeft={trialDaysLeft}
-            subscription={subscription}
             renewalDate={subView.renewalDate}
             cadence={subView.cadence}
           />
