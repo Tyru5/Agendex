@@ -1,5 +1,15 @@
 # agendex-cli
 
+## 0.18.0
+
+### Minor Changes
+
+- 0f68ef9: Added sync provenance that includes the host machine's local IP address by default. Users can disable this in Account settings or by setting `AGENDEX_DISABLE_LOCAL_IP=1`.
+
+### Patch Changes
+
+- 83295a5: Updated auth callback page styling
+
 ## 0.17.0
 
 ### Minor Changes
