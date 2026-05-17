@@ -1,6 +1,6 @@
 import { GitHubIcon, GoogleIcon } from '@agendex/web';
-import { useEffect, useMemo, useState } from 'react';
-import { Link, Redirect, useLocation } from 'wouter';
+import { useMemo, useState } from 'react';
+import { Link, Redirect } from 'wouter';
 import { useAuth } from '../hooks/useAuth.ts';
 import { APP_URL } from '../lib/auth-client.ts';
 
@@ -68,7 +68,6 @@ function AuthProviderButton({
 }
 
 export function AuthPage({ mode }: { mode: AuthMode }) {
-  const [, navigate] = useLocation();
   const { isAuthenticated, isLoading, signIn } = useAuth();
   const [activeProvider, setActiveProvider] = useState<AuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,11 +94,22 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     [mode],
   );
 
-  useEffect(() => {
-    if (isAuthenticated) navigate('/');
-  }, [isAuthenticated, navigate]);
-
   if (isAuthenticated) return <Redirect to="/" />;
+
+  if (isLoading) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-[oklch(16%_0.026_178)] px-5 py-10 text-[oklch(94%_0.014_125)]">
+        <div
+          className="flex items-center gap-3 rounded-[18px] border border-[oklch(90%_0.01_145_/_0.14)] bg-[oklch(18.5%_0.027_178)] px-5 py-4 text-[13.5px] text-[oklch(67%_0.025_165)] shadow-[0_18px_40px_oklch(8%_0.02_178_/_0.34)]"
+          aria-busy="true"
+          role="status"
+        >
+          <Spinner size={16} />
+          Checking your session…
+        </div>
+      </main>
+    );
+  }
 
   async function handleProvider(provider: AuthProvider) {
     setActiveProvider(provider);

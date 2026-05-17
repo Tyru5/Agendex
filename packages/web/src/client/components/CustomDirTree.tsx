@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Plan } from '../lib/api.ts';
 import { buildCustomDirTree, type FsTreeNode } from '../lib/custom-plan-tree.ts';
 import { ChevronIcon, FolderIcon } from './PlanTreeIcons.tsx';
@@ -113,7 +113,34 @@ export function CustomDirTree({
   renderPlan: (plan: Plan) => React.ReactNode;
 }): React.ReactNode {
   const tree = useMemo(() => buildCustomDirTree(plans), [plans]);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const rootDirKeys = useMemo(() => {
+    const keys: string[] = [];
+
+    for (const node of tree) {
+      if (node.type === 'dir') keys.push(node.key);
+    }
+
+    return keys;
+  }, [tree]);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(rootDirKeys.map((key) => [key, true])),
+  );
+
+  useEffect(() => {
+    setExpanded((prev) => {
+      const next = { ...prev };
+      let changed = false;
+
+      for (const key of rootDirKeys) {
+        if (!(key in next)) {
+          next[key] = true;
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [rootDirKeys]);
 
   if (tree.length === 0) return null;
 
