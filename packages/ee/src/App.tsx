@@ -43,6 +43,7 @@ import { Redirect, Route, Switch, useLocation } from 'wouter';
 import { CHART_PREF_STORAGE_KEY } from './chartPref.ts';
 import { AboutMePage } from './components/AboutMePage.tsx';
 import { AcceptInvitePage } from './components/AcceptInvitePage.tsx';
+import { AuthPage } from './components/AuthPage.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
 import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
@@ -1613,6 +1614,8 @@ export default function App() {
       <Switch>
         <Route path="/auth/check" component={AuthCheckRoute} />
         <Route path="/auth/cli" component={CliAuthRoute} />
+        <Route path="/login">{() => <AuthPage mode="login" />}</Route>
+        <Route path="/signup">{() => <AuthPage mode="signup" />}</Route>
         <Route path="/shared/:token">{({ token }) => <SharedPlanView token={token} />}</Route>
         <Route path="/about-me" component={AboutMePage} />
         <Route path="/changelog" component={ChangelogRoute} />

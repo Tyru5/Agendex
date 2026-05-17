@@ -1,5 +1,4 @@
 import { GitHubIcon, GoogleIcon } from '@agendex/web';
-import type { Subscription } from '../../hooks/useSubscription';
 import { PRIMARY_RGB_FALLBACK } from './constants';
 
 interface SidebarProps {
@@ -9,7 +8,6 @@ interface SidebarProps {
   isActive: boolean;
   isTrialing: boolean;
   trialDaysLeft: number;
-  subscription: Subscription | null | undefined;
   renewalDate: string | null;
   cadence: string | null;
 }
@@ -52,7 +50,6 @@ export function SettingsSidebar({
   isActive,
   isTrialing,
   trialDaysLeft,
-  subscription,
   renewalDate,
   cadence,
 }: SidebarProps) {

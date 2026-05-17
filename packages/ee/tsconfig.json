@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@convex/*": ["./convex/*"]
+    }
+  },
+  "include": ["src", "vite-env.d.ts", "convex/_generated/**/*.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}
