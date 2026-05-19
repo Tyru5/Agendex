@@ -1,6 +1,6 @@
-import { GitHubIcon, GoogleIcon } from '@agendex/web';
-import { useMemo, useState } from 'react';
-import { Link, Redirect } from 'wouter';
+import { GitHubIcon, GoogleIcon, startViewTransition } from '@agendex/web';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth.ts';
 import { APP_URL } from '../lib/auth-client.ts';
 
@@ -69,6 +69,8 @@ function AuthProviderButton({
 
 export function AuthPage({ mode }: { mode: AuthMode }) {
   const { isAuthenticated, isLoading, signIn } = useAuth();
+  const [, navigate] = useLocation();
+  const didRedirectRef = useRef(false);
   const [activeProvider, setActiveProvider] = useState<AuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,9 +96,14 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     [mode],
   );
 
-  if (isAuthenticated) return <Redirect to="/" />;
+  useEffect(() => {
+    if (!isAuthenticated || didRedirectRef.current) return;
 
-  if (isLoading) {
+    didRedirectRef.current = true;
+    startViewTransition(() => navigate('/'));
+  }, [isAuthenticated, navigate]);
+
+  if (isAuthenticated || isLoading) {
     return (
       <main className="grid min-h-screen place-items-center bg-[oklch(16%_0.026_178)] px-5 py-10 text-[oklch(94%_0.014_125)]">
         <div
@@ -164,6 +171,10 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
             {copy.switchLabel}{' '}
             <Link
               href={copy.switchHref}
+              onClick={(event) => {
+                event.preventDefault();
+                startViewTransition(() => navigate(copy.switchHref));
+              }}
               className="font-semibold text-[oklch(88%_0.22_122)] no-underline hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(88%_0.22_122)]"
             >
               {copy.switchCta}

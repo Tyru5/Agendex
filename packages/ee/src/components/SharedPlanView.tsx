@@ -9,6 +9,7 @@ import {
   PlanOutline,
   SkeletonBlock,
   sanitizeSchema,
+  startViewTransition,
   useFullscreen,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
@@ -376,10 +377,10 @@ function SharedPlanViewInner({ token }: { token: string }) {
         onNewPlan={sharedHome}
         onUpload={sharedHome}
         onHistory={sharedHome}
-        onNavigate={(path: string) => navigate(path)}
+        onNavigate={(path: string) => startViewTransition(() => navigate(path))}
         onShowPricing={sharedHome}
         onToggleOutline={toggleOutline}
-        onShowChangelog={() => navigate('/changelog')}
+        onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
       />
       {body}
     </>

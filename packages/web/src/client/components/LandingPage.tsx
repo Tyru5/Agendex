@@ -67,6 +67,7 @@ const LANDING_SECTIONS = [
 export interface LandingPageProps {
   children?: ReactNode;
   mascot?: LandingMascotProps;
+  onShowChangelog?: () => void;
 }
 
 const DEMO_PLAN_ROWS = [
@@ -784,6 +785,7 @@ function LandingNavbar({
   mobileMenuOpen,
   onMobileMenuToggle,
   onMobileMenuClose,
+  onShowChangelog,
 }: {
   signingIn: boolean;
   onSignIn: () => void;
@@ -791,7 +793,17 @@ function LandingNavbar({
   mobileMenuOpen: boolean;
   onMobileMenuToggle: () => void;
   onMobileMenuClose: () => void;
+  onShowChangelog?: () => void;
 }) {
+  function handleChangelogClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    if (!onShowChangelog) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onMobileMenuClose();
+    onShowChangelog();
+  }
+
   const authAction = authSlot ? (
     authSlot()
   ) : (
@@ -836,6 +848,7 @@ function LandingNavbar({
             ))}
             <a
               href="/changelog"
+              onClick={handleChangelogClick}
               className="text-[12.5px] font-semibold text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
             >
               Changelog
@@ -894,7 +907,7 @@ function LandingNavbar({
           ))}
           <a
             href="/changelog"
-            onClick={onMobileMenuClose}
+            onClick={handleChangelogClick}
             className="flex min-h-11 items-center rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_72%,transparent)] px-3.5 text-[14px] font-semibold text-[var(--landing-text)] no-underline"
           >
             Changelog
@@ -906,7 +919,15 @@ function LandingNavbar({
   );
 }
 
-function LandingFooter() {
+function LandingFooter({ onShowChangelog }: { onShowChangelog?: () => void }) {
+  function handleChangelogClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    if (!onShowChangelog) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onShowChangelog();
+  }
+
   return (
     <footer className="relative z-[1] flex min-h-[220px] items-end justify-between gap-8 border-t border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_94%,oklch(12%_0.03_184))] px-[clamp(20px,5vw,88px)] py-11 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start max-sm:px-4 max-sm:py-8">
       <div className="flex flex-col gap-3 text-[12.5px]">
@@ -919,7 +940,9 @@ function LandingFooter() {
         <a href="#overview">Overview</a>
         <a href="#features">Features</a>
         <a href="#pricing">Pricing</a>
-        <a href="/changelog">Changelog</a>
+        <a href="/changelog" onClick={handleChangelogClick}>
+          Changelog
+        </a>
         <a
           href="https://github.com/Tyru5/Agendex"
           target="_blank"
@@ -1268,7 +1291,7 @@ function extractSlots(children: ReactNode): Record<string, SlotRenderFn> {
   return slots;
 }
 
-function LandingPageInner({ children, mascot }: LandingPageProps) {
+function LandingPageInner({ children, mascot, onShowChangelog }: LandingPageProps) {
   const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [tokenError, setTokenError] = useState('');
@@ -1355,9 +1378,11 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
       const doc = document.documentElement;
       const atBottom = window.innerHeight + window.scrollY >= doc.scrollHeight - 2;
 
-      let activeId = sections[0].id;
+      const firstSection = sections[0];
+      if (!firstSection) return;
+      let activeId = firstSection.id;
       if (atBottom) {
-        activeId = sections[sections.length - 1].id;
+        activeId = sections.at(-1)?.id ?? firstSection.id;
       } else {
         for (const section of sections) {
           if (section.getBoundingClientRect().top <= anchor) {
@@ -1423,6 +1448,7 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
           mobileMenuOpen={mobileMenuOpen}
           onMobileMenuToggle={() => setMobileMenuOpen((open) => !open)}
           onMobileMenuClose={() => setMobileMenuOpen(false)}
+          onShowChangelog={onShowChangelog}
         />
 
         <LandingHero
@@ -1444,7 +1470,7 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
 
         <LandingFAQ openFaq={openFaq} onSetOpenFaq={setOpenFaq} />
 
-        <LandingFooter />
+        <LandingFooter onShowChangelog={onShowChangelog} />
 
         {mascot && (
           <LandingMascot
@@ -1468,8 +1494,12 @@ function LandingPageInner({ children, mascot }: LandingPageProps) {
   );
 }
 
-export function LandingPage({ children, mascot }: LandingPageProps = {}) {
-  return <LandingPageInner mascot={mascot}>{children}</LandingPageInner>;
+export function LandingPage({ children, mascot, onShowChangelog }: LandingPageProps = {}) {
+  return (
+    <LandingPageInner mascot={mascot} onShowChangelog={onShowChangelog}>
+      {children}
+    </LandingPageInner>
+  );
 }
 
 LandingPage.NavbarAuth = NavbarAuth;
