@@ -9,6 +9,7 @@ import {
   PlanSourcesDialog,
   PlanViewer,
   Sidebar,
+  startViewTransition,
   Topbar,
   useAgents,
   useBackendStatus,
@@ -368,7 +369,9 @@ export default function App() {
     return (
       <ChangelogPage
         onBack={() => {
-          window.location.href = '/';
+          startViewTransition(() => {
+            window.location.href = '/';
+          });
         }}
       />
     );
@@ -378,7 +381,13 @@ export default function App() {
     return (
       <>
         <SessionExpiredBanner />
-        <LandingPage />
+        <LandingPage
+          onShowChangelog={() => {
+            startViewTransition(() => {
+              window.location.href = '/changelog';
+            });
+          }}
+        />
       </>
     );
   }

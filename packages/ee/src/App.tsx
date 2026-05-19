@@ -134,6 +134,76 @@ function BootLoadingView({
   );
 }
 
+const AUTH_SESSION_SETTLE_DELAY_MS = 250;
+
+function useAuthSessionSettled({
+  isAuthenticated,
+  isLoading,
+  refreshSession,
+  hold = false,
+  skip = false,
+}: {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  refreshSession: () => Promise<void>;
+  hold?: boolean;
+  skip?: boolean;
+}) {
+  const [settled, setSettled] = useState(false);
+  const didVerifyUnauthRef = useRef(false);
+  const refreshSessionRef = useRef(refreshSession);
+  refreshSessionRef.current = refreshSession;
+
+  useEffect(() => {
+    if (skip) {
+      didVerifyUnauthRef.current = false;
+      setSettled(true);
+      return;
+    }
+
+    if (isAuthenticated) {
+      didVerifyUnauthRef.current = false;
+      setSettled(true);
+      return;
+    }
+
+    if (hold || isLoading) {
+      setSettled(false);
+      return;
+    }
+
+    if (didVerifyUnauthRef.current) {
+      setSettled(true);
+      return;
+    }
+
+    let cancelled = false;
+    setSettled(false);
+
+    const timeoutId = setTimeout(() => {
+      async function verifySession() {
+        try {
+          await refreshSessionRef.current();
+        } catch {
+          // Treat errors as settled so signed-out marketing users are not blocked forever.
+        } finally {
+          didVerifyUnauthRef.current = true;
+          if (!cancelled) setSettled(true);
+        }
+      }
+
+      void verifySession();
+    }, AUTH_SESSION_SETTLE_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [hold, isAuthenticated, isLoading, skip]);
+
+  return settled;
+}
+
 function useDashboardData(
   mode: DashboardMode,
   agentFilter: string | undefined,
@@ -1252,15 +1322,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       );
       setSplitPlanId((prev) => (prev === planId ? null : prev));
     },
-    [
-      mode,
-      isPro,
-      deletePlanMutation,
-      startViewTransition,
-      setSelectedPlan,
-      setSplitPlanId,
-      selectedPlan,
-    ],
+    [mode, isPro, deletePlanMutation, setSelectedPlan, setSplitPlanId, selectedPlan],
   );
 
   function handleChartWideChange(wide: boolean) {
@@ -1462,19 +1524,27 @@ function CliAuthRoute() {
  * on the app origin) and either keep the user on the app or bounce them back.
  */
 function AuthCheckRoute() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, refreshSession } = useAuth();
+  const authSettled = useAuthSessionSettled({ isAuthenticated, isLoading, refreshSession });
   const appUrl = import.meta.env.VITE_APP_URL as string | undefined;
   const marketingUrl = import.meta.env.VITE_MARKETING_URL as string | undefined;
   const returnTo = new URLSearchParams(window.location.search).get('returnTo');
 
   useEffect(() => {
-    if (isLoading) return;
+    if (!authSettled) return;
     if (isAuthenticated) {
       window.location.replace('/');
     } else if (returnTo || marketingUrl) {
       try {
-        const dest = new URL(returnTo || marketingUrl!);
-        const trusted = [appUrl, marketingUrl].filter(Boolean).map((u) => new URL(u!).origin);
+        const redirectTarget = returnTo ?? marketingUrl;
+        if (!redirectTarget) {
+          window.location.replace('/');
+          return;
+        }
+        const dest = new URL(redirectTarget);
+        const trusted = [appUrl, marketingUrl]
+          .filter((url): url is string => Boolean(url))
+          .map((url) => new URL(url).origin);
         if (!trusted.includes(dest.origin)) {
           window.location.replace('/');
           return;
@@ -1485,14 +1555,14 @@ function AuthCheckRoute() {
         window.location.replace('/');
       }
     }
-  }, [isAuthenticated, isLoading, returnTo, marketingUrl, appUrl]);
+  }, [authSettled, isAuthenticated, returnTo, marketingUrl, appUrl]);
 
   return <BootLoadingView />;
 }
 
 function HomeRoute() {
   const [, navigate] = useLocation();
-  const { isAuthenticated, isLoading, signIn } = useAuth();
+  const { isAuthenticated, isLoading, refreshSession, signIn } = useAuth();
   const hasCachedToken = hasToken();
   const { needsOnboarding, onboardingResolved } = useSubscription({
     enabled: !isLoading && isAuthenticated,
@@ -1513,6 +1583,14 @@ function HomeRoute() {
     const id = setTimeout(() => setProcessingOtt(false), 5_000);
     return () => clearTimeout(id);
   }, [processingOtt]);
+
+  const authSettled = useAuthSessionSettled({
+    isAuthenticated,
+    isLoading,
+    refreshSession,
+    hold: processingOtt,
+    skip: hasCachedToken,
+  });
 
   const appUrl = import.meta.env.VITE_APP_URL as string | undefined;
   const marketingUrl = import.meta.env.VITE_MARKETING_URL as string | undefined;
@@ -1541,12 +1619,12 @@ function HomeRoute() {
   // Skip if we already checked (indicated by ?checked=1 from AuthCheckRoute).
   const alreadyChecked = new URLSearchParams(window.location.search).get('checked') === '1';
   useEffect(() => {
-    if (isMarketingHost && appUrl && !isLoading && !isAuthenticated && !alreadyChecked) {
+    if (isMarketingHost && appUrl && authSettled && !isAuthenticated && !alreadyChecked) {
       const checkUrl = new URL('/auth/check', appUrl);
       checkUrl.searchParams.set('returnTo', window.location.href);
       window.location.replace(checkUrl.toString());
     }
-  }, [isMarketingHost, appUrl, isLoading, isAuthenticated, alreadyChecked]);
+  }, [isMarketingHost, appUrl, authSettled, isAuthenticated, alreadyChecked]);
 
   useEffect(() => {
     if (isAuthenticated && onboardingResolved && !needsOnboarding && isMarketingHost && appUrl) {
@@ -1557,7 +1635,7 @@ function HomeRoute() {
   useEffect(() => {
     if (
       !isAuthenticated &&
-      !isLoading &&
+      authSettled &&
       !hasCachedToken &&
       isAppHost &&
       marketingUrl &&
@@ -1565,7 +1643,7 @@ function HomeRoute() {
     ) {
       window.location.href = marketingUrl;
     }
-  }, [isAuthenticated, isLoading, hasCachedToken, isAppHost, marketingUrl, processingOtt]);
+  }, [isAuthenticated, authSettled, hasCachedToken, isAppHost, marketingUrl, processingOtt]);
 
   if (isMarketingHost && appUrl && !isAuthenticated && !alreadyChecked) return <BootLoadingView />;
 
@@ -1582,7 +1660,7 @@ function HomeRoute() {
     return <Dashboard autoMode="cloud" />;
   }
 
-  if (isLoading) return <BootLoadingView />;
+  if (isLoading || !authSettled || processingOtt) return <BootLoadingView />;
 
   if (isAppHost && marketingUrl) return <BootLoadingView />;
 
@@ -1590,7 +1668,10 @@ function HomeRoute() {
     signIn.social({ provider, callbackURL: `${APP_URL}/` });
 
   return (
-    <LandingPage mascot={{ onActivate: () => startViewTransition(() => navigate('/about-me')) }}>
+    <LandingPage
+      mascot={{ onActivate: () => startViewTransition(() => navigate('/about-me')) }}
+      onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
+    >
       <LandingPage.NavbarAuth>
         {() => <EENavbarAuth onLogin={handleLogin} />}
       </LandingPage.NavbarAuth>
