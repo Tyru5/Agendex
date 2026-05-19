@@ -151,6 +151,8 @@ function useAuthSessionSettled({
 }) {
   const [settled, setSettled] = useState(false);
   const didVerifyUnauthRef = useRef(false);
+  const refreshSessionRef = useRef(refreshSession);
+  refreshSessionRef.current = refreshSession;
 
   useEffect(() => {
     if (skip) {
@@ -181,7 +183,7 @@ function useAuthSessionSettled({
     const timeoutId = setTimeout(() => {
       async function verifySession() {
         try {
-          await refreshSession();
+          await refreshSessionRef.current();
         } catch {
           // Treat errors as settled so signed-out marketing users are not blocked forever.
         } finally {
@@ -197,7 +199,7 @@ function useAuthSessionSettled({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [hold, isAuthenticated, isLoading, refreshSession, skip]);
+  }, [hold, isAuthenticated, isLoading, skip]);
 
   return settled;
 }
