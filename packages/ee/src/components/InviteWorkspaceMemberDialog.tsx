@@ -1,8 +1,11 @@
 import { api } from '@convex/_generated/api';
 import { useMutation } from 'convex/react';
 import { useState } from 'react';
+import { normalizeLocalDevUrl } from '../lib/auth-client.ts';
 
-const appUrl = (import.meta.env.VITE_APP_URL as string) || window.location.origin;
+const appUrl = normalizeLocalDevUrl(
+  (import.meta.env.VITE_APP_URL as string) || window.location.origin,
+);
 
 interface InviteWorkspaceMemberDialogProps {
   onClose: () => void;

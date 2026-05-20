@@ -72,7 +72,7 @@ import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
-import { APP_URL } from './lib/auth-client.ts';
+import { APP_URL, normalizeLocalDevUrl } from './lib/auth-client.ts';
 import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
 const PlanEditor = lazy(() =>
@@ -135,6 +135,28 @@ function BootLoadingView({
 }
 
 const AUTH_SESSION_SETTLE_DELAY_MS = 250;
+
+function getNormalizedOrigin(url: string | undefined): string | undefined {
+  try {
+    const normalized = normalizeLocalDevUrl(url);
+    return normalized ? new URL(normalized).origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function isOriginTrustedByUrl(origin: string, url: string | undefined): boolean {
+  return origin === getNormalizedOrigin(url);
+}
+
+function getApexHost(url: string | undefined): string | undefined {
+  try {
+    const normalized = normalizeLocalDevUrl(url);
+    return normalized ? new URL(normalized).hostname.replace(/^www\./, '') : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function useAuthSessionSettled({
   isAuthenticated,
@@ -1526,8 +1548,10 @@ function CliAuthRoute() {
 function AuthCheckRoute() {
   const { isAuthenticated, isLoading, refreshSession } = useAuth();
   const authSettled = useAuthSessionSettled({ isAuthenticated, isLoading, refreshSession });
-  const appUrl = import.meta.env.VITE_APP_URL as string | undefined;
-  const marketingUrl = import.meta.env.VITE_MARKETING_URL as string | undefined;
+  const appUrl = normalizeLocalDevUrl(import.meta.env.VITE_APP_URL as string | undefined);
+  const marketingUrl = normalizeLocalDevUrl(
+    import.meta.env.VITE_MARKETING_URL as string | undefined,
+  );
   const returnTo = new URLSearchParams(window.location.search).get('returnTo');
 
   useEffect(() => {
@@ -1537,15 +1561,14 @@ function AuthCheckRoute() {
     } else if (returnTo || marketingUrl) {
       try {
         const redirectTarget = returnTo ?? marketingUrl;
-        if (!redirectTarget) {
+        const normalizedRedirectTarget = normalizeLocalDevUrl(redirectTarget ?? undefined);
+        if (!normalizedRedirectTarget) {
           window.location.replace('/');
           return;
         }
-        const dest = new URL(redirectTarget);
-        const trusted = [appUrl, marketingUrl]
-          .filter((url): url is string => Boolean(url))
-          .map((url) => new URL(url).origin);
-        if (!trusted.includes(dest.origin)) {
+        const dest = new URL(normalizedRedirectTarget);
+        const trusted = new Set([getNormalizedOrigin(appUrl), getNormalizedOrigin(marketingUrl)]);
+        if (!trusted.has(dest.origin)) {
           window.location.replace('/');
           return;
         }
@@ -1592,26 +1615,18 @@ function HomeRoute() {
     skip: hasCachedToken,
   });
 
-  const appUrl = import.meta.env.VITE_APP_URL as string | undefined;
-  const marketingUrl = import.meta.env.VITE_MARKETING_URL as string | undefined;
+  const appUrl = normalizeLocalDevUrl(import.meta.env.VITE_APP_URL as string | undefined);
+  const marketingUrl = normalizeLocalDevUrl(
+    import.meta.env.VITE_MARKETING_URL as string | undefined,
+  );
 
   let isAppHost = false;
   let isMarketingHost = false;
-  try {
-    isAppHost = appUrl ? window.location.origin === new URL(appUrl).origin : false;
-    isMarketingHost = marketingUrl
-      ? window.location.origin === new URL(marketingUrl).origin
-      : false;
-    // Treat the apex domain (e.g. agendex.dev) as the marketing host
-    if (!isAppHost && !isMarketingHost && marketingUrl) {
-      const marketingHostname = new URL(marketingUrl).hostname; // e.g. www.agendex.dev
-      const apex = marketingHostname.replace(/^www\./, ''); // e.g. agendex.dev
-      if (window.location.hostname === apex) {
-        isMarketingHost = true;
-      }
-    }
-  } catch {
-    // malformed env var — treat both as false
+  isAppHost = isOriginTrustedByUrl(window.location.origin, appUrl);
+  isMarketingHost = isOriginTrustedByUrl(window.location.origin, marketingUrl);
+  // Treat the apex domain (e.g. agendex.dev) as the marketing host.
+  if (!isAppHost && !isMarketingHost && getApexHost(marketingUrl) === window.location.hostname) {
+    isMarketingHost = true;
   }
 
   // On the marketing host, bounce to the app host's /auth/check so it can

@@ -4,9 +4,12 @@ import type { Id } from '@convex/_generated/dataModel';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { type CSSProperties, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { usePublishing } from '../hooks/usePublishing.ts';
+import { normalizeLocalDevUrl } from '../lib/auth-client.ts';
 import { timeAgo } from '../lib/formatTime.ts';
 
-const appUrl = (import.meta.env.VITE_APP_URL as string) || window.location.origin;
+const appUrl = normalizeLocalDevUrl(
+  (import.meta.env.VITE_APP_URL as string) || window.location.origin,
+);
 
 /** Slightly longer than `share-panel-out` (240ms) so the panel finishes before unmount. */
 const SHARE_DIALOG_EXIT_MS = 280;

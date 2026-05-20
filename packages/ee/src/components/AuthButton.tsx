@@ -140,11 +140,14 @@ export function AuthButton() {
               setOpen(false);
               signOut();
             }}
-            className="mx-1 flex w-[calc(100%-8px)] cursor-pointer items-center justify-between gap-3 rounded-[7px] border border-transparent px-2.5 py-2 text-left text-[13px] font-medium text-tertiary transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-border hover:bg-hover hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklch,var(--accent)_55%,var(--border))] active:translate-y-px"
+            className="group mx-1 flex w-[calc(100%-8px)] cursor-pointer items-center justify-between gap-3 rounded-[7px] border border-transparent px-2.5 py-2 text-left text-[13px] font-medium text-tertiary transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-[color-mix(in_oklch,var(--danger)_24%,var(--border))] hover:bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] hover:text-[var(--danger)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklch,var(--accent)_55%,var(--border))] active:translate-y-px"
             aria-label="Sign out of Agendex"
           >
             <span>Sign out</span>
-            <span className="text-secondary transition-colors duration-150" aria-hidden="true">
+            <span
+              className="text-secondary transition-colors duration-150 group-hover:text-[var(--danger)]"
+              aria-hidden="true"
+            >
               <SignOutIcon />
             </span>
           </button>
