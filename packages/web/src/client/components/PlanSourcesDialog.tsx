@@ -24,12 +24,14 @@ export function PlanSourcesDialog({ open, onClose, onSourcesChanged }: PlanSourc
   }, []);
 
   useEffect(() => {
-    if (open) {
-      fetchSources();
-      setError(null);
-      setNewPath('');
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
+    if (!open) return;
+
+    fetchSources();
+    setError(null);
+    setNewPath('');
+    const focusTimer = setTimeout(() => inputRef.current?.focus(), 100);
+
+    return () => clearTimeout(focusTimer);
   }, [open, fetchSources]);
 
   async function handleAdd() {

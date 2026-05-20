@@ -135,6 +135,7 @@ function BootLoadingView({
 }
 
 const AUTH_SESSION_SETTLE_DELAY_MS = 250;
+const AUTH_CHECK_RESULT_MAX_AGE_MS = 30_000;
 
 function getNormalizedOrigin(url: string | undefined): string | undefined {
   try {
@@ -156,6 +157,58 @@ function getApexHost(url: string | undefined): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function getLocalDevAppUrl(): string {
+  if (typeof window === 'undefined') return '';
+  if (!window.location.hostname.endsWith('agendex.localhost')) return '';
+
+  const url = new URL(window.location.href);
+  url.hostname = 'app.agendex.localhost';
+  url.pathname = '/';
+  url.search = '';
+  url.hash = '';
+  return normalizeLocalDevUrl(url.toString());
+}
+
+function getLocalDevMarketingUrl(): string {
+  if (typeof window === 'undefined') return '';
+  if (!window.location.hostname.endsWith('agendex.localhost')) return '';
+
+  const url = new URL(window.location.href);
+  url.hostname = 'agendex.localhost';
+  url.pathname = '/';
+  url.search = '';
+  url.hash = '';
+  return normalizeLocalDevUrl(url.toString());
+}
+
+function getMarketingUrlFromAppUrl(appUrl: string): string {
+  try {
+    const url = new URL(appUrl);
+    if (!url.hostname.startsWith('app.')) return '';
+    url.hostname = url.hostname.slice('app.'.length);
+    url.pathname = '/';
+    url.search = '';
+    url.hash = '';
+    return normalizeLocalDevUrl(url.toString());
+  } catch {
+    return '';
+  }
+}
+
+function getConfiguredAppUrl(): string {
+  return (
+    normalizeLocalDevUrl(import.meta.env.VITE_APP_URL as string | undefined) || getLocalDevAppUrl()
+  );
+}
+
+function getConfiguredMarketingUrl(appUrl = getConfiguredAppUrl()): string {
+  return (
+    normalizeLocalDevUrl(import.meta.env.VITE_MARKETING_URL as string | undefined) ||
+    getLocalDevMarketingUrl() ||
+    getMarketingUrlFromAppUrl(appUrl)
+  );
 }
 
 function useAuthSessionSettled({
@@ -1548,10 +1601,8 @@ function CliAuthRoute() {
 function AuthCheckRoute() {
   const { isAuthenticated, isLoading, refreshSession } = useAuth();
   const authSettled = useAuthSessionSettled({ isAuthenticated, isLoading, refreshSession });
-  const appUrl = normalizeLocalDevUrl(import.meta.env.VITE_APP_URL as string | undefined);
-  const marketingUrl = normalizeLocalDevUrl(
-    import.meta.env.VITE_MARKETING_URL as string | undefined,
-  );
+  const appUrl = getConfiguredAppUrl();
+  const marketingUrl = getConfiguredMarketingUrl(appUrl);
   const returnTo = new URLSearchParams(window.location.search).get('returnTo');
 
   useEffect(() => {
@@ -1573,6 +1624,7 @@ function AuthCheckRoute() {
           return;
         }
         dest.searchParams.set('checked', '1');
+        dest.searchParams.set('checkedAt', String(Date.now()));
         window.location.replace(dest.toString());
       } catch {
         window.location.replace('/');
@@ -1615,10 +1667,8 @@ function HomeRoute() {
     skip: hasCachedToken,
   });
 
-  const appUrl = normalizeLocalDevUrl(import.meta.env.VITE_APP_URL as string | undefined);
-  const marketingUrl = normalizeLocalDevUrl(
-    import.meta.env.VITE_MARKETING_URL as string | undefined,
-  );
+  const appUrl = getConfiguredAppUrl();
+  const marketingUrl = getConfiguredMarketingUrl(appUrl);
 
   let isAppHost = false;
   let isMarketingHost = false;
@@ -1631,8 +1681,16 @@ function HomeRoute() {
 
   // On the marketing host, bounce to the app host's /auth/check so it can
   // inspect its own localStorage for an existing session.
-  // Skip if we already checked (indicated by ?checked=1 from AuthCheckRoute).
-  const alreadyChecked = new URLSearchParams(window.location.search).get('checked') === '1';
+  // Skip only for a fresh unauthenticated result from AuthCheckRoute. A bare or stale
+  // ?checked=1 URL can be bookmarked/reloaded after the user signs in, so treating it
+  // as permanent would strand authenticated users on the marketing landing page.
+  const searchParams = new URLSearchParams(window.location.search);
+  const checkedAt = Number(searchParams.get('checkedAt'));
+  const alreadyChecked =
+    searchParams.get('checked') === '1' &&
+    Number.isFinite(checkedAt) &&
+    Date.now() - checkedAt < AUTH_CHECK_RESULT_MAX_AGE_MS;
+
   useEffect(() => {
     if (isMarketingHost && appUrl && authSettled && !isAuthenticated && !alreadyChecked) {
       const checkUrl = new URL('/auth/check', appUrl);
