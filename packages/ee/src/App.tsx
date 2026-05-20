@@ -1271,6 +1271,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
+      setActivePanel(null);
       setLocalAutoSelectSuppressed(!plan);
       setOptimisticSelectedPlan(plan);
       setSelectedPlanId(plan?.id ?? null);
@@ -1278,7 +1279,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         setSplitPlanId(null);
       }
     },
-    [setSelectedPlanId, splitPlanId, setSplitPlanId],
+    [setActivePanel, setSelectedPlanId, splitPlanId, setSplitPlanId],
   );
 
   useEffect(() => {
@@ -1315,6 +1316,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const openPlanInSplitView = useCallback(
     (plan: Plan) => {
+      setActivePanel(null);
       if (!selectedPlanId) {
         setSelectedPlanId(plan.id);
         return;
@@ -1322,7 +1324,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       if (plan.id === selectedPlanId) return;
       setSplitPlanId(plan.id);
     },
-    [selectedPlanId, setSelectedPlanId, setSplitPlanId],
+    [selectedPlanId, setActivePanel, setSelectedPlanId, setSplitPlanId],
   );
 
   const closeSplitView = useCallback(() => {
@@ -1438,7 +1440,12 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onNewPlan={handleNewPlan}
         onUpload={handleUpload}
         onHistory={() => startViewTransition(() => setActivePanel('history'))}
-        onNavigate={(path: string) => startViewTransition(() => navigate(path))}
+        onNavigate={(path: string) =>
+          startViewTransition(() => {
+            setActivePanel(null);
+            navigate(path);
+          })
+        }
         daemonDevices={daemonDevices}
         daemonAggregateStatus={daemonStatus}
         onShowPricing={() => setShowPricingModal(true)}
