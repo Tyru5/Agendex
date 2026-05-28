@@ -9,7 +9,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-export function getPlannotatorMetadata(plan: Plan): PlannotatorMetadata | undefined {
+function getPlannotatorMetadata(plan: Plan): PlannotatorMetadata | undefined {
   if (!isRecord(plan.metadata)) return undefined;
   const value = plan.metadata.plannotator;
   if (!isRecord(value)) return undefined;
@@ -84,9 +84,16 @@ export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
   );
 }
 
-export function CloudPlannotatorWritebackPanel({ plan }: { plan: Plan }) {
+export function CloudPlannotatorWritebackPanel({
+  plan,
+  daemonAvailable = true,
+}: {
+  plan: Plan;
+  daemonAvailable?: boolean;
+}) {
   const metadata = getPlannotatorMetadata(plan);
   const isLive = metadata?.kind === 'live-session' && metadata.writebackCapable === true;
+  const canRequestChanges = isLive && daemonAvailable;
   const enqueueWriteback = useMutation(api.plannotator.enqueueWriteback);
   const writebacks = useQuery(
     api.plannotator.listWritebacksForPlan,
@@ -103,7 +110,7 @@ export function CloudPlannotatorWritebackPanel({ plan }: { plan: Plan }) {
   if (!metadata) return null;
 
   async function requestChanges() {
-    if (!feedback.trim() && !revisedContent.trim()) return;
+    if (!canRequestChanges || (!feedback.trim() && !revisedContent.trim())) return;
     setSubmitting(true);
     setError(undefined);
     setQueued(false);
@@ -130,7 +137,9 @@ export function CloudPlannotatorWritebackPanel({ plan }: { plan: Plan }) {
           <h2 className="text-[13px] font-semibold text-text">Plannotator write-back</h2>
           <p className="mt-1 text-[12px] text-tertiary">
             {isLive
-              ? 'Queue structured request-changes feedback for your local Agendex daemon to send back through Plannotator.'
+              ? daemonAvailable
+                ? 'Queue structured request-changes feedback for your local Agendex daemon to send back through Plannotator.'
+                : 'Start the Agendex CLI daemon to deliver request-changes feedback back through Plannotator.'
               : 'This is a saved Plannotator plan. Write-back is only available for live sessions.'}
           </p>
         </div>
@@ -163,17 +172,26 @@ export function CloudPlannotatorWritebackPanel({ plan }: { plan: Plan }) {
           />
           <div className="flex items-center justify-between gap-3">
             <div className="text-[11px] text-tertiary">
-              {queued && 'Queued for daemon delivery.'}
-              {error && <span className="text-[var(--danger)]">{error}</span>}
-              {!queued && !error && latest?.error ? latest.error : null}
+              {!daemonAvailable && (
+                <span>
+                  Sync paused. Run{' '}
+                  <code className="rounded bg-hover px-1 py-0.5">agendex start</code> to enable
+                  write-back delivery.
+                </span>
+              )}
+              {daemonAvailable && queued && 'Queued for daemon delivery.'}
+              {daemonAvailable && error && <span className="text-[var(--danger)]">{error}</span>}
+              {daemonAvailable && !queued && !error && latest?.error ? latest.error : null}
             </div>
             <button
               type="button"
               onClick={requestChanges}
-              disabled={submitting || (!feedback.trim() && !revisedContent.trim())}
+              disabled={
+                submitting || !canRequestChanges || (!feedback.trim() && !revisedContent.trim())
+              }
               className="rounded-lg border-0 bg-text px-3 py-1.5 text-[12px] font-semibold text-bg disabled:opacity-50"
             >
-              {submitting ? 'Queueing…' : 'Request changes'}
+              {submitting ? 'Queueing…' : daemonAvailable ? 'Request changes' : 'Daemon required'}
             </button>
           </div>
         </div>

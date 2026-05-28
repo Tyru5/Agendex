@@ -298,9 +298,13 @@ function useDashboardData(
   const localAgents = useAgents(localEnabled);
   const localBackendStatus = useBackendStatus(undefined, localEnabled);
   const { aggregateStatus: daemonStatus, devices: daemonDevices } = useDaemonStatus();
-  const cloudBackendStatus =
-    daemonStatus === 'stale' ? 'offline' : daemonStatus === 'unknown' ? 'checking' : 'online';
+  const cloudBackendStatus = cloudPlans.loading
+    ? 'checking'
+    : cloudPlans.error
+      ? 'offline'
+      : 'online';
   const backendStatus = mode === 'cloud' ? cloudBackendStatus : localBackendStatus;
+  const cloudSyncPaused = mode === 'cloud' && daemonStatus === 'stale';
 
   const allTags = useQuery(api.tags.listMyTags, isPro ? {} : 'skip');
   const allCollections = useQuery(api.collections.listMyCollections, isPro ? {} : 'skip');
@@ -395,13 +399,14 @@ function useDashboardData(
     planTagsMap,
   ]);
 
+  const refreshLocalPlans = localPlans.refresh;
   const prevBackendStatus = useRef(backendStatus);
   useEffect(() => {
     if (prevBackendStatus.current === 'offline' && backendStatus === 'online') {
-      localPlans.refresh();
+      refreshLocalPlans();
     }
     prevBackendStatus.current = backendStatus;
-  }, [backendStatus, localPlans.refresh]);
+  }, [backendStatus, refreshLocalPlans]);
 
   const totalPlans = useMemo(() => {
     if (mode === 'cloud') return plans.length;
@@ -414,6 +419,8 @@ function useDashboardData(
   const backendIndicator = useMemo(() => {
     if (syncing) return { label: 'Syncing', color: 'var(--warning)' };
     if (mode === 'cloud') {
+      if (backendStatus === 'online' && cloudSyncPaused)
+        return { label: 'Sync paused', color: 'var(--warning)' };
       if (backendStatus === 'online' && plans.length === 0 && !error)
         return { label: 'Syncing', color: 'var(--warning)' };
       if (backendStatus === 'online') return { label: 'Cloud', color: 'var(--success)' };
@@ -423,7 +430,7 @@ function useDashboardData(
     if (backendStatus === 'online') return { label: 'Live', color: 'var(--success)' };
     if (backendStatus === 'checking') return { label: 'Checking', color: 'var(--warning)' };
     return { label: 'Offline', color: 'var(--danger)' };
-  }, [backendStatus, mode, syncing, plans.length, error]);
+  }, [backendStatus, mode, syncing, plans.length, error, cloudSyncPaused]);
 
   return {
     agents,
@@ -442,6 +449,7 @@ function useDashboardData(
     backendIndicator,
     daemonDevices,
     daemonStatus,
+    cloudSyncPaused,
   };
 }
 
@@ -493,11 +501,40 @@ function PlanHeaderExtra({
   );
 }
 
+function CloudSyncPausedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-[color-mix(in_oklch,var(--warning)_45%,transparent)] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-2 py-0.5 text-[11px] font-semibold text-[var(--warning)]">
+      <span className="size-1.5 rounded-full bg-[var(--warning)]" />
+      Sync paused
+    </span>
+  );
+}
+
+function CloudSyncPausedNotice() {
+  return (
+    <div className="sticky top-0 z-30 border-b border-[color-mix(in_oklch,var(--warning)_35%,var(--border))] bg-[color-mix(in_oklch,var(--warning)_9%,var(--surface))] px-4 py-2.5 text-[12.5px] text-secondary backdrop-blur">
+      <div className="mx-auto flex max-w-[960px] flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <CloudSyncPausedBadge />
+          <span>
+            Showing synced cloud plans. New local file changes will appear after the CLI daemon is
+            running again.
+          </span>
+        </div>
+        <code className="rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-text">
+          agendex start
+        </code>
+      </div>
+    </div>
+  );
+}
+
 function DashboardMain({
   mode,
   isPro,
   isWorkspaceAccessLoading,
   backendStatus,
+  cloudSyncPaused,
   uploading,
   creating,
   editing,
@@ -526,6 +563,7 @@ function DashboardMain({
   isPro: boolean;
   isWorkspaceAccessLoading: boolean;
   backendStatus: string;
+  cloudSyncPaused: boolean;
   uploading: boolean;
   creating: boolean;
   editing: boolean;
@@ -585,6 +623,7 @@ function DashboardMain({
           className="col-span-2 flex items-center justify-center gap-3 px-4 py-1.5 border-b border-border bg-surface"
           style={{ fontSize: '12px', color: 'var(--secondary)' }}
         >
+          {cloudSyncPaused && <CloudSyncPausedBadge />}
           <svg
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
@@ -634,7 +673,10 @@ function DashboardMain({
           />
           {isPro && mode === 'cloud' && (
             <div className="mx-auto px-6 pb-16">
-              <CloudPlannotatorWritebackPanel plan={selectedPlan} />
+              <CloudPlannotatorWritebackPanel
+                plan={selectedPlan}
+                daemonAvailable={!cloudSyncPaused}
+              />
               <CommentThread planId={selectedPlan.id} isOwner />
             </div>
           )}
@@ -652,7 +694,7 @@ function DashboardMain({
           />
           {isPro && mode === 'cloud' && (
             <div className="mx-auto px-6 pb-16">
-              <CloudPlannotatorWritebackPanel plan={splitPlan} />
+              <CloudPlannotatorWritebackPanel plan={splitPlan} daemonAvailable={!cloudSyncPaused} />
               <CommentThread planId={splitPlan.id} isOwner />
             </div>
           )}
@@ -669,6 +711,7 @@ function DashboardMain({
       className="agendex-main-pane overflow-auto main-scroll col-start-2 row-start-2 bg-transparent"
       style={{ viewTransitionName: 'main-content' }}
     >
+      {mode === 'cloud' && cloudSyncPaused && <CloudSyncPausedNotice />}
       {mode === 'cloud' && !isPro ? (
         <CloudUpgrade />
       ) : mode === 'cloud' && backendStatus === 'checking' ? (
@@ -745,7 +788,10 @@ function DashboardMain({
             />
             {isPro && mode === 'cloud' && (
               <div className="max-w-[720px] mx-auto px-8 pb-16">
-                <CloudPlannotatorWritebackPanel plan={selectedPlan} />
+                <CloudPlannotatorWritebackPanel
+                  plan={selectedPlan}
+                  daemonAvailable={!cloudSyncPaused}
+                />
                 <CommentThread planId={selectedPlan.id} isOwner />
               </div>
             )}
@@ -767,6 +813,7 @@ function DashboardSidebar({
   sidebarPeekOpen,
   mode,
   backendStatus,
+  cloudSyncPaused,
   isPro,
   loading,
   error,
@@ -803,6 +850,7 @@ function DashboardSidebar({
   sidebarPeekOpen: boolean;
   mode: DashboardMode;
   backendStatus: string;
+  cloudSyncPaused: boolean;
   isPro: boolean;
   loading: boolean;
   error: string | null | undefined;
@@ -982,7 +1030,11 @@ function DashboardSidebar({
         ) : error ? (
           <div className="p-4 text-[13px] text-red-500">Failed to load plans.</div>
         ) : mode === 'cloud' && filteredPlans.length === 0 ? (
-          <div className="p-4 text-[12.5px] text-tertiary text-center">Syncing plans...</div>
+          <div className="p-4 text-[12.5px] text-tertiary text-center">
+            {cloudSyncPaused
+              ? 'No synced cloud plans yet. Start the CLI daemon to sync local plans.'
+              : 'Syncing plans...'}
+          </div>
         ) : (
           <PlanList
             plans={filteredPlans}
@@ -1202,6 +1254,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     backendIndicator,
     daemonDevices,
     daemonStatus,
+    cloudSyncPaused,
   } = useDashboardData(
     mode,
     agentFilter,
@@ -1511,6 +1564,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         sidebarPeekOpen={sidebarPeekOpen}
         mode={mode}
         backendStatus={backendStatus}
+        cloudSyncPaused={cloudSyncPaused}
         isPro={isPro}
         loading={loading}
         error={error}
@@ -1548,6 +1602,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         isPro={isPro}
         isWorkspaceAccessLoading={isWorkspaceAccessLoading}
         backendStatus={backendStatus}
+        cloudSyncPaused={cloudSyncPaused}
         uploading={uploading}
         creating={creating}
         editing={editing}
