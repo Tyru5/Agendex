@@ -4,6 +4,8 @@ import { Link, useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth.ts';
 import { APP_URL } from '../lib/auth-client.ts';
 
+const DASHBOARD_PATH = '/dashboard';
+
 type AuthMode = 'login' | 'signup';
 type AuthProvider = 'github' | 'google';
 
@@ -100,7 +102,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     if (!isAuthenticated || didRedirectRef.current) return;
 
     didRedirectRef.current = true;
-    startViewTransition(() => navigate('/'));
+    startViewTransition(() => navigate(DASHBOARD_PATH));
   }, [isAuthenticated, navigate]);
 
   if (isAuthenticated || isLoading) {
@@ -122,7 +124,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     setActiveProvider(provider);
     setError(null);
     try {
-      await signIn.social({ provider, callbackURL: `${APP_URL}/` });
+      await signIn.social({ provider, callbackURL: `${APP_URL}${DASHBOARD_PATH}` });
     } catch {
       setActiveProvider(null);
       setError('Could not start OAuth. Try again in a moment.');

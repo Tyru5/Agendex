@@ -4,6 +4,8 @@ import { useLocation } from 'wouter';
 import { APP_URL } from '../lib/auth-client.ts';
 import { useAuth } from '../hooks/useAuth.ts';
 
+const DASHBOARD_PATH = '/dashboard';
+
 function SignOutIcon() {
   return (
     <svg
@@ -65,7 +67,7 @@ export function AuthButton() {
               type="button"
               onClick={() => {
                 setOpen(false);
-                signIn.social({ provider: 'github', callbackURL: `${APP_URL}/` });
+                signIn.social({ provider: 'github', callbackURL: `${APP_URL}${DASHBOARD_PATH}` });
               }}
               className="w-full py-2 px-3 border-none bg-transparent text-[13px] text-text text-left cursor-pointer transition-colors duration-150 hover:bg-hover flex items-center gap-2"
             >
@@ -76,7 +78,7 @@ export function AuthButton() {
               type="button"
               onClick={() => {
                 setOpen(false);
-                signIn.social({ provider: 'google', callbackURL: `${APP_URL}/` });
+                signIn.social({ provider: 'google', callbackURL: `${APP_URL}${DASHBOARD_PATH}` });
               }}
               className="w-full py-2 px-3 border-none bg-transparent text-[13px] text-text text-left cursor-pointer transition-colors duration-150 hover:bg-hover flex items-center gap-2"
             >

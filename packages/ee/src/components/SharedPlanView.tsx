@@ -27,6 +27,8 @@ import { OUTLINE_PREF_STORAGE_KEY } from '../outlinePref.ts';
 import { CommandPalette } from './command-palette/CommandPalette.tsx';
 import { useLocation } from 'wouter';
 
+const DASHBOARD_PATH = '/dashboard';
+
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -226,7 +228,7 @@ function SharedPlanViewInner({ token }: { token: string }) {
     [plan],
   );
 
-  const sharedHome = useCallback(() => navigate('/'), [navigate]);
+  const sharedHome = useCallback(() => navigate(DASHBOARD_PATH), [navigate]);
 
   let body: React.ReactNode;
   if (queryResult === undefined) {

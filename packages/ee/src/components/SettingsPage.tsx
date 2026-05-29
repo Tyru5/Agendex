@@ -15,6 +15,8 @@ import { SettingsTabs } from './settings/SettingsTabs';
 import { TeamTab } from './settings/TeamTab';
 import type { SettingsTabId } from './settings/constants';
 
+const DASHBOARD_PATH = '/dashboard';
+
 function BackArrow() {
   return (
     <svg
@@ -59,7 +61,7 @@ export function SettingsPage() {
   }, []);
 
   if (isLoading) return null;
-  if (!isAuthenticated || !user) return <Redirect to="/" />;
+  if (!isAuthenticated || !user) return <Redirect to="/login" />;
 
   async function handleDeleteAccount() {
     setDeleting(true);
@@ -94,7 +96,7 @@ export function SettingsPage() {
         <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-4 lg:px-6">
           <button
             type="button"
-            onClick={() => startViewTransition(() => navigate('/'))}
+            onClick={() => startViewTransition(() => navigate(DASHBOARD_PATH))}
             className="agendex-topbar-button flex items-center gap-2 p-1.5 -ml-1.5 rounded-default border border-transparent cursor-pointer"
             aria-label="Back to dashboard"
           >

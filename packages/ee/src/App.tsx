@@ -24,6 +24,7 @@ import {
   usePlans,
   useSidebarWidth,
 } from '@agendex/web';
+import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
 import { useHotkey } from '@tanstack/react-hotkeys';
@@ -32,6 +33,7 @@ import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryS
 import {
   lazy,
   Suspense,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -72,7 +74,8 @@ import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
-import { APP_URL, normalizeLocalDevUrl } from './lib/auth-client.ts';
+import { authClient, normalizeLocalDevUrl } from './lib/auth-client.ts';
+import { convex } from './lib/convex-client.ts';
 import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
 const PlanEditor = lazy(() =>
@@ -102,6 +105,7 @@ const PlanHistoryDrawer = lazy(() =>
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
+const DASHBOARD_PATH = '/dashboard';
 
 type DashboardMode = 'local' | 'cloud';
 
@@ -135,25 +139,11 @@ function BootLoadingView({
 }
 
 const AUTH_SESSION_SETTLE_DELAY_MS = 250;
-const AUTH_CHECK_RESULT_MAX_AGE_MS = 30_000;
 
 function getNormalizedOrigin(url: string | undefined): string | undefined {
   try {
     const normalized = normalizeLocalDevUrl(url);
     return normalized ? new URL(normalized).origin : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function isOriginTrustedByUrl(origin: string, url: string | undefined): boolean {
-  return origin === getNormalizedOrigin(url);
-}
-
-function getApexHost(url: string | undefined): string | undefined {
-  try {
-    const normalized = normalizeLocalDevUrl(url);
-    return normalized ? new URL(normalized).hostname.replace(/^www\./, '') : undefined;
   } catch {
     return undefined;
   }
@@ -1601,9 +1591,8 @@ function CliAuthRoute() {
 }
 
 /**
- * Route mounted at /auth/check on the app host.
- * The marketing site redirects here so we can check localStorage (which lives
- * on the app origin) and either keep the user on the app or bounce them back.
+ * Legacy auth-check route for old marketing links. The root landing page no
+ * longer depends on this route before rendering.
  */
 function AuthCheckRoute() {
   const { isAuthenticated, isLoading, refreshSession } = useAuth();
@@ -1615,7 +1604,7 @@ function AuthCheckRoute() {
   useEffect(() => {
     if (!authSettled) return;
     if (isAuthenticated) {
-      window.location.replace('/');
+      window.location.replace(DASHBOARD_PATH);
     } else if (returnTo || marketingUrl) {
       try {
         const redirectTarget = returnTo ?? marketingUrl;
@@ -1642,10 +1631,25 @@ function AuthCheckRoute() {
   return <BootLoadingView />;
 }
 
-function HomeRoute() {
+function LandingRoute() {
   const [, navigate] = useLocation();
-  const { isAuthenticated, isLoading, refreshSession, signIn } = useAuth();
+
+  return (
+    <LandingPage
+      mascot={{ onActivate: () => startViewTransition(() => navigate('/about-me')) }}
+      onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
+    >
+      <LandingPage.NavbarAuth>{() => <EENavbarAuth />}</LandingPage.NavbarAuth>
+      <LandingPage.HeroCta>{() => <EEHeroCta />}</LandingPage.HeroCta>
+      <LandingPage.PricingCta>{() => <EEPricingCta />}</LandingPage.PricingCta>
+    </LandingPage>
+  );
+}
+
+function DashboardRoute() {
+  const { isAuthenticated, isLoading, refreshSession } = useAuth();
   const hasCachedToken = hasToken();
+  const avatars = useQuery(api.agentAvatars.listMyAgentAvatars, isAuthenticated ? {} : 'skip');
   const { needsOnboarding, onboardingResolved } = useSubscription({
     enabled: !isLoading && isAuthenticated,
   });
@@ -1674,121 +1678,105 @@ function HomeRoute() {
     skip: hasCachedToken,
   });
 
-  const appUrl = getConfiguredAppUrl();
-  const marketingUrl = getConfiguredMarketingUrl(appUrl);
-
-  let isAppHost = false;
-  let isMarketingHost = false;
-  isAppHost = isOriginTrustedByUrl(window.location.origin, appUrl);
-  isMarketingHost = isOriginTrustedByUrl(window.location.origin, marketingUrl);
-  // Treat the apex domain (e.g. agendex.dev) as the marketing host.
-  if (!isAppHost && !isMarketingHost && getApexHost(marketingUrl) === window.location.hostname) {
-    isMarketingHost = true;
-  }
-
-  // On the marketing host, bounce to the app host's /auth/check so it can
-  // inspect its own localStorage for an existing session.
-  // Skip only for a fresh unauthenticated result from AuthCheckRoute. A bare or stale
-  // ?checked=1 URL can be bookmarked/reloaded after the user signs in, so treating it
-  // as permanent would strand authenticated users on the marketing landing page.
-  const searchParams = new URLSearchParams(window.location.search);
-  const checkedAt = Number(searchParams.get('checkedAt'));
-  const alreadyChecked =
-    searchParams.get('checked') === '1' &&
-    Number.isFinite(checkedAt) &&
-    Date.now() - checkedAt < AUTH_CHECK_RESULT_MAX_AGE_MS;
-
-  useEffect(() => {
-    if (isMarketingHost && appUrl && authSettled && !isAuthenticated && !alreadyChecked) {
-      const checkUrl = new URL('/auth/check', appUrl);
-      checkUrl.searchParams.set('returnTo', window.location.href);
-      window.location.replace(checkUrl.toString());
-    }
-  }, [isMarketingHost, appUrl, authSettled, isAuthenticated, alreadyChecked]);
-
-  useEffect(() => {
-    if (isAuthenticated && onboardingResolved && !needsOnboarding && isMarketingHost && appUrl) {
-      window.location.href = appUrl;
-    }
-  }, [isAuthenticated, onboardingResolved, needsOnboarding, isMarketingHost, appUrl]);
-
-  useEffect(() => {
-    if (
-      !isAuthenticated &&
-      authSettled &&
-      !hasCachedToken &&
-      isAppHost &&
-      marketingUrl &&
-      !processingOtt
-    ) {
-      window.location.href = marketingUrl;
-    }
-  }, [isAuthenticated, authSettled, hasCachedToken, isAppHost, marketingUrl, processingOtt]);
-
-  if (isMarketingHost && appUrl && !isAuthenticated && !alreadyChecked) return <BootLoadingView />;
-
-  if (isAuthenticated && isMarketingHost && appUrl) return <BootLoadingView />;
+  const renderDashboard = (autoMode: DashboardMode) => (
+    <AgentAvatarProvider avatars={avatars ?? {}}>
+      <Dashboard autoMode={autoMode} />
+    </AgentAvatarProvider>
+  );
 
   if (isAuthenticated && onboardingResolved && needsOnboarding) return <Redirect to="/welcome" />;
 
   if (hasCachedToken) {
-    return <Dashboard autoMode={isAuthenticated && onboardingResolved ? 'cloud' : 'local'} />;
+    return renderDashboard(isAuthenticated && onboardingResolved ? 'cloud' : 'local');
   }
 
   if (isAuthenticated) {
     if (!onboardingResolved) return <BootLoadingView />;
-    return <Dashboard autoMode="cloud" />;
+    return renderDashboard('cloud');
   }
 
   if (isLoading || !authSettled || processingOtt) return <BootLoadingView />;
 
-  if (isAppHost && marketingUrl) return <BootLoadingView />;
-
-  const handleLogin = (provider: 'github' | 'google') =>
-    signIn.social({ provider, callbackURL: `${APP_URL}/` });
-
-  return (
-    <LandingPage
-      mascot={{ onActivate: () => startViewTransition(() => navigate('/about-me')) }}
-      onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
-    >
-      <LandingPage.NavbarAuth>
-        {() => <EENavbarAuth onLogin={handleLogin} />}
-      </LandingPage.NavbarAuth>
-      <LandingPage.HeroCta>{() => <EEHeroCta onLogin={handleLogin} />}</LandingPage.HeroCta>
-      <LandingPage.PricingCta>
-        {() => <EEPricingCta onLogin={handleLogin} />}
-      </LandingPage.PricingCta>
-    </LandingPage>
-  );
+  return <Redirect to="/login" />;
 }
 
-function AppAvatarProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
-  const avatars = useQuery(api.agentAvatars.listMyAgentAvatars, isAuthenticated ? {} : 'skip');
-  return <AgentAvatarProvider avatars={avatars ?? {}}>{children}</AgentAvatarProvider>;
+function AuthRuntime({ children }: { children: ReactNode }) {
+  return (
+    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+      {children}
+    </ConvexBetterAuthProvider>
+  );
 }
 
 export default function App() {
   return (
-    <AppAvatarProvider>
-      <Switch>
-        <Route path="/auth/check" component={AuthCheckRoute} />
-        <Route path="/auth/cli" component={CliAuthRoute} />
-        <Route path="/login">{() => <AuthPage mode="login" />}</Route>
-        <Route path="/signup">{() => <AuthPage mode="signup" />}</Route>
-        <Route path="/shared/:token">{({ token }) => <SharedPlanView token={token} />}</Route>
-        <Route path="/about-me" component={AboutMePage} />
-        <Route path="/changelog" component={ChangelogRoute} />
-        <Route path="/welcome">
+    <Switch>
+      <Route path="/auth/check">
+        {() => (
+          <AuthRuntime>
+            <AuthCheckRoute />
+          </AuthRuntime>
+        )}
+      </Route>
+      <Route path="/auth/cli">
+        {() => (
+          <AuthRuntime>
+            <CliAuthRoute />
+          </AuthRuntime>
+        )}
+      </Route>
+      <Route path="/login">
+        {() => (
+          <AuthRuntime>
+            <AuthPage mode="login" />
+          </AuthRuntime>
+        )}
+      </Route>
+      <Route path="/signup">
+        {() => (
+          <AuthRuntime>
+            <AuthPage mode="signup" />
+          </AuthRuntime>
+        )}
+      </Route>
+      <Route path="/shared/:token">
+        {({ token }) => (
+          <AuthRuntime>
+            <SharedPlanView token={token} />
+          </AuthRuntime>
+        )}
+      </Route>
+      <Route path="/about-me" component={AboutMePage} />
+      <Route path="/changelog" component={ChangelogRoute} />
+      <Route path="/welcome">
+        <AuthRuntime>
           <OnboardingRoute>
             <WelcomeScreen />
           </OnboardingRoute>
-        </Route>
-        <Route path="/invite/:token">{({ token }) => <AcceptInvitePage token={token} />}</Route>
-        <Route path="/settings" component={SettingsPage} />
-        <Route path="/" component={HomeRoute} />
-      </Switch>
-    </AppAvatarProvider>
+        </AuthRuntime>
+      </Route>
+      <Route path="/invite/:token">
+        {({ token }) => (
+          <AuthRuntime>
+            <AcceptInvitePage token={token} />
+          </AuthRuntime>
+        )}
+      </Route>
+      <Route path="/settings">
+        {() => (
+          <AuthRuntime>
+            <SettingsPage />
+          </AuthRuntime>
+        )}
+      </Route>
+      <Route path={DASHBOARD_PATH}>
+        {() => (
+          <AuthRuntime>
+            <DashboardRoute />
+          </AuthRuntime>
+        )}
+      </Route>
+      <Route path="/" component={LandingRoute} />
+    </Switch>
   );
 }
