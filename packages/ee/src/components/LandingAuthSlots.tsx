@@ -1,11 +1,7 @@
 import { startViewTransition, useLandingContext } from '@agendex/web';
 import { useLocation } from 'wouter';
 
-export function EENavbarAuth({
-  onLogin: _onLogin,
-}: {
-  onLogin: (provider: 'github' | 'google') => void;
-}) {
+export function EENavbarAuth() {
   const [, navigate] = useLocation();
 
   return (
@@ -19,11 +15,7 @@ export function EENavbarAuth({
   );
 }
 
-export function EEHeroCta({
-  onLogin: _onLogin,
-}: {
-  onLogin: (provider: 'github' | 'google') => void;
-}) {
+export function EEHeroCta() {
   const { activeTab, showLogin } = useLandingContext();
   const [, navigate] = useLocation();
 
@@ -40,11 +32,7 @@ export function EEHeroCta({
   );
 }
 
-export function EEPricingCta({
-  onLogin: _onLogin,
-}: {
-  onLogin: (provider: 'github' | 'google') => void;
-}) {
+export function EEPricingCta() {
   const [, navigate] = useLocation();
 
   return (

@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
 
+const DASHBOARD_PATH = '/dashboard';
+
 export function AcceptInvitePage({ token }: { token: string }) {
   const { isAuthenticated, isLoading: authLoading, signIn } = useAuth();
   const [, navigate] = useLocation();
@@ -29,7 +31,7 @@ export function AcceptInvitePage({ token }: { token: string }) {
     setError(null);
     try {
       await acceptInvite({ token });
-      startViewTransition(() => navigate('/'));
+      startViewTransition(() => navigate(DASHBOARD_PATH));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to accept invite';
       setError(message);
@@ -55,7 +57,7 @@ export function AcceptInvitePage({ token }: { token: string }) {
               </p>
               <button
                 type="button"
-                onClick={() => startViewTransition(() => navigate('/'))}
+                onClick={() => startViewTransition(() => navigate(DASHBOARD_PATH))}
                 className="text-[13px] px-3.5 py-1.5 rounded-default border border-border bg-transparent text-text cursor-pointer font-medium transition-colors duration-150 hover:bg-hover"
               >
                 Go to dashboard
@@ -69,7 +71,7 @@ export function AcceptInvitePage({ token }: { token: string }) {
               </p>
               <button
                 type="button"
-                onClick={() => startViewTransition(() => navigate('/'))}
+                onClick={() => startViewTransition(() => navigate(DASHBOARD_PATH))}
                 className="text-[13px] px-3.5 py-1.5 rounded-default border border-border bg-transparent text-text cursor-pointer font-medium transition-colors duration-150 hover:bg-hover"
               >
                 Go to dashboard
@@ -83,7 +85,7 @@ export function AcceptInvitePage({ token }: { token: string }) {
               </p>
               <button
                 type="button"
-                onClick={() => startViewTransition(() => navigate('/'))}
+                onClick={() => startViewTransition(() => navigate(DASHBOARD_PATH))}
                 className="text-[13px] px-3.5 py-1.5 rounded-default border border-border bg-transparent text-text cursor-pointer font-medium transition-colors duration-150 hover:bg-hover"
               >
                 Go to dashboard

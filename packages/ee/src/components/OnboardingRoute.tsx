@@ -4,6 +4,8 @@ import { Redirect } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
 import { useSubscription } from '../hooks/useSubscription';
 
+const DASHBOARD_PATH = '/dashboard';
+
 export function OnboardingRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   const { needsOnboarding, onboardingResolved } = useSubscription({
@@ -19,7 +21,8 @@ export function OnboardingRoute({ children }: { children: ReactNode }) {
         </div>
       </div>
     );
-  if (!isAuthenticated || !needsOnboarding) return <Redirect to="/" />;
+  if (!isAuthenticated) return <Redirect to="/login" />;
+  if (!needsOnboarding) return <Redirect to={DASHBOARD_PATH} />;
 
   return <>{children}</>;
 }
