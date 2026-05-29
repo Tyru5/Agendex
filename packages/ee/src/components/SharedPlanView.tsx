@@ -28,6 +28,7 @@ import { CommandPalette } from './command-palette/CommandPalette.tsx';
 import { useLocation } from 'wouter';
 
 const DASHBOARD_PATH = '/dashboard';
+const MARKETING_PRICING_PATH = '/#pricing';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -228,7 +229,8 @@ function SharedPlanViewInner({ token }: { token: string }) {
     [plan],
   );
 
-  const sharedHome = useCallback(() => navigate(DASHBOARD_PATH), [navigate]);
+  const openDashboard = useCallback(() => navigate(DASHBOARD_PATH), [navigate]);
+  const showMarketingPricing = useCallback(() => navigate(MARKETING_PRICING_PATH), [navigate]);
 
   let body: React.ReactNode;
   if (queryResult === undefined) {
@@ -376,11 +378,11 @@ function SharedPlanViewInner({ token }: { token: string }) {
         isPro={false}
         mode="cloud"
         hideTrigger
-        onNewPlan={sharedHome}
-        onUpload={sharedHome}
-        onHistory={sharedHome}
+        onNewPlan={openDashboard}
+        onUpload={openDashboard}
+        onHistory={openDashboard}
         onNavigate={(path: string) => startViewTransition(() => navigate(path))}
-        onShowPricing={sharedHome}
+        onShowPricing={showMarketingPricing}
         onToggleOutline={toggleOutline}
         onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
       />
