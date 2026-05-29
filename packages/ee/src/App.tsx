@@ -711,7 +711,7 @@ function DashboardMain({
       className="agendex-main-pane overflow-auto main-scroll col-start-2 row-start-2 bg-transparent"
       style={{ viewTransitionName: 'main-content' }}
     >
-      {mode === 'cloud' && cloudSyncPaused && <CloudSyncPausedNotice />}
+      {mode === 'cloud' && cloudSyncPaused && backendStatus !== 'offline' && <CloudSyncPausedNotice />}
       {mode === 'cloud' && !isPro ? (
         <CloudUpgrade />
       ) : mode === 'cloud' && backendStatus === 'checking' ? (
