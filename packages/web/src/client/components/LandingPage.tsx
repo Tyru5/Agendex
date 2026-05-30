@@ -768,12 +768,19 @@ function StepsList({ steps }: { steps: typeof LOCAL_STEPS | typeof CLOUD_STEPS }
 }
 
 function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
+  const stackedPanelClass = 'flex flex-col gap-2.5 overflow-visible [&>*]:shrink-0';
+  const cloudGridClass =
+    'grid grid-cols-2 content-start gap-2.5 overflow-visible max-[560px]:grid-cols-1 [&>*]:min-w-0';
+  const steps = activeTab === 'cloud' ? CLOUD_STEPS : LOCAL_STEPS;
+
   return (
     <div
-      className="relative z-[1] flex animate-[landing-panel-in_220ms_cubic-bezier(0.22,1,0.36,1)_both] flex-col gap-2.5 p-2.5"
+      className="relative z-[1] p-2.5 animate-[landing-panel-in_220ms_cubic-bezier(0.22,1,0.36,1)_both]"
       key={activeTab}
     >
-      <StepsList steps={activeTab === 'cloud' ? CLOUD_STEPS : LOCAL_STEPS} />
+      <div className={activeTab === 'cloud' ? cloudGridClass : stackedPanelClass}>
+        <StepsList steps={steps} />
+      </div>
     </div>
   );
 }
@@ -1079,26 +1086,10 @@ function LandingHero({
     <div className="relative z-[1]">
       <section
         id="overview"
-        className="d3-hero grid min-h-[min(820px,88svh)] grid-cols-[minmax(0,0.96fr)_minmax(440px,1.04fr)] items-end gap-[clamp(24px,3vw,46px)] border-b border-[var(--landing-border-subtle)] px-[clamp(20px,5vw,88px)] pt-[116px] pb-[70px] max-[980px]:min-h-0 max-[980px]:grid-cols-1 max-[980px]:gap-6 max-[980px]:pt-[104px] max-sm:gap-5 max-sm:px-4 max-sm:pt-[92px] max-sm:pb-[54px]"
+        className="d3-hero grid min-h-[min(820px,88svh)] grid-cols-[minmax(0,0.96fr)_minmax(440px,1.04fr)] items-center gap-[clamp(24px,3vw,46px)] border-b border-[var(--landing-border-subtle)] px-[clamp(20px,5vw,88px)] pt-[116px] pb-[70px] max-[980px]:min-h-0 max-[980px]:grid-cols-1 max-[980px]:gap-6 max-[980px]:pt-[104px] max-sm:gap-5 max-sm:px-4 max-sm:pt-[92px] max-sm:pb-[54px]"
         style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
       >
-        <div className="relative z-[1] flex h-full max-w-[800px] flex-col justify-between gap-12 max-[980px]:h-auto max-[980px]:gap-10">
-          <div
-            className="flex items-center gap-4 [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_both]"
-            aria-hidden="true"
-          >
-            <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-              <span className="absolute inset-[-3px] rounded-full bg-[color-mix(in_oklch,var(--landing-accent)_28%,transparent)] [animation:status-pulse_2.5s_ease-in-out_infinite]" />
-              <span className="relative h-2 w-2 rounded-full bg-[var(--landing-accent)]" />
-            </span>
-            <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--landing-text)]">
-              Plan Room
-            </span>
-            <span className="ml-auto font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-medium uppercase tracking-[0.22em] text-[var(--landing-faint)] max-sm:hidden">
-              Index · Review · Share
-            </span>
-          </div>
-
+        <div className="relative z-[1] flex max-w-[800px] flex-col justify-center gap-12 max-[980px]:gap-10">
           <div>
             <h1 className="mb-6 max-w-[760px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[74px] font-[430] leading-[0.98] text-[var(--landing-text)] [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_60ms_both] max-[980px]:text-[54px] max-sm:text-[40px] max-sm:leading-[1.04]">
               Your agents make plans. <br />

@@ -98,46 +98,38 @@ export function PlanViewer({
         }
       >
         {/* Header */}
-        <div className="mb-8 pb-6 border-b border-border">
-          <div
-            className="flex items-center gap-1 text-xs text-tertiary mb-2.5"
-            style={{ fontWeight: 450 }}
-          >
-            <span className="flex items-center gap-1.5">
+        <header className="plan-header">
+          <div className="plan-header-breadcrumb">
+            <span className="plan-header-breadcrumb-item">
               <AgentIcon agent={plan.agent} size={13} />
               <span>{getAgentLabel(plan.agent)}</span>
             </span>
             {workspace && (
               <>
-                <span className="opacity-50">/</span>
-                <span>{workspace}</span>
+                <span className="plan-header-breadcrumb-separator">/</span>
+                <span className="plan-header-breadcrumb-workspace">{workspace}</span>
                 <CopyPathButton path={plan.filePath} />
               </>
             )}
           </div>
 
-          <h1 className="text-[26px] font-semibold tracking-[0] leading-[1.25] text-text mb-3">
+          <h1 className="plan-header-title" title={plan.title}>
             {plan.title}
           </h1>
 
-          <div className="flex items-center gap-5 text-[12.5px] text-secondary mb-4">
-            <span className="flex items-center gap-1.5">
+          <div className="plan-header-meta" aria-label="Plan details">
+            <span className="plan-header-meta-item">
               <ClockIcon />
               Updated {timeAgo(plan.updatedAt)}
             </span>
-            <span className="flex items-center gap-1.5">
+            <span className="plan-header-meta-item">
               <DocIcon />
               {plan.format.toUpperCase()}
             </span>
-            <span
-              className="plan-readonly-badge text-[11px] px-[7px] py-[2px] rounded-[5px]"
-              style={{ fontWeight: 550 }}
-            >
-              Read-only
-            </span>
+            <span className="plan-readonly-badge">Read-only</span>
             {syncOrigin && (
               <span
-                className="flex items-center gap-1.5"
+                className="plan-header-meta-item plan-header-meta-item--sync"
                 title={
                   [
                     syncOrigin.hostname ? `Host: ${syncOrigin.hostname}` : null,
@@ -149,103 +141,102 @@ export function PlanViewer({
                 }
               >
                 <MachineIcon />
-                <span>
-                  Synced from{' '}
-                  <span style={{ color: 'var(--text)', fontWeight: 500 }}>
-                    {formatSyncOriginLabel(syncOrigin)}
+                <span className="plan-header-meta-label">
+                  Synced from <strong>{formatSyncOriginLabel(syncOrigin)}</strong>
+                </span>
+              </span>
+            )}
+          </div>
+
+          <div className="plan-header-utility-row">
+            {headerExtra && <div className="plan-header-extra">{headerExtra}</div>}
+            <div className="plan-action-toolbar" aria-label="Plan actions">
+              <button
+                type="button"
+                onClick={handleCopy}
+                title={copied ? 'Copied!' : 'Copy plan'}
+                aria-label={copied ? 'Plan copied' : 'Copy plan'}
+                className="plan-action-button"
+                style={{ color: copied ? 'var(--success)' : 'var(--secondary)' }}
+              >
+                <span className="relative flex items-center justify-center w-[13px] h-[13px]">
+                  <span
+                    className="absolute flex transition-[opacity,transform] duration-200 ease-in-out"
+                    style={{
+                      opacity: copied ? 0 : 1,
+                      transform: copied ? 'scale(0.5)' : 'scale(1)',
+                    }}
+                  >
+                    <CopyIcon />
+                  </span>
+                  <span
+                    className="absolute flex transition-[opacity,transform] duration-200 ease-in-out"
+                    style={{
+                      opacity: copied ? 1 : 0,
+                      transform: copied ? 'scale(1)' : 'scale(0.5)',
+                    }}
+                  >
+                    <CheckIcon />
                   </span>
                 </span>
-              </span>
-            )}
-          </div>
-
-          {headerExtra}
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCopy}
-              title={copied ? 'Copied!' : 'Copy plan'}
-              className="plan-action-button"
-              style={{ color: copied ? 'var(--success)' : 'var(--secondary)' }}
-            >
-              <span className="relative flex items-center justify-center w-[13px] h-[13px]">
-                <span
-                  className="absolute flex transition-[opacity,transform] duration-200 ease-in-out"
-                  style={{
-                    opacity: copied ? 0 : 1,
-                    transform: copied ? 'scale(0.5)' : 'scale(1)',
-                  }}
+              </button>
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  title="Edit plan"
+                  aria-label="Edit plan"
+                  className="plan-action-button"
                 >
-                  <CopyIcon />
-                </span>
-                <span
-                  className="absolute flex transition-[opacity,transform] duration-200 ease-in-out"
-                  style={{
-                    opacity: copied ? 1 : 0,
-                    transform: copied ? 'scale(1)' : 'scale(0.5)',
-                  }}
+                  <EditIcon />
+                </button>
+              )}
+              {onShare && (
+                <button
+                  type="button"
+                  onClick={onShare}
+                  title="Share plan"
+                  aria-label="Share plan"
+                  className="plan-action-button"
                 >
-                  <CheckIcon />
-                </span>
-              </span>
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-            {onEdit && (
+                  <ShareIcon />
+                </button>
+              )}
+              {onHistory && (
+                <button
+                  type="button"
+                  onClick={onHistory}
+                  title="Version history"
+                  aria-label="Version history"
+                  className="plan-action-button"
+                >
+                  <HistoryIcon />
+                </button>
+              )}
+              {onToggleChart && (
+                <button
+                  type="button"
+                  onClick={onToggleChart}
+                  title={chartHidden ? 'Show tech chart (⇧⌘G)' : 'Hide tech chart (⇧⌘G)'}
+                  aria-label={chartHidden ? 'Show tech chart' : 'Hide tech chart'}
+                  aria-pressed={!chartHidden}
+                  className="plan-action-button"
+                >
+                  <ChartIcon />
+                </button>
+              )}
               <button
                 type="button"
-                onClick={onEdit}
-                title="Edit plan"
+                onClick={() => fullscreen.toggle()}
+                title={fullscreen.isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+                aria-label={fullscreen.isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
                 className="plan-action-button"
               >
-                <EditIcon />
-                Edit
+                {fullscreen.isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
               </button>
-            )}
-            {onShare && (
-              <button
-                type="button"
-                onClick={onShare}
-                title="Share plan"
-                className="plan-action-button"
-              >
-                <ShareIcon />
-                Share
-              </button>
-            )}
-            {onHistory && (
-              <button
-                type="button"
-                onClick={onHistory}
-                title="Version history"
-                className="plan-action-button"
-              >
-                <HistoryIcon />
-                History
-              </button>
-            )}
-            {onToggleChart && (
-              <button
-                type="button"
-                onClick={onToggleChart}
-                title={chartHidden ? 'Show tech chart (⇧⌘G)' : 'Hide tech chart (⇧⌘G)'}
-                className="plan-action-button"
-              >
-                <ChartIcon />
-                {chartHidden ? 'Show Chart' : 'Hide Chart'}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => fullscreen.toggle()}
-              title={fullscreen.isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-              className="plan-action-button"
-            >
-              {fullscreen.isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
-              {fullscreen.isFullscreen ? 'Exit' : 'Fullscreen'}
-            </button>
+            </div>
           </div>
-        </div>
+        </header>
 
         {onChartWideChange && !chartHidden && (
           <div style={{ marginTop: '8px', marginBottom: '24px' }}>

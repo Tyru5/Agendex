@@ -1,5 +1,5 @@
 import { api } from '@convex/_generated/api';
-import type { Id } from '@convex/_generated/dataModel';
+import type { Doc, Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { CollectionPickerPopover } from './CollectionPickerPopover.tsx';
@@ -13,11 +13,11 @@ export function PlanTagsBar({ planId }: { planId: string }) {
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
 
-  const tags = planTagsMap?.[planId] ?? [];
+  const tags = (planTagsMap?.[planId] ?? []) as Doc<'tags'>[];
 
   return (
-    <div className="flex items-center gap-1.5 flex-wrap my-2">
-      {tags.map((tag: any) => (
+    <div className="plan-tags-bar">
+      {tags.map((tag) => (
         <TagChip
           key={tag._id}
           name={tag.name}
@@ -34,7 +34,7 @@ export function PlanTagsBar({ planId }: { planId: string }) {
             setShowCollectionPicker(false);
           }}
           title="Add tag"
-          className="py-0.5 px-[7px] text-[12px] font-medium font-[inherit] rounded-[5px] border border-dashed border-border bg-transparent text-tertiary cursor-pointer inline-flex items-center gap-[3px]"
+          className="plan-tags-action"
         >
           <svg
             aria-hidden="true"
@@ -65,7 +65,7 @@ export function PlanTagsBar({ planId }: { planId: string }) {
             setShowTagPicker(false);
           }}
           title="Add to collection"
-          className="py-0.5 px-[7px] text-[12px] font-medium font-[inherit] rounded-[5px] border border-dashed border-border bg-transparent text-tertiary cursor-pointer inline-flex items-center gap-[3px]"
+          className="plan-tags-action"
         >
           <svg
             aria-hidden="true"

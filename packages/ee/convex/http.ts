@@ -2,7 +2,7 @@ import { registerRoutes } from '@convex-dev/stripe';
 import { httpRouter } from 'convex/server';
 import type Stripe from 'stripe';
 import { internal } from './_generated/api';
-import { authComponent, createAuth } from './auth';
+import { LOCAL_DEV_CORS_ORIGINS, authComponent, createAuth } from './auth';
 import {
   deleteDaemonsHttp,
   devices,
@@ -17,7 +17,11 @@ import { stripeComponent } from './stripe';
 
 const http = httpRouter();
 
-authComponent.registerRoutes(http, createAuth, { cors: true });
+authComponent.registerRoutes(http, createAuth, {
+  // registerRoutes appends these to createAuth().trustedOrigins, so SITE_URL,
+  // APP_URL, and preview origins remain part of the CORS allowlist.
+  cors: { allowedOrigins: [...LOCAL_DEV_CORS_ORIGINS] },
+});
 
 registerRoutes(http, stripeComponent, {
   webhookPath: '/stripe/webhook',
