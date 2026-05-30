@@ -1476,35 +1476,304 @@ body {
   padding: 16px;
 }
 
-.plan-action-button {
+.plan-header {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-header-breadcrumb {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--tertiary);
+  font-size: 12px;
+  font-weight: 450;
+  line-height: 1.25;
+}
+
+.plan-header-breadcrumb-item {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border-radius: 7px;
+  gap: 6px;
+}
+
+.plan-header-breadcrumb-separator {
+  opacity: 0.45;
+}
+
+.plan-header-breadcrumb-workspace {
+  min-width: 0;
+  max-width: min(46ch, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-header-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 25px;
+  font-weight: 660;
+  line-height: 1.18;
+  letter-spacing: 0;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.plan-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 13px;
+  min-width: 0;
+  color: var(--secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.plan-header-meta-item {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.plan-header-meta-item--sync {
+  flex: 1 1 230px;
+}
+
+.plan-header-meta-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-header-meta-label strong {
+  color: var(--text);
+  font-weight: 560;
+}
+
+.plan-header-utility-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 12px;
+  padding-top: 2px;
+}
+
+.plan-header-extra {
+  min-width: 0;
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.plan-header-extra > * {
+  margin-block: 0 !important;
+}
+
+.plan-action-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-left: auto;
+  padding: 3px;
   border: 1px solid var(--border);
+  border-radius: 10px;
   background: color-mix(in oklch, var(--surface) 82%, transparent);
+}
+
+.plan-action-button {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 7px;
+  border: 0;
+  background: transparent;
   color: var(--secondary);
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition:
     background 150ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
-    color 150ms cubic-bezier(0.22, 1, 0.36, 1);
+    color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .plan-action-button:hover {
   background: var(--hover);
-  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.plan-action-button:active {
+  transform: translateY(1px);
+}
+
+.plan-action-button:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--accent) 48%, transparent);
+  outline-offset: 2px;
+}
+
+.plan-action-button[aria-pressed="true"] {
+  background: var(--active);
   color: var(--text);
 }
 
 .plan-readonly-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  white-space: nowrap;
   color: var(--secondary);
   background: color-mix(in oklch, var(--text) 5%, transparent);
   border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 560;
+  line-height: 20px;
+}
+
+.plan-tags-bar {
+  min-height: 31px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-tags-action {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px dashed var(--border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--tertiary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 540;
+  cursor: pointer;
+  transition:
+    background 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.plan-tags-action:hover {
+  background: var(--hover);
+  border-color: var(--border-strong);
+  color: var(--secondary);
+}
+
+.plan-tags-action:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--accent) 48%, transparent);
+  outline-offset: 2px;
+}
+
+.plan-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in oklch, var(--surface) 90%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 540;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.plan-tag-chip-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.plan-tag-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 1px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--tertiary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.plan-tag-chip-remove:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.plan-tag-chip-remove:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+  outline: 2px solid color-mix(in oklch, var(--accent) 48%, transparent);
+  outline-offset: 1px;
+}
+
+.plan-plannotator-badge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 9px;
+}
+
+@media (max-width: 760px) {
+  .plan-header {
+    gap: 11px;
+    margin-bottom: 26px;
+  }
+
+  .plan-header-title {
+    font-size: 22px;
+    line-height: 1.22;
+  }
+
+  .plan-header-extra,
+  .plan-header-meta-item--sync {
+    flex-basis: 100%;
+  }
+
+  .plan-action-toolbar {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
 }
 
 /* WIP marquee banner */

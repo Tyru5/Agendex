@@ -55,7 +55,7 @@ export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
   const status = metadata.status ?? (metadata.kind === 'live-session' ? 'pending' : 'unknown');
 
   return (
-    <div className="flex flex-wrap items-center gap-2 mb-3">
+    <div className="plan-plannotator-badge">
       <span
         className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold"
         style={{ borderColor: statusBorderColor(status), color: statusColor(status) }}

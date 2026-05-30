@@ -9,6 +9,13 @@ import authConfig from './auth.config';
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
+export const LOCAL_DEV_AUTH_ORIGINS = [
+  'http://agendex.localhost:5174',
+  'http://app.agendex.localhost:5174',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
+] as const;
+
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
   const siteUrl = process.env.SITE_URL ?? '';
   const appUrl = process.env.APP_URL ?? '';
@@ -32,7 +39,9 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       appUrl,
       'https://*.vercel.app',
       'http://localhost:*',
+      'http://agendex.localhost:*',
       'http://*.agendex.localhost:*',
+      ...LOCAL_DEV_AUTH_ORIGINS,
     ].filter(Boolean),
     database: authComponent.adapter(ctx),
     socialProviders: {
