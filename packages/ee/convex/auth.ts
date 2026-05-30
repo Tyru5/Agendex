@@ -9,7 +9,7 @@ import authConfig from './auth.config';
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
-export const LOCAL_DEV_AUTH_ORIGINS = [
+export const LOCAL_DEV_CORS_ORIGINS = [
   'http://agendex.localhost:5174',
   'http://app.agendex.localhost:5174',
   'http://localhost:5174',
@@ -41,7 +41,6 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       'http://localhost:*',
       'http://agendex.localhost:*',
       'http://*.agendex.localhost:*',
-      ...LOCAL_DEV_AUTH_ORIGINS,
     ].filter(Boolean),
     database: authComponent.adapter(ctx),
     socialProviders: {
