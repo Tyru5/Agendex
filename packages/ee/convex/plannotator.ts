@@ -73,6 +73,7 @@ export const enqueueWriteback = mutation({
     feedback: v.string(),
     revisedContent: v.optional(v.string()),
     annotations: v.optional(v.array(feedbackAnnotation)),
+    annotationIds: v.optional(v.array(v.id('planAnnotations'))),
     deviceId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -107,8 +108,19 @@ export const enqueueWriteback = mutation({
       throw new ConvexError('A write-back is already pending for this plan');
     }
 
+    const annotationIds = args.annotationIds ?? [];
+    for (const annotationId of annotationIds) {
+      const annotation = await ctx.db.get(annotationId);
+      if (!annotation || annotation.planId !== args.planId) {
+        throw new ConvexError('Annotation does not belong to this plan');
+      }
+      if (annotation.authorId !== user._id) {
+        throw new ConvexError('Access denied');
+      }
+    }
+
     const now = Date.now();
-    return await ctx.db.insert('plannotatorWritebacks', {
+    const writebackId = await ctx.db.insert('plannotatorWritebacks', {
       ownerId: user._id,
       planId: args.planId,
       localPlanId,
@@ -122,6 +134,17 @@ export const enqueueWriteback = mutation({
       updatedAt: now,
       expiresAt: now + WRITEBACK_TTL_MS,
     });
+
+    for (const annotationId of annotationIds) {
+      await ctx.db.patch(annotationId, {
+        status: 'submitted',
+        submittedAt: now,
+        updatedAt: now,
+        writebackId,
+      });
+    }
+
+    return writebackId;
   },
 });
 

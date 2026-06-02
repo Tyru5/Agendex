@@ -50,6 +50,10 @@ import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
 import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
 import {
+  CloudPlanAnnotationsPanel,
+  useCloudPlanAnnotations,
+} from './components/CloudPlanAnnotationsPanel.tsx';
+import {
   CloudPlannotatorBadge,
   CloudPlannotatorWritebackPanel,
 } from './components/CloudPlannotatorPanel.tsx';
@@ -578,6 +582,15 @@ function DashboardMain({
   outlineHidden?: boolean;
   chartHidden?: boolean;
 }) {
+  const selectedAnnotationState = useCloudPlanAnnotations({
+    plan: selectedPlan,
+    enabled: mode === 'cloud' && isPro && Boolean(selectedPlan),
+  });
+  const splitAnnotationState = useCloudPlanAnnotations({
+    plan: splitPlan,
+    enabled: mode === 'cloud' && isPro && Boolean(splitPlan),
+  });
+
   // Entitlements resolve after auth/session rehydration; don't show the paywall during that gap.
   if (mode === 'cloud' && isWorkspaceAccessLoading) {
     return (
@@ -660,9 +673,24 @@ function DashboardMain({
             onShare={isPro ? onShare : undefined}
             headerExtra={<PlanHeaderExtra plan={selectedPlan} isPro={isPro} mode={mode} />}
             chartHidden={chartHidden}
+            annotations={selectedAnnotationState.annotations}
+            selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
+            canCreateAnnotations={mode === 'cloud' && isPro}
+            annotationUpgradeMessage={
+              mode === 'cloud' ? 'Inline plan annotations are available on Cloud Pro.' : undefined
+            }
+            onCreateAnnotation={selectedAnnotationState.createAnnotation}
+            onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
           />
           {isPro && mode === 'cloud' && (
             <div className="mx-auto px-6 pb-16">
+              <CloudPlanAnnotationsPanel
+                plan={selectedPlan}
+                annotations={selectedAnnotationState.annotations}
+                selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
+                onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
+                daemonAvailable={!cloudSyncPaused}
+              />
               <CloudPlannotatorWritebackPanel
                 plan={selectedPlan}
                 daemonAvailable={!cloudSyncPaused}
@@ -681,9 +709,24 @@ function DashboardMain({
             onShare={isPro ? onShare : undefined}
             headerExtra={<PlanHeaderExtra plan={splitPlan} isPro={isPro} mode={mode} />}
             chartHidden={chartHidden}
+            annotations={splitAnnotationState.annotations}
+            selectedAnnotationId={splitAnnotationState.selectedAnnotationId}
+            canCreateAnnotations={mode === 'cloud' && isPro}
+            annotationUpgradeMessage={
+              mode === 'cloud' ? 'Inline plan annotations are available on Cloud Pro.' : undefined
+            }
+            onCreateAnnotation={splitAnnotationState.createAnnotation}
+            onSelectAnnotation={splitAnnotationState.setSelectedAnnotationId}
           />
           {isPro && mode === 'cloud' && (
             <div className="mx-auto px-6 pb-16">
+              <CloudPlanAnnotationsPanel
+                plan={splitPlan}
+                annotations={splitAnnotationState.annotations}
+                selectedAnnotationId={splitAnnotationState.selectedAnnotationId}
+                onSelectAnnotation={splitAnnotationState.setSelectedAnnotationId}
+                daemonAvailable={!cloudSyncPaused}
+              />
               <CloudPlannotatorWritebackPanel plan={splitPlan} daemonAvailable={!cloudSyncPaused} />
               <CommentThread planId={splitPlan.id} isOwner />
             </div>
@@ -777,9 +820,24 @@ function DashboardMain({
               headerExtra={<PlanHeaderExtra plan={selectedPlan} isPro={isPro} mode={mode} />}
               outlineHidden={outlineHidden}
               chartHidden={chartHidden}
+              annotations={selectedAnnotationState.annotations}
+              selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
+              canCreateAnnotations={mode === 'cloud' && isPro}
+              annotationUpgradeMessage={
+                mode === 'cloud' ? 'Inline plan annotations are available on Cloud Pro.' : undefined
+              }
+              onCreateAnnotation={selectedAnnotationState.createAnnotation}
+              onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
             />
             {isPro && mode === 'cloud' && (
               <div className="max-w-[720px] mx-auto px-8 pb-16">
+                <CloudPlanAnnotationsPanel
+                  plan={selectedPlan}
+                  annotations={selectedAnnotationState.annotations}
+                  selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
+                  onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
+                  daemonAvailable={!cloudSyncPaused}
+                />
                 <CloudPlannotatorWritebackPanel
                   plan={selectedPlan}
                   daemonAvailable={!cloudSyncPaused}

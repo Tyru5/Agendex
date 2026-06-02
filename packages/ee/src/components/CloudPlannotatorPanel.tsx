@@ -134,11 +134,11 @@ export function CloudPlannotatorWritebackPanel({
     <section className="mt-8 rounded-xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-[13px] font-semibold text-text">Plannotator write-back</h2>
+          <h2 className="text-[13px] font-semibold text-text">Advanced Plannotator write-back</h2>
           <p className="mt-1 text-[12px] text-tertiary">
             {isLive
               ? daemonAvailable
-                ? 'Queue structured request-changes feedback for your local Agendex daemon to send back through Plannotator.'
+                ? 'Use this manual fallback when inline annotations are not specific enough for the agent.'
                 : 'Start the Agendex CLI daemon to deliver request-changes feedback back through Plannotator.'
               : 'This is a saved Plannotator plan. Write-back is only available for live sessions.'}
           </p>
@@ -191,7 +191,11 @@ export function CloudPlannotatorWritebackPanel({
               }
               className="rounded-lg border-0 bg-text px-3 py-1.5 text-[12px] font-semibold text-bg disabled:opacity-50"
             >
-              {submitting ? 'Queueing…' : daemonAvailable ? 'Request changes' : 'Daemon required'}
+              {submitting
+                ? 'Queueing…'
+                : daemonAvailable
+                  ? 'Queue manual request'
+                  : 'Daemon required'}
             </button>
           </div>
         </div>

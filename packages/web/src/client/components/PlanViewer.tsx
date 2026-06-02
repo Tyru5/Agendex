@@ -5,7 +5,14 @@ import rehypeSanitize from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
 import { useFullscreen } from '../hooks/useFullscreen.ts';
+import { usePlanAnnotationHighlights } from '../hooks/usePlanAnnotationHighlights.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
+import {
+  createPlanTextAnchor,
+  type PlanAnnotationKind,
+  type PlanAnnotationRecord,
+  type PlanTextAnchor,
+} from '../lib/annotations.ts';
 import type { Plan } from '../lib/api.ts';
 import { buildPlanOutline } from '../lib/extract-headings.ts';
 import { sanitizeSchema } from '../lib/sanitize-schema.ts';
@@ -30,6 +37,21 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
+export type PlanAnnotationCreateDraft = {
+  type: PlanAnnotationKind;
+  anchor: PlanTextAnchor;
+  selectedText: string;
+  body?: string;
+  replacementText?: string;
+};
+
+type SelectionToolbarState = {
+  selectedText: string;
+  anchor: PlanTextAnchor;
+  top: number;
+  left: number;
+};
+
 type PlanViewerProps = {
   plan: Plan;
   headerExtra?: ReactNode;
@@ -41,6 +63,12 @@ type PlanViewerProps = {
   mode?: 'single' | 'split';
   outlineHidden?: boolean;
   chartHidden?: boolean;
+  annotations?: PlanAnnotationRecord[];
+  selectedAnnotationId?: string | null;
+  canCreateAnnotations?: boolean;
+  annotationUpgradeMessage?: string;
+  onCreateAnnotation?: (draft: PlanAnnotationCreateDraft) => void | Promise<void>;
+  onSelectAnnotation?: (id: string | null) => void;
 };
 
 export function PlanViewer({
@@ -54,8 +82,16 @@ export function PlanViewer({
   mode = 'single',
   outlineHidden,
   chartHidden,
+  annotations = [],
+  selectedAnnotationId,
+  canCreateAnnotations = false,
+  annotationUpgradeMessage,
+  onCreateAnnotation,
+  onSelectAnnotation,
 }: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
+  const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null);
+  const bodyRef = useRef<HTMLElement | null>(null);
   const fullscreen = useFullscreen<HTMLDivElement>();
   const isSplit = mode === 'split';
 
@@ -80,6 +116,77 @@ export function PlanViewer({
   const { entries, renderContent, renderMode } = outline;
 
   const showOutline = entries.filter((e) => e.source !== 'fallback_root').length >= 2;
+
+  usePlanAnnotationHighlights({
+    rootRef: bodyRef,
+    annotations,
+    selectedAnnotationId,
+    onSelectAnnotation,
+  });
+
+  const showAnnotationUpgrade = Boolean(annotationUpgradeMessage && !canCreateAnnotations);
+
+  function updateSelectionToolbar() {
+    if (!canCreateAnnotations || !onCreateAnnotation) return;
+
+    window.setTimeout(() => {
+      const root = bodyRef.current;
+      const selection = window.getSelection();
+      if (!root || !selection || selection.isCollapsed || selection.rangeCount === 0) {
+        setSelectionToolbar(null);
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      if (!root.contains(range.commonAncestorContainer)) {
+        setSelectionToolbar(null);
+        return;
+      }
+
+      const selectedText = selection.toString().trim();
+      if (selectedText.length < 2) {
+        setSelectionToolbar(null);
+        return;
+      }
+
+      const rect = range.getBoundingClientRect();
+      setSelectionToolbar({
+        selectedText,
+        anchor: createPlanTextAnchor(renderContent, selectedText),
+        top: Math.max(8, rect.top - 48),
+        left: rect.left + rect.width / 2,
+      });
+    }, 0);
+  }
+
+  async function createAnnotationFromSelection(type: PlanAnnotationKind) {
+    if (!selectionToolbar || !onCreateAnnotation) return;
+
+    let body: string | undefined;
+    let replacementText: string | undefined;
+
+    if (type === 'replacement' || type === 'insertion') {
+      replacementText = window.prompt('Suggested replacement text')?.trim() || undefined;
+      if (!replacementText) return;
+      body = window.prompt('Optional note for the agent')?.trim() || undefined;
+    } else if (type === 'comment' || type === 'global_comment') {
+      body = window.prompt('Feedback for the agent')?.trim() || undefined;
+      if (!body) return;
+    } else if (type === 'deletion') {
+      body = window.prompt('Optional reason for deletion')?.trim() || undefined;
+    }
+
+    await onCreateAnnotation({
+      type,
+      selectedText: selectionToolbar.selectedText,
+      anchor: selectionToolbar.anchor,
+      body,
+      replacementText,
+    });
+
+    window.getSelection()?.removeAllRanges();
+    setSelectionToolbar(null);
+  }
 
   return (
     <div
@@ -244,9 +351,41 @@ export function PlanViewer({
           </div>
         )}
 
+        {showAnnotationUpgrade && (
+          <div className="plan-annotation-upgrade" role="note">
+            {annotationUpgradeMessage}
+          </div>
+        )}
+
+        {selectionToolbar && (
+          <div
+            className="plan-annotation-toolbar"
+            role="toolbar"
+            aria-label="Create plan annotation"
+            style={{ top: selectionToolbar.top, left: selectionToolbar.left }}
+          >
+            <button type="button" onClick={() => void createAnnotationFromSelection('comment')}>
+              Comment
+            </button>
+            <button type="button" onClick={() => void createAnnotationFromSelection('replacement')}>
+              Replace
+            </button>
+            <button type="button" onClick={() => void createAnnotationFromSelection('deletion')}>
+              Delete
+            </button>
+          </div>
+        )}
+
         {/* Body */}
         {renderMode === 'markdown' ? (
-          <article className="plan-markdown">
+          <article
+            ref={(node) => {
+              bodyRef.current = node;
+            }}
+            className="plan-markdown"
+            onMouseUp={updateSelectionToolbar}
+            onKeyUp={updateSelectionToolbar}
+          >
             <div id="plan-top" aria-hidden="true" />
             <Markdown
               remarkPlugins={[remarkGfm]}
@@ -277,7 +416,16 @@ export function PlanViewer({
         ) : (
           <>
             <div id="plan-top" aria-hidden="true" />
-            <pre className="plan-plain">{renderContent}</pre>
+            <pre
+              ref={(node) => {
+                bodyRef.current = node;
+              }}
+              className="plan-plain"
+              onMouseUp={updateSelectionToolbar}
+              onKeyUp={updateSelectionToolbar}
+            >
+              {renderContent}
+            </pre>
           </>
         )}
 

@@ -17,6 +17,7 @@ import type { DeviceInfo } from './api.ts';
 import { AuthExpiredError, deleteDaemons, fetchDevices, sendShutdown } from './api.ts';
 import { login, logout } from './auth.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
+import { runHookReviewCommand, runHooksCommand } from './hooks.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
 import { syncAll } from './sync.ts';
 import { runUpgrade } from './upgrade.ts';
@@ -54,6 +55,8 @@ async function main(): Promise<number> {
     'open',
     'view',
     'cleanup',
+    'hooks',
+    'review-plan',
     'add-dir',
     'remove-dir',
     'list-dirs',
@@ -173,6 +176,14 @@ async function main(): Promise<number> {
       const force = args.includes('--force');
       await syncAll(force);
       return 0;
+    }
+
+    case 'hooks': {
+      return await runHooksCommand(args, cliEntry);
+    }
+
+    case 'review-plan': {
+      return await runHookReviewCommand(args);
     }
 
     case 'cleanup': {
@@ -480,6 +491,10 @@ Usage:
   agendex view <url>   Open a shared plan URL in your browser
   agendex logout       Clear stored cloud token
   agendex configure    Select which agents/adapters to index
+  agendex hooks status Show Claude Code, Codex, and Pi hook status
+  agendex hooks install <agent|all>  Install hook integration for claude-code, codex, or pi
+  agendex hooks uninstall <agent|all>  Remove managed Agendex hook entries
+  agendex review-plan --hook --agent <agent>  Hook-native plan review command
   agendex add-dir <path>  Add a custom directory to scan for plans
   agendex add-dir <path> --live  Add dir and notify running server immediately
   agendex remove-dir <path>  Remove a custom directory

@@ -86,6 +86,31 @@ export interface AgentStats {
   writable: boolean;
 }
 
+export interface PlanAnnotationApiRecord {
+  id: string;
+  planId?: string;
+  authorId?: string;
+  authorName?: string;
+  source?: string;
+  type: 'comment' | 'replacement' | 'deletion' | 'insertion' | 'global_comment';
+  status: 'draft' | 'open' | 'submitted' | 'resolved';
+  body?: string;
+  replacementText?: string;
+  anchor: {
+    quote?: string;
+    startOffset?: number;
+    endOffset?: number;
+    prefix?: string;
+    suffix?: string;
+    contentHash?: string;
+  };
+  createdAt: number;
+  updatedAt: number;
+  submittedAt?: number;
+  resolvedAt?: number;
+  writebackId?: string;
+}
+
 export const api = {
   getPlans: (params?: { agent?: string; q?: string; sort?: string }) => {
     const qs = new URLSearchParams();
@@ -114,6 +139,33 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ content }),
     }),
+
+  getPlanAnnotations: (id: string) =>
+    request<{ annotations: PlanAnnotationApiRecord[] }>(`/plans/${id}/annotations`),
+
+  createPlanAnnotation: (
+    id: string,
+    annotation: Pick<PlanAnnotationApiRecord, 'type' | 'anchor'> &
+      Partial<Pick<PlanAnnotationApiRecord, 'body' | 'replacementText' | 'status'>>,
+  ) =>
+    request<PlanAnnotationApiRecord>(`/plans/${id}/annotations`, {
+      method: 'POST',
+      body: JSON.stringify(annotation),
+    }),
+
+  updatePlanAnnotationStatus: (
+    id: string,
+    annotationId: string,
+    status: PlanAnnotationApiRecord['status'],
+    writebackId?: string,
+  ) =>
+    request<PlanAnnotationApiRecord>(`/plans/${id}/annotations/${annotationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, writebackId }),
+    }),
+
+  deletePlanAnnotation: (id: string, annotationId: string) =>
+    request<{ ok: boolean }>(`/plans/${id}/annotations/${annotationId}`, { method: 'DELETE' }),
 
   getPlanSources: () => request<{ customPlanDirs: string[] }>('/plan-sources'),
 

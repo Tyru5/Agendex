@@ -1,14 +1,18 @@
 import { existsSync, statSync } from 'node:fs';
 import {
   getAgentStats,
+  createPlanAnnotation,
+  deletePlanAnnotation,
   getIndexableById,
   getIndexablePlans,
+  listPlanAnnotations,
   loadConfig,
   normalizeCustomPlanDirs,
   resolveCustomPlanDirPath,
   saveConfig,
   scan,
   startWatching,
+  updatePlanAnnotationStatus,
 } from '@agendex/shared';
 import { Hono } from 'hono';
 import { search } from '../services/search.ts';
@@ -50,6 +54,92 @@ plans.get('/plans/:id/raw', (c) => {
   const plan = getIndexableById(c.req.param('id'));
   if (!plan) return c.json({ error: 'not found' }, 404);
   return c.text(plan.content);
+});
+
+plans.get('/plans/:id/annotations', async (c) => {
+  const planId = c.req.param('id');
+  const plan = getIndexableById(planId);
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  return c.json({ annotations: await listPlanAnnotations(planId) });
+});
+
+plans.post('/plans/:id/annotations', async (c) => {
+  const planId = c.req.param('id');
+  const plan = getIndexableById(planId);
+  if (!plan) return c.json({ error: 'not found' }, 404);
+
+  const body = await c.req.json<{
+    type?: 'comment' | 'replacement' | 'deletion' | 'insertion' | 'global_comment';
+    status?: 'draft' | 'open' | 'submitted' | 'resolved';
+    body?: string;
+    replacementText?: string;
+    anchor?: {
+      quote?: string;
+      startOffset?: number;
+      endOffset?: number;
+      prefix?: string;
+      suffix?: string;
+      contentHash?: string;
+    };
+  }>();
+
+  if (
+    body.type !== 'comment' &&
+    body.type !== 'replacement' &&
+    body.type !== 'deletion' &&
+    body.type !== 'insertion' &&
+    body.type !== 'global_comment'
+  ) {
+    return c.json({ error: 'invalid annotation type' }, 400);
+  }
+
+  const annotation = await createPlanAnnotation(planId, {
+    type: body.type,
+    status: body.status ?? 'open',
+    body: body.body,
+    replacementText: body.replacementText,
+    anchor: body.anchor ?? {},
+    source: 'agendex-local',
+  });
+
+  return c.json(annotation, 201);
+});
+
+plans.patch('/plans/:id/annotations/:annotationId', async (c) => {
+  const planId = c.req.param('id');
+  const plan = getIndexableById(planId);
+  if (!plan) return c.json({ error: 'not found' }, 404);
+
+  const body = await c.req.json<{
+    status?: 'draft' | 'open' | 'submitted' | 'resolved';
+    writebackId?: string;
+  }>();
+  if (
+    body.status !== 'draft' &&
+    body.status !== 'open' &&
+    body.status !== 'submitted' &&
+    body.status !== 'resolved'
+  ) {
+    return c.json({ error: 'invalid annotation status' }, 400);
+  }
+
+  const annotation = await updatePlanAnnotationStatus({
+    planId,
+    annotationId: c.req.param('annotationId'),
+    status: body.status,
+    writebackId: body.writebackId,
+  });
+  if (!annotation) return c.json({ error: 'annotation not found' }, 404);
+  return c.json(annotation);
+});
+
+plans.delete('/plans/:id/annotations/:annotationId', async (c) => {
+  const planId = c.req.param('id');
+  const plan = getIndexableById(planId);
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  const ok = await deletePlanAnnotation(planId, c.req.param('annotationId'));
+  if (!ok) return c.json({ error: 'annotation not found' }, 404);
+  return c.json({ ok: true });
 });
 
 plans.put('/plans/:id', (c) => {

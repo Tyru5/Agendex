@@ -25,6 +25,7 @@ export { PlanList } from './client/components/PlanList.tsx';
 export { PlanOutline } from './client/components/PlanOutline.tsx';
 export { PlanSourcesDialog } from './client/components/PlanSourcesDialog.tsx';
 export { PlanUploader } from './client/components/PlanUploader.tsx';
+export type { PlanAnnotationCreateDraft } from './client/components/PlanViewer.tsx';
 export { PlanViewer } from './client/components/PlanViewer.tsx';
 export { SearchBar } from './client/components/SearchBar.tsx';
 export { Sidebar } from './client/components/Sidebar.tsx';
@@ -67,7 +68,14 @@ export {
   getAgentIcon,
   getAgentLabel,
 } from './client/lib/agent-colors.ts';
-export type { AgentStats, Plan, PlansResponse } from './client/lib/api.ts';
+export type {
+  PlanAnnotationKind,
+  PlanAnnotationRecord,
+  PlanAnnotationStatus,
+  PlanTextAnchor,
+} from './client/lib/annotations.ts';
+export { createPlanTextAnchor } from './client/lib/annotations.ts';
+export type { AgentStats, Plan, PlanAnnotationApiRecord, PlansResponse } from './client/lib/api.ts';
 export { api, clearToken, hasToken, setToken } from './client/lib/api.ts';
 export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
 export type { FolderState, PlanFolder, PlanFolderStore } from './client/lib/plan-folders.ts';

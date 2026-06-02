@@ -1085,6 +1085,90 @@ body {
   letter-spacing: 0;
 }
 
+.plan-annotation-toolbar {
+  position: fixed;
+  z-index: 80;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--surface) 94%, black 6%);
+  box-shadow: 0 16px 40px color-mix(in oklch, black 22%, transparent);
+}
+
+.plan-annotation-toolbar button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  padding: 5px 9px;
+}
+
+.plan-annotation-toolbar button:hover,
+.plan-annotation-toolbar button:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+  outline: none;
+}
+
+.plan-annotation-upgrade {
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--tertiary);
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.plan-annotation-mark {
+  border-radius: 4px;
+  background: color-mix(in oklch, var(--warning) 22%, transparent);
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.plan-annotation-mark:hover,
+.plan-annotation-mark:focus-visible,
+.plan-annotation-mark--selected {
+  background: color-mix(in oklch, var(--warning) 42%, transparent);
+  outline: 1px solid color-mix(in oklch, var(--warning) 56%, transparent);
+}
+
+.plan-annotation-mark--replacement {
+  background: color-mix(in oklch, var(--success) 20%, transparent);
+}
+
+.plan-annotation-mark--replacement:hover,
+.plan-annotation-mark--replacement:focus-visible,
+.plan-annotation-mark--replacement.plan-annotation-mark--selected {
+  background: color-mix(in oklch, var(--success) 36%, transparent);
+  outline-color: color-mix(in oklch, var(--success) 52%, transparent);
+}
+
+.plan-annotation-mark--deletion {
+  background: color-mix(in oklch, var(--danger) 18%, transparent);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.plan-annotation-mark--deletion:hover,
+.plan-annotation-mark--deletion:focus-visible,
+.plan-annotation-mark--deletion.plan-annotation-mark--selected {
+  background: color-mix(in oklch, var(--danger) 32%, transparent);
+  outline-color: color-mix(in oklch, var(--danger) 48%, transparent);
+}
+
 .plan-markdown h1,
 .plan-markdown h2,
 .plan-markdown h3,

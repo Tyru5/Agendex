@@ -45,6 +45,30 @@ export const plannotatorFeedbackAnnotation = v.union(
   plannotatorReviewAnnotation,
 );
 
+const planAnnotationKind = v.union(
+  v.literal('comment'),
+  v.literal('replacement'),
+  v.literal('deletion'),
+  v.literal('insertion'),
+  v.literal('global_comment'),
+);
+
+const planAnnotationStatus = v.union(
+  v.literal('draft'),
+  v.literal('open'),
+  v.literal('submitted'),
+  v.literal('resolved'),
+);
+
+const planTextAnchor = v.object({
+  quote: v.optional(v.string()),
+  startOffset: v.optional(v.number()),
+  endOffset: v.optional(v.number()),
+  prefix: v.optional(v.string()),
+  suffix: v.optional(v.string()),
+  contentHash: v.optional(v.string()),
+});
+
 export default defineSchema({
   plans: defineTable({
     ownerId: v.string(),
@@ -72,6 +96,26 @@ export default defineSchema({
   })
     .index('by_token', ['token'])
     .index('by_plan', ['planId']),
+
+  planAnnotations: defineTable({
+    planId: v.id('plans'),
+    authorId: v.string(),
+    authorName: v.string(),
+    source: v.optional(v.string()),
+    type: planAnnotationKind,
+    status: planAnnotationStatus,
+    body: v.optional(v.string()),
+    replacementText: v.optional(v.string()),
+    anchor: planTextAnchor,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    submittedAt: v.optional(v.number()),
+    resolvedAt: v.optional(v.number()),
+    writebackId: v.optional(v.id('plannotatorWritebacks')),
+  })
+    .index('by_plan', ['planId'])
+    .index('by_plan_status', ['planId', 'status'])
+    .index('by_author_plan', ['authorId', 'planId']),
 
   comments: defineTable({
     planId: v.id('plans'),

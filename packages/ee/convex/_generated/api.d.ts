@@ -10,6 +10,7 @@
 
 import type * as account from "../account.js";
 import type * as agentAvatars from "../agentAvatars.js";
+import type * as annotations from "../annotations.js";
 import type * as auth from "../auth.js";
 import type * as cli from "../cli.js";
 import type * as collections from "../collections.js";
@@ -41,6 +42,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   account: typeof account;
   agentAvatars: typeof agentAvatars;
+  annotations: typeof annotations;
   auth: typeof auth;
   cli: typeof cli;
   collections: typeof collections;
