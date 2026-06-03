@@ -5,7 +5,13 @@ import type { DaemonDeviceInfo } from '../../hooks/useDaemonStatus';
 import type { Subscription } from '../../hooks/useSubscription';
 import { formatRelativeTime, formatUptime } from '../../lib/formatTime';
 import { AgentAvatarsSection } from './AgentAvatarsSection';
-import { FREE_FEATURES, MONTHLY_PRICE, PRIMARY_RGB_FALLBACK, PRO_FEATURES } from './constants';
+import {
+  FREE_FEATURES,
+  MONTHLY_PRICE,
+  PRIMARY_CONTRAST_FALLBACK,
+  PRIMARY_RGB_FALLBACK,
+  PRO_FEATURES,
+} from './constants';
 
 interface AccountTabProps {
   user: { name: string; email: string; image?: string | null };
@@ -81,9 +87,16 @@ function PlanCard({
         'mt-auto text-[13px] font-semibold px-4 py-2.5 rounded-xl border transition-colors duration-150 cursor-pointer',
         isCurrentPlan
           ? 'border-border bg-transparent text-secondary cursor-default'
-          : 'border-transparent text-white',
+          : 'border-transparent',
       ].join(' ')}
-      style={!isCurrentPlan ? { background: 'var(--primary, #8b5cf6)' } : undefined}
+      style={
+        !isCurrentPlan
+          ? {
+              background: 'var(--primary, #8b5cf6)',
+              color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
+            }
+          : undefined
+      }
     >
       {cta}
     </button>
@@ -112,7 +125,7 @@ function PlanCard({
           className="absolute -top-3 right-5 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full"
           style={{
             background: 'var(--primary, #8b5cf6)',
-            color: '#fff',
+            color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
             boxShadow: `0 2px 8px rgba(var(--primary-rgb, ${PRIMARY_RGB_FALLBACK}), 0.3)`,
           }}
         >
@@ -257,7 +270,7 @@ function DeviceCard({
   onRemove,
 }: {
   device: DaemonDeviceInfo;
-  onRemove?: (deviceId: string) => void;
+  onRemove?: (deviceId: string) => Promise<void>;
 }) {
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState(false);
@@ -265,10 +278,13 @@ function DeviceCard({
   const canRemove = device.deviceId != null && onRemove != null;
 
   async function handleRemove() {
+    const deviceId = device.deviceId;
+    if (deviceId == null || onRemove == null) return;
+
     setRemoving(true);
     setError(false);
     try {
-      await onRemove!(device.deviceId as string);
+      await onRemove(deviceId);
     } catch {
       setError(true);
       setRemoving(false);
@@ -427,7 +443,7 @@ export function AccountTab({
     setPortalError(null);
     try {
       await createPortal();
-    } catch (err) {
+    } catch {
       setPortalError('Unable to open billing portal. Please try again.');
       setPortalLoading(false);
     }
@@ -505,8 +521,11 @@ export function AccountTab({
               <button
                 type="button"
                 onClick={onUpgrade}
-                className="text-[13px] px-3.5 py-1.5 rounded-xl border-none text-white cursor-pointer font-semibold shrink-0"
-                style={{ background: 'var(--primary, #8b5cf6)' }}
+                className="text-[13px] px-3.5 py-1.5 rounded-xl border-none cursor-pointer font-semibold shrink-0"
+                style={{
+                  background: 'var(--primary, #8b5cf6)',
+                  color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
+                }}
               >
                 Upgrade to Pro
               </button>

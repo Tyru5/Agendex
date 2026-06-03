@@ -3,6 +3,7 @@ import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { InviteWorkspaceMemberDialog } from '../InviteWorkspaceMemberDialog';
+import { PRIMARY_CONTRAST_FALLBACK } from './constants';
 
 function SeatMeter({ used, total }: { used: number; total: number }) {
   const pct = total > 0 ? Math.min((used / total) * 100, 100) : 0;
@@ -37,7 +38,7 @@ function SeatMeter({ used, total }: { used: number; total: number }) {
 
 function MemberRow({
   email,
-  role,
+  memberRole,
   detail,
   isPending,
   onAction,
@@ -45,7 +46,7 @@ function MemberRow({
   actionDanger,
 }: {
   email: string;
-  role: string;
+  memberRole: string;
   detail?: string;
   isPending?: boolean;
   onAction: () => void;
@@ -77,7 +78,7 @@ function MemberRow({
           )}
         </div>
         <div className="text-[12px] text-tertiary mt-0.5">
-          {role}
+          {memberRole}
           {detail ? ` · ${detail}` : ''}
         </div>
       </div>
@@ -188,8 +189,11 @@ export function TeamTab({ isActive }: TeamTabProps) {
           <button
             type="button"
             onClick={() => setShowInvite(true)}
-            className="flex items-center gap-1.5 text-[13px] px-4 py-2 rounded-xl border-none text-white cursor-pointer font-semibold transition-opacity duration-150 hover:opacity-90 shrink-0"
-            style={{ background: 'var(--primary, #8b5cf6)' }}
+            className="flex items-center gap-1.5 text-[13px] px-4 py-2 rounded-xl border-none cursor-pointer font-semibold transition-opacity duration-150 hover:opacity-90 shrink-0"
+            style={{
+              background: 'var(--primary, #8b5cf6)',
+              color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
+            }}
           >
             <svg
               width="14"
@@ -218,7 +222,7 @@ export function TeamTab({ isActive }: TeamTabProps) {
               <MemberRow
                 key={member._id}
                 email={member.email}
-                role="Member"
+                memberRole="Member"
                 detail={`Joined ${new Date(member.addedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
                 onAction={() =>
                   removeMember({ membershipId: member._id as Id<'workspaceMembers'> })
@@ -234,7 +238,7 @@ export function TeamTab({ isActive }: TeamTabProps) {
                 <MemberRow
                   key={invite._id}
                   email={invite.email}
-                  role="Invited"
+                  memberRole="Invited"
                   detail={`Sent ${new Date(invite.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
                   isPending
                   onAction={() => revokeInvite({ inviteId: invite._id as Id<'workspaceInvites'> })}

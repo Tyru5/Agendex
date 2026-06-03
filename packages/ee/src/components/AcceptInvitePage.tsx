@@ -4,6 +4,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
+import { PRIMARY_CONTRAST_FALLBACK } from './settings/constants';
 
 const DASHBOARD_PATH = '/dashboard';
 
@@ -138,8 +139,11 @@ export function AcceptInvitePage({ token }: { token: string }) {
                 type="button"
                 onClick={handleAccept}
                 disabled={accepting}
-                className="w-full text-[13px] py-2 px-4 rounded-default border-none text-white cursor-pointer font-semibold disabled:opacity-50 disabled:cursor-default"
-                style={{ background: 'var(--primary)' }}
+                className="w-full text-[13px] py-2 px-4 rounded-default border-none cursor-pointer font-semibold disabled:opacity-50 disabled:cursor-default"
+                style={{
+                  background: 'var(--primary)',
+                  color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
+                }}
               >
                 {accepting ? 'Accepting...' : 'Accept invite'}
               </button>
