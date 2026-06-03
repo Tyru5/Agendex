@@ -3,6 +3,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { startViewTransition } from '@agendex/web';
 import { useLocation } from 'wouter';
+import { PRIMARY_CONTRAST_FALLBACK } from './settings/constants';
 
 interface LocalIpDisclosureNoticeProps {
   enabled: boolean;
@@ -123,7 +124,10 @@ export function LocalIpDisclosureNotice({ enabled }: LocalIpDisclosureNoticeProp
               onClick={acknowledge}
               disabled={saving}
               className="local-ip-disclosure-action rounded-default border border-transparent px-3 py-1.5 text-[12px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ background: 'var(--primary, #c8ff32)', color: 'var(--light-text, #121610)' }}
+              style={{
+                background: 'var(--primary, #c8ff32)',
+                color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
+              }}
             >
               Got it
             </button>

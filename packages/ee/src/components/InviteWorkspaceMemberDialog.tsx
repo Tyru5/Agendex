@@ -2,6 +2,7 @@ import { api } from '@convex/_generated/api';
 import { useMutation } from 'convex/react';
 import { useState } from 'react';
 import { normalizeLocalDevUrl } from '../lib/auth-client.ts';
+import { PRIMARY_CONTRAST_FALLBACK } from './settings/constants';
 
 const appUrl = normalizeLocalDevUrl(
   (import.meta.env.VITE_APP_URL as string) || window.location.origin,
@@ -129,8 +130,11 @@ export function InviteWorkspaceMemberDialog({ onClose }: InviteWorkspaceMemberDi
               type="button"
               onClick={handleInvite}
               disabled={!email.trim() || inviting}
-              className="text-[13px] px-3.5 py-1.5 rounded-default border-none text-white cursor-pointer font-semibold disabled:opacity-40 disabled:cursor-default"
-              style={{ background: 'var(--primary)' }}
+              className="text-[13px] px-3.5 py-1.5 rounded-default border-none cursor-pointer font-semibold disabled:opacity-40 disabled:cursor-default"
+              style={{
+                background: 'var(--primary)',
+                color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
+              }}
             >
               {inviting ? 'Inviting...' : 'Send invite'}
             </button>

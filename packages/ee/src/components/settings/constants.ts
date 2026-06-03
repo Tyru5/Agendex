@@ -18,6 +18,7 @@ export const PRO_FEATURES = [
 ];
 
 export const PRIMARY_RGB_FALLBACK = '139, 92, 246';
+export const PRIMARY_CONTRAST_FALLBACK = '#121610';
 
 export const MONTHLY_PRICE = 7;
 export const YEARLY_PRICE = 69;
