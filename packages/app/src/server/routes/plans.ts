@@ -93,11 +93,22 @@ plans.post('/plans/:id/annotations', async (c) => {
     return c.json({ error: 'invalid annotation type' }, 400);
   }
 
+  const annotationBody = body.body?.trim() || undefined;
+  const replacementText = body.replacementText?.trim() || undefined;
+
+  if ((body.type === 'comment' || body.type === 'global_comment') && !annotationBody) {
+    return c.json({ error: 'Annotation feedback is required' }, 400);
+  }
+
+  if ((body.type === 'replacement' || body.type === 'insertion') && !replacementText) {
+    return c.json({ error: 'Suggested replacement text is required' }, 400);
+  }
+
   const annotation = await createPlanAnnotation(planId, {
     type: body.type,
     status: body.status ?? 'open',
-    body: body.body,
-    replacementText: body.replacementText,
+    body: annotationBody,
+    replacementText,
     anchor: body.anchor ?? {},
     source: 'agendex-local',
   });

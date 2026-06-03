@@ -128,6 +128,7 @@ export function PlanViewer({
   );
   const [annotationComposerError, setAnnotationComposerError] = useState<string | undefined>();
   const bodyRef = useRef<HTMLElement | null>(null);
+  const annotationOverlayRef = useRef<HTMLElement | null>(null);
   const annotationComposerFirstFieldRef = useRef<HTMLTextAreaElement | null>(null);
   const fullscreen = useFullscreen<HTMLDivElement>();
   const isSplit = mode === 'split';
@@ -167,6 +168,24 @@ export function PlanViewer({
     if (!annotationComposerType) return;
     annotationComposerFirstFieldRef.current?.focus();
   }, [annotationComposerType]);
+
+  useEffect(() => {
+    if (!selectionToolbar) return;
+
+    function handleDocumentPointerDown(event: PointerEvent) {
+      if (!(event.target instanceof Node)) return;
+
+      const body = bodyRef.current;
+      const overlay = annotationOverlayRef.current;
+      if (body?.contains(event.target) || overlay?.contains(event.target)) return;
+
+      setAnnotationComposer(null);
+      setSelectionToolbar(null);
+    }
+
+    document.addEventListener('pointerdown', handleDocumentPointerDown);
+    return () => document.removeEventListener('pointerdown', handleDocumentPointerDown);
+  }, [selectionToolbar]);
 
   const showAnnotationUpgrade = Boolean(annotationUpgradeMessage && !canCreateAnnotations);
 
@@ -433,6 +452,9 @@ export function PlanViewer({
 
         {selectionToolbar && !annotationComposer && (
           <div
+            ref={(node) => {
+              annotationOverlayRef.current = node;
+            }}
             className="plan-annotation-toolbar"
             role="toolbar"
             aria-label="Create plan annotation"
@@ -452,6 +474,9 @@ export function PlanViewer({
 
         {selectionToolbar && annotationComposer && (
           <form
+            ref={(node) => {
+              annotationOverlayRef.current = node;
+            }}
             className="plan-annotation-composer"
             aria-label="Create plan annotation"
             style={{ top: selectionToolbar.top, left: selectionToolbar.left }}
