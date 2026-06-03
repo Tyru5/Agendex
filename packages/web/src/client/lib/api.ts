@@ -156,13 +156,18 @@ export const api = {
   updatePlanAnnotationStatus: (
     id: string,
     annotationId: string,
-    status: PlanAnnotationApiRecord['status'],
+    status?: PlanAnnotationApiRecord['status'],
     writebackId?: string,
-  ) =>
-    request<PlanAnnotationApiRecord>(`/plans/${id}/annotations/${annotationId}`, {
+  ) => {
+    const body: { status?: PlanAnnotationApiRecord['status']; writebackId?: string } = {};
+    if (status !== undefined) body.status = status;
+    if (writebackId !== undefined) body.writebackId = writebackId;
+
+    return request<PlanAnnotationApiRecord>(`/plans/${id}/annotations/${annotationId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status, writebackId }),
-    }),
+      body: JSON.stringify(body),
+    });
+  },
 
   deletePlanAnnotation: (id: string, annotationId: string) =>
     request<{ ok: boolean }>(`/plans/${id}/annotations/${annotationId}`, { method: 'DELETE' }),

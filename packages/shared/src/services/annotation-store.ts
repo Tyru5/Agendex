@@ -66,9 +66,13 @@ async function mutateStore<T>(
   return run;
 }
 
+async function readStore<T>(read: (store: AnnotationStoreFile) => T): Promise<T> {
+  await mutationQueue;
+  return read(await loadStore());
+}
+
 export async function listPlanAnnotations(planId: string): Promise<PlanAnnotationRecord[]> {
-  const store = await loadStore();
-  return store.annotationsByPlanId[planId] ?? [];
+  return readStore((store) => store.annotationsByPlanId[planId] ?? []);
 }
 
 export async function createPlanAnnotation(

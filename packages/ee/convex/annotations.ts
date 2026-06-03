@@ -3,8 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
 import { type MutationCtx, mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
-import { requireFeature } from './entitlements';
-import { hasActiveSubscriptionForUserId } from './subscriptions';
+import { requireFeature, requireFeatureForUserId } from './entitlements';
 
 const annotationType = v.union(
   v.literal('comment'),
@@ -62,8 +61,7 @@ async function requirePlanReadAccess(
 
   if (!membership) throw new ConvexError('Access denied');
 
-  const ownerActive = await hasActiveSubscriptionForUserId(ctx, plan.ownerId);
-  if (!ownerActive) throw new ConvexError('Access denied');
+  await requireFeatureForUserId(ctx, plan.ownerId, ProFeature.PLANNOTATOR_INTEGRATION);
 
   return { user, isOwner: false };
 }

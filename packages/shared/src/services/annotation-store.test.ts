@@ -45,6 +45,21 @@ test('concurrent annotation creates do not overwrite each other', async () => {
   expect(new Set(annotations.map((annotation) => annotation.body)).size).toBe(20);
 });
 
+test('annotation list reads wait for queued creates', async () => {
+  await useTempConfigDir();
+
+  const createPromise = createPlanAnnotation('plan-1', {
+    type: 'comment',
+    body: 'Queued write',
+    anchor: { quote: 'Queued' },
+  });
+
+  const annotations = await listPlanAnnotations('plan-1');
+  const created = await createPromise;
+
+  expect(annotations.map((annotation) => annotation.id)).toContain(created.id);
+});
+
 test('annotation updates allow writeback without status', async () => {
   await useTempConfigDir();
 

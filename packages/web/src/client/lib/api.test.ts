@@ -81,3 +81,34 @@ for (const [name, call] of [
     await expectErrorMessage(call, 'path does not exist: /missing');
   });
 }
+
+test('updatePlanAnnotationStatus can send writeback without status', async () => {
+  localStorage.setItem('agendex_token', 'token-1');
+
+  let requestBody: unknown;
+  Object.defineProperty(globalThis, 'fetch', {
+    value: async (_url: string, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body));
+      return new Response(
+        JSON.stringify({
+          id: 'annotation-1',
+          type: 'comment',
+          status: 'open',
+          anchor: {},
+          createdAt: 1,
+          updatedAt: 2,
+          writebackId: 'writeback-1',
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    },
+    configurable: true,
+  });
+
+  await api.updatePlanAnnotationStatus('plan-1', 'annotation-1', undefined, 'writeback-1');
+
+  expect(requestBody).toEqual({ writebackId: 'writeback-1' });
+});
