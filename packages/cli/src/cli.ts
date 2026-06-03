@@ -492,7 +492,7 @@ Usage:
   agendex logout       Clear stored cloud token
   agendex configure    Select which agents/adapters to index
   agendex hooks status Show Claude Code, Codex, and Pi hook status
-  agendex hooks install <agent|all>  Install hook integration for claude-code, codex, or pi
+  agendex hooks install <agent|all>  Install hook integration (--preview required for claude-code)
   agendex hooks uninstall <agent|all>  Remove managed Agendex hook entries
   agendex review-plan --hook --agent <agent>  Hook-native plan review command
   agendex add-dir <path>  Add a custom directory to scan for plans

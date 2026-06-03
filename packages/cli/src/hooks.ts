@@ -9,6 +9,7 @@ export type HookScope = 'user' | 'repo';
 const SUPPORTED_AGENTS: HookAgent[] = ['claude-code', 'codex', 'pi'];
 const MANAGED_MARKER = 'agendex-plan-review';
 const HOOK_TIMEOUT_SECONDS = 345600;
+const CLAUDE_PREVIEW_FLAG = '--preview';
 
 interface HookStatusRow {
   agent: HookAgent;
@@ -166,6 +167,28 @@ function ensureCodexHooksEnabled(raw: string): string {
 
   lines.splice(insertAt, 0, 'hooks = true');
   return `${lines.join('\n').trimEnd()}\n`;
+}
+
+function printClaudePreviewBlock(): void {
+  console.error(
+    '[agendex] refusing to install claude-code hook: hook-native plan review is not implemented yet.',
+  );
+  console.error(
+    '[agendex] Installing it now would cause Claude Code to deny ExitPlanMode permission requests.',
+  );
+  console.error(
+    `[agendex] Re-run with ${CLAUDE_PREVIEW_FLAG} to opt in deliberately, or install codex/pi separately.`,
+  );
+}
+
+function printClaudePreviewWarning(dryRun: boolean): void {
+  console.error('[agendex] WARNING: claude-code hook support is preview-only.');
+  console.error(
+    dryRun
+      ? '[agendex] This dry run describes a PermissionRequest hook that would deny ExitPlanMode until hook-native plan review ships.'
+      : '[agendex] The installed PermissionRequest hook will deny ExitPlanMode until hook-native plan review ships.',
+  );
+  console.error('[agendex] Remove it with: agendex hooks uninstall claude-code');
 }
 
 async function installClaude(scope: HookScope, cliEntry: string, dryRun: boolean): Promise<string> {
@@ -350,14 +373,21 @@ export async function runHooksCommand(args: string[], cliEntry: string): Promise
     const parsed = parseAgent(agentArg);
     if (!parsed) {
       console.error(
-        '[agendex] usage: agendex hooks install <claude-code|codex|pi|all> [--scope repo|user] [--dry-run]',
+        `[agendex] usage: agendex hooks install <claude-code|codex|pi|all> [--scope repo|user] [--dry-run] [${CLAUDE_PREVIEW_FLAG}]`,
       );
       return 1;
     }
 
     const dryRun = args.includes('--dry-run');
+    const preview = args.includes(CLAUDE_PREVIEW_FLAG);
     const agents = parsed === 'all' ? SUPPORTED_AGENTS : [parsed];
+    if (!preview && agents.includes('claude-code')) {
+      printClaudePreviewBlock();
+      return 1;
+    }
+
     for (const agent of agents) {
+      if (agent === 'claude-code') printClaudePreviewWarning(dryRun);
       const path = await installAgent(agent, scope, resolve(cliEntry), dryRun);
       console.log(`[agendex] ${dryRun ? 'would install' : 'installed'} ${agent} hook: ${path}`);
     }
