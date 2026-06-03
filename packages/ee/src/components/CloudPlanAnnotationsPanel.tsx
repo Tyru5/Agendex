@@ -181,15 +181,27 @@ export function CloudPlanAnnotationsPanel({
   }
 
   async function resolveAnnotation(annotation: PlanAnnotationRecord) {
-    await updateAnnotation({
-      annotationId: annotation.id as Id<'planAnnotations'>,
-      status: annotation.status === 'resolved' ? 'open' : 'resolved',
-    });
+    setError(undefined);
+    setQueued(false);
+    try {
+      await updateAnnotation({
+        annotationId: annotation.id as Id<'planAnnotations'>,
+        status: annotation.status === 'resolved' ? 'open' : 'resolved',
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update annotation');
+    }
   }
 
   async function removeAnnotation(annotation: PlanAnnotationRecord) {
-    await deleteAnnotation({ annotationId: annotation.id as Id<'planAnnotations'> });
-    if (selectedAnnotationId === annotation.id) onSelectAnnotation?.(null);
+    setError(undefined);
+    setQueued(false);
+    try {
+      await deleteAnnotation({ annotationId: annotation.id as Id<'planAnnotations'> });
+      if (selectedAnnotationId === annotation.id) onSelectAnnotation?.(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete annotation');
+    }
   }
 
   if (annotations.length === 0) {
