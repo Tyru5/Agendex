@@ -149,6 +149,9 @@ export const enqueueWriteback = mutation({
       if (annotation.authorId !== user._id) {
         throw new ConvexError('Access denied');
       }
+      if (annotation.status !== 'open') {
+        throw new ConvexError('Only open annotations can be submitted');
+      }
     }
 
     const now = Date.now();

@@ -220,6 +220,9 @@ export const markSubmitted = mutation({
       ) {
         throw new ConvexError('Annotation does not belong to this write-back');
       }
+      if (annotation.status !== 'open') {
+        throw new ConvexError('Only open annotations can be submitted');
+      }
       if (!writebackAnnotationIds.has(annotationId)) {
         writebackAnnotationIds.add(annotationId);
         nextWritebackAnnotationIds.push(annotationId);
