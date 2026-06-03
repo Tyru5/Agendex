@@ -133,6 +133,9 @@ export const createAnnotation = mutation({
   },
   handler: async (ctx, args) => {
     const user = await requirePlanOwnerWriteAccess(ctx, args.planId);
+    if (args.status === 'submitted') {
+      throw new ConvexError('Use a write-back to submit annotations');
+    }
     const validated = validateAnnotationInput(args);
     const now = Date.now();
 
@@ -173,6 +176,9 @@ export const updateAnnotation = mutation({
     if (args.replacementText !== undefined)
       nextAnnotation.replacementText = args.replacementText.trim();
     if (args.status !== undefined) {
+      if (args.status === 'submitted') {
+        throw new ConvexError('Use a write-back to submit annotations');
+      }
       nextAnnotation.status = args.status;
     }
 
@@ -189,14 +195,45 @@ export const updateAnnotation = mutation({
 export const markSubmitted = mutation({
   args: {
     annotationIds: v.array(v.id('planAnnotations')),
-    writebackId: v.optional(v.id('plannotatorWritebacks')),
+    writebackId: v.id('plannotatorWritebacks'),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    for (const annotationId of args.annotationIds) {
+    const writeback = await ctx.db.get(args.writebackId);
+    if (!writeback) throw new ConvexError('Write-back not found');
+    if (writeback.status !== 'pending' || writeback.expiresAt <= now) {
+      throw new ConvexError('Write-back is not pending');
+    }
+
+    const user = await requirePlanOwnerWriteAccess(ctx, writeback.planId);
+    if (writeback.ownerId !== user._id) throw new ConvexError('Access denied');
+
+    const annotationIds = [...new Set(args.annotationIds)];
+    const writebackAnnotationIds = new Set(writeback.annotationIds ?? []);
+    const nextWritebackAnnotationIds = [...(writeback.annotationIds ?? [])];
+    for (const annotationId of annotationIds) {
       const annotation = await ctx.db.get(annotationId);
-      if (!annotation) continue;
-      await requirePlanOwnerWriteAccess(ctx, annotation.planId);
+      if (
+        !annotation ||
+        annotation.planId !== writeback.planId ||
+        annotation.authorId !== user._id
+      ) {
+        throw new ConvexError('Annotation does not belong to this write-back');
+      }
+      if (!writebackAnnotationIds.has(annotationId)) {
+        writebackAnnotationIds.add(annotationId);
+        nextWritebackAnnotationIds.push(annotationId);
+      }
+    }
+
+    if (nextWritebackAnnotationIds.length !== (writeback.annotationIds ?? []).length) {
+      await ctx.db.patch(args.writebackId, {
+        annotationIds: nextWritebackAnnotationIds,
+        updatedAt: now,
+      });
+    }
+
+    for (const annotationId of annotationIds) {
       await ctx.db.patch(annotationId, {
         status: 'submitted',
         submittedAt: now,
