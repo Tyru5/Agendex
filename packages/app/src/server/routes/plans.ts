@@ -105,6 +105,11 @@ plans.post('/plans/:id/annotations', async (c) => {
     return c.json({ error: 'Suggested replacement text is required' }, 400);
   }
 
+  const CREATE_VALID_STATUSES = new Set(['draft', 'open', 'resolved']);
+  if (body.status !== undefined && !CREATE_VALID_STATUSES.has(body.status)) {
+    return c.json({ error: 'invalid annotation status' }, 400);
+  }
+
   const annotation = await createPlanAnnotation(planId, {
     type: body.type,
     status: body.status ?? 'open',
