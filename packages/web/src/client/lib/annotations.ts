@@ -35,10 +35,6 @@ export interface PlanAnnotationRecord {
 
 const CONTEXT_CHARS = 80;
 
-function normalizeWhitespace(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
-}
-
 function hashString(value: string): string {
   let hash = 2166136261;
   for (let i = 0; i < value.length; i++) {
@@ -49,8 +45,9 @@ function hashString(value: string): string {
 }
 
 export function createPlanTextAnchor(content: string, selectedText: string): PlanTextAnchor {
+  const contentHash = hashString(content);
   const quote = selectedText.trim();
-  if (!quote) return { contentHash: hashString(content) };
+  if (!quote) return { contentHash };
 
   const exactOffset = content.indexOf(quote);
   if (exactOffset >= 0) {
@@ -60,22 +57,13 @@ export function createPlanTextAnchor(content: string, selectedText: string): Pla
       endOffset: exactOffset + quote.length,
       prefix: content.slice(Math.max(0, exactOffset - CONTEXT_CHARS), exactOffset),
       suffix: content.slice(exactOffset + quote.length, exactOffset + quote.length + CONTEXT_CHARS),
-      contentHash: hashString(content),
+      contentHash,
     };
   }
 
-  const normalizedQuote = normalizeWhitespace(quote);
-  const normalizedContent = normalizeWhitespace(content);
-  const normalizedOffset = normalizedQuote ? normalizedContent.indexOf(normalizedQuote) : -1;
-
+  // Normalized offsets cannot be applied to the original content string.
   return {
     quote,
-    ...(normalizedOffset >= 0
-      ? {
-          startOffset: normalizedOffset,
-          endOffset: normalizedOffset + normalizedQuote.length,
-        }
-      : {}),
-    contentHash: hashString(content),
+    contentHash,
   };
 }

@@ -45,6 +45,8 @@ export type PlanAnnotationCreateDraft = {
   replacementText?: string;
 };
 
+export type PlanAnnotationCreateResult = void | false;
+
 type SelectionToolbarState = {
   selectedText: string;
   anchor: PlanTextAnchor;
@@ -91,7 +93,11 @@ type PlanViewerProps = {
   selectedAnnotationId?: string | null;
   canCreateAnnotations?: boolean;
   annotationUpgradeMessage?: string;
-  onCreateAnnotation?: (draft: PlanAnnotationCreateDraft) => void | Promise<void>;
+  annotationCreateError?: string;
+  onCreateAnnotation?: (
+    draft: PlanAnnotationCreateDraft,
+  ) => PlanAnnotationCreateResult | Promise<PlanAnnotationCreateResult>;
+  onClearAnnotationCreateError?: () => void;
   onSelectAnnotation?: (id: string | null) => void;
 };
 
@@ -110,7 +116,9 @@ export function PlanViewer({
   selectedAnnotationId,
   canCreateAnnotations = false,
   annotationUpgradeMessage,
+  annotationCreateError,
   onCreateAnnotation,
+  onClearAnnotationCreateError,
   onSelectAnnotation,
 }: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
@@ -118,6 +126,7 @@ export function PlanViewer({
   const [annotationComposer, setAnnotationComposer] = useState<AnnotationComposerState | null>(
     null,
   );
+  const [annotationComposerError, setAnnotationComposerError] = useState<string | undefined>();
   const bodyRef = useRef<HTMLElement | null>(null);
   const annotationComposerFirstFieldRef = useRef<HTMLTextAreaElement | null>(null);
   const fullscreen = useFullscreen<HTMLDivElement>();
@@ -200,10 +209,14 @@ export function PlanViewer({
 
   function beginAnnotationFromSelection(type: PlanAnnotationKind) {
     if (!selectionToolbar || !onCreateAnnotation) return;
+    onClearAnnotationCreateError?.();
+    setAnnotationComposerError(undefined);
     setAnnotationComposer({ type, body: '', replacementText: '' });
   }
 
   function dismissAnnotationComposer() {
+    onClearAnnotationCreateError?.();
+    setAnnotationComposerError(undefined);
     window.getSelection()?.removeAllRanges();
     setAnnotationComposer(null);
     setSelectionToolbar(null);
@@ -218,13 +231,24 @@ export function PlanViewer({
     if (requiresReplacementText(annotationComposer.type) && !replacementText) return;
     if (requiresBody(annotationComposer.type) && !body) return;
 
-    await onCreateAnnotation({
-      type: annotationComposer.type,
-      selectedText: selectionToolbar.selectedText,
-      anchor: selectionToolbar.anchor,
-      body,
-      replacementText,
-    });
+    onClearAnnotationCreateError?.();
+    setAnnotationComposerError(undefined);
+
+    try {
+      const result = await onCreateAnnotation({
+        type: annotationComposer.type,
+        selectedText: selectionToolbar.selectedText,
+        anchor: selectionToolbar.anchor,
+        body,
+        replacementText,
+      });
+      if (result === false) return;
+    } catch (err) {
+      setAnnotationComposerError(
+        err instanceof Error ? err.message : 'Failed to create annotation',
+      );
+      return;
+    }
 
     window.getSelection()?.removeAllRanges();
     setAnnotationComposer(null);
@@ -236,6 +260,7 @@ export function PlanViewer({
         annotationComposer.replacementText.trim().length > 0) &&
       (!requiresBody(annotationComposer.type) || annotationComposer.body.trim().length > 0)
     : false;
+  const composerError = annotationCreateError ?? annotationComposerError;
 
   return (
     <div
@@ -473,6 +498,11 @@ export function PlanViewer({
                 required={requiresBody(annotationComposer.type)}
               />
             </label>
+            {composerError && (
+              <div className="plan-annotation-composer-error" role="alert">
+                {composerError}
+              </div>
+            )}
             <div className="plan-annotation-composer-actions">
               <button type="button" onClick={dismissAnnotationComposer}>
                 Cancel

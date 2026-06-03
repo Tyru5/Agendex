@@ -679,7 +679,9 @@ function DashboardMain({
             annotationUpgradeMessage={
               mode === 'cloud' ? 'Inline plan annotations are available on Cloud Pro.' : undefined
             }
+            annotationCreateError={selectedAnnotationState.createError}
             onCreateAnnotation={selectedAnnotationState.createAnnotation}
+            onClearAnnotationCreateError={selectedAnnotationState.clearCreateError}
             onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
           />
           {isPro && mode === 'cloud' && (
@@ -715,7 +717,9 @@ function DashboardMain({
             annotationUpgradeMessage={
               mode === 'cloud' ? 'Inline plan annotations are available on Cloud Pro.' : undefined
             }
+            annotationCreateError={splitAnnotationState.createError}
             onCreateAnnotation={splitAnnotationState.createAnnotation}
+            onClearAnnotationCreateError={splitAnnotationState.clearCreateError}
             onSelectAnnotation={splitAnnotationState.setSelectedAnnotationId}
           />
           {isPro && mode === 'cloud' && (
@@ -826,7 +830,9 @@ function DashboardMain({
               annotationUpgradeMessage={
                 mode === 'cloud' ? 'Inline plan annotations are available on Cloud Pro.' : undefined
               }
+              annotationCreateError={selectedAnnotationState.createError}
               onCreateAnnotation={selectedAnnotationState.createAnnotation}
+              onClearAnnotationCreateError={selectedAnnotationState.clearCreateError}
               onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
             />
             {isPro && mode === 'cloud' && (

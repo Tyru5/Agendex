@@ -82,6 +82,7 @@ export function useCloudPlanAnnotations({
   enabled: boolean;
 }) {
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | undefined>();
   const createAnnotationMutation = useMutation(api.annotations.createAnnotation);
   const docs = useQuery(
     api.annotations.listForPlan,
@@ -91,17 +92,30 @@ export function useCloudPlanAnnotations({
   const annotations = useMemo(() => (docs ?? []).map(toWebAnnotation), [docs]);
 
   async function createAnnotation(draft: PlanAnnotationCreateDraft) {
-    if (!plan) return;
-    const id = await createAnnotationMutation({
-      planId: plan.id as Id<'plans'>,
-      type: draft.type,
-      body: draft.body,
-      replacementText: draft.replacementText,
-      anchor: draft.anchor,
-      status: 'open',
-      source: 'agendex-cloud',
-    });
-    setSelectedAnnotationId(id);
+    if (!plan) {
+      setCreateError('Failed to create annotation');
+      return false;
+    }
+    setCreateError(undefined);
+    try {
+      const id = await createAnnotationMutation({
+        planId: plan.id as Id<'plans'>,
+        type: draft.type,
+        body: draft.body,
+        replacementText: draft.replacementText,
+        anchor: draft.anchor,
+        status: 'open',
+        source: 'agendex-cloud',
+      });
+      setSelectedAnnotationId(id);
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Failed to create annotation');
+      return false;
+    }
+  }
+
+  function clearCreateError() {
+    setCreateError(undefined);
   }
 
   return {
@@ -109,6 +123,8 @@ export function useCloudPlanAnnotations({
     selectedAnnotationId,
     setSelectedAnnotationId,
     createAnnotation,
+    createError,
+    clearCreateError,
   };
 }
 

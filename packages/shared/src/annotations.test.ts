@@ -19,6 +19,15 @@ describe('plan annotations', () => {
     expect(anchor.contentHash).toBeTruthy();
   });
 
+  test('omits offsets when only normalized whitespace matches', () => {
+    const anchor = createPlanTextAnchor('First line\nSecond target line', 'First line Second');
+
+    expect(anchor.quote).toBe('First line Second');
+    expect(anchor.startOffset).toBeUndefined();
+    expect(anchor.endOffset).toBeUndefined();
+    expect(anchor.contentHash).toBeTruthy();
+  });
+
   test('formats annotation feedback for agents', () => {
     const annotation = createPlanAnnotationRecord(
       {
