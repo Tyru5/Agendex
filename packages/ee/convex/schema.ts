@@ -64,6 +64,7 @@ const planTextAnchor = v.object({
   quote: v.optional(v.string()),
   startOffset: v.optional(v.number()),
   endOffset: v.optional(v.number()),
+  occurrenceIndex: v.optional(v.number()),
   prefix: v.optional(v.string()),
   suffix: v.optional(v.string()),
   contentHash: v.optional(v.string()),
@@ -330,6 +331,7 @@ export default defineSchema({
     feedback: v.string(),
     revisedContent: v.optional(v.string()),
     annotations: v.optional(v.array(plannotatorFeedbackAnnotation)),
+    annotationIds: v.optional(v.array(v.id('planAnnotations'))),
     source: v.string(),
     status: v.union(
       v.literal('pending'),

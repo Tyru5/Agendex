@@ -133,12 +133,14 @@ export function CloudPlanAnnotationsPanel({
   annotations,
   selectedAnnotationId,
   onSelectAnnotation,
+  canWriteAnnotations = false,
   daemonAvailable = true,
 }: {
   plan: Plan;
   annotations: PlanAnnotationRecord[];
   selectedAnnotationId?: string | null;
   onSelectAnnotation?: (id: string | null) => void;
+  canWriteAnnotations?: boolean;
   daemonAvailable?: boolean;
 }) {
   const enqueueWriteback = useMutation(api.plannotator.enqueueWriteback);
@@ -156,7 +158,11 @@ export function CloudPlanAnnotationsPanel({
     () => annotations.filter((annotation) => annotation.status === 'open'),
     [annotations],
   );
-  const canWriteback = isLivePlannotatorPlan(plan) && daemonAvailable && openAnnotations.length > 0;
+  const canWriteback =
+    canWriteAnnotations &&
+    isLivePlannotatorPlan(plan) &&
+    daemonAvailable &&
+    openAnnotations.length > 0;
 
   async function submitAnnotations() {
     if (!canWriteback) return;
@@ -209,7 +215,9 @@ export function CloudPlanAnnotationsPanel({
       <section className="mt-8 rounded-xl border border-border bg-surface p-4">
         <h2 className="text-[13px] font-semibold text-text">Plan annotations</h2>
         <p className="mt-1 text-[12px] text-tertiary">
-          Highlight plan text to add structured feedback for the agent.
+          {canWriteAnnotations
+            ? 'Highlight plan text to add structured feedback for the agent.'
+            : 'No plan annotations.'}
         </p>
       </section>
     );
@@ -224,14 +232,16 @@ export function CloudPlanAnnotationsPanel({
             {unresolvedAnnotations.length} unresolved · {openAnnotations.length} ready to submit
           </p>
         </div>
-        <button
-          type="button"
-          onClick={submitAnnotations}
-          disabled={submitting || !canWriteback}
-          className="rounded-lg border-0 bg-text px-3 py-1.5 text-[12px] font-semibold text-bg disabled:opacity-50"
-        >
-          {submitting ? 'Submitting…' : daemonAvailable ? 'Submit to agent' : 'Daemon required'}
-        </button>
+        {canWriteAnnotations && (
+          <button
+            type="button"
+            onClick={submitAnnotations}
+            disabled={submitting || !canWriteback}
+            className="rounded-lg border-0 bg-text px-3 py-1.5 text-[12px] font-semibold text-bg disabled:opacity-50"
+          >
+            {submitting ? 'Submitting…' : daemonAvailable ? 'Submit to agent' : 'Daemon required'}
+          </button>
+        )}
       </div>
 
       <div className="mt-3 space-y-2">
@@ -273,32 +283,38 @@ export function CloudPlanAnnotationsPanel({
                   {annotation.replacementText}
                 </p>
               )}
-              <div className="mt-3 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => void resolveAnnotation(annotation)}
-                  className="rounded-md border border-border bg-transparent px-2 py-1 text-[11px] font-medium text-secondary"
-                >
-                  {annotation.status === 'resolved' ? 'Reopen' : 'Resolve'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void removeAnnotation(annotation)}
-                  className="rounded-md border border-border bg-transparent px-2 py-1 text-[11px] font-medium text-[var(--danger)]"
-                >
-                  Delete
-                </button>
-              </div>
+              {canWriteAnnotations && (
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void resolveAnnotation(annotation)}
+                    className="rounded-md border border-border bg-transparent px-2 py-1 text-[11px] font-medium text-secondary"
+                  >
+                    {annotation.status === 'resolved' ? 'Reopen' : 'Resolve'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void removeAnnotation(annotation)}
+                    className="rounded-md border border-border bg-transparent px-2 py-1 text-[11px] font-medium text-[var(--danger)]"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
             </article>
           );
         })}
       </div>
 
       <div className="mt-3 min-h-[16px] text-[11px] text-tertiary">
-        {queued && 'Queued selected annotations for daemon delivery.'}
-        {error && <span className="text-[var(--danger)]">{error}</span>}
-        {!isLivePlannotatorPlan(plan) &&
-          'Agent submission is available for live Plannotator sessions.'}
+        {queued ? 'Queued selected annotations for daemon delivery.' : null}
+        {error ? <span className="text-[var(--danger)]">{error}</span> : null}
+        {!queued && !error && !canWriteAnnotations
+          ? 'Only the plan owner can submit or update annotations.'
+          : null}
+        {!queued && !error && canWriteAnnotations && !isLivePlannotatorPlan(plan)
+          ? 'Agent submission is available for live Plannotator sessions.'
+          : null}
       </div>
     </section>
   );

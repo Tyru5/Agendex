@@ -77,6 +77,7 @@ plans.post('/plans/:id/annotations', async (c) => {
       quote?: string;
       startOffset?: number;
       endOffset?: number;
+      occurrenceIndex?: number;
       prefix?: string;
       suffix?: string;
       contentHash?: string;

@@ -590,6 +590,24 @@ function DashboardMain({
     plan: splitPlan,
     enabled: mode === 'cloud' && isPro && Boolean(splitPlan),
   });
+  const { user } = useAuth();
+  const currentUserId = user?.id ? String(user.id) : undefined;
+  const canWriteSelectedAnnotations =
+    mode === 'cloud' && isPro && Boolean(currentUserId) && selectedPlan?.ownerId === currentUserId;
+  const canWriteSplitAnnotations =
+    mode === 'cloud' && isPro && Boolean(currentUserId) && splitPlan?.ownerId === currentUserId;
+  const selectedAnnotationUnavailableMessage =
+    mode === 'cloud' && selectedPlan && !canWriteSelectedAnnotations
+      ? isPro
+        ? 'Only the plan owner can create inline annotations.'
+        : 'Inline plan annotations are available on Cloud Pro.'
+      : undefined;
+  const splitAnnotationUnavailableMessage =
+    mode === 'cloud' && splitPlan && !canWriteSplitAnnotations
+      ? isPro
+        ? 'Only the plan owner can create inline annotations.'
+        : 'Inline plan annotations are available on Cloud Pro.'
+      : undefined;
 
   // Entitlements resolve after auth/session rehydration; don't show the paywall during that gap.
   if (mode === 'cloud' && isWorkspaceAccessLoading) {
@@ -675,10 +693,8 @@ function DashboardMain({
             chartHidden={chartHidden}
             annotations={selectedAnnotationState.annotations}
             selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
-            canCreateAnnotations={mode === 'cloud' && isPro}
-            annotationUpgradeMessage={
-              mode === 'cloud' ? 'Inline plan annotations are available on Cloud Pro.' : undefined
-            }
+            canCreateAnnotations={canWriteSelectedAnnotations}
+            annotationUpgradeMessage={selectedAnnotationUnavailableMessage}
             annotationCreateError={selectedAnnotationState.createError}
             onCreateAnnotation={selectedAnnotationState.createAnnotation}
             onClearAnnotationCreateError={selectedAnnotationState.clearCreateError}
@@ -691,10 +707,12 @@ function DashboardMain({
                 annotations={selectedAnnotationState.annotations}
                 selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
                 onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
+                canWriteAnnotations={canWriteSelectedAnnotations}
                 daemonAvailable={!cloudSyncPaused}
               />
               <CloudPlannotatorWritebackPanel
                 plan={selectedPlan}
+                canQueueWriteback={canWriteSelectedAnnotations}
                 daemonAvailable={!cloudSyncPaused}
               />
               <CommentThread planId={selectedPlan.id} isOwner />
@@ -713,10 +731,8 @@ function DashboardMain({
             chartHidden={chartHidden}
             annotations={splitAnnotationState.annotations}
             selectedAnnotationId={splitAnnotationState.selectedAnnotationId}
-            canCreateAnnotations={mode === 'cloud' && isPro}
-            annotationUpgradeMessage={
-              mode === 'cloud' ? 'Inline plan annotations are available on Cloud Pro.' : undefined
-            }
+            canCreateAnnotations={canWriteSplitAnnotations}
+            annotationUpgradeMessage={splitAnnotationUnavailableMessage}
             annotationCreateError={splitAnnotationState.createError}
             onCreateAnnotation={splitAnnotationState.createAnnotation}
             onClearAnnotationCreateError={splitAnnotationState.clearCreateError}
@@ -729,9 +745,14 @@ function DashboardMain({
                 annotations={splitAnnotationState.annotations}
                 selectedAnnotationId={splitAnnotationState.selectedAnnotationId}
                 onSelectAnnotation={splitAnnotationState.setSelectedAnnotationId}
+                canWriteAnnotations={canWriteSplitAnnotations}
                 daemonAvailable={!cloudSyncPaused}
               />
-              <CloudPlannotatorWritebackPanel plan={splitPlan} daemonAvailable={!cloudSyncPaused} />
+              <CloudPlannotatorWritebackPanel
+                plan={splitPlan}
+                canQueueWriteback={canWriteSplitAnnotations}
+                daemonAvailable={!cloudSyncPaused}
+              />
               <CommentThread planId={splitPlan.id} isOwner />
             </div>
           )}
@@ -826,10 +847,8 @@ function DashboardMain({
               chartHidden={chartHidden}
               annotations={selectedAnnotationState.annotations}
               selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
-              canCreateAnnotations={mode === 'cloud' && isPro}
-              annotationUpgradeMessage={
-                mode === 'cloud' ? 'Inline plan annotations are available on Cloud Pro.' : undefined
-              }
+              canCreateAnnotations={canWriteSelectedAnnotations}
+              annotationUpgradeMessage={selectedAnnotationUnavailableMessage}
               annotationCreateError={selectedAnnotationState.createError}
               onCreateAnnotation={selectedAnnotationState.createAnnotation}
               onClearAnnotationCreateError={selectedAnnotationState.clearCreateError}
@@ -842,10 +861,12 @@ function DashboardMain({
                   annotations={selectedAnnotationState.annotations}
                   selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
                   onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
+                  canWriteAnnotations={canWriteSelectedAnnotations}
                   daemonAvailable={!cloudSyncPaused}
                 />
                 <CloudPlannotatorWritebackPanel
                   plan={selectedPlan}
+                  canQueueWriteback={canWriteSelectedAnnotations}
                   daemonAvailable={!cloudSyncPaused}
                 />
                 <CommentThread planId={selectedPlan.id} isOwner />

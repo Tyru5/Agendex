@@ -10,6 +10,7 @@ export interface PlanTextAnchor {
   quote?: string;
   startOffset?: number;
   endOffset?: number;
+  occurrenceIndex?: number;
   prefix?: string;
   suffix?: string;
   contentHash?: string;
@@ -35,6 +36,10 @@ export interface PlanAnnotationRecord {
 
 const CONTEXT_CHARS = 80;
 
+type CreatePlanTextAnchorOptions = {
+  occurrenceIndex?: number;
+};
+
 function hashString(value: string): string {
   let hash = 2166136261;
   for (let i = 0; i < value.length; i++) {
@@ -44,17 +49,29 @@ function hashString(value: string): string {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-export function createPlanTextAnchor(content: string, selectedText: string): PlanTextAnchor {
+export function createPlanTextAnchor(
+  content: string,
+  selectedText: string,
+  options?: CreatePlanTextAnchorOptions,
+): PlanTextAnchor {
   const contentHash = hashString(content);
   const quote = selectedText.trim();
   if (!quote) return { contentHash };
 
-  const exactOffset = content.indexOf(quote);
+  const occurrenceIndex = Math.max(0, Math.floor(options?.occurrenceIndex ?? 0));
+  let exactOffset = -1;
+  let searchFrom = 0;
+  for (let occurrence = 0; occurrence <= occurrenceIndex; occurrence++) {
+    exactOffset = content.indexOf(quote, searchFrom);
+    if (exactOffset < 0) break;
+    searchFrom = exactOffset + quote.length;
+  }
   if (exactOffset >= 0) {
     return {
       quote,
       startOffset: exactOffset,
       endOffset: exactOffset + quote.length,
+      occurrenceIndex,
       prefix: content.slice(Math.max(0, exactOffset - CONTEXT_CHARS), exactOffset),
       suffix: content.slice(exactOffset + quote.length, exactOffset + quote.length + CONTEXT_CHARS),
       contentHash,
@@ -64,6 +81,7 @@ export function createPlanTextAnchor(content: string, selectedText: string): Pla
   // Normalized offsets cannot be applied to the original content string.
   return {
     quote,
+    occurrenceIndex,
     contentHash,
   };
 }

@@ -62,6 +62,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface Plan {
   id: string;
+  ownerId?: string;
   agent: string;
   title: string;
   content: string;
@@ -100,6 +101,7 @@ export interface PlanAnnotationApiRecord {
     quote?: string;
     startOffset?: number;
     endOffset?: number;
+    occurrenceIndex?: number;
     prefix?: string;
     suffix?: string;
     contentHash?: string;

@@ -34,7 +34,39 @@ type TextSegment = {
   end: number;
 };
 
-function findQuoteRange(root: HTMLElement, quote: string): Range | null {
+function findNthOccurrence(value: string, needle: string, occurrenceIndex: number): number {
+  let searchFrom = 0;
+  for (let occurrence = 0; occurrence <= occurrenceIndex; occurrence++) {
+    const index = value.indexOf(needle, searchFrom);
+    if (index < 0) return -1;
+    if (occurrence === occurrenceIndex) return index;
+    searchFrom = index + needle.length;
+  }
+  return -1;
+}
+
+function createRangeFromTextIndex(
+  segments: TextSegment[],
+  index: number,
+  quoteLength: number,
+): Range | null {
+  const endIndex = index + quoteLength;
+  const startSegment = segments.find((segment) => index >= segment.start && index < segment.end);
+  const endSegment = segments.find(
+    (segment) => endIndex > segment.start && endIndex <= segment.end,
+  );
+  if (!startSegment || !endSegment) return null;
+
+  const range = document.createRange();
+  range.setStart(startSegment.node, index - startSegment.start);
+  range.setEnd(endSegment.node, endIndex - endSegment.start);
+  return range;
+}
+
+function findQuoteRange(root: HTMLElement, annotation: PlanAnnotationRecord): Range | null {
+  const quote = annotationQuote(annotation);
+  if (!quote) return null;
+
   const segments: TextSegment[] = [];
   let textContent = '';
 
@@ -57,20 +89,20 @@ function findQuoteRange(root: HTMLElement, quote: string): Range | null {
     node = walker.nextNode();
   }
 
-  const index = textContent.indexOf(quote);
+  const offset = annotation.anchor.startOffset;
+  if (
+    typeof offset === 'number' &&
+    offset >= 0 &&
+    textContent.slice(offset, offset + quote.length) === quote
+  ) {
+    return createRangeFromTextIndex(segments, offset, quote.length);
+  }
+
+  const occurrenceIndex = Math.max(0, Math.floor(annotation.anchor.occurrenceIndex ?? 0));
+  const index = findNthOccurrence(textContent, quote, occurrenceIndex);
   if (index < 0) return null;
 
-  const endIndex = index + quote.length;
-  const startSegment = segments.find((segment) => index >= segment.start && index < segment.end);
-  const endSegment = segments.find(
-    (segment) => endIndex > segment.start && endIndex <= segment.end,
-  );
-  if (!startSegment || !endSegment) return null;
-
-  const range = document.createRange();
-  range.setStart(startSegment.node, index - startSegment.start);
-  range.setEnd(endSegment.node, endIndex - endSegment.start);
-  return range;
+  return createRangeFromTextIndex(segments, index, quote.length);
 }
 
 function surroundRange(range: Range, mark: HTMLElement): void {
@@ -85,10 +117,7 @@ function surroundRange(range: Range, mark: HTMLElement): void {
 }
 
 function highlightFirstQuote(root: HTMLElement, annotation: PlanAnnotationRecord): boolean {
-  const quote = annotationQuote(annotation);
-  if (!quote) return false;
-
-  const range = findQuoteRange(root, quote);
+  const range = findQuoteRange(root, annotation);
   if (!range) return false;
 
   const mark = document.createElement('mark');

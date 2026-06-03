@@ -19,6 +19,17 @@ describe('plan annotations', () => {
     expect(anchor.contentHash).toBeTruthy();
   });
 
+  test('anchors duplicate text with the selected occurrence index', () => {
+    const content = 'repeat this. Then repeat this.';
+    const anchor = createPlanTextAnchor(content, 'repeat this', { occurrenceIndex: 1 });
+
+    const startOffset = content.lastIndexOf('repeat this');
+
+    expect(anchor.occurrenceIndex).toBe(1);
+    expect(anchor.startOffset).toBe(startOffset);
+    expect(anchor.endOffset).toBe(startOffset + 'repeat this'.length);
+  });
+
   test('omits offsets when only normalized whitespace matches', () => {
     const anchor = createPlanTextAnchor('First line\nSecond target line', 'First line Second');
 

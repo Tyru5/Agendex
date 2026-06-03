@@ -86,14 +86,16 @@ export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
 
 export function CloudPlannotatorWritebackPanel({
   plan,
+  canQueueWriteback = true,
   daemonAvailable = true,
 }: {
   plan: Plan;
+  canQueueWriteback?: boolean;
   daemonAvailable?: boolean;
 }) {
   const metadata = getPlannotatorMetadata(plan);
   const isLive = metadata?.kind === 'live-session' && metadata.writebackCapable === true;
-  const canRequestChanges = isLive && daemonAvailable;
+  const canRequestChanges = isLive && daemonAvailable && canQueueWriteback;
   const enqueueWriteback = useMutation(api.plannotator.enqueueWriteback);
   const writebacks = useQuery(
     api.plannotator.listWritebacksForPlan,
@@ -172,16 +174,23 @@ export function CloudPlannotatorWritebackPanel({
           />
           <div className="flex items-center justify-between gap-3">
             <div className="text-[11px] text-tertiary">
-              {!daemonAvailable && (
+              {!canQueueWriteback && (
+                <span>Only the plan owner can queue request-changes feedback.</span>
+              )}
+              {canQueueWriteback && !daemonAvailable && (
                 <span>
                   Sync paused. Run{' '}
                   <code className="rounded bg-hover px-1 py-0.5">agendex start</code> to enable
                   write-back delivery.
                 </span>
               )}
-              {daemonAvailable && queued && 'Queued for daemon delivery.'}
-              {daemonAvailable && error && <span className="text-[var(--danger)]">{error}</span>}
-              {daemonAvailable && !queued && !error && latest?.error ? latest.error : null}
+              {canQueueWriteback && daemonAvailable && queued && 'Queued for daemon delivery.'}
+              {canQueueWriteback && daemonAvailable && error && (
+                <span className="text-[var(--danger)]">{error}</span>
+              )}
+              {canQueueWriteback && daemonAvailable && !queued && !error && latest?.error
+                ? latest.error
+                : null}
             </div>
             <button
               type="button"
@@ -193,9 +202,11 @@ export function CloudPlannotatorWritebackPanel({
             >
               {submitting
                 ? 'Queueing…'
-                : daemonAvailable
-                  ? 'Queue manual request'
-                  : 'Daemon required'}
+                : !canQueueWriteback
+                  ? 'Owner only'
+                  : daemonAvailable
+                    ? 'Queue manual request'
+                    : 'Daemon required'}
             </button>
           </div>
         </div>

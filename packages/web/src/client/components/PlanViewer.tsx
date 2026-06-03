@@ -78,6 +78,30 @@ function bodyLabel(type: PlanAnnotationKind): string {
   return 'Feedback for the agent';
 }
 
+function countOccurrences(value: string, needle: string): number {
+  if (!needle) return 0;
+  let count = 0;
+  let searchFrom = 0;
+  while (searchFrom < value.length) {
+    const index = value.indexOf(needle, searchFrom);
+    if (index < 0) break;
+    count++;
+    searchFrom = index + needle.length;
+  }
+  return count;
+}
+
+function occurrenceIndexForSelection(
+  root: HTMLElement,
+  range: Range,
+  selectedText: string,
+): number {
+  const beforeRange = document.createRange();
+  beforeRange.selectNodeContents(root);
+  beforeRange.setEnd(range.startContainer, range.startOffset);
+  return countOccurrences(beforeRange.toString(), selectedText);
+}
+
 type PlanViewerProps = {
   plan: Plan;
   headerExtra?: ReactNode;
@@ -216,9 +240,10 @@ export function PlanViewer({
       }
 
       const rect = range.getBoundingClientRect();
+      const occurrenceIndex = occurrenceIndexForSelection(root, range, selectedText);
       setSelectionToolbar({
         selectedText,
-        anchor: createPlanTextAnchor(renderContent, selectedText),
+        anchor: createPlanTextAnchor(renderContent, selectedText, { occurrenceIndex }),
         top: Math.max(8, rect.top - 48),
         left: rect.left + rect.width / 2,
       });

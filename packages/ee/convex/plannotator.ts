@@ -1,6 +1,13 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import { internalMutation, internalQuery, mutation, query } from './_generated/server';
+import type { Id } from './_generated/dataModel';
+import {
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+  mutation,
+  query,
+} from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
@@ -67,6 +74,31 @@ function getPlanSyncDeviceId(plan: { metadata?: unknown }): string | undefined {
   return typeof sync.deviceId === 'string' && sync.deviceId.trim() ? sync.deviceId : undefined;
 }
 
+async function reopenWritebackAnnotations(
+  ctx: MutationCtx,
+  annotationIds: Id<'planAnnotations'>[] | undefined,
+  writebackId: Id<'plannotatorWritebacks'>,
+  now: number,
+): Promise<void> {
+  for (const annotationId of annotationIds ?? []) {
+    const annotation = await ctx.db.get(annotationId);
+    if (
+      !annotation ||
+      annotation.status !== 'submitted' ||
+      annotation.writebackId !== writebackId
+    ) {
+      continue;
+    }
+
+    const { _id: _ignoredId, _creationTime: _ignoredCreationTime, ...nextAnnotation } = annotation;
+    nextAnnotation.status = 'open';
+    nextAnnotation.updatedAt = now;
+    delete nextAnnotation.submittedAt;
+    delete nextAnnotation.writebackId;
+    await ctx.db.replace(annotationId, nextAnnotation);
+  }
+}
+
 export const enqueueWriteback = mutation({
   args: {
     planId: v.id('plans'),
@@ -128,6 +160,7 @@ export const enqueueWriteback = mutation({
       feedback,
       revisedContent,
       annotations: args.annotations,
+      annotationIds,
       source: 'agendex-cloud',
       status: 'pending',
       createdAt: now,
@@ -224,6 +257,7 @@ export const markExpiredWritebacks = internalMutation({
         error: 'Write-back expired before a daemon could send it.',
         updatedAt: args.now,
       });
+      await reopenWritebackAnnotations(ctx, row.annotationIds, row._id, args.now);
       expired++;
     }
     return { expired };
@@ -253,5 +287,8 @@ export const reportWritebackStatus = internalMutation({
       updatedAt: now,
       sentAt: args.status === 'sent' ? now : row.sentAt,
     });
+    if (args.status !== 'sent') {
+      await reopenWritebackAnnotations(ctx, row.annotationIds, args.writebackId, now);
+    }
   },
 });

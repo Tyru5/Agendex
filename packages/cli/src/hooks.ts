@@ -397,7 +397,8 @@ export async function runHookReviewCommand(args: string[]): Promise<number> {
     return 1;
   }
 
-  // Until the interactive review-session server lands, this command is intentionally pass-through.
-  // Hook-native contracts treat empty stdout as approval for Claude Code and Codex.
-  return 0;
+  console.error(
+    '[agendex] hook-native plan review is not implemented yet. Uninstall this hook or wait for the interactive review-session server before enabling it.',
+  );
+  return 1;
 }

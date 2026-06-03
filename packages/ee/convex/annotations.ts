@@ -24,6 +24,7 @@ const planTextAnchor = v.object({
   quote: v.optional(v.string()),
   startOffset: v.optional(v.number()),
   endOffset: v.optional(v.number()),
+  occurrenceIndex: v.optional(v.number()),
   prefix: v.optional(v.string()),
   suffix: v.optional(v.string()),
   contentHash: v.optional(v.string()),
