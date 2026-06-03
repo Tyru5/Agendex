@@ -166,22 +166,24 @@ export const updateAnnotation = mutation({
 
     await requirePlanOwnerWriteAccess(ctx, annotation.planId);
 
-    const patch: Partial<{
-      body: string;
-      replacementText: string;
-      status: 'draft' | 'open' | 'submitted' | 'resolved';
-      updatedAt: number;
-      resolvedAt: number | undefined;
-    }> = { updatedAt: Date.now() };
+    const now = Date.now();
+    const { _id: _ignoredId, _creationTime: _ignoredCreationTime, ...nextAnnotation } = annotation;
+    nextAnnotation.updatedAt = now;
 
-    if (args.body !== undefined) patch.body = args.body.trim();
-    if (args.replacementText !== undefined) patch.replacementText = args.replacementText.trim();
+    if (args.body !== undefined) nextAnnotation.body = args.body.trim();
+    if (args.replacementText !== undefined)
+      nextAnnotation.replacementText = args.replacementText.trim();
     if (args.status !== undefined) {
-      patch.status = args.status;
-      patch.resolvedAt = args.status === 'resolved' ? Date.now() : undefined;
+      nextAnnotation.status = args.status;
     }
 
-    await ctx.db.patch(args.annotationId, patch);
+    if (args.status === 'resolved') {
+      nextAnnotation.resolvedAt = now;
+    } else if (nextAnnotation.status !== 'resolved') {
+      delete nextAnnotation.resolvedAt;
+    }
+
+    await ctx.db.replace(args.annotationId, nextAnnotation);
   },
 });
 

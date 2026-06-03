@@ -114,12 +114,8 @@ plans.patch('/plans/:id/annotations/:annotationId', async (c) => {
     status?: 'draft' | 'open' | 'submitted' | 'resolved';
     writebackId?: string;
   }>();
-  if (
-    body.status !== 'draft' &&
-    body.status !== 'open' &&
-    body.status !== 'submitted' &&
-    body.status !== 'resolved'
-  ) {
+  const VALID_STATUSES = new Set(['draft', 'open', 'submitted', 'resolved']);
+  if (body.status !== undefined && !VALID_STATUSES.has(body.status)) {
     return c.json({ error: 'invalid annotation status' }, 400);
   }
 

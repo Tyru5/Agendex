@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
@@ -52,6 +52,30 @@ type SelectionToolbarState = {
   left: number;
 };
 
+type AnnotationComposerState = {
+  type: PlanAnnotationKind;
+  body: string;
+  replacementText: string;
+};
+
+function requiresReplacementText(type: PlanAnnotationKind): boolean {
+  return type === 'replacement' || type === 'insertion';
+}
+
+function requiresBody(type: PlanAnnotationKind): boolean {
+  return type === 'comment' || type === 'global_comment';
+}
+
+function replacementTextLabel(type: PlanAnnotationKind): string {
+  return type === 'insertion' ? 'Inserted text' : 'Suggested replacement text';
+}
+
+function bodyLabel(type: PlanAnnotationKind): string {
+  if (type === 'replacement' || type === 'insertion') return 'Optional note for the agent';
+  if (type === 'deletion') return 'Optional reason for deletion';
+  return 'Feedback for the agent';
+}
+
 type PlanViewerProps = {
   plan: Plan;
   headerExtra?: ReactNode;
@@ -91,7 +115,11 @@ export function PlanViewer({
 }: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null);
+  const [annotationComposer, setAnnotationComposer] = useState<AnnotationComposerState | null>(
+    null,
+  );
   const bodyRef = useRef<HTMLElement | null>(null);
+  const annotationComposerFirstFieldRef = useRef<HTMLTextAreaElement | null>(null);
   const fullscreen = useFullscreen<HTMLDivElement>();
   const isSplit = mode === 'split';
 
@@ -124,6 +152,13 @@ export function PlanViewer({
     onSelectAnnotation,
   });
 
+  const annotationComposerType = annotationComposer?.type;
+
+  useEffect(() => {
+    if (!annotationComposerType) return;
+    annotationComposerFirstFieldRef.current?.focus();
+  }, [annotationComposerType]);
+
   const showAnnotationUpgrade = Boolean(annotationUpgradeMessage && !canCreateAnnotations);
 
   function updateSelectionToolbar() {
@@ -134,18 +169,21 @@ export function PlanViewer({
       const selection = window.getSelection();
       if (!root || !selection || selection.isCollapsed || selection.rangeCount === 0) {
         setSelectionToolbar(null);
+        setAnnotationComposer(null);
         return;
       }
 
       const range = selection.getRangeAt(0);
       if (!root.contains(range.commonAncestorContainer)) {
         setSelectionToolbar(null);
+        setAnnotationComposer(null);
         return;
       }
 
       const selectedText = selection.toString().trim();
       if (selectedText.length < 2) {
         setSelectionToolbar(null);
+        setAnnotationComposer(null);
         return;
       }
 
@@ -156,28 +194,32 @@ export function PlanViewer({
         top: Math.max(8, rect.top - 48),
         left: rect.left + rect.width / 2,
       });
+      setAnnotationComposer(null);
     }, 0);
   }
 
-  async function createAnnotationFromSelection(type: PlanAnnotationKind) {
+  function beginAnnotationFromSelection(type: PlanAnnotationKind) {
     if (!selectionToolbar || !onCreateAnnotation) return;
+    setAnnotationComposer({ type, body: '', replacementText: '' });
+  }
 
-    let body: string | undefined;
-    let replacementText: string | undefined;
+  function dismissAnnotationComposer() {
+    window.getSelection()?.removeAllRanges();
+    setAnnotationComposer(null);
+    setSelectionToolbar(null);
+  }
 
-    if (type === 'replacement' || type === 'insertion') {
-      replacementText = window.prompt('Suggested replacement text')?.trim() || undefined;
-      if (!replacementText) return;
-      body = window.prompt('Optional note for the agent')?.trim() || undefined;
-    } else if (type === 'comment' || type === 'global_comment') {
-      body = window.prompt('Feedback for the agent')?.trim() || undefined;
-      if (!body) return;
-    } else if (type === 'deletion') {
-      body = window.prompt('Optional reason for deletion')?.trim() || undefined;
-    }
+  async function submitAnnotationComposer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectionToolbar || !annotationComposer || !onCreateAnnotation) return;
+
+    const body = annotationComposer.body.trim() || undefined;
+    const replacementText = annotationComposer.replacementText.trim() || undefined;
+    if (requiresReplacementText(annotationComposer.type) && !replacementText) return;
+    if (requiresBody(annotationComposer.type) && !body) return;
 
     await onCreateAnnotation({
-      type,
+      type: annotationComposer.type,
       selectedText: selectionToolbar.selectedText,
       anchor: selectionToolbar.anchor,
       body,
@@ -185,8 +227,15 @@ export function PlanViewer({
     });
 
     window.getSelection()?.removeAllRanges();
+    setAnnotationComposer(null);
     setSelectionToolbar(null);
   }
+
+  const canSubmitAnnotationComposer = annotationComposer
+    ? (!requiresReplacementText(annotationComposer.type) ||
+        annotationComposer.replacementText.trim().length > 0) &&
+      (!requiresBody(annotationComposer.type) || annotationComposer.body.trim().length > 0)
+    : false;
 
   return (
     <div
@@ -357,23 +406,82 @@ export function PlanViewer({
           </div>
         )}
 
-        {selectionToolbar && (
+        {selectionToolbar && !annotationComposer && (
           <div
             className="plan-annotation-toolbar"
             role="toolbar"
             aria-label="Create plan annotation"
             style={{ top: selectionToolbar.top, left: selectionToolbar.left }}
           >
-            <button type="button" onClick={() => void createAnnotationFromSelection('comment')}>
+            <button type="button" onClick={() => beginAnnotationFromSelection('comment')}>
               Comment
             </button>
-            <button type="button" onClick={() => void createAnnotationFromSelection('replacement')}>
+            <button type="button" onClick={() => beginAnnotationFromSelection('replacement')}>
               Replace
             </button>
-            <button type="button" onClick={() => void createAnnotationFromSelection('deletion')}>
+            <button type="button" onClick={() => beginAnnotationFromSelection('deletion')}>
               Delete
             </button>
           </div>
+        )}
+
+        {selectionToolbar && annotationComposer && (
+          <form
+            className="plan-annotation-composer"
+            aria-label="Create plan annotation"
+            style={{ top: selectionToolbar.top, left: selectionToolbar.left }}
+            onSubmit={(event) => void submitAnnotationComposer(event)}
+          >
+            {(annotationComposer.type === 'replacement' ||
+              annotationComposer.type === 'insertion') && (
+              <label className="plan-annotation-composer-field">
+                <span>{replacementTextLabel(annotationComposer.type)}</span>
+                <textarea
+                  value={annotationComposer.replacementText}
+                  ref={
+                    requiresReplacementText(annotationComposer.type)
+                      ? annotationComposerFirstFieldRef
+                      : undefined
+                  }
+                  onChange={(event) =>
+                    setAnnotationComposer((current) =>
+                      current
+                        ? { ...current, replacementText: event.currentTarget.value }
+                        : current,
+                    )
+                  }
+                  rows={2}
+                  required
+                />
+              </label>
+            )}
+            <label className="plan-annotation-composer-field">
+              <span>{bodyLabel(annotationComposer.type)}</span>
+              <textarea
+                value={annotationComposer.body}
+                ref={
+                  !requiresReplacementText(annotationComposer.type)
+                    ? annotationComposerFirstFieldRef
+                    : undefined
+                }
+                onChange={(event) =>
+                  setAnnotationComposer((current) =>
+                    current ? { ...current, body: event.currentTarget.value } : current,
+                  )
+                }
+                rows={annotationComposer.type === 'replacement' ? 2 : 3}
+                required={requiresBody(annotationComposer.type)}
+              />
+            </label>
+            <div className="plan-annotation-composer-actions">
+              <button type="button" onClick={dismissAnnotationComposer}>
+                Cancel
+              </button>
+              <button type="submit" disabled={!canSubmitAnnotationComposer}>
+                Add
+              </button>
+            </div>
+          </form>
         )}
 
         {/* Body */}

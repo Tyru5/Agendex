@@ -28,27 +28,68 @@ function annotationQuote(annotation: PlanAnnotationRecord): string | undefined {
   return annotation.anchor.quote?.trim() || undefined;
 }
 
-function highlightFirstQuote(root: HTMLElement, annotation: PlanAnnotationRecord): boolean {
-  const quote = annotationQuote(annotation);
-  if (!quote) return false;
+type TextSegment = {
+  node: Text;
+  start: number;
+  end: number;
+};
+
+function findQuoteRange(root: HTMLElement, quote: string): Range | null {
+  const segments: TextSegment[] = [];
+  let textContent = '';
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (shouldSkipNode(node)) return NodeFilter.FILTER_REJECT;
-      const text = node.textContent ?? '';
-      return text.includes(quote) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      return node.textContent ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
     },
   });
 
-  const node = walker.nextNode();
-  if (!node || !node.textContent) return false;
+  let node = walker.nextNode();
+  while (node) {
+    const text = node.textContent ?? '';
+    segments.push({
+      node: node as Text,
+      start: textContent.length,
+      end: textContent.length + text.length,
+    });
+    textContent += text;
+    node = walker.nextNode();
+  }
 
-  const index = node.textContent.indexOf(quote);
-  if (index < 0) return false;
+  const index = textContent.indexOf(quote);
+  if (index < 0) return null;
+
+  const endIndex = index + quote.length;
+  const startSegment = segments.find((segment) => index >= segment.start && index < segment.end);
+  const endSegment = segments.find(
+    (segment) => endIndex > segment.start && endIndex <= segment.end,
+  );
+  if (!startSegment || !endSegment) return null;
 
   const range = document.createRange();
-  range.setStart(node, index);
-  range.setEnd(node, index + quote.length);
+  range.setStart(startSegment.node, index - startSegment.start);
+  range.setEnd(endSegment.node, endIndex - endSegment.start);
+  return range;
+}
+
+function surroundRange(range: Range, mark: HTMLElement): void {
+  try {
+    range.surroundContents(mark);
+  } catch {
+    // surroundContents throws HierarchyRequestError when the range partially
+    // intersects an element boundary, such as bold or italic spans in markdown.
+    mark.appendChild(range.extractContents());
+    range.insertNode(mark);
+  }
+}
+
+function highlightFirstQuote(root: HTMLElement, annotation: PlanAnnotationRecord): boolean {
+  const quote = annotationQuote(annotation);
+  if (!quote) return false;
+
+  const range = findQuoteRange(root, quote);
+  if (!range) return false;
 
   const mark = document.createElement('mark');
   mark.dataset.agendexAnnotationId = annotation.id;
@@ -57,7 +98,7 @@ function highlightFirstQuote(root: HTMLElement, annotation: PlanAnnotationRecord
   mark.setAttribute('role', 'button');
   mark.setAttribute('aria-label', `Plan annotation: ${annotation.type.replace('_', ' ')}`);
 
-  range.surroundContents(mark);
+  surroundRange(range, mark);
   return true;
 }
 

@@ -1118,6 +1118,93 @@ body {
   outline: none;
 }
 
+.plan-annotation-composer {
+  position: fixed;
+  z-index: 85;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: min(320px, calc(100vw - 24px));
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--surface) 96%, black 4%);
+  box-shadow: 0 18px 48px color-mix(in oklch, black 24%, transparent);
+}
+
+.plan-annotation-composer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--tertiary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.plan-annotation-composer-field textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  padding: 7px 8px;
+  outline: none;
+}
+
+.plan-annotation-composer-field textarea:focus {
+  border-color: color-mix(in oklch, var(--accent) 54%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--accent) 18%, transparent);
+}
+
+.plan-annotation-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.plan-annotation-composer-actions button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  padding: 5px 10px;
+}
+
+.plan-annotation-composer-actions button[type='submit'] {
+  border-color: color-mix(in oklch, var(--accent) 54%, var(--border));
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.plan-annotation-composer-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.plan-annotation-composer-actions button:not(:disabled):hover,
+.plan-annotation-composer-actions button:not(:disabled):focus-visible {
+  border-color: var(--tertiary);
+  color: var(--text);
+  outline: none;
+}
+
+.plan-annotation-composer-actions button[type='submit']:not(:disabled):hover,
+.plan-annotation-composer-actions button[type='submit']:not(:disabled):focus-visible {
+  color: var(--accent-contrast);
+  filter: brightness(0.98);
+}
+
 .plan-annotation-upgrade {
   margin: 0 0 18px;
   padding: 10px 12px;
