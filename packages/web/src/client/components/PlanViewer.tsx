@@ -532,13 +532,12 @@ export function PlanViewer({
                       ? annotationComposerFirstFieldRef
                       : undefined
                   }
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const { value } = event.currentTarget;
                     setAnnotationComposer((current) =>
-                      current
-                        ? { ...current, replacementText: event.currentTarget.value }
-                        : current,
-                    )
-                  }
+                      current ? { ...current, replacementText: value } : current,
+                    );
+                  }}
                   rows={2}
                   required
                 />
@@ -553,11 +552,12 @@ export function PlanViewer({
                     ? annotationComposerFirstFieldRef
                     : undefined
                 }
-                onChange={(event) =>
+                onChange={(event) => {
+                  const { value } = event.currentTarget;
                   setAnnotationComposer((current) =>
-                    current ? { ...current, body: event.currentTarget.value } : current,
-                  )
-                }
+                    current ? { ...current, body: value } : current,
+                  );
+                }}
                 rows={annotationComposer.type === 'replacement' ? 2 : 3}
                 required={requiresBody(annotationComposer.type)}
               />
