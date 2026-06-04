@@ -21,7 +21,7 @@
     "cli:stop": "bun run --cwd ./packages/cli src/cli.ts stop",
     "cli:status": "bun run --cwd ./packages/cli src/cli.ts status",
     "changeset": "changeset",
-    "check:cli:release": "bun run fmt:check -- .gitignore .changeset .github/workflows README.md docs/self-hosting.md package.json packages/cli packages/shared/package.json packages/shared/src/adapters/cursor.ts packages/app/src/client/components/landing/data.ts packages/web/src/client/components/landing/data.ts && bun run lint -- packages/cli packages/shared/src/adapters/cursor.ts packages/app/src/client/components/landing/data.ts packages/web/src/client/components/landing/data.ts",
+    "check:cli:release": "bun run fmt:check -- --ignore-path .gitignore .gitignore .changeset .github/workflows README.md docs/self-hosting.md package.json packages/cli packages/shared/package.json packages/shared/src/adapters/cursor.ts packages/app/src/client/components/landing/data.ts packages/web/src/client/components/landing/data.ts && bun run lint -- packages/cli packages/shared/src/adapters/cursor.ts packages/app/src/client/components/landing/data.ts packages/web/src/client/components/landing/data.ts",
     "fmt": "oxfmt --write",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
