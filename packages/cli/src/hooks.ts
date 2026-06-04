@@ -105,7 +105,6 @@ function mergeCommandHook({
   const index = existingEvent.findIndex((item) => {
     if (!isRecord(item)) return false;
     if (item.id === MANAGED_MARKER) return true;
-    if (matcher && item.matcher === matcher) return true;
     return JSON.stringify(item).includes('agendex') && JSON.stringify(item).includes('review-plan');
   });
 

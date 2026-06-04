@@ -2,7 +2,7 @@
 
 ## Status update — implemented MVP slice
 
-**Updated:** 2026-06-01  
+**Updated:** 2026-06-01
 **Current state:** The first implementation pass is complete and ready for Plannotator review.
 
 This plan keeps Agendex positioned as the durable plan system of record and collaboration layer, while Plannotator remains the local/hook-native review gate. The implementation below adapts Plannotator-inspired annotation and feedback loops without cloning Plannotator wholesale.
