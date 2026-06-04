@@ -107,3 +107,32 @@ test('reopened annotations clear resolvedAt in the local store', async () => {
   expect(reopened?.status).toBe('open');
   expect(reopened?.resolvedAt).toBeUndefined();
 });
+
+test('reopened submitted annotations clear submission metadata in the local store', async () => {
+  await useTempConfigDir();
+
+  const annotation = await createPlanAnnotation('plan-1', {
+    type: 'comment',
+    body: 'Needs tests',
+    anchor: { quote: 'Tests' },
+  });
+  const submitted = await updatePlanAnnotationStatus({
+    planId: 'plan-1',
+    annotationId: annotation.id,
+    status: 'submitted',
+    writebackId: 'writeback-1',
+  });
+
+  expect(submitted?.submittedAt).toBeNumber();
+  expect(submitted?.writebackId).toBe('writeback-1');
+
+  const reopened = await updatePlanAnnotationStatus({
+    planId: 'plan-1',
+    annotationId: annotation.id,
+    status: 'open',
+  });
+
+  expect(reopened?.status).toBe('open');
+  expect(reopened?.submittedAt).toBeUndefined();
+  expect(reopened?.writebackId).toBeUndefined();
+});

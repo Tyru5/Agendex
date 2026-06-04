@@ -247,6 +247,7 @@ export function CloudPlanAnnotationsPanel({
       <div className="mt-3 space-y-2">
         {annotations.map((annotation) => {
           const selected = annotation.id === selectedAnnotationId;
+          const canUpdateAnnotation = canWriteAnnotations && annotation.status !== 'submitted';
           return (
             <article
               key={annotation.id}
@@ -283,7 +284,7 @@ export function CloudPlanAnnotationsPanel({
                   {annotation.replacementText}
                 </p>
               )}
-              {canWriteAnnotations && (
+              {canUpdateAnnotation && (
                 <div className="mt-3 flex items-center justify-end gap-2">
                   <button
                     type="button"

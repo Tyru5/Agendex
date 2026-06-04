@@ -114,13 +114,17 @@ export async function updatePlanAnnotationStatus({
 
     const now = Date.now();
     const nextStatus = status ?? existing.status;
+    const nextSubmittedAt =
+      status === 'submitted' ? now : status === 'open' ? undefined : existing.submittedAt;
+    const nextWritebackId =
+      status === 'open' ? undefined : hasWritebackId ? writebackId : existing.writebackId;
     const updated: PlanAnnotationRecord = {
       ...existing,
       status: nextStatus,
       updatedAt: now,
-      submittedAt: status === 'submitted' ? now : existing.submittedAt,
+      submittedAt: nextSubmittedAt,
       resolvedAt: hasStatus ? (status === 'resolved' ? now : undefined) : existing.resolvedAt,
-      writebackId: hasWritebackId ? writebackId : existing.writebackId,
+      writebackId: nextWritebackId,
     };
     annotations[index] = updated;
     store.annotationsByPlanId[planId] = annotations;
