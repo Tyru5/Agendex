@@ -4,9 +4,75 @@ import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useMemo, useState } from 'react';
+import { type DaemonDeviceInfo, useDaemonStatus } from '../hooks/useDaemonStatus.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+/**
+ * The deviceId of the daemon that synced this plan, stamped into
+ * `metadata.agendexSync` by the CLI (see packages/cli/src/payload.ts). Used to
+ * correlate a Plannotator loopback session with a live/stale daemon device so
+ * we only surface an actionable "Open in Plannotator" link when the originating
+ * machine is still online.
+ */
+function getSyncDeviceId(plan: Plan): string | undefined {
+  if (!isRecord(plan.metadata)) return undefined;
+  const sync = plan.metadata.agendexSync;
+  if (!isRecord(sync)) return undefined;
+  return typeof sync.deviceId === 'string' ? sync.deviceId : undefined;
+}
+
+function getSyncHostname(plan: Plan): string | undefined {
+  if (!isRecord(plan.metadata)) return undefined;
+  const sync = plan.metadata.agendexSync;
+  if (!isRecord(sync)) return undefined;
+  return typeof sync.hostname === 'string' ? sync.hostname : undefined;
+}
+
+type OpenLiveness =
+  | { state: 'open'; hostname?: string }
+  | { state: 'offline'; reason: 'session-ended' | 'device-offline'; hostname?: string };
+
+/**
+ * Decide whether the Plannotator loopback URL is worth offering as a live link.
+ *
+ * Two independent signals gate this:
+ *   1. `metadata.plannotator.liveness === 'ended'` is authoritative — the daemon
+ *      publishes it when the local Plannotator process dies (see daemon.ts).
+ *   2. Daemon device alive/stale status is a fallback for the case where the
+ *      whole machine/daemon went offline before it could publish an end event.
+ *      A loopback server is only reachable while its originating device is up.
+ */
+function resolveOpenLiveness(
+  plan: Plan,
+  metadata: PlannotatorMetadata,
+  devices: DaemonDeviceInfo[],
+): OpenLiveness {
+  const hostname = getSyncHostname(plan);
+
+  // (1) Authoritative: the daemon told us the session ended.
+  if (metadata.liveness === 'ended' || metadata.writebackCapable === false) {
+    return { state: 'offline', reason: 'session-ended', hostname };
+  }
+
+  // (2) Fallback: correlate with the syncing daemon device's liveness.
+  const deviceId = getSyncDeviceId(plan);
+  const matched = deviceId ? devices.find((d) => d.deviceId === deviceId) : undefined;
+
+  if (matched) {
+    return matched.status === 'alive'
+      ? { state: 'open', hostname: matched.hostname ?? hostname }
+      : { state: 'offline', reason: 'device-offline', hostname: matched.hostname ?? hostname };
+  }
+
+  // No matching device record (deviceId absent or device pruned). Only treat the
+  // session as openable if at least one daemon device is currently alive.
+  const anyAlive = devices.some((d) => d.status === 'alive');
+  return anyAlive
+    ? { state: 'open', hostname }
+    : { state: 'offline', reason: 'device-offline', hostname };
 }
 
 function getPlannotatorMetadata(plan: Plan): PlannotatorMetadata | undefined {
@@ -44,15 +110,35 @@ function statusBorderColor(status: string | undefined): string {
 
 export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
   const metadata = getPlannotatorMetadata(plan);
+  const { devices } = useDaemonStatus();
   if (!metadata) return null;
 
-  const label =
-    metadata.kind === 'live-session'
-      ? 'Plannotator live'
-      : metadata.kind === 'project-plan'
-        ? 'Plannotator project plan'
-        : 'Plannotator snapshot';
-  const status = metadata.status ?? (metadata.kind === 'live-session' ? 'pending' : 'unknown');
+  const isLiveKind = metadata.kind === 'live-session';
+  const liveness = resolveOpenLiveness(plan, metadata, devices);
+  const sessionEnded = isLiveKind && liveness.state === 'offline';
+
+  const label = isLiveKind
+    ? sessionEnded
+      ? 'Plannotator session ended'
+      : 'Plannotator live'
+    : metadata.kind === 'project-plan'
+      ? 'Plannotator project plan'
+      : 'Plannotator snapshot';
+  // An ended live session is no longer "pending" — reflect that in the dot color.
+  const status = sessionEnded
+    ? 'unknown'
+    : (metadata.status ?? (isLiveKind ? 'pending' : 'unknown'));
+
+  const canOpen = liveness.state === 'open' && isSafeLoopbackUrl(metadata.url);
+  // Only show open affordances at all when there is a loopback URL to open.
+  const hasLoopbackUrl = isSafeLoopbackUrl(metadata.url);
+
+  const offlineHint =
+    liveness.state === 'offline'
+      ? liveness.reason === 'session-ended'
+        ? `Server offline${liveness.hostname ? ` — reopen the session on '${liveness.hostname}'` : ' — reopen the Plannotator session'}`
+        : `Machine offline${liveness.hostname ? ` — start the session on '${liveness.hostname}'` : ' — start the originating machine'}`
+      : undefined;
 
   return (
     <div className="plan-plannotator-badge">
@@ -70,16 +156,27 @@ export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
         {metadata.origin ? `Origin: ${metadata.origin}` : 'Origin unknown'}
         {metadata.project ? ` · ${metadata.project}` : ''}
       </span>
-      {isSafeLoopbackUrl(metadata.url) && (
-        <a
-          href={metadata.url}
-          target="_blank"
-          rel="noreferrer"
-          className="text-[11px] text-secondary underline decoration-dotted underline-offset-4"
-        >
-          Open in Plannotator
-        </a>
-      )}
+      {hasLoopbackUrl &&
+        (canOpen ? (
+          <a
+            href={metadata.url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] text-secondary underline decoration-dotted underline-offset-4"
+          >
+            Open in Plannotator
+          </a>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1 text-[11px] text-tertiary"
+            title={offlineHint}
+          >
+            <span className="text-tertiary line-through decoration-dotted">
+              Open in Plannotator
+            </span>
+            {offlineHint && <span className="text-tertiary">· {offlineHint}</span>}
+          </span>
+        ))}
     </div>
   );
 }
