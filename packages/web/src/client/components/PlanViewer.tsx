@@ -60,6 +60,8 @@ type AnnotationComposerState = {
   replacementText: string;
 };
 
+const ANNOTATION_SELECTION_BLOCKED_TAGS = 'code, pre, script, style, textarea, input, mark';
+
 function requiresReplacementText(type: PlanAnnotationKind): boolean {
   return type === 'replacement' || type === 'insertion';
 }
@@ -100,6 +102,14 @@ function occurrenceIndexForSelection(
   beforeRange.selectNodeContents(root);
   beforeRange.setEnd(range.startContainer, range.startOffset);
   return countOccurrences(beforeRange.toString(), selectedText);
+}
+
+function intersectsNestedBlockedSelection(root: HTMLElement, range: Range): boolean {
+  for (const element of Array.from(root.querySelectorAll(ANNOTATION_SELECTION_BLOCKED_TAGS))) {
+    if (element === root) continue;
+    if (range.intersectsNode(element)) return true;
+  }
+  return false;
 }
 
 type PlanViewerProps = {
@@ -184,6 +194,7 @@ export function PlanViewer({
     annotations,
     selectedAnnotationId,
     onSelectAnnotation,
+    contentKey: renderContent,
   });
 
   const annotationComposerType = annotationComposer?.type;
@@ -226,7 +237,10 @@ export function PlanViewer({
       }
 
       const range = selection.getRangeAt(0);
-      if (!root.contains(range.commonAncestorContainer)) {
+      if (
+        !root.contains(range.commonAncestorContainer) ||
+        intersectsNestedBlockedSelection(root, range)
+      ) {
         setSelectionToolbar(null);
         setAnnotationComposer(null);
         return;

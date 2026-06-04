@@ -42,6 +42,7 @@ export {
   createPlanTextAnchor,
   formatPlanAnnotationFeedback,
   toPlannotatorFeedbackAnnotations,
+  validatePlanAnnotationInput,
 } from './annotations.ts';
 export {
   createPlanAnnotation,

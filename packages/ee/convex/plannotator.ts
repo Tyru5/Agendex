@@ -12,6 +12,7 @@ import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
 const WRITEBACK_TTL_MS = 24 * 60 * 60 * 1000;
+const WRITEBACK_EXPIRED_ERROR = 'Write-back expired before a daemon could send it.';
 const MAX_POLL_LIMIT = 25;
 const MAX_EXPIRED_WRITEBACK_SWEEP = 200;
 
@@ -129,14 +130,33 @@ export const enqueueWriteback = mutation({
       throw new ConvexError('Feedback or revised content is required');
     }
 
-    const existing = await ctx.db
+    const now = Date.now();
+    const pendingWritebacks = await ctx.db
       .query('plannotatorWritebacks')
       .withIndex('by_owner_localPlanId', (q) =>
         q.eq('ownerId', user._id).eq('localPlanId', localPlanId),
       )
       .filter((q) => q.eq(q.field('status'), 'pending'))
-      .first();
-    if (existing) {
+      .collect();
+    let hasActivePendingWriteback = false;
+    for (const pendingWriteback of pendingWritebacks) {
+      if (pendingWriteback.expiresAt > now) {
+        hasActivePendingWriteback = true;
+        continue;
+      }
+      await ctx.db.patch(pendingWriteback._id, {
+        status: 'expired',
+        error: WRITEBACK_EXPIRED_ERROR,
+        updatedAt: now,
+      });
+      await reopenWritebackAnnotations(
+        ctx,
+        pendingWriteback.annotationIds,
+        pendingWriteback._id,
+        now,
+      );
+    }
+    if (hasActivePendingWriteback) {
       throw new ConvexError('A write-back is already pending for this plan');
     }
 
@@ -154,7 +174,6 @@ export const enqueueWriteback = mutation({
       }
     }
 
-    const now = Date.now();
     const writebackId = await ctx.db.insert('plannotatorWritebacks', {
       ownerId: user._id,
       planId: args.planId,
@@ -257,7 +276,7 @@ export const markExpiredWritebacks = internalMutation({
       if (row.expiresAt > args.now) continue;
       await ctx.db.patch(row._id, {
         status: 'expired',
-        error: 'Write-back expired before a daemon could send it.',
+        error: WRITEBACK_EXPIRED_ERROR,
         updatedAt: args.now,
       });
       await reopenWritebackAnnotations(ctx, row.annotationIds, row._id, args.now);

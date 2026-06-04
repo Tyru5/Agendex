@@ -54,6 +54,12 @@ export async function deletePlanRelatedData(
     .collect();
   for (const row of planAnnotations) await ctx.db.delete(row._id);
 
+  const plannotatorWritebacks = await ctx.db
+    .query('plannotatorWritebacks')
+    .withIndex('by_plan', (q) => q.eq('planId', planId))
+    .collect();
+  for (const row of plannotatorWritebacks) await ctx.db.delete(row._id);
+
   const planTags = await ctx.db
     .query('planTags')
     .withIndex('by_plan', (q) => q.eq('planId', planId))

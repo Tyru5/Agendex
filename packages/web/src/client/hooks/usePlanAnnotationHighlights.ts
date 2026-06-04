@@ -14,9 +14,9 @@ function unwrapExistingMarks(root: HTMLElement): void {
   }
 }
 
-function shouldSkipNode(node: Node): boolean {
+function shouldSkipNode(root: HTMLElement, node: Node): boolean {
   let current = node.parentElement;
-  while (current) {
+  while (current && current !== root) {
     if (SKIP_TAGS.has(current.tagName)) return true;
     current = current.parentElement;
   }
@@ -72,7 +72,7 @@ function findQuoteRange(root: HTMLElement, annotation: PlanAnnotationRecord): Ra
 
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      if (shouldSkipNode(node)) return NodeFilter.FILTER_REJECT;
+      if (shouldSkipNode(root, node)) return NodeFilter.FILTER_REJECT;
       return node.textContent ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
     },
   });
@@ -136,11 +136,13 @@ export function usePlanAnnotationHighlights({
   annotations,
   selectedAnnotationId,
   onSelectAnnotation,
+  contentKey,
 }: {
   rootRef: RefObject<HTMLElement | null>;
   annotations: PlanAnnotationRecord[];
   selectedAnnotationId?: string | null;
   onSelectAnnotation?: (id: string | null) => void;
+  contentKey?: string;
 }) {
   useEffect(() => {
     const root = rootRef.current;
@@ -182,5 +184,5 @@ export function usePlanAnnotationHighlights({
       root.removeEventListener('keydown', handleKeyDown);
       unwrapExistingMarks(root);
     };
-  }, [annotations, onSelectAnnotation, rootRef, selectedAnnotationId]);
+  }, [annotations, contentKey, onSelectAnnotation, rootRef, selectedAnnotationId]);
 }

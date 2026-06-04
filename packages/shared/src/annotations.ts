@@ -91,11 +91,40 @@ export function createPlanTextAnchor(
   };
 }
 
+export function validatePlanAnnotationInput(input: CreatePlanAnnotationInput): {
+  body?: string;
+  replacementText?: string;
+} {
+  if (input.status === 'submitted') {
+    throw new Error('Use a write-back to submit annotations');
+  }
+
+  const body = input.body?.trim() || undefined;
+  const replacementText = input.replacementText?.trim() || undefined;
+  const quote = input.anchor.quote?.trim();
+
+  if (input.type !== 'global_comment' && !quote) {
+    throw new Error('Selected text is required for inline annotations');
+  }
+
+  if ((input.type === 'comment' || input.type === 'global_comment') && !body) {
+    throw new Error('Annotation feedback is required');
+  }
+
+  if ((input.type === 'replacement' || input.type === 'insertion') && !replacementText) {
+    throw new Error('Suggested replacement text is required');
+  }
+
+  return { body, replacementText };
+}
+
 export function createPlanAnnotationRecord(
   input: CreatePlanAnnotationInput,
   options?: { id?: string; authorId?: string; authorName?: string; now?: number },
 ): PlanAnnotationRecord {
   const now = options?.now ?? Date.now();
+  const status = input.status ?? 'open';
+  const validated = validatePlanAnnotationInput(input);
   const randomId =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
@@ -107,12 +136,13 @@ export function createPlanAnnotationRecord(
     authorName: options?.authorName,
     source: input.source ?? 'agendex',
     type: input.type,
-    status: input.status ?? 'open',
-    body: input.body?.trim() || undefined,
-    replacementText: input.replacementText?.trim() || undefined,
+    status,
+    body: validated.body,
+    replacementText: validated.replacementText,
     anchor: input.anchor,
     createdAt: now,
     updatedAt: now,
+    resolvedAt: status === 'resolved' ? now : undefined,
   };
 }
 

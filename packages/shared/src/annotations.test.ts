@@ -73,4 +73,39 @@ describe('plan annotations', () => {
       author: 'Tiru',
     });
   });
+
+  test('rejects inline annotations without selected text', () => {
+    expect(() =>
+      createPlanAnnotationRecord({
+        type: 'comment',
+        anchor: {},
+        body: 'This cannot be anchored.',
+      }),
+    ).toThrow('Selected text is required for inline annotations');
+  });
+
+  test('rejects directly-created submitted annotations', () => {
+    expect(() =>
+      createPlanAnnotationRecord({
+        type: 'global_comment',
+        status: 'submitted',
+        anchor: {},
+        body: 'Send this through a write-back instead.',
+      }),
+    ).toThrow('Use a write-back to submit annotations');
+  });
+
+  test('sets resolvedAt when creating resolved annotations', () => {
+    const annotation = createPlanAnnotationRecord(
+      {
+        type: 'global_comment',
+        status: 'resolved',
+        anchor: {},
+        body: 'Already handled.',
+      },
+      { now: 40 },
+    );
+
+    expect(annotation.resolvedAt).toBe(40);
+  });
 });

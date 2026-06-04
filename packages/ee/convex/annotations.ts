@@ -151,6 +151,7 @@ export const createAnnotation = mutation({
       anchor: args.anchor,
       createdAt: now,
       updatedAt: now,
+      resolvedAt: args.status === 'resolved' ? now : undefined,
     });
   },
 });

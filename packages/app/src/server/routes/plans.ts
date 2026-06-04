@@ -13,6 +13,7 @@ import {
   scan,
   startWatching,
   updatePlanAnnotationStatus,
+  validatePlanAnnotationInput,
 } from '@agendex/shared';
 import { Hono } from 'hono';
 import { search } from '../services/search.ts';
@@ -94,28 +95,31 @@ plans.post('/plans/:id/annotations', async (c) => {
     return c.json({ error: 'invalid annotation type' }, 400);
   }
 
-  const annotationBody = body.body?.trim() || undefined;
-  const replacementText = body.replacementText?.trim() || undefined;
-
-  if ((body.type === 'comment' || body.type === 'global_comment') && !annotationBody) {
-    return c.json({ error: 'Annotation feedback is required' }, 400);
-  }
-
-  if ((body.type === 'replacement' || body.type === 'insertion') && !replacementText) {
-    return c.json({ error: 'Suggested replacement text is required' }, 400);
-  }
-
   const CREATE_VALID_STATUSES = new Set(['draft', 'open', 'resolved']);
   if (body.status !== undefined && !CREATE_VALID_STATUSES.has(body.status)) {
     return c.json({ error: 'invalid annotation status' }, 400);
   }
 
+  const anchor = body.anchor ?? {};
+  let validated: { body?: string; replacementText?: string };
+  try {
+    validated = validatePlanAnnotationInput({
+      type: body.type,
+      status: body.status,
+      body: body.body,
+      replacementText: body.replacementText,
+      anchor,
+    });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'invalid annotation input' }, 400);
+  }
+
   const annotation = await createPlanAnnotation(planId, {
     type: body.type,
     status: body.status ?? 'open',
-    body: annotationBody,
-    replacementText,
-    anchor: body.anchor ?? {},
+    body: validated.body,
+    replacementText: validated.replacementText,
+    anchor,
     source: 'agendex-local',
   });
 
