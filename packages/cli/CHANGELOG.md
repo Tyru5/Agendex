@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 1.0.0
+
+### Major Changes
+
+- 754489b: Better integration with plannotator. QoL features and updates. New cli hooks and params
+
 ## 0.18.0
 
 ### Minor Changes
