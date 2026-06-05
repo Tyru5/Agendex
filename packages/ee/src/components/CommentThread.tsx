@@ -28,10 +28,12 @@ export function CommentThread({
   planId,
   isOwner,
   shareToken,
+  className = 'mt-10',
 }: {
   planId: string;
   isOwner?: boolean;
   shareToken?: string;
+  className?: string;
 }) {
   const { user, isAuthenticated, signIn } = useAuth();
   const comments = useQuery(api.comments.getComments, {
@@ -310,7 +312,7 @@ export function CommentThread({
   }
 
   return (
-    <div className="mt-10">
+    <div className={className}>
       <h3 className="text-[13px] font-semibold text-text tracking-[0] mb-4">
         Comments
         {comments && comments.length > 0 && (
@@ -582,7 +584,7 @@ export function CommentThread({
                               className="block cursor-zoom-in"
                               onClick={() =>
                                 setLightbox({
-                                  images: comment.attachments!.map((a) => ({
+                                  images: (comment.attachments ?? []).map((a) => ({
                                     url: a.url,
                                     fileName: a.fileName,
                                   })),

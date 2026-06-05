@@ -1,4 +1,13 @@
-import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
@@ -54,13 +63,34 @@ type SelectionToolbarState = {
   left: number;
 };
 
+type RenderedSelectionToolbarState = SelectionToolbarState & {
+  phase: 'enter' | 'exit';
+};
+
 type AnnotationComposerState = {
   type: PlanAnnotationKind;
   body: string;
   replacementText: string;
 };
 
+type ActionToolbarDockState = 'inline' | 'docking' | 'docked';
+
 const ANNOTATION_SELECTION_BLOCKED_TAGS = 'code, pre, script, style, textarea, input, mark';
+const ACTION_TOOLBAR_DOCKED_GAP = 12;
+const ACTION_TOOLBAR_EXPANDED_CHART_LEFT = 16;
+const PLAN_LAYOUT_CHANGE_EVENT = 'agendex:plan-layout-change';
+const SELECTION_TOOLBAR_EXIT_MS = 160;
+
+function findScrollParent(element: HTMLElement): HTMLElement | Window {
+  let parent = element.parentElement;
+  while (parent) {
+    const style = window.getComputedStyle(parent);
+    const canScrollY = /(auto|scroll|overlay)/.test(style.overflowY);
+    if (canScrollY && parent.scrollHeight > parent.clientHeight) return parent;
+    parent = parent.parentElement;
+  }
+  return window;
+}
 
 function requiresReplacementText(type: PlanAnnotationKind): boolean {
   return type === 'replacement' || type === 'insertion';
@@ -115,6 +145,7 @@ function intersectsNestedBlockedSelection(root: HTMLElement, range: Range): bool
 type PlanViewerProps = {
   plan: Plan;
   headerExtra?: ReactNode;
+  actionToolbarExtra?: ReactNode;
   onEdit?: () => void;
   onHistory?: () => void;
   onShare?: () => void;
@@ -135,9 +166,43 @@ type PlanViewerProps = {
   onSelectAnnotation?: (id: string | null) => void;
 };
 
+export function PlanActionButton({
+  label,
+  tooltip = label,
+  pressed,
+  disabled,
+  onClick,
+  children,
+  style,
+}: {
+  label: string;
+  tooltip?: string;
+  pressed?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+  style?: CSSProperties;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={typeof pressed === 'boolean' ? pressed : undefined}
+      disabled={disabled}
+      data-tooltip={tooltip}
+      className="plan-action-button"
+      style={style}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function PlanViewer({
   plan,
   headerExtra,
+  actionToolbarExtra,
   onEdit,
   onHistory,
   onShare,
@@ -157,6 +222,8 @@ export function PlanViewer({
 }: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null);
+  const [renderedSelectionToolbar, setRenderedSelectionToolbar] =
+    useState<RenderedSelectionToolbarState | null>(null);
   const [annotationComposer, setAnnotationComposer] = useState<AnnotationComposerState | null>(
     null,
   );
@@ -164,8 +231,38 @@ export function PlanViewer({
   const bodyRef = useRef<HTMLElement | null>(null);
   const annotationOverlayRef = useRef<HTMLElement | null>(null);
   const annotationComposerFirstFieldRef = useRef<HTMLTextAreaElement | null>(null);
+  const selectionToolbarExitTimeoutRef = useRef<number | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const actionToolbarRef = useRef<HTMLDivElement | null>(null);
+  const actionToolbarDockTargetRef = useRef(false);
+  const actionToolbarDockStateRef = useRef<ActionToolbarDockState>('inline');
+  const actionToolbarDockFrameRef = useRef<number | null>(null);
+  const [actionToolbarDockState, setActionToolbarDockState] =
+    useState<ActionToolbarDockState>('inline');
+  const [actionToolbarDockLeft, setActionToolbarDockLeft] = useState<number | null>(null);
+  const [chartWide, setChartWide] = useState(false);
   const fullscreen = useFullscreen<HTMLDivElement>();
   const isSplit = mode === 'split';
+
+  const clearActionToolbarDockFrame = useCallback(() => {
+    if (actionToolbarDockFrameRef.current === null) return;
+    window.cancelAnimationFrame(actionToolbarDockFrameRef.current);
+    actionToolbarDockFrameRef.current = null;
+  }, []);
+
+  const commitActionToolbarDockState = useCallback((nextState: ActionToolbarDockState) => {
+    actionToolbarDockStateRef.current = nextState;
+    setActionToolbarDockState(nextState);
+  }, []);
+
+  const handleTechChartWideChange = useCallback(
+    (wide: boolean) => {
+      setChartWide(wide);
+      onChartWideChange?.(wide);
+      window.dispatchEvent(new Event(PLAN_LAYOUT_CHANGE_EVENT));
+    },
+    [onChartWideChange],
+  );
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(plan.content);
@@ -205,6 +302,43 @@ export function PlanViewer({
   }, [annotationComposerType]);
 
   useEffect(() => {
+    if (selectionToolbar && !annotationComposer) {
+      if (selectionToolbarExitTimeoutRef.current !== null) {
+        window.clearTimeout(selectionToolbarExitTimeoutRef.current);
+        selectionToolbarExitTimeoutRef.current = null;
+      }
+      setRenderedSelectionToolbar({ ...selectionToolbar, phase: 'enter' });
+      return;
+    }
+
+    setRenderedSelectionToolbar((current) => {
+      if (!current || current.phase === 'exit') return current;
+
+      if (selectionToolbarExitTimeoutRef.current !== null) {
+        window.clearTimeout(selectionToolbarExitTimeoutRef.current);
+      }
+      selectionToolbarExitTimeoutRef.current = window.setTimeout(() => {
+        selectionToolbarExitTimeoutRef.current = null;
+        setRenderedSelectionToolbar(null);
+      }, SELECTION_TOOLBAR_EXIT_MS);
+
+      return { ...current, phase: 'exit' };
+    });
+  }, [annotationComposer, selectionToolbar]);
+
+  useEffect(() => {
+    return () => {
+      if (selectionToolbarExitTimeoutRef.current !== null) {
+        window.clearTimeout(selectionToolbarExitTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    setChartWide(false);
+  }, [plan.id, chartHidden]);
+
+  useEffect(() => {
     if (!selectionToolbar) return;
 
     function handleDocumentPointerDown(event: PointerEvent) {
@@ -221,6 +355,131 @@ export function PlanViewer({
     document.addEventListener('pointerdown', handleDocumentPointerDown);
     return () => document.removeEventListener('pointerdown', handleDocumentPointerDown);
   }, [selectionToolbar]);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+
+    const scrollParent = findScrollParent(frame);
+    const scrollTarget = scrollParent === window ? window : scrollParent;
+    let animationFrame = 0;
+
+    const startDocking = () => {
+      actionToolbarDockTargetRef.current = true;
+
+      const currentState = actionToolbarDockStateRef.current;
+      if (currentState === 'docked' || currentState === 'docking') return;
+
+      clearActionToolbarDockFrame();
+      commitActionToolbarDockState('docking');
+      actionToolbarDockFrameRef.current = window.requestAnimationFrame(() => {
+        actionToolbarDockFrameRef.current = window.requestAnimationFrame(() => {
+          actionToolbarDockFrameRef.current = null;
+          if (actionToolbarDockTargetRef.current) commitActionToolbarDockState('docked');
+        });
+      });
+    };
+
+    const startUndocking = () => {
+      actionToolbarDockTargetRef.current = false;
+      clearActionToolbarDockFrame();
+
+      const currentState = actionToolbarDockStateRef.current;
+      if (currentState === 'inline') return;
+
+      commitActionToolbarDockState('inline');
+    };
+
+    const transitionDockState = (shouldDock: boolean) => {
+      if (shouldDock) {
+        startDocking();
+        return;
+      }
+      startUndocking();
+    };
+
+    const updateDockedState = () => {
+      animationFrame = 0;
+      const frameRect = frame.getBoundingClientRect();
+      const toolbarRect = actionToolbarRef.current?.getBoundingClientRect();
+      const toolbarWidth = toolbarRect?.width ?? 38;
+      const scrollParentRect =
+        scrollParent === window ? null : (scrollParent as HTMLElement).getBoundingClientRect();
+      const viewportTop = scrollParentRect?.top ?? 0;
+      const viewportLeft = scrollParentRect?.left ?? 0;
+      const shouldDock = !isSplit && frameRect.top < viewportTop - 118;
+      const shell = frame.closest('.plannotator-review-shell');
+      const leftRailRect = shell
+        ?.querySelector('.plannotator-review-rail--left')
+        ?.getBoundingClientRect();
+      const leftRailGuard =
+        shouldDock &&
+        !fullscreen.isFullscreen &&
+        leftRailRect &&
+        leftRailRect.width > 0 &&
+        leftRailRect.right <= frameRect.left &&
+        leftRailRect.bottom > viewportTop
+          ? leftRailRect.right + ACTION_TOOLBAR_DOCKED_GAP
+          : 20;
+      const nextDockLeft = Math.max(
+        20,
+        leftRailGuard,
+        shouldDock
+          ? chartWide
+            ? viewportLeft + ACTION_TOOLBAR_EXPANDED_CHART_LEFT
+            : frameRect.left - toolbarWidth - ACTION_TOOLBAR_DOCKED_GAP
+          : (toolbarRect?.left ?? 20),
+      );
+      setActionToolbarDockLeft((current) =>
+        current !== null && Math.abs(current - nextDockLeft) < 0.5 ? current : nextDockLeft,
+      );
+      transitionDockState(shouldDock);
+    };
+
+    const scheduleUpdate = () => {
+      if (animationFrame) return;
+      animationFrame = window.requestAnimationFrame(updateDockedState);
+    };
+
+    const scheduleSettledUpdate = () => {
+      scheduleUpdate();
+      window.requestAnimationFrame(() => window.requestAnimationFrame(scheduleUpdate));
+    };
+
+    const observedElements = [
+      frame,
+      actionToolbarRef.current,
+      fullscreen.ref.current,
+      frame.closest('.plannotator-review-shell'),
+    ].filter((element): element is Element => Boolean(element));
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => scheduleSettledUpdate());
+    observedElements.forEach((element) => resizeObserver?.observe(element));
+
+    updateDockedState();
+    scrollTarget.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleSettledUpdate);
+    window.addEventListener(PLAN_LAYOUT_CHANGE_EVENT, scheduleSettledUpdate);
+
+    return () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      clearActionToolbarDockFrame();
+      resizeObserver?.disconnect();
+      scrollTarget.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleSettledUpdate);
+      window.removeEventListener(PLAN_LAYOUT_CHANGE_EVENT, scheduleSettledUpdate);
+    };
+  }, [
+    chartHidden,
+    chartWide,
+    clearActionToolbarDockFrame,
+    commitActionToolbarDockState,
+    fullscreen.isFullscreen,
+    fullscreen.ref,
+    isSplit,
+  ]);
 
   const showAnnotationUpgrade = Boolean(annotationUpgradeMessage && !canCreateAnnotations);
 
@@ -319,328 +578,344 @@ export function PlanViewer({
       (!requiresBody(annotationComposer.type) || annotationComposer.body.trim().length > 0)
     : false;
   const composerError = annotationCreateError ?? annotationComposerError;
+  const isActionToolbarDocked = actionToolbarDockState !== 'inline' && !isSplit;
+  const actionToolbarDockPlacement = isActionToolbarDocked
+    ? fullscreen.isFullscreen
+      ? 'bottom'
+      : 'side'
+    : undefined;
+  const actionToolbarStyle =
+    actionToolbarDockLeft === null
+      ? undefined
+      : ({
+          '--plan-action-toolbar-docked-left': `${actionToolbarDockLeft}px`,
+        } as CSSProperties);
+  const viewerStyle = fullscreen.isFullscreen
+    ? ({ background: 'var(--bg)', overflow: 'auto', height: '100%' } as CSSProperties)
+    : undefined;
+
+  const actionToolbar = (
+    <div
+      ref={actionToolbarRef}
+      className="plan-action-toolbar"
+      data-docked={isActionToolbarDocked ? 'true' : undefined}
+      data-dock-placement={actionToolbarDockPlacement}
+      data-dock-state={actionToolbarDockState}
+      data-tooltip-side={
+        actionToolbarDockPlacement === 'bottom'
+          ? 'top'
+          : actionToolbarDockPlacement === 'side'
+            ? 'left'
+            : undefined
+      }
+      aria-label="Plan actions"
+      style={actionToolbarStyle}
+    >
+      <PlanActionButton
+        onClick={handleCopy}
+        label={copied ? 'Plan copied' : 'Copy plan'}
+        tooltip={copied ? 'Copied' : 'Copy plan'}
+        style={{ color: copied ? 'var(--success)' : 'var(--secondary)' }}
+      >
+        <span className="relative flex items-center justify-center w-[13px] h-[13px]">
+          <span
+            className="absolute flex transition-[opacity,transform] duration-200 ease-in-out"
+            style={{
+              opacity: copied ? 0 : 1,
+              transform: copied ? 'scale(0.5)' : 'scale(1)',
+            }}
+          >
+            <CopyIcon />
+          </span>
+          <span
+            className="absolute flex transition-[opacity,transform] duration-200 ease-in-out"
+            style={{
+              opacity: copied ? 1 : 0,
+              transform: copied ? 'scale(1)' : 'scale(0.5)',
+            }}
+          >
+            <CheckIcon />
+          </span>
+        </span>
+      </PlanActionButton>
+      {actionToolbarExtra}
+      {onEdit && (
+        <PlanActionButton onClick={onEdit} label="Edit plan">
+          <EditIcon />
+        </PlanActionButton>
+      )}
+      {onShare && (
+        <PlanActionButton onClick={onShare} label="Share plan">
+          <ShareIcon />
+        </PlanActionButton>
+      )}
+      {onHistory && (
+        <PlanActionButton onClick={onHistory} label="Version history">
+          <HistoryIcon />
+        </PlanActionButton>
+      )}
+      {onToggleChart && (
+        <PlanActionButton
+          onClick={onToggleChart}
+          label={chartHidden ? 'Show tech chart' : 'Hide tech chart'}
+          tooltip={chartHidden ? 'Show tech chart (⇧⌘G)' : 'Hide tech chart (⇧⌘G)'}
+          pressed={!chartHidden}
+        >
+          <ChartIcon />
+        </PlanActionButton>
+      )}
+      <PlanActionButton
+        onClick={() => fullscreen.toggle()}
+        label={fullscreen.isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+        tooltip={fullscreen.isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+      >
+        {fullscreen.isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
+      </PlanActionButton>
+    </div>
+  );
 
   return (
     <div
       ref={fullscreen.ref}
-      style={
-        fullscreen.isFullscreen
-          ? { background: 'var(--bg)', overflow: 'auto', height: '100%' }
-          : undefined
-      }
+      style={viewerStyle}
       className={fullscreen.isFullscreen ? 'main-scroll' : undefined}
+      data-chart-wide={chartWide ? 'true' : undefined}
     >
       {showOutline && !isSplit && <PlanOutline entries={entries} pinned={!outlineHidden} />}
       <div
-        className={
-          isSplit ? 'mx-auto px-6 pt-8 pb-[72px]' : 'max-w-[720px] mx-auto px-8 pt-10 pb-20'
-        }
+        ref={frameRef}
+        className={isSplit ? 'plan-viewer-frame plan-viewer-frame--split' : 'plan-viewer-frame'}
       >
-        {/* Header */}
-        <header className="plan-header">
-          <div className="plan-header-breadcrumb">
-            <span className="plan-header-breadcrumb-item">
-              <AgentIcon agent={plan.agent} size={13} />
-              <span>{getAgentLabel(plan.agent)}</span>
-            </span>
-            {workspace && (
-              <>
-                <span className="plan-header-breadcrumb-separator">/</span>
-                <span className="plan-header-breadcrumb-workspace">{workspace}</span>
-                <CopyPathButton path={plan.filePath} />
-              </>
-            )}
-          </div>
-
-          <h1 className="plan-header-title" title={plan.title}>
-            {plan.title}
-          </h1>
-
-          <div className="plan-header-meta" aria-label="Plan details">
-            <span className="plan-header-meta-item">
-              <ClockIcon />
-              Updated {timeAgo(plan.updatedAt)}
-            </span>
-            <span className="plan-header-meta-item">
-              <DocIcon />
-              {plan.format.toUpperCase()}
-            </span>
-            <span className="plan-readonly-badge">Read-only</span>
-            {syncOrigin && (
-              <span
-                className="plan-header-meta-item plan-header-meta-item--sync"
-                title={
-                  [
-                    syncOrigin.hostname ? `Host: ${syncOrigin.hostname}` : null,
-                    syncOrigin.deviceId ? `Device ID: ${syncOrigin.deviceId}` : null,
-                    syncOrigin.ipAddress ? `IP: ${syncOrigin.ipAddress}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ') || 'Synced from this machine'
-                }
-              >
-                <MachineIcon />
-                <span className="plan-header-meta-label">
-                  Synced from <strong>{formatSyncOriginLabel(syncOrigin)}</strong>
-                </span>
+        <div className="plan-viewer-content">
+          {/* Header */}
+          <header className="plan-header">
+            <div className="plan-header-breadcrumb">
+              <span className="plan-header-breadcrumb-item">
+                <AgentIcon agent={plan.agent} size={13} />
+                <span>{getAgentLabel(plan.agent)}</span>
               </span>
-            )}
-          </div>
+              {workspace && (
+                <>
+                  <span className="plan-header-breadcrumb-separator">/</span>
+                  <span className="plan-header-breadcrumb-workspace">{workspace}</span>
+                  <CopyPathButton path={plan.filePath} />
+                </>
+              )}
+            </div>
 
-          <div className="plan-header-utility-row">
-            {headerExtra && <div className="plan-header-extra">{headerExtra}</div>}
-            <div className="plan-action-toolbar" aria-label="Plan actions">
-              <button
-                type="button"
-                onClick={handleCopy}
-                title={copied ? 'Copied!' : 'Copy plan'}
-                aria-label={copied ? 'Plan copied' : 'Copy plan'}
-                className="plan-action-button"
-                style={{ color: copied ? 'var(--success)' : 'var(--secondary)' }}
-              >
-                <span className="relative flex items-center justify-center w-[13px] h-[13px]">
-                  <span
-                    className="absolute flex transition-[opacity,transform] duration-200 ease-in-out"
-                    style={{
-                      opacity: copied ? 0 : 1,
-                      transform: copied ? 'scale(0.5)' : 'scale(1)',
-                    }}
-                  >
-                    <CopyIcon />
-                  </span>
-                  <span
-                    className="absolute flex transition-[opacity,transform] duration-200 ease-in-out"
-                    style={{
-                      opacity: copied ? 1 : 0,
-                      transform: copied ? 'scale(1)' : 'scale(0.5)',
-                    }}
-                  >
-                    <CheckIcon />
+            <h1 className="plan-header-title" title={plan.title}>
+              {plan.title}
+            </h1>
+
+            <div className="plan-header-meta" aria-label="Plan details">
+              <span className="plan-header-meta-item">
+                <ClockIcon />
+                Updated {timeAgo(plan.updatedAt)}
+              </span>
+              <span className="plan-header-meta-item">
+                <DocIcon />
+                {plan.format.toUpperCase()}
+              </span>
+              <span className="plan-readonly-badge">Read-only</span>
+              {syncOrigin && (
+                <span
+                  className="plan-header-meta-item plan-header-meta-item--sync"
+                  title={
+                    [
+                      syncOrigin.hostname ? `Host: ${syncOrigin.hostname}` : null,
+                      syncOrigin.deviceId ? `Device ID: ${syncOrigin.deviceId}` : null,
+                      syncOrigin.ipAddress ? `IP: ${syncOrigin.ipAddress}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'Synced from this machine'
+                  }
+                >
+                  <MachineIcon />
+                  <span className="plan-header-meta-label">
+                    Synced from <strong>{formatSyncOriginLabel(syncOrigin)}</strong>
                   </span>
                 </span>
+              )}
+            </div>
+
+            <div className="plan-header-utility-row">
+              {headerExtra ? (
+                <div className="plan-header-extra">
+                  {headerExtra}
+                  {actionToolbar}
+                </div>
+              ) : (
+                actionToolbar
+              )}
+            </div>
+          </header>
+
+          {onChartWideChange && !chartHidden && (
+            <div style={{ marginTop: '8px', marginBottom: '24px' }}>
+              <TechDependencyChart plan={plan} onWideChange={handleTechChartWideChange} />
+            </div>
+          )}
+
+          {showAnnotationUpgrade && (
+            <div className="plan-annotation-upgrade" role="note">
+              {annotationUpgradeMessage}
+            </div>
+          )}
+
+          {renderedSelectionToolbar && (
+            <div
+              ref={(node) => {
+                if (!annotationComposer) annotationOverlayRef.current = node;
+              }}
+              className="plan-annotation-toolbar"
+              data-state={renderedSelectionToolbar.phase}
+              role="toolbar"
+              aria-label="Create plan annotation"
+              style={{ top: renderedSelectionToolbar.top, left: renderedSelectionToolbar.left }}
+            >
+              <button type="button" onClick={() => beginAnnotationFromSelection('comment')}>
+                Comment
               </button>
-              {onEdit && (
-                <button
-                  type="button"
-                  onClick={onEdit}
-                  title="Edit plan"
-                  aria-label="Edit plan"
-                  className="plan-action-button"
-                >
-                  <EditIcon />
-                </button>
-              )}
-              {onShare && (
-                <button
-                  type="button"
-                  onClick={onShare}
-                  title="Share plan"
-                  aria-label="Share plan"
-                  className="plan-action-button"
-                >
-                  <ShareIcon />
-                </button>
-              )}
-              {onHistory && (
-                <button
-                  type="button"
-                  onClick={onHistory}
-                  title="Version history"
-                  aria-label="Version history"
-                  className="plan-action-button"
-                >
-                  <HistoryIcon />
-                </button>
-              )}
-              {onToggleChart && (
-                <button
-                  type="button"
-                  onClick={onToggleChart}
-                  title={chartHidden ? 'Show tech chart (⇧⌘G)' : 'Hide tech chart (⇧⌘G)'}
-                  aria-label={chartHidden ? 'Show tech chart' : 'Hide tech chart'}
-                  aria-pressed={!chartHidden}
-                  className="plan-action-button"
-                >
-                  <ChartIcon />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => fullscreen.toggle()}
-                title={fullscreen.isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-                aria-label={fullscreen.isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                className="plan-action-button"
-              >
-                {fullscreen.isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
+              <button type="button" onClick={() => beginAnnotationFromSelection('replacement')}>
+                Replace
+              </button>
+              <button type="button" onClick={() => beginAnnotationFromSelection('deletion')}>
+                Delete
               </button>
             </div>
-          </div>
-        </header>
+          )}
 
-        {onChartWideChange && !chartHidden && (
-          <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-            <TechDependencyChart plan={plan} onWideChange={onChartWideChange} />
-          </div>
-        )}
-
-        {showAnnotationUpgrade && (
-          <div className="plan-annotation-upgrade" role="note">
-            {annotationUpgradeMessage}
-          </div>
-        )}
-
-        {selectionToolbar && !annotationComposer && (
-          <div
-            ref={(node) => {
-              annotationOverlayRef.current = node;
-            }}
-            className="plan-annotation-toolbar"
-            role="toolbar"
-            aria-label="Create plan annotation"
-            style={{ top: selectionToolbar.top, left: selectionToolbar.left }}
-          >
-            <button type="button" onClick={() => beginAnnotationFromSelection('comment')}>
-              Comment
-            </button>
-            <button type="button" onClick={() => beginAnnotationFromSelection('replacement')}>
-              Replace
-            </button>
-            <button type="button" onClick={() => beginAnnotationFromSelection('deletion')}>
-              Delete
-            </button>
-          </div>
-        )}
-
-        {selectionToolbar && annotationComposer && (
-          <form
-            ref={(node) => {
-              annotationOverlayRef.current = node;
-            }}
-            className="plan-annotation-composer"
-            aria-label="Create plan annotation"
-            style={{ top: selectionToolbar.top, left: selectionToolbar.left }}
-            onSubmit={(event) => void submitAnnotationComposer(event)}
-          >
-            {(annotationComposer.type === 'replacement' ||
-              annotationComposer.type === 'insertion') && (
+          {selectionToolbar && annotationComposer && (
+            <form
+              ref={(node) => {
+                annotationOverlayRef.current = node;
+              }}
+              className="plan-annotation-composer"
+              aria-label="Create plan annotation"
+              style={{ top: selectionToolbar.top, left: selectionToolbar.left }}
+              onSubmit={(event) => void submitAnnotationComposer(event)}
+            >
+              {(annotationComposer.type === 'replacement' ||
+                annotationComposer.type === 'insertion') && (
+                <label className="plan-annotation-composer-field">
+                  <span>{replacementTextLabel(annotationComposer.type)}</span>
+                  <textarea
+                    value={annotationComposer.replacementText}
+                    ref={
+                      requiresReplacementText(annotationComposer.type)
+                        ? annotationComposerFirstFieldRef
+                        : undefined
+                    }
+                    onChange={(event) => {
+                      const { value } = event.currentTarget;
+                      setAnnotationComposer((current) =>
+                        current ? { ...current, replacementText: value } : current,
+                      );
+                    }}
+                    rows={2}
+                    required
+                  />
+                </label>
+              )}
               <label className="plan-annotation-composer-field">
-                <span>{replacementTextLabel(annotationComposer.type)}</span>
+                <span>{bodyLabel(annotationComposer.type)}</span>
                 <textarea
-                  value={annotationComposer.replacementText}
+                  value={annotationComposer.body}
                   ref={
-                    requiresReplacementText(annotationComposer.type)
+                    !requiresReplacementText(annotationComposer.type)
                       ? annotationComposerFirstFieldRef
                       : undefined
                   }
                   onChange={(event) => {
                     const { value } = event.currentTarget;
                     setAnnotationComposer((current) =>
-                      current ? { ...current, replacementText: value } : current,
+                      current ? { ...current, body: value } : current,
                     );
                   }}
-                  rows={2}
-                  required
+                  rows={annotationComposer.type === 'replacement' ? 2 : 3}
+                  required={requiresBody(annotationComposer.type)}
                 />
               </label>
-            )}
-            <label className="plan-annotation-composer-field">
-              <span>{bodyLabel(annotationComposer.type)}</span>
-              <textarea
-                value={annotationComposer.body}
-                ref={
-                  !requiresReplacementText(annotationComposer.type)
-                    ? annotationComposerFirstFieldRef
-                    : undefined
-                }
-                onChange={(event) => {
-                  const { value } = event.currentTarget;
-                  setAnnotationComposer((current) =>
-                    current ? { ...current, body: value } : current,
-                  );
-                }}
-                rows={annotationComposer.type === 'replacement' ? 2 : 3}
-                required={requiresBody(annotationComposer.type)}
-              />
-            </label>
-            {composerError && (
-              <div className="plan-annotation-composer-error" role="alert">
-                {composerError}
+              {composerError && (
+                <div className="plan-annotation-composer-error" role="alert">
+                  {composerError}
+                </div>
+              )}
+              <div className="plan-annotation-composer-actions">
+                <button type="button" onClick={dismissAnnotationComposer}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={!canSubmitAnnotationComposer}>
+                  Add
+                </button>
               </div>
-            )}
-            <div className="plan-annotation-composer-actions">
-              <button type="button" onClick={dismissAnnotationComposer}>
-                Cancel
-              </button>
-              <button type="submit" disabled={!canSubmitAnnotationComposer}>
-                Add
-              </button>
-            </div>
-          </form>
-        )}
+            </form>
+          )}
 
-        {/* Body */}
-        {renderMode === 'markdown' ? (
-          <article
-            ref={(node) => {
-              bodyRef.current = node;
-            }}
-            className="plan-markdown"
-            onMouseUp={updateSelectionToolbar}
-            onKeyUp={updateSelectionToolbar}
-          >
-            <div id="plan-top" aria-hidden="true" />
-            <Markdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
-              components={{
-                code({ className, children, node: _node, ...props }) {
-                  const code = String(children).replace(/\n$/, '');
-                  const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
-                  const isBlock = Boolean(language) || code.includes('\n');
-
-                  if (!isBlock) {
-                    return (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    );
-                  }
-
-                  return (
-                    <MarkdownCodeBlock className={className} code={code} language={language} />
-                  );
-                },
-              }}
-            >
-              {renderContent}
-            </Markdown>
-          </article>
-        ) : (
-          <>
-            <div id="plan-top" aria-hidden="true" />
-            <pre
+          {/* Body */}
+          {renderMode === 'markdown' ? (
+            <article
               ref={(node) => {
                 bodyRef.current = node;
               }}
-              className="plan-plain"
+              className="plan-markdown"
               onMouseUp={updateSelectionToolbar}
               onKeyUp={updateSelectionToolbar}
             >
-              {renderContent}
-            </pre>
-          </>
-        )}
+              <div id="plan-top" aria-hidden="true" />
+              <Markdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
+                components={{
+                  code({ className, children, node: _node, ...props }) {
+                    const code = String(children).replace(/\n$/, '');
+                    const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
+                    const isBlock = Boolean(language) || code.includes('\n');
 
-        {/* File path footer */}
-        <div
-          className="flex items-center justify-between gap-2 mt-10 pt-4 border-t border-border text-[11.5px] text-tertiary"
-          style={{ fontFamily: "'SF Mono', 'JetBrains Mono', monospace" }}
-        >
-          <span className="break-all">{plan.filePath}</span>
-          <CopyPathButton path={plan.filePath} />
+                    if (!isBlock) {
+                      return (
+                        <code className={className} {...props}>
+                          {children}
+                        </code>
+                      );
+                    }
+
+                    return (
+                      <MarkdownCodeBlock className={className} code={code} language={language} />
+                    );
+                  },
+                }}
+              >
+                {renderContent}
+              </Markdown>
+            </article>
+          ) : (
+            <>
+              <div id="plan-top" aria-hidden="true" />
+              <pre
+                ref={(node) => {
+                  bodyRef.current = node;
+                }}
+                className="plan-plain"
+                onMouseUp={updateSelectionToolbar}
+                onKeyUp={updateSelectionToolbar}
+              >
+                {renderContent}
+              </pre>
+            </>
+          )}
+
+          {/* File path footer */}
+          <div
+            className="flex items-center justify-between gap-2 mt-10 pt-4 border-t border-border text-[11.5px] text-tertiary"
+            style={{ fontFamily: "'SF Mono', 'JetBrains Mono', monospace" }}
+          >
+            <span className="break-all">{plan.filePath}</span>
+            <CopyPathButton path={plan.filePath} />
+          </div>
+
+          {!isSplit && <ScrollToTop />}
         </div>
-
-        {!isSplit && <ScrollToTop />}
       </div>
     </div>
   );

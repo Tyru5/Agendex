@@ -10,6 +10,7 @@ import {
   OfflineView,
   type Plan,
   PlanList,
+  PlanActionButton,
   PlanSourcesDialog,
   type PlanState,
   PlanViewer,
@@ -29,13 +30,16 @@ import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useMutation, useQuery } from 'convex/react';
+import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react';
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
 import {
   lazy,
   Suspense,
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -523,6 +527,442 @@ function CloudSyncPausedNotice() {
   );
 }
 
+type CloudAnnotationState = ReturnType<typeof useCloudPlanAnnotations>;
+type ToolbarOptionPlacement = 'left' | 'right' | 'stack';
+type ReviewRailLayoutStyle = CSSProperties & {
+  '--plannotator-review-document-left'?: string;
+  '--plannotator-review-document-right'?: string;
+};
+
+const TOOLBAR_OPTION_ENTER_EASE = [0.22, 1, 0.36, 1] as const;
+const TOOLBAR_OPTION_EXIT_EASE = [0.4, 0, 1, 1] as const;
+const TOOLBAR_OPTION_LEFT_RAIL_WIDTH = 282;
+const TOOLBAR_OPTION_RIGHT_RAIL_WIDTH = 304;
+const TOOLBAR_OPTION_RAIL_GAP = 30;
+const TOOLBAR_OPTION_RAIL_MARGIN = 16;
+
+function useToolbarOptionLayoutVisibility(active: boolean): [boolean, () => void] {
+  const [present, setPresent] = useState(active);
+
+  useEffect(() => {
+    if (active) setPresent(true);
+  }, [active]);
+
+  const handleExitComplete = useCallback(() => {
+    if (!active) setPresent(false);
+  }, [active]);
+
+  return [active || present, handleExitComplete];
+}
+
+function getToolbarOptionHiddenState(placement: ToolbarOptionPlacement) {
+  if (placement === 'left') return { opacity: 0, x: -14, y: 0, scale: 0.985 };
+  if (placement === 'right') return { opacity: 0, x: 14, y: 0, scale: 0.985 };
+  return { opacity: 0, x: 0, y: 10, scale: 0.985 };
+}
+
+function useToolbarOptionMotion(placement: ToolbarOptionPlacement) {
+  const reduceMotion = useReducedMotion();
+  const hidden = reduceMotion ? { opacity: 0 } : getToolbarOptionHiddenState(placement);
+  const visible = reduceMotion ? { opacity: 1 } : { opacity: 1, x: 0, y: 0, scale: 1 };
+
+  return {
+    layout: !reduceMotion,
+    initial: 'hidden',
+    animate: 'visible',
+    exit: 'exit',
+    variants: {
+      hidden,
+      visible: {
+        ...visible,
+        transition: reduceMotion
+          ? { duration: 0 }
+          : { duration: 0.24, ease: TOOLBAR_OPTION_ENTER_EASE },
+      },
+      exit: {
+        ...hidden,
+        transition: reduceMotion
+          ? { duration: 0 }
+          : { duration: 0.18, ease: TOOLBAR_OPTION_EXIT_EASE },
+      },
+    },
+  } as const;
+}
+
+function ToolbarOptionSurface({
+  placement,
+  children,
+}: {
+  placement: ToolbarOptionPlacement;
+  children: ReactNode;
+}) {
+  const motion = useToolbarOptionMotion(placement);
+
+  return (
+    <m.div className="plannotator-toolbar-option-surface" data-placement={placement} {...motion}>
+      {children}
+    </m.div>
+  );
+}
+
+function ToolbarOptionRail({
+  side,
+  active,
+  onExitComplete,
+  children,
+}: {
+  side: 'left' | 'right';
+  active: boolean;
+  onExitComplete: () => void;
+  children: ReactNode;
+}) {
+  const motion = useToolbarOptionMotion(side);
+
+  return (
+    <AnimatePresence initial={false} onExitComplete={onExitComplete}>
+      {active && (
+        <m.aside
+          key={`${side}-rail`}
+          className={`plannotator-review-rail plannotator-review-rail--${side}`}
+          {...motion}
+        >
+          {children}
+        </m.aside>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function CloudToolbarOptionStack({
+  plan,
+  annotationState,
+  canWriteAnnotations,
+  daemonAvailable,
+  showPlannotatorTools,
+  showComments,
+}: {
+  plan: Plan;
+  annotationState: CloudAnnotationState;
+  canWriteAnnotations: boolean;
+  daemonAvailable: boolean;
+  showPlannotatorTools: boolean;
+  showComments: boolean;
+}) {
+  const active = showPlannotatorTools || showComments;
+  const [stackVisible, handleStackExitComplete] = useToolbarOptionLayoutVisibility(active);
+
+  if (!stackVisible) return null;
+
+  return (
+    <LazyMotion features={domAnimation}>
+      <div className="plannotator-review-stack mx-auto px-6 pb-16">
+        <AnimatePresence initial={false} onExitComplete={handleStackExitComplete}>
+          {showPlannotatorTools && (
+            <ToolbarOptionSurface key="plannotator-tools" placement="stack">
+              <CloudPlanAnnotationsPanel
+                plan={plan}
+                annotations={annotationState.annotations}
+                selectedAnnotationId={annotationState.selectedAnnotationId}
+                onSelectAnnotation={annotationState.setSelectedAnnotationId}
+                canWriteAnnotations={canWriteAnnotations}
+                daemonAvailable={daemonAvailable}
+                variant="stack"
+              />
+              <CloudPlannotatorWritebackPanel
+                plan={plan}
+                canQueueWriteback={canWriteAnnotations}
+                daemonAvailable={daemonAvailable}
+                variant="stack"
+              />
+            </ToolbarOptionSurface>
+          )}
+          {showComments && (
+            <ToolbarOptionSurface key="comments" placement="stack">
+              <CommentThread planId={plan.id} isOwner className="plannotator-comments-panel" />
+            </ToolbarOptionSurface>
+          )}
+        </AnimatePresence>
+      </div>
+    </LazyMotion>
+  );
+}
+
+function CloudPlanReviewWorkspace({
+  plan,
+  mode,
+  isPro,
+  annotationState,
+  canWriteAnnotations,
+  annotationUpgradeMessage,
+  daemonAvailable,
+  showPlannotatorTools,
+  showComments,
+  actionToolbarExtra,
+  outlineHidden,
+  chartHidden,
+  onEdit,
+  onHistory,
+  onShare,
+  onChartWideChange,
+  onToggleChart,
+}: {
+  plan: Plan;
+  mode: DashboardMode;
+  isPro: boolean;
+  annotationState: CloudAnnotationState;
+  canWriteAnnotations: boolean;
+  annotationUpgradeMessage?: string;
+  daemonAvailable: boolean;
+  showPlannotatorTools: boolean;
+  showComments: boolean;
+  actionToolbarExtra?: ReactNode;
+  outlineHidden?: boolean;
+  chartHidden?: boolean;
+  onEdit: () => void;
+  onHistory: () => void;
+  onShare: () => void;
+  onChartWideChange: (wide: boolean) => void;
+  onToggleChart?: () => void;
+}) {
+  const hasRightRail = showPlannotatorTools || showComments;
+  const [leftRailVisible, handleLeftRailExitComplete] =
+    useToolbarOptionLayoutVisibility(showPlannotatorTools);
+  const [rightRailVisible, handleRightRailExitComplete] =
+    useToolbarOptionLayoutVisibility(hasRightRail);
+  const reduceMotion = useReducedMotion();
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const [railLayoutStyle, setRailLayoutStyle] = useState<ReviewRailLayoutStyle>({});
+  const [overlayRails, setOverlayRails] = useState(false);
+
+  useLayoutEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+
+    let frame = 0;
+
+    const updateRailLayout = () => {
+      frame = 0;
+      const documentElement = shell.querySelector('.plannotator-review-document');
+      if (!(documentElement instanceof HTMLElement)) return;
+
+      const rect = documentElement.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+      const nextLeft = `${Math.round(rect.left)}px`;
+      const nextRight = `${Math.round(rect.right)}px`;
+      const activeRails = leftRailVisible || rightRailVisible;
+      const hasLeftMargin =
+        !leftRailVisible ||
+        rect.left >=
+          TOOLBAR_OPTION_LEFT_RAIL_WIDTH + TOOLBAR_OPTION_RAIL_GAP + TOOLBAR_OPTION_RAIL_MARGIN;
+      const hasRightMargin =
+        !rightRailVisible ||
+        viewportWidth - rect.right >=
+          TOOLBAR_OPTION_RIGHT_RAIL_WIDTH + TOOLBAR_OPTION_RAIL_GAP + TOOLBAR_OPTION_RAIL_MARGIN;
+      const nextOverlayRails =
+        activeRails && viewportWidth > 1320 && hasLeftMargin && hasRightMargin;
+
+      setRailLayoutStyle((current) =>
+        current['--plannotator-review-document-left'] === nextLeft &&
+        current['--plannotator-review-document-right'] === nextRight
+          ? current
+          : {
+              '--plannotator-review-document-left': nextLeft,
+              '--plannotator-review-document-right': nextRight,
+            },
+      );
+      setOverlayRails((current) => (current === nextOverlayRails ? current : nextOverlayRails));
+    };
+
+    const scheduleRailLayoutUpdate = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(updateRailLayout);
+    };
+
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => scheduleRailLayoutUpdate());
+    resizeObserver?.observe(shell);
+    const mainPane = shell.closest('.agendex-main-pane');
+    if (mainPane) resizeObserver?.observe(mainPane);
+
+    updateRailLayout();
+    window.addEventListener('resize', scheduleRailLayoutUpdate);
+    window.addEventListener('agendex:plan-layout-change', scheduleRailLayoutUpdate);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', scheduleRailLayoutUpdate);
+      window.removeEventListener('agendex:plan-layout-change', scheduleRailLayoutUpdate);
+    };
+  }, [leftRailVisible, rightRailVisible]);
+
+  return (
+    <LazyMotion features={domAnimation}>
+      <m.div
+        ref={shellRef}
+        layout={!reduceMotion}
+        transition={
+          reduceMotion ? { duration: 0 } : { duration: 0.24, ease: TOOLBAR_OPTION_ENTER_EASE }
+        }
+        className="plannotator-review-shell"
+        data-left-rail={leftRailVisible ? 'true' : undefined}
+        data-right-rail={rightRailVisible ? 'true' : undefined}
+        data-overlay-rails={overlayRails ? 'true' : undefined}
+        style={railLayoutStyle}
+      >
+        <ToolbarOptionRail
+          side="left"
+          active={showPlannotatorTools}
+          onExitComplete={handleLeftRailExitComplete}
+        >
+          <CloudPlanAnnotationsPanel
+            plan={plan}
+            annotations={annotationState.annotations}
+            selectedAnnotationId={annotationState.selectedAnnotationId}
+            onSelectAnnotation={annotationState.setSelectedAnnotationId}
+            canWriteAnnotations={canWriteAnnotations}
+            daemonAvailable={daemonAvailable}
+            variant="rail"
+          />
+        </ToolbarOptionRail>
+
+        <div className="plannotator-review-document">
+          <PlanViewer
+            plan={plan}
+            onEdit={onEdit}
+            onChartWideChange={onChartWideChange}
+            onToggleChart={onToggleChart}
+            onHistory={isPro ? onHistory : undefined}
+            onShare={isPro ? onShare : undefined}
+            actionToolbarExtra={actionToolbarExtra}
+            headerExtra={<PlanHeaderExtra plan={plan} isPro={isPro} mode={mode} />}
+            outlineHidden={outlineHidden}
+            chartHidden={chartHidden}
+            annotations={annotationState.annotations}
+            selectedAnnotationId={annotationState.selectedAnnotationId}
+            canCreateAnnotations={canWriteAnnotations}
+            annotationUpgradeMessage={annotationUpgradeMessage}
+            annotationCreateError={annotationState.createError}
+            onCreateAnnotation={annotationState.createAnnotation}
+            onClearAnnotationCreateError={annotationState.clearCreateError}
+            onSelectAnnotation={annotationState.setSelectedAnnotationId}
+          />
+        </div>
+
+        <ToolbarOptionRail
+          side="right"
+          active={hasRightRail}
+          onExitComplete={handleRightRailExitComplete}
+        >
+          <AnimatePresence initial={false}>
+            {showPlannotatorTools && (
+              <ToolbarOptionSurface key="writeback" placement="right">
+                <CloudPlannotatorWritebackPanel
+                  plan={plan}
+                  canQueueWriteback={canWriteAnnotations}
+                  daemonAvailable={daemonAvailable}
+                  variant="rail"
+                />
+              </ToolbarOptionSurface>
+            )}
+            {showComments && (
+              <ToolbarOptionSurface key="comments" placement="right">
+                <CommentThread planId={plan.id} isOwner className="plannotator-comments-panel" />
+              </ToolbarOptionSurface>
+            )}
+          </AnimatePresence>
+        </ToolbarOptionRail>
+      </m.div>
+    </LazyMotion>
+  );
+}
+
+function CloudPlanActionExtras({
+  showPlannotatorTools,
+  showComments,
+  isCloudReview,
+  onTogglePlannotatorTools,
+  onToggleComments,
+}: {
+  showPlannotatorTools: boolean;
+  showComments: boolean;
+  isCloudReview: boolean;
+  onTogglePlannotatorTools: () => void;
+  onToggleComments: () => void;
+}) {
+  return (
+    <>
+      {isCloudReview && (
+        <>
+          <PlanActionButton
+            label={showPlannotatorTools ? 'Hide Plannotator tools' : 'Show Plannotator tools'}
+            tooltip={showPlannotatorTools ? 'Hide Plannotator tools' : 'Show Plannotator tools'}
+            pressed={showPlannotatorTools}
+            onClick={onTogglePlannotatorTools}
+          >
+            <PlannotatorToolbarIcon />
+          </PlanActionButton>
+          <PlanActionButton
+            label={showComments ? 'Hide comments' : 'Show comments'}
+            tooltip={showComments ? 'Hide comments' : 'Show comments'}
+            pressed={showComments}
+            onClick={onToggleComments}
+          >
+            <CommentPanelIcon />
+          </PlanActionButton>
+        </>
+      )}
+    </>
+  );
+}
+
+function PlannotatorToolbarIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.65}
+      stroke="currentColor"
+      className="w-[14px] h-[14px]"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.25 3.75h7l4.5 4.5v10a2 2 0 0 1-2 2H6.25a2 2 0 0 1-2-2V5.75a2 2 0 0 1 2-2Z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.25 3.95v4.3h4.3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 15.4l2.8-2.8 2.1 2.1 3.2-3.2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 8.4h2.6M8 8.4V11" />
+      <circle cx="8" cy="15.4" r="1.15" fill="currentColor" stroke="none" />
+      <circle cx="16.1" cy="11.5" r="1.15" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function CommentPanelIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      className="w-[13px] h-[13px]"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.5 8.25h9M7.5 12h6.75M4.5 4.5h15v10.5a2.25 2.25 0 0 1-2.25 2.25H9L4.5 20.25V4.5Z"
+      />
+    </svg>
+  );
+}
+
 function DashboardMain({
   mode,
   isPro,
@@ -582,6 +1022,8 @@ function DashboardMain({
   outlineHidden?: boolean;
   chartHidden?: boolean;
 }) {
+  const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const selectedAnnotationState = useCloudPlanAnnotations({
     plan: selectedPlan,
     enabled: mode === 'cloud' && isPro && Boolean(selectedPlan),
@@ -608,6 +1050,22 @@ function DashboardMain({
         ? 'Only the plan owner can create inline annotations.'
         : 'Inline plan annotations are available on Cloud Pro.'
       : undefined;
+  const isCloudReview = mode === 'cloud' && isPro;
+  const actionToolbarExtra = (
+    <CloudPlanActionExtras
+      showPlannotatorTools={showPlannotatorTools}
+      showComments={showComments}
+      isCloudReview={isCloudReview}
+      onTogglePlannotatorTools={() => setShowPlannotatorTools((current) => !current)}
+      onToggleComments={() => setShowComments((current) => !current)}
+    />
+  );
+
+  useEffect(() => {
+    if (selectedAnnotationState.selectedAnnotationId || splitAnnotationState.selectedAnnotationId) {
+      setShowPlannotatorTools(true);
+    }
+  }, [selectedAnnotationState.selectedAnnotationId, splitAnnotationState.selectedAnnotationId]);
 
   // Entitlements resolve after auth/session rehydration; don't show the paywall during that gap.
   if (mode === 'cloud' && isWorkspaceAccessLoading) {
@@ -689,6 +1147,7 @@ function DashboardMain({
             onToggleChart={onToggleChart}
             onHistory={isPro ? onHistory : undefined}
             onShare={isPro ? onShare : undefined}
+            actionToolbarExtra={actionToolbarExtra}
             headerExtra={<PlanHeaderExtra plan={selectedPlan} isPro={isPro} mode={mode} />}
             chartHidden={chartHidden}
             annotations={selectedAnnotationState.annotations}
@@ -700,23 +1159,15 @@ function DashboardMain({
             onClearAnnotationCreateError={selectedAnnotationState.clearCreateError}
             onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
           />
-          {isPro && mode === 'cloud' && (
-            <div className="mx-auto px-6 pb-16">
-              <CloudPlanAnnotationsPanel
-                plan={selectedPlan}
-                annotations={selectedAnnotationState.annotations}
-                selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
-                onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
-                canWriteAnnotations={canWriteSelectedAnnotations}
-                daemonAvailable={!cloudSyncPaused}
-              />
-              <CloudPlannotatorWritebackPanel
-                plan={selectedPlan}
-                canQueueWriteback={canWriteSelectedAnnotations}
-                daemonAvailable={!cloudSyncPaused}
-              />
-              <CommentThread planId={selectedPlan.id} isOwner />
-            </div>
+          {isCloudReview && (
+            <CloudToolbarOptionStack
+              plan={selectedPlan}
+              annotationState={selectedAnnotationState}
+              canWriteAnnotations={canWriteSelectedAnnotations}
+              daemonAvailable={!cloudSyncPaused}
+              showPlannotatorTools={showPlannotatorTools}
+              showComments={showComments}
+            />
           )}
         </div>
         <div className="overflow-auto border-l border-border" style={{ minWidth: 0 }}>
@@ -727,6 +1178,7 @@ function DashboardMain({
             onToggleChart={onToggleChart}
             onHistory={isPro ? onHistory : undefined}
             onShare={isPro ? onShare : undefined}
+            actionToolbarExtra={actionToolbarExtra}
             headerExtra={<PlanHeaderExtra plan={splitPlan} isPro={isPro} mode={mode} />}
             chartHidden={chartHidden}
             annotations={splitAnnotationState.annotations}
@@ -738,23 +1190,15 @@ function DashboardMain({
             onClearAnnotationCreateError={splitAnnotationState.clearCreateError}
             onSelectAnnotation={splitAnnotationState.setSelectedAnnotationId}
           />
-          {isPro && mode === 'cloud' && (
-            <div className="mx-auto px-6 pb-16">
-              <CloudPlanAnnotationsPanel
-                plan={splitPlan}
-                annotations={splitAnnotationState.annotations}
-                selectedAnnotationId={splitAnnotationState.selectedAnnotationId}
-                onSelectAnnotation={splitAnnotationState.setSelectedAnnotationId}
-                canWriteAnnotations={canWriteSplitAnnotations}
-                daemonAvailable={!cloudSyncPaused}
-              />
-              <CloudPlannotatorWritebackPanel
-                plan={splitPlan}
-                canQueueWriteback={canWriteSplitAnnotations}
-                daemonAvailable={!cloudSyncPaused}
-              />
-              <CommentThread planId={splitPlan.id} isOwner />
-            </div>
+          {isCloudReview && (
+            <CloudToolbarOptionStack
+              plan={splitPlan}
+              annotationState={splitAnnotationState}
+              canWriteAnnotations={canWriteSplitAnnotations}
+              daemonAvailable={!cloudSyncPaused}
+              showPlannotatorTools={showPlannotatorTools}
+              showComments={showComments}
+            />
           )}
         </div>
         {sharing && isPro && (
@@ -835,42 +1279,47 @@ function DashboardMain({
           </Suspense>
         ) : (
           <>
-            <PlanViewer
-              plan={selectedPlan}
-              onEdit={onEdit}
-              onChartWideChange={onChartWideChange}
-              onToggleChart={onToggleChart}
-              onHistory={isPro ? onHistory : undefined}
-              onShare={isPro ? onShare : undefined}
-              headerExtra={<PlanHeaderExtra plan={selectedPlan} isPro={isPro} mode={mode} />}
-              outlineHidden={outlineHidden}
-              chartHidden={chartHidden}
-              annotations={selectedAnnotationState.annotations}
-              selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
-              canCreateAnnotations={canWriteSelectedAnnotations}
-              annotationUpgradeMessage={selectedAnnotationUnavailableMessage}
-              annotationCreateError={selectedAnnotationState.createError}
-              onCreateAnnotation={selectedAnnotationState.createAnnotation}
-              onClearAnnotationCreateError={selectedAnnotationState.clearCreateError}
-              onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
-            />
-            {isPro && mode === 'cloud' && (
-              <div className="max-w-[720px] mx-auto px-8 pb-16">
-                <CloudPlanAnnotationsPanel
-                  plan={selectedPlan}
-                  annotations={selectedAnnotationState.annotations}
-                  selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
-                  onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
-                  canWriteAnnotations={canWriteSelectedAnnotations}
-                  daemonAvailable={!cloudSyncPaused}
-                />
-                <CloudPlannotatorWritebackPanel
-                  plan={selectedPlan}
-                  canQueueWriteback={canWriteSelectedAnnotations}
-                  daemonAvailable={!cloudSyncPaused}
-                />
-                <CommentThread planId={selectedPlan.id} isOwner />
-              </div>
+            {isPro && mode === 'cloud' ? (
+              <CloudPlanReviewWorkspace
+                plan={selectedPlan}
+                mode={mode}
+                isPro={isPro}
+                annotationState={selectedAnnotationState}
+                canWriteAnnotations={canWriteSelectedAnnotations}
+                annotationUpgradeMessage={selectedAnnotationUnavailableMessage}
+                daemonAvailable={!cloudSyncPaused}
+                showPlannotatorTools={showPlannotatorTools}
+                showComments={showComments}
+                actionToolbarExtra={actionToolbarExtra}
+                outlineHidden={outlineHidden}
+                chartHidden={chartHidden}
+                onEdit={onEdit}
+                onHistory={onHistory}
+                onShare={onShare}
+                onChartWideChange={onChartWideChange}
+                onToggleChart={onToggleChart}
+              />
+            ) : (
+              <PlanViewer
+                plan={selectedPlan}
+                onEdit={onEdit}
+                onChartWideChange={onChartWideChange}
+                onToggleChart={onToggleChart}
+                onHistory={isPro ? onHistory : undefined}
+                onShare={isPro ? onShare : undefined}
+                actionToolbarExtra={actionToolbarExtra}
+                headerExtra={<PlanHeaderExtra plan={selectedPlan} isPro={isPro} mode={mode} />}
+                outlineHidden={outlineHidden}
+                chartHidden={chartHidden}
+                annotations={selectedAnnotationState.annotations}
+                selectedAnnotationId={selectedAnnotationState.selectedAnnotationId}
+                canCreateAnnotations={canWriteSelectedAnnotations}
+                annotationUpgradeMessage={selectedAnnotationUnavailableMessage}
+                annotationCreateError={selectedAnnotationState.createError}
+                onCreateAnnotation={selectedAnnotationState.createAnnotation}
+                onClearAnnotationCreateError={selectedAnnotationState.clearCreateError}
+                onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
+              />
             )}
             {sharing && isPro && (
               <SharePlanDialog plan={selectedPlan} mode={mode} onClose={onCloseShare} />
@@ -1492,6 +1941,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       restoreSidebarAfterWide();
     }
     dsd({ type: 'TOGGLE_CHART' });
+    window.dispatchEvent(new Event('agendex:plan-layout-change'));
   }
 
   useHotkey('Mod+B', toggleSidebar);
@@ -1539,6 +1989,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     } else {
       restoreSidebarAfterWide();
     }
+    window.dispatchEvent(new Event('agendex:plan-layout-change'));
   }
 
   return (

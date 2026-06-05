@@ -44,6 +44,12 @@ type OpenLiveness =
  *   2. Daemon device alive/stale status is a fallback for the case where the
  *      whole machine/daemon went offline before it could publish an end event.
  *      A loopback server is only reachable while its originating device is up.
+ *
+ * Device-liveness is NOT a sufficient signal on its own for a `live-session`: a
+ * single Plannotator loopback process can die while the daemon device stays up
+ * (and a session synced before liveness tracking existed has no `liveness` field
+ * at all). We therefore require positive proof of liveness for live sessions and
+ * only fall back to device status to *demote* an otherwise-live record.
  */
 function resolveOpenLiveness(
   plan: Plan,
@@ -55,6 +61,17 @@ function resolveOpenLiveness(
   // (1) Authoritative: the daemon told us the session ended.
   if (metadata.liveness === 'ended' || metadata.writebackCapable === false) {
     return { state: 'offline', reason: 'session-ended', hostname };
+  }
+
+  // (1b) A live-session loopback URL is only reachable while that specific
+  // process is running. Demand positive proof — without it (e.g. a stale record
+  // synced before liveness tracking, or a session whose PID died without the
+  // daemon observing it), treat the session as ended regardless of device state.
+  if (metadata.kind === 'live-session') {
+    const provenLive = metadata.liveness === 'live' && metadata.writebackCapable === true;
+    if (!provenLive) {
+      return { state: 'offline', reason: 'session-ended', hostname };
+    }
   }
 
   // (2) Fallback: correlate with the syncing daemon device's liveness.
@@ -108,6 +125,34 @@ function statusBorderColor(status: string | undefined): string {
   return `color-mix(in oklch, ${statusColor(status)} 42%, transparent)`;
 }
 
+// Shared interaction grammar (mirrors AuthButton/AuthPage): accent focus ring,
+// 150ms ease-out, subtle press. Kept here so every Plannotator control behaves
+// identically rather than each one reinventing hover/focus.
+export const FOCUS_RING =
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklch,var(--accent)_55%,var(--border))]';
+export const PRIMARY_BUTTON = `inline-flex items-center justify-center rounded-lg border-0 bg-[var(--accent)] px-3 py-1.5 text-[12px] font-semibold text-[var(--accent-contrast)] transition-[background-color,opacity,transform] duration-150 ease-out hover:bg-[color-mix(in_oklch,var(--accent)_88%,var(--text))] active:translate-y-px disabled:cursor-default disabled:opacity-50 disabled:hover:bg-[var(--accent)] ${FOCUS_RING}`;
+export const GHOST_BUTTON = `inline-flex items-center justify-center rounded-md border border-border bg-transparent px-2 py-1 text-[11px] font-medium text-secondary transition-[background-color,border-color,color,transform] duration-150 ease-out hover:bg-hover hover:text-text active:translate-y-px ${FOCUS_RING}`;
+export const DANGER_BUTTON = `inline-flex items-center justify-center rounded-md border border-border bg-transparent px-2 py-1 text-[11px] font-medium text-[var(--danger)] transition-[background-color,border-color,transform] duration-150 ease-out hover:border-[color-mix(in_oklch,var(--danger)_30%,var(--border))] hover:bg-[color-mix(in_oklch,var(--danger)_9%,transparent)] active:translate-y-px ${FOCUS_RING}`;
+export const FIELD = `w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-[13px] leading-5 text-text outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-secondary focus:border-[color-mix(in_oklch,var(--accent)_45%,var(--border))] focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--accent)_18%,transparent)]`;
+
+type PlannotatorPanelVariant = 'stack' | 'rail';
+
+function panelClassName(variant: PlannotatorPanelVariant): string {
+  return `plannotator-panel plannotator-panel--${variant}`;
+}
+
+function StatusPill({ status }: { status: string | undefined }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold capitalize"
+      style={{ borderColor: statusBorderColor(status), color: statusColor(status) }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusColor(status) }} />
+      {status}
+    </span>
+  );
+}
+
 export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
   const metadata = getPlannotatorMetadata(plan);
   const { devices } = useDaemonStatus();
@@ -133,21 +178,29 @@ export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
   // Only show open affordances at all when there is a loopback URL to open.
   const hasLoopbackUrl = isSafeLoopbackUrl(metadata.url);
 
+  // The badge label already states the session ended, so this stays a short,
+  // single-clause recovery note (no restated status, no em dash).
   const offlineHint =
     liveness.state === 'offline'
       ? liveness.reason === 'session-ended'
-        ? `Server offline${liveness.hostname ? ` — reopen the session on '${liveness.hostname}'` : ' — reopen the Plannotator session'}`
-        : `Machine offline${liveness.hostname ? ` — start the session on '${liveness.hostname}'` : ' — start the originating machine'}`
+        ? liveness.hostname
+          ? `Reopen the session on ${liveness.hostname}`
+          : 'Reopen the Plannotator session to continue'
+        : liveness.hostname
+          ? `Start the originating machine (${liveness.hostname})`
+          : 'Start the originating machine to continue'
       : undefined;
 
+  const isLivePulse = isLiveKind && !sessionEnded;
+
   return (
-    <div className="plan-plannotator-badge">
+    <div className="plan-plannotator-badge inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
       <span
         className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold"
         style={{ borderColor: statusBorderColor(status), color: statusColor(status) }}
       >
         <span
-          className="h-1.5 w-1.5 rounded-full"
+          className={`h-1.5 w-1.5 rounded-full${isLivePulse ? ' plannotator-live-dot' : ''}`}
           style={{ backgroundColor: statusColor(status) }}
         />
         {label}
@@ -162,20 +215,22 @@ export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
             href={metadata.url}
             target="_blank"
             rel="noreferrer"
-            className="text-[11px] text-secondary underline decoration-dotted underline-offset-4"
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-secondary underline decoration-dotted underline-offset-4 transition-colors hover:text-text"
           >
             Open in Plannotator
+            <span aria-hidden="true" className="text-[10px] leading-none">
+              ↗
+            </span>
           </a>
         ) : (
-          <span
-            className="inline-flex items-center gap-1 text-[11px] text-tertiary"
-            title={offlineHint}
-          >
-            <span className="text-tertiary line-through decoration-dotted">
-              Open in Plannotator
+          offlineHint && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-tertiary">
+              <span aria-hidden="true" className="text-[10px] leading-none opacity-70">
+                ○
+              </span>
+              {offlineHint}
             </span>
-            {offlineHint && <span className="text-tertiary">· {offlineHint}</span>}
-          </span>
+          )
         ))}
     </div>
   );
@@ -185,10 +240,12 @@ export function CloudPlannotatorWritebackPanel({
   plan,
   canQueueWriteback = true,
   daemonAvailable = true,
+  variant = 'stack',
 }: {
   plan: Plan;
   canQueueWriteback?: boolean;
   daemonAvailable?: boolean;
+  variant?: PlannotatorPanelVariant;
 }) {
   const metadata = getPlannotatorMetadata(plan);
   const isLive = metadata?.kind === 'live-session' && metadata.writebackCapable === true;
@@ -230,47 +287,43 @@ export function CloudPlannotatorWritebackPanel({
   }
 
   return (
-    <section className="mt-8 rounded-xl border border-border bg-surface p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-[13px] font-semibold text-text">Advanced Plannotator write-back</h2>
-          <p className="mt-1 text-[12px] text-tertiary">
+    <section className={panelClassName(variant)} aria-label="Manual Plannotator request">
+      <div className="plannotator-panel-header">
+        <div className="min-w-0">
+          <h2 className="plannotator-panel-title">Manual request</h2>
+          <p className="plannotator-panel-copy">
             {isLive
               ? daemonAvailable
-                ? 'Use this manual fallback when inline annotations are not specific enough for the agent.'
-                : 'Start the Agendex CLI daemon to deliver request-changes feedback back through Plannotator.'
-              : 'This is a saved Plannotator plan. Write-back is only available for live sessions.'}
+                ? 'Use when inline notes need broader context.'
+                : 'Start the CLI daemon to deliver feedback.'
+              : 'Write-back is available only for live sessions.'}
           </p>
         </div>
-        {latest && (
-          <span
-            className="rounded-full border px-2 py-1 text-[11px] font-semibold"
-            style={{
-              borderColor: statusBorderColor(latest.status),
-              color: statusColor(latest.status),
-            }}
-          >
-            {latest.status}
-          </span>
-        )}
+        {latest && <StatusPill status={latest.status} />}
       </div>
 
       {isLive && (
-        <div className="mt-4 space-y-3">
-          <textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder="Describe the changes the agent should make before resubmitting the plan..."
-            className="min-h-[92px] w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-[13px] leading-5 text-text outline-none"
-          />
-          <textarea
-            value={revisedContent}
-            onChange={(e) => setRevisedContent(e.target.value)}
-            placeholder="Optional: paste revised plan content or a specific replacement section..."
-            className="min-h-[72px] w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-[13px] leading-5 text-text outline-none"
-          />
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-[11px] text-tertiary">
+        <div className="plannotator-writeback-form">
+          <label className="plannotator-field">
+            <span>Request</span>
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="What should change?"
+              className={`min-h-[92px] ${FIELD}`}
+            />
+          </label>
+          <label className="plannotator-field">
+            <span>Revision</span>
+            <textarea
+              value={revisedContent}
+              onChange={(e) => setRevisedContent(e.target.value)}
+              placeholder="Paste replacement content, if needed"
+              className={`min-h-[72px] ${FIELD}`}
+            />
+          </label>
+          <div className="plannotator-writeback-footer">
+            <div className="plannotator-panel-note">
               {!canQueueWriteback && (
                 <span>Only the plan owner can queue request-changes feedback.</span>
               )}
@@ -295,14 +348,14 @@ export function CloudPlannotatorWritebackPanel({
               disabled={
                 submitting || !canRequestChanges || (!feedback.trim() && !revisedContent.trim())
               }
-              className="rounded-lg border-0 bg-text px-3 py-1.5 text-[12px] font-semibold text-bg disabled:opacity-50"
+              className={PRIMARY_BUTTON}
             >
               {submitting
                 ? 'Queueing…'
                 : !canQueueWriteback
                   ? 'Owner only'
                   : daemonAvailable
-                    ? 'Queue manual request'
+                    ? 'Queue request'
                     : 'Daemon required'}
             </button>
           </div>

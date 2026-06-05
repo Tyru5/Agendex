@@ -8,6 +8,7 @@ import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useMemo, useState } from 'react';
+import { DANGER_BUTTON, GHOST_BUTTON, PRIMARY_BUTTON } from './CloudPlannotatorPanel.tsx';
 
 type AnnotationDoc = {
   _id: Id<'planAnnotations'>;
@@ -74,6 +75,16 @@ function selectedQuote(annotation: PlanAnnotationRecord): string {
   return annotation.anchor.quote || 'Whole-plan note';
 }
 
+type PlannotatorPanelVariant = 'stack' | 'rail';
+
+function panelClassName(variant: PlannotatorPanelVariant): string {
+  return `plannotator-panel plannotator-panel--${variant}`;
+}
+
+function typeLabel(type: PlanAnnotationRecord['type']): string {
+  return type.replace('_', ' ');
+}
+
 export function useCloudPlanAnnotations({
   plan,
   enabled,
@@ -135,6 +146,7 @@ export function CloudPlanAnnotationsPanel({
   onSelectAnnotation,
   canWriteAnnotations = false,
   daemonAvailable = true,
+  variant = 'stack',
 }: {
   plan: Plan;
   annotations: PlanAnnotationRecord[];
@@ -142,6 +154,7 @@ export function CloudPlanAnnotationsPanel({
   onSelectAnnotation?: (id: string | null) => void;
   canWriteAnnotations?: boolean;
   daemonAvailable?: boolean;
+  variant?: PlannotatorPanelVariant;
 }) {
   const enqueueWriteback = useMutation(api.plannotator.enqueueWriteback);
   const updateAnnotation = useMutation(api.annotations.updateAnnotation);
@@ -210,104 +223,100 @@ export function CloudPlanAnnotationsPanel({
     }
   }
 
-  if (annotations.length === 0) {
-    return (
-      <section className="mt-8 rounded-xl border border-border bg-surface p-4">
-        <h2 className="text-[13px] font-semibold text-text">Plan annotations</h2>
-        <p className="mt-1 text-[12px] text-tertiary">
-          {canWriteAnnotations
-            ? 'Highlight plan text to add structured feedback for the agent.'
-            : 'No plan annotations.'}
-        </p>
-      </section>
-    );
-  }
+  const showSubmitAction = canWriteAnnotations && openAnnotations.length > 0;
 
   return (
-    <section className="mt-8 rounded-xl border border-border bg-surface p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-[13px] font-semibold text-text">Plan annotations</h2>
-          <p className="mt-1 text-[12px] text-tertiary">
-            {unresolvedAnnotations.length} unresolved · {openAnnotations.length} ready to submit
-          </p>
+    <section className={panelClassName(variant)} aria-label="Plan annotations">
+      <div className="plannotator-panel-header">
+        <div className="min-w-0">
+          <h2 className="plannotator-panel-title">Plan annotations</h2>
+          <div className="plannotator-panel-metrics" aria-label="Annotation counts">
+            <span>
+              <strong>{openAnnotations.length}</strong> open
+            </span>
+            <span>
+              <strong>{unresolvedAnnotations.length}</strong> unresolved
+            </span>
+          </div>
         </div>
-        {canWriteAnnotations && (
+        {showSubmitAction && (
           <button
             type="button"
             onClick={submitAnnotations}
             disabled={submitting || !canWriteback}
-            className="rounded-lg border-0 bg-text px-3 py-1.5 text-[12px] font-semibold text-bg disabled:opacity-50"
+            className={PRIMARY_BUTTON}
           >
             {submitting ? 'Submitting…' : daemonAvailable ? 'Submit to agent' : 'Daemon required'}
           </button>
         )}
       </div>
 
-      <div className="mt-3 space-y-2">
-        {annotations.map((annotation) => {
-          const selected = annotation.id === selectedAnnotationId;
-          const canUpdateAnnotation = canWriteAnnotations && annotation.status !== 'submitted';
-          return (
-            <article
-              key={annotation.id}
-              className="rounded-lg border p-3"
-              style={{
-                borderColor: selected ? 'var(--warning)' : 'var(--border)',
-                background: selected
-                  ? 'color-mix(in oklch, var(--warning) 8%, transparent)'
-                  : 'var(--bg)',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => onSelectAnnotation?.(selected ? null : annotation.id)}
-                className="w-full border-0 bg-transparent p-0 text-left font-[inherit]"
+      {annotations.length === 0 ? (
+        <div className="plannotator-empty-state">
+          {canWriteAnnotations
+            ? 'Highlight text in the plan to add comments, replacements, or deletion notes.'
+            : 'No plan annotations.'}
+        </div>
+      ) : (
+        <div className="plannotator-annotation-list">
+          {annotations.map((annotation) => {
+            const selected = annotation.id === selectedAnnotationId;
+            const canUpdateAnnotation = canWriteAnnotations && annotation.status !== 'submitted';
+            return (
+              <article
+                key={annotation.id}
+                className="plannotator-annotation-card"
+                data-selected={selected ? 'true' : undefined}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[12px] font-semibold text-text">
-                    {annotation.type.replace('_', ' ')}
-                  </span>
-                  <span className="rounded-full border border-border px-2 py-0.5 text-[10.5px] text-tertiary">
-                    {statusLabel(annotation.status)}
-                  </span>
-                </div>
-                <p className="mt-1 line-clamp-2 text-[11.5px] text-tertiary">
-                  {selectedQuote(annotation)}
-                </p>
-              </button>
-              {annotation.body && (
-                <p className="mt-2 text-[12px] leading-5 text-secondary">{annotation.body}</p>
-              )}
-              {annotation.replacementText && (
-                <p className="mt-2 rounded-md border border-border bg-surface px-2 py-1 text-[12px] leading-5 text-secondary">
-                  {annotation.replacementText}
-                </p>
-              )}
-              {canUpdateAnnotation && (
-                <div className="mt-3 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void resolveAnnotation(annotation)}
-                    className="rounded-md border border-border bg-transparent px-2 py-1 text-[11px] font-medium text-secondary"
-                  >
-                    {annotation.status === 'resolved' ? 'Reopen' : 'Resolve'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void removeAnnotation(annotation)}
-                    className="rounded-md border border-border bg-transparent px-2 py-1 text-[11px] font-medium text-[var(--danger)]"
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
-            </article>
-          );
-        })}
-      </div>
+                <button
+                  type="button"
+                  onClick={() => onSelectAnnotation?.(selected ? null : annotation.id)}
+                  className="plannotator-annotation-trigger"
+                >
+                  <div className="plannotator-annotation-card-top">
+                    <span className="plannotator-annotation-type">
+                      {typeLabel(annotation.type)}
+                    </span>
+                    <span className="plannotator-status-chip">
+                      {statusLabel(annotation.status)}
+                    </span>
+                  </div>
+                  <p className="plannotator-annotation-quote">{selectedQuote(annotation)}</p>
+                </button>
+                {annotation.body && (
+                  <p className="plannotator-annotation-body">{annotation.body}</p>
+                )}
+                {annotation.replacementText && (
+                  <div className="plannotator-annotation-replacement">
+                    <span>Suggested replacement</span>
+                    <p>{annotation.replacementText}</p>
+                  </div>
+                )}
+                {canUpdateAnnotation && (
+                  <div className="plannotator-annotation-actions">
+                    <button
+                      type="button"
+                      onClick={() => void resolveAnnotation(annotation)}
+                      className={GHOST_BUTTON}
+                    >
+                      {annotation.status === 'resolved' ? 'Reopen' : 'Resolve'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void removeAnnotation(annotation)}
+                      className={DANGER_BUTTON}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
 
-      <div className="mt-3 min-h-[16px] text-[11px] text-tertiary">
+      <div className="plannotator-panel-note">
         {queued ? 'Queued selected annotations for daemon delivery.' : null}
         {error ? <span className="text-[var(--danger)]">{error}</span> : null}
         {!queued && !error && !canWriteAnnotations

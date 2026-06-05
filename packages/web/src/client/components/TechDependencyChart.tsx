@@ -287,7 +287,7 @@ export function TechDependencyChart({ plan, onWideChange }: TechDependencyChartP
     const markdown = normalizePlanMarkdown(plan.content);
     const techs = extractTechnologies(markdown);
     return buildTechGraph(techs);
-  }, [plan.id, plan.content]);
+  }, [plan.content]);
 
   const [activeCategories, setActiveCategories] = useState<Set<TechCategory>>(() =>
     getGraphCategories(graph),

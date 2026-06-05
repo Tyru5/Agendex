@@ -26,7 +26,7 @@ export { PlanOutline } from './client/components/PlanOutline.tsx';
 export { PlanSourcesDialog } from './client/components/PlanSourcesDialog.tsx';
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export type { PlanAnnotationCreateDraft } from './client/components/PlanViewer.tsx';
-export { PlanViewer } from './client/components/PlanViewer.tsx';
+export { PlanActionButton, PlanViewer } from './client/components/PlanViewer.tsx';
 export { SearchBar } from './client/components/SearchBar.tsx';
 export { Sidebar } from './client/components/Sidebar.tsx';
 export { SidebarFilters } from './client/components/SidebarFilters.tsx';
