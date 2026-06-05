@@ -18,6 +18,7 @@ Agendex is a Bun workspaces monorepo:
 
 - Local plan indexing, full-text search, and automatic low-value plan hiding
 - Live file watching, polling fallback, and WebSocket updates
+- Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
 - Local API with token-based auth
 - Adapter selection, rescanning, and custom plan source directories
@@ -124,6 +125,10 @@ bun run cli:open -- --url https://example.com
 bun run cli -- view https://app.agendex.dev/shared/<token>
 bun run cli -- logout       # clear stored cloud token
 bun run cli:configure       # select which agents/adapters to index
+bun run cli:hooks -- status            # show Claude Code, Codex, and Pi hook status
+bun run cli:hooks -- install <agent|all>   # install hook integration (claude-code requires --preview)
+bun run cli:hooks -- uninstall <agent|all> # remove managed Agendex hook entries
+bun run cli:review-plan -- --hook --agent <agent>  # hook-native plan review entrypoint
 bun run cli:sync            # one-shot cloud sync
 bun run cli:sync -- --force # re-sync all plans, ignoring cache
 bun run cli:stop            # stop daemon
