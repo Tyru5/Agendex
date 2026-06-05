@@ -389,6 +389,7 @@ async function parseLiveSession(filePath: string): Promise<Plan[]> {
       sourcePlanPath,
       startedAt: session.startedAt,
       writebackCapable: true,
+      liveness: 'live',
     };
 
     return [

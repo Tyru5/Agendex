@@ -1052,6 +1052,14 @@ body {
     opacity: 1 !important;
     transform: none !important;
   }
+
+  .plan-action-button,
+  .plan-action-toolbar,
+  .plan-action-button::before,
+  .plan-action-button::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1079,10 +1087,262 @@ body {
 }
 
 /* Plan markdown content */
+.plan-viewer-frame {
+  display: block;
+  box-sizing: border-box;
+  width: min(100%, 834px);
+  margin-inline: auto;
+  padding: 40px 32px 80px;
+}
+
+.plan-viewer-frame--split {
+  width: 100%;
+  padding: 32px 24px 72px;
+}
+
+.plan-viewer-content {
+  min-width: 0;
+}
+
 .plan-markdown {
   @apply text-[14.5px] leading-[1.75];
   color: var(--text);
   letter-spacing: 0;
+}
+
+.plan-annotation-toolbar {
+  position: fixed;
+  z-index: 80;
+  transform: translate3d(-50%, 0, 0) scale(1);
+  transform-origin: 50% 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--surface) 94%, black 6%);
+  box-shadow: 0 16px 40px color-mix(in oklch, black 22%, transparent);
+  will-change: transform, opacity;
+}
+
+.plan-annotation-toolbar[data-state="enter"] {
+  animation: planAnnotationToolbarEnter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  pointer-events: auto;
+}
+
+.plan-annotation-toolbar[data-state="exit"] {
+  animation: planAnnotationToolbarExit 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  pointer-events: none;
+}
+
+@keyframes planAnnotationToolbarEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(-50%, 7px, 0) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+}
+
+@keyframes planAnnotationToolbarExit {
+  from {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(-50%, -5px, 0) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-annotation-toolbar[data-state="enter"],
+  .plan-annotation-toolbar[data-state="exit"] {
+    animation: none !important;
+  }
+
+  .plan-annotation-toolbar[data-state="enter"] {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+
+  .plan-annotation-toolbar[data-state="exit"] {
+    opacity: 0;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+}
+
+.plan-annotation-toolbar button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  padding: 5px 9px;
+}
+
+.plan-annotation-toolbar button:hover,
+.plan-annotation-toolbar button:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+  outline: none;
+}
+
+.plan-annotation-composer {
+  position: fixed;
+  z-index: 85;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: min(320px, calc(100vw - 24px));
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--surface) 96%, black 4%);
+  box-shadow: 0 18px 48px color-mix(in oklch, black 24%, transparent);
+}
+
+.plan-annotation-composer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--tertiary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.plan-annotation-composer-field textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  padding: 7px 8px;
+  outline: none;
+}
+
+.plan-annotation-composer-field textarea:focus {
+  border-color: color-mix(in oklch, var(--accent) 54%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--accent) 18%, transparent);
+}
+
+.plan-annotation-composer-error {
+  border: 1px solid color-mix(in oklch, var(--danger) 28%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--danger) 9%, transparent);
+  color: var(--danger);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  padding: 7px 8px;
+}
+
+.plan-annotation-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.plan-annotation-composer-actions button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  padding: 5px 10px;
+}
+
+.plan-annotation-composer-actions button[type='submit'] {
+  border-color: color-mix(in oklch, var(--accent) 54%, var(--border));
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.plan-annotation-composer-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.plan-annotation-composer-actions button:not(:disabled):hover,
+.plan-annotation-composer-actions button:not(:disabled):focus-visible {
+  border-color: var(--tertiary);
+  color: var(--text);
+  outline: none;
+}
+
+.plan-annotation-composer-actions button[type='submit']:not(:disabled):hover,
+.plan-annotation-composer-actions button[type='submit']:not(:disabled):focus-visible {
+  color: var(--accent-contrast);
+  filter: brightness(0.98);
+}
+
+.plan-annotation-upgrade {
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--tertiary);
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.plan-annotation-mark {
+  border-radius: 4px;
+  background: color-mix(in oklch, var(--warning) 22%, transparent);
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.plan-annotation-mark:hover,
+.plan-annotation-mark:focus-visible,
+.plan-annotation-mark--selected {
+  background: color-mix(in oklch, var(--warning) 42%, transparent);
+  outline: 1px solid color-mix(in oklch, var(--warning) 56%, transparent);
+}
+
+.plan-annotation-mark--replacement {
+  background: color-mix(in oklch, var(--success) 20%, transparent);
+}
+
+.plan-annotation-mark--replacement:hover,
+.plan-annotation-mark--replacement:focus-visible,
+.plan-annotation-mark--replacement.plan-annotation-mark--selected {
+  background: color-mix(in oklch, var(--success) 36%, transparent);
+  outline-color: color-mix(in oklch, var(--success) 52%, transparent);
+}
+
+.plan-annotation-mark--deletion {
+  background: color-mix(in oklch, var(--danger) 18%, transparent);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.plan-annotation-mark--deletion:hover,
+.plan-annotation-mark--deletion:focus-visible,
+.plan-annotation-mark--deletion.plan-annotation-mark--selected {
+  background: color-mix(in oklch, var(--danger) 32%, transparent);
+  outline-color: color-mix(in oklch, var(--danger) 48%, transparent);
 }
 
 .plan-markdown h1,
@@ -1566,38 +1826,103 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px 12px;
   padding-top: 2px;
 }
 
 .plan-header-extra {
   min-width: 0;
-  flex: 1 1 260px;
+  flex: 1 1 auto;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 8px 12px;
 }
 
 .plan-header-extra > * {
   margin-block: 0 !important;
 }
 
-.plan-action-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
+.plan-header-extra > .plan-action-toolbar {
+  order: 1;
+}
+
+.plan-header-extra > .plan-tags-bar {
+  order: 2;
   margin-left: auto;
+  justify-content: flex-end;
+}
+
+.plan-header-extra > .plan-plannotator-badge {
+  flex-basis: 100%;
+  order: 3;
+}
+
+.plan-action-toolbar {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-left: 2px;
+  margin-right: 0;
   padding: 3px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: color-mix(in oklch, var(--surface) 82%, transparent);
+  background: var(--surface);
+  position: relative;
+  z-index: 35;
+  transition:
+    opacity 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.plan-action-toolbar[data-docked="true"] {
+  position: fixed;
+  top: 124px;
+  left: var(--plan-action-toolbar-docked-left, max(20px, calc(50vw - 610px)));
+  flex-direction: column;
+  margin-left: 0;
+  margin-right: 0;
+  background: var(--surface);
+}
+
+.plan-action-toolbar[data-dock-state="docking"] {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(18px, -6px, 0) scale(0.98);
+  transition: none;
+}
+
+.plan-action-toolbar[data-dock-state="docked"] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.plan-action-toolbar[data-dock-placement="bottom"] {
+  top: auto;
+  right: auto;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 60;
+  flex-direction: row;
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--surface) 94%, transparent);
+  box-shadow: var(--shadow-popover);
+}
+
+.plan-action-toolbar[data-dock-placement="bottom"][data-dock-state="docking"] {
+  transform: translate3d(-50%, 14px, 0) scale(0.96);
+}
+
+.plan-action-toolbar[data-dock-placement="bottom"][data-dock-state="docked"] {
+  transform: translate3d(-50%, 0, 0) scale(1);
 }
 
 .plan-action-button {
+  position: relative;
   width: 30px;
   height: 30px;
   display: inline-flex;
@@ -1619,6 +1944,11 @@ body {
     transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.plan-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .plan-action-button:hover {
   background: var(--hover);
   color: var(--text);
@@ -1636,6 +1966,132 @@ body {
 .plan-action-button[aria-pressed="true"] {
   background: var(--active);
   color: var(--text);
+}
+
+.plan-action-button[data-tooltip]::after,
+.plan-action-button[data-tooltip]::before {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.plan-action-button[data-tooltip]::after {
+  content: attr(data-tooltip);
+  min-width: max-content;
+  max-width: 220px;
+  top: calc(100% + 9px);
+  left: 50%;
+  transform: translate(-50%, -4px);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-popover);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  padding: 6px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.plan-action-button[data-tooltip]::before {
+  content: "";
+  top: calc(100% + 5px);
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -2px) rotate(45deg);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+
+.plan-action-button[data-tooltip]:hover::after,
+.plan-action-button[data-tooltip]:hover::before,
+.plan-action-button[data-tooltip]:focus-visible::after,
+.plan-action-button[data-tooltip]:focus-visible::before {
+  opacity: 1;
+}
+
+.plan-action-button[data-tooltip]:hover::after,
+.plan-action-button[data-tooltip]:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
+.plan-action-button[data-tooltip]:hover::before,
+.plan-action-button[data-tooltip]:focus-visible::before {
+  transform: translate(-50%, 2px) rotate(45deg);
+}
+
+.plan-action-toolbar[data-tooltip-side="left"] .plan-action-button[data-tooltip]::after,
+.plan-action-toolbar[data-tooltip-side="left"] .plan-action-button[data-tooltip]::before,
+.plan-action-toolbar[data-docked="true"] .plan-action-button[data-tooltip]::after,
+.plan-action-toolbar[data-docked="true"] .plan-action-button[data-tooltip]::before {
+  top: 50%;
+  left: auto;
+  right: calc(100% + 10px);
+}
+
+.plan-action-toolbar[data-tooltip-side="left"] .plan-action-button[data-tooltip]::after,
+.plan-action-toolbar[data-docked="true"] .plan-action-button[data-tooltip]::after {
+  transform: translate(4px, -50%);
+}
+
+.plan-action-toolbar[data-tooltip-side="left"] .plan-action-button[data-tooltip]::before,
+.plan-action-toolbar[data-docked="true"] .plan-action-button[data-tooltip]::before {
+  right: calc(100% + 6px);
+  transform: translate(0, -50%) rotate(45deg);
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.plan-action-toolbar[data-tooltip-side="left"] .plan-action-button[data-tooltip]:hover::after,
+.plan-action-toolbar[data-tooltip-side="left"] .plan-action-button[data-tooltip]:focus-visible::after,
+.plan-action-toolbar[data-docked="true"] .plan-action-button[data-tooltip]:hover::after,
+.plan-action-toolbar[data-docked="true"] .plan-action-button[data-tooltip]:focus-visible::after {
+  transform: translate(0, -50%);
+}
+
+.plan-action-toolbar[data-tooltip-side="left"] .plan-action-button[data-tooltip]:hover::before,
+.plan-action-toolbar[data-tooltip-side="left"] .plan-action-button[data-tooltip]:focus-visible::before,
+.plan-action-toolbar[data-docked="true"] .plan-action-button[data-tooltip]:hover::before,
+.plan-action-toolbar[data-docked="true"] .plan-action-button[data-tooltip]:focus-visible::before {
+  transform: translate(-4px, -50%) rotate(45deg);
+}
+
+.plan-action-toolbar[data-tooltip-side="top"] .plan-action-button[data-tooltip]::after,
+.plan-action-toolbar[data-tooltip-side="top"] .plan-action-button[data-tooltip]::before {
+  top: auto;
+  right: auto;
+  left: 50%;
+}
+
+.plan-action-toolbar[data-tooltip-side="top"] .plan-action-button[data-tooltip]::after {
+  bottom: calc(100% + 9px);
+  transform: translate(-50%, 4px);
+}
+
+.plan-action-toolbar[data-tooltip-side="top"] .plan-action-button[data-tooltip]::before {
+  bottom: calc(100% + 5px);
+  transform: translate(-50%, 2px) rotate(45deg);
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-action-toolbar[data-tooltip-side="top"] .plan-action-button[data-tooltip]:hover::after,
+.plan-action-toolbar[data-tooltip-side="top"] .plan-action-button[data-tooltip]:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
+.plan-action-toolbar[data-tooltip-side="top"] .plan-action-button[data-tooltip]:hover::before,
+.plan-action-toolbar[data-tooltip-side="top"] .plan-action-button[data-tooltip]:focus-visible::before {
+  transform: translate(-50%, 0) rotate(45deg);
 }
 
 .plan-readonly-badge {
@@ -1755,6 +2211,28 @@ body {
 }
 
 @media (max-width: 760px) {
+  .plan-viewer-frame,
+  .plan-viewer-frame--split {
+    width: 100%;
+    padding: 32px 20px 72px;
+  }
+
+  .plan-action-toolbar {
+    flex-direction: row;
+    justify-self: end;
+    margin-bottom: 16px;
+    margin-right: 0;
+  }
+
+  .plan-action-toolbar[data-docked="true"] {
+    position: sticky;
+    top: 76px;
+    left: auto;
+    flex-direction: row;
+    margin-left: auto;
+    animation: none;
+  }
+
   .plan-header {
     gap: 11px;
     margin-bottom: 26px;
@@ -1770,9 +2248,24 @@ body {
     flex-basis: 100%;
   }
 
-  .plan-action-toolbar {
-    justify-content: flex-start;
-    margin-left: 0;
+  .plan-action-button[data-tooltip]::after,
+  .plan-action-button[data-tooltip]::before {
+    top: calc(100% + 8px);
+    left: auto;
+    right: 0;
+  }
+
+  .plan-action-button[data-tooltip]::after {
+    transform: translateY(-4px);
+  }
+
+  .plan-action-button[data-tooltip]::before {
+    display: none;
+  }
+
+  .plan-action-button[data-tooltip]:hover::after,
+  .plan-action-button[data-tooltip]:focus-visible::after {
+    transform: translateY(0);
   }
 }
 

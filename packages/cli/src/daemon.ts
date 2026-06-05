@@ -48,6 +48,46 @@ const PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS = 15_000;
 const PLANNOTATOR_WRITEBACK_EXPIRED_ERROR = 'Write-back expired before delivery.';
 const PLANNOTATOR_WRITEBACK_FAILED_ERROR =
   'No live Plannotator session accepted the request-changes payload.';
+// A Plannotator process can die without touching the filesystem, so file
+// watchers never fire. Re-scan periodically to catch dead sessions and publish
+// their "ended" state to the cloud.
+const PLANNOTATOR_LIVENESS_SWEEP_INTERVAL_MS = 20_000;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * True when a sync payload represents a currently-live Plannotator session
+ * (the only kind whose loopback URL is openable and that can accept write-backs).
+ */
+export function isLivePlannotatorPayload(payload: SyncPlanPayload): boolean {
+  const plannotator = isRecord(payload.metadata) ? payload.metadata.plannotator : undefined;
+  if (!isRecord(plannotator)) return false;
+  return plannotator.kind === 'live-session' && plannotator.writebackCapable === true;
+}
+
+/**
+ * Derive an "ended" variant of a previously-live payload: same plan identity and
+ * content, but with the Plannotator metadata flipped so cloud clients stop
+ * offering an open/write-back affordance for a server that is no longer running.
+ */
+export function buildEndedPlannotatorPayload(payload: SyncPlanPayload): SyncPlanPayload {
+  const metadata = isRecord(payload.metadata) ? payload.metadata : {};
+  const plannotator = isRecord(metadata.plannotator) ? metadata.plannotator : {};
+  return {
+    ...payload,
+    metadata: {
+      ...metadata,
+      plannotator: {
+        ...plannotator,
+        writebackCapable: false,
+        liveness: 'ended',
+        endedAt: Date.now(),
+      },
+    },
+  };
+}
 
 export async function runWorker(): Promise<void> {
   const config = await loadOrInitConfig();
@@ -59,6 +99,11 @@ export async function runWorker(): Promise<void> {
   const syncCache = loadSyncCache();
   const syncQueue: SyncPlanPayload[] = [];
   const pendingWritebackReports = loadPendingWritebackReports();
+  // Last-synced payload for each plan id that is currently a live Plannotator
+  // session. When such a plan stops being live (process died, session removed),
+  // we synthesize an "ended" patch from the remembered payload so the cloud copy
+  // stops advertising an open/write-back affordance. Keyed by localPlanId.
+  const liveSessions = new Map<string, SyncPlanPayload>();
   let syncing = false;
   let cachedIpAddress: string | undefined;
 
@@ -146,6 +191,40 @@ export async function runWorker(): Promise<void> {
       );
     }
     if (syncQueue.length > 0) processSyncQueue();
+  }
+
+  /**
+   * Reconcile the tracked set of live Plannotator sessions against the current
+   * plan set. Newly-live sessions are remembered; sessions that have stopped
+   * being live get an "ended" patch enqueued so the cloud copy reflects that the
+   * loopback server is no longer reachable. Returns true if any patch was queued.
+   */
+  async function reconcileLivePlannotatorSessions(plans: Plan[]): Promise<boolean> {
+    const ipAddress = await getSyncIpAddress();
+    const livePayloads = new Map<string, SyncPlanPayload>();
+    for (const plan of plans) {
+      const payload = planToSyncPayload(plan, config.deviceId, hostname, ipAddress);
+      if (isLivePlannotatorPayload(payload)) livePayloads.set(payload.localPlanId, payload);
+    }
+
+    let queued = false;
+    // Any previously-live session not present in the fresh live set has ended.
+    for (const [planId, lastPayload] of liveSessions) {
+      if (livePayloads.has(planId)) continue;
+      const endedPayload = buildEndedPlannotatorPayload(lastPayload);
+      syncQueue.push(endedPayload);
+      liveSessions.delete(planId);
+      queued = true;
+      console.log(`[agendex] Plannotator session ended: ${endedPayload.title}`);
+    }
+
+    // Track the current live set (refresh remembered payloads).
+    for (const [planId, payload] of livePayloads) {
+      liveSessions.set(planId, payload);
+    }
+
+    if (queued) processSyncQueue();
+    return queued;
   }
 
   function persistPendingWritebackReports(): void {
@@ -303,6 +382,10 @@ export async function runWorker(): Promise<void> {
   );
   await processSyncQueue();
 
+  // Seed the live-session tracker from the initial scan so we can detect when any
+  // of these sessions later stops being live.
+  await reconcileLivePlannotatorSessions(getAll());
+
   setInterval(() => {
     void (async () => {
       await sendHeartbeat(await getSyncIpAddress());
@@ -313,6 +396,18 @@ export async function runWorker(): Promise<void> {
   if (shouldEnablePlannotatorSync(config)) {
     setInterval(() => void pollPlannotatorWritebacks(), PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS);
     void pollPlannotatorWritebacks();
+
+    // A Plannotator process dying does not touch the filesystem, so the watcher
+    // never fires. Re-scan on an interval to prune dead sessions (parseLiveSession
+    // drops them once the PID is gone) and publish their "ended" state.
+    setInterval(() => {
+      void (async () => {
+        await scan();
+        await reconcileLivePlannotatorSessions(getAll());
+      })().catch((err) => {
+        console.error('[agendex] Plannotator liveness sweep failed:', err);
+      });
+    }, PLANNOTATOR_LIVENESS_SWEEP_INTERVAL_MS);
   }
 
   startWatching((changedPlans) => {
@@ -322,6 +417,9 @@ export async function runWorker(): Promise<void> {
         syncQueue.push(planToSyncPayload(plan, config.deviceId, hostname, ipAddress));
       }
       processSyncQueue();
+      // A watcher event may have added or removed a live session; reconcile so a
+      // session that ended via a file change is published promptly.
+      await reconcileLivePlannotatorSessions(getAll());
     })().catch((err) => {
       console.error('[agendex] failed to queue changed plans:', err);
     });

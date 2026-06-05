@@ -135,7 +135,11 @@ export function useCommandItems({
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
+      // Vim-style motions: Ctrl+N (down) / Ctrl+P (up) mirror the arrow keys.
+      const isVimNext = e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'n';
+      const isVimPrev = e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'p';
+
+      if (e.key === 'ArrowDown' || isVimNext) {
         e.preventDefault();
         setFocusedIndex((i) => {
           const next = Math.min(i + 1, focusableItems.length - 1);
@@ -144,7 +148,7 @@ export function useCommandItems({
           }
           return next;
         });
-      } else if (e.key === 'ArrowUp') {
+      } else if (e.key === 'ArrowUp' || isVimPrev) {
         e.preventDefault();
         setFocusedIndex((i) => Math.max(i - 1, 0));
       } else if (e.key === 'Enter') {

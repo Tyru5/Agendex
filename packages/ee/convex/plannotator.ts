@@ -1,10 +1,18 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import { internalMutation, internalQuery, mutation, query } from './_generated/server';
+import type { Id } from './_generated/dataModel';
+import {
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+  mutation,
+  query,
+} from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 
 const WRITEBACK_TTL_MS = 24 * 60 * 60 * 1000;
+const WRITEBACK_EXPIRED_ERROR = 'Write-back expired before a daemon could send it.';
 const MAX_POLL_LIMIT = 25;
 const MAX_EXPIRED_WRITEBACK_SWEEP = 200;
 
@@ -67,12 +75,38 @@ function getPlanSyncDeviceId(plan: { metadata?: unknown }): string | undefined {
   return typeof sync.deviceId === 'string' && sync.deviceId.trim() ? sync.deviceId : undefined;
 }
 
+async function reopenWritebackAnnotations(
+  ctx: MutationCtx,
+  annotationIds: Id<'planAnnotations'>[] | undefined,
+  writebackId: Id<'plannotatorWritebacks'>,
+  now: number,
+): Promise<void> {
+  for (const annotationId of annotationIds ?? []) {
+    const annotation = await ctx.db.get(annotationId);
+    if (
+      !annotation ||
+      annotation.status !== 'submitted' ||
+      annotation.writebackId !== writebackId
+    ) {
+      continue;
+    }
+
+    const { _id: _ignoredId, _creationTime: _ignoredCreationTime, ...nextAnnotation } = annotation;
+    nextAnnotation.status = 'open';
+    nextAnnotation.updatedAt = now;
+    delete nextAnnotation.submittedAt;
+    delete nextAnnotation.writebackId;
+    await ctx.db.replace(annotationId, nextAnnotation);
+  }
+}
+
 export const enqueueWriteback = mutation({
   args: {
     planId: v.id('plans'),
     feedback: v.string(),
     revisedContent: v.optional(v.string()),
     annotations: v.optional(v.array(feedbackAnnotation)),
+    annotationIds: v.optional(v.array(v.id('planAnnotations'))),
     deviceId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -96,19 +130,51 @@ export const enqueueWriteback = mutation({
       throw new ConvexError('Feedback or revised content is required');
     }
 
-    const existing = await ctx.db
+    const now = Date.now();
+    const pendingWritebacks = await ctx.db
       .query('plannotatorWritebacks')
       .withIndex('by_owner_localPlanId', (q) =>
         q.eq('ownerId', user._id).eq('localPlanId', localPlanId),
       )
       .filter((q) => q.eq(q.field('status'), 'pending'))
-      .first();
-    if (existing) {
+      .collect();
+    let hasActivePendingWriteback = false;
+    for (const pendingWriteback of pendingWritebacks) {
+      if (pendingWriteback.expiresAt > now) {
+        hasActivePendingWriteback = true;
+        continue;
+      }
+      await ctx.db.patch(pendingWriteback._id, {
+        status: 'expired',
+        error: WRITEBACK_EXPIRED_ERROR,
+        updatedAt: now,
+      });
+      await reopenWritebackAnnotations(
+        ctx,
+        pendingWriteback.annotationIds,
+        pendingWriteback._id,
+        now,
+      );
+    }
+    if (hasActivePendingWriteback) {
       throw new ConvexError('A write-back is already pending for this plan');
     }
 
-    const now = Date.now();
-    return await ctx.db.insert('plannotatorWritebacks', {
+    const annotationIds = args.annotationIds ?? [];
+    for (const annotationId of annotationIds) {
+      const annotation = await ctx.db.get(annotationId);
+      if (!annotation || annotation.planId !== args.planId) {
+        throw new ConvexError('Annotation does not belong to this plan');
+      }
+      if (annotation.authorId !== user._id) {
+        throw new ConvexError('Access denied');
+      }
+      if (annotation.status !== 'open') {
+        throw new ConvexError('Only open annotations can be submitted');
+      }
+    }
+
+    const writebackId = await ctx.db.insert('plannotatorWritebacks', {
       ownerId: user._id,
       planId: args.planId,
       localPlanId,
@@ -116,12 +182,24 @@ export const enqueueWriteback = mutation({
       feedback,
       revisedContent,
       annotations: args.annotations,
+      annotationIds,
       source: 'agendex-cloud',
       status: 'pending',
       createdAt: now,
       updatedAt: now,
       expiresAt: now + WRITEBACK_TTL_MS,
     });
+
+    for (const annotationId of annotationIds) {
+      await ctx.db.patch(annotationId, {
+        status: 'submitted',
+        submittedAt: now,
+        updatedAt: now,
+        writebackId,
+      });
+    }
+
+    return writebackId;
   },
 });
 
@@ -198,9 +276,10 @@ export const markExpiredWritebacks = internalMutation({
       if (row.expiresAt > args.now) continue;
       await ctx.db.patch(row._id, {
         status: 'expired',
-        error: 'Write-back expired before a daemon could send it.',
+        error: WRITEBACK_EXPIRED_ERROR,
         updatedAt: args.now,
       });
+      await reopenWritebackAnnotations(ctx, row.annotationIds, row._id, args.now);
       expired++;
     }
     return { expired };
@@ -230,5 +309,8 @@ export const reportWritebackStatus = internalMutation({
       updatedAt: now,
       sentAt: args.status === 'sent' ? now : row.sentAt,
     });
+    if (args.status !== 'sent') {
+      await reopenWritebackAnnotations(ctx, row.annotationIds, args.writebackId, now);
+    }
   },
 });

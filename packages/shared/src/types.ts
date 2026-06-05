@@ -66,6 +66,15 @@ export interface PlannotatorMetadata {
   sourcePlanPath?: string;
   startedAt?: string;
   writebackCapable?: boolean;
+  /**
+   * Whether the originating Plannotator live session is still running. The CLI
+   * daemon publishes `'ended'` (alongside `writebackCapable: false`) when it
+   * detects the local Plannotator process has exited, so cloud clients can stop
+   * offering an "Open in Plannotator" link that would hit a dead loopback URL.
+   */
+  liveness?: 'live' | 'ended';
+  /** Epoch ms when the daemon observed the live session ending. */
+  endedAt?: number;
   lastWritebackStatus?: 'pending' | 'sent' | 'failed' | 'expired';
   lastWritebackAt?: number;
 }

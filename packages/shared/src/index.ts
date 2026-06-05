@@ -29,6 +29,27 @@ export {
   CLI_DAEMON_STATUS_POLL_INTERVAL_MS,
 } from './daemon-status.ts';
 export { hashPath } from './hash.ts';
+export type {
+  CreatePlanAnnotationInput,
+  PlanAnnotationKind,
+  PlanAnnotationRecord,
+  PlanAnnotationStatus,
+  PlanTextAnchor,
+} from './annotations.ts';
+export {
+  annotationToPlannotator,
+  createPlanAnnotationRecord,
+  createPlanTextAnchor,
+  formatPlanAnnotationFeedback,
+  toPlannotatorFeedbackAnnotations,
+  validatePlanAnnotationInput,
+} from './annotations.ts';
+export {
+  createPlanAnnotation,
+  deletePlanAnnotation,
+  listPlanAnnotations,
+  updatePlanAnnotationStatus,
+} from './services/annotation-store.ts';
 export type { DiscoveredPlanDir } from './services/plan-service.ts';
 export {
   create,
