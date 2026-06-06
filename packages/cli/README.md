@@ -23,6 +23,9 @@ agendex configure              # Select which agents/adapters to index
 agendex start                  # Start daemon (backgrounds itself)
 agendex stop                   # Stop the running daemon
 agendex sync                   # One-shot scan + sync to cloud
+agendex upload <path>          # Upload a single Markdown plan file to the cloud
+agendex upload <path> --agent <name>  # Override the uploaded plan's agent label
+agendex upload <path> --open   # Open the uploaded plan in the browser after upload
 agendex cleanup                # Interactively remove cloud daemons
 agendex cleanup --stale        # Auto-remove all stale daemons
 agendex status                 # Show config state, daemon status, uptime & hostname
