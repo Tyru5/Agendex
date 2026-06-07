@@ -18,6 +18,7 @@ import type * as comments from "../comments.js";
 import type * as crons from "../crons.js";
 import type * as entitlements from "../entitlements.js";
 import type * as http from "../http.js";
+import type * as planCleanup from "../planCleanup.js";
 import type * as planDeletion from "../planDeletion.js";
 import type * as planPreferences from "../planPreferences.js";
 import type * as planTags from "../planTags.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   entitlements: typeof entitlements;
   http: typeof http;
+  planCleanup: typeof planCleanup;
   planDeletion: typeof planDeletion;
   planPreferences: typeof planPreferences;
   planTags: typeof planTags;

@@ -8,6 +8,10 @@ export type PlanLowValueReason =
   | 'execution-report'
   | 'review-output'
   | 'wrapper-title'
+  | 'tool-log'
+  | 'conversation-artifact'
+  | 'code-only'
+  | 'code-dominated'
   | 'no-plan-signals';
 
 export interface PlanValueAssessment {
@@ -42,6 +46,7 @@ export function isIndexablePlan(plan: PlanVisibilityInput): boolean {
 
 const PROPOSED_PLAN_TAG_REGEX = /<\s*\/?\s*proposed_plan\s*>/gi;
 const ESCAPED_PROPOSED_PLAN_TAG_REGEX = /&lt;\s*\/?\s*proposed_plan\s*&gt;/gi;
+const FENCED_CODE_BLOCK_REGEX = /(?:```|~~~)[\s\S]*?(?:```|~~~)/g;
 const VISIBLE_TEXT_REGEX = /[\p{L}\p{N}]/u;
 
 const LOW_VALUE_METADATA_KEYS = ['lowValue', 'lowValueReasons', 'lowValueSignals'] as const;
@@ -73,7 +78,7 @@ function normalizePlanContent(content: string): string {
 }
 
 function withoutLowValueMetadata(metadata: Record<string, unknown> | undefined) {
-  const next = { ...(metadata ?? {}) };
+  const next = { ...metadata };
   for (const key of LOW_VALUE_METADATA_KEYS) delete next[key];
   return next;
 }
@@ -90,6 +95,33 @@ function visibleText(text: string): string {
     .replace(PROPOSED_PLAN_TAG_REGEX, '')
     .replace(/[`*_#[\](){}<>:|~\-+=.]/g, ' ')
     .trim();
+}
+
+function stripFencedCodeBlocks(text: string): string {
+  return text.replace(FENCED_CODE_BLOCK_REGEX, ' ');
+}
+
+function wordCount(text: string): number {
+  return text.match(/[\p{L}\p{N}_]+/gu)?.length ?? 0;
+}
+
+interface CodeBlockMetrics {
+  codeBlockCount: number;
+  codeCharCount: number;
+  codeShare: number;
+  nonCodeWordCount: number;
+}
+
+function codeBlockMetrics(text: string): CodeBlockMetrics {
+  const blocks = text.match(FENCED_CODE_BLOCK_REGEX) ?? [];
+  const codeCharCount = blocks.reduce((sum, block) => sum + block.length, 0);
+  const nonCode = stripFencedCodeBlocks(text);
+  return {
+    codeBlockCount: blocks.length,
+    codeCharCount,
+    codeShare: codeCharCount / Math.max(text.length, 1),
+    nonCodeWordCount: wordCount(visibleText(nonCode)),
+  };
 }
 
 function isSeparatorLine(line: string): boolean {
@@ -133,7 +165,7 @@ function isOrderedListLine(line: string): boolean {
 }
 
 function isHeadingOnly(lines: string[]): boolean {
-  return lines.length > 0 && lines.some(isHeadingLine) && lines.every(isHeadingLine);
+  return lines.some(isHeadingLine) && lines.every(isHeadingLine);
 }
 
 function metadataHasPlanBlocks(metadata: Record<string, unknown> | undefined): boolean {
@@ -248,13 +280,22 @@ function collectPositiveSignals(
   }).length;
   if (actionBulletCount >= 2) signals.push('action-bullets');
 
+  const nonCodeVisible = visibleText(stripFencedCodeBlocks(normalized));
   if (
     lines.length >= 2 &&
     /\b(?:will|should|need to|needs to|plan to|planned|approach is to|implementation will)\b/i.test(
-      normalized,
+      nonCodeVisible,
     )
   ) {
     signals.push('future-plan-language');
+  }
+
+  const planningPhraseCount =
+    nonCodeVisible.match(
+      /\b(?:will|should|need to|needs to|plan to|approach|implementation|implement|add|update|modify|create|remove|refactor|test|verify|validate|steps?|tasks?)\b/gi,
+    )?.length ?? 0;
+  if (wordCount(nonCodeVisible) >= 35 && planningPhraseCount >= 4) {
+    signals.push('planning-prose');
   }
 
   return unique(signals);
@@ -266,6 +307,7 @@ function isStrongPositiveSignal(signal: string): boolean {
     signal === 'checklist' ||
     signal === 'ordered-steps' ||
     signal === 'action-bullets' ||
+    signal === 'planning-prose' ||
     signal === 'section:approach' ||
     signal === 'section:implementation-plan' ||
     signal === 'section:files-to-modify' ||
@@ -366,6 +408,21 @@ function looksLikeToolLog(normalized: string): boolean {
   );
 }
 
+function looksLikeConversationArtifact(lines: string[]): boolean {
+  const roleLineCount = lines.filter((line) =>
+    /^(?:[-*+]\s+)?(?:\*\*)?(?:user|assistant|system|developer|tool|agent)(?:\*\*)?\s*:/i.test(
+      line.trim(),
+    ),
+  ).length;
+
+  if (roleLineCount >= 2) return true;
+
+  const wrapperCount = lines.filter((line) =>
+    /^<\/?(?:user_action|user_prompt|assistant_response|message|conversation)\b/i.test(line.trim()),
+  ).length;
+  return wrapperCount >= 2;
+}
+
 function looksLikeExecutionReport(normalized: string): boolean {
   const hasPastCompletion =
     /\b(?:fixed|pushed|committed|completed|done|implemented|updated|changed|patched|merged|deployed|passed|failed|resolved|reverted)\b/i.test(
@@ -413,31 +470,46 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
   const strongPositive = hasStrongPlanSignal(positiveSignals);
   const systemContext = looksLikeSystemContext(normalized, lines);
   const toolLog = looksLikeToolLog(normalized);
+  const conversationArtifact = looksLikeConversationArtifact(lines);
   const executionReport = looksLikeExecutionReport(normalized);
   const wrapperTitle = looksLikeWrapperTitle(input.title);
   const promptTitle = looksLikePromptTitle(input.title);
   const reviewOutput = looksLikeReviewOutput(normalized, input.title);
+  const codeMetrics = codeBlockMetrics(normalized);
+  const codeOnly = codeMetrics.codeBlockCount > 0 && codeMetrics.nonCodeWordCount === 0;
+  const codeDominated =
+    codeMetrics.codeBlockCount > 0 &&
+    codeMetrics.codeShare >= 0.6 &&
+    codeMetrics.nonCodeWordCount < 120;
 
   if (systemContext) signals.push('negative:system-context');
   if (toolLog) signals.push('negative:tool-log');
+  if (conversationArtifact) signals.push('negative:conversation-artifact');
   if (executionReport) signals.push('negative:execution-report');
   if (wrapperTitle) signals.push('negative:wrapper-title');
   if (promptTitle) signals.push('negative:prompt-title');
   if (reviewOutput) signals.push('negative:review-output');
+  if (codeMetrics.codeBlockCount > 0) signals.push('shape:code-blocks');
+  if (codeOnly) signals.push('negative:code-only');
+  if (codeDominated) signals.push('negative:code-dominated');
   if (lines.length === 1) signals.push('shape:single-line');
 
   if (lines.length === 1 && positiveSignals.length === 0) {
     reasons.push(isPromptLikeOneLiner(lines[0] ?? '') ? 'prompt-like' : 'no-plan-signals');
   }
 
-  if (systemContext && !strongPositive) reasons.push('system-context');
-  if (executionReport && !strongPositive) reasons.push('execution-report');
+  if (systemContext && !explicitPlanBlock) reasons.push('system-context');
+  if (toolLog && !explicitPlanBlock) reasons.push('tool-log');
+  if (conversationArtifact && !explicitPlanBlock && !strongPositive)
+    reasons.push('conversation-artifact');
+  if (executionReport && !explicitPlanBlock) reasons.push('execution-report');
   if (wrapperTitle && !explicitPlanBlock) reasons.push('wrapper-title');
   if (reviewOutput && !explicitPlanBlock) reasons.push('review-output');
-  if (promptTitle && !strongPositive && positiveSignals.length === 0) reasons.push('prompt-like');
-  if (toolLog && !strongPositive && positiveSignals.length === 0) reasons.push('no-plan-signals');
+  if (promptTitle && !strongPositive && !explicitPlanBlock) reasons.push('prompt-like');
+  if (codeOnly && !explicitPlanBlock && !strongPositive) reasons.push('code-only');
+  if (codeDominated && !explicitPlanBlock && !strongPositive) reasons.push('code-dominated');
 
-  if (reasons.length === 0 && positiveSignals.length === 0 && lines.length <= 3) {
+  if (reasons.length === 0 && !strongPositive && !positiveSignals.includes('planning-prose')) {
     reasons.push('no-plan-signals');
   }
 

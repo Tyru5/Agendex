@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { isVisiblePlan, metadataWithPlanValueAssessment } from './planVisibility';
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
@@ -21,6 +22,10 @@ export const listForPlan = query({
 
     if (plan.ownerId !== user._id) {
       throw new ConvexError('Access denied');
+    }
+
+    if (!isVisiblePlan(plan)) {
+      throw new ConvexError('Plan not found');
     }
 
     const versions = await ctx.db
@@ -58,6 +63,10 @@ export const getVersion = query({
       throw new ConvexError('Access denied');
     }
 
+    if (!isVisiblePlan(plan)) {
+      throw new ConvexError('Plan not found');
+    }
+
     const snapshot = await ctx.db
       .query('planVersions')
       .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).eq('version', args.version))
@@ -90,6 +99,10 @@ export const restore = mutation({
       throw new ConvexError('Access denied');
     }
 
+    if (!isVisiblePlan(plan)) {
+      throw new ConvexError('Plan not found');
+    }
+
     const snapshot = await ctx.db
       .query('planVersions')
       .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).eq('version', args.version))
@@ -101,6 +114,10 @@ export const restore = mutation({
 
     const newVersion = plan.version + 1;
     const now = Date.now();
+    const metadata = metadataWithPlanValueAssessment(snapshot.metadata, {
+      title: snapshot.title,
+      content: snapshot.content,
+    });
 
     await ctx.db.patch(args.planId, {
       title: snapshot.title,
@@ -108,7 +125,7 @@ export const restore = mutation({
       format: snapshot.format,
       filePath: snapshot.filePath,
       workspace: snapshot.workspace,
-      metadata: snapshot.metadata,
+      metadata,
       version: newVersion,
       updatedAt: now,
     });
@@ -122,7 +139,7 @@ export const restore = mutation({
       format: snapshot.format,
       filePath: snapshot.filePath,
       workspace: snapshot.workspace,
-      metadata: snapshot.metadata,
+      metadata,
       source: 'restore',
       createdAt: now,
     });

@@ -1,0 +1,135 @@
+{
+  "stage": "facts",
+  "title": "Filter Non-Plan Sync",
+  "goalSlug": "filter-non-plan-sync",
+  "facts": [
+    {
+      "id": "fact-1",
+      "text": "Every local plan source is assessed before it becomes indexable: adapter scans, discovered project plan dirs, user-created local plans, custom plan dirs, and file rescans all pass through the same plan-value gate.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-2",
+      "text": "No source automatically bypasses low-value classification; custom-dir and user-created metadata no longer make empty, code-only, log/report, prompt-only, or heading-only content visible or syncable.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-3",
+      "text": "The classifier treats empty content, frontmatter/comment-only content, heading-only markdown, prompt-only requests, generic chat/session artifacts, system/tool logs, execution reports, review outputs, and wrapper-title answers as low-value.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-4",
+      "text": "The classifier treats code-only or code-dominated content as low-value when there is not enough non-code planning prose or explicit plan structure around the code.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-5",
+      "text": "A real plan remains indexable when it has explicit planning structure such as goals/context, approach, ordered steps, checklist tasks, files to change, verification, or acceptance criteria.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-6",
+      "text": "Minimal but intentional checklist plans, such as a single unchecked task, remain valid plans and are not rejected solely for being short.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-7",
+      "text": "The local app list, search index, raw-plan routes, annotation routes, and agent counts only use indexable plans after the stricter gate is applied across all sources.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-8",
+      "text": "The CLI one-shot sync and daemon never create or update cloud plan rows with low-value content as normal synced plans; low-value local items are only used to prune/delete any previously synced row for the same local plan identity.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-9",
+      "text": "The Convex CLI sync endpoint independently classifies each inbound payload and prunes low-value content even when an older or buggy client omits lowValue metadata.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-10",
+      "text": "Cloud create, upload, publish, and edit mutations reject low-value plan content with a clear error instead of inserting or preserving it in the plans table or plan versions.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-11",
+      "text": "Convex plan visibility, direct plan fetches, sharing flows, and workspace plan lists use the same classification behavior as local sync so low-value rows cannot appear through alternate cloud read paths.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-12",
+      "text": "There is a dry-run audit for existing Convex plans that reports how many rows would be pruned, grouped by reason, source/agent, and representative metadata, without deleting anything by default.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-13",
+      "text": "There is an explicit apply cleanup path for existing Convex plans that deletes low-value plan rows and their related data with deletePlanRelatedData, after the dry-run output has been reviewed.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-14",
+      "text": "Low-value decisions are deterministic and expose reason codes/signals in metadata, logs, or audit output so a rejected or pruned plan can be explained without inspecting implementation internals.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-15",
+      "text": "The shared/local and Convex classifiers stay in parity through a single reusable implementation or through parity tests over the same fixture corpus.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    },
+    {
+      "id": "fact-16",
+      "text": "Automated verification covers classifier fixtures, scan/rescan source paths, one-shot and daemon sync behavior, Convex sync/publish/edit validation, visibility/read paths, and cleanup dry-run/apply behavior.",
+      "accepted": false,
+      "removed": false,
+      "recommendedAutomatedVerification": true,
+      "automatedVerification": true
+    }
+  ]
+}

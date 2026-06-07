@@ -478,7 +478,7 @@ test('rescanFile annotates low-value adapter-derived plans', async () => {
   expect(getIndexableById(adapterPlan.id)).toBeUndefined();
 });
 
-test('scan does not annotate user-created or custom markdown plans', async () => {
+test('scan annotates low-value user-created and custom markdown plans', async () => {
   const home = await useTempHome('agendex-plan-service-source-scope-');
   const userPlansDir = join(getConfigDir(), 'plans');
   const userPlanPath = join(userPlansDir, 'heading-only.md');
@@ -506,8 +506,71 @@ test('scan does not annotate user-created or custom markdown plans', async () =>
   const customPlan = plans.find((plan) => plan.filePath === customPlanPath);
 
   expect(userPlan?.metadata.userCreated).toBe(true);
-  expect(userPlan?.metadata.lowValue).toBeUndefined();
+  expect(userPlan?.metadata.lowValue).toBe(true);
+  expect(userPlan?.metadata.lowValueReasons).toContain('heading-only');
   expect(customPlan?.metadata.source).toBe('custom-dir');
-  expect(customPlan?.metadata.lowValue).toBeUndefined();
+  expect(customPlan?.metadata.lowValue).toBe(true);
+  expect(customPlan?.metadata.lowValueReasons).toContain('prompt-like');
+  expect(getIndexablePlans()).toHaveLength(0);
+});
+
+test('scan keeps valuable user-created and custom markdown plans indexable', async () => {
+  const home = await useTempHome('agendex-plan-service-valuable-source-scope-');
+  const userPlansDir = join(getConfigDir(), 'plans');
+  const userPlanPath = join(userPlansDir, 'checklist.md');
+  const customDir = join(home, 'custom-plans');
+  const customPlanPath = join(customDir, 'structured.md');
+
+  await mkdir(userPlansDir, { recursive: true });
+  await mkdir(customDir, { recursive: true });
+  await writeFile(userPlanPath, '- [ ] Fix login bug\n', 'utf-8');
+  await writeFile(
+    customPlanPath,
+    '# Plan\n\n## Approach\nAdd validation.\n\n## Steps\n- [ ] Implement helper\n- [ ] Add tests\n',
+    'utf-8',
+  );
+
+  saveConfig({
+    configVersion: 3,
+    enabledAdapters: [],
+    customPlanDirs: [customDir],
+  });
+  setActiveAdapters([]);
+
+  await scan();
+
+  const plans = getAll();
+  expect(plans).toHaveLength(2);
+  expect(plans.every((plan) => plan.metadata.lowValue !== true)).toBe(true);
   expect(getIndexablePlans()).toHaveLength(2);
+});
+
+test('rescanFile annotates user-created and custom markdown plans', async () => {
+  const home = await useTempHome('agendex-plan-service-rescan-source-scope-');
+  const userPlansDir = join(getConfigDir(), 'plans');
+  const userPlanPath = join(userPlansDir, 'heading-only.md');
+  const customDir = join(home, 'custom-plans');
+  const customPlanPath = join(customDir, 'code.md');
+
+  await mkdir(userPlansDir, { recursive: true });
+  await mkdir(customDir, { recursive: true });
+  await writeFile(userPlanPath, '# Heading Only\n', 'utf-8');
+  await writeFile(customPlanPath, '```ts\nexport const x = 1;\n```', 'utf-8');
+
+  saveConfig({
+    configVersion: 3,
+    enabledAdapters: [],
+    customPlanDirs: [customDir],
+  });
+  setActiveAdapters([]);
+  await scan();
+
+  const userPlans = await rescanFile(userPlanPath);
+  const customPlans = await rescanFile(customPlanPath);
+
+  expect(userPlans[0]?.metadata.lowValue).toBe(true);
+  expect(userPlans[0]?.metadata.lowValueReasons).toContain('heading-only');
+  expect(customPlans[0]?.metadata.lowValue).toBe(true);
+  expect(customPlans[0]?.metadata.lowValueReasons).toContain('code-only');
+  expect(getIndexablePlans()).toHaveLength(0);
 });

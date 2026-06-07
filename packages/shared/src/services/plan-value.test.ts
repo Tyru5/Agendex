@@ -96,6 +96,89 @@ test('marks review JSON outputs as low-value', () => {
   expect(assessment.reasons).toContain('review-output');
 });
 
+test('marks code-only fenced blocks as low-value', () => {
+  const assessment = assessPlanValue({
+    content: `\`\`\`ts
+export function add(a: number, b: number) {
+  return a + b;
+}
+\`\`\``,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('code-only');
+});
+
+test('marks code-dominated answers without plan structure as low-value', () => {
+  const assessment = assessPlanValue({
+    content: `Use this helper:
+
+\`\`\`ts
+${Array.from({ length: 40 }, (_, i) => `export const value${i} = ${i};`).join('\n')}
+\`\`\``,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('code-dominated');
+});
+
+test('marks role-labeled conversation transcripts as low-value', () => {
+  const assessment = assessPlanValue({
+    content: `**user**: Can you check this?
+
+**assistant**: I looked at it and the files seem fine.
+
+**user**: Thanks.`,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('conversation-artifact');
+});
+
+test('marks tool logs as low-value', () => {
+  const assessment = assessPlanValue({
+    content: `<tool_call>{"name":"grep","args":{"pattern":"TODO"}}</tool_call>
+<tool_result>{"matches":[]}</tool_result>`,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('tool-log');
+});
+
+test('keeps code-heavy implementation plans when planning structure is explicit', () => {
+  const assessment = assessPlanValue({
+    content: `# Plan: Add helper
+
+## Approach
+Create a shared helper and wire it into the form.
+
+## Steps
+- [ ] Add helper
+- [ ] Update form
+- [ ] Add tests
+
+## Reference implementation
+
+\`\`\`ts
+${Array.from({ length: 40 }, (_, i) => `export const value${i} = ${i};`).join('\n')}
+\`\`\`
+
+## Verification
+Run the form tests.`,
+  });
+
+  expect(assessment.lowValue).toBe(false);
+});
+
+test('keeps prose-only plans with enough actionable planning language', () => {
+  const assessment = assessPlanValue({
+    content:
+      'We will update the login form validation and implement a shared helper that validates credentials before submit. The implementation should reuse the existing error component, add tests for empty credentials, verify the disabled state, and document the expected behavior in the form test suite.',
+  });
+
+  expect(assessment.lowValue).toBe(false);
+});
+
 test('keeps structured implementation plans as valuable', () => {
   const assessment = assessPlanValue({
     content: `# Plan: Add login validation

@@ -1,0 +1,103 @@
+{
+  "stage": "interview",
+  "title": "Filter Non-Plan Sync",
+  "goalSlug": "filter-non-plan-sync",
+  "questions": [
+    {
+      "id": "scope",
+      "prompt": "Which sources should the stricter plan-value gate cover?",
+      "description": "Current code only annotates adapter/discovered plans locally, while user-created and custom directories bypass local annotation and Convex also bypasses custom/user metadata in visibility heuristics. The Convex table already contains low-value custom-dir and cloud/user-created rows, so this choice determines how comprehensive the fix should be.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "Apply the same canonical plan-value gate to every inbound path before indexing or syncing: adapter scans, project/discovered dirs, custom dirs, user-created local plans, cloud create/upload/publish, and cloud edits. Preserve explicit short checklist plans, but reject/prune empty, code-only, log/report/session, prompt-only, and heading-only content.",
+      "recommendedOptionIds": ["all-sources"],
+      "options": [
+        {
+          "id": "all-sources",
+          "label": "All sources"
+        },
+        {
+          "id": "agent-sync-only",
+          "label": "Agent sync only"
+        },
+        {
+          "id": "keep-user-bypass",
+          "label": "Keep manual bypass"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "existing-rows",
+      "prompt": "How should existing low-value rows in Convex be handled?",
+      "description": "A dev-table sample found 866 plan rows, 132 already invisible by current server heuristics, and additional custom-dir/autosession rows that look like CI logs, empty outputs, or short scratch files. Current code hides many of these but leaves them in the plans table unless a local lowValue metadata payload is later synced for the same localPlanId.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "Add a dry-run-first cleanup/backfill path that classifies every existing Convex plan with the canonical gate, reports counts/reasons/source breakdown, then deletes/prunes low-value rows and related data using deletePlanRelatedData after approval. Do not rely on UI hiding alone.",
+      "recommendedOptionIds": ["dry-run-delete"],
+      "options": [
+        {
+          "id": "dry-run-delete",
+          "label": "Dry-run then delete"
+        },
+        {
+          "id": "mark-hidden",
+          "label": "Mark hidden only"
+        },
+        {
+          "id": "future-only",
+          "label": "Future sync only"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "classifier-strictness",
+      "prompt": "How strict should the definition of a real plan be?",
+      "description": "The current heuristic accepts structured headings, checklists, ordered steps, action bullets, explicit proposed_plan blocks, and some future-plan language, but misses code-dominated answers and duplicates logic between shared and Convex implementations.",
+      "answerMode": "single-custom",
+      "recommendedAnswer": "Use a strict allowlist-style classifier: content must have explicit plan structure or enough actionable planning prose, while code-dominated/code-only documents, empty rows, heading-only docs, prompt-only requests, execution reports, review outputs, tool/system logs, and generic conversations are low-value. Keep minimal checklists like '- [ ] Fix login bug' as valid.",
+      "recommendedOptionIds": ["strict-allowlist"],
+      "options": [
+        {
+          "id": "strict-allowlist",
+          "label": "Strict allowlist"
+        },
+        {
+          "id": "balanced-heuristic",
+          "label": "Balanced heuristic"
+        },
+        {
+          "id": "lenient-current",
+          "label": "Lenient current"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "verification",
+      "prompt": "What verification should be required before considering this resolved?",
+      "description": "The implementation can include deterministic unit tests, adapter/rescan/sync tests, Convex visibility/prune tests, and an audit command over current Convex data.",
+      "answerMode": "multi-custom",
+      "recommendedAnswer": "Require unit tests for new low-value shapes, service tests proving all scan/rescan paths annotate or exclude correctly, CLI/daemon sync tests proving low-value plans are not sent except explicit prune cleanup, Convex tests/validation for publish/edit and cleanup behavior, and a dry-run audit report against the current plans table showing the targeted rows before deletion.",
+      "recommendedOptionIds": ["unit-tests", "sync-tests", "convex-audit", "cleanup-dry-run"],
+      "options": [
+        {
+          "id": "unit-tests",
+          "label": "Classifier tests"
+        },
+        {
+          "id": "sync-tests",
+          "label": "Sync path tests"
+        },
+        {
+          "id": "convex-audit",
+          "label": "Convex audit"
+        },
+        {
+          "id": "cleanup-dry-run",
+          "label": "Cleanup dry-run"
+        }
+      ],
+      "required": true
+    }
+  ]
+}
