@@ -5,6 +5,7 @@ import {
   loadConfig,
   loadOrCreateDeviceId,
   type PlannotatorFeedbackAnnotation,
+  type PlannotatorWritebackAction,
   saveConfig,
 } from '@agendex/shared';
 import { readPidInfo } from './pid.ts';
@@ -302,6 +303,7 @@ export interface PlannotatorWritebackJob {
   _id: string;
   localPlanId: string;
   deviceId?: string;
+  action?: PlannotatorWritebackAction;
   feedback: string;
   revisedContent?: string;
   annotations?: PlannotatorFeedbackAnnotation[];

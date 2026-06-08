@@ -328,6 +328,7 @@ export default defineSchema({
     planId: v.id('plans'),
     localPlanId: v.string(),
     deviceId: v.optional(v.string()),
+    action: v.optional(v.union(v.literal('request_changes'), v.literal('approve'))),
     feedback: v.string(),
     revisedContent: v.optional(v.string()),
     annotations: v.optional(v.array(plannotatorFeedbackAnnotation)),

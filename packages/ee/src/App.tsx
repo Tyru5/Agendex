@@ -481,6 +481,67 @@ function useSidebarPeek(sidebarHidden: boolean, setSidebarPeek: (v: boolean) => 
   return { clear, reveal, scheduleClose };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getPlanPlannotatorMetadata(plan: Plan): Record<string, unknown> | undefined {
+  const metadata = isRecord(plan.metadata) ? plan.metadata.plannotator : undefined;
+  return isRecord(metadata) ? metadata : undefined;
+}
+
+function isLivePlannotatorSession(plan: Plan): boolean {
+  const metadata = getPlanPlannotatorMetadata(plan);
+  return (
+    metadata?.kind === 'live-session' &&
+    metadata.writebackCapable === true &&
+    metadata.liveness !== 'ended'
+  );
+}
+
+function isEndedPlannotatorSession(plan: Plan): boolean {
+  const metadata = getPlanPlannotatorMetadata(plan);
+  return (
+    metadata?.kind === 'live-session' &&
+    (metadata.liveness === 'ended' || metadata.writebackCapable === false)
+  );
+}
+
+function plannotatorContinuityKey(plan: Plan): string | undefined {
+  const metadata = getPlanPlannotatorMetadata(plan);
+  if (metadata?.kind !== 'live-session') return undefined;
+
+  const sourcePlanPath =
+    typeof metadata.sourcePlanPath === 'string' && metadata.sourcePlanPath.trim()
+      ? metadata.sourcePlanPath
+      : plan.filePath;
+  if (sourcePlanPath) return `path:${sourcePlanPath}`;
+
+  if (typeof metadata.reviewId === 'string' && metadata.reviewId.trim()) {
+    return `review:${metadata.reviewId}`;
+  }
+
+  const project = typeof metadata.project === 'string' ? metadata.project : '';
+  const label = typeof metadata.label === 'string' ? metadata.label : '';
+  if (project || label) return `label:${project}:${label}`;
+
+  return undefined;
+}
+
+function findLivePlannotatorReplacement(plan: Plan, plans: Plan[]): Plan | undefined {
+  if (!isEndedPlannotatorSession(plan)) return undefined;
+  const key = plannotatorContinuityKey(plan);
+  if (!key) return undefined;
+  return plans
+    .filter(
+      (candidate) =>
+        candidate.id !== plan.id &&
+        isLivePlannotatorSession(candidate) &&
+        plannotatorContinuityKey(candidate) === key,
+    )
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+}
+
 function PlanHeaderExtra({
   plan,
   isPro,
@@ -1839,6 +1900,14 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     mode,
     localAutoSelectSuppressed,
   ]);
+
+  useEffect(() => {
+    if (mode !== 'cloud' || !selectedPlan) return;
+    const replacement = findLivePlannotatorReplacement(selectedPlan, plans);
+    if (!replacement) return;
+    setSelectedPlanId(replacement.id);
+    if (splitPlanId === replacement.id) setSplitPlanId(null);
+  }, [mode, selectedPlan, plans, setSelectedPlanId, splitPlanId, setSplitPlanId]);
 
   const splitPlan = useMemo(() => {
     if (!splitPlanId) return undefined;

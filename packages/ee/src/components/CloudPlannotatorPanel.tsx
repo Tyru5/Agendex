@@ -55,6 +55,7 @@ function resolveOpenLiveness(
   plan: Plan,
   metadata: PlannotatorMetadata,
   devices: DaemonDeviceInfo[],
+  daemonStatus: 'alive' | 'stale' | 'unknown',
 ): OpenLiveness {
   const hostname = getSyncHostname(plan);
 
@@ -74,7 +75,11 @@ function resolveOpenLiveness(
     }
   }
 
-  // (2) Fallback: correlate with the syncing daemon device's liveness.
+  // (2) Fallback: correlate with the syncing daemon device's liveness. While
+  // the daemon query is still loading, keep proven-live sessions open rather
+  // than briefly claiming the Plannotator server is gone.
+  if (daemonStatus === 'unknown') return { state: 'open', hostname };
+
   const deviceId = getSyncDeviceId(plan);
   const matched = deviceId ? devices.find((d) => d.deviceId === deviceId) : undefined;
 
@@ -155,12 +160,13 @@ function StatusPill({ status }: { status: string | undefined }) {
 
 export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
   const metadata = getPlannotatorMetadata(plan);
-  const { devices } = useDaemonStatus();
+  const { aggregateStatus, devices } = useDaemonStatus();
   if (!metadata) return null;
 
   const isLiveKind = metadata.kind === 'live-session';
-  const liveness = resolveOpenLiveness(plan, metadata, devices);
-  const sessionEnded = isLiveKind && liveness.state === 'offline';
+  const liveness = resolveOpenLiveness(plan, metadata, devices, aggregateStatus);
+  const sessionEnded =
+    isLiveKind && liveness.state === 'offline' && liveness.reason === 'session-ended';
 
   const label = isLiveKind
     ? sessionEnded
@@ -249,7 +255,7 @@ export function CloudPlannotatorWritebackPanel({
 }) {
   const metadata = getPlannotatorMetadata(plan);
   const isLive = metadata?.kind === 'live-session' && metadata.writebackCapable === true;
-  const canRequestChanges = isLive && daemonAvailable && canQueueWriteback;
+  const isApproved = metadata?.status === 'approved';
   const enqueueWriteback = useMutation(api.plannotator.enqueueWriteback);
   const writebacks = useQuery(
     api.plannotator.listWritebacksForPlan,
@@ -257,32 +263,62 @@ export function CloudPlannotatorWritebackPanel({
   );
   const [feedback, setFeedback] = useState('');
   const [revisedContent, setRevisedContent] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<'approve' | 'request_changes' | null>(
+    null,
+  );
   const [error, setError] = useState<string>();
-  const [queued, setQueued] = useState(false);
+  const [queuedAction, setQueuedAction] = useState<'approve' | 'request_changes' | null>(null);
 
   const latest = useMemo(() => writebacks?.[0], [writebacks]);
+  const hasPendingWriteback = latest?.status === 'pending';
+  const canQueueAnyWriteback =
+    isLive && daemonAvailable && canQueueWriteback && !isApproved && !hasPendingWriteback;
+  const canRequestChanges = canQueueAnyWriteback;
+  const canApprove = canQueueAnyWriteback;
+  const requestHasBody = Boolean(feedback.trim() || revisedContent.trim());
+  const requestChangesDisabled = submittingAction !== null || !canRequestChanges || !requestHasBody;
+  const approveDisabled = submittingAction !== null || !canApprove || queuedAction === 'approve';
 
   if (!metadata) return null;
 
-  async function requestChanges() {
-    if (!canRequestChanges || (!feedback.trim() && !revisedContent.trim())) return;
-    setSubmitting(true);
+  async function approvePlan() {
+    if (!canApprove) return;
+    setSubmittingAction('approve');
     setError(undefined);
-    setQueued(false);
+    setQueuedAction(null);
     try {
       await enqueueWriteback({
         planId: plan.id as Id<'plans'>,
+        action: 'approve',
+        feedback: '',
+      });
+      setQueuedAction('approve');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to queue approval');
+    } finally {
+      setSubmittingAction(null);
+    }
+  }
+
+  async function requestChanges() {
+    if (!canRequestChanges || !requestHasBody) return;
+    setSubmittingAction('request_changes');
+    setError(undefined);
+    setQueuedAction(null);
+    try {
+      await enqueueWriteback({
+        planId: plan.id as Id<'plans'>,
+        action: 'request_changes',
         feedback: feedback.trim(),
         revisedContent: revisedContent.trim() || undefined,
       });
       setFeedback('');
       setRevisedContent('');
-      setQueued(true);
+      setQueuedAction('request_changes');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to queue request');
     } finally {
-      setSubmitting(false);
+      setSubmittingAction(null);
     }
   }
 
@@ -325,7 +361,7 @@ export function CloudPlannotatorWritebackPanel({
           <div className="plannotator-writeback-footer">
             <div className="plannotator-panel-note">
               {!canQueueWriteback && (
-                <span>Only the plan owner can queue request-changes feedback.</span>
+                <span>Only the plan owner can approve or queue request-changes feedback.</span>
               )}
               {canQueueWriteback && !daemonAvailable && (
                 <span>
@@ -334,30 +370,55 @@ export function CloudPlannotatorWritebackPanel({
                   write-back delivery.
                 </span>
               )}
-              {canQueueWriteback && daemonAvailable && queued && 'Queued for daemon delivery.'}
+              {canQueueWriteback && daemonAvailable && isApproved && 'This plan is approved.'}
+              {canQueueWriteback && daemonAvailable && !isApproved && hasPendingWriteback && (
+                <span>A Plannotator request is already pending.</span>
+              )}
+              {canQueueWriteback &&
+                daemonAvailable &&
+                queuedAction === 'approve' &&
+                'Approval queued for daemon delivery.'}
+              {canQueueWriteback &&
+                daemonAvailable &&
+                queuedAction === 'request_changes' &&
+                'Request queued for daemon delivery.'}
               {canQueueWriteback && daemonAvailable && error && (
                 <span className="text-[var(--danger)]">{error}</span>
               )}
-              {canQueueWriteback && daemonAvailable && !queued && !error && latest?.error
+              {canQueueWriteback && daemonAvailable && !queuedAction && !error && latest?.error
                 ? latest.error
                 : null}
             </div>
-            <button
-              type="button"
-              onClick={requestChanges}
-              disabled={
-                submitting || !canRequestChanges || (!feedback.trim() && !revisedContent.trim())
-              }
-              className={PRIMARY_BUTTON}
-            >
-              {submitting
-                ? 'Queueing…'
-                : !canQueueWriteback
-                  ? 'Owner only'
-                  : daemonAvailable
-                    ? 'Queue request'
-                    : 'Daemon required'}
-            </button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={approvePlan}
+                disabled={approveDisabled}
+                className={`${PRIMARY_BUTTON} ${approveDisabled ? 'cursor-default' : 'cursor-pointer'}`}
+              >
+                {submittingAction === 'approve'
+                  ? 'Approving…'
+                  : !canQueueWriteback
+                    ? 'Owner only'
+                    : daemonAvailable
+                      ? 'Approve plan'
+                      : 'Daemon required'}
+              </button>
+              <button
+                type="button"
+                onClick={requestChanges}
+                disabled={requestChangesDisabled}
+                className={GHOST_BUTTON}
+              >
+                {submittingAction === 'request_changes'
+                  ? 'Queueing…'
+                  : !canQueueWriteback
+                    ? 'Owner only'
+                    : daemonAvailable
+                      ? 'Queue request'
+                      : 'Daemon required'}
+              </button>
+            </div>
           </div>
         </div>
       )}

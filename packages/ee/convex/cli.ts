@@ -1,7 +1,14 @@
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { httpAction, internalMutation, internalQuery, mutation, query } from './_generated/server';
+import {
+  httpAction,
+  internalMutation,
+  internalQuery,
+  mutation,
+  type MutationCtx,
+  query,
+} from './_generated/server';
 import { authComponent, createAuth } from './auth';
 import { deletePlanRelatedData } from './planDeletion';
 import { hasLowValueMetadata } from './planVisibility';
@@ -11,6 +18,93 @@ const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getPlannotatorMetadata(metadata: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(metadata)) return undefined;
+  const plannotator = metadata.plannotator;
+  return isRecord(plannotator) ? plannotator : undefined;
+}
+
+function plannotatorContinuityKey(metadata: unknown, filePath?: string): string | undefined {
+  const plannotator = getPlannotatorMetadata(metadata);
+  if (plannotator?.kind !== 'live-session') return undefined;
+
+  const sourcePlanPath =
+    typeof plannotator.sourcePlanPath === 'string' && plannotator.sourcePlanPath.trim()
+      ? plannotator.sourcePlanPath.trim()
+      : filePath;
+  if (sourcePlanPath) return `path:${sourcePlanPath}`;
+
+  if (typeof plannotator.reviewId === 'string' && plannotator.reviewId.trim()) {
+    return `review:${plannotator.reviewId.trim()}`;
+  }
+
+  const project = typeof plannotator.project === 'string' ? plannotator.project.trim() : '';
+  const label = typeof plannotator.label === 'string' ? plannotator.label.trim() : '';
+  return project || label ? `project:${project}:label:${label}` : undefined;
+}
+
+function isLivePlannotatorMetadata(metadata: unknown): boolean {
+  const plannotator = getPlannotatorMetadata(metadata);
+  return (
+    plannotator?.kind === 'live-session' &&
+    plannotator.writebackCapable === true &&
+    plannotator.liveness !== 'ended'
+  );
+}
+
+async function markSupersededPlannotatorSessions(
+  ctx: MutationCtx,
+  {
+    ownerId,
+    canonicalPlanId,
+    canonicalLocalPlanId,
+    metadata,
+    filePath,
+    now,
+  }: {
+    ownerId: string;
+    canonicalPlanId: Id<'plans'>;
+    canonicalLocalPlanId: string;
+    metadata: unknown;
+    filePath?: string;
+    now: number;
+  },
+): Promise<void> {
+  const key = plannotatorContinuityKey(metadata, filePath);
+  if (!key) return;
+
+  const ownerPlans = await ctx.db
+    .query('plans')
+    .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+    .collect();
+
+  for (const plan of ownerPlans) {
+    if (plan._id === canonicalPlanId || plan.localPlanId === canonicalLocalPlanId) continue;
+    if (!isLivePlannotatorMetadata(plan.metadata)) continue;
+    if (plannotatorContinuityKey(plan.metadata, plan.filePath) !== key) continue;
+
+    const planMetadata = isRecord(plan.metadata) ? plan.metadata : {};
+    const plannotator = getPlannotatorMetadata(plan.metadata) ?? {};
+    await ctx.db.patch(plan._id, {
+      metadata: {
+        ...planMetadata,
+        plannotator: {
+          ...plannotator,
+          writebackCapable: false,
+          liveness: 'ended',
+          endedAt: now,
+          supersededByLocalPlanId: canonicalLocalPlanId,
+          supersededByPlanId: canonicalPlanId,
+        },
+      },
+    });
+  }
+}
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
@@ -103,10 +197,18 @@ export const upsertPlan = internalMutation({
         version: args.existingVersion + 1,
         updatedAt: args.updatedAt ?? now,
       });
+      await markSupersededPlannotatorSessions(ctx, {
+        ownerId: args.ownerId,
+        canonicalPlanId: args.existingId,
+        canonicalLocalPlanId: args.localPlanId,
+        metadata: args.metadata,
+        filePath: args.filePath,
+        now,
+      });
       return args.existingId;
     }
 
-    return await ctx.db.insert('plans', {
+    const planId = await ctx.db.insert('plans', {
       ownerId: args.ownerId,
       localPlanId: args.localPlanId,
       agent: args.agent,
@@ -120,6 +222,17 @@ export const upsertPlan = internalMutation({
       createdAt: args.createdAt ?? now,
       updatedAt: args.updatedAt ?? now,
     });
+
+    await markSupersededPlannotatorSessions(ctx, {
+      ownerId: args.ownerId,
+      canonicalPlanId: planId,
+      canonicalLocalPlanId: args.localPlanId,
+      metadata: args.metadata,
+      filePath: args.filePath,
+      now,
+    });
+
+    return planId;
   },
 });
 

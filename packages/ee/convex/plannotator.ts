@@ -1,6 +1,6 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import {
   internalMutation,
   internalQuery,
@@ -61,11 +61,91 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function planHasLivePlannotatorMetadata(plan: { metadata?: unknown }): boolean {
-  if (!isRecord(plan.metadata)) return false;
+function getPlannotatorMetadata(plan: { metadata?: unknown }): Record<string, unknown> | undefined {
+  if (!isRecord(plan.metadata)) return undefined;
   const plannotator = plan.metadata.plannotator;
-  if (!isRecord(plannotator)) return false;
-  return plannotator.kind === 'live-session' && plannotator.writebackCapable === true;
+  return isRecord(plannotator) ? plannotator : undefined;
+}
+
+function planHasLivePlannotatorMetadata(plan: { metadata?: unknown }): boolean {
+  const plannotator = getPlannotatorMetadata(plan);
+  return (
+    plannotator?.kind === 'live-session' &&
+    plannotator.writebackCapable === true &&
+    plannotator.liveness !== 'ended'
+  );
+}
+
+function plannotatorContinuityKey(plan: {
+  metadata?: unknown;
+  filePath?: string;
+}): string | undefined {
+  const plannotator = getPlannotatorMetadata(plan);
+  if (plannotator?.kind !== 'live-session') return undefined;
+
+  const sourcePlanPath =
+    typeof plannotator.sourcePlanPath === 'string' && plannotator.sourcePlanPath.trim()
+      ? plannotator.sourcePlanPath.trim()
+      : plan.filePath;
+  if (sourcePlanPath) return `path:${sourcePlanPath}`;
+
+  if (typeof plannotator.reviewId === 'string' && plannotator.reviewId.trim()) {
+    return `review:${plannotator.reviewId.trim()}`;
+  }
+
+  const project = typeof plannotator.project === 'string' ? plannotator.project.trim() : '';
+  const label = typeof plannotator.label === 'string' ? plannotator.label.trim() : '';
+  return project || label ? `project:${project}:label:${label}` : undefined;
+}
+
+async function findCurrentLivePlannotatorPlan(
+  ctx: MutationCtx,
+  ownerId: string,
+  plan: Doc<'plans'>,
+): Promise<Doc<'plans'>> {
+  const key = plannotatorContinuityKey(plan);
+  if (!key) return plan;
+
+  const candidates = await ctx.db
+    .query('plans')
+    .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+    .collect();
+
+  return (
+    candidates
+      .filter(
+        (candidate) =>
+          planHasLivePlannotatorMetadata(candidate) && plannotatorContinuityKey(candidate) === key,
+      )
+      .sort((a, b) => b._creationTime - a._creationTime)[0] ?? plan
+  );
+}
+
+async function markSupersededPlannotatorPlan(
+  ctx: MutationCtx,
+  plan: Doc<'plans'>,
+  targetPlan: Doc<'plans'>,
+  now: number,
+): Promise<void> {
+  if (plan._id === targetPlan._id || !targetPlan.localPlanId) return;
+
+  const metadata = isRecord(plan.metadata) ? plan.metadata : {};
+  const plannotator = getPlannotatorMetadata(plan);
+  if (!plannotator) return;
+
+  await ctx.db.patch(plan._id, {
+    metadata: {
+      ...metadata,
+      plannotator: {
+        ...plannotator,
+        writebackCapable: false,
+        liveness: 'ended',
+        endedAt: now,
+        supersededByLocalPlanId: targetPlan.localPlanId,
+        supersededByPlanId: targetPlan._id,
+      },
+    },
+  });
 }
 
 function getPlanSyncDeviceId(plan: { metadata?: unknown }): string | undefined {
@@ -103,6 +183,7 @@ async function reopenWritebackAnnotations(
 export const enqueueWriteback = mutation({
   args: {
     planId: v.id('plans'),
+    action: v.optional(v.union(v.literal('request_changes'), v.literal('approve'))),
     feedback: v.string(),
     revisedContent: v.optional(v.string()),
     annotations: v.optional(v.array(feedbackAnnotation)),
@@ -115,22 +196,28 @@ export const enqueueWriteback = mutation({
 
     await requireFeature(ctx, ProFeature.PLANNOTATOR_INTEGRATION);
 
-    const plan = await ctx.db.get(args.planId);
-    if (!plan) throw new ConvexError('Plan not found');
-    if (plan.ownerId !== user._id) throw new ConvexError('Access denied');
+    const requestedPlan = await ctx.db.get(args.planId);
+    if (!requestedPlan) throw new ConvexError('Plan not found');
+    if (requestedPlan.ownerId !== user._id) throw new ConvexError('Access denied');
+
+    const action = args.action ?? 'request_changes';
+    const feedback = args.feedback.trim();
+    const revisedContent = args.revisedContent?.trim();
+    if (action === 'request_changes' && !feedback && !revisedContent) {
+      throw new ConvexError('Feedback or revised content is required');
+    }
+
+    const now = Date.now();
+    const plan = await findCurrentLivePlannotatorPlan(ctx, user._id, requestedPlan);
+    if (plan._id !== requestedPlan._id) {
+      await markSupersededPlannotatorPlan(ctx, requestedPlan, plan, now);
+    }
+
     const localPlanId = plan.localPlanId;
     if (!localPlanId) throw new ConvexError('Plan is not linked to a local daemon record');
     if (!planHasLivePlannotatorMetadata(plan)) {
       throw new ConvexError('Plan is not a live Plannotator session');
     }
-
-    const feedback = args.feedback.trim();
-    const revisedContent = args.revisedContent?.trim();
-    if (!feedback && !revisedContent) {
-      throw new ConvexError('Feedback or revised content is required');
-    }
-
-    const now = Date.now();
     const pendingWritebacks = await ctx.db
       .query('plannotatorWritebacks')
       .withIndex('by_owner_localPlanId', (q) =>
@@ -163,7 +250,10 @@ export const enqueueWriteback = mutation({
     const annotationIds = args.annotationIds ?? [];
     for (const annotationId of annotationIds) {
       const annotation = await ctx.db.get(annotationId);
-      if (!annotation || annotation.planId !== args.planId) {
+      if (
+        !annotation ||
+        (annotation.planId !== requestedPlan._id && annotation.planId !== plan._id)
+      ) {
         throw new ConvexError('Annotation does not belong to this plan');
       }
       if (annotation.authorId !== user._id) {
@@ -176,9 +266,10 @@ export const enqueueWriteback = mutation({
 
     const writebackId = await ctx.db.insert('plannotatorWritebacks', {
       ownerId: user._id,
-      planId: args.planId,
+      planId: plan._id,
       localPlanId,
       deviceId: args.deviceId ?? getPlanSyncDeviceId(plan),
+      action,
       feedback,
       revisedContent,
       annotations: args.annotations,
@@ -309,6 +400,27 @@ export const reportWritebackStatus = internalMutation({
       updatedAt: now,
       sentAt: args.status === 'sent' ? now : row.sentAt,
     });
+
+    if (args.status === 'sent') {
+      const plan = await ctx.db.get(row.planId);
+      const metadata = isRecord(plan?.metadata) ? plan.metadata : undefined;
+      const plannotator = isRecord(metadata?.plannotator) ? metadata.plannotator : undefined;
+      if (plan && plannotator) {
+        await ctx.db.patch(row.planId, {
+          metadata: {
+            ...metadata,
+            plannotator: {
+              ...plannotator,
+              ...(row.action === 'approve' ? { status: 'approved' } : {}),
+              lastWritebackStatus: 'sent',
+              lastWritebackAt: now,
+            },
+          },
+          updatedAt: now,
+        });
+      }
+    }
+
     if (args.status !== 'sent') {
       await reopenWritebackAnnotations(ctx, row.annotationIds, args.writebackId, now);
     }
