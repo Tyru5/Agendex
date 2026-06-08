@@ -81,12 +81,14 @@ export default defineSchema({
     filePath: v.optional(v.string()),
     workspace: v.optional(v.string()),
     metadata: v.optional(v.any()),
+    plannotatorContinuityKey: v.optional(v.string()),
     version: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_owner', ['ownerId'])
-    .index('by_owner_localPlanId', ['ownerId', 'localPlanId']),
+    .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
+    .index('by_owner_plannotatorContinuityKey', ['ownerId', 'plannotatorContinuityKey']),
 
   shareLinks: defineTable({
     planId: v.id('plans'),

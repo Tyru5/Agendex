@@ -36,8 +36,8 @@ function plannotatorContinuityKey(metadata: unknown, filePath?: string): string 
   const sourcePlanPath =
     typeof plannotator.sourcePlanPath === 'string' && plannotator.sourcePlanPath.trim()
       ? plannotator.sourcePlanPath.trim()
-      : filePath;
-  if (sourcePlanPath) return `path:${sourcePlanPath}`;
+      : undefined;
+  if (sourcePlanPath) return `source:${sourcePlanPath}`;
 
   if (typeof plannotator.reviewId === 'string' && plannotator.reviewId.trim()) {
     return `review:${plannotator.reviewId.trim()}`;
@@ -45,7 +45,10 @@ function plannotatorContinuityKey(metadata: unknown, filePath?: string): string 
 
   const project = typeof plannotator.project === 'string' ? plannotator.project.trim() : '';
   const label = typeof plannotator.label === 'string' ? plannotator.label.trim() : '';
-  return project || label ? `project:${project}:label:${label}` : undefined;
+  const mode = typeof plannotator.mode === 'string' ? plannotator.mode.trim() : '';
+  if (project && label) return `project:${project}:label:${label}:mode:${mode}`;
+
+  return filePath ? `path:${filePath}` : undefined;
 }
 
 function isLivePlannotatorMetadata(metadata: unknown): boolean {
@@ -78,12 +81,14 @@ async function markSupersededPlannotatorSessions(
   const key = plannotatorContinuityKey(metadata, filePath);
   if (!key) return;
 
-  const ownerPlans = await ctx.db
+  const matchingPlans = await ctx.db
     .query('plans')
-    .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+    .withIndex('by_owner_plannotatorContinuityKey', (q) =>
+      q.eq('ownerId', ownerId).eq('plannotatorContinuityKey', key),
+    )
     .collect();
 
-  for (const plan of ownerPlans) {
+  for (const plan of matchingPlans) {
     if (plan._id === canonicalPlanId || plan.localPlanId === canonicalLocalPlanId) continue;
     if (!isLivePlannotatorMetadata(plan.metadata)) continue;
     if (plannotatorContinuityKey(plan.metadata, plan.filePath) !== key) continue;
@@ -184,6 +189,7 @@ export const upsertPlan = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const continuityKey = plannotatorContinuityKey(args.metadata, args.filePath);
 
     if (args.existingId && args.existingVersion !== undefined) {
       await ctx.db.patch(args.existingId, {
@@ -194,6 +200,7 @@ export const upsertPlan = internalMutation({
         filePath: args.filePath,
         workspace: args.workspace,
         metadata: args.metadata,
+        ...(continuityKey ? { plannotatorContinuityKey: continuityKey } : {}),
         version: args.existingVersion + 1,
         updatedAt: args.updatedAt ?? now,
       });
@@ -218,6 +225,7 @@ export const upsertPlan = internalMutation({
       filePath: args.filePath,
       workspace: args.workspace,
       metadata: args.metadata,
+      ...(continuityKey ? { plannotatorContinuityKey: continuityKey } : {}),
       version: 1,
       createdAt: args.createdAt ?? now,
       updatedAt: args.updatedAt ?? now,

@@ -165,18 +165,20 @@ export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
 
   const isLiveKind = metadata.kind === 'live-session';
   const liveness = resolveOpenLiveness(plan, metadata, devices, aggregateStatus);
-  const sessionEnded =
-    isLiveKind && liveness.state === 'offline' && liveness.reason === 'session-ended';
+  const sessionOffline = isLiveKind && liveness.state === 'offline';
+  const sessionEnded = sessionOffline && liveness.reason === 'session-ended';
 
   const label = isLiveKind
     ? sessionEnded
       ? 'Plannotator session ended'
-      : 'Plannotator live'
+      : sessionOffline
+        ? 'Plannotator unavailable'
+        : 'Plannotator live'
     : metadata.kind === 'project-plan'
       ? 'Plannotator project plan'
       : 'Plannotator snapshot';
-  // An ended live session is no longer "pending" — reflect that in the dot color.
-  const status = sessionEnded
+  // Offline live sessions are no longer actionable; reflect that in the dot color.
+  const status = sessionOffline
     ? 'unknown'
     : (metadata.status ?? (isLiveKind ? 'pending' : 'unknown'));
 
@@ -197,7 +199,7 @@ export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
           : 'Start the originating machine to continue'
       : undefined;
 
-  const isLivePulse = isLiveKind && !sessionEnded;
+  const isLivePulse = isLiveKind && !sessionOffline;
 
   return (
     <div className="plan-plannotator-badge inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
@@ -271,13 +273,15 @@ export function CloudPlannotatorWritebackPanel({
 
   const latest = useMemo(() => writebacks?.[0], [writebacks]);
   const hasPendingWriteback = latest?.status === 'pending';
+  const hasQueuedAction = queuedAction !== null;
   const canQueueAnyWriteback =
     isLive && daemonAvailable && canQueueWriteback && !isApproved && !hasPendingWriteback;
   const canRequestChanges = canQueueAnyWriteback;
   const canApprove = canQueueAnyWriteback;
   const requestHasBody = Boolean(feedback.trim() || revisedContent.trim());
-  const requestChangesDisabled = submittingAction !== null || !canRequestChanges || !requestHasBody;
-  const approveDisabled = submittingAction !== null || !canApprove || queuedAction === 'approve';
+  const requestChangesDisabled =
+    submittingAction !== null || hasQueuedAction || !canRequestChanges || !requestHasBody;
+  const approveDisabled = submittingAction !== null || hasQueuedAction || !canApprove;
 
   if (!metadata) return null;
 

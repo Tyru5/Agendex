@@ -514,8 +514,8 @@ function plannotatorContinuityKey(plan: Plan): string | undefined {
   const sourcePlanPath =
     typeof metadata.sourcePlanPath === 'string' && metadata.sourcePlanPath.trim()
       ? metadata.sourcePlanPath
-      : plan.filePath;
-  if (sourcePlanPath) return `path:${sourcePlanPath}`;
+      : undefined;
+  if (sourcePlanPath) return `source:${sourcePlanPath}`;
 
   if (typeof metadata.reviewId === 'string' && metadata.reviewId.trim()) {
     return `review:${metadata.reviewId}`;
@@ -523,9 +523,10 @@ function plannotatorContinuityKey(plan: Plan): string | undefined {
 
   const project = typeof metadata.project === 'string' ? metadata.project : '';
   const label = typeof metadata.label === 'string' ? metadata.label : '';
-  if (project || label) return `label:${project}:${label}`;
+  const mode = typeof metadata.mode === 'string' ? metadata.mode : '';
+  if (project && label) return `project:${project}:label:${label}:mode:${mode}`;
 
-  return undefined;
+  return plan.filePath ? `path:${plan.filePath}` : undefined;
 }
 
 function findLivePlannotatorReplacement(plan: Plan, plans: Plan[]): Plan | undefined {

@@ -86,8 +86,8 @@ function plannotatorContinuityKey(plan: {
   const sourcePlanPath =
     typeof plannotator.sourcePlanPath === 'string' && plannotator.sourcePlanPath.trim()
       ? plannotator.sourcePlanPath.trim()
-      : plan.filePath;
-  if (sourcePlanPath) return `path:${sourcePlanPath}`;
+      : undefined;
+  if (sourcePlanPath) return `source:${sourcePlanPath}`;
 
   if (typeof plannotator.reviewId === 'string' && plannotator.reviewId.trim()) {
     return `review:${plannotator.reviewId.trim()}`;
@@ -95,7 +95,20 @@ function plannotatorContinuityKey(plan: {
 
   const project = typeof plannotator.project === 'string' ? plannotator.project.trim() : '';
   const label = typeof plannotator.label === 'string' ? plannotator.label.trim() : '';
-  return project || label ? `project:${project}:label:${label}` : undefined;
+  const mode = typeof plannotator.mode === 'string' ? plannotator.mode.trim() : '';
+  if (project && label) return `project:${project}:label:${label}:mode:${mode}`;
+
+  return plan.filePath ? `path:${plan.filePath}` : undefined;
+}
+
+function storedOrDerivedPlannotatorContinuityKey(plan: {
+  metadata?: unknown;
+  filePath?: string;
+  plannotatorContinuityKey?: string;
+}): string | undefined {
+  return typeof plan.plannotatorContinuityKey === 'string' && plan.plannotatorContinuityKey.trim()
+    ? plan.plannotatorContinuityKey
+    : plannotatorContinuityKey(plan);
 }
 
 async function findCurrentLivePlannotatorPlan(
@@ -103,19 +116,22 @@ async function findCurrentLivePlannotatorPlan(
   ownerId: string,
   plan: Doc<'plans'>,
 ): Promise<Doc<'plans'>> {
-  const key = plannotatorContinuityKey(plan);
+  const key = storedOrDerivedPlannotatorContinuityKey(plan);
   if (!key) return plan;
 
   const candidates = await ctx.db
     .query('plans')
-    .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+    .withIndex('by_owner_plannotatorContinuityKey', (q) =>
+      q.eq('ownerId', ownerId).eq('plannotatorContinuityKey', key),
+    )
     .collect();
 
   return (
     candidates
       .filter(
         (candidate) =>
-          planHasLivePlannotatorMetadata(candidate) && plannotatorContinuityKey(candidate) === key,
+          planHasLivePlannotatorMetadata(candidate) &&
+          storedOrDerivedPlannotatorContinuityKey(candidate) === key,
       )
       .sort((a, b) => b._creationTime - a._creationTime)[0] ?? plan
   );
