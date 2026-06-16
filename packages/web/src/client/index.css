@@ -2321,29 +2321,38 @@ body {
 
 .landing-page {
   --landing-accent: oklch(90% 0.22 129);
+  --landing-purple: oklch(72% 0.17 286);
   --landing-orange: oklch(72% 0.18 46);
-  --landing-bg: oklch(17.5% 0.04 184);
-  --landing-surface: oklch(22% 0.043 184);
-  --landing-surface-raised: oklch(27% 0.04 184);
-  --landing-text: oklch(95% 0.018 127);
-  --landing-muted: oklch(67% 0.028 170);
-  --landing-faint: oklch(51% 0.028 171);
+  --landing-bg: oklch(11.5% 0.028 248);
+  --landing-surface: oklch(15.2% 0.03 248);
+  --landing-surface-raised: oklch(19.4% 0.032 248);
+  --landing-text: oklch(94.5% 0.014 125);
+  --landing-muted: oklch(70% 0.025 246);
+  --landing-faint: oklch(53% 0.025 246);
   --landing-border: color-mix(in oklch, var(--landing-text) 13%, transparent);
   --landing-border-strong: color-mix(in oklch, var(--landing-text) 22%, transparent);
-  --landing-border-subtle: color-mix(in oklch, var(--landing-text) 6%, transparent);
-  --landing-grid: color-mix(in oklch, var(--landing-text) 3.5%, transparent);
+  --landing-border-subtle: color-mix(in oklch, var(--landing-text) 7%, transparent);
+  --landing-grid: color-mix(in oklch, var(--landing-text) 6%, transparent);
 
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
-  background-color: var(--landing-bg);
-  background-image: repeating-linear-gradient(
-    to right,
-    transparent 0,
-    transparent calc(25% - 1px),
-    var(--landing-grid) calc(25% - 1px),
-    var(--landing-grid) 25%
-  );
+  background:
+    radial-gradient(
+      circle at 50% -8%,
+      color-mix(in oklch, var(--landing-purple) 13%, transparent),
+      transparent 34rem
+    ),
+    linear-gradient(
+      90deg,
+      transparent calc(50% - 528px),
+      var(--landing-grid) calc(50% - 527px),
+      transparent calc(50% - 526px),
+      transparent calc(50% + 526px),
+      var(--landing-grid) calc(50% + 527px),
+      transparent calc(50% + 528px)
+    ),
+    var(--landing-bg);
   color: var(--landing-text);
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   letter-spacing: 0;
@@ -2352,13 +2361,33 @@ body {
 .landing-page::before {
   content: "";
   position: fixed;
-  inset: 0;
+  inset: 52px 0 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 256px 256px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent calc(50% - 264px),
+      color-mix(in oklch, var(--landing-grid) 58%, transparent) calc(50% - 263px),
+      transparent calc(50% - 262px),
+      transparent calc(50% + 262px),
+      color-mix(in oklch, var(--landing-grid) 58%, transparent) calc(50% + 263px),
+      transparent calc(50% + 264px)
+    ),
+    radial-gradient(
+      circle at 76% 8%,
+      color-mix(in oklch, var(--landing-accent) 9%, transparent),
+      transparent 25rem
+    );
+}
+
+.landing-frame {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 1056px);
+  margin-inline: auto;
+  border-left: 1px solid var(--landing-border-subtle);
+  border-right: 1px solid var(--landing-border-subtle);
 }
 
 .landing-page .wip-marquee {
