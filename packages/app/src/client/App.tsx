@@ -1,5 +1,6 @@
 import {
   ChangelogPage,
+  DocsPage,
   EmptyStateView,
   filterPlans,
   hasToken,
@@ -82,7 +83,7 @@ function Dashboard() {
   const agents = useAgents(true, false);
   const backendStatus = useBackendStatus();
 
-  const { plans, loading, error } = localPlans;
+  const { plans, loading, error, refresh } = localPlans;
 
   const filteredPlans = useMemo(() => {
     let result = filterPlans(plans, search);
@@ -98,10 +99,10 @@ function Dashboard() {
   const prevBackendStatus = useRef(backendStatus);
   useEffect(() => {
     if (prevBackendStatus.current === 'offline' && backendStatus === 'online') {
-      localPlans.refresh();
+      refresh();
     }
     prevBackendStatus.current = backendStatus;
-  }, [backendStatus, localPlans.refresh]);
+  }, [backendStatus, refresh]);
 
   const totalPlans = useMemo(() => {
     return agents.reduce((sum, a) => sum + a.planCount, 0);
@@ -377,6 +378,18 @@ export default function App() {
     );
   }
 
+  if (typeof window !== 'undefined' && window.location.pathname === '/docs') {
+    return (
+      <DocsPage
+        onBack={() => {
+          startViewTransition(() => {
+            window.location.href = '/';
+          });
+        }}
+      />
+    );
+  }
+
   if (!hasToken()) {
     return (
       <>
@@ -385,6 +398,11 @@ export default function App() {
           onShowChangelog={() => {
             startViewTransition(() => {
               window.location.href = '/changelog';
+            });
+          }}
+          onShowDocs={() => {
+            startViewTransition(() => {
+              window.location.href = '/docs';
             });
           }}
         />

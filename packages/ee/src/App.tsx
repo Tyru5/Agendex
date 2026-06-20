@@ -2,6 +2,7 @@ import {
   AgentAvatarProvider,
   type AgentStats,
   ChangelogPage,
+  DocsPage,
   EmptyStateView,
   filterPlans,
   hasToken,
@@ -2177,6 +2178,11 @@ function ChangelogRoute() {
   return <ChangelogPage onBack={() => startViewTransition(() => navigate('/'))} />;
 }
 
+function DocsRoute() {
+  const [, navigate] = useLocation();
+  return <DocsPage onBack={() => startViewTransition(() => navigate('/'))} />;
+}
+
 function CliAuthRoute() {
   const callback = new URLSearchParams(window.location.search).get('callback');
   if (!callback) return <Redirect to="/" />;
@@ -2231,6 +2237,7 @@ function LandingRoute() {
     <LandingPage
       mascot={{ onActivate: () => startViewTransition(() => navigate('/about-me')) }}
       onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
+      onShowDocs={() => startViewTransition(() => navigate('/docs'))}
     >
       <LandingPage.NavbarAuth>{() => <EENavbarAuth />}</LandingPage.NavbarAuth>
       <LandingPage.HeroCta>{() => <EEHeroCta />}</LandingPage.HeroCta>
@@ -2341,6 +2348,7 @@ export default function App() {
       </Route>
       <Route path="/about-me" component={AboutMePage} />
       <Route path="/changelog" component={ChangelogRoute} />
+      <Route path="/docs" component={DocsRoute} />
       <Route path="/welcome">
         <AuthRuntime>
           <OnboardingRoute>

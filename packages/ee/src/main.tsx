@@ -1,3 +1,7 @@
+if (import.meta.env.DEV) {
+  import('react-grab');
+}
+
 import { ThemeProvider } from '@agendex/web';
 import { Analytics } from '@vercel/analytics/react';
 import './index.css';

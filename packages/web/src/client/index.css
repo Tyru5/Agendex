@@ -2321,14 +2321,14 @@ body {
 
 .landing-page {
   --landing-accent: oklch(90% 0.22 129);
-  --landing-purple: oklch(72% 0.17 286);
+  --landing-cyan: oklch(76% 0.13 205);
   --landing-orange: oklch(72% 0.18 46);
-  --landing-bg: oklch(11.5% 0.028 248);
-  --landing-surface: oklch(15.2% 0.03 248);
-  --landing-surface-raised: oklch(19.4% 0.032 248);
-  --landing-text: oklch(94.5% 0.014 125);
-  --landing-muted: oklch(70% 0.025 246);
-  --landing-faint: oklch(53% 0.025 246);
+  --landing-bg: oklch(10% 0.032 178);
+  --landing-surface: oklch(14.5% 0.035 180);
+  --landing-surface-raised: oklch(19% 0.038 178);
+  --landing-text: oklch(94.5% 0.016 128);
+  --landing-muted: oklch(70% 0.025 166);
+  --landing-faint: oklch(52% 0.025 168);
   --landing-border: color-mix(in oklch, var(--landing-text) 13%, transparent);
   --landing-border-strong: color-mix(in oklch, var(--landing-text) 22%, transparent);
   --landing-border-subtle: color-mix(in oklch, var(--landing-text) 7%, transparent);
@@ -2338,19 +2338,19 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   background:
-    radial-gradient(
-      circle at 50% -8%,
-      color-mix(in oklch, var(--landing-purple) 13%, transparent),
-      transparent 34rem
-    ),
     linear-gradient(
       90deg,
-      transparent calc(50% - 528px),
-      var(--landing-grid) calc(50% - 527px),
-      transparent calc(50% - 526px),
-      transparent calc(50% + 526px),
-      var(--landing-grid) calc(50% + 527px),
-      transparent calc(50% + 528px)
+      transparent calc(50% - 540px),
+      var(--landing-grid) calc(50% - 539px),
+      transparent calc(50% - 538px),
+      transparent calc(50% + 538px),
+      var(--landing-grid) calc(50% + 539px),
+      transparent calc(50% + 540px)
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--landing-cyan) 5%, transparent),
+      transparent 360px
     ),
     var(--landing-bg);
   color: var(--landing-text);
@@ -2367,27 +2367,308 @@ body {
   background:
     linear-gradient(
       90deg,
-      transparent calc(50% - 264px),
-      color-mix(in oklch, var(--landing-grid) 58%, transparent) calc(50% - 263px),
-      transparent calc(50% - 262px),
-      transparent calc(50% + 262px),
-      color-mix(in oklch, var(--landing-grid) 58%, transparent) calc(50% + 263px),
-      transparent calc(50% + 264px)
+      transparent calc(50% - 270px),
+      color-mix(in oklch, var(--landing-grid) 42%, transparent) calc(50% - 269px),
+      transparent calc(50% - 268px),
+      transparent calc(50% + 268px),
+      color-mix(in oklch, var(--landing-grid) 42%, transparent) calc(50% + 269px),
+      transparent calc(50% + 270px)
     ),
-    radial-gradient(
-      circle at 76% 8%,
-      color-mix(in oklch, var(--landing-accent) 9%, transparent),
-      transparent 25rem
+    linear-gradient(
+      180deg,
+      transparent 0,
+      color-mix(in oklch, var(--landing-accent) 8%, transparent) 50px,
+      transparent 51px
     );
 }
 
 .landing-frame {
   position: relative;
   z-index: 1;
-  width: min(100%, 1056px);
+  width: min(100%, 1080px);
   margin-inline: auto;
   border-left: 1px solid var(--landing-border-subtle);
   border-right: 1px solid var(--landing-border-subtle);
+}
+
+.landing-hero-shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: calc(100svh - 165px);
+  flex-direction: column;
+  width: min(100%, 1080px);
+  margin-inline: auto;
+  border-right: 1px solid var(--landing-border-subtle);
+  border-bottom: 1px solid var(--landing-border-subtle);
+  border-left: 1px solid var(--landing-border-subtle);
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(100% - 1px),
+      color-mix(in oklch, var(--landing-accent) 18%, transparent) calc(100% - 1px)
+    ),
+    radial-gradient(
+      circle,
+      color-mix(in oklch, var(--landing-accent) 14%, transparent) 0 1px,
+      transparent 1px 100%
+    )
+    0 0 / 30px 30px,
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--landing-accent) 5%, transparent),
+      transparent 270px
+    );
+}
+
+.landing-hero-content {
+  position: relative;
+  flex: 1;
+  padding: clamp(124px, 12.2vh, 156px) 40px 64px;
+}
+
+.landing-hero-kicker {
+  display: inline-flex;
+  margin-bottom: 22px;
+  border: 1px solid color-mix(in oklch, var(--landing-accent) 24%, var(--landing-border));
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--landing-accent) 8%, transparent);
+  padding: 5px 9px;
+  color: var(--landing-accent);
+  font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.landing-hero-title {
+  max-width: 760px;
+  margin: 0;
+  color: var(--landing-text);
+  font-size: clamp(54px, 5vw, 72px);
+  font-weight: 760;
+  letter-spacing: -0.035em;
+  line-height: 1.06;
+}
+
+.landing-hero-title span {
+  color: var(--landing-accent);
+  text-shadow: 0 0 24px color-mix(in oklch, var(--landing-accent) 12%, transparent);
+}
+
+.landing-hero-copy-block {
+  position: relative;
+  max-width: 520px;
+  margin-top: 32px;
+}
+
+.landing-hero-cursor {
+  position: absolute;
+  top: 0;
+  left: -54px;
+  color: var(--landing-accent);
+  filter: drop-shadow(0 0 18px color-mix(in oklch, var(--landing-accent) 16%, transparent));
+  transform: rotate(-7deg);
+  transform-origin: 40% 52%;
+  will-change: transform, filter;
+}
+
+.landing-hero-copy-block p {
+  margin: 0;
+  color: var(--landing-muted);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.58;
+}
+
+.landing-hero-copy-block p span {
+  color: var(--landing-accent);
+  border-bottom: 2px solid color-mix(in oklch, var(--landing-accent) 72%, transparent);
+}
+
+.landing-hero-meta {
+  margin-top: 16px;
+  color: color-mix(in oklch, var(--landing-muted) 54%, transparent);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.landing-hero-meta span {
+  margin-inline: 5px;
+  color: color-mix(in oklch, var(--landing-muted) 44%, transparent);
+}
+
+.landing-hero-agents {
+  display: flex;
+  max-width: min(100%, 1200px);
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-top: 48px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.landing-hero-agents::-webkit-scrollbar {
+  display: none;
+}
+
+.landing-hero-agent {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--landing-border-strong);
+  border-radius: 7px;
+  padding: 0 10px;
+  background: color-mix(in oklch, var(--landing-surface) 66%, transparent);
+  color: var(--landing-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.landing-hero-agent-mark {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: var(--landing-text);
+}
+
+.landing-hero-install {
+  max-width: 696px;
+  margin-top: 20px;
+}
+
+.landing-hero-command {
+  display: grid;
+  min-height: 61px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid color-mix(in oklch, var(--landing-accent) 26%, var(--landing-border));
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--landing-accent) 7%, transparent),
+      transparent 44%
+    ),
+    color-mix(in oklch, var(--landing-bg) 88%, black);
+  padding: 0 14px 0 25px;
+  color: var(--landing-text);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--landing-border) 42%, transparent);
+}
+
+.landing-hero-command-prompt {
+  color: var(--landing-accent);
+  font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 17px;
+}
+
+.landing-hero-command code {
+  min-width: 0;
+  overflow: hidden;
+  font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 17px;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.landing-hero-copy {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--landing-border);
+  border-radius: 7px;
+  background: color-mix(in oklch, var(--landing-surface) 70%, transparent);
+  color: var(--landing-accent);
+}
+
+.landing-hero-runbook {
+  margin-top: 12px;
+}
+
+.landing-hero-runbook p {
+  margin: 0 0 8px;
+  color: color-mix(in oklch, var(--landing-accent) 54%, var(--landing-muted));
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.landing-hero-runbook code {
+  display: block;
+  max-width: 618px;
+  margin-top: 6px;
+  overflow: hidden;
+  border: 1px solid var(--landing-border-subtle);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--landing-surface) 58%, transparent);
+  padding: 7px 10px;
+  color: color-mix(in oklch, var(--landing-muted) 76%, var(--landing-text));
+  font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.landing-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.landing-hero-actions .landing-action {
+  min-height: 47px;
+  border-radius: 11px;
+  padding-inline: 25px;
+  background: color-mix(in oklch, var(--landing-surface) 54%, transparent);
+  font-size: 15px;
+}
+
+.landing-hero-actions .landing-action--primary {
+  background: var(--landing-accent);
+  color: var(--landing-bg);
+}
+
+.landing-hero-proof {
+  display: grid;
+  min-height: 50px;
+  grid-template-columns: 1fr 1.8fr 1fr;
+  align-items: center;
+  border-top: 1px solid var(--landing-border-subtle);
+  color: color-mix(in oklch, var(--landing-muted) 72%, transparent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.landing-hero-proof > div {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-right: 1px solid var(--landing-border-subtle);
+  text-align: center;
+}
+
+.landing-hero-proof > div:last-child {
+  border-right: 0;
+}
+
+.landing-hero-star {
+  color: var(--landing-accent);
 }
 
 .landing-page .wip-marquee {
@@ -2409,6 +2690,238 @@ body {
 .landing-page input:focus-visible {
   outline: 2px solid color-mix(in oklch, var(--landing-accent) 72%, var(--landing-text));
   outline-offset: 3px;
+}
+
+.landing-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.landing-action {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--landing-border);
+  border-radius: 7px;
+  padding: 0 15px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--landing-text);
+  text-decoration: none;
+  transition:
+    background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.landing-action--primary {
+  border-color: color-mix(in oklch, var(--landing-accent) 48%, transparent);
+  background: var(--landing-accent);
+  color: var(--landing-bg);
+}
+
+.landing-action--secondary {
+  border-color: var(--landing-border);
+  background: color-mix(in oklch, var(--landing-surface) 92%, transparent);
+  color: var(--landing-text);
+}
+
+.landing-action--compact {
+  min-height: 34px;
+  padding-inline: 12px;
+}
+
+.landing-action--full {
+  width: 100%;
+}
+
+.landing-action:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.landing-action--primary:not(:disabled):hover {
+  border-color: color-mix(in oklch, var(--landing-accent) 64%, transparent);
+  background: color-mix(in oklch, var(--landing-accent) 92%, var(--landing-text));
+}
+
+.landing-action--secondary:not(:disabled):hover {
+  border-color: var(--landing-border-strong);
+  background: var(--landing-surface-raised);
+}
+
+.landing-action:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.landing-action:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.landing-annotation-cue {
+  position: relative;
+  display: inline-block;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.landing-annotation-trigger {
+  position: relative;
+  display: inline;
+  border: 0;
+  background: transparent;
+  color: var(--landing-accent);
+  font: inherit;
+  line-height: inherit;
+  padding: 0 1px;
+  text-align: inherit;
+  text-decoration: none;
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in oklch, var(--landing-accent) 46%, transparent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.16em;
+}
+
+.landing-annotation-trigger.is-open {
+  color: color-mix(in oklch, var(--landing-orange) 82%, var(--landing-muted));
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklch, var(--landing-orange) 80%, transparent);
+  text-decoration-thickness: 2px;
+}
+
+.landing-annotation-pointer {
+  position: absolute;
+  top: 0.05em;
+  left: -1.65em;
+  width: 1.55em;
+  height: 1.55em;
+  color: var(--landing-text);
+  filter: drop-shadow(0 10px 18px color-mix(in oklch, var(--landing-bg) 62%, transparent));
+  pointer-events: none;
+  transform-origin: 70% 30%;
+  animation: landing-annotation-tap 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.landing-annotation-trigger.is-open .landing-annotation-pointer {
+  opacity: 0;
+  animation: none;
+}
+
+.landing-annotation-popover {
+  position: relative;
+  top: -1px;
+  display: inline-flex;
+  width: max-content;
+  max-width: min(270px, 62vw);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--landing-border);
+  border-radius: 8px;
+  margin-inline: 7px;
+  vertical-align: middle;
+  background: color-mix(in oklch, var(--landing-surface-raised) 92%, var(--landing-bg));
+  box-shadow: 0 18px 40px color-mix(in oklch, var(--landing-bg) 62%, transparent);
+  animation: landing-annotation-popover-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-annotation-popover-head {
+  border-bottom: 1px solid var(--landing-border-subtle);
+  padding: 4px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--landing-muted);
+}
+
+.landing-annotation-popover-body {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  padding: 8px 10px 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--landing-text);
+}
+
+.landing-annotation-cursor {
+  position: relative;
+  top: 0.12em;
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  background: var(--landing-accent);
+  animation: landing-annotation-cursor 1s steps(2, end) infinite;
+}
+
+@keyframes landing-annotation-tap {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: translate3d(0, 0, 0) rotate(-12deg);
+  }
+  11%,
+  29% {
+    opacity: 1;
+    transform: translate3d(7px, 1px, 0) rotate(-5deg);
+  }
+  20%,
+  38% {
+    opacity: 0.84;
+    transform: translate3d(0, 0, 0) rotate(-12deg);
+  }
+  52% {
+    opacity: 0.66;
+    transform: translate3d(0, 0, 0) rotate(-12deg);
+  }
+}
+
+@keyframes landing-annotation-cursor {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes landing-annotation-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-annotation-pointer {
+    top: 0.14em;
+    left: -1.05em;
+    width: 1.25em;
+    height: 1.25em;
+  }
+}
+
+@media (max-width: 360px) {
+  .landing-action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .landing-action-row .landing-action {
+    width: 100%;
+  }
 }
 
 @keyframes landing-panel-in {
