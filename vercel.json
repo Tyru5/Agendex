@@ -8,5 +8,8 @@
       "*": false
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/install.sh", "destination": "/install.sh" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

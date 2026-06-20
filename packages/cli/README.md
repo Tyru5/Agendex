@@ -4,11 +4,26 @@ Node-compatible Agendex CLI for browser login, opening the web app, one-shot syn
 
 ## Install
 
+Recommended one-line installer:
+
+```bash
+curl -fsSL https://agendex.ai/install.sh | bash
+```
+
+Or install directly with your package manager:
+
 ```bash
 npm install -g agendex-cli
 pnpm add -g agendex-cli
 yarn global add agendex-cli
 bun install -g agendex-cli
+```
+
+Installer options:
+
+```bash
+curl -fsSL https://agendex.ai/install.sh | bash -s -- --version 1.2.3
+curl -fsSL https://agendex.ai/install.sh | bash -s -- --pm pnpm
 ```
 
 ## Commands
