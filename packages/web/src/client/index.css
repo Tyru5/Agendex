@@ -2482,9 +2482,63 @@ body {
   line-height: 1.58;
 }
 
-.landing-hero-copy-block p span {
+.landing-hero-copy-block p span,
+.landing-hero-index-trigger {
   color: var(--landing-accent);
   border-bottom: 2px solid color-mix(in oklch, var(--landing-accent) 72%, transparent);
+}
+
+.landing-hero-index-trigger {
+  position: relative;
+  display: inline-flex;
+  width: 2.6em;
+  min-height: 1em;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  vertical-align: baseline;
+  background: none;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  transition:
+    color 160ms ease,
+    text-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.landing-hero-index-trigger:hover,
+.landing-hero-index-trigger:focus-visible {
+  color: var(--landing-text);
+  border-bottom-color: var(--landing-accent);
+  text-shadow: 0 0 18px color-mix(in oklch, var(--landing-accent) 32%, transparent);
+}
+
+.landing-hero-index-trigger:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--landing-accent) 72%, transparent);
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+
+.landing-hero-sync-icon {
+  width: 0.95em;
+  height: 0.95em;
+  animation: landing-sync-ring 760ms linear infinite;
+}
+
+.landing-hero-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .landing-hero-meta {
@@ -5861,6 +5915,12 @@ body {
 @keyframes cloud-sync-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.95); }
+}
+
+@keyframes landing-sync-ring {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes upload-fadeUp {

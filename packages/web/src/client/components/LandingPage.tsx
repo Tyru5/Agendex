@@ -489,13 +489,33 @@ function HeroProofBar() {
 }
 
 function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlot?: ReactNode }) {
+  const [syncAnimationKey, setSyncAnimationKey] = useState(0);
+  const syncAnimationTimerRef = useRef<number | null>(null);
+  const isSyncAnimationVisible = syncAnimationKey > 0;
+
+  useEffect(() => {
+    return () => {
+      if (syncAnimationTimerRef.current !== null) {
+        window.clearTimeout(syncAnimationTimerRef.current);
+      }
+    };
+  }, []);
+
+  function renderSyncingAnimation() {
+    if (syncAnimationTimerRef.current !== null) {
+      window.clearTimeout(syncAnimationTimerRef.current);
+    }
+
+    setSyncAnimationKey((key) => key + 1);
+    syncAnimationTimerRef.current = window.setTimeout(() => {
+      setSyncAnimationKey(0);
+      syncAnimationTimerRef.current = null;
+    }, 1800);
+  }
+
   return (
     <div className="landing-hero-shell" data-landing-animate="hero-shell">
       <div className="landing-hero-content">
-        <span className="landing-hero-kicker" data-landing-animate-item>
-          AGX // LOCAL PLAN INDEX
-        </span>
-
         <h1 className="landing-hero-title" data-landing-animate-item>
           One live index
           <br />
@@ -505,9 +525,42 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
         <div className="landing-hero-copy-block" data-landing-animate-item>
           <LandingCursorIcon />
           <p>
-            <span>Index</span> plan and session files from Claude Code, Codex, Cursor, Continue,
-            OpenCode, and optional Plannotator sessions. Search local output first, then sync to
-            Cloud Pro when the work needs sharing or review.
+            <button
+              key={syncAnimationKey}
+              type="button"
+              className="landing-hero-index-trigger"
+              onClick={renderSyncingAnimation}
+              aria-label={
+                isSyncAnimationVisible
+                  ? 'Syncing index'
+                  : 'Render syncing animation for the local plan index'
+              }
+            >
+              {isSyncAnimationVisible ? (
+                <svg
+                  className="landing-hero-sync-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M20 12a8 8 0 0 1-13.66 5.66L4 15.32M4 12A8 8 0 0 1 17.66 6.34L20 8.68M20 4v4.68h-4.68M4 20v-4.68h4.68"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                'Index'
+              )}
+              <span className="landing-hero-status" role="status" aria-live="polite">
+                {isSyncAnimationVisible ? 'Syncing index' : ''}
+              </span>
+            </button>{' '}
+            plan and session files from Claude Code, Codex, Cursor, Continue, OpenCode, and optional
+            Plannotator sessions. Search local output first, then sync to Cloud Pro when the work
+            needs sharing or review.
           </p>
           <div className="landing-hero-meta">
             Watches local files <span>|</span> filters by agent and workspace <span>|</span> syncs
