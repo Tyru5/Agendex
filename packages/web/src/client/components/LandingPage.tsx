@@ -71,16 +71,9 @@ export interface LandingPageProps {
 }
 
 const HERO_AGENT_CHIPS = [
-  { agent: 'amp', label: 'Amp' },
   { agent: 'claude-code', label: 'Claude Code' },
   { agent: 'codex-cli', label: 'Codex' },
-  { agent: 'copilot-chat', label: 'Copilot' },
-  { agent: 'droid', label: 'Droid' },
-  { agent: 'gemini', label: 'Gemini' },
-  { agent: 'kiro', label: 'Kiro' },
   { agent: 'oh-my-opencode', label: 'OpenCode' },
-  { agent: 'pi', label: 'Pi' },
-  { agent: 'vscode', label: 'VS Code' },
 ] as const;
 
 const PLAN_REVIEW_BULLETS = [
@@ -517,9 +510,9 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
     <div className="landing-hero-shell" data-landing-animate="hero-shell">
       <div className="landing-hero-content">
         <h1 className="landing-hero-title" data-landing-animate-item>
-          One live index
+          Your Agents Make Plans.
           <br />
-          for <span>local agent plans.</span>
+          <span>Agendex Keeps Watch</span>
         </h1>
 
         <div className="landing-hero-copy-block" data-landing-animate-item>
