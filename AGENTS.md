@@ -22,6 +22,7 @@ The EE stack runs three processes (README "EE / Cloud Development" lists them, b
 3. **EE client** — from repo root: `bun run dev:client:ee`. Vite binds to host **`agendex.localhost:5174`** (not plain `localhost`); `*.localhost` resolves to loopback so a browser can reach `http://agendex.localhost:5174/`.
 
 Convex **deployment** env vars (set with `CONVEX_AGENT_MODE=anonymous bunx convex env set <NAME> <VALUE>` from `packages/ee`, not in `.env.local`):
+
 - `BETTER_AUTH_SECRET` — required for auth; generate with `openssl rand -base64 32`.
 - `SITE_URL` and `APP_URL` — set both to `http://agendex.localhost:5174` for local dev.
 - Do **not** set `CONVEX_SITE_URL` — it is a built-in Convex variable (auto `http://127.0.0.1:3211`) and the CLI rejects overriding it.
