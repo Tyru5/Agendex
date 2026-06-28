@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 1.1.0
+
+### Minor Changes
+
+- 29587bd: plannotator integration fixes
+
 ## 1.0.0
 
 ### Major Changes
