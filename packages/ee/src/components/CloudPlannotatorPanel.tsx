@@ -3,7 +3,7 @@ import type { Plan } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { type DaemonDeviceInfo, useDaemonStatus } from '../hooks/useDaemonStatus.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -257,10 +257,6 @@ export function CloudPlannotatorWritebackPanel({
 }) {
   const metadata = getPlannotatorMetadata(plan);
   const enqueueWriteback = useMutation(api.plannotator.enqueueWriteback);
-  const writebacks = useQuery(
-    api.plannotator.listWritebacksForPlan,
-    metadata ? { planId: plan.id as Id<'plans'> } : 'skip',
-  );
   // `enqueueWriteback` resolves to the canonical live plan, which may differ
   // from the plan being displayed (e.g. a superseded row). Gate the actions on
   // that canonical plan's state so we never enable approve/request against a
@@ -268,6 +264,17 @@ export function CloudPlannotatorWritebackPanel({
   const canonicalState = useQuery(
     api.plannotator.getCanonicalWritebackState,
     metadata ? { planId: plan.id as Id<'plans'> } : 'skip',
+  );
+  // Read write-back history for the canonical plan once resolved: pending jobs
+  // are remapped onto the canonical row when a session is superseded, so reading
+  // the displayed (possibly superseded) row would show stale/missing history.
+  const writebacks = useQuery(
+    api.plannotator.listWritebacksForPlan,
+    canonicalState
+      ? { planId: canonicalState.canonicalPlanId }
+      : metadata
+        ? { planId: plan.id as Id<'plans'> }
+        : 'skip',
   );
   const [feedback, setFeedback] = useState('');
   const [revisedContent, setRevisedContent] = useState('');
@@ -278,6 +285,17 @@ export function CloudPlannotatorWritebackPanel({
   const [queuedAction, setQueuedAction] = useState<'approve' | 'request_changes' | null>(null);
 
   const latest = useMemo(() => writebacks?.[0], [writebacks]);
+
+  // Clear the local "queued" confirmation once the backend resolves the write-back
+  // to a terminal state. Otherwise `queuedAction` stays set after a failed/sent
+  // delivery, which would keep the actions disabled and suppress `latest.error`,
+  // leaving the user unable to see the failure or retry.
+  useEffect(() => {
+    if (queuedAction && latest && latest.status !== 'pending') {
+      setQueuedAction(null);
+    }
+  }, [queuedAction, latest]);
+
   // Prefer canonical state once loaded; fall back to the displayed plan's own
   // metadata/writebacks while it resolves.
   const isLive = canonicalState
