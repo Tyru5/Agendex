@@ -492,10 +492,12 @@ function getPlanPlannotatorMetadata(plan: Plan): Record<string, unknown> | undef
 
 function isLivePlannotatorSession(plan: Plan): boolean {
   const metadata = getPlanPlannotatorMetadata(plan);
+  // Proven live only (`liveness === 'live'`), matching the Plannotator badge's
+  // reachability check and the backend's `planHasLivePlannotatorMetadata`.
   return (
     metadata?.kind === 'live-session' &&
     metadata.writebackCapable === true &&
-    metadata.liveness !== 'ended'
+    metadata.liveness === 'live'
   );
 }
 
@@ -507,40 +509,95 @@ function isEndedPlannotatorSession(plan: Plan): boolean {
   );
 }
 
-function plannotatorContinuityKey(plan: Plan): string | undefined {
+// All continuity keys a session could be indexed under, in descending
+// specificity. Must mirror `plannotatorContinuityKeys` in the backend
+// (convex/plannotator.ts and convex/cli.ts) so auto-follow tracks the same
+// canonical plan that write-back resolution targets.
+function plannotatorContinuityKeys(plan: Plan): string[] {
   const metadata = getPlanPlannotatorMetadata(plan);
-  if (metadata?.kind !== 'live-session') return undefined;
+  if (metadata?.kind !== 'live-session') return [];
+
+  const keys: string[] = [];
 
   const sourcePlanPath =
-    typeof metadata.sourcePlanPath === 'string' && metadata.sourcePlanPath.trim()
-      ? metadata.sourcePlanPath
-      : undefined;
-  if (sourcePlanPath) return `source:${sourcePlanPath}`;
+    typeof metadata.sourcePlanPath === 'string' ? metadata.sourcePlanPath.trim() : '';
+  if (sourcePlanPath) keys.push(`source:${sourcePlanPath}`);
 
-  if (typeof metadata.reviewId === 'string' && metadata.reviewId.trim()) {
-    return `review:${metadata.reviewId}`;
-  }
+  const reviewId = typeof metadata.reviewId === 'string' ? metadata.reviewId.trim() : '';
+  if (reviewId) keys.push(`review:${reviewId}`);
 
-  const project = typeof metadata.project === 'string' ? metadata.project : '';
-  const label = typeof metadata.label === 'string' ? metadata.label : '';
-  const mode = typeof metadata.mode === 'string' ? metadata.mode : '';
-  if (project && label) return `project:${project}:label:${label}:mode:${mode}`;
+  const project = typeof metadata.project === 'string' ? metadata.project.trim() : '';
+  const label = typeof metadata.label === 'string' ? metadata.label.trim() : '';
+  const mode = typeof metadata.mode === 'string' ? metadata.mode.trim() : '';
+  if (project && label) keys.push(`project:${project}:label:${label}:mode:${mode}`);
 
-  return plan.filePath ? `path:${plan.filePath}` : undefined;
+  const path = plan.filePath?.trim();
+  if (path) keys.push(`path:${path}`);
+
+  const sessionPath = typeof metadata.sessionPath === 'string' ? metadata.sessionPath.trim() : '';
+  if (sessionPath) keys.push(`path:${sessionPath}`);
+
+  return keys;
+}
+
+function getSupersededByPlanId(plan: Plan): string | undefined {
+  const metadata = getPlanPlannotatorMetadata(plan);
+  const value = metadata?.supersededByPlanId;
+  return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
 function findLivePlannotatorReplacement(plan: Plan, plans: Plan[]): Plan | undefined {
   if (!isEndedPlannotatorSession(plan)) return undefined;
-  const key = plannotatorContinuityKey(plan);
-  if (!key) return undefined;
-  return plans
-    .filter(
-      (candidate) =>
-        candidate.id !== plan.id &&
-        isLivePlannotatorSession(candidate) &&
-        plannotatorContinuityKey(candidate) === key,
-    )
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+
+  // Mirror the backend's `findCurrentLivePlannotatorPlan`: collect every live
+  // candidate reached via supersession pointers AND via shared continuity keys,
+  // then pick the newest. Never short-circuit on a pointer target, so a
+  // stale-but-live pointer row cannot beat a newer replacement.
+  const byId = new Map(plans.map((p) => [p.id, p]));
+  const liveCandidates: Plan[] = [];
+  const seen = new Set<string>();
+  const keySet = new Set<string>();
+  const consider = (candidate: Plan): void => {
+    if (seen.has(candidate.id)) return;
+    seen.add(candidate.id);
+    if (candidate.id !== plan.id && isLivePlannotatorSession(candidate)) {
+      liveCandidates.push(candidate);
+    }
+  };
+
+  // Follow supersession pointers, folding each hop's continuity keys into the set.
+  let current: Plan | undefined = plan;
+  const visited = new Set<string>([plan.id]);
+  for (let hops = 0; hops < 16 && current; hops++) {
+    consider(current);
+    for (const key of plannotatorContinuityKeys(current)) keySet.add(key);
+    const nextId = getSupersededByPlanId(current);
+    if (!nextId || visited.has(nextId)) break;
+    visited.add(nextId);
+    current = byId.get(nextId);
+  }
+
+  if (keySet.size === 0) return undefined;
+  for (const candidate of plans) {
+    if (seen.has(candidate.id)) continue;
+    seen.add(candidate.id);
+    if (candidate.id === plan.id || !isLivePlannotatorSession(candidate)) continue;
+    // Match on any shared continuity key (set intersection), mirroring the
+    // backend so cross-scheme replacements (e.g. legacy `path:` vs new `source:`)
+    // that share only a fallback key still resolve.
+    if (!plannotatorContinuityKeys(candidate).some((candidateKey) => keySet.has(candidateKey))) {
+      continue;
+    }
+    liveCandidates.push(candidate);
+  }
+
+  // Newest session wins, with a stable `id` tiebreaker. Must stay in sync with
+  // the backend's `findCurrentLivePlannotatorPlan` so the UI follows the same
+  // canonical plan that receives write-backs.
+  return liveCandidates.sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || (a.id < b.id ? 1 : -1),
+  )[0];
 }
 
 function PlanHeaderExtra({
@@ -1902,10 +1959,43 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     localAutoSelectSuppressed,
   ]);
 
+  // Auto-follow a live replacement only for a session that ended *while the user
+  // was viewing it* (it got superseded while open). Deliberately opening an
+  // ended/superseded plan for review — via the sidebar or a restored URL — must
+  // be respected and never redirected away.
+  //
+  // When a session transitions live -> ended we mark it as "follow eligible" and
+  // keep that intent until selection moves to a different plan, so a replacement
+  // that only syncs in a later reactive update is still followed.
+  const prevPlannotatorLivenessRef = useRef<{ id: string; wasLive: boolean } | null>(null);
+  const followFromPlanIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (mode !== 'cloud' || !selectedPlan) return;
+    if (mode !== 'cloud' || !selectedPlan) {
+      prevPlannotatorLivenessRef.current = null;
+      followFromPlanIdRef.current = null;
+      return;
+    }
+    const prev = prevPlannotatorLivenessRef.current;
+    if (prev && prev.id !== selectedPlan.id) {
+      // Selection changed: drop any pending follow intent from the prior plan.
+      followFromPlanIdRef.current = null;
+    }
+    if (
+      prev?.id === selectedPlan.id &&
+      prev.wasLive &&
+      isEndedPlannotatorSession(selectedPlan)
+    ) {
+      followFromPlanIdRef.current = selectedPlan.id;
+    }
+    prevPlannotatorLivenessRef.current = {
+      id: selectedPlan.id,
+      wasLive: isLivePlannotatorSession(selectedPlan),
+    };
+
+    if (followFromPlanIdRef.current !== selectedPlan.id) return;
     const replacement = findLivePlannotatorReplacement(selectedPlan, plans);
     if (!replacement) return;
+    followFromPlanIdRef.current = null;
     setSelectedPlanId(replacement.id);
     if (splitPlanId === replacement.id) setSplitPlanId(null);
   }, [mode, selectedPlan, plans, setSelectedPlanId, splitPlanId, setSplitPlanId]);

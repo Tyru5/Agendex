@@ -16,6 +16,7 @@ import { stripLocalIpFromMetadata } from './privacy';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
+const MAX_SUPERSEDE_SCAN = 2_000;
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
@@ -29,34 +30,59 @@ function getPlannotatorMetadata(metadata: unknown): Record<string, unknown> | un
   return isRecord(plannotator) ? plannotator : undefined;
 }
 
-function plannotatorContinuityKey(metadata: unknown, filePath?: string): string | undefined {
+// All continuity keys this session could be indexed under, in descending
+// specificity. The first entry is the canonical key written to the
+// `plannotatorContinuityKey` column; the rest are legacy fallbacks the same
+// logical session may have been indexed under before more specific identifiers
+// (e.g. a stable `sourcePlanPath`) existed. Superseding must consider every
+// candidate so a legacy `path:` row is still ended when its replacement now
+// derives a `source:` key.
+function plannotatorContinuityKeys(metadata: unknown, filePath?: string): string[] {
   const plannotator = getPlannotatorMetadata(metadata);
-  if (plannotator?.kind !== 'live-session') return undefined;
+  if (plannotator?.kind !== 'live-session') return [];
+
+  const keys: string[] = [];
 
   const sourcePlanPath =
-    typeof plannotator.sourcePlanPath === 'string' && plannotator.sourcePlanPath.trim()
-      ? plannotator.sourcePlanPath.trim()
-      : undefined;
-  if (sourcePlanPath) return `source:${sourcePlanPath}`;
+    typeof plannotator.sourcePlanPath === 'string' ? plannotator.sourcePlanPath.trim() : '';
+  if (sourcePlanPath) keys.push(`source:${sourcePlanPath}`);
 
-  if (typeof plannotator.reviewId === 'string' && plannotator.reviewId.trim()) {
-    return `review:${plannotator.reviewId.trim()}`;
-  }
+  const reviewId = typeof plannotator.reviewId === 'string' ? plannotator.reviewId.trim() : '';
+  if (reviewId) keys.push(`review:${reviewId}`);
 
   const project = typeof plannotator.project === 'string' ? plannotator.project.trim() : '';
   const label = typeof plannotator.label === 'string' ? plannotator.label.trim() : '';
   const mode = typeof plannotator.mode === 'string' ? plannotator.mode.trim() : '';
-  if (project && label) return `project:${project}:label:${label}:mode:${mode}`;
+  if (project && label) keys.push(`project:${project}:label:${label}:mode:${mode}`);
 
-  return filePath ? `path:${filePath}` : undefined;
+  const path = filePath?.trim();
+  if (path) keys.push(`path:${path}`);
+
+  // Legacy fallback: before a stable `sourcePlanPath` existed, a live session
+  // was keyed by its session JSON path. Older cloud rows for the same logical
+  // session are indexed under `path:<sessionPath>`, so include it as a candidate
+  // (never as the canonical key, which stays first) to supersede them.
+  const sessionPath =
+    typeof plannotator.sessionPath === 'string' ? plannotator.sessionPath.trim() : '';
+  if (sessionPath) keys.push(`path:${sessionPath}`);
+
+  return keys;
+}
+
+function plannotatorContinuityKey(metadata: unknown, filePath?: string): string | undefined {
+  return plannotatorContinuityKeys(metadata, filePath)[0];
 }
 
 function isLivePlannotatorMetadata(metadata: unknown): boolean {
   const plannotator = getPlannotatorMetadata(metadata);
+  // Require positive proof of liveness, consistent with
+  // `planHasLivePlannotatorMetadata` in plannotator.ts. A `writebackCapable` row
+  // without `liveness: 'live'` is not reachable, so it neither supersedes others
+  // nor is treated as a live session to be superseded.
   return (
     plannotator?.kind === 'live-session' &&
     plannotator.writebackCapable === true &&
-    plannotator.liveness !== 'ended'
+    plannotator.liveness === 'live'
   );
 }
 
@@ -78,20 +104,40 @@ async function markSupersededPlannotatorSessions(
     now: number;
   },
 ): Promise<void> {
-  const key = plannotatorContinuityKey(metadata, filePath);
-  if (!key) return;
+  // Only a live session supersedes its older siblings. An ended/superseded
+  // payload (e.g. the daemon syncing `liveness: 'ended'`) must never mark other
+  // genuinely live rows as superseded by a dead session.
+  if (!isLivePlannotatorMetadata(metadata)) return;
 
-  const matchingPlans = await ctx.db
+  const candidateKeys = new Set(plannotatorContinuityKeys(metadata, filePath));
+  if (candidateKeys.size === 0) return;
+
+  // Scan the owner's plans rather than relying solely on the
+  // `by_owner_plannotatorContinuityKey` index: legacy rows synced before that
+  // column existed are indexed under `undefined`, and rows whose local identity
+  // changed may have been indexed under a different fallback key (e.g. `path:`
+  // before a stable `source:` existed). Matching on each row's freshly derived
+  // canonical key against the candidate set catches all of these. Only
+  // live-session upserts reach this path, so the scan is bounded in practice and
+  // additionally capped for safety.
+  const ownerPlans = await ctx.db
     .query('plans')
-    .withIndex('by_owner_plannotatorContinuityKey', (q) =>
-      q.eq('ownerId', ownerId).eq('plannotatorContinuityKey', key),
-    )
-    .collect();
+    .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+    // Newest first: live sessions being superseded are recent, so the cap only
+    // ever excludes old plans that cannot be active live sessions.
+    .order('desc')
+    .take(MAX_SUPERSEDE_SCAN);
 
-  for (const plan of matchingPlans) {
+  for (const plan of ownerPlans) {
     if (plan._id === canonicalPlanId || plan.localPlanId === canonicalLocalPlanId) continue;
     if (!isLivePlannotatorMetadata(plan.metadata)) continue;
-    if (plannotatorContinuityKey(plan.metadata, plan.filePath) !== key) continue;
+    // Supersede when the two rows share ANY continuity identifier, not just when
+    // the scanned row's canonical key is in the new candidate set. This catches
+    // a session whose local identity changed across an upgrade (e.g. the old row
+    // is `source:`/`path:`-keyed and the new row only shares a `path:`/`source:`
+    // fallback) without requiring both rows to agree on the top-priority key.
+    const planKeys = plannotatorContinuityKeys(plan.metadata, plan.filePath);
+    if (!planKeys.some((planKey) => candidateKeys.has(planKey))) continue;
 
     const planMetadata = isRecord(plan.metadata) ? plan.metadata : {};
     const plannotator = getPlannotatorMetadata(plan.metadata) ?? {};
@@ -108,6 +154,27 @@ async function markSupersededPlannotatorSessions(
         },
       },
     });
+
+    // Repoint still-pending write-backs onto the canonical local id. A
+    // live-session identity change leaves older pending jobs referencing a
+    // `localPlanId` the upgraded daemon no longer resolves via `getById`, so
+    // without this they would fail delivery instead of reaching the live session.
+    if (plan.localPlanId && plan.localPlanId !== canonicalLocalPlanId) {
+      const pending = await ctx.db
+        .query('plannotatorWritebacks')
+        .withIndex('by_owner_localPlanId', (q) =>
+          q.eq('ownerId', ownerId).eq('localPlanId', plan.localPlanId as string),
+        )
+        .filter((q) => q.eq(q.field('status'), 'pending'))
+        .collect();
+      for (const row of pending) {
+        await ctx.db.patch(row._id, {
+          localPlanId: canonicalLocalPlanId,
+          planId: canonicalPlanId,
+          updatedAt: now,
+        });
+      }
+    }
   }
 }
 

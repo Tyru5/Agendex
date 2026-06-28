@@ -256,11 +256,17 @@ export function CloudPlannotatorWritebackPanel({
   variant?: PlannotatorPanelVariant;
 }) {
   const metadata = getPlannotatorMetadata(plan);
-  const isLive = metadata?.kind === 'live-session' && metadata.writebackCapable === true;
-  const isApproved = metadata?.status === 'approved';
   const enqueueWriteback = useMutation(api.plannotator.enqueueWriteback);
   const writebacks = useQuery(
     api.plannotator.listWritebacksForPlan,
+    metadata ? { planId: plan.id as Id<'plans'> } : 'skip',
+  );
+  // `enqueueWriteback` resolves to the canonical live plan, which may differ
+  // from the plan being displayed (e.g. a superseded row). Gate the actions on
+  // that canonical plan's state so we never enable approve/request against a
+  // stale row that the backend would reject or double-process.
+  const canonicalState = useQuery(
+    api.plannotator.getCanonicalWritebackState,
     metadata ? { planId: plan.id as Id<'plans'> } : 'skip',
   );
   const [feedback, setFeedback] = useState('');
@@ -272,7 +278,18 @@ export function CloudPlannotatorWritebackPanel({
   const [queuedAction, setQueuedAction] = useState<'approve' | 'request_changes' | null>(null);
 
   const latest = useMemo(() => writebacks?.[0], [writebacks]);
-  const hasPendingWriteback = latest?.status === 'pending';
+  // Prefer canonical state once loaded; fall back to the displayed plan's own
+  // metadata/writebacks while it resolves.
+  const isLive = canonicalState
+    ? canonicalState.isLive
+    : metadata?.kind === 'live-session' &&
+      metadata.writebackCapable === true &&
+      metadata.liveness === 'live';
+  const isApproved = canonicalState ? canonicalState.isApproved : metadata?.status === 'approved';
+  const hasPendingWriteback = canonicalState
+    ? canonicalState.pendingWritebackExpiresAt !== null &&
+      canonicalState.pendingWritebackExpiresAt > Date.now()
+    : latest?.status === 'pending' && latest.expiresAt > Date.now();
   const hasQueuedAction = queuedAction !== null;
   const canQueueAnyWriteback =
     isLive && daemonAvailable && canQueueWriteback && !isApproved && !hasPendingWriteback;
