@@ -136,7 +136,12 @@ export async function refreshCloudSession(): Promise<CloudCreds | null> {
       method: 'POST',
       headers: { Authorization: `Bearer ${creds.token}` },
     });
-    if (res.status === 401) {
+    // 401/403 mean the session is invalid (expired or revoked): clear it and
+    // drop to the sign-in gate rather than caching a dead token that the
+    // renderer would keep retrying. Other non-OK statuses (5xx, 429, transient
+    // outages) are not proof the session is bad, so keep the existing creds and
+    // let a later refresh retry instead of needlessly signing the user out.
+    if (res.status === 401 || res.status === 403) {
       clearCloudCreds();
       return null;
     }

@@ -85,7 +85,7 @@ import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { authClient, normalizeLocalDevUrl } from './lib/auth-client.ts';
 import { convex } from './lib/convex-client.ts';
-import { isDesktop, setDesktopModePref } from './lib/desktop.ts';
+import { getDesktopCloudToken, isDesktop, setDesktopModePref } from './lib/desktop.ts';
 import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
 const PlanEditor = lazy(() =>
@@ -2430,6 +2430,10 @@ function DashboardRoute() {
   const { isAuthenticated, isLoading, refreshSession } = useAuth();
   const desktop = isDesktop();
   const hasCachedToken = hasToken();
+  // A desktop cloud session only exists once login has stored a token (the
+  // token and its Convex site URL are injected together). With no token there
+  // is nothing to verify, so we must not block the gate on a session check.
+  const desktopCloudToken = desktop ? getDesktopCloudToken() : null;
   const avatars = useQuery(api.agentAvatars.listMyAgentAvatars, isAuthenticated ? {} : 'skip');
   const { needsOnboarding, onboardingResolved } = useSubscription({
     enabled: !isLoading && isAuthenticated,
@@ -2458,8 +2462,11 @@ function DashboardRoute() {
     hold: processingOtt,
     // The desktop app gates entry on a verified cloud session, so it cannot
     // short-circuit on the always-present local daemon token; it must wait for
-    // the session check before deciding whether to show the sign-in view.
-    skip: desktop ? false : hasCachedToken,
+    // the session check before deciding whether to show the sign-in view. But
+    // with no stored cloud token there is no session to verify, so skip the
+    // check rather than issuing an auth request (which, before login, has no
+    // stored Convex site URL and could otherwise target the local app origin).
+    skip: desktop ? !desktopCloudToken : hasCachedToken,
   });
 
   const renderDashboard = (autoMode: DashboardMode) => (
@@ -2478,7 +2485,13 @@ function DashboardRoute() {
       if (!onboardingResolved) return <BootLoadingView />;
       return renderDashboard('cloud');
     }
-    if (isLoading || !authSettled || processingOtt) return <BootLoadingView />;
+    // Only wait on the cloud session check when there is a stored token to
+    // verify; with none, the user is unauthenticated by definition, so show the
+    // gate straight away instead of hanging on a request to a cloud endpoint we
+    // can't address yet.
+    if (desktopCloudToken && (isLoading || !authSettled || processingOtt)) {
+      return <BootLoadingView />;
+    }
     return <DesktopSignInPage />;
   }
 
