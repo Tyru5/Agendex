@@ -6,6 +6,7 @@ import {
   CLI_DAEMON_HEARTBEAT_INTERVAL_MS,
   getAll,
   getById,
+  isDevMode,
   isIndexablePlan,
   isLowValuePlan,
   loadConfig,
@@ -47,7 +48,7 @@ const RESTART_DELAY_MS = 5_000;
 const PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS = 15_000;
 const PLANNOTATOR_WRITEBACK_EXPIRED_ERROR = 'Write-back expired before delivery.';
 const PLANNOTATOR_WRITEBACK_FAILED_ERROR =
-  'No live Plannotator session accepted the request-changes payload.';
+  'No live Plannotator session accepted the write-back payload.';
 // A Plannotator process can die without touching the filesystem, so file
 // watchers never fire. Re-scan periodically to catch dead sessions and publish
 // their "ended" state to the cloud.
@@ -291,6 +292,7 @@ export async function runWorker(): Promise<void> {
     }
 
     const ok = await requestChanges(job.localPlanId, {
+      action: job.action,
       feedback: job.feedback,
       revisedContent: job.revisedContent,
       annotations: job.annotations,
@@ -302,9 +304,16 @@ export async function runWorker(): Promise<void> {
     if (ok) {
       const updatedPlan = getById(job.localPlanId);
       if (updatedPlan) {
-        syncQueue.push(
-          planToSyncPayload(updatedPlan, config.deviceId, hostname, await getSyncIpAddress()),
+        const updatedPayload = planToSyncPayload(
+          updatedPlan,
+          config.deviceId,
+          hostname,
+          await getSyncIpAddress(),
         );
+        syncQueue.push(updatedPayload);
+        if (isLivePlannotatorPayload(updatedPayload)) {
+          liveSessions.set(updatedPayload.localPlanId, updatedPayload);
+        }
       }
       pendingWritebackReports.set(job._id, 'sent');
       persistPendingWritebackReports();
@@ -461,8 +470,12 @@ export async function startSupervisor(): Promise<void> {
   const restartTimes: number[] = [];
 
   while (!stopping) {
-    workerProc = spawn(process.execPath, [scriptPath, 'start', '--worker'], {
+    const workerArgs = [scriptPath, 'start', '--worker'];
+    if (isDevMode()) workerArgs.push('--dev');
+
+    workerProc = spawn(process.execPath, workerArgs, {
       stdio: ['ignore', 'inherit', 'inherit'],
+      env: { ...process.env, ...(isDevMode() ? { AGENDEX_DEV: '1' } : {}) },
     });
 
     const exitCode = await new Promise<number | null>((resolve) => {

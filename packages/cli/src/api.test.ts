@@ -125,6 +125,7 @@ test('fetches and reports Plannotator write-back queue jobs', async () => {
     {
       _id: 'job-1',
       localPlanId: 'local-1',
+      action: 'approve',
       feedback: 'Please revise',
       source: 'agendex-cloud',
       expiresAt: Date.now() + 60_000,
@@ -143,6 +144,7 @@ test('fetches and reports Plannotator write-back queue jobs', async () => {
 
   const fetched = await fetchPlannotatorWritebacks();
   expect(fetched).toHaveLength(1);
+  expect(fetched[0]?.action).toBe('approve');
   expect(fetched[0]?.annotations?.[0]?.type).toBe('COMMENT');
 
   const ok = await reportPlannotatorWriteback('job-1', 'sent');

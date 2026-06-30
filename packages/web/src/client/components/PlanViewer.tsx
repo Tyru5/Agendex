@@ -579,11 +579,7 @@ export function PlanViewer({
     : false;
   const composerError = annotationCreateError ?? annotationComposerError;
   const isActionToolbarDocked = actionToolbarDockState !== 'inline' && !isSplit;
-  const actionToolbarDockPlacement = isActionToolbarDocked
-    ? fullscreen.isFullscreen
-      ? 'bottom'
-      : 'side'
-    : undefined;
+  const actionToolbarDockPlacement = isActionToolbarDocked ? 'bottom' : undefined;
   const actionToolbarStyle =
     actionToolbarDockLeft === null
       ? undefined
