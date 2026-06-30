@@ -1,5 +1,11 @@
 import { convexClient, crossDomainClient } from '@convex-dev/better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
+import {
+  getDesktopCloudToken,
+  getDesktopConvexSiteUrl,
+  isDesktop,
+  refreshDesktopCloudSession,
+} from './desktop.ts';
 
 export function normalizeLocalDevUrl(url: string | undefined): string {
   if (!url) return '';
@@ -19,7 +25,29 @@ export const APP_URL = normalizeLocalDevUrl(
   import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : ''),
 );
 
+const desktopConvexSiteUrl = getDesktopConvexSiteUrl();
+
+async function desktopAuthFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  let token = getDesktopCloudToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  let response = await fetch(input, { ...init, headers });
+  if (response.status !== 401) return response;
+
+  const refreshedToken = await refreshDesktopCloudSession();
+  if (!refreshedToken) {
+    if (typeof window !== 'undefined') window.location.reload();
+    return response;
+  }
+
+  headers.set('Authorization', `Bearer ${refreshedToken}`);
+  response = await fetch(input, { ...init, headers });
+  return response;
+}
+
 export const authClient = createAuthClient({
-  baseURL: import.meta.env.VITE_CONVEX_SITE_URL as string,
+  baseURL: desktopConvexSiteUrl || (import.meta.env.VITE_CONVEX_SITE_URL as string),
   plugins: [convexClient(), crossDomainClient({ disableCache: true })],
+  ...(isDesktop() ? { fetch: desktopAuthFetch } : {}),
 });

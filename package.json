@@ -11,6 +11,9 @@
     "dev:client:ee": "bun run --cwd ./packages/ee dev:client",
     "build": "bun run --cwd ./packages/app build",
     "build:cloud": "cd packages/ee && bunx convex deploy --cmd 'bunx --bun vite build'",
+    "desktop:dev": "bun run --cwd ./packages/desktop dev",
+    "desktop:build": "bun run --cwd ./packages/desktop build",
+    "desktop:dist": "bun run build && bun run --cwd ./packages/desktop dist",
     "build:cli:release": "node ./packages/cli/scripts/build-release.mjs",
     "cli": "bun run --cwd ./packages/cli src/cli.ts",
     "cli:start": "bun run --cwd ./packages/cli src/cli.ts start",
@@ -51,5 +54,9 @@
     "oxfmt": "^0.48.0",
     "oxlint": "^1.63.0",
     "typescript": "^5"
-  }
+  },
+  "trustedDependencies": [
+    "electron",
+    "esbuild"
+  ]
 }

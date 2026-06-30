@@ -65,6 +65,7 @@ import { CloudPlanUploader } from './components/CloudPlanUploader.tsx';
 import { CloudUpgrade } from './components/CloudUpgrade.tsx';
 import { CommentThread } from './components/CommentThread.tsx';
 import { DashboardTopbar } from './components/DashboardTopbar.tsx';
+import { DesktopSignInPage } from './components/DesktopSignInPage.tsx';
 import { EEHeroCta, EENavbarAuth, EEPricingCta } from './components/LandingAuthSlots.tsx';
 import { LocalIpDisclosureNotice } from './components/LocalIpDisclosureNotice.tsx';
 import { OnboardingRoute } from './components/OnboardingRoute.tsx';
@@ -84,6 +85,7 @@ import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { authClient, normalizeLocalDevUrl } from './lib/auth-client.ts';
 import { convex } from './lib/convex-client.ts';
+import { isDesktop, setDesktopModePref } from './lib/desktop.ts';
 import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
 const PlanEditor = lazy(() =>
@@ -114,6 +116,8 @@ const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
 const DASHBOARD_PATH = '/dashboard';
+// Persists the desktop user's chosen local/cloud view across reloads.
+const MODE_PREF_KEY = 'agendex_dashboard_mode';
 
 type DashboardMode = 'local' | 'cloud';
 
@@ -1862,7 +1866,15 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     outlineHidden,
     chartHidden,
   } = ds;
-  const mode = autoMode;
+  // Desktop signed-in users can switch between cloud and the bundled local
+  // daemon. Elsewhere (web) the mode stays whatever the route resolved to.
+  const canSwitchMode = isDesktop() && autoMode === 'cloud' && hasToken();
+  const [modeOverride, setModeOverride] = useState<DashboardMode | null>(() => {
+    if (!canSwitchMode) return null;
+    const stored = localStorage.getItem(MODE_PREF_KEY);
+    return stored === 'local' || stored === 'cloud' ? stored : null;
+  });
+  const mode = canSwitchMode ? (modeOverride ?? autoMode) : autoMode;
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const setSelectedTags = (v: string[]) => dsd({ type: 'SET_TAGS', value: v });
   const setSelectedCollection = (v: string | undefined) =>
@@ -1925,6 +1937,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const peek = useSidebarPeek(sidebarHidden, setSidebarPeek);
   const [optimisticSelectedPlan, setOptimisticSelectedPlan] = useState<Plan | undefined>(undefined);
   const [localAutoSelectSuppressed, setLocalAutoSelectSuppressed] = useState(false);
+  const switchModeInFlightRef = useRef(0);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_PREF_KEY, sidebarHidden ? 'true' : 'false');
@@ -1980,11 +1993,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       // Selection changed: drop any pending follow intent from the prior plan.
       followFromPlanIdRef.current = null;
     }
-    if (
-      prev?.id === selectedPlan.id &&
-      prev.wasLive &&
-      isEndedPlannotatorSession(selectedPlan)
-    ) {
+    if (prev?.id === selectedPlan.id && prev.wasLive && isEndedPlannotatorSession(selectedPlan)) {
       followFromPlanIdRef.current = selectedPlan.id;
     }
     prevPlannotatorLivenessRef.current = {
@@ -2019,6 +2028,45 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       }
     },
     [setActivePanel, setSelectedPlanId, splitPlanId, setSplitPlanId],
+  );
+
+  const switchMode = useCallback(
+    async (next: DashboardMode) => {
+      const requestId = ++switchModeInFlightRef.current;
+      const effective = modeOverride ?? autoMode;
+      if (next === effective) return;
+
+      void setSearch(null);
+      void setFilters({ agent: null, date: 'all', sort: 'updatedAt' });
+      setSelectedTags([]);
+      setSelectedCollection(undefined);
+      setActivePanel(null);
+      setOptimisticSelectedPlan(undefined);
+      setLocalAutoSelectSuppressed(false);
+      setSelectedPlanId(null);
+      setSplitPlanId(null);
+
+      if (isDesktop()) {
+        await setDesktopModePref(next);
+      }
+      if (requestId !== switchModeInFlightRef.current) return;
+
+      setModeOverride(next);
+      try {
+        localStorage.setItem(MODE_PREF_KEY, next);
+      } catch {
+        // Non-fatal: preference just won't persist.
+      }
+    },
+    [
+      autoMode,
+      modeOverride,
+      setActivePanel,
+      setSelectedPlanId,
+      setSplitPlanId,
+      setSearch,
+      setFilters,
+    ],
   );
 
   useEffect(() => {
@@ -2198,38 +2246,17 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onToggleChart={isPro ? toggleChart : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
         onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
+        onManageSources={mode === 'local' ? () => setSourcesOpen(true) : undefined}
+        onSwitchMode={canSwitchMode ? switchMode : undefined}
         sidebarWidth={expandedWidth}
       />
 
       {mode === 'local' && (
-        <>
-          <button
-            type="button"
-            onClick={() => setSourcesOpen(true)}
-            title="Manage plan sources"
-            className="fixed z-50 w-[30px] h-[30px] rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
-            style={{ top: 20, right: 60 }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-          </button>
-
-          <PlanSourcesDialog
-            open={sourcesOpen}
-            onClose={() => setSourcesOpen(false)}
-            onSourcesChanged={() => refresh()}
-          />
-        </>
+        <PlanSourcesDialog
+          open={sourcesOpen}
+          onClose={() => setSourcesOpen(false)}
+          onSourcesChanged={() => refresh()}
+        />
       )}
 
       {sidebarHidden && (
@@ -2401,6 +2428,7 @@ function LandingRoute() {
 
 function DashboardRoute() {
   const { isAuthenticated, isLoading, refreshSession } = useAuth();
+  const desktop = isDesktop();
   const hasCachedToken = hasToken();
   const avatars = useQuery(api.agentAvatars.listMyAgentAvatars, isAuthenticated ? {} : 'skip');
   const { needsOnboarding, onboardingResolved } = useSubscription({
@@ -2428,7 +2456,10 @@ function DashboardRoute() {
     isLoading,
     refreshSession,
     hold: processingOtt,
-    skip: hasCachedToken,
+    // The desktop app gates entry on a verified cloud session, so it cannot
+    // short-circuit on the always-present local daemon token; it must wait for
+    // the session check before deciding whether to show the sign-in view.
+    skip: desktop ? false : hasCachedToken,
   });
 
   const renderDashboard = (autoMode: DashboardMode) => (
@@ -2438,6 +2469,18 @@ function DashboardRoute() {
   );
 
   if (isAuthenticated && onboardingResolved && needsOnboarding) return <Redirect to="/welcome" />;
+
+  // Desktop: a valid cloud session is required to render any plan/agent info.
+  // Without one we show a dedicated sign-in view. Local mode remains available
+  // via the in-app local/cloud toggle once signed in.
+  if (desktop) {
+    if (isAuthenticated) {
+      if (!onboardingResolved) return <BootLoadingView />;
+      return renderDashboard('cloud');
+    }
+    if (isLoading || !authSettled || processingOtt) return <BootLoadingView />;
+    return <DesktopSignInPage />;
+  }
 
   if (hasCachedToken) {
     return renderDashboard(isAuthenticated && onboardingResolved ? 'cloud' : 'local');

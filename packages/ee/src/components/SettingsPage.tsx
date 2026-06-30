@@ -4,6 +4,7 @@ import { useAction, useMutation } from 'convex/react';
 import { useEffect, useState } from 'react';
 import { Redirect, useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
+import { isDesktop } from '../lib/desktop.ts';
 import { useDaemonStatus } from '../hooks/useDaemonStatus';
 import { useSubscription } from '../hooks/useSubscription';
 import { useSubscriptionView } from '../hooks/useSubscriptionView';
@@ -72,7 +73,9 @@ export function SettingsPage() {
       } catch {
         // The auth session may already be gone after server-side deletion.
       }
-      startViewTransition(() => navigate('/'));
+      if (!isDesktop()) {
+        startViewTransition(() => navigate('/'));
+      }
     } catch (err) {
       console.error('Delete account error:', err);
       setDeleting(false);
@@ -85,7 +88,9 @@ export function SettingsPage() {
     } catch {
       // ignore
     } finally {
-      startViewTransition(() => navigate('/'));
+      if (!isDesktop()) {
+        startViewTransition(() => navigate('/'));
+      }
     }
   }
 

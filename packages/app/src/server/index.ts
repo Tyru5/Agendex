@@ -1,24 +1,8 @@
-import {
-  getAll,
-  loadOrInitConfig,
-  resolveAdapters,
-  scan,
-  setActiveAdapters,
-  setOnPlansChanged,
-  startWatching,
-  stopWatching,
-} from '@agendex/shared';
-import { Hono } from 'hono';
+import { stopWatching } from '@agendex/shared';
 import { createBunWebSocket, serveStatic } from 'hono/bun';
-import { cors } from 'hono/cors';
-import { AUTH_TOKEN, authMiddleware } from './auth.ts';
-import { plans, setPlanSourcesWatcherCallback } from './routes/plans.ts';
-import { rebuildIndex } from './services/search.ts';
+import { buildAgendexApp } from './app.ts';
 
-const app = new Hono();
 const { upgradeWebSocket, websocket } = createBunWebSocket();
-
-const clients = new Set<{ send: (data: string) => void }>();
 const configureAdapters = process.argv.includes('--configure-adapters');
 
 if (configureAdapters && !(process.stdin.isTTY && process.stdout.isTTY)) {
@@ -28,85 +12,19 @@ if (configureAdapters && !(process.stdin.isTTY && process.stdout.isTTY)) {
   process.exit(1);
 }
 
-setOnPlansChanged((plans) => rebuildIndex(plans));
-
-app.use('/api/*', cors());
-const startup = loadOrInitConfig({ configureAdapters })
-  .then((config) => {
-    const activeAdapters = resolveAdapters(config.enabledAdapters);
-    setActiveAdapters(activeAdapters);
-    console.log(
-      `[agendex] enabled adapters (${config.enabledAdapters.length}): ${config.enabledAdapters.join(', ')}`,
-    );
-    return scan();
-  })
-  .then(() => {
-    const watcherCallback = (plans: unknown[]) => broadcast('plan:updated', plans);
-    setPlanSourcesWatcherCallback(watcherCallback);
-    startWatching(watcherCallback);
-
-    // Fallback polling for environments where fs.watch is unreliable (WSL, network mounts)
-    let lastFingerprint = buildFingerprint();
-    setInterval(async () => {
-      await scan();
-      const fp = buildFingerprint();
-      if (fp !== lastFingerprint) {
-        lastFingerprint = fp;
-        broadcast('plan:updated', getAll());
-      }
-    }, 60_000);
-  })
-  .catch((err) => {
-    console.error('[agendex] startup failed', err);
-    process.exit(1);
-  });
-
-app.use('/api/*', async (_c, next) => {
-  await startup;
-  await next();
+const { app, ready, token } = buildAgendexApp({
+  upgradeWebSocket,
+  configureAdapters,
+  mountStatic: (app) => {
+    app.use('/*', serveStatic({ root: './src/client/dist' }));
+    app.get('/*', serveStatic({ path: './src/client/dist/index.html' }));
+  },
 });
 
-app.get(
-  '/api/v1/ws',
-  (c, next) => {
-    const token = new URL(c.req.url).searchParams.get('token');
-    if (token !== AUTH_TOKEN) return c.json({ error: 'unauthorized' }, 401);
-    return next();
-  },
-  upgradeWebSocket(() => ({
-    onOpen(_event, ws) {
-      clients.add(ws);
-    },
-    onClose(_event, ws) {
-      clients.delete(ws);
-    },
-  })),
-);
-
-app.get('/api/v1/health', (c) => c.json({ ok: true }));
-app.use('/api/*', authMiddleware);
-app.route('/api/v1', plans);
-
-function buildFingerprint(): string {
-  return getAll()
-    .map((p) => `${p.id}:${p.updatedAt.getTime()}`)
-    .sort()
-    .join('|');
-}
-
-function broadcast(event: string, data: unknown) {
-  const msg = JSON.stringify({ event, data });
-  for (const client of clients) {
-    try {
-      client.send(msg);
-    } catch {
-      clients.delete(client);
-    }
-  }
-}
-
-app.use('/*', serveStatic({ root: './src/client/dist' }));
-app.get('/*', serveStatic({ path: './src/client/dist/index.html' }));
+ready.catch((err) => {
+  console.error('[agendex] startup failed', err);
+  process.exit(1);
+});
 
 const PORT = parseInt(process.env.PORT ?? '4890', 10);
 
@@ -118,7 +36,7 @@ process.once('SIGINT', shutdown);
 process.once('SIGTERM', shutdown);
 
 console.log(`[agendex] http://localhost:${PORT}`);
-console.log(`[agendex] token: ${AUTH_TOKEN}`);
+console.log(`[agendex] token: ${token}`);
 
 Bun.serve({
   port: PORT,
