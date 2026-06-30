@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { assessPlanForVisibility, metadataWithPlanValueAssessment } from './planVisibility';
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
@@ -23,6 +24,9 @@ export const listForPlan = query({
       throw new ConvexError('Access denied');
     }
 
+    // Intentionally does not gate on `isVisiblePlan(plan)`: the owner needs to
+    // see version history for a plan hidden by the low-value classifier in
+    // order to find a good snapshot to restore.
     const versions = await ctx.db
       .query('planVersions')
       .withIndex('by_plan', (q) => q.eq('planId', args.planId))
@@ -58,6 +62,7 @@ export const getVersion = query({
       throw new ConvexError('Access denied');
     }
 
+    // Intentionally does not gate on `isVisiblePlan(plan)`: see listForPlan.
     const snapshot = await ctx.db
       .query('planVersions')
       .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).eq('version', args.version))
@@ -90,6 +95,10 @@ export const restore = mutation({
       throw new ConvexError('Access denied');
     }
 
+    // Intentionally does not gate on `isVisiblePlan(plan)` here: restoring is how
+    // an owner recovers a plan that was previously (and possibly incorrectly)
+    // marked low-value, so the current plan's visibility must not block this
+    // path. The snapshot being restored is validated below instead.
     const snapshot = await ctx.db
       .query('planVersions')
       .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).eq('version', args.version))
@@ -99,8 +108,21 @@ export const restore = mutation({
       throw new ConvexError('Version not found');
     }
 
+    const restoredAssessment = assessPlanForVisibility({
+      title: snapshot.title,
+      content: snapshot.content,
+      metadata: snapshot.metadata,
+    });
+    if (restoredAssessment.lowValue) {
+      throw new ConvexError('This version cannot be restored because it has no plan content');
+    }
+
     const newVersion = plan.version + 1;
     const now = Date.now();
+    const metadata = metadataWithPlanValueAssessment(snapshot.metadata, {
+      title: snapshot.title,
+      content: snapshot.content,
+    });
 
     await ctx.db.patch(args.planId, {
       title: snapshot.title,
@@ -108,7 +130,7 @@ export const restore = mutation({
       format: snapshot.format,
       filePath: snapshot.filePath,
       workspace: snapshot.workspace,
-      metadata: snapshot.metadata,
+      metadata,
       version: newVersion,
       updatedAt: now,
     });
@@ -122,7 +144,7 @@ export const restore = mutation({
       format: snapshot.format,
       filePath: snapshot.filePath,
       workspace: snapshot.workspace,
-      metadata: snapshot.metadata,
+      metadata,
       source: 'restore',
       createdAt: now,
     });

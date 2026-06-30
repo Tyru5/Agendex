@@ -11,7 +11,11 @@ import {
 } from './_generated/server';
 import { authComponent, createAuth } from './auth';
 import { deletePlanRelatedData } from './planDeletion';
-import { hasLowValueMetadata } from './planVisibility';
+import {
+  hasLowValueMetadata,
+  mergePlanMetadata,
+  metadataWithPlanValueAssessment,
+} from './planVisibility';
 import { stripLocalIpFromMetadata } from './privacy';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
@@ -389,7 +393,7 @@ export const sync = httpAction(async (ctx, request) => {
       return jsonResponse({ error: 'Invalid optional field types' }, 400);
     }
 
-    const metadata =
+    const incomingMetadata =
       privacyPreferences.collectLocalIpAddress === false
         ? stripLocalIpFromMetadata(body.metadata).metadata
         : body.metadata;
@@ -399,7 +403,13 @@ export const sync = httpAction(async (ctx, request) => {
       localPlanId: body.localPlanId,
     });
 
-    if (hasLowValueMetadata(metadata)) {
+    const metadata = mergePlanMetadata(existing?.metadata, incomingMetadata);
+    const classifiedMetadata = metadataWithPlanValueAssessment(metadata, {
+      title: body.title,
+      content: body.content,
+    });
+
+    if (hasLowValueMetadata(classifiedMetadata)) {
       const deleted = existing
         ? await ctx.runMutation(internal.cli.deleteSyncedPlan, {
             ownerId,
@@ -407,7 +417,12 @@ export const sync = httpAction(async (ctx, request) => {
           })
         : false;
 
-      return jsonResponse({ ok: true, skippedLowValue: true, deleted });
+      return jsonResponse({
+        ok: true,
+        skippedLowValue: true,
+        deleted,
+        lowValueReasons: classifiedMetadata?.lowValueReasons,
+      });
     }
 
     const planId = await ctx.runMutation(internal.cli.upsertPlan, {
@@ -419,7 +434,7 @@ export const sync = httpAction(async (ctx, request) => {
       format: body.format,
       filePath: body.filePath,
       workspace: body.workspace,
-      metadata,
+      metadata: classifiedMetadata,
       createdAt: body.createdAt,
       updatedAt: body.updatedAt,
       existingId: existing?._id,

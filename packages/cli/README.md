@@ -23,6 +23,10 @@ agendex configure              # Select which agents/adapters to index
 agendex start                  # Start daemon (backgrounds itself)
 agendex stop                   # Stop the running daemon
 agendex sync                   # One-shot scan + sync to cloud
+agendex sync --force           # Re-sync all plans, ignoring the local hash cache
+agendex upload <path>          # Upload a single Markdown plan file to the cloud
+agendex upload <path> --agent <name>  # Override the uploaded plan's agent label
+agendex upload <path> --open   # Open the uploaded plan in the browser after upload
 agendex cleanup                # Interactively remove cloud daemons
 agendex cleanup --stale        # Auto-remove all stale daemons
 agendex status                 # Show config state, daemon status, uptime & hostname
@@ -57,6 +61,27 @@ AGENDEX_DEV=1 agendex sync
 
 In dev mode the default OAuth site (when you do not pass `--url` and do not set `AGENDEX_SITE_URL`) points at the local EE app URL used for development.
 
+## Plan Value Filtering
+
+Agendex uses a shared plan-value classifier (`@agendex/shared`) to keep non-plans out of your library and cloud account. The same rules apply to local OSS indexing, `agendex sync`, and the background daemon.
+
+**Locally indexed but hidden** (tagged `lowValue` in plan metadata, excluded from search and list views):
+
+- Empty or whitespace-only content
+- Heading-only markdown with no body
+- Prompt-like one-liners, system context dumps, tool logs, conversation artifacts
+- Execution reports, review output, wrapper titles
+- Code-only or code-dominated markdown without plan structure
+- Content with no recognizable planning signals (unstructured one-liners, generic session dumps)
+
+**Cloud sync behavior:**
+
+- Indexable plans upload normally.
+- Low-value plans are still sent on sync so the cloud can **prune** them: existing cloud copies are deleted and new low-value uploads are skipped.
+- Sync output includes counts such as `N low-value skipped/pruned (M deleted)` when pruning runs.
+
+Low-value tagging happens during scan/rescan. If you edit a file into a real plan, the next scan clears the tag and sync uploads it again. Version restore in the cloud rejects low-value snapshots; browse history on a hidden plan to find and restore a good snapshot.
+
 ## Sync Provenance
 
 `agendex sync` and the daemon include sync provenance in cloud payload metadata so the web app can show where a plan was synced from. This includes the device ID, hostname, and the host machine's local IP address when one is available.
@@ -66,6 +91,28 @@ You can disable local IP address collection from Account settings in the cloud a
 ```bash
 AGENDEX_DISABLE_LOCAL_IP=1 agendex sync
 ```
+
+## Real-Time Cloud Sync (Daemon)
+
+While `agendex start` is running, the daemon watches local plan sources and uploads changes to your cloud account. The cloud web app updates reactively once uploads land (no manual refresh).
+
+**How uploads are scheduled:**
+
+1. File watchers (plus periodic rescans) trigger a local rescan when plans change.
+2. Each changed plan is converted to a sync payload and enqueued. The queue **deduplicates by plan id** (last write wins).
+3. **`sync-cache.json`** stores content hashes so unchanged plans are skipped (same as one-shot sync). Use `agendex sync --force` to bypass the cache for a manual full upload.
+4. Before each upload, the daemon re-checks that the queued payload is still the latest edit for that plan (so a slow retry cannot overwrite a newer change).
+5. Failed uploads retry automatically with exponential backoff (**2s → 8s → 30s**, up to three attempts) before the daemon logs a permanent failure.
+
+Low-value plans follow the same queue and pruning rules as [Plan Value Filtering](#plan-value-filtering).
+
+| Variable                              | Default  | Purpose                                                                                                    |
+| ------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `AGENDEX_LIVE_SESSION_POLL_MS`        | `2000`   | Poll active Plannotator live sessions (re-fetch loopback plan content). Set to `0` to disable.             |
+| `AGENDEX_SYNC_RESCAN_INTERVAL_MS`     | `60000`  | Safety-net full rescan + hash-diff upload when `fs.watch` misses an event. Set to `0` to disable.          |
+| `AGENDEX_WATCHER_REFRESH_INTERVAL_MS` | `300000` | Re-discover watch directories (new Cursor projects, `@plans` folders, custom dirs). Set to `0` to disable. |
+
+Typical latency after a local edit: **~0.5–2s** for file-based agents (Cursor, Claude Code, markdown snapshots); **~2–3s** for Plannotator live-session-only edits (loopback poll).
 
 ## Daemon Cleanup
 
