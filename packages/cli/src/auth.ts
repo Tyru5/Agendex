@@ -11,10 +11,8 @@ export function getDefaultSiteUrl(): string {
   return isDevMode() ? DEV_SITE_URL : PROD_SITE_URL;
 }
 
-/** Resolved web app URL: env override, then login-stored config, then default. */
+/** Resolved web app URL: login-stored config, then env/default (same precedence as login sans override). */
 export function getSiteUrl(): string {
-  if (process.env.AGENDEX_SITE_URL) return process.env.AGENDEX_SITE_URL;
-
   const config = loadConfig();
   if (config?.siteUrl) return config.siteUrl;
 

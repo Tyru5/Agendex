@@ -192,6 +192,26 @@ test('success uses stored login site URL for dashboard links', async () => {
   expect(logText).toContain('https://self-hosted.example.com/dashboard?plan=plan_123');
 });
 
+test('success prefers stored login site URL over AGENDEX_SITE_URL', async () => {
+  saveConfig({
+    configVersion: 3,
+    enabledAdapters: [],
+    customPlanDirs: [],
+    cloudToken: 'tok',
+    convexUrl: 'https://example.convex.cloud',
+    siteUrl: 'https://self-hosted.example.com',
+  });
+  process.env.AGENDEX_SITE_URL = 'https://app.agendex.dev';
+  const f = join(dir, 'plan.md');
+  writeFileSync(f, '# My Title\n\nbody');
+  const cap = newCapture();
+  const code = await runUpload(['upload', f], makeDeps({ ok: true, planId: 'plan_123' }, cap));
+  expect(code).toBe(0);
+  const logText = cap.logs.join('\n');
+  expect(logText).toContain('https://self-hosted.example.com/dashboard?plan=plan_123');
+  expect(logText).not.toContain('https://app.agendex.dev/dashboard?plan=plan_123');
+});
+
 test('expands tilde in upload path', async () => {
   writeLoggedInConfig();
   const homePlanDir = join(homedir(), `.agendex-upload-tilde-${Date.now()}`);
