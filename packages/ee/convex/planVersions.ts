@@ -103,10 +103,10 @@ export const restore = mutation({
       throw new ConvexError('Access denied');
     }
 
-    if (!isVisiblePlan(plan)) {
-      throw new ConvexError('Plan not found');
-    }
-
+    // Intentionally does not gate on `isVisiblePlan(plan)` here: restoring is how
+    // an owner recovers a plan that was previously (and possibly incorrectly)
+    // marked low-value, so the current plan's visibility must not block this
+    // path. The snapshot being restored is validated below instead.
     const snapshot = await ctx.db
       .query('planVersions')
       .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).eq('version', args.version))
