@@ -15,10 +15,13 @@ export interface UploadDeps {
   openBrowser: (url: string, label: string) => void;
 }
 
-function flagValue(args: string[], flag: string): string | undefined {
-  const idx = args.indexOf(flag);
+
+function resolveAgentOverride(args: string[]): string | undefined | 'missing' {
+  const idx = args.indexOf('--agent');
   if (idx === -1) return undefined;
-  return args[idx + 1];
+  const value = args[idx + 1];
+  if (value === undefined || value.startsWith('--')) return 'missing';
+  return value;
 }
 
 /** Resolve the first non-flag positional argument after the `upload` command. */
@@ -88,7 +91,12 @@ export async function runUpload(args: string[], deps?: Partial<UploadDeps>): Pro
     return 1;
   }
 
-  const agentOverride = flagValue(args, '--agent');
+  const agentOverride = resolveAgentOverride(args);
+  if (agentOverride === 'missing') {
+    error('[agendex] usage: agendex upload <path> [--agent <name>] [--open]');
+    error('[agendex] --agent requires a name');
+    return 1;
+  }
   const ipAddress = (await shouldIncludeLocalIpAddressInSync()) ? getLocalIpAddress() : undefined;
 
   const payload = fileToSyncPayload(absolutePath, content, {

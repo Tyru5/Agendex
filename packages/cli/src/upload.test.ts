@@ -226,3 +226,24 @@ test('--agent override is applied to the payload', async () => {
   await runUpload(['upload', f, '--agent', 'cursor'], makeDeps({ ok: true }, cap));
   expect(cap.lastPayload?.agent).toBe('cursor');
 });
+
+test('errors when --agent is missing a value before --open', async () => {
+  writeLoggedInConfig();
+  const f = join(dir, 'plan.md');
+  writeFileSync(f, '# T');
+  const cap = newCapture();
+  const code = await runUpload(['upload', f, '--agent', '--open'], makeDeps({ ok: true }, cap));
+  expect(code).toBe(1);
+  expect(cap.errors.join('\n')).toContain('--agent requires a name');
+  expect(cap.lastPayload).toBeUndefined();
+});
+
+test('errors when --agent is the last argument', async () => {
+  writeLoggedInConfig();
+  const f = join(dir, 'plan.md');
+  writeFileSync(f, '# T');
+  const cap = newCapture();
+  const code = await runUpload(['upload', f, '--agent'], makeDeps({ ok: true }, cap));
+  expect(code).toBe(1);
+  expect(cap.errors.join('\n')).toContain('--agent requires a name');
+});
