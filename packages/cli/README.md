@@ -70,6 +70,20 @@ You can disable local IP address collection from Account settings in the cloud a
 AGENDEX_DISABLE_LOCAL_IP=1 agendex sync
 ```
 
+## Real-Time Cloud Sync (Daemon)
+
+While `agendex start` is running, the daemon watches local plan sources and uploads changes to your cloud account. The cloud web app updates reactively once uploads land (no manual refresh).
+
+| Variable                              | Default  | Purpose                                                                                                    |
+| ------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `AGENDEX_LIVE_SESSION_POLL_MS`        | `2000`   | Poll active Plannotator live sessions (re-fetch loopback plan content). Set to `0` to disable.             |
+| `AGENDEX_SYNC_RESCAN_INTERVAL_MS`     | `60000`  | Safety-net full rescan + hash-diff upload when `fs.watch` misses an event. Set to `0` to disable.          |
+| `AGENDEX_WATCHER_REFRESH_INTERVAL_MS` | `300000` | Re-discover watch directories (new Cursor projects, `@plans` folders, custom dirs). Set to `0` to disable. |
+
+Typical latency after a local edit: **~0.5–2s** for file-based agents (Cursor, Claude Code, markdown snapshots); **~2–3s** for Plannotator live-session-only edits (loopback poll).
+
+Failed uploads retry automatically with backoff (2s, 8s, 30s) before the daemon logs a permanent failure.
+
 ## Daemon Cleanup
 
 `agendex cleanup` manages registered daemon devices in the cloud.

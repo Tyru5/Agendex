@@ -63,6 +63,41 @@ export function stopWatching() {
   closeAllWatchers();
 }
 
+/** Resolved filesystem paths the watcher would attach to (for refresh diffing). */
+export function collectWatchPaths(): string[] {
+  const adapters = getActiveAdapters();
+  const watchedPaths = new Set<string>();
+
+  for (const adapter of adapters) {
+    for (const watchPath of adapter.getWatchPaths()) {
+      watchedPaths.add(resolve(watchPath));
+    }
+  }
+
+  const discovered = discoverProjectPlanDirs();
+  for (const { dir, agent } of discovered) {
+    if (watchedPaths.has(resolve(dir))) continue;
+    const adapter = adapters.find((a) => a.agent === agent);
+    if (!adapter) continue;
+    watchedPaths.add(resolve(dir));
+  }
+
+  for (const dir of getCustomPlanDirs()) {
+    const resolvedCustom = resolve(dir);
+    let overlaps = false;
+    for (const watched of watchedPaths) {
+      if (pathsOverlapFilesystemTree(resolvedCustom, watched)) {
+        overlaps = true;
+        break;
+      }
+    }
+    if (overlaps) continue;
+    watchedPaths.add(resolvedCustom);
+  }
+
+  return [...watchedPaths].sort();
+}
+
 function setupWatchers(onChange?: ChangeCallback) {
   const adapters = getActiveAdapters();
   const watchedPaths = new Set<string>();
