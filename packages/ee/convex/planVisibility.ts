@@ -216,6 +216,24 @@ export function hasLowValueMetadata(metadata: unknown): boolean {
   return metadata.lowValue === true;
 }
 
+export function mergePlanMetadata(existing: unknown, incoming: unknown): unknown {
+  if (!isRecord(existing)) return incoming;
+  if (!isRecord(incoming)) {
+    const cleared = { ...existing };
+    delete cleared.lowValue;
+    delete cleared.lowValueReasons;
+    delete cleared.lowValueSignals;
+    return cleared;
+  }
+  const merged = { ...existing, ...incoming };
+  if (incoming.userCreated === true) {
+    delete merged.lowValue;
+    delete merged.lowValueReasons;
+    delete merged.lowValueSignals;
+  }
+  return merged;
+}
+
 export function isLikelyLowValuePlan(plan: PlanWithMetadata): boolean {
   const metadata = isRecord(plan.metadata) ? plan.metadata : undefined;
   if (shouldBypassHeuristic(metadata)) return false;

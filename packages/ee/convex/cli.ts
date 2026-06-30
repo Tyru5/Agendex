@@ -4,7 +4,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { httpAction, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent, createAuth } from './auth';
 import { deletePlanRelatedData } from './planDeletion';
-import { hasLowValueMetadata } from './planVisibility';
+import { hasLowValueMetadata, mergePlanMetadata } from './planVisibility';
 import { stripLocalIpFromMetadata } from './privacy';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
@@ -14,22 +14,6 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function mergePlanMetadata(existing: unknown, incoming: unknown): unknown {
-  if (!isRecord(existing)) return incoming;
-  if (!isRecord(incoming)) return existing;
-  const merged = { ...existing, ...incoming };
-  if (incoming.userCreated === true) {
-    delete merged.lowValue;
-    delete merged.lowValueReasons;
-    delete merged.lowValueSignals;
-  }
-  return merged;
 }
 
 async function authenticateRequest(

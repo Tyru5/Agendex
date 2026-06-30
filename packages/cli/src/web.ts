@@ -1,10 +1,10 @@
-import { getDefaultSiteUrl, launchBrowser } from './auth.ts';
+import { getSiteUrl, launchBrowser } from './auth.ts';
 
 /**
  * Opens the Agendex web app in the system browser (same base URL rules as `agendex login`).
  */
 export async function openAgendexWeb(siteUrlOverride?: string): Promise<void> {
-  const base = siteUrlOverride ?? getDefaultSiteUrl();
+  const base = siteUrlOverride ?? getSiteUrl();
   const url = base.replace(/\/$/, '');
 
   launchBrowser(url, 'Agendex in your browser');
