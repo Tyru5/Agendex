@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 1.3.0
+
+### Minor Changes
+
+- b2eda4d: Better plan detection and syncing capabilities
+
 ## 1.2.0
 
 ### Minor Changes
