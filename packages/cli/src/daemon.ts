@@ -248,6 +248,19 @@ export async function runWorker(): Promise<void> {
     const failedPayloads: SyncPlanPayload[] = [];
     try {
       for (const payload of batch) {
+        // Re-check freshness right before syncing: a newer edit for this plan
+        // may have synced successfully after this (possibly stale, retried)
+        // payload was queued but before its turn in this batch came up.
+        const lastSynced = lastSyncedUpdatedAt.get(payload.localPlanId);
+        if (
+          lastSynced !== undefined &&
+          payload.updatedAt !== undefined &&
+          lastSynced >= payload.updatedAt
+        ) {
+          retryAttemptByPlanId.delete(payload.localPlanId);
+          continue;
+        }
+
         let result = await syncPlan(payload);
 
         if (!result.ok && result.error?.includes('401')) {
