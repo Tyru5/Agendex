@@ -175,7 +175,7 @@ export async function runWorker(): Promise<void> {
         if (
           existing?.updatedAt !== undefined &&
           payload.updatedAt !== undefined &&
-          existing.updatedAt > payload.updatedAt
+          existing.updatedAt >= payload.updatedAt
         ) {
           continue;
         }

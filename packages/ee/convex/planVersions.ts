@@ -3,11 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
-import {
-  assessPlanForVisibility,
-  isVisiblePlan,
-  metadataWithPlanValueAssessment,
-} from './planVisibility';
+import { assessPlanForVisibility, metadataWithPlanValueAssessment } from './planVisibility';
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
@@ -28,10 +24,9 @@ export const listForPlan = query({
       throw new ConvexError('Access denied');
     }
 
-    if (!isVisiblePlan(plan)) {
-      throw new ConvexError('Plan not found');
-    }
-
+    // Intentionally does not gate on `isVisiblePlan(plan)`: the owner needs to
+    // see version history for a plan hidden by the low-value classifier in
+    // order to find a good snapshot to restore.
     const versions = await ctx.db
       .query('planVersions')
       .withIndex('by_plan', (q) => q.eq('planId', args.planId))
@@ -67,10 +62,7 @@ export const getVersion = query({
       throw new ConvexError('Access denied');
     }
 
-    if (!isVisiblePlan(plan)) {
-      throw new ConvexError('Plan not found');
-    }
-
+    // Intentionally does not gate on `isVisiblePlan(plan)`: see listForPlan.
     const snapshot = await ctx.db
       .query('planVersions')
       .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).eq('version', args.version))
