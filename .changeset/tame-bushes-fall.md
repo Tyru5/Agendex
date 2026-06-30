@@ -1,5 +1,5 @@
 ---
-"agendex-cli": minor
+'agendex-cli': minor
 ---
 
 upload command addition

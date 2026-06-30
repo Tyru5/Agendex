@@ -15,7 +15,6 @@ export interface UploadDeps {
   openBrowser: (url: string, label: string) => void;
 }
 
-
 function resolveAgentOverride(args: string[]): string | undefined | 'missing' {
   const idx = args.indexOf('--agent');
   if (idx === -1) return undefined;
