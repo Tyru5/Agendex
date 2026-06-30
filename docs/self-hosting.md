@@ -142,6 +142,12 @@ bun run cli:status
 
 The default published login target is `https://agendex.dev`, so keep passing `--url` for self-hosted deployments.
 
+See [`packages/cli/README.md`](../packages/cli/README.md) for daemon polling intervals, plan-value filtering during sync, and retry behavior.
+
+## Cleaning up existing low-value cloud plans
+
+If your deployment already has low-value rows indexed before filtering improved, use the internal Convex cleanup functions in `packages/ee/convex/planCleanup.ts`. Set `PLAN_CLEANUP_ADMIN_TOKEN` on the deployment, run `auditLowValuePlans` (dry-run) via `npx convex run`, review the summary, then run `cleanupLowValuePlans` in batches. Details and examples are in [`packages/ee/convex/README.md`](../packages/ee/convex/README.md#maintainer-cleanup-existing-rows).
+
 ## Local EE development
 
 To develop the EE stack locally from this repo, run all three processes:

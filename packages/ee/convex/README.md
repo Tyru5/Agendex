@@ -16,7 +16,9 @@ This directory contains the Convex backend for Agendex Cloud / EE. It powers aut
 - `subscriptions.ts` - trial start and skip flows, checkout and portal sessions, and webhook-driven subscription sync
 - `cli.ts` - cloud plan upsert flow, token refresh, daemon heartbeat writes, and daemon status queries (clients authenticate with a session token from `agendex login`; open the dashboard in a browser with `agendex open`; the CLI keeps `cloudToken` and `convexUrl` under `~/.agendex`, or `~/.agendex-dev` when using `agendex --dev` / `AGENDEX_DEV=1` — see `packages/cli/README.md`)
 - `plans.ts` - EE plan retrieval helpers and shared plan access
+- `planVisibility.ts` - shared low-value plan classification on ingest, metadata merge, and visibility gates for reads
 - `planVersions.ts` - plan history listing, snapshot reads, and restore flow
+- `planCleanup.ts` - internal dry-run audit and apply cleanup for existing low-value cloud rows (maintainer-only)
 - `sharing.ts` - create and revoke share links
 - `comments.ts` - read, create, and delete plan comments
 - `collections.ts` - collection-level EE feature logic
@@ -58,6 +60,38 @@ Stripe variables are needed for checkout, customer portal, and paid subscription
 - `/stripe/webhook` - Stripe webhook receiver registered through `@convex-dev/stripe`
 
 Auth routes are also registered through Better Auth in `http.ts`.
+
+## Low-Value Plan Handling
+
+Cloud sync reuses the same plan-value classifier as the OSS app and CLI (`packages/shared/src/services/plan-value.ts`, wired through `planVisibility.ts`).
+
+On `POST /api/cli/sync`:
+
+- Indexable plans upsert normally.
+- Low-value payloads are not stored as visible plans. If a matching cloud row already exists for the user/device, it is **deleted** (prune). The HTTP response includes `skippedLowValue: true` and optional `lowValueReasons`.
+
+Reads and writes elsewhere hide low-value rows (`isPlanVisibleForRead`). Plan version **restore** rejects low-value snapshots; **list/get version** remain available so owners can browse history and recover from an earlier good snapshot.
+
+### Maintainer cleanup (existing rows)
+
+For deployments that already accumulated low-value plans before filtering tightened, `planCleanup.ts` exposes **internal-only** Convex functions (not callable from the public client API):
+
+- `auditLowValuePlans` — paginated dry-run summary (`mode: "dry-run"`)
+- `cleanupLowValuePlans` — paginated delete of classified low-value rows (`mode: "apply"`)
+
+Both require `PLAN_CLEANUP_ADMIN_TOKEN` to be set on the Convex deployment and passed as `adminToken` in the function args. Paginate with `cursor` / `continueCursor` until `isDone` is true. Review dry-run output before running apply.
+
+Example (from `packages/ee`, after setting the env var on the deployment):
+
+```bash
+npx convex env set PLAN_CLEANUP_ADMIN_TOKEN "$(openssl rand -base64 32)"
+
+# Dry-run first page (internal function — not exposed to clients)
+npx convex run internal/planCleanup:auditLowValuePlans '{"adminToken":"<token>"}'
+
+# Apply first batch (repeat with continueCursor until isDone)
+npx convex run internal/planCleanup:cleanupLowValuePlans '{"adminToken":"<token>"}'
+```
 
 ## Local Development
 

@@ -1980,11 +1980,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       // Selection changed: drop any pending follow intent from the prior plan.
       followFromPlanIdRef.current = null;
     }
-    if (
-      prev?.id === selectedPlan.id &&
-      prev.wasLive &&
-      isEndedPlannotatorSession(selectedPlan)
-    ) {
+    if (prev?.id === selectedPlan.id && prev.wasLive && isEndedPlannotatorSession(selectedPlan)) {
       followFromPlanIdRef.current = selectedPlan.id;
     }
     prevPlannotatorLivenessRef.current = {

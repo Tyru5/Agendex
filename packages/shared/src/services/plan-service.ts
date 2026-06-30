@@ -190,6 +190,10 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
   return files;
 }
 
+function preparePlanForIndex(plan: Plan): Plan {
+  return annotatePlanValueMetadata(plan);
+}
+
 async function parseGenericMarkdownPlan(
   filePath: string,
   extraMetadata: Record<string, unknown>,
@@ -234,7 +238,7 @@ async function scanUserPlans(into: Map<string, Plan>) {
   for (const file of files) {
     if (!file.endsWith('.md')) continue;
     const plan = await parseGenericMarkdownPlan(file, { userCreated: true });
-    if (plan) into.set(plan.id, plan);
+    if (plan) into.set(plan.id, preparePlanForIndex(plan));
   }
 }
 
@@ -301,7 +305,7 @@ async function scanCustomPlanDirs(coveredPaths: Set<string>, into: Map<string, P
         agentHint: dirBasename,
       });
       if (plan) {
-        into.set(plan.id, plan);
+        into.set(plan.id, preparePlanForIndex(plan));
         count++;
       }
     }
@@ -322,7 +326,7 @@ export async function scan() {
         if (!adapter.matches(file)) continue;
         const plans = await adapter.parse(file);
         for (const plan of plans) {
-          const annotated = annotatePlanValueMetadata(plan);
+          const annotated = preparePlanForIndex(plan);
           next.set(annotated.id, annotated);
         }
       }
@@ -340,7 +344,7 @@ export async function scan() {
       if (!adapter.matches(file)) continue;
       const plans = await adapter.parse(file);
       for (const plan of plans) {
-        const annotated = annotatePlanValueMetadata(plan);
+        const annotated = preparePlanForIndex(plan);
         next.set(annotated.id, annotated);
       }
     }
@@ -503,9 +507,10 @@ export async function create(agentName: string, title: string, content: string):
     metadata: adapter?.writable ? {} : { userCreated: true },
   };
 
-  store.set(plan.id, plan);
+  const annotated = preparePlanForIndex(plan);
+  store.set(annotated.id, annotated);
   notifyPlansChanged();
-  return plan;
+  return annotated;
 }
 
 export function getAgentStats() {
@@ -584,7 +589,7 @@ export async function rescanFile(filePath: string) {
       removedPlans.push(...removePlansForPath(filePath, adapter));
       continue;
     }
-    const plans = rawPlans.map(annotatePlanValueMetadata);
+    const plans = rawPlans.map(preparePlanForIndex);
     for (const plan of plans) {
       store.set(plan.id, plan);
     }
@@ -602,9 +607,10 @@ export async function rescanFile(filePath: string) {
   ) {
     const plan = await parseGenericMarkdownPlan(filePath, { userCreated: true });
     if (plan) {
-      store.set(plan.id, plan);
+      const annotated = preparePlanForIndex(plan);
+      store.set(annotated.id, annotated);
       notifyPlansChanged();
-      return [plan];
+      return [annotated];
     }
   }
 
@@ -619,9 +625,10 @@ export async function rescanFile(filePath: string) {
           customDir: dir,
         });
         if (plan) {
-          store.set(plan.id, plan);
+          const annotated = preparePlanForIndex(plan);
+          store.set(annotated.id, annotated);
           notifyPlansChanged();
-          return [plan];
+          return [annotated];
         }
       }
     }

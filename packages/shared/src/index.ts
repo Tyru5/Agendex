@@ -67,7 +67,7 @@ export {
   update,
 } from './services/plan-service.ts';
 export { isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
-export { startWatching, stopWatching } from './services/watcher.ts';
+export { collectWatchPaths, startWatching, stopWatching } from './services/watcher.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 export type {
   AgentAdapter,
