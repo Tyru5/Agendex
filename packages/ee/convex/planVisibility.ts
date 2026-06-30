@@ -226,7 +226,7 @@ export function mergePlanMetadata(existing: unknown, incoming: unknown): unknown
     return cleared;
   }
   const merged = { ...existing, ...incoming };
-  if (incoming.userCreated === true) {
+  if (incoming.lowValue !== true || incoming.userCreated === true) {
     delete merged.lowValue;
     delete merged.lowValueReasons;
     delete merged.lowValueSignals;

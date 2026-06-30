@@ -13,6 +13,21 @@ test('mergePlanMetadata clears stale lowValue when incoming metadata is not an o
   expect(hasLowValueMetadata(merged)).toBe(false);
 });
 
+test('mergePlanMetadata clears stale lowValue when incoming object omits low-value fields', () => {
+  const merged = mergePlanMetadata({ lowValue: true, deviceId: 'dev-1' }, { deviceId: 'dev-2' });
+  expect(merged).toEqual({ deviceId: 'dev-2' });
+  expect(hasLowValueMetadata(merged)).toBe(false);
+});
+
+test('mergePlanMetadata preserves explicit lowValue on incoming object metadata', () => {
+  const merged = mergePlanMetadata(
+    { deviceId: 'dev-1' },
+    { lowValue: true, lowValueReasons: ['heading-only'] },
+  );
+  expect(merged).toEqual({ deviceId: 'dev-1', lowValue: true, lowValueReasons: ['heading-only'] });
+  expect(hasLowValueMetadata(merged)).toBe(true);
+});
+
 test('mergePlanMetadata still merges object metadata and honors userCreated', () => {
   const merged = mergePlanMetadata(
     { lowValue: true, deviceId: 'dev-1' },
