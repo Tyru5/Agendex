@@ -17,11 +17,11 @@ Scope note: the default development scope is the **OSS local app** (`packages/ap
 
 The EE stack runs three processes (README "EE / Cloud Development" lists them, but assumes a logged-in Convex account — use anonymous agent mode instead here):
 
-1. **Convex backend** — from `packages/ee`: `CONVEX_AGENT_MODE=anonymous bunx convex dev`. Anonymous agent mode spins up an isolated **local** Convex backend with no account/login (the workspace Convex rules cover this). It writes `packages/ee/.env.local` with `VITE_CONVEX_URL=http://127.0.0.1:3210` and `VITE_CONVEX_SITE_URL=http://127.0.0.1:3211` (`.env.local` is gitignored). Keep this process running; it serves the API (:3210) and HTTP/site routes (:3211, including auth).
+1. **Convex backend** — from `packages/ee`: `CONVEX_AGENT_MODE=anonymous npx convex dev` (matches the `npx convex` convention in `README.md` / `docs/self-hosting.md`). Anonymous agent mode spins up an isolated **local** Convex backend with no account/login (the workspace Convex rules cover this). It writes `packages/ee/.env.local` with `VITE_CONVEX_URL=http://127.0.0.1:3210` and `VITE_CONVEX_SITE_URL=http://127.0.0.1:3211` (`.env.local` is gitignored). Keep this process running; it serves the API (:3210) and HTTP/site routes (:3211, including auth).
 2. **OSS API** — from repo root: `bun run dev` (:4890). The EE client proxies `/api` to it.
 3. **EE client** — from repo root: `bun run dev:client:ee`. Vite binds to host **`agendex.localhost:5174`** (not plain `localhost`); `*.localhost` resolves to loopback so a browser can reach `http://agendex.localhost:5174/`.
 
-Convex **deployment** env vars (set with `CONVEX_AGENT_MODE=anonymous bunx convex env set <NAME> <VALUE>` from `packages/ee`, not in `.env.local`):
+Convex **deployment** env vars (set with `CONVEX_AGENT_MODE=anonymous npx convex env set <NAME> <VALUE>` from `packages/ee`, not in `.env.local`):
 
 - `BETTER_AUTH_SECRET` — required for auth; generate with `openssl rand -base64 32`.
 - `SITE_URL` and `APP_URL` — set both to `http://agendex.localhost:5174` for local dev.
