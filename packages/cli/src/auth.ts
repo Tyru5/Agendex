@@ -75,6 +75,7 @@ export function logout(): void {
     customPlanDirs: existing.customPlanDirs,
     ...(existing.token ? { token: existing.token } : {}),
     ...(existing.deviceId ? { deviceId: existing.deviceId } : {}),
+    ...(existing.siteUrl ? { siteUrl: existing.siteUrl } : {}),
   };
   saveConfig(config);
   console.log('[agendex] Logged out. Cloud token removed.');
