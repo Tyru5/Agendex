@@ -140,7 +140,10 @@ export function isSafePlannotatorUrl(rawUrl: string): boolean {
   }
 }
 
-function apiUrl(baseUrl: string, path: '/api/plan' | '/api/deny' | '/api/feedback'): string {
+function apiUrl(
+  baseUrl: string,
+  path: '/api/plan' | '/api/approve' | '/api/deny' | '/api/feedback',
+): string {
   const url = new URL(baseUrl);
   url.pathname = path;
   url.search = '';
@@ -219,6 +222,32 @@ function parseDate(value?: string): Date | undefined {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return undefined;
   return date;
+}
+
+function liveSessionIdentity(input: {
+  sessionPath: string;
+  session: SessionInfo;
+  planResponse: PlanResponse;
+  mode: PlannotatorMode;
+  sourcePlanPath?: string;
+}): string {
+  if (input.sourcePlanPath) {
+    return hashPath(`plannotator-live:${resolve(input.sourcePlanPath)}`);
+  }
+
+  if (input.session.reviewId) {
+    return hashPath(`plannotator-live-review:${input.session.reviewId}`);
+  }
+
+  const project =
+    input.session.project ??
+    input.planResponse.versionInfo?.project ??
+    input.planResponse.projectRoot;
+  if (project && input.session.label) {
+    return hashPath(`plannotator-live:${project}:${input.session.label}:${input.mode}`);
+  }
+
+  return hashPath(input.sessionPath);
 }
 
 function metadataRecord(metadata: PlannotatorMetadata): Record<string, unknown> {
@@ -394,7 +423,13 @@ async function parseLiveSession(filePath: string): Promise<Plan[]> {
 
     return [
       {
-        id: hashPath(filePath),
+        id: liveSessionIdentity({
+          sessionPath: filePath,
+          session,
+          planResponse,
+          mode: responseMode,
+          sourcePlanPath,
+        }),
         agent: origin ?? 'plannotator',
         title: extractTitle(planResponse.plan, session.label ?? filePath),
         content: planResponse.plan,
@@ -500,6 +535,13 @@ export const plannotatorAdapter: AgentAdapter = {
     const metadata = getPlannotatorMetadata(plan);
     if (!metadata?.url || !metadata.writebackCapable) return false;
     if (!isSafePlannotatorUrl(metadata.url)) return false;
+
+    if (payload.action === 'approve') {
+      return await postJson(apiUrl(metadata.url, '/api/approve'), {
+        ...(payload.feedback.trim() && { feedback: payload.feedback.trim() }),
+        planSave: { enabled: true },
+      });
+    }
 
     const feedback = formatWritebackFeedback(plan, payload);
     if (metadata.mode === 'review' || metadata.mode === 'annotate') {

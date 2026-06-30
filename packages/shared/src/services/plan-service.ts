@@ -138,7 +138,9 @@ export function discoverProjectPlanDirs(): DiscoveredPlanDir[] {
       const full = join(dir, name);
       try {
         if (statSync(full).isDirectory()) walk(full, depth + 1);
-      } catch {}
+      } catch {
+        // Ignore inaccessible entries and keep scanning siblings.
+      }
     }
   }
 
@@ -178,7 +180,9 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
         } else {
           files.push(full);
         }
-      } catch {}
+      } catch {
+        // Ignore inaccessible entries and keep scanning siblings.
+      }
     }
   } catch {
     // permission denied or similar
@@ -445,9 +449,15 @@ export async function requestChanges(
 
   const ok = await adapter.requestChanges(plan, payload);
   if (ok) {
+    const writebackAt = Date.now();
     const plannotator =
       typeof plan.metadata.plannotator === 'object' && plan.metadata.plannotator !== null
-        ? { ...plan.metadata.plannotator, lastWritebackStatus: 'sent', lastWritebackAt: Date.now() }
+        ? {
+            ...plan.metadata.plannotator,
+            ...(payload.action === 'approve' ? { status: 'approved' } : {}),
+            lastWritebackStatus: 'sent',
+            lastWritebackAt: writebackAt,
+          }
         : undefined;
     if (plannotator) plan.metadata = { ...plan.metadata, plannotator };
     plan.updatedAt = new Date();
