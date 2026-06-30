@@ -16,6 +16,22 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mergePlanMetadata(existing: unknown, incoming: unknown): unknown {
+  if (!isRecord(existing)) return incoming;
+  if (!isRecord(incoming)) return existing;
+  const merged = { ...existing, ...incoming };
+  if (incoming.userCreated === true) {
+    delete merged.lowValue;
+    delete merged.lowValueReasons;
+    delete merged.lowValueSignals;
+  }
+  return merged;
+}
+
 async function authenticateRequest(
   ctx: Parameters<typeof createAuth>[0],
   request: Request,
@@ -201,7 +217,7 @@ export const sync = httpAction(async (ctx, request) => {
       return jsonResponse({ error: 'Invalid optional field types' }, 400);
     }
 
-    const metadata =
+    const incomingMetadata =
       privacyPreferences.collectLocalIpAddress === false
         ? stripLocalIpFromMetadata(body.metadata).metadata
         : body.metadata;
@@ -210,6 +226,8 @@ export const sync = httpAction(async (ctx, request) => {
       ownerId,
       localPlanId: body.localPlanId,
     });
+
+    const metadata = mergePlanMetadata(existing?.metadata, incomingMetadata);
 
     if (hasLowValueMetadata(metadata)) {
       const deleted = existing

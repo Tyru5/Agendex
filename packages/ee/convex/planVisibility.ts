@@ -211,7 +211,9 @@ function shouldBypassHeuristic(metadata: PlanMetadata | undefined): boolean {
 }
 
 export function hasLowValueMetadata(metadata: unknown): boolean {
-  return isRecord(metadata) && metadata.lowValue === true;
+  if (!isRecord(metadata)) return false;
+  if (shouldBypassHeuristic(metadata)) return false;
+  return metadata.lowValue === true;
 }
 
 export function isLikelyLowValuePlan(plan: PlanWithMetadata): boolean {

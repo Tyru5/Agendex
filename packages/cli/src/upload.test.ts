@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { saveConfig } from '@agendex/shared';
 import type { SyncPlanResult, SyncPlanPayload } from './api.ts';
@@ -171,6 +171,51 @@ test('--open launches the direct plan URL', async () => {
   expect(code).toBe(0);
   expect(cap.opened).toHaveLength(1);
   expect(cap.opened[0]?.url).toBe('https://app.agendex.dev/dashboard?plan=pid');
+});
+
+test('success uses stored login site URL for dashboard links', async () => {
+  saveConfig({
+    configVersion: 3,
+    enabledAdapters: [],
+    customPlanDirs: [],
+    cloudToken: 'tok',
+    convexUrl: 'https://example.convex.cloud',
+    siteUrl: 'https://self-hosted.example.com',
+  });
+  delete process.env.AGENDEX_SITE_URL;
+  const f = join(dir, 'plan.md');
+  writeFileSync(f, '# My Title\n\nbody');
+  const cap = newCapture();
+  const code = await runUpload(['upload', f], makeDeps({ ok: true, planId: 'plan_123' }, cap));
+  expect(code).toBe(0);
+  const logText = cap.logs.join('\n');
+  expect(logText).toContain('https://self-hosted.example.com/dashboard?plan=plan_123');
+});
+
+test('expands tilde in upload path', async () => {
+  writeLoggedInConfig();
+  const homePlanDir = join(homedir(), `.agendex-upload-tilde-${Date.now()}`);
+  mkdirSync(homePlanDir, { recursive: true });
+  const f = join(homePlanDir, 'plan.md');
+  writeFileSync(f, '# Tilde Plan');
+  const cap = newCapture();
+  try {
+    const tildePath = `~${homePlanDir.slice(homedir().length)}/plan.md`;
+    const code = await runUpload(['upload', tildePath], makeDeps({ ok: true }, cap));
+    expect(code).toBe(0);
+    expect(cap.lastPayload?.filePath).toBe(f);
+  } finally {
+    rmSync(homePlanDir, { recursive: true, force: true });
+  }
+});
+
+test('--agent override wins over frontmatter agent', async () => {
+  writeLoggedInConfig();
+  const f = join(dir, 'plan.md');
+  writeFileSync(f, '---\nagent: codex\n---\n# T');
+  const cap = newCapture();
+  await runUpload(['upload', f, '--agent', 'cursor'], makeDeps({ ok: true }, cap));
+  expect(cap.lastPayload?.agent).toBe('cursor');
 });
 
 test('--agent override is applied to the payload', async () => {

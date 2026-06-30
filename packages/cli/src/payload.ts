@@ -37,7 +37,7 @@ export interface FileUploadParseResult {
 /**
  * Parse a standalone Markdown plan file the same way the shared generic-markdown
  * adapter does: title from the first `# heading` (else filename), agent from
- * `agent:` frontmatter (else the provided override, else `uploaded`).
+ * `agent:` frontmatter when no override is provided (else the override, else `uploaded`).
  */
 export function parseUploadFile(
   filePath: string,
@@ -46,8 +46,9 @@ export function parseUploadFile(
 ): FileUploadParseResult {
   const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
 
-  let agent = agentOverride?.trim() || 'uploaded';
-  if (fmMatch) {
+  const override = agentOverride?.trim();
+  let agent = override || 'uploaded';
+  if (!override && fmMatch) {
     const agentLine = fmMatch[1]?.match(/^agent:\s*(.+)$/m);
     if (agentLine?.[1]) agent = agentLine[1].trim();
   }
@@ -90,7 +91,7 @@ export function fileToSyncPayload(
     format: 'md',
     filePath: absolutePath,
     metadata: withSyncDeviceMetadata(
-      { uploaded: true },
+      { uploaded: true, userCreated: true },
       options.deviceId,
       options.hostname,
       options.ipAddress,

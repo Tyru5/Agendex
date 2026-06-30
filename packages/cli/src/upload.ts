@@ -1,9 +1,8 @@
 import { readFile, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { hostname as osHostname } from 'node:os';
-import { resolve } from 'node:path';
-import { loadConfig, loadOrCreateDeviceId } from '@agendex/shared';
-import { getDefaultSiteUrl, launchBrowser } from './auth.ts';
+import { loadConfig, loadOrCreateDeviceId, resolveCustomPlanDirPath } from '@agendex/shared';
+import { getSiteUrl, launchBrowser } from './auth.ts';
 import { type SyncPlanResult, syncPlan as defaultSyncPlan } from './api.ts';
 import { getLocalIpAddress } from './network.ts';
 import { fileToSyncPayload } from './payload.ts';
@@ -50,7 +49,7 @@ export async function runUpload(args: string[], deps?: Partial<UploadDeps>): Pro
     return 1;
   }
 
-  const absolutePath = resolve(pathArg);
+  const absolutePath = resolveCustomPlanDirPath(pathArg);
 
   if (!existsSync(absolutePath)) {
     error(`[agendex] path does not exist: ${absolutePath}`);
@@ -106,7 +105,7 @@ export async function runUpload(args: string[], deps?: Partial<UploadDeps>): Pro
   if (!result.ok) {
     if (result.status === 403) {
       error(`[agendex] ${result.error ?? 'Cloud Pro subscription required'}`);
-      error(`[agendex] View plans and pricing: ${getDefaultSiteUrl().replace(/\/$/, '')}/#pricing`);
+      error(`[agendex] View plans and pricing: ${getSiteUrl().replace(/\/$/, '')}/#pricing`);
       return 1;
     }
     error(`[agendex] upload failed: ${result.error ?? 'unknown error'}`);
@@ -120,7 +119,7 @@ export async function runUpload(args: string[], deps?: Partial<UploadDeps>): Pro
     return 0;
   }
 
-  const site = getDefaultSiteUrl().replace(/\/$/, '');
+  const site = getSiteUrl().replace(/\/$/, '');
   const planUrl = result.planId
     ? `${site}/dashboard?plan=${encodeURIComponent(result.planId)}`
     : `${site}/dashboard`;

@@ -11,6 +11,16 @@ export function getDefaultSiteUrl(): string {
   return isDevMode() ? DEV_SITE_URL : PROD_SITE_URL;
 }
 
+/** Resolved web app URL: env override, then login-stored config, then default. */
+export function getSiteUrl(): string {
+  if (process.env.AGENDEX_SITE_URL) return process.env.AGENDEX_SITE_URL;
+
+  const config = loadConfig();
+  if (config?.siteUrl) return config.siteUrl;
+
+  return getDefaultSiteUrl();
+}
+
 /**
  * Prints the standard opening messages and opens the URL in the system browser,
  * unless AGENDEX_DISABLE_BROWSER=1.
@@ -29,7 +39,8 @@ export function launchBrowser(url: string, label: string): void {
 export async function login(siteUrlOverride?: string): Promise<void> {
   const { port, result } = await startCallbackServer();
   const callbackUrl = `http://127.0.0.1:${port}/callback`;
-  const siteUrl = siteUrlOverride ?? getDefaultSiteUrl();
+  const existing = loadConfig();
+  const siteUrl = siteUrlOverride ?? existing?.siteUrl ?? getDefaultSiteUrl();
 
   const authUrl = `${siteUrl}/auth/cli?callback=${encodeURIComponent(callbackUrl)}`;
 
@@ -37,11 +48,11 @@ export async function login(siteUrlOverride?: string): Promise<void> {
 
   const callback = await result;
 
-  const existing = loadConfig();
   const config: AgendexConfig = {
     configVersion: 3,
     cloudToken: callback.token,
     convexUrl: callback.convexUrl,
+    siteUrl,
     enabledAdapters: existing?.enabledAdapters ?? [],
     customPlanDirs: existing?.customPlanDirs ?? [],
     ...(existing?.token ? { token: existing.token } : {}),

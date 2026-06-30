@@ -92,10 +92,10 @@ test('parseUploadFile reads agent from frontmatter and strips it from body', () 
   expect(r.body).toBe('# Titled\n\nBody');
 });
 
-test('parseUploadFile prefers frontmatter agent over override', () => {
+test('parseUploadFile prefers agent override over frontmatter', () => {
   const content = '---\nagent: codex\n---\n# Titled';
   const r = parseUploadFile('/tmp/p.md', content, 'cursor');
-  expect(r.agent).toBe('codex');
+  expect(r.agent).toBe('cursor');
 });
 
 test('parseUploadFile uses agent override when no frontmatter', () => {
@@ -129,6 +129,7 @@ test('fileToSyncPayload records upload provenance metadata', () => {
   });
   expect(payload.metadata).toEqual({
     uploaded: true,
+    userCreated: true,
     agendexSync: { deviceId: 'dev-1', hostname: 'box' },
   });
 });
