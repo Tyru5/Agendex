@@ -294,7 +294,17 @@ function collectPositiveSignals(
     nonCodeVisible.match(
       /\b(?:will|should|need to|needs to|plan to|approach|implementation|implement|add|update|modify|create|remove|refactor|test|verify|validate|steps?|tasks?)\b/gi,
     )?.length ?? 0;
-  if (wordCount(nonCodeVisible) >= 35 && planningPhraseCount >= 4) {
+  const proseWordCount = wordCount(nonCodeVisible);
+  // Long prose needs a handful of planning phrases; short prose (e.g. a terse
+  // "update X, add tests, verify it works" note) needs those phrases to make up
+  // most of its content instead, so a brief but genuine plan isn't dismissed
+  // just for lacking bulk.
+  const isPlanningProse =
+    (proseWordCount >= 35 && planningPhraseCount >= 4) ||
+    (proseWordCount >= 3 &&
+      planningPhraseCount >= 3 &&
+      planningPhraseCount / proseWordCount >= 0.4);
+  if (isPlanningProse) {
     signals.push('planning-prose');
   }
 

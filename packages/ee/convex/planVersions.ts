@@ -3,7 +3,11 @@ import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
-import { isVisiblePlan, metadataWithPlanValueAssessment } from './planVisibility';
+import {
+  assessPlanForVisibility,
+  isVisiblePlan,
+  metadataWithPlanValueAssessment,
+} from './planVisibility';
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
@@ -110,6 +114,15 @@ export const restore = mutation({
 
     if (!snapshot) {
       throw new ConvexError('Version not found');
+    }
+
+    const restoredAssessment = assessPlanForVisibility({
+      title: snapshot.title,
+      content: snapshot.content,
+      metadata: snapshot.metadata,
+    });
+    if (restoredAssessment.lowValue) {
+      throw new ConvexError('This version cannot be restored because it has no plan content');
     }
 
     const newVersion = plan.version + 1;

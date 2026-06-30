@@ -179,6 +179,14 @@ test('keeps prose-only plans with enough actionable planning language', () => {
   expect(assessment.lowValue).toBe(false);
 });
 
+test('keeps terse multi-action prose plans as valuable', () => {
+  const assessment = assessPlanValue({
+    content: 'Update validation, add tests, verify it works.',
+  });
+
+  expect(assessment.lowValue).toBe(false);
+});
+
 test('keeps structured implementation plans as valuable', () => {
   const assessment = assessPlanValue({
     content: `# Plan: Add login validation

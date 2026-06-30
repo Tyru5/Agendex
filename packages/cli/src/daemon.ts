@@ -126,6 +126,10 @@ export async function runWorker(): Promise<void> {
   const syncQueue: SyncPlanPayload[] = [];
   const retryQueue: SyncRetryEntry[] = [];
   const retryAttemptByPlanId = new Map<string, number>();
+  // Tracks the updatedAt of the payload last successfully synced per plan, so a
+  // delayed retry of an older failed payload can detect that a newer edit has
+  // since synced and skip re-applying stale content/metadata.
+  const lastSyncedUpdatedAt = new Map<string, number>();
   const pendingWritebackReports = loadPendingWritebackReports();
   // Last-synced payload for each plan id that is currently a live Plannotator
   // session. When such a plan stops being live (process died, session removed),
@@ -164,8 +168,21 @@ export async function runWorker(): Promise<void> {
   function pushToSyncQueue(...payloads: SyncPlanPayload[]) {
     for (const payload of payloads) {
       const idx = syncQueue.findIndex((p) => p.localPlanId === payload.localPlanId);
-      if (idx >= 0) syncQueue[idx] = payload;
-      else syncQueue.push(payload);
+      if (idx >= 0) {
+        const existing = syncQueue[idx];
+        // Never let an older payload (e.g. a delayed retry) clobber a newer one
+        // that's already queued.
+        if (
+          existing?.updatedAt !== undefined &&
+          payload.updatedAt !== undefined &&
+          existing.updatedAt > payload.updatedAt
+        ) {
+          continue;
+        }
+        syncQueue[idx] = payload;
+      } else {
+        syncQueue.push(payload);
+      }
     }
   }
 
@@ -187,6 +204,18 @@ export async function runWorker(): Promise<void> {
       const entry = retryQueue[i];
       if (!entry || entry.retryAt > now) continue;
       retryQueue.splice(i, 1);
+
+      // A newer edit may have synced successfully while this retry was waiting.
+      // Re-applying the stale payload would overwrite that newer cloud state.
+      const lastSynced = lastSyncedUpdatedAt.get(entry.payload.localPlanId);
+      if (
+        lastSynced !== undefined &&
+        entry.payload.updatedAt !== undefined &&
+        lastSynced >= entry.payload.updatedAt
+      ) {
+        continue;
+      }
+
       pushToSyncQueue(entry.payload);
       retryAttemptByPlanId.set(entry.payload.localPlanId, entry.attempt);
       moved++;
@@ -247,6 +276,9 @@ export async function runWorker(): Promise<void> {
           }
           syncCache[payload.localPlanId] = computePayloadHash(payload);
           retryAttemptByPlanId.delete(payload.localPlanId);
+          if (payload.updatedAt !== undefined) {
+            lastSyncedUpdatedAt.set(payload.localPlanId, payload.updatedAt);
+          }
         }
       }
     } catch (err) {

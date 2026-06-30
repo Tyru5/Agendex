@@ -1,6 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 import type { Doc } from './_generated/dataModel';
-import { mutation, query } from './_generated/server';
+import { internalMutation, internalQuery } from './_generated/server';
 import { deletePlanRelatedData } from './planDeletion';
 import { assessPlanForVisibility, hasLowValueMetadata } from './planVisibility';
 
@@ -115,7 +115,11 @@ const cleanupArgs = {
   limit: v.optional(v.number()),
 };
 
-export const auditLowValuePlans = query({
+// Internal-only: this performs irreversible deletes (cleanupLowValuePlans) and
+// must never be reachable from the public client API, regardless of the admin
+// token check below. Invoke via `npx convex run` (authenticated deploy access)
+// or the Convex dashboard.
+export const auditLowValuePlans = internalQuery({
   args: cleanupArgs,
   handler: async (ctx, args) => {
     requireAdminToken(args.adminToken);
@@ -139,7 +143,7 @@ export const auditLowValuePlans = query({
   },
 });
 
-export const cleanupLowValuePlans = mutation({
+export const cleanupLowValuePlans = internalMutation({
   args: cleanupArgs,
   handler: async (ctx, args) => {
     requireAdminToken(args.adminToken);
@@ -161,12 +165,23 @@ export const cleanupLowValuePlans = mutation({
       deleted++;
     }
 
+    // Deleting rows from the page just paginated can shift table position out
+    // from under `continueCursor`, which is computed against the pre-delete
+    // table state. When that happens, re-scan from this call's starting cursor
+    // instead of advancing, so the next batch can't skip over rows that moved
+    // into the deleted rows' place.
+    const advance = deleted === 0;
+
     return {
       mode: 'apply' as const,
       ...summary,
       deleted,
-      isDone: result.isDone,
-      continueCursor: result.isDone ? null : result.continueCursor,
+      isDone: advance && result.isDone,
+      continueCursor: advance
+        ? result.isDone
+          ? null
+          : result.continueCursor
+        : (args.cursor ?? null),
     };
   },
 });
