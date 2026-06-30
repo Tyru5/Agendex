@@ -78,6 +78,7 @@ export type {
   PlannotatorPlanAnnotation,
   PlannotatorReviewAnnotation,
   PlannotatorStatus,
+  PlannotatorWritebackAction,
   PlannotatorWritebackPayload,
 } from './types.ts';
 export { ProFeature } from './types.ts';

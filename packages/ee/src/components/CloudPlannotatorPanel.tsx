@@ -3,7 +3,7 @@ import type { Plan } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { type DaemonDeviceInfo, useDaemonStatus } from '../hooks/useDaemonStatus.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -55,6 +55,7 @@ function resolveOpenLiveness(
   plan: Plan,
   metadata: PlannotatorMetadata,
   devices: DaemonDeviceInfo[],
+  daemonStatus: 'alive' | 'stale' | 'unknown',
 ): OpenLiveness {
   const hostname = getSyncHostname(plan);
 
@@ -74,7 +75,11 @@ function resolveOpenLiveness(
     }
   }
 
-  // (2) Fallback: correlate with the syncing daemon device's liveness.
+  // (2) Fallback: correlate with the syncing daemon device's liveness. While
+  // the daemon query is still loading, keep proven-live sessions open rather
+  // than briefly claiming the Plannotator server is gone.
+  if (daemonStatus === 'unknown') return { state: 'open', hostname };
+
   const deviceId = getSyncDeviceId(plan);
   const matched = deviceId ? devices.find((d) => d.deviceId === deviceId) : undefined;
 
@@ -155,22 +160,25 @@ function StatusPill({ status }: { status: string | undefined }) {
 
 export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
   const metadata = getPlannotatorMetadata(plan);
-  const { devices } = useDaemonStatus();
+  const { aggregateStatus, devices } = useDaemonStatus();
   if (!metadata) return null;
 
   const isLiveKind = metadata.kind === 'live-session';
-  const liveness = resolveOpenLiveness(plan, metadata, devices);
-  const sessionEnded = isLiveKind && liveness.state === 'offline';
+  const liveness = resolveOpenLiveness(plan, metadata, devices, aggregateStatus);
+  const sessionOffline = isLiveKind && liveness.state === 'offline';
+  const sessionEnded = sessionOffline && liveness.reason === 'session-ended';
 
   const label = isLiveKind
     ? sessionEnded
       ? 'Plannotator session ended'
-      : 'Plannotator live'
+      : sessionOffline
+        ? 'Plannotator unavailable'
+        : 'Plannotator live'
     : metadata.kind === 'project-plan'
       ? 'Plannotator project plan'
       : 'Plannotator snapshot';
-  // An ended live session is no longer "pending" — reflect that in the dot color.
-  const status = sessionEnded
+  // Offline live sessions are no longer actionable; reflect that in the dot color.
+  const status = sessionOffline
     ? 'unknown'
     : (metadata.status ?? (isLiveKind ? 'pending' : 'unknown'));
 
@@ -191,7 +199,7 @@ export function CloudPlannotatorBadge({ plan }: { plan: Plan }) {
           : 'Start the originating machine to continue'
       : undefined;
 
-  const isLivePulse = isLiveKind && !sessionEnded;
+  const isLivePulse = isLiveKind && !sessionOffline;
 
   return (
     <div className="plan-plannotator-badge inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
@@ -248,41 +256,108 @@ export function CloudPlannotatorWritebackPanel({
   variant?: PlannotatorPanelVariant;
 }) {
   const metadata = getPlannotatorMetadata(plan);
-  const isLive = metadata?.kind === 'live-session' && metadata.writebackCapable === true;
-  const canRequestChanges = isLive && daemonAvailable && canQueueWriteback;
   const enqueueWriteback = useMutation(api.plannotator.enqueueWriteback);
+  // `enqueueWriteback` resolves to the canonical live plan, which may differ
+  // from the plan being displayed (e.g. a superseded row). Gate the actions on
+  // that canonical plan's state so we never enable approve/request against a
+  // stale row that the backend would reject or double-process.
+  const canonicalState = useQuery(
+    api.plannotator.getCanonicalWritebackState,
+    metadata ? { planId: plan.id as Id<'plans'> } : 'skip',
+  );
+  // Read write-back history for the canonical plan once resolved: pending jobs
+  // are remapped onto the canonical row when a session is superseded, so reading
+  // the displayed (possibly superseded) row would show stale/missing history.
   const writebacks = useQuery(
     api.plannotator.listWritebacksForPlan,
-    metadata ? { planId: plan.id as Id<'plans'> } : 'skip',
+    canonicalState
+      ? { planId: canonicalState.canonicalPlanId }
+      : metadata
+        ? { planId: plan.id as Id<'plans'> }
+        : 'skip',
   );
   const [feedback, setFeedback] = useState('');
   const [revisedContent, setRevisedContent] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<'approve' | 'request_changes' | null>(
+    null,
+  );
   const [error, setError] = useState<string>();
-  const [queued, setQueued] = useState(false);
+  const [queuedAction, setQueuedAction] = useState<'approve' | 'request_changes' | null>(null);
 
   const latest = useMemo(() => writebacks?.[0], [writebacks]);
 
+  // Clear the local "queued" confirmation once the backend resolves the write-back
+  // to a terminal state. Otherwise `queuedAction` stays set after a failed/sent
+  // delivery, which would keep the actions disabled and suppress `latest.error`,
+  // leaving the user unable to see the failure or retry.
+  useEffect(() => {
+    if (queuedAction && latest && latest.status !== 'pending') {
+      setQueuedAction(null);
+    }
+  }, [queuedAction, latest]);
+
+  // Prefer canonical state once loaded; fall back to the displayed plan's own
+  // metadata/writebacks while it resolves.
+  const isLive = canonicalState
+    ? canonicalState.isLive
+    : metadata?.kind === 'live-session' &&
+      metadata.writebackCapable === true &&
+      metadata.liveness === 'live';
+  const isApproved = canonicalState ? canonicalState.isApproved : metadata?.status === 'approved';
+  const hasPendingWriteback = canonicalState
+    ? canonicalState.pendingWritebackExpiresAt !== null &&
+      canonicalState.pendingWritebackExpiresAt > Date.now()
+    : latest?.status === 'pending' && latest.expiresAt > Date.now();
+  const hasQueuedAction = queuedAction !== null;
+  const canQueueAnyWriteback =
+    isLive && daemonAvailable && canQueueWriteback && !isApproved && !hasPendingWriteback;
+  const canRequestChanges = canQueueAnyWriteback;
+  const canApprove = canQueueAnyWriteback;
+  const requestHasBody = Boolean(feedback.trim() || revisedContent.trim());
+  const requestChangesDisabled =
+    submittingAction !== null || hasQueuedAction || !canRequestChanges || !requestHasBody;
+  const approveDisabled = submittingAction !== null || hasQueuedAction || !canApprove;
+
   if (!metadata) return null;
 
-  async function requestChanges() {
-    if (!canRequestChanges || (!feedback.trim() && !revisedContent.trim())) return;
-    setSubmitting(true);
+  async function approvePlan() {
+    if (!canApprove) return;
+    setSubmittingAction('approve');
     setError(undefined);
-    setQueued(false);
+    setQueuedAction(null);
     try {
       await enqueueWriteback({
         planId: plan.id as Id<'plans'>,
+        action: 'approve',
+        feedback: '',
+      });
+      setQueuedAction('approve');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to queue approval');
+    } finally {
+      setSubmittingAction(null);
+    }
+  }
+
+  async function requestChanges() {
+    if (!canRequestChanges || !requestHasBody) return;
+    setSubmittingAction('request_changes');
+    setError(undefined);
+    setQueuedAction(null);
+    try {
+      await enqueueWriteback({
+        planId: plan.id as Id<'plans'>,
+        action: 'request_changes',
         feedback: feedback.trim(),
         revisedContent: revisedContent.trim() || undefined,
       });
       setFeedback('');
       setRevisedContent('');
-      setQueued(true);
+      setQueuedAction('request_changes');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to queue request');
     } finally {
-      setSubmitting(false);
+      setSubmittingAction(null);
     }
   }
 
@@ -325,7 +400,7 @@ export function CloudPlannotatorWritebackPanel({
           <div className="plannotator-writeback-footer">
             <div className="plannotator-panel-note">
               {!canQueueWriteback && (
-                <span>Only the plan owner can queue request-changes feedback.</span>
+                <span>Only the plan owner can approve or queue request-changes feedback.</span>
               )}
               {canQueueWriteback && !daemonAvailable && (
                 <span>
@@ -334,30 +409,55 @@ export function CloudPlannotatorWritebackPanel({
                   write-back delivery.
                 </span>
               )}
-              {canQueueWriteback && daemonAvailable && queued && 'Queued for daemon delivery.'}
+              {canQueueWriteback && daemonAvailable && isApproved && 'This plan is approved.'}
+              {canQueueWriteback && daemonAvailable && !isApproved && hasPendingWriteback && (
+                <span>A Plannotator request is already pending.</span>
+              )}
+              {canQueueWriteback &&
+                daemonAvailable &&
+                queuedAction === 'approve' &&
+                'Approval queued for daemon delivery.'}
+              {canQueueWriteback &&
+                daemonAvailable &&
+                queuedAction === 'request_changes' &&
+                'Request queued for daemon delivery.'}
               {canQueueWriteback && daemonAvailable && error && (
                 <span className="text-[var(--danger)]">{error}</span>
               )}
-              {canQueueWriteback && daemonAvailable && !queued && !error && latest?.error
+              {canQueueWriteback && daemonAvailable && !queuedAction && !error && latest?.error
                 ? latest.error
                 : null}
             </div>
-            <button
-              type="button"
-              onClick={requestChanges}
-              disabled={
-                submitting || !canRequestChanges || (!feedback.trim() && !revisedContent.trim())
-              }
-              className={PRIMARY_BUTTON}
-            >
-              {submitting
-                ? 'Queueing…'
-                : !canQueueWriteback
-                  ? 'Owner only'
-                  : daemonAvailable
-                    ? 'Queue request'
-                    : 'Daemon required'}
-            </button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={approvePlan}
+                disabled={approveDisabled}
+                className={`${PRIMARY_BUTTON} ${approveDisabled ? 'cursor-default' : 'cursor-pointer'}`}
+              >
+                {submittingAction === 'approve'
+                  ? 'Approving…'
+                  : !canQueueWriteback
+                    ? 'Owner only'
+                    : daemonAvailable
+                      ? 'Approve plan'
+                      : 'Daemon required'}
+              </button>
+              <button
+                type="button"
+                onClick={requestChanges}
+                disabled={requestChangesDisabled}
+                className={GHOST_BUTTON}
+              >
+                {submittingAction === 'request_changes'
+                  ? 'Queueing…'
+                  : !canQueueWriteback
+                    ? 'Owner only'
+                    : daemonAvailable
+                      ? 'Queue request'
+                      : 'Daemon required'}
+              </button>
+            </div>
           </div>
         </div>
       )}

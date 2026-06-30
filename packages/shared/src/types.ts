@@ -79,7 +79,10 @@ export interface PlannotatorMetadata {
   lastWritebackAt?: number;
 }
 
+export type PlannotatorWritebackAction = 'request_changes' | 'approve';
+
 export interface PlannotatorWritebackPayload {
+  action?: PlannotatorWritebackAction;
   feedback: string;
   revisedContent?: string;
   annotations?: PlannotatorFeedbackAnnotation[];

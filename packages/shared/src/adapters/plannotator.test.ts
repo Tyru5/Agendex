@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
+import { hashPath } from '../hash.ts';
 import { getAll, requestChanges, scan } from '../services/plan-service.ts';
 import type { PlannotatorFeedbackAnnotation } from '../types.ts';
 import { isSafePlannotatorUrl, plannotatorAdapter } from './plannotator.ts';
@@ -52,7 +53,10 @@ function startPlannotatorTestServer(
       return;
     }
 
-    if ((req.url === '/api/deny' || req.url === '/api/feedback') && req.method === 'POST') {
+    if (
+      (req.url === '/api/approve' || req.url === '/api/deny' || req.url === '/api/feedback') &&
+      req.method === 'POST'
+    ) {
       let raw = '';
       req.on('data', (chunk) => {
         raw += chunk;
@@ -113,11 +117,12 @@ test('parses saved Plannotator snapshots with companion annotation metadata', as
   await scan();
 
   const [plan] = getAll();
-  expect(plan?.agent).toBe('plannotator');
-  expect(plan?.title).toBe('Auth Flow');
-  expect(plan?.metadata.sourceAdapter).toBe('plannotator');
-  expect((plan?.metadata.plannotator as { status?: string }).status).toBe('denied');
-  expect((plan?.metadata.plannotator as { annotationsPath?: string }).annotationsPath).toBe(
+  if (!plan) throw new Error('Expected a parsed Plannotator snapshot');
+  expect(plan.agent).toBe('plannotator');
+  expect(plan.title).toBe('Auth Flow');
+  expect(plan.metadata.sourceAdapter).toBe('plannotator');
+  expect((plan.metadata.plannotator as { status?: string }).status).toBe('denied');
+  expect((plan.metadata.plannotator as { annotationsPath?: string }).annotationsPath).toBe(
     annotations,
   );
 });
@@ -147,18 +152,19 @@ test('parses project-level Plannotator @plans directories', async () => {
   await scan();
 
   const [plan] = getAll();
-  expect(plan?.agent).toBe('plannotator');
-  expect(plan?.title).toBe('Checkout Refactor');
-  expect(plan?.filePath.endsWith('/@plans/checkout-refactor.md')).toBe(true);
-  expect(plan?.workspace?.endsWith('/workspace/demo-project')).toBe(true);
-  expect(plan?.metadata.sourceAdapter).toBe('plannotator');
-  expect((plan?.metadata.plannotator as { kind?: string }).kind).toBe('project-plan');
+  if (!plan) throw new Error('Expected a parsed project-level Plannotator plan');
+  expect(plan.agent).toBe('plannotator');
+  expect(plan.title).toBe('Checkout Refactor');
+  expect(plan.filePath.endsWith('/@plans/checkout-refactor.md')).toBe(true);
+  expect(plan.workspace?.endsWith('/workspace/demo-project')).toBe(true);
+  expect(plan.metadata.sourceAdapter).toBe('plannotator');
+  expect((plan.metadata.plannotator as { kind?: string }).kind).toBe('project-plan');
   expect(
-    (plan?.metadata.plannotator as { annotationsPath?: string }).annotationsPath?.endsWith(
+    (plan.metadata.plannotator as { annotationsPath?: string }).annotationsPath?.endsWith(
       '/@plans/checkout-refactor.annotations.md',
     ),
   ).toBe(true);
-  expect((plan?.metadata.plannotator as { writebackCapable?: boolean }).writebackCapable).toBe(
+  expect((plan.metadata.plannotator as { writebackCapable?: boolean }).writebackCapable).toBe(
     false,
   );
 });
@@ -184,12 +190,37 @@ test('parses live Plannotator sessions from loopback servers', async () => {
   await scan();
 
   const [plan] = getAll();
-  expect(plan?.agent).toBe('claude-code');
-  expect(plan?.content).toContain('Live Plan');
-  expect((plan?.metadata.plannotator as { kind?: string }).kind).toBe('live-session');
-  expect((plan?.metadata.plannotator as { writebackCapable?: boolean }).writebackCapable).toBe(
-    true,
-  );
+  if (!plan) throw new Error('Expected a parsed live Plannotator session');
+  expect(plan.agent).toBe('claude-code');
+  expect(plan.content).toContain('Live Plan');
+  expect((plan.metadata.plannotator as { kind?: string }).kind).toBe('live-session');
+  expect((plan.metadata.plannotator as { writebackCapable?: boolean }).writebackCapable).toBe(true);
+});
+
+test('uses source plan path as a stable live-session identity across restarts', async () => {
+  const home = await useTempHome();
+  const { url } = await startPlannotatorTestServer();
+  const sessionsDir = join(home, '.plannotator', 'sessions');
+  const workspaceDir = join(home, 'workspace');
+  const sourcePlanPath = join(workspaceDir, 'plan.md');
+  await mkdir(sessionsDir, { recursive: true });
+  await mkdir(workspaceDir, { recursive: true });
+
+  for (const name of ['old-session.json', 'new-session.json']) {
+    await writeFile(
+      join(sessionsDir, name),
+      JSON.stringify({ pid: process.pid, url, mode: 'annotate', sourcePlanPath }),
+      'utf-8',
+    );
+  }
+
+  setActiveAdapters([plannotatorAdapter]);
+  await scan();
+
+  const plans = getAll();
+  expect(plans).toHaveLength(1);
+  expect(plans[0]?.id).toBe(hashPath(`plannotator-live:${sourcePlanPath}`));
+  expect(plans[0]?.filePath).toBe(sourcePlanPath);
 });
 
 test('skips stale Plannotator live sessions', async () => {
@@ -206,6 +237,35 @@ test('skips stale Plannotator live sessions', async () => {
   await scan();
 
   expect(getAll()).toHaveLength(0);
+});
+
+test('requestChanges routes Plannotator approval to /api/approve', async () => {
+  const home = await useTempHome();
+  const { url, requests } = await startPlannotatorTestServer();
+  const sessionsDir = join(home, '.plannotator', 'sessions');
+  await mkdir(sessionsDir, { recursive: true });
+  await writeFile(
+    join(sessionsDir, `${process.pid}.json`),
+    JSON.stringify({ pid: process.pid, url, mode: 'plan' }),
+    'utf-8',
+  );
+
+  setActiveAdapters([plannotatorAdapter]);
+  await scan();
+  const [plan] = getAll();
+  if (!plan) throw new Error('Expected a parsed Plannotator plan');
+
+  const ok = await requestChanges(plan.id, {
+    action: 'approve',
+    feedback: 'Approved from Agendex.',
+    source: 'agendex-cloud',
+  });
+
+  expect(ok).toBe(true);
+  expect(requests).toHaveLength(1);
+  expect(requests[0]?.path).toBe('/api/approve');
+  expect(requests[0]?.body.feedback).toBe('Approved from Agendex.');
+  expect(requests[0]?.body.planSave).toEqual({ enabled: true });
 });
 
 test('requestChanges routes Plannotator plans to /api/deny with typed annotations', async () => {
