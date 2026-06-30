@@ -131,6 +131,9 @@ bun run cli:hooks -- uninstall <agent|all> # remove managed Agendex hook entries
 bun run cli:review-plan -- --hook --agent <agent>  # hook-native plan review entrypoint
 bun run cli:sync            # one-shot cloud sync
 bun run cli:sync -- --force # re-sync all plans, ignoring cache
+bun run cli -- upload ~/path/to/plan.md          # upload a single Markdown plan to the cloud
+bun run cli -- upload ~/path/to/plan.md --agent codex  # override the plan's agent label
+bun run cli -- upload ~/path/to/plan.md --open   # upload and open the plan in the browser
 bun run cli:stop            # stop daemon
 bun run cli -- cleanup      # interactively remove cloud daemon records
 bun run cli -- cleanup --stale

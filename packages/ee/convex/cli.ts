@@ -11,7 +11,7 @@ import {
 } from './_generated/server';
 import { authComponent, createAuth } from './auth';
 import { deletePlanRelatedData } from './planDeletion';
-import { hasLowValueMetadata } from './planVisibility';
+import { hasLowValueMetadata, mergePlanMetadata } from './planVisibility';
 import { stripLocalIpFromMetadata } from './privacy';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
@@ -389,7 +389,7 @@ export const sync = httpAction(async (ctx, request) => {
       return jsonResponse({ error: 'Invalid optional field types' }, 400);
     }
 
-    const metadata =
+    const incomingMetadata =
       privacyPreferences.collectLocalIpAddress === false
         ? stripLocalIpFromMetadata(body.metadata).metadata
         : body.metadata;
@@ -398,6 +398,8 @@ export const sync = httpAction(async (ctx, request) => {
       ownerId,
       localPlanId: body.localPlanId,
     });
+
+    const metadata = mergePlanMetadata(existing?.metadata, incomingMetadata);
 
     if (hasLowValueMetadata(metadata)) {
       const deleted = existing

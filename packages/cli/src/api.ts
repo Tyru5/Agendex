@@ -47,8 +47,10 @@ export interface SyncPlanPayload {
 export interface SyncPlanResult {
   ok: boolean;
   error?: string;
+  status?: number;
   skippedLowValue?: boolean;
   deleted?: boolean;
+  planId?: string;
 }
 
 export interface CliPreferences {
@@ -66,6 +68,7 @@ function parseSyncSuccess(body: string): SyncPlanResult {
       ok: true,
       skippedLowValue: result.skippedLowValue === true,
       deleted: result.deleted === true,
+      ...(typeof result.planId === 'string' && { planId: result.planId }),
     };
   } catch {
     return { ok: true };
@@ -104,7 +107,7 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<SyncPlanResult> {
   }
 
   if (res.status < 200 || res.status >= 300) {
-    return { ok: false, error: `${res.status}: ${res.body}` };
+    return { ok: false, status: res.status, error: `${res.status}: ${res.body}` };
   }
 
   return parseSyncSuccess(res.body);
