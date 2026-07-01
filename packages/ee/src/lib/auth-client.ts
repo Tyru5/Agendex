@@ -49,5 +49,8 @@ async function desktopAuthFetch(input: RequestInfo | URL, init?: RequestInit): P
 export const authClient = createAuthClient({
   baseURL: desktopConvexSiteUrl || (import.meta.env.VITE_CONVEX_SITE_URL as string),
   plugins: [convexClient(), crossDomainClient({ disableCache: true })],
-  ...(isDesktop() ? { fetch: desktopAuthFetch } : {}),
+  // `customFetchImpl` (not a top-level `fetch` key) is how better-auth accepts
+  // a fetch override; it routes every auth request (get-session, list-accounts,
+  // ...) through the Bearer-token wrapper so desktop sessions resolve a user.
+  ...(isDesktop() ? { fetchOptions: { customFetchImpl: desktopAuthFetch } } : {}),
 });

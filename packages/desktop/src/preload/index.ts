@@ -8,18 +8,36 @@ interface Bootstrap {
   modePref: 'local' | 'cloud' | null;
 }
 
+type DesktopAuthProvider = 'github' | 'google';
+interface CloudSession {
+  token: string;
+  convexSiteUrl: string;
+}
+
 const MODE_PREF_KEY = 'agendex_dashboard_mode';
 
 function readBootstrap(): Bootstrap {
   try {
     return ipcRenderer.sendSync('agendex:get-bootstrap') as Bootstrap;
   } catch (err) {
-    console.error('[agendex-desktop] failed to read bootstrap', err);
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error('[agendex-desktop] failed to read bootstrap', error);
     return { localToken: null, cloudToken: null, convexSiteUrl: null, modePref: null };
   }
 }
 
 const bootstrap = readBootstrap();
+
+function reportQaBootstrap() {
+  if (!process.env.AGENDEX_DESKTOP_QA_BOOTSTRAP_PATH) return;
+  ipcRenderer.send('agendex:qa-bootstrap-observed', {
+    href: window.location.href,
+    cloudTokenPresent: Boolean(bootstrap.cloudToken),
+    convexSiteUrl: bootstrap.convexSiteUrl,
+    modePref: bootstrap.modePref,
+    desktopDataset: true,
+  });
+}
 
 /**
  * Seeds the local API token so the desktop skips the manual local-connect step.
@@ -31,7 +49,8 @@ function injectLocalToken() {
   try {
     window.localStorage.setItem('agendex_token', bootstrap.localToken);
   } catch (err) {
-    console.error('[agendex-desktop] failed to inject local token', err);
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error('[agendex-desktop] failed to inject local token', error);
   }
 }
 
@@ -41,7 +60,8 @@ function injectDesktopPrefs() {
   try {
     window.localStorage.setItem(MODE_PREF_KEY, bootstrap.modePref);
   } catch (err) {
-    console.error('[agendex-desktop] failed to inject mode preference', err);
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error('[agendex-desktop] failed to inject mode preference', error);
   }
 }
 
@@ -51,7 +71,10 @@ const agendexDesktop = {
   isDesktop: true as const,
   cloudToken: bootstrap.cloudToken,
   convexSiteUrl: bootstrap.convexSiteUrl,
-  login: (): Promise<boolean> => ipcRenderer.invoke('agendex:login'),
+  login: async (provider?: DesktopAuthProvider): Promise<boolean> => {
+    const ok = await ipcRenderer.invoke('agendex:login', provider);
+    return ok === true;
+  },
   logout: async (): Promise<boolean> => {
     const ok = (await ipcRenderer.invoke('agendex:logout')) as boolean;
     agendexDesktop.cloudToken = null;
@@ -79,6 +102,29 @@ const agendexDesktop = {
     }
     return null;
   },
+  getConvexAuthToken: async (): Promise<string | null> => {
+    const result = (await ipcRenderer.invoke('agendex:get-convex-auth-token')) as {
+      token?: string;
+      cloudSession?: Partial<CloudSession>;
+      sessionCleared?: boolean;
+    } | null;
+    if (result?.cloudSession?.token && result.cloudSession.convexSiteUrl) {
+      agendexDesktop.cloudToken = result.cloudSession.token;
+      agendexDesktop.convexSiteUrl = result.cloudSession.convexSiteUrl;
+    }
+    if (result?.sessionCleared && bootstrap.cloudToken) {
+      // The session was revoked and the main process cleared the stored creds.
+      // The renderer's copy of this bridge is frozen at expose time
+      // (contextBridge copies values), so nulling `cloudToken` here cannot
+      // reach it — reload so the page re-bootstraps without the stale token
+      // and lands on the sign-in gate.
+      agendexDesktop.cloudToken = null;
+      agendexDesktop.convexSiteUrl = null;
+      window.location.reload();
+      return null;
+    }
+    return typeof result?.token === 'string' && result.token.trim() ? result.token : null;
+  },
 };
 
 if (process.contextIsolated) {
@@ -86,13 +132,12 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('electron', electronAPI);
     contextBridge.exposeInMainWorld('agendexDesktop', agendexDesktop);
   } catch (err) {
-    console.error(err);
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error(error);
   }
 } else {
-  // @ts-expect-error define on window when context isolation is disabled
-  window.electron = electronAPI;
-  // @ts-expect-error define on window when context isolation is disabled
-  window.agendexDesktop = agendexDesktop;
+  Object.assign(window, { electron: electronAPI, agendexDesktop });
 }
 
 injectDesktopPrefs();
+reportQaBootstrap();

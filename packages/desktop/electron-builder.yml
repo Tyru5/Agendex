@@ -32,6 +32,10 @@ asar: true
 
 mac:
   category: public.app-category.developer-tools
+  protocols:
+    - name: Agendex Auth
+      schemes:
+        - agendex
   target:
     - target: dmg
       arch:
@@ -59,3 +63,8 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  # Registers the agendex:// deep-link scheme in the Windows registry at
+  # install time (the `protocols` option above is macOS-only). The app also
+  # re-registers at runtime via app.setAsDefaultProtocolClient, which covers
+  # the portable target.
+  include: build/installer.nsh

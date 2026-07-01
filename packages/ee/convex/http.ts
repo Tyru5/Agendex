@@ -6,6 +6,7 @@ import { LOCAL_DEV_CORS_ORIGINS, authComponent, createAuth } from './auth';
 import {
   deleteDaemonsHttp,
   devices,
+  convexToken,
   heartbeat,
   plannotatorWritebackReport,
   plannotatorWritebacks,
@@ -71,6 +72,7 @@ registerRoutes(http, stripeComponent, {
 http.route({ path: '/api/cli/sync', method: 'POST', handler: sync });
 http.route({ path: '/api/cli/preferences', method: 'GET', handler: preferences });
 http.route({ path: '/api/cli/refresh', method: 'POST', handler: refresh });
+http.route({ path: '/api/cli/convex-token', method: 'GET', handler: convexToken });
 http.route({ path: '/api/cli/heartbeat', method: 'POST', handler: heartbeat });
 http.route({ path: '/api/cli/devices', method: 'GET', handler: devices });
 http.route({ path: '/api/cli/devices', method: 'DELETE', handler: deleteDaemonsHttp });

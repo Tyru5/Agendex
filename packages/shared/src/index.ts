@@ -28,6 +28,21 @@ export {
   CLI_DAEMON_STALE_AFTER_MS,
   CLI_DAEMON_STATUS_POLL_INTERVAL_MS,
 } from './daemon-status.ts';
+export type {
+  DesktopAuthCallback,
+  DesktopAuthCallbackError,
+  DesktopAuthCallbackInput,
+  DesktopAuthCallbackParseResult,
+  DesktopAuthStateExpectation,
+  DesktopAuthStateValidationResult,
+} from './desktop-auth-callback.ts';
+export {
+  createDesktopAuthCallbackUrl,
+  DESKTOP_AUTH_CALLBACK_URL,
+  parseDesktopAuthCallbackUrl,
+  redactDesktopAuthCallbackUrl,
+  validateDesktopAuthCallbackState,
+} from './desktop-auth-callback.ts';
 export { hashPath } from './hash.ts';
 export type {
   CreatePlanAnnotationInput,

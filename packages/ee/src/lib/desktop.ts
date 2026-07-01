@@ -1,3 +1,7 @@
+import { deriveConvexDeploymentUrl } from '@agendex/shared/convex-url';
+
+export type DesktopAuthProvider = 'github' | 'google';
+
 /**
  * Desktop (Electron) integration bridge.
  *
@@ -5,18 +9,19 @@
  * present, the EE client runs inside the desktop app and authenticates against
  * the cloud using a session token obtained through the system-browser loopback
  * login flow (mirrors `agendex login` in the CLI). The token is used as a Bearer
- * credential, and the Convex deployment URLs are derived from the Convex *site*
- * URL returned by that flow — so the desktop build needs no baked Convex env.
+ * credential, and the Convex deployment URLs are derived from the Convex site
+ * URL returned by that flow, so the desktop build needs no baked Convex env.
  */
 
 export interface AgendexDesktopBridge {
   readonly isDesktop: true;
   cloudToken: string | null;
   convexSiteUrl: string | null;
-  login: () => Promise<boolean>;
+  login: (provider?: DesktopAuthProvider) => Promise<boolean>;
   logout: () => Promise<boolean>;
   setModePref: (mode: 'local' | 'cloud') => Promise<boolean>;
   refreshCloudSession: () => Promise<{ token: string; convexSiteUrl: string } | null>;
+  getConvexAuthToken: () => Promise<string | null>;
 }
 
 function getBridge(): AgendexDesktopBridge | undefined {
@@ -28,6 +33,10 @@ export function isDesktop(): boolean {
   return getBridge()?.isDesktop === true;
 }
 
+export function normalizeDesktopAuthProvider(provider: unknown): DesktopAuthProvider | undefined {
+  return provider === 'github' || provider === 'google' ? provider : undefined;
+}
+
 export function getDesktopCloudToken(): string | null {
   return getBridge()?.cloudToken ?? null;
 }
@@ -37,23 +46,32 @@ export function getDesktopConvexSiteUrl(): string | null {
 }
 
 /**
- * Derives the Convex deployment (`.convex.cloud`) URL from the Convex site
- * (`.convex.site`) URL returned by the loopback login. Both are minted from the
- * same deployment, so the swap is deterministic.
+ * Derives the Convex deployment URL from the site URL returned by login.
+ * Production swaps `.convex.site` to `.convex.cloud`; local anonymous Convex
+ * swaps the site port 3211 to the deployment port 3210.
  */
 export function getDesktopConvexCloudUrl(): string | null {
   const siteUrl = getDesktopConvexSiteUrl();
   if (!siteUrl) return null;
-  return siteUrl.replace('.convex.site', '.convex.cloud');
+  return deriveConvexDeploymentUrl(siteUrl);
 }
 
-/** Opens the system-browser sign-in flow, then reloads to pick up the session. */
-export async function desktopLogin(): Promise<boolean> {
+export async function desktopLogin(provider?: DesktopAuthProvider): Promise<boolean> {
   const bridge = getBridge();
   if (!bridge) return false;
-  const ok = await bridge.login();
-  if (ok && typeof window !== 'undefined') window.location.reload();
-  return ok;
+  try {
+    const ok = await bridge.login(provider);
+    if (!ok) return false;
+    if (typeof window !== 'undefined') window.location.reload();
+    return true;
+  } catch (err) {
+    if (err instanceof Error) {
+      console.error('[agendex-desktop] login bridge failed', err);
+    } else {
+      console.error('[agendex-desktop] login bridge failed', String(err));
+    }
+    return false;
+  }
 }
 
 /** Clears the stored cloud session and reloads into the dashboard sign-in gate. */
@@ -84,4 +102,10 @@ export async function refreshDesktopCloudSession(): Promise<string | null> {
   if (!bridge) return null;
   const refreshed = await bridge.refreshCloudSession();
   return refreshed?.token ?? null;
+}
+
+export async function getDesktopConvexAuthToken(): Promise<string | null> {
+  const bridge = getBridge();
+  if (!bridge?.cloudToken || !bridge.convexSiteUrl) return null;
+  return bridge.getConvexAuthToken();
 }

@@ -712,11 +712,11 @@ html[data-agendex-desktop='true'] .desktop-signin-shell :is(button, a, input) {
   .share-surface-in,
   .share-reveal,
   .share-link-row,
-    .settings-tab-content,
-    .local-ip-disclosure,
-    .desktop-signin-content,
-    .desktop-signin-spinner,
-    .plannotator-live-dot {
+  .settings-tab-content,
+  .local-ip-disclosure,
+  .desktop-signin-content,
+  .desktop-signin-spinner,
+  .plannotator-live-dot {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

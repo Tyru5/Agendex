@@ -1,12 +1,17 @@
 import { GitHubIcon, GoogleIcon, Skeleton } from '@agendex/web';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
+import {
+  buildDesktopAuthRedirectUrl,
+  type DesktopAuthProvider,
+  type DesktopAuthRequest,
+} from '../lib/desktop-auth-flow.ts';
 
-interface CliAuthPageProps {
-  callbackUrl: string;
+interface DesktopAuthPageProps {
+  readonly authRequest: Extract<DesktopAuthRequest, { readonly ok: true }>;
 }
 
-export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
+export function DesktopAuthPage({ authRequest }: DesktopAuthPageProps) {
   const { user, sessionToken, isLoading, isAuthenticated, signIn } = useAuth();
   const [status, setStatus] = useState<'choosing' | 'signing-in' | 'redirecting' | 'error'>(
     'choosing',
@@ -15,27 +20,19 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
   const didAutoStart = useRef(false);
 
   const handleProvider = useCallback(
-    (provider: 'github' | 'google') => {
+    (provider: DesktopAuthProvider) => {
       setStatus('signing-in');
-      signIn.social({ provider, callbackURL: window.location.href });
+      void signIn.social({ provider, callbackURL: window.location.href });
     },
     [signIn],
   );
 
-  // When the desktop app opens this page with `?provider=github|google`, skip the
-  // chooser and start that provider's OAuth immediately. The guard prevents
-  // re-triggering after the OAuth round-trip returns with `?ott=…` (a fresh
-  // page load where the auto-start ref has reset): we only fire when there is no
-  // OTT and the user is still unauthenticated.
   useEffect(() => {
-    if (didAutoStart.current || isLoading) return;
-    const params = new URLSearchParams(window.location.search);
-    const hasOtt = params.has('ott');
-    const provider = params.get('provider');
-    if (hasOtt || isAuthenticated || (provider !== 'github' && provider !== 'google')) return;
+    if (didAutoStart.current || isLoading || isAuthenticated) return;
+    if (new URLSearchParams(window.location.search).has('ott')) return;
     didAutoStart.current = true;
-    handleProvider(provider);
-  }, [isLoading, isAuthenticated, handleProvider]);
+    handleProvider(authRequest.provider);
+  }, [authRequest.provider, handleProvider, isAuthenticated, isLoading]);
 
   useEffect(() => {
     if (isLoading || !isAuthenticated || didRedirect.current) return;
@@ -47,22 +44,20 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
 
     didRedirect.current = true;
     setStatus('redirecting');
-
     const convexSiteUrl = import.meta.env.VITE_CONVEX_SITE_URL as string;
-    const url = new URL(callbackUrl);
-    if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
-      setStatus('error');
-      return;
-    }
-    url.searchParams.set('token', sessionToken);
-    url.searchParams.set('convexUrl', convexSiteUrl);
-    window.location.href = url.toString();
-  }, [isLoading, isAuthenticated, sessionToken, callbackUrl]);
+    window.location.replace(
+      buildDesktopAuthRedirectUrl({
+        request: authRequest,
+        sessionToken,
+        convexSiteUrl,
+      }),
+    );
+  }, [authRequest, isAuthenticated, isLoading, sessionToken]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg">
       <div className="text-center space-y-4 max-w-[320px] w-full px-5">
-        <h1 className="font-semibold text-[16px] text-text">Agendex CLI</h1>
+        <h1 className="font-semibold text-[16px] text-text">Agendex Desktop</h1>
 
         {isLoading && (
           <div className="flex justify-center">
@@ -72,7 +67,7 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
 
         {!isLoading && status === 'choosing' && !isAuthenticated && (
           <>
-            <p className="text-[13px] text-tertiary">Sign in to authorize the CLI</p>
+            <p className="text-[13px] text-tertiary">Sign in to authorize the desktop app</p>
             <div className="flex flex-col gap-2">
               <button
                 type="button"
@@ -100,12 +95,14 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
 
         {status === 'redirecting' && (
           <p className="text-[13px] text-tertiary">
-            Authorizing CLI for {user?.name ?? user?.email}...
+            Authorizing desktop app for {user?.name ?? user?.email}...
           </p>
         )}
 
         {status === 'error' && (
-          <p className="text-[13px] text-[#ef4444]">Failed to authorize CLI. Please try again.</p>
+          <p className="text-[13px] text-[#ef4444]">
+            Failed to authorize the desktop app. Please try again.
+          </p>
         )}
       </div>
     </div>

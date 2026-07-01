@@ -29,7 +29,7 @@ import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { useMutation, useQuery } from 'convex/react';
+import { ConvexProviderWithAuth, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react';
 import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
 import {
@@ -65,6 +65,7 @@ import { CloudPlanUploader } from './components/CloudPlanUploader.tsx';
 import { CloudUpgrade } from './components/CloudUpgrade.tsx';
 import { CommentThread } from './components/CommentThread.tsx';
 import { DashboardTopbar } from './components/DashboardTopbar.tsx';
+import { DesktopAuthPage } from './components/DesktopAuthPage.tsx';
 import { DesktopSignInPage } from './components/DesktopSignInPage.tsx';
 import { EEHeroCta, EENavbarAuth, EEPricingCta } from './components/LandingAuthSlots.tsx';
 import { LocalIpDisclosureNotice } from './components/LocalIpDisclosureNotice.tsx';
@@ -84,8 +85,16 @@ import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { authClient, normalizeLocalDevUrl } from './lib/auth-client.ts';
+import { parseCliAuthCallback } from './lib/cli-auth-callback.ts';
+import { canUseCloudPlanMetadata, shouldQueryCloudPlanTags } from './lib/cloud-query-mode.ts';
 import { convex } from './lib/convex-client.ts';
-import { getDesktopCloudToken, isDesktop, setDesktopModePref } from './lib/desktop.ts';
+import { parseDesktopAuthRequest } from './lib/desktop-auth-flow.ts';
+import {
+  getDesktopCloudToken,
+  getDesktopConvexAuthToken,
+  isDesktop,
+  setDesktopModePref,
+} from './lib/desktop.ts';
 import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
 const PlanEditor = lazy(() =>
@@ -294,6 +303,7 @@ function useDashboardData(
   cloudPlanState: PlanState,
 ) {
   const localEnabled = mode === 'local';
+  const cloudPlanMetadataEnabled = canUseCloudPlanMetadata(mode, isPro);
   const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
   const localPlans = usePlans(filters, localEnabled);
   const cloudPlans = useCloudPlans();
@@ -308,11 +318,14 @@ function useDashboardData(
   const backendStatus = mode === 'cloud' ? cloudBackendStatus : localBackendStatus;
   const cloudSyncPaused = mode === 'cloud' && daemonStatus === 'stale';
 
-  const allTags = useQuery(api.tags.listMyTags, isPro ? {} : 'skip');
-  const allCollections = useQuery(api.collections.listMyCollections, isPro ? {} : 'skip');
+  const allTags = useQuery(api.tags.listMyTags, cloudPlanMetadataEnabled ? {} : 'skip');
+  const allCollections = useQuery(
+    api.collections.listMyCollections,
+    cloudPlanMetadataEnabled ? {} : 'skip',
+  );
   const collectionPlanIds = useQuery(
     api.collections.getPlansInCollection,
-    isPro && selectedCollection
+    cloudPlanMetadataEnabled && selectedCollection
       ? { collectionId: selectedCollection as Id<'collections'> }
       : 'skip',
   );
@@ -340,7 +353,12 @@ function useDashboardData(
 
   const planTagsMap = useQuery(
     api.planTags.getTagsForPlans,
-    isPro && selectedTags.length > 0 && plans.length > 0
+    shouldQueryCloudPlanTags({
+      mode,
+      isPro,
+      selectedTagCount: selectedTags.length,
+      planCount: plans.length,
+    })
       ? { planIds: plans.map((p) => p.id) as Array<Id<'plans'>> }
       : 'skip',
   );
@@ -613,11 +631,11 @@ function PlanHeaderExtra({
   isPro: boolean;
   mode: DashboardMode;
 }) {
-  if (!isPro) return undefined;
+  if (!canUseCloudPlanMetadata(mode, isPro)) return undefined;
   return (
     <>
       <PlanTagsBar planId={plan.id} />
-      {mode === 'cloud' && <CloudPlannotatorBadge plan={plan} />}
+      <CloudPlannotatorBadge plan={plan} />
     </>
   );
 }
@@ -957,8 +975,8 @@ function CloudPlanReviewWorkspace({
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
             onToggleChart={onToggleChart}
-            onHistory={isPro ? onHistory : undefined}
-            onShare={isPro ? onShare : undefined}
+            onHistory={canUseCloudPlanMetadata(mode, isPro) ? onHistory : undefined}
+            onShare={canUseCloudPlanMetadata(mode, isPro) ? onShare : undefined}
             actionToolbarExtra={actionToolbarExtra}
             headerExtra={<PlanHeaderExtra plan={plan} isPro={isPro} mode={mode} />}
             outlineHidden={outlineHidden}
@@ -1173,7 +1191,7 @@ function DashboardMain({
         ? 'Only the plan owner can create inline annotations.'
         : 'Inline plan annotations are available on Cloud Pro.'
       : undefined;
-  const isCloudReview = mode === 'cloud' && isPro;
+  const isCloudReview = canUseCloudPlanMetadata(mode, isPro);
   const actionToolbarExtra = (
     <CloudPlanActionExtras
       showPlannotatorTools={showPlannotatorTools}
@@ -1268,8 +1286,8 @@ function DashboardMain({
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
             onToggleChart={onToggleChart}
-            onHistory={isPro ? onHistory : undefined}
-            onShare={isPro ? onShare : undefined}
+            onHistory={isCloudReview ? onHistory : undefined}
+            onShare={isCloudReview ? onShare : undefined}
             actionToolbarExtra={actionToolbarExtra}
             headerExtra={<PlanHeaderExtra plan={selectedPlan} isPro={isPro} mode={mode} />}
             chartHidden={chartHidden}
@@ -1324,7 +1342,7 @@ function DashboardMain({
             />
           )}
         </div>
-        {sharing && isPro && (
+        {sharing && isCloudReview && (
           <SharePlanDialog plan={selectedPlan} mode={mode} onClose={onCloseShare} />
         )}
       </div>
@@ -1390,7 +1408,7 @@ function DashboardMain({
               <PlanEditor plan={selectedPlan} onClose={onClose} onSaved={onSaved} />
             )}
           </Suspense>
-        ) : showHistory ? (
+        ) : showHistory && isCloudReview ? (
           <Suspense
             fallback={
               <div className="p-4">
@@ -1428,8 +1446,8 @@ function DashboardMain({
                 onEdit={onEdit}
                 onChartWideChange={onChartWideChange}
                 onToggleChart={onToggleChart}
-                onHistory={isPro ? onHistory : undefined}
-                onShare={isPro ? onShare : undefined}
+                onHistory={isCloudReview ? onHistory : undefined}
+                onShare={isCloudReview ? onShare : undefined}
                 actionToolbarExtra={actionToolbarExtra}
                 headerExtra={<PlanHeaderExtra plan={selectedPlan} isPro={isPro} mode={mode} />}
                 outlineHidden={outlineHidden}
@@ -1444,7 +1462,7 @@ function DashboardMain({
                 onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
               />
             )}
-            {sharing && isPro && (
+            {sharing && isCloudReview && (
               <SharePlanDialog plan={selectedPlan} mode={mode} onClose={onCloseShare} />
             )}
           </>
@@ -1868,7 +1886,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   } = ds;
   // Desktop signed-in users can switch between cloud and the bundled local
   // daemon. Elsewhere (web) the mode stays whatever the route resolved to.
-  const canSwitchMode = isDesktop() && autoMode === 'cloud' && hasToken();
+  const canSwitchMode =
+    isDesktop() && autoMode === 'cloud' && Boolean(getDesktopCloudToken() || hasToken());
   const [modeOverride, setModeOverride] = useState<DashboardMode | null>(() => {
     if (!canSwitchMode) return null;
     const stored = localStorage.getItem(MODE_PREF_KEY);
@@ -2367,7 +2386,26 @@ function ChangelogRoute() {
 function CliAuthRoute() {
   const callback = new URLSearchParams(window.location.search).get('callback');
   if (!callback) return <Redirect to="/" />;
-  return <CliAuthPage callbackUrl={callback} />;
+  const cliCallback = parseCliAuthCallback(callback);
+  if (!cliCallback.ok) return <AuthCallbackError title="Invalid CLI callback" />;
+  return <CliAuthPage callbackUrl={cliCallback.callbackUrl} />;
+}
+
+function DesktopAuthRoute() {
+  const authRequest = parseDesktopAuthRequest(window.location.href);
+  if (!authRequest.ok) return <AuthCallbackError title="Invalid desktop callback" />;
+  return <DesktopAuthPage authRequest={authRequest} />;
+}
+
+function AuthCallbackError({ title }: { readonly title: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-bg">
+      <div className="text-center space-y-2 max-w-[320px] w-full px-5">
+        <h1 className="font-semibold text-[16px] text-text">{title}</h1>
+        <p className="text-[13px] text-[#ef4444]">This authorization link is not supported.</p>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -2428,15 +2466,23 @@ function LandingRoute() {
 
 function DashboardRoute() {
   const { isAuthenticated, isLoading, refreshSession } = useAuth();
+  const convexAuth = useConvexAuth();
   const desktop = isDesktop();
   const hasCachedToken = hasToken();
   // A desktop cloud session only exists once login has stored a token (the
   // token and its Convex site URL are injected together). With no token there
   // is nothing to verify, so we must not block the gate on a session check.
   const desktopCloudToken = desktop ? getDesktopCloudToken() : null;
-  const avatars = useQuery(api.agentAvatars.listMyAgentAvatars, isAuthenticated ? {} : 'skip');
+  const desktopHasCloudToken = Boolean(desktopCloudToken);
+  const desktopAuthLoading =
+    desktopHasCloudToken && (convexAuth.isLoading || convexAuth.isRefreshing);
+  const routeAuthenticated = desktop
+    ? desktopHasCloudToken && convexAuth.isAuthenticated
+    : isAuthenticated;
+  const routeLoading = desktop ? desktopAuthLoading : isLoading;
+  const avatars = useQuery(api.agentAvatars.listMyAgentAvatars, routeAuthenticated ? {} : 'skip');
   const { needsOnboarding, onboardingResolved } = useSubscription({
-    enabled: !isLoading && isAuthenticated,
+    enabled: !routeLoading && routeAuthenticated,
   });
 
   // Track whether we arrived with an OTT token (OAuth callback).
@@ -2447,8 +2493,8 @@ function DashboardRoute() {
     () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('ott'),
   );
   useEffect(() => {
-    if (processingOtt && isAuthenticated) setProcessingOtt(false);
-  }, [processingOtt, isAuthenticated]);
+    if (processingOtt && routeAuthenticated) setProcessingOtt(false);
+  }, [processingOtt, routeAuthenticated]);
   useEffect(() => {
     if (!processingOtt) return;
     const id = setTimeout(() => setProcessingOtt(false), 5_000);
@@ -2460,13 +2506,7 @@ function DashboardRoute() {
     isLoading,
     refreshSession,
     hold: processingOtt,
-    // The desktop app gates entry on a verified cloud session, so it cannot
-    // short-circuit on the always-present local daemon token; it must wait for
-    // the session check before deciding whether to show the sign-in view. But
-    // with no stored cloud token there is no session to verify, so skip the
-    // check rather than issuing an auth request (which, before login, has no
-    // stored Convex site URL and could otherwise target the local app origin).
-    skip: desktop ? !desktopCloudToken : hasCachedToken,
+    skip: desktop || hasCachedToken,
   });
 
   const renderDashboard = (autoMode: DashboardMode) => (
@@ -2475,13 +2515,14 @@ function DashboardRoute() {
     </AgentAvatarProvider>
   );
 
-  if (isAuthenticated && onboardingResolved && needsOnboarding) return <Redirect to="/welcome" />;
+  if (routeAuthenticated && onboardingResolved && needsOnboarding)
+    return <Redirect to="/welcome" />;
 
   // Desktop: a valid cloud session is required to render any plan/agent info.
   // Without one we show a dedicated sign-in view. Local mode remains available
   // via the in-app local/cloud toggle once signed in.
   if (desktop) {
-    if (isAuthenticated) {
+    if (routeAuthenticated) {
       if (!onboardingResolved) return <BootLoadingView />;
       return renderDashboard('cloud');
     }
@@ -2489,7 +2530,7 @@ function DashboardRoute() {
     // verify; with none, the user is unauthenticated by definition, so show the
     // gate straight away instead of hanging on a request to a cloud endpoint we
     // can't address yet.
-    if (desktopCloudToken && (isLoading || !authSettled || processingOtt)) {
+    if (desktopHasCloudToken && (routeLoading || processingOtt)) {
       return <BootLoadingView />;
     }
     return <DesktopSignInPage />;
@@ -2510,10 +2551,65 @@ function DashboardRoute() {
 }
 
 function AuthRuntime({ children }: { children: ReactNode }) {
+  if (isDesktop() && getDesktopCloudToken()) {
+    return (
+      <ConvexProviderWithAuth client={convex} useAuth={useDesktopConvexAuth}>
+        {children}
+      </ConvexProviderWithAuth>
+    );
+  }
+
   return (
     <ConvexBetterAuthProvider client={convex} authClient={authClient}>
       {children}
     </ConvexBetterAuthProvider>
+  );
+}
+
+function useDesktopConvexAuth() {
+  const token = getDesktopCloudToken();
+  const cachedTokenRef = useRef<string | null>(null);
+  const pendingTokenRef = useRef<Promise<string | null> | null>(null);
+
+  useEffect(() => {
+    if (!token) cachedTokenRef.current = null;
+  }, [token]);
+
+  const fetchAccessToken = useCallback(
+    async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
+      if (!getDesktopCloudToken()) {
+        cachedTokenRef.current = null;
+        return null;
+      }
+      if (cachedTokenRef.current && !forceRefreshToken) return cachedTokenRef.current;
+      if (pendingTokenRef.current && !forceRefreshToken) return pendingTokenRef.current;
+
+      if (forceRefreshToken) cachedTokenRef.current = null;
+
+      pendingTokenRef.current = getDesktopConvexAuthToken()
+        .then((convexToken) => {
+          cachedTokenRef.current = convexToken;
+          return convexToken;
+        })
+        .catch(() => {
+          cachedTokenRef.current = null;
+          return null;
+        })
+        .finally(() => {
+          pendingTokenRef.current = null;
+        });
+      return pendingTokenRef.current;
+    },
+    [],
+  );
+
+  return useMemo(
+    () => ({
+      isLoading: false,
+      isAuthenticated: Boolean(token),
+      fetchAccessToken,
+    }),
+    [fetchAccessToken, token],
   );
 }
 
@@ -2531,6 +2627,13 @@ export default function App() {
         {() => (
           <AuthRuntime>
             <CliAuthRoute />
+          </AuthRuntime>
+        )}
+      </Route>
+      <Route path="/auth/desktop">
+        {() => (
+          <AuthRuntime>
+            <DesktopAuthRoute />
           </AuthRuntime>
         )}
       </Route>

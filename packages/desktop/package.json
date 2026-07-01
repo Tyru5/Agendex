@@ -14,6 +14,7 @@
   "dependencies": {
     "@agendex/app": "workspace:*",
     "@agendex/ee": "workspace:*",
+    "@agendex/shared": "workspace:*",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0"
   },

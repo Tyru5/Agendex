@@ -62,7 +62,14 @@ export function SettingsPage() {
   }, []);
 
   if (isLoading) return null;
-  if (!isAuthenticated || !user) return <Redirect to="/login" />;
+  // Desktop can be `isAuthenticated` (stored cloud token) while `user` is null
+  // if the bearer-backed session fetch failed or the session was revoked. Its
+  // signed-out UX lives in DashboardRoute's sign-in gate, and the web /login
+  // form can't complete OAuth inside the embedded window, so bail to the
+  // dashboard there instead.
+  if (!isAuthenticated || !user) {
+    return <Redirect to={isDesktop() ? DASHBOARD_PATH : '/login'} />;
+  }
 
   async function handleDeleteAccount() {
     setDeleting(true);
