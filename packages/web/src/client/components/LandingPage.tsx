@@ -1091,6 +1091,33 @@ function LandingHero({
       >
         <div className="relative z-[1] flex max-w-[800px] flex-col justify-center gap-12 max-[980px]:gap-10">
           <div>
+            <a
+              href="https://github.com/Tyru5/Agendex/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-5 inline-flex max-w-full items-center gap-2.5 rounded-full border border-[color-mix(in_oklch,var(--landing-accent)_26%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] py-[7px] pl-2 pr-3.5 text-[12px] font-semibold leading-[1.2] text-[var(--landing-text)] no-underline transition-[border-color,background-color] duration-150 [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_both] hover:border-[color-mix(in_oklch,var(--landing-accent)_44%,var(--landing-border))] hover:bg-[color-mix(in_oklch,var(--landing-accent)_13%,transparent)]"
+            >
+              <span className="shrink-0 rounded-full bg-[var(--landing-accent)] px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--landing-bg)]">
+                New
+              </span>
+              <span className="min-w-0 truncate">
+                Agendex Desktop is here — for macOS &amp; Windows (coming soon)
+              </span>
+              <svg
+                aria-hidden="true"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="shrink-0 text-[var(--landing-accent)]"
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </a>
             <h1 className="mb-6 max-w-[760px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[74px] font-[430] leading-[0.98] text-[var(--landing-text)] [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_60ms_both] max-[980px]:text-[54px] max-sm:text-[40px] max-sm:leading-[1.04]">
               Your agents make plans. <br />
               Agendex keeps watch.

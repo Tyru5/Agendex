@@ -20,6 +20,10 @@ export const FAQ_ITEMS = [
     a: 'Yes. Install the CLI, run `agendex login`, and start the daemon. Your local plans sync to Cloud without a migration step.',
   },
   {
+    q: 'Is there a desktop app?',
+    a: 'Yes. Agendex Desktop is a native macOS app that bundles the local server and the cloud dashboard in one window. Sign in through your system browser and switch between local and cloud plans with one click. Builds ship on the GitHub releases page. Windows support is coming soon',
+  },
+  {
     q: 'Do I need to pay to use Agendex?',
     a: 'No. Self-hosted is free and open source. Cloud Pro is $7/month or $69/year for sync, sharing, comments, charts, plan creation, and up to five workspace members.',
   },
@@ -91,6 +95,11 @@ agendex status       # daemon health + connected devices`,
 ];
 
 export const FEATURES = [
+  {
+    icon: '🖥️',
+    title: 'Desktop App',
+    desc: 'A native macOS and Windows app bundles the local server and cloud dashboard in one window, with browser-based sign-in.',
+  },
   {
     icon: '⚡',
     title: 'Instant Indexing',

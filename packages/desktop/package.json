@@ -7,9 +7,9 @@
   "scripts": {
     "dev": "concurrently -k -n vite,electron -c green,cyan \"bun run --cwd ../ee dev:client\" \"cross-env AGENDEX_RENDERER_URL=http://app.agendex.localhost:5174/dashboard electron-vite dev --watch\"",
     "build": "bun run --cwd ../ee build && electron-vite build",
-    "dist": "bun run --cwd ../ee build && electron-vite build && electron-builder",
-    "dist:mac": "bun run --cwd ../ee build && electron-vite build && electron-builder --mac",
-    "dist:win": "bun run --cwd ../ee build && electron-vite build && electron-builder --win"
+    "dist": "electron-builder --publish never",
+    "dist:mac": "bun run build && electron-builder --mac --publish never",
+    "dist:win": "bun run build && electron-builder --win --publish never"
   },
   "dependencies": {
     "@agendex/app": "workspace:*",
