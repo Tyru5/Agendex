@@ -1,4 +1,5 @@
 import { formatForDisplay } from '@tanstack/react-hotkeys';
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
 import type { Plan } from '../lib/api.ts';
@@ -41,6 +42,8 @@ interface TopbarProps {
   backendStatus: 'online' | 'offline' | 'checking';
   height: number;
   sidebarWidth?: number;
+  /** Extra controls rendered in the right cluster, before the theme toggle. */
+  actions?: ReactNode;
 }
 
 export function Topbar({
@@ -59,6 +62,7 @@ export function Topbar({
   backendStatus,
   height,
   sidebarWidth: sidebarWidthProp,
+  actions,
 }: TopbarProps) {
   const shortcutLabel = formatForDisplay('Mod+B');
 
@@ -103,7 +107,7 @@ export function Topbar({
         <button
           type="button"
           onClick={() => onSelectPlan(undefined)}
-          className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[0] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
+          className="text-[14px] font-bold tracking-[-0.01em] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
         >
           Agendex<span className="agendex-brand-mark">.</span>
         </button>
@@ -122,6 +126,7 @@ export function Topbar({
       </div>
 
       <div className="flex items-center justify-end gap-3 min-w-0 justify-self-end pr-4">
+        {actions}
         <ThemeToggle />
         <div className="hidden lg:block w-px h-[18px] bg-border" />
         <span className="hidden lg:inline text-xs text-tertiary">

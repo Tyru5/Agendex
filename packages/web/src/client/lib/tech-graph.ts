@@ -24,15 +24,17 @@ export interface TechGraph {
   edges: TechEdge[];
 }
 
+// Theme-aware categorical tokens defined in index.css (:root and .dark),
+// validated per theme surface for contrast, chroma, and CVD separation.
 export const CATEGORY_COLORS: Record<TechCategory, string> = {
-  language: '#3b82f6',
-  runtime: '#f97316',
-  framework: '#8b5cf6',
-  library: '#06b6d4',
-  tooling: '#eab308',
-  database: '#22c55e',
-  cloud: '#ec4899',
-  testing: '#14b8a6',
+  language: 'var(--chart-language)',
+  runtime: 'var(--chart-runtime)',
+  framework: 'var(--chart-framework)',
+  library: 'var(--chart-library)',
+  tooling: 'var(--chart-tooling)',
+  database: 'var(--chart-database)',
+  cloud: 'var(--chart-cloud)',
+  testing: 'var(--chart-testing)',
 };
 
 const KNOWN_RELATIONS: Record<string, string[]> = {

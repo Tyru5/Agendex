@@ -118,7 +118,7 @@ export function PlanCreator({
           />
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {error && <span className="text-[12px] text-[#ef4444]">{error}</span>}
+          {error && <span className="text-[12px] text-[var(--danger)]">{error}</span>}
           <button
             type="button"
             onClick={onClose}

@@ -1,4 +1,5 @@
 import { type Plan, type PlanState, ThemeToggle } from '@agendex/web';
+import type { ReactNode } from 'react';
 import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
 import { AuthButton } from './AuthButton';
 import { CommandPalette } from './command-palette/CommandPalette';
@@ -40,6 +41,7 @@ export function DashboardTopbar({
   onDeletePlan,
   onShowChangelog,
   sidebarWidth: sidebarWidthProp,
+  actions,
 }: {
   sidebarPinnedOpen: boolean;
   sidebarHidden: boolean;
@@ -73,6 +75,8 @@ export function DashboardTopbar({
   onDeletePlan?: (planId: string) => void;
   onShowChangelog?: () => void;
   sidebarWidth?: number;
+  /** Extra controls rendered at the start of the right cluster. */
+  actions?: ReactNode;
 }) {
   return (
     <div
@@ -119,6 +123,7 @@ export function DashboardTopbar({
       </div>
 
       <div className="flex items-center justify-end gap-2.5 min-w-0 shrink-0 pr-4">
+        {actions}
         <MachinesIndicator devices={daemonDevices} aggregateStatus={daemonAggregateStatus} />
         <div className="w-px h-4 bg-border" />
         <ThemeToggle />

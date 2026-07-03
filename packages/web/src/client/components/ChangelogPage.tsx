@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import changelogMarkdown from '../../../../cli/CHANGELOG.md?raw';
-import { TopoNeurons } from './landing/TopoNeurons.tsx';
 
 export interface ChangelogPageProps {
   /** Called when the user activates the back link in the header. */
@@ -257,23 +256,21 @@ export function ChangelogPage({ onBack, homeHref = '/' }: ChangelogPageProps = {
   }
 
   return (
-    <div className="changelog-page landing-page relative min-h-screen bg-[var(--landing-bg)] text-[var(--landing-text)]">
-      <TopoNeurons />
-
-      {/* MINIMAL NAVBAR — mirrors LandingNavbar's brand mark + back affordance. */}
-      <nav className="relative z-[2] border-b border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_88%,transparent)] backdrop-blur-[14px]">
-        <div className="flex min-h-16 items-center justify-between gap-5 px-[clamp(20px,5vw,88px)] max-sm:min-h-[58px] max-sm:px-4">
+    <main className="changelog-page landing-page min-h-[100dvh]">
+      <div className="landing-frame px-[clamp(18px,5vw,72px)] py-[clamp(72px,9vw,108px)]">
+        {/* MINIMAL NAVBAR — mirrors the docs route's brand mark + back affordance. */}
+        <nav className="mb-12 flex flex-wrap items-center justify-between gap-4">
           <a
             href={homeHref}
             onClick={handleBack}
-            className="shrink-0 font-[Unbounded,Inter,system-ui,sans-serif] text-[15px] font-[430] text-[var(--landing-text)] no-underline"
+            className="text-[14px] font-bold text-[var(--landing-text)] no-underline"
           >
             Agendex<span className="text-[var(--landing-accent)]">.</span>
           </a>
           <a
             href={homeHref}
             onClick={handleBack}
-            className="inline-flex min-h-[38px] items-center gap-2 rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_76%,transparent)] px-[13px] text-[12.5px] font-[600] text-[var(--landing-text)] no-underline transition-[background-color,border-color,color] duration-150 hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-accent)]"
+            className="landing-action landing-action--secondary landing-action--compact"
           >
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none">
               <path
@@ -286,16 +283,14 @@ export function ChangelogPage({ onBack, homeHref = '/' }: ChangelogPageProps = {
             </svg>
             Back
           </a>
-        </div>
-      </nav>
+        </nav>
 
-      <main className="relative z-[1] mx-auto max-w-[920px] px-[clamp(20px,5vw,88px)] pt-12 pb-20 max-sm:px-4 max-sm:pt-8 max-sm:pb-12">
-        {/* HEADER — editorial moment, Display token earns its place. */}
+        {/* HEADER — editorial moment, display scale earns its place. */}
         <header className="mb-10 max-sm:mb-7">
-          <div className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-[500] uppercase tracking-[0.16em] text-[var(--landing-muted)]">
-            {parsed.packageName} / Releases
+          <div className="inline-flex rounded-full border border-[color-mix(in_oklch,var(--landing-accent)_24%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] px-[9px] py-[5px] font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-[800] tracking-[0.04em] text-[var(--landing-accent)]">
+            {parsed.packageName} / releases
           </div>
-          <h1 className="mt-[14px] mb-0 font-[Unbounded,Inter,system-ui,sans-serif] text-[clamp(34px,5vw,52px)] font-[430] leading-[1.04] tracking-[-0.02em] text-[var(--landing-text)]">
+          <h1 className="mt-[18px] mb-0 max-w-[760px] text-balance text-[clamp(40px,7vw,64px)] font-[760] leading-[0.98] tracking-[-0.035em] text-[var(--landing-text)]">
             CLI Changelog<span className="text-[var(--landing-accent)]">.</span>
           </h1>
           <p className="mt-4 mb-0 max-w-[58ch] text-[14px] font-[450] leading-[1.6] text-[var(--landing-muted)]">
@@ -353,7 +348,7 @@ export function ChangelogPage({ onBack, homeHref = '/' }: ChangelogPageProps = {
                       >
                         {String(parsed.entries.length - index).padStart(2, '0')}
                       </span>
-                      <h2 className="m-0 font-[Unbounded,Inter,system-ui,sans-serif] text-[24px] font-[430] leading-[1.0] tracking-[-0.01em] text-[var(--landing-text)]">
+                      <h2 className="m-0 text-[24px] font-[740] leading-[1.0] tracking-[-0.02em] tabular-nums text-[var(--landing-text)]">
                         {entry.version}
                       </h2>
                     </div>
@@ -450,7 +445,7 @@ export function ChangelogPage({ onBack, homeHref = '/' }: ChangelogPageProps = {
             Source on GitHub →
           </a>
         </footer>
-      </main>
+      </div>
 
       <style>{`
         .changelog-note-body p { margin: 0; }
@@ -475,7 +470,7 @@ export function ChangelogPage({ onBack, homeHref = '/' }: ChangelogPageProps = {
         .changelog-note-body ul,
         .changelog-note-body ol { margin: 4px 0 0; padding-left: 18px; }
       `}</style>
-    </div>
+    </main>
   );
 }
 

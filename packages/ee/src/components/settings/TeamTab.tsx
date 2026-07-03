@@ -17,10 +17,10 @@ function SeatMeter({ used, total }: { used: number; total: number }) {
           <span className="text-text font-semibold">{used}</span> of {total} seats used
         </span>
         {isFull && (
-          <span className="text-[11px] font-medium text-[#ef4444]">No seats remaining</span>
+          <span className="text-[11px] font-medium text-[var(--danger)]">No seats remaining</span>
         )}
         {isNearLimit && (
-          <span className="text-[11px] font-medium text-[#eab308]">1 seat remaining</span>
+          <span className="text-[11px] font-medium text-[var(--warning)]">1 seat remaining</span>
         )}
       </div>
       <div className="h-1.5 rounded-full bg-hover overflow-hidden">
@@ -28,7 +28,11 @@ function SeatMeter({ used, total }: { used: number; total: number }) {
           className="h-full w-full origin-left rounded-full transition-transform duration-500 ease-out"
           style={{
             transform: `scaleX(${pct / 100})`,
-            background: isFull ? '#ef4444' : isNearLimit ? '#eab308' : 'var(--primary, #8b5cf6)',
+            background: isFull
+              ? 'var(--danger)'
+              : isNearLimit
+                ? 'var(--warning)'
+                : 'var(--primary)',
           }}
         />
       </div>
@@ -61,7 +65,7 @@ function MemberRow({
         className="size-9 rounded-full flex items-center justify-center text-[13px] font-semibold shrink-0"
         style={{
           background: isPending ? 'var(--hover)' : 'rgba(var(--primary-rgb, 139, 92, 246), 0.12)',
-          color: isPending ? 'var(--tertiary)' : 'var(--primary, #8b5cf6)',
+          color: isPending ? 'var(--tertiary)' : 'var(--primary)',
           border: isPending ? '1px dashed var(--border)' : 'none',
         }}
       >
@@ -72,7 +76,7 @@ function MemberRow({
         <div className="flex items-center gap-2">
           <span className="text-[13px] font-medium text-text truncate">{email}</span>
           {isPending && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#eab308]/15 text-[#eab308]">
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--warning)]/15 text-[var(--warning)]">
               Pending
             </span>
           )}
@@ -89,7 +93,7 @@ function MemberRow({
         className={[
           'text-[12px] px-3 py-1.5 rounded-lg border bg-transparent cursor-pointer font-medium transition-[opacity,background-color,color,border-color] duration-150 opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0',
           actionDanger
-            ? 'border-[rgba(239,68,68,0.3)] text-[#ef4444] hover:bg-[rgba(239,68,68,0.1)]'
+            ? 'border-[var(--danger)]/30 text-[var(--danger)] hover:bg-[var(--danger)]/10'
             : 'border-border text-secondary hover:text-text hover:bg-hover',
         ].join(' ')}
       >
@@ -191,7 +195,7 @@ export function TeamTab({ isActive }: TeamTabProps) {
             onClick={() => setShowInvite(true)}
             className="flex items-center gap-1.5 text-[13px] px-4 py-2 rounded-xl border-none cursor-pointer font-semibold transition-opacity duration-150 hover:opacity-90 shrink-0"
             style={{
-              background: 'var(--primary, #8b5cf6)',
+              background: 'var(--primary)',
               color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
             }}
           >

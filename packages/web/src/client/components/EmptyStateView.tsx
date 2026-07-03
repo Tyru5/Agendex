@@ -1,3 +1,4 @@
+import { formatForDisplay } from '@tanstack/react-hotkeys';
 import confetti from 'canvas-confetti';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAgentLabel } from '../lib/agent-colors.ts';
@@ -32,6 +33,7 @@ const KONAMI_CODE = [
 ];
 const TRIVIA_SECONDS_PER_QUESTION = 10;
 const TRIVIA_ROUND_SIZE = 5;
+const LEDGER_MAX_ROWS = 6;
 
 type TriviaQuestion = {
   prompt: string;
@@ -121,6 +123,9 @@ const TRIVIA_QUESTIONS: TriviaQuestion[] = [
     tag: 'Developer Tools',
   },
 ];
+
+const WATCH_COMMAND = 'agendex add-dir ~/path/to/plans --live';
+const COPY_RESET_MS = 2000;
 
 function normalizeKonamiKey(key: string) {
   return key.length === 1 ? key.toLowerCase() : key;
@@ -247,153 +252,115 @@ function SearchIcon() {
   );
 }
 
-function ActionPill({
-  icon,
-  label,
-  onClick,
-  disabled = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
+function FrameRule({ ticks = false }: { ticks?: boolean }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="empty-state-pill empty-state-pill--accent"
-    >
-      <span className="empty-state-pill-icon">{icon}</span>
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function StageCard({
-  className,
-  lines,
-  active = false,
-}: {
-  className: string;
-  lines: Array<'long' | 'mid' | 'short'>;
-  active?: boolean;
-}) {
-  return (
-    <div className={`${className}${active ? ' empty-state-stage-card--active' : ''}`}>
-      <span className="empty-state-stage-chip" />
-      <div className="empty-state-stage-lines">
-        {lines.map((line) => (
-          <span
-            key={`${className}-${line}`}
-            className={`empty-state-stage-line empty-state-stage-line--${line}`}
-          />
-        ))}
-      </div>
+    <div className="empty-state-rule" aria-hidden="true">
+      {ticks && (
+        <>
+          <span className="empty-state-rule-tick empty-state-rule-tick--start" />
+          <span className="empty-state-rule-tick empty-state-rule-tick--end" />
+        </>
+      )}
     </div>
   );
 }
 
-function useAgentRotation(agentIds: string[]) {
-  const [indices, setIndices] = useState<{ current: number; prev: number | null }>({
-    current: 0,
-    prev: null,
-  });
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const count = agentIds.length;
-  const agentKey = agentIds.join('\u001f');
+function WatchCommand() {
+  const [copied, setCopied] = useState(false);
+  const resetTimerRef = useRef<number | undefined>(undefined);
 
-  useEffect(() => {
-    setIndices({ current: 0, prev: null });
-  }, [agentKey]);
+  useEffect(() => () => window.clearTimeout(resetTimerRef.current), []);
 
-  useEffect(() => {
-    if (count <= 1) return;
-    if (
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    ) {
+  const handleCopy = useCallback(async () => {
+    if (!navigator.clipboard) return;
+
+    try {
+      await navigator.clipboard.writeText(WATCH_COMMAND);
+    } catch {
       return;
     }
 
-    const id = setInterval(() => {
-      setIndices((state) => ({ current: (state.current + 1) % count, prev: state.current }));
-    }, 4200);
+    setCopied(true);
+    window.clearTimeout(resetTimerRef.current);
+    resetTimerRef.current = window.setTimeout(() => setCopied(false), COPY_RESET_MS);
+  }, []);
 
-    return () => clearInterval(id);
-  }, [count]);
-
-  useEffect(() => {
-    if (indices.prev === null) return;
-    clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      setIndices((state) => ({ ...state, prev: null }));
-    }, 430);
-    return () => clearTimeout(timeoutRef.current);
-  }, [indices.prev]);
-
-  const safeIndex = count > 0 ? indices.current % count : 0;
-  const safePrev = indices.prev !== null && count > 0 ? indices.prev % count : null;
-
-  return {
-    currentAgent: agentIds[safeIndex] ?? null,
-    prevAgent: safePrev !== null ? (agentIds[safePrev] ?? null) : null,
-  };
+  return (
+    <div className="empty-state-command-group">
+      <div className="empty-state-command">
+        <code className="empty-state-command-text">
+          <span className="empty-state-command-prompt" aria-hidden="true">
+            $
+          </span>
+          {WATCH_COMMAND}
+        </code>
+        <button
+          type="button"
+          className="empty-state-command-copy"
+          onClick={handleCopy}
+          data-copied={copied || undefined}
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <p className="empty-state-command-hint">
+        Run it once per folder. New plans are indexed the moment they land.
+      </p>
+    </div>
+  );
 }
 
-function FlippingAgentSummary({
-  currentAgent,
-  currentText,
-  prevAgent,
-  prevText,
-  widthCh,
+function AgentLedger({
+  agents,
+  planCount,
+  maxCount,
 }: {
-  currentAgent: string;
-  currentText: string;
-  prevAgent: string | null;
-  prevText: string | null;
-  widthCh: number;
+  agents: AgentStats[];
+  planCount: number;
+  maxCount: number;
 }) {
-  return (
-    <div
-      className="empty-state-agent-note"
-      style={{ '--empty-agent-summary-width': `${widthCh}ch` } as React.CSSProperties}
-    >
-      <span className="empty-state-agent-icon" aria-hidden="true">
-        {prevAgent && (
-          <span
-            key={`agent-icon-out-${prevAgent}`}
-            className="empty-state-agent-icon-layer empty-state-agent-icon-layer--out"
-          >
-            <AgentIcon agent={prevAgent} size={14} />
-          </span>
-        )}
-        <span
-          key={`agent-icon-in-${currentAgent}`}
-          className={`empty-state-agent-icon-layer${prevAgent ? ' empty-state-agent-icon-layer--in' : ''}`}
-        >
-          <AgentIcon agent={currentAgent} size={14} />
-        </span>
-      </span>
+  const visible = agents.slice(0, LEDGER_MAX_ROWS);
+  const hiddenCount = agents.length - visible.length;
 
-      <span className="empty-state-agent-summary" aria-live="polite">
-        {prevText && (
-          <span
-            key={`agent-summary-out-${prevText}`}
-            className="empty-state-agent-summary-layer empty-state-agent-summary-layer--out"
-          >
-            {prevText}
-          </span>
+  return (
+    <section className="empty-state-ledger" aria-label="Plans by agent">
+      <div className="empty-state-ledger-head">
+        <h3 className="empty-state-ledger-title">Plans by agent</h3>
+        <span className="empty-state-ledger-total">{planCount.toLocaleString()} total</span>
+      </div>
+      <ul className="empty-state-ledger-rows">
+        {visible.map((agent) => {
+          const share = maxCount > 0 ? agent.planCount / maxCount : 0;
+
+          return (
+            <li key={agent.agent} className="empty-state-ledger-row">
+              <span className="empty-state-ledger-icon" aria-hidden="true">
+                <AgentIcon agent={agent.agent} size={14} />
+              </span>
+              <span className="empty-state-ledger-name">{getAgentLabel(agent.agent)}</span>
+              <span className="empty-state-ledger-bar" aria-hidden="true">
+                <span
+                  className="empty-state-ledger-bar-fill"
+                  style={
+                    {
+                      '--empty-ledger-share': `${Math.max(share * 100, 6)}%`,
+                    } as React.CSSProperties
+                  }
+                />
+              </span>
+              <span className="empty-state-ledger-count">{agent.planCount.toLocaleString()}</span>
+            </li>
+          );
+        })}
+        {hiddenCount > 0 && (
+          <li className="empty-state-ledger-row empty-state-ledger-row--more">
+            <span className="empty-state-ledger-name">
+              {hiddenCount} more {hiddenCount === 1 ? 'agent' : 'agents'}
+            </span>
+          </li>
         )}
-        <span
-          key={`agent-summary-in-${currentText}`}
-          className={`empty-state-agent-summary-layer${prevText ? ' empty-state-agent-summary-layer--in' : ''}`}
-        >
-          {currentText}
-        </span>
-      </span>
-    </div>
+      </ul>
+    </section>
   );
 }
 
@@ -598,7 +565,7 @@ function TriviaGame({ onExit }: { onExit: () => void }) {
 
       <div className="empty-state-trivia-header">
         <div>
-          <div className="empty-state-trivia-kicker">Konami unlocked</div>
+          <p className="empty-state-trivia-label">Konami unlocked</p>
           <h3 className="empty-state-trivia-title">
             {complete ? 'Run complete' : 'AI milestone trivia'}
           </h3>
@@ -609,7 +576,7 @@ function TriviaGame({ onExit }: { onExit: () => void }) {
           onClick={onExit}
           aria-label="Exit trivia"
         >
-          x
+          ×
         </button>
       </div>
 
@@ -624,10 +591,10 @@ function TriviaGame({ onExit }: { onExit: () => void }) {
           </p>
           <div className="empty-state-trivia-actions">
             <button type="button" className="empty-state-trivia-primary" onClick={handleRestart}>
-              Replay
+              Replay round
             </button>
             <button type="button" className="empty-state-trivia-secondary" onClick={onExit}>
-              Exit
+              Back to index
             </button>
           </div>
         </div>
@@ -741,104 +708,91 @@ export function EmptyStateView({
     () => agents.filter((agent) => agent.planCount > 0).sort((a, b) => b.planCount - a.planCount),
     [agents],
   );
-  const activeAgentIds = useMemo(() => activeAgents.map((agent) => agent.agent), [activeAgents]);
-  const { currentAgent, prevAgent } = useAgentRotation(activeAgentIds);
-  const currentAgentStats = currentAgent
-    ? (activeAgents.find((agent) => agent.agent === currentAgent) ?? null)
-    : null;
-  const prevAgentStats = prevAgent
-    ? (activeAgents.find((agent) => agent.agent === prevAgent) ?? null)
-    : null;
 
+  const maxAgentCount = activeAgents[0]?.planCount ?? 0;
+  const agentCount = activeAgents.length;
   const hasPlans = planCount > 0;
-  const heading = hasPlans ? 'Choose a plan' : 'No plans indexed';
+  const showLedger = hasPlans && !triviaActive && agentCount > 0;
+  const searchShortcut = formatForDisplay('Mod+K');
+  const sidebarShortcut = formatForDisplay('Mod+B');
+
+  const heading = hasPlans ? 'Choose a plan to review' : 'No plans indexed yet';
   const description = hasPlans
     ? 'Search by title, source, or agent, or pick one from the sidebar.'
-    : 'Plans from watched sources will appear here as soon as agents write them.';
-  const planNoun = planCount === 1 ? 'plan' : 'plans';
-  const status = hasPlans ? `${planCount} ${planNoun} indexed` : 'Plan index ready';
-
-  function agentSummary(agent: string, stats: AgentStats | null) {
-    const count = stats?.planCount ?? 0;
-    const noun = count === 1 ? 'plan' : 'plans';
-    return `${count} ${noun} from ${getAgentLabel(agent)}`;
-  }
-
-  const currentSummary =
-    currentAgent && currentAgentStats ? agentSummary(currentAgent, currentAgentStats) : null;
-  const prevSummary = prevAgent ? agentSummary(prevAgent, prevAgentStats) : null;
-  const maxSummaryLength = Math.max(
-    18,
-    ...activeAgents.map((agent) => agentSummary(agent.agent, agent).length),
-  );
+    : 'Point Agendex at the folders your agents write plans to, and every plan shows up here as it is written.';
+  const statusLabel = hasPlans
+    ? `${planCount.toLocaleString()} ${planCount === 1 ? 'plan' : 'plans'} indexed`
+    : 'index ready';
+  const statusMeta = hasPlans
+    ? agentCount > 0
+      ? `from ${agentCount} ${agentCount === 1 ? 'agent' : 'agents'}`
+      : null
+    : 'waiting for the first plan';
 
   return (
     <div className="h-full empty-state-shell">
-      <div className="empty-state-ambient" aria-hidden="true">
-        <span className="empty-state-halo empty-state-halo--left" />
-        <span className="empty-state-halo empty-state-halo--right" />
-      </div>
+      <div className="empty-state-frame">
+        <FrameRule ticks />
 
-      <div className="empty-state-content">
-        <div className="empty-state-layout">
-          <div className="empty-state-copy">
-            <div className="empty-state-kicker">
-              <span className="empty-state-kicker-dot" />
-              <span>{status}</span>
+        <header className="empty-state-status" role="status">
+          <span
+            className={`empty-state-beacon${hasPlans ? ' empty-state-beacon--live' : ''}`}
+            aria-hidden="true"
+          />
+          <span className="empty-state-status-label">{statusLabel}</span>
+          {statusMeta && (
+            <>
+              <span className="empty-state-status-sep" aria-hidden="true">
+                ·
+              </span>
+              <span className="empty-state-status-meta">{statusMeta}</span>
+            </>
+          )}
+        </header>
+
+        <FrameRule />
+
+        <div className="empty-state-main">
+          {triviaActive ? (
+            <div className="empty-state-panel empty-state-panel--trivia">
+              <TriviaGame onExit={() => setTriviaActive(false)} />
             </div>
+          ) : (
+            <>
+              <h2 className="empty-state-title">{heading}</h2>
+              <p className="empty-state-description">{description}</p>
 
-            <h2 className="empty-state-title">{heading}</h2>
-            <p className="empty-state-description">{description}</p>
+              {!hasPlans && <WatchCommand />}
 
-            {onSearch && hasPlans && (
-              <div className="empty-state-actions">
-                <ActionPill icon={<SearchIcon />} label="Search plans" onClick={onSearch} />
-              </div>
-            )}
-
-            {currentAgent && currentSummary && (
-              <FlippingAgentSummary
-                currentAgent={currentAgent}
-                currentText={currentSummary}
-                prevAgent={prevAgent}
-                prevText={prevSummary}
-                widthCh={maxSummaryLength}
-              />
-            )}
-          </div>
-
-          <div className="empty-state-stage" aria-hidden={triviaActive ? undefined : true}>
-            <div
-              className={
-                triviaActive
-                  ? 'empty-state-stage-shell empty-state-stage-shell--trivia'
-                  : `empty-state-stage-shell${hasPlans ? ' is-populated' : ''}`
-              }
-            >
-              {triviaActive ? (
-                <TriviaGame onExit={() => setTriviaActive(false)} />
-              ) : (
-                <>
-                  <span className="empty-state-stage-beam" />
-                  <StageCard
-                    className="empty-state-stage-card empty-state-stage-card--back"
-                    lines={['long', 'mid']}
-                  />
-                  <StageCard
-                    className="empty-state-stage-card empty-state-stage-card--middle"
-                    lines={['long', 'short']}
-                    active={hasPlans}
-                  />
-                  <StageCard
-                    className="empty-state-stage-card empty-state-stage-card--front"
-                    lines={['long', 'mid', 'short']}
-                    active={hasPlans}
-                  />
-                </>
+              {onSearch && hasPlans && (
+                <div className="empty-state-actions">
+                  <button type="button" className="empty-state-primary" onClick={onSearch}>
+                    <SearchIcon />
+                    Search plans
+                    <kbd>{searchShortcut}</kbd>
+                  </button>
+                </div>
               )}
-            </div>
-          </div>
+            </>
+          )}
         </div>
+
+        <FrameRule ticks />
+
+        {showLedger && (
+          <AgentLedger agents={activeAgents} planCount={planCount} maxCount={maxAgentCount} />
+        )}
+
+        <footer className={`empty-state-foot${showLedger ? ' empty-state-foot--divided' : ''}`}>
+          <span className="empty-state-hint">
+            <kbd>{searchShortcut}</kbd>
+            Search plans
+          </span>
+          <span className="empty-state-hint">
+            <kbd>{sidebarShortcut}</kbd>
+            Toggle sidebar
+          </span>
+        </footer>
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import {
   landingReducer,
 } from './landing/LandingContext.tsx';
 import { LandingMascot, type LandingMascotProps } from './landing/LandingMascot.tsx';
+import { useTheme } from '../hooks/useTheme.ts';
 import { NavbarAuth, HeroCta, PricingCta } from './landing/LandingSlots.tsx';
 import type { SlotRenderFn, SlotComponent } from './landing/LandingSlots.tsx';
 import { AgentIcon } from './AgentIcon.tsx';
@@ -51,11 +52,6 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
   );
 }
 
-const ACCENT = '#c8ff32';
-const BG = '#070b14';
-const BORDER = 'rgba(236, 241, 232, 0.13)';
-const TEXT_PRIMARY = '#eef4e8';
-const TEXT_MUTED = '#9aa5ad';
 const LANDING_ANCHOR_OFFSET = 88;
 const LANDING_LINKS = [
   { href: '/docs', label: 'Docs' },
@@ -238,12 +234,14 @@ function LandingNavbar({
   onMobileMenuClose,
   onShowChangelog,
   onShowDocs,
+  authSlot,
 }: {
   mobileMenuOpen: boolean;
   onMobileMenuToggle: () => void;
   onMobileMenuClose: () => void;
   onShowChangelog?: () => void;
   onShowDocs?: () => void;
+  authSlot?: ReactNode;
 }) {
   function handleChangelogClick(e: MouseEvent<HTMLAnchorElement>) {
     if (!onShowChangelog) return;
@@ -296,26 +294,30 @@ function LandingNavbar({
           >
             GitHub
           </a>
-          <MoonIcon />
+          <ThemeToggleButton />
+          {authSlot}
         </div>
 
-        <button
-          type="button"
-          aria-controls="landing-mobile-menu"
-          aria-expanded={mobileMenuOpen}
-          onClick={onMobileMenuToggle}
-          className="hidden size-[38px] shrink-0 items-center justify-center rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-surface)] text-[var(--landing-text)] max-[860px]:inline-flex"
-        >
-          <span className="sr-only">Toggle navigation</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d={mobileMenuOpen ? 'M6 6l12 12M18 6 6 18' : 'M4 7h16M4 12h16M4 17h16'}
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
+        <div className="hidden shrink-0 items-center gap-2.5 max-[860px]:flex">
+          <ThemeToggleButton />
+          <button
+            type="button"
+            aria-controls="landing-mobile-menu"
+            aria-expanded={mobileMenuOpen}
+            onClick={onMobileMenuToggle}
+            className="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-surface)] text-[var(--landing-text)]"
+          >
+            <span className="sr-only">Toggle navigation</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d={mobileMenuOpen ? 'M6 6l12 12M18 6 6 18' : 'M4 7h16M4 12h16M4 17h16'}
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div
@@ -335,6 +337,7 @@ function LandingNavbar({
               {link.label}
             </a>
           ))}
+          {authSlot}
         </div>
       </div>
     </nav>
@@ -352,6 +355,37 @@ function MoonIcon() {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M10 1.5v2M10 16.5v2M18.5 10h-2M3.5 10h-2M16 4l-1.4 1.4M5.4 14.6 4 16M16 16l-1.4-1.4M5.4 5.4 4 4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ThemeToggleButton() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const next = resolvedTheme === 'dark' ? 'light' : 'dark';
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(next)}
+      aria-label={`Switch to ${next} theme`}
+      title={`Switch to ${next} theme`}
+      className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-[7px] border-0 bg-transparent p-0 text-[var(--landing-muted)] transition-colors duration-150 hover:text-[var(--landing-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-accent)]"
+    >
+      {resolvedTheme === 'dark' ? <MoonIcon /> : <SunIcon />}
+    </button>
   );
 }
 
@@ -851,17 +885,21 @@ function PricingCard({
             </p>
           </div>
         )}
-        <button
-          type="button"
-          onClick={onCta}
-          disabled={signingIn}
-          className={`landing-action landing-action--full ${
-            isPro ? 'landing-action--primary' : 'landing-action--secondary'
-          }`}
-        >
-          {signingIn ? <Spinner size={13} /> : null}
-          {cta}
-        </button>
+        {onCta ? (
+          <button
+            type="button"
+            onClick={onCta}
+            disabled={signingIn}
+            className={`landing-action landing-action--full ${
+              isPro ? 'landing-action--primary' : 'landing-action--secondary'
+            }`}
+          >
+            {signingIn ? <Spinner size={13} /> : null}
+            {cta}
+          </button>
+        ) : (
+          cta
+        )}
       </div>
     </article>
   );
@@ -1050,7 +1088,7 @@ function LoginModal({
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[color-mix(in_oklch,var(--landing-bg)_84%,transparent)] p-5"
+      className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-[color-mix(in_oklch,var(--landing-bg)_84%,transparent)] p-5"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -1140,6 +1178,7 @@ type LandingDispatch = (action: LandingAction) => void;
 function useLandingSlots(children: ReactNode) {
   const slots = useMemo(() => extractSlots(children), [children]);
   return {
+    navbarAuthNode: slots.NavbarAuth ? slots.NavbarAuth() : undefined,
     heroCtaNode: slots.HeroCta ? slots.HeroCta() : undefined,
     pricingCtaNode: slots.PricingCta ? slots.PricingCta() : undefined,
   };
@@ -1348,7 +1387,7 @@ function LandingPageInner({ children, mascot, onShowChangelog, onShowDocs }: Lan
     openLogin: actions.openLogin,
     dispatch,
   });
-  const { heroCtaNode, pricingCtaNode } = useLandingSlots(children);
+  const { navbarAuthNode, heroCtaNode, pricingCtaNode } = useLandingSlots(children);
   const { mobileMenuOpen, toggleMobileMenu, closeMobileMenu } = useMobileMenuControls({
     activeTab,
     showLogin,
@@ -1368,6 +1407,7 @@ function LandingPageInner({ children, mascot, onShowChangelog, onShowDocs }: Lan
           onMobileMenuClose={closeMobileMenu}
           onShowChangelog={onShowChangelog}
           onShowDocs={onShowDocs}
+          authSlot={navbarAuthNode}
         />
 
         <LandingHero
@@ -1485,7 +1525,7 @@ function FAQItem({
         aria-expanded={open}
         aria-controls={contentId}
         className="group grid min-h-[70px] w-full grid-cols-[32px_minmax(0,1fr)_28px] items-center gap-4 border-0 bg-transparent px-0 py-[17px] text-left text-[14px] font-bold leading-[1.45] text-[var(--landing-text)] transition-colors duration-150 max-sm:grid-cols-[28px_minmax(0,1fr)_28px] max-sm:gap-3"
-        style={{ color: hovered || open ? TEXT_PRIMARY : undefined }}
+        style={{ color: hovered || open ? 'var(--landing-text)' : undefined }}
       >
         <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold text-[var(--landing-accent)]">
           {String(index).padStart(2, '0')}
@@ -1494,8 +1534,14 @@ function FAQItem({
         <div
           className="inline-flex size-[28px] shrink-0 items-center justify-center rounded-full transition-[background-color,border-color] duration-200"
           style={{
-            border: `1px solid ${open ? ACCENT : hovered ? 'rgba(255,255,255,0.2)' : BORDER}`,
-            background: open ? ACCENT : 'transparent',
+            border: `1px solid ${
+              open
+                ? 'var(--landing-accent)'
+                : hovered
+                  ? 'var(--landing-border-strong)'
+                  : 'var(--landing-border)'
+            }`,
+            background: open ? 'var(--landing-accent)' : 'transparent',
           }}
         >
           <svg
@@ -1511,7 +1557,7 @@ function FAQItem({
           >
             <path
               d="M2.5 4.5L6 8L9.5 4.5"
-              stroke={open ? BG : TEXT_MUTED}
+              stroke={open ? 'var(--landing-bg)' : 'var(--landing-muted)'}
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"

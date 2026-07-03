@@ -1,0 +1,48 @@
+- generic [ref=e3]:
+    - generic [ref=e4]:
+        - generic [ref=e5]:
+            - button "Hide sidebar (⌘B)" [ref=e7] [cursor=pointer]:
+                - img [ref=e8]
+            - button "Agendex." [ref=e10] [cursor=pointer]
+        - button "Search ⌘K" [ref=e12] [cursor=pointer]:
+            - img [ref=e13]
+            - generic [ref=e15]: Search
+            - generic [ref=e16]: ⌘K
+        - generic [ref=e17]:
+            - button "Manage plan sources" [ref=e18] [cursor=pointer]:
+                - img [ref=e19]
+            - button "Toggle theme" [ref=e22] [cursor=pointer]:
+                - img [ref=e23]
+            - generic [ref=e26]:
+                - strong [ref=e27]: '0'
+                - text: plans
+            - generic [ref=e29]:
+                - strong [ref=e30]: '0'
+                - text: agents
+            - generic [ref=e34]: Checking
+    - button "Filters" [ref=e39] [cursor=pointer]:
+        - img [ref=e41]
+        - generic [ref=e44]: Filters
+        - img [ref=e45]
+    - generic [ref=e58]:
+        - status [ref=e62]:
+            - generic [ref=e64]: index ready
+            - generic [ref=e65]: ·
+            - generic [ref=e66]: waiting for the first plan
+        - generic [ref=e68]:
+            - heading "No plans indexed yet" [level=2] [ref=e69]
+            - paragraph [ref=e70]: Point Agendex at the folders your agents write plans to, and every plan shows up here as it is written.
+            - generic [ref=e71]:
+                - generic [ref=e72]:
+                    - code [ref=e73]:
+                        - generic [ref=e74]: $
+                        - text: agendex add-dir ~/path/to/plans --live
+                    - button "Copy" [ref=e75] [cursor=pointer]
+                - paragraph [ref=e76]: Run it once per folder. New plans are indexed the moment they land.
+        - contentinfo [ref=e80]:
+            - generic [ref=e81]:
+                - generic [ref=e82]: ⌘K
+                - text: Search plans
+            - generic [ref=e83]:
+                - generic [ref=e84]: ⌘B
+                - text: Toggle sidebar
