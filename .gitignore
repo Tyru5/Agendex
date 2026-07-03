@@ -57,3 +57,4 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .augment/
 .factory/
 .kilocode/
+.playwright-mcp/
