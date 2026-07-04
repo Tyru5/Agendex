@@ -2408,22 +2408,81 @@ body {
   inset: 52px 0 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    linear-gradient(
-      90deg,
-      transparent calc(50% - 270px),
-      color-mix(in oklch, var(--landing-grid) 42%, transparent) calc(50% - 269px),
-      transparent calc(50% - 268px),
-      transparent calc(50% + 268px),
-      color-mix(in oklch, var(--landing-grid) 42%, transparent) calc(50% + 269px),
-      transparent calc(50% + 270px)
-    ),
-    linear-gradient(
-      180deg,
-      transparent 0,
-      color-mix(in oklch, var(--landing-accent) 8%, transparent) 50px,
-      transparent 51px
-    );
+  background: linear-gradient(
+    90deg,
+    transparent calc(50% - 270px),
+    color-mix(in oklch, var(--landing-grid) 42%, transparent) calc(50% - 269px),
+    transparent calc(50% - 268px),
+    transparent calc(50% + 268px),
+    color-mix(in oklch, var(--landing-grid) 42%, transparent) calc(50% + 269px),
+    transparent calc(50% + 270px)
+  );
+}
+
+.landing-page::after {
+  content: "";
+  position: fixed;
+  top: -2%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklch, var(--landing-accent) 10%, transparent) 20%,
+    color-mix(in oklch, var(--landing-accent) 22%, transparent) 50%,
+    color-mix(in oklch, var(--landing-accent) 10%, transparent) 80%,
+    transparent 100%
+  );
+  box-shadow: 0 0 16px 3px color-mix(in oklch, var(--landing-accent) 4%, transparent);
+  animation: landing-scan 11s linear infinite;
+}
+
+@keyframes landing-scan {
+  0% {
+    top: -2%;
+  }
+  100% {
+    top: 102%;
+  }
+}
+
+.landing-price-swap {
+  animation: landing-price-in 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-price-swap--trail {
+  animation-delay: 55ms;
+}
+
+@keyframes landing-price-in {
+  0% {
+    opacity: 0;
+    transform: translateY(0.3em);
+    filter: blur(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes landing-price-in-fade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-price-swap {
+    animation: landing-price-in-fade 160ms ease both;
+  }
 }
 
 .landing-frame {
@@ -2433,6 +2492,15 @@ body {
   margin-inline: auto;
   border-left: 1px solid var(--landing-border-subtle);
   border-right: 1px solid var(--landing-border-subtle);
+}
+
+/*
+ * `overflow-x: hidden` on .landing-page turns it into the nearest scroll
+ * container, which disables position: sticky for the docs sidebar. `clip`
+ * clips the same overflow without creating a scroll container.
+ */
+.docs-page {
+  overflow-x: clip;
 }
 
 .landing-hero-shell {
@@ -2503,7 +2571,6 @@ body {
 
 .landing-hero-copy-block {
   position: relative;
-  max-width: 520px;
   margin-top: 32px;
 }
 
@@ -2519,6 +2586,7 @@ body {
 }
 
 .landing-hero-copy-block p {
+  max-width: 520px;
   margin: 0;
   color: var(--landing-muted);
   font-size: 19px;
@@ -2553,7 +2621,12 @@ body {
   transition:
     color 160ms ease,
     text-shadow 160ms ease,
-    border-color 160ms ease;
+    border-color 160ms ease,
+    width 300ms cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.landing-hero-index-trigger[data-syncing] {
+  width: 3.3em;
 }
 
 .landing-hero-index-trigger:hover,
@@ -2569,10 +2642,83 @@ body {
   border-radius: 3px;
 }
 
+.landing-hero-index-label {
+  display: inline-block;
+  transition:
+    opacity 200ms ease,
+    filter 200ms ease,
+    transform 280ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  transition-delay: 70ms;
+}
+
+.landing-hero-index-trigger[data-syncing] .landing-hero-index-label {
+  opacity: 0;
+  filter: blur(3px);
+  transform: scale(0.72);
+  transition-delay: 0ms;
+}
+
+.landing-hero-index-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28em;
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 200ms ease,
+    transform 300ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  transition-delay: 0ms;
+}
+
+.landing-hero-index-trigger[data-syncing] .landing-hero-index-spinner {
+  opacity: 1;
+  transform: scale(1);
+  transition-delay: 70ms;
+}
+
+.landing-hero-index-spinner-text {
+  font: inherit;
+}
+
 .landing-hero-sync-icon {
   width: 0.95em;
   height: 0.95em;
+}
+
+.landing-hero-index-trigger[data-syncing] .landing-hero-sync-icon {
   animation: landing-sync-ring 760ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-index-trigger {
+    transition:
+      color 160ms ease,
+      text-shadow 160ms ease,
+      border-color 160ms ease;
+  }
+
+  .landing-hero-index-label,
+  .landing-hero-index-spinner {
+    filter: none;
+    transform: none;
+    transition: opacity 160ms ease;
+  }
+
+  .landing-hero-index-trigger[data-syncing] .landing-hero-index-label {
+    filter: none;
+    transform: none;
+  }
+
+  .landing-hero-index-trigger[data-syncing] .landing-hero-index-spinner {
+    transform: none;
+  }
+
+  .landing-hero-index-trigger[data-syncing] .landing-hero-sync-icon {
+    animation: none;
+  }
 }
 
 .landing-hero-status {
@@ -2604,6 +2750,10 @@ body {
   flex-wrap: nowrap;
   gap: 8px;
   margin-top: 48px;
+  /* bottom padding + negative margin give the hover tooltip room to render
+     inside this scroll container without shifting the layout below */
+  padding-bottom: 48px;
+  margin-bottom: -48px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -2638,6 +2788,68 @@ body {
   justify-content: center;
   border-radius: 5px;
   color: var(--landing-text);
+}
+
+.landing-hero-agent--more {
+  position: relative;
+  border-style: dashed;
+  cursor: default;
+}
+
+.landing-hero-agent--more::after,
+.landing-hero-agent--more::before {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.landing-hero-agent--more::after {
+  content: attr(data-tooltip);
+  min-width: max-content;
+  top: calc(100% + 9px);
+  left: 50%;
+  transform: translate(-50%, -4px);
+  border: 1px solid var(--landing-border-strong);
+  border-radius: 7px;
+  background: var(--landing-surface);
+  color: var(--landing-text);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.landing-hero-agent--more::before {
+  content: "";
+  top: calc(100% + 5px);
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -2px) rotate(45deg);
+  background: var(--landing-surface);
+  border-top: 1px solid var(--landing-border-strong);
+  border-left: 1px solid var(--landing-border-strong);
+}
+
+.landing-hero-agent--more:hover::after,
+.landing-hero-agent--more:hover::before,
+.landing-hero-agent--more:focus-visible::after,
+.landing-hero-agent--more:focus-visible::before {
+  opacity: 1;
+}
+
+.landing-hero-agent--more:hover::after,
+.landing-hero-agent--more:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
+.landing-hero-agent--more:hover::before,
+.landing-hero-agent--more:focus-visible::before {
+  transform: translate(-50%, 2px) rotate(45deg);
 }
 
 .landing-hero-install {
@@ -3052,6 +3264,42 @@ body {
   animation: dex-blink 6.4s ease-in-out 1.6s infinite;
 }
 
+/* Irregular keyframe stops + a duration co-prime with the 6.4s blink keep the
+   sway from reading as a metronome. Pivots at the feet, like a perched owl. */
+@keyframes dex-sway {
+  0%,
+  12%,
+  40%,
+  58%,
+  86%,
+  100% {
+    transform: rotate(0deg);
+  }
+  4% {
+    transform: rotate(-3.4deg);
+  }
+  8% {
+    transform: rotate(2.2deg);
+  }
+  46% {
+    transform: rotate(2.8deg);
+  }
+  52% {
+    transform: rotate(-1.6deg);
+  }
+  66% {
+    transform: rotate(-2.4deg);
+  }
+  74% {
+    transform: rotate(1.5deg);
+  }
+}
+
+.dex-sway {
+  transform-origin: 50% 92%;
+  animation: dex-sway 12.7s ease-in-out 2.3s infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-page *,
   .landing-page *::before,
@@ -3062,7 +3310,15 @@ body {
     transition-duration: 0.01ms !important;
   }
 
+  .landing-page::after {
+    content: none;
+  }
+
   .dex-blink [data-dex-eyes] {
+    animation: none !important;
+  }
+
+  .dex-sway {
     animation: none !important;
   }
 }

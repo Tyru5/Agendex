@@ -29,7 +29,10 @@ export function useCloudPlanSearch(searchTerm: string): ReadonlySet<string> | un
     return () => clearTimeout(timer);
   }, [trimmed]);
 
-  const ids = useQuery(api.plans.searchMyPlans, debouncedTerm ? { searchTerm: debouncedTerm } : 'skip');
+  const ids = useQuery(
+    api.plans.searchMyPlans,
+    debouncedTerm ? { searchTerm: debouncedTerm } : 'skip',
+  );
 
   return useMemo(() => (ids ? new Set<string>(ids) : undefined), [ids]);
 }

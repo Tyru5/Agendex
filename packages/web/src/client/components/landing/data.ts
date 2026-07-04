@@ -134,10 +134,13 @@ export const PRO_FEATURES = [
   'Shareable plan links',
   'Comment threads',
   'Tags, collections, and plan history',
+  'Technology dependency charts',
+  'Plannotator integration',
   'New plan indicators',
   'Plan creation, uploads, and editing',
   'Up to five workspace members',
   'Access from any device',
+  '...and more!',
 ];
 
 export const MONEY_BACK_GUARANTEE = {

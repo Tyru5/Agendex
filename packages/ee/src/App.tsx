@@ -1972,9 +1972,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   // consumers below. Plans that already carry content (local mode, optimistic
   // copies from the editor) skip the fetch.
   const cloudSelectedPlanContent = useCloudPlanContent(
-    mode === 'cloud' && selectedPlanBase && !selectedPlanBase.content
-      ? selectedPlanBase.id
-      : null,
+    mode === 'cloud' && selectedPlanBase && !selectedPlanBase.content ? selectedPlanBase.id : null,
   );
   const selectedPlan = useMemo(() => {
     if (!selectedPlanBase) return undefined;

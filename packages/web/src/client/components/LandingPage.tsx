@@ -68,9 +68,14 @@ export interface LandingPageProps {
 }
 
 const HERO_AGENT_CHIPS = [
+  { agent: 'amp', label: 'Amp' },
   { agent: 'claude-code', label: 'Claude Code' },
   { agent: 'codex-cli', label: 'Codex' },
+  { agent: 'copilot-chat', label: 'Copilot' },
+  { agent: 'droid', label: 'Droid' },
+  { agent: 'gemini', label: 'Gemini' },
   { agent: 'oh-my-opencode', label: 'OpenCode' },
+  { agent: 'pi', label: 'Pi' },
 ] as const;
 
 const PLAN_REVIEW_BULLETS = [
@@ -430,6 +435,13 @@ function HeroAgentStrip() {
           {agent.label}
         </span>
       ))}
+      <span
+        className="landing-hero-agent landing-hero-agent--more"
+        data-tooltip="with the adapter system"
+        tabIndex={0}
+      >
+        and more...
+      </span>
     </div>
   );
 }
@@ -492,7 +504,7 @@ function HeroInstallCommand() {
             variant={resolvedTheme === 'light' ? 'light' : 'dark'}
             size={64}
             decorative
-            className="dex-blink"
+            className="dex-blink dex-sway"
           />
         </div>
         <span className="landing-hero-command-prompt" aria-hidden="true">
@@ -564,9 +576,8 @@ function HeroProofBar() {
 }
 
 function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlot?: ReactNode }) {
-  const [syncAnimationKey, setSyncAnimationKey] = useState(0);
+  const [isSyncAnimationVisible, setIsSyncAnimationVisible] = useState(false);
   const syncAnimationTimerRef = useRef<number | null>(null);
-  const isSyncAnimationVisible = syncAnimationKey > 0;
 
   useEffect(() => {
     return () => {
@@ -581,9 +592,9 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
       window.clearTimeout(syncAnimationTimerRef.current);
     }
 
-    setSyncAnimationKey((key) => key + 1);
+    setIsSyncAnimationVisible(true);
     syncAnimationTimerRef.current = window.setTimeout(() => {
-      setSyncAnimationKey(0);
+      setIsSyncAnimationVisible(false);
       syncAnimationTimerRef.current = null;
     }, 1800);
   }
@@ -601,9 +612,9 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
           <LandingCursorIcon />
           <p>
             <button
-              key={syncAnimationKey}
               type="button"
               className="landing-hero-index-trigger"
+              data-syncing={isSyncAnimationVisible || undefined}
               onClick={renderSyncingAnimation}
               aria-label={
                 isSyncAnimationVisible
@@ -611,13 +622,11 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
                   : 'Render syncing animation for the local plan index'
               }
             >
-              {isSyncAnimationVisible ? (
-                <svg
-                  className="landing-hero-sync-icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                >
+              <span className="landing-hero-index-label" aria-hidden="true">
+                Index
+              </span>
+              <span className="landing-hero-index-spinner" aria-hidden="true">
+                <svg className="landing-hero-sync-icon" viewBox="0 0 24 24" fill="none">
                   <path
                     d="M20 12a8 8 0 0 1-13.66 5.66L4 15.32M4 12A8 8 0 0 1 17.66 6.34L20 8.68M20 4v4.68h-4.68M4 20v-4.68h4.68"
                     stroke="currentColor"
@@ -626,16 +635,15 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
                     strokeLinejoin="round"
                   />
                 </svg>
-              ) : (
-                'Index'
-              )}
+                <span className="landing-hero-index-spinner-text">sync</span>
+              </span>
               <span className="landing-hero-status" role="status" aria-live="polite">
                 {isSyncAnimationVisible ? 'Syncing index' : ''}
               </span>
             </button>{' '}
-            plan and session files from Claude Code, Codex, Cursor, Continue, OpenCode, and optional
-            Plannotator sessions. Search local output first, then sync to Cloud Pro when the work
-            needs sharing or review.
+            every plan and session your coding agents leave behind, scattered across your machines,
+            into one searchable place. Everything stays local by default — sync to Cloud Pro when
+            the work needs sharing, review, or access to pro features.
           </p>
           <div className="landing-hero-meta">
             Watches local files <span>|</span> filters by agent and workspace <span>|</span> syncs
@@ -896,11 +904,19 @@ function PricingCard({
       </p>
 
       <div className="mt-7 mb-6 flex items-end gap-2">
-        <span className="text-[44px] font-[760] leading-none tracking-[-0.03em] text-[var(--landing-text)]">
+        <span
+          key={price}
+          className="landing-price-swap text-[44px] font-[760] leading-none tracking-[-0.03em] text-[var(--landing-text)]"
+        >
           {price}
         </span>
         {period && (
-          <span className="text-[13px] font-semibold text-[var(--landing-muted)]">{period}</span>
+          <span
+            key={period}
+            className="landing-price-swap landing-price-swap--trail text-[13px] font-semibold text-[var(--landing-muted)]"
+          >
+            {period}
+          </span>
         )}
       </div>
 
