@@ -251,6 +251,8 @@ function LandingNavbar({
 }) {
   function handleChangelogClick(e: MouseEvent<HTMLAnchorElement>) {
     if (!onShowChangelog) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     onShowChangelog();
     onMobileMenuClose();
@@ -258,6 +260,8 @@ function LandingNavbar({
 
   function handleDocsClick(e: MouseEvent<HTMLAnchorElement>) {
     if (!onShowDocs) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     onShowDocs();
     onMobileMenuClose();
@@ -1080,12 +1084,16 @@ function LandingFooter({
 }) {
   function handleChangelogClick(e: MouseEvent<HTMLAnchorElement>) {
     if (!onShowChangelog) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     onShowChangelog();
   }
 
   function handleDocsClick(e: MouseEvent<HTMLAnchorElement>) {
     if (!onShowDocs) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     onShowDocs();
   }
