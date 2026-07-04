@@ -840,9 +840,9 @@ function LandingNavbar({
           <a
             href="#overview"
             onClick={onMobileMenuClose}
-            className="flex shrink-0 items-center gap-2 font-[Unbounded,Inter,system-ui,sans-serif] text-[15px] font-[430] text-[var(--landing-text)] no-underline"
+            className="dex-wink-on-hover flex shrink-0 items-center gap-2 font-[Unbounded,Inter,system-ui,sans-serif] text-[15px] font-[430] text-[var(--landing-text)] no-underline"
           >
-            <DexMascot variant="dark" size={26} />
+            <DexMascot variant="dark" size={26} decorative />
             Agendex<span className="text-[var(--landing-accent)]">.</span>
           </a>
           <div className="flex items-center gap-6 max-[980px]:hidden">
@@ -982,93 +982,105 @@ function HeroPlanRoom({
     <div className="relative z-[1] flex min-w-0 flex-col gap-3 max-[980px]:max-w-[720px]">
       <div className="flex w-full items-center justify-between gap-2 text-[11px] font-bold uppercase text-[var(--landing-muted)] max-sm:flex-col max-sm:items-start">
         <span>Plan room preview</span>
-        <span>{activeTab === 'cloud' ? 'Cloud sync path' : 'Local first path'}</span>
+        <span className="pr-14 max-sm:pr-0">
+          {activeTab === 'cloud' ? 'Cloud sync path' : 'Local first path'}
+        </span>
       </div>
 
-      <div className="relative overflow-hidden rounded-[8px] border border-[var(--landing-border-subtle)] bg-[linear-gradient(135deg,color-mix(in_oklch,var(--landing-surface-raised)_58%,transparent),color-mix(in_oklch,var(--landing-bg)_92%,transparent))] shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_64%,transparent)]">
-        <div className="relative z-[1] border-b border-[var(--landing-border-subtle)] p-4 max-sm:p-3.5">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-accent)]">
+      <div className="relative">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-7 top-0 z-[2] -translate-y-[91%] [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_420ms_both] max-sm:hidden"
+        >
+          <DexMascot variant="dark" size={46} decorative className="dex-blink" />
+        </div>
+        <div className="relative overflow-hidden rounded-[8px] border border-[var(--landing-border-subtle)] bg-[linear-gradient(135deg,color-mix(in_oklch,var(--landing-surface-raised)_58%,transparent),color-mix(in_oklch,var(--landing-bg)_92%,transparent))] shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_64%,transparent)]">
+          <div className="relative z-[1] border-b border-[var(--landing-border-subtle)] p-4 max-sm:p-3.5">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-accent)]">
+                  <span
+                    aria-hidden="true"
+                    className="size-[6px] rounded-full bg-[var(--landing-accent)]"
+                  />
+                  Live index
+                </div>
+                <h2 className="mt-2 mb-0 text-[19px] font-bold leading-[1.18] text-[var(--landing-text)]">
+                  Plans arrive with source, owner, and review state.
+                </h2>
+              </div>
+              <div className="shrink-0 rounded-[5px] bg-[color-mix(in_oklch,var(--landing-surface-raised)_60%,transparent)] px-2 py-1 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[var(--landing-muted)]">
+                daemon online
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[7px] bg-[color-mix(in_oklch,var(--landing-bg)_86%,transparent)]">
+              {DEMO_PLAN_ROWS.map((row) => (
+                <div
+                  key={`hero-${row.title}`}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-3.5 py-3 odd:bg-[color-mix(in_oklch,var(--landing-surface)_22%,transparent)]"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-bold text-[var(--landing-text)]">
+                      {row.title}
+                    </div>
+                    <div className="mt-1 truncate font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] text-[var(--landing-faint)]">
+                      {row.path}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[11px] font-bold text-[var(--landing-muted)]">
+                      {row.agent}
+                    </div>
+                    <div className="mt-1 text-[11px] text-[var(--landing-accent)]">
+                      {row.status}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {HERO_PROOF_POINTS.map((point) => (
                 <span
-                  aria-hidden="true"
-                  className="size-[6px] rounded-full bg-[var(--landing-accent)]"
-                />
-                Live index
-              </div>
-              <h2 className="mt-2 mb-0 text-[19px] font-bold leading-[1.18] text-[var(--landing-text)]">
-                Plans arrive with source, owner, and review state.
-              </h2>
-            </div>
-            <div className="shrink-0 rounded-[5px] bg-[color-mix(in_oklch,var(--landing-surface-raised)_60%,transparent)] px-2 py-1 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[var(--landing-muted)]">
-              daemon online
+                  key={point}
+                  className="rounded-full bg-[color-mix(in_oklch,var(--landing-surface)_60%,transparent)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[var(--landing-muted)]"
+                >
+                  {point}
+                </span>
+              ))}
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-[7px] bg-[color-mix(in_oklch,var(--landing-bg)_86%,transparent)]">
-            {DEMO_PLAN_ROWS.map((row) => (
-              <div
-                key={`hero-${row.title}`}
-                className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-3.5 py-3 odd:bg-[color-mix(in_oklch,var(--landing-surface)_22%,transparent)]"
+          <div className="relative z-[1] p-2.5">
+            <div className="grid grid-cols-2 gap-1.5 rounded-[8px] bg-[color-mix(in_oklch,var(--landing-bg)_72%,transparent)] p-1">
+              <button
+                type="button"
+                className={`min-h-9 cursor-pointer rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
+                  activeTab === 'local'
+                    ? 'bg-[var(--landing-surface-raised)] text-[var(--landing-text)]'
+                    : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
+                }`}
+                onClick={() => onSetActiveTab('local')}
               >
-                <div className="min-w-0">
-                  <div className="truncate text-[13px] font-bold text-[var(--landing-text)]">
-                    {row.title}
-                  </div>
-                  <div className="mt-1 truncate font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] text-[var(--landing-faint)]">
-                    {row.path}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[11px] font-bold text-[var(--landing-muted)]">
-                    {row.agent}
-                  </div>
-                  <div className="mt-1 text-[11px] text-[var(--landing-accent)]">{row.status}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {HERO_PROOF_POINTS.map((point) => (
-              <span
-                key={point}
-                className="rounded-full bg-[color-mix(in_oklch,var(--landing-surface)_60%,transparent)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[var(--landing-muted)]"
+                Self-hosted
+              </button>
+              <button
+                type="button"
+                className={`min-h-9 cursor-pointer rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
+                  activeTab === 'cloud'
+                    ? 'bg-[var(--landing-surface-raised)] text-[var(--landing-text)]'
+                    : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
+                }`}
+                onClick={() => onSetActiveTab('cloud')}
               >
-                {point}
-              </span>
-            ))}
+                Cloud sync
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div className="relative z-[1] p-2.5">
-          <div className="grid grid-cols-2 gap-1.5 rounded-[8px] bg-[color-mix(in_oklch,var(--landing-bg)_72%,transparent)] p-1">
-            <button
-              type="button"
-              className={`min-h-9 cursor-pointer rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
-                activeTab === 'local'
-                  ? 'bg-[var(--landing-surface-raised)] text-[var(--landing-text)]'
-                  : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
-              }`}
-              onClick={() => onSetActiveTab('local')}
-            >
-              Self-hosted
-            </button>
-            <button
-              type="button"
-              className={`min-h-9 cursor-pointer rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
-                activeTab === 'cloud'
-                  ? 'bg-[var(--landing-surface-raised)] text-[var(--landing-text)]'
-                  : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
-              }`}
-              onClick={() => onSetActiveTab('cloud')}
-            >
-              Cloud sync
-            </button>
-          </div>
+          <AnimatedSteps activeTab={activeTab} />
         </div>
-
-        <AnimatedSteps activeTab={activeTab} />
       </div>
     </div>
   );

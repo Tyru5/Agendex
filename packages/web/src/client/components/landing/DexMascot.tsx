@@ -12,6 +12,11 @@ export interface DexMascotProps {
   title?: string;
   className?: string;
   style?: CSSProperties;
+  /**
+   * Marks the mascot as purely decorative so it is hidden from assistive tech.
+   * Use for repeat/garnish instances where a nearby label already names the app.
+   */
+  decorative?: boolean;
 }
 
 interface DexPalette {
@@ -61,6 +66,7 @@ export function DexMascot({
   title = 'Dex, the Agendex owl',
   className,
   style,
+  decorative = false,
 }: DexMascotProps) {
   const p = PALETTES[variant];
 
@@ -70,12 +76,13 @@ export function DexMascot({
       height={size}
       viewBox="0 0 120 120"
       fill="none"
-      role="img"
-      aria-label={title}
+      role={decorative ? undefined : 'img'}
+      aria-hidden={decorative ? true : undefined}
+      aria-label={decorative ? undefined : title}
       className={className}
       style={style}
     >
-      <title>{title}</title>
+      {!decorative && <title>{title}</title>}
 
       {/* Ear tufts */}
       <path d="M34 30 Q27 9 40 6 Q47 16 48 28 Z" fill={p.tuft} />
@@ -104,13 +111,19 @@ export function DexMascot({
         fill={p.face}
       />
 
-      {/* Eyes */}
-      <circle cx="46" cy="47" r="13" fill={EYE} />
-      <circle cx="74" cy="47" r="13" fill={EYE} />
-      <circle cx="46" cy="47" r="5.4" fill={PUPIL} />
-      <circle cx="74" cy="47" r="5.4" fill={PUPIL} />
-      <circle cx="48.1" cy="44.9" r="1.7" fill="#ffffff" />
-      <circle cx="76.1" cy="44.9" r="1.7" fill="#ffffff" />
+      {/* Eyes (grouped so belly/blink transforms can target them) */}
+      <g data-dex-eyes="">
+        <g data-dex-eye="left">
+          <circle cx="46" cy="47" r="13" fill={EYE} />
+          <circle cx="46" cy="47" r="5.4" fill={PUPIL} />
+          <circle cx="48.1" cy="44.9" r="1.7" fill="#ffffff" />
+        </g>
+        <g data-dex-eye="right">
+          <circle cx="74" cy="47" r="13" fill={EYE} />
+          <circle cx="74" cy="47" r="5.4" fill={PUPIL} />
+          <circle cx="76.1" cy="44.9" r="1.7" fill="#ffffff" />
+        </g>
+      </g>
 
       {/* Beak */}
       <path d="M60 52 L65 59 L60 68 L55 59 Z" fill={BEAK} />
