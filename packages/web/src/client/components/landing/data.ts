@@ -35,7 +35,7 @@ export const LOCAL_STEPS = [
   {
     number: '1',
     title: 'Clone & Install',
-    code: `git clone https://github.com/tiru5/agendex.git\ncd agendex && bun install`,
+    code: `git clone https://github.com/tyru5/agendex.git\ncd agendex && bun install`,
   },
   {
     number: '2',

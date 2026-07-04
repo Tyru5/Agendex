@@ -1108,7 +1108,7 @@ function LandingFooter({
           Changelog
         </a>
         <a
-          href="https://github.com/tiru5/agendex"
+          href="https://github.com/tyru5/agendex"
           target="_blank"
           rel="noopener noreferrer"
           className="landing-action landing-action--secondary landing-action--compact"
