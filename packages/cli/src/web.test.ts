@@ -51,7 +51,9 @@ test('open uses stored login site URL when no override is provided', async () =>
     console.log = originalLog;
   }
 
-  expect(logs.some((line) => line.includes('https://self-hosted.example.com'))).toBe(true);
+  expect(logs.some((line) => line.includes('https://self-hosted.example.com/dashboard'))).toBe(
+    true,
+  );
 });
 
 test('open prefers stored login site URL over AGENDEX_SITE_URL', async () => {
@@ -76,7 +78,9 @@ test('open prefers stored login site URL over AGENDEX_SITE_URL', async () => {
     console.log = originalLog;
   }
 
-  expect(logs.some((line) => line.includes('https://self-hosted.example.com'))).toBe(true);
+  expect(logs.some((line) => line.includes('https://self-hosted.example.com/dashboard'))).toBe(
+    true,
+  );
   expect(logs.some((line) => line.includes('https://app.agendex.dev'))).toBe(false);
 });
 
