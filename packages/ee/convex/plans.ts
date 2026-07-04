@@ -1,6 +1,7 @@
 import { ProFeature } from '@agendex/shared/types';
+import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { type QueryCtx, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
@@ -91,38 +92,47 @@ export const publishPlan = mutation({
   },
 });
 
+// Resolves whose plans `getMyPublishedPlans` returns: your own, unless you lack
+// an active subscription but belong to a workspace whose owner has one — then
+// you see that owner's plans. Preserves the pre-pagination branching exactly.
+async function resolvePublishedPlansOwnerId(ctx: QueryCtx, userId: string): Promise<string> {
+  const ownActive = await hasActiveSubscriptionForUserId(ctx, userId);
+  if (ownActive) return userId;
+
+  const membership = await ctx.db
+    .query('workspaceMembers')
+    .withIndex('by_member', (q) => q.eq('memberId', userId))
+    .first();
+  if (membership) {
+    const ownerActive = await hasActiveSubscriptionForUserId(ctx, membership.workspaceOwnerId);
+    if (ownerActive) return membership.workspaceOwnerId;
+  }
+  return userId;
+}
+
 export const getMyPublishedPlans = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
-    if (!user) return [];
-
-    const ownActive = await hasActiveSubscriptionForUserId(ctx, user._id);
-    if (!ownActive) {
-      const membership = await ctx.db
-        .query('workspaceMembers')
-        .withIndex('by_member', (q) => q.eq('memberId', user._id))
-        .first();
-
-      if (membership) {
-        const ownerActive = await hasActiveSubscriptionForUserId(ctx, membership.workspaceOwnerId);
-        if (ownerActive) {
-          const workspacePlans = await ctx.db
-            .query('plans')
-            .withIndex('by_owner', (q) => q.eq('ownerId', membership.workspaceOwnerId))
-            .order('desc')
-            .collect();
-          return filterVisiblePlans(workspacePlans);
-        }
-      }
+    if (!user) {
+      return { page: [], isDone: true, continueCursor: '' };
     }
 
-    const plans = await ctx.db
+    const ownerId = await resolvePublishedPlansOwnerId(ctx, user._id);
+
+    // Paginate rather than `.collect()`: a single query must never read an
+    // unbounded number of plans, nor exceed Convex's per-transaction read
+    // limits as plan count/content grows (the byte limit binds well before the
+    // doc limit, since each plan carries its full content). `useCloudPlans`
+    // walks every page client-side, so full-set aggregation and search still
+    // work. Post-filtering shrinks a page but leaves the cursor valid.
+    const result = await ctx.db
       .query('plans')
-      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
+      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
       .order('desc')
-      .collect();
-    return filterVisiblePlans(plans);
+      .paginate(args.paginationOpts);
+
+    return { ...result, page: filterVisiblePlans(result.page) };
   },
 });
 
