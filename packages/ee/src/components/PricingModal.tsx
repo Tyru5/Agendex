@@ -17,11 +17,14 @@ const PRO_FEATURES = [
   'Cloud sync via CLI daemon',
   'Shareable plan links',
   'Comment threads',
+  'Tags, collections & plan history',
   'Technology dependency charts',
+  'Plannotator integration',
   'New plan tracking & indicators',
   'Plan creation from dashboard',
   'Up to 5 workspace members',
   'Access from any device',
+  '...and more!',
 ];
 
 function ArrowRight() {

@@ -38,7 +38,7 @@ function CheckIcon() {
       strokeWidth="2.5"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="text-[var(--primary,#8b5cf6)] shrink-0 mt-0.5"
+      className="text-[var(--primary)] shrink-0 mt-0.5"
       aria-hidden="true"
     >
       <polyline points="20 6 9 17 4 12" />
@@ -92,7 +92,7 @@ function PlanCard({
       style={
         !isCurrentPlan
           ? {
-              background: 'var(--primary, #8b5cf6)',
+              background: 'var(--primary)',
               color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
             }
           : undefined
@@ -107,9 +107,9 @@ function PlanCard({
       className={[
         'relative rounded-2xl border p-6 flex flex-col gap-4',
         isCurrentPlan
-          ? 'border-[var(--primary,#8b5cf6)]/50 ring-1 ring-[var(--primary,#8b5cf6)]/20'
+          ? 'border-[var(--primary)]/50 ring-1 ring-[var(--primary)]/20'
           : isAccent
-            ? 'border-[var(--primary,#8b5cf6)]/30'
+            ? 'border-[var(--primary)]/30'
             : 'border-border',
       ].join(' ')}
       style={{
@@ -124,7 +124,7 @@ function PlanCard({
         <span
           className="absolute -top-3 right-5 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full"
           style={{
-            background: 'var(--primary, #8b5cf6)',
+            background: 'var(--primary)',
             color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
             boxShadow: `0 2px 8px rgba(var(--primary-rgb, ${PRIMARY_RGB_FALLBACK}), 0.3)`,
           }}
@@ -154,7 +154,7 @@ function PlanCard({
               : isAccent
                 ? `rgba(var(--primary-rgb, ${PRIMARY_RGB_FALLBACK}), 0.15)`
                 : 'var(--hover)',
-            color: isCurrentPlan || isAccent ? 'var(--primary, #8b5cf6)' : 'var(--secondary)',
+            color: isCurrentPlan || isAccent ? 'var(--primary)' : 'var(--secondary)',
           }}
         >
           {badge}
@@ -244,7 +244,7 @@ function PrivacySettingsSection() {
               'disabled:cursor-default disabled:opacity-50',
               collectLocalIpAddress ? 'border-transparent' : 'border-border bg-hover',
             ].join(' ')}
-            style={collectLocalIpAddress ? { background: 'var(--primary, #c8ff32)' } : undefined}
+            style={collectLocalIpAddress ? { background: 'var(--primary)' } : undefined}
           >
             <span
               className="absolute top-1 size-5 rounded-full bg-surface shadow-[0_2px_8px_rgba(0,0,0,0.18)] transition-transform duration-150"
@@ -301,7 +301,7 @@ function DeviceCard({
           <div className="flex items-center gap-1.5 text-[12px]">
             <span
               className="inline-block size-2 rounded-full"
-              style={{ background: isAlive ? '#22c55e' : '#eab308' }}
+              style={{ background: isAlive ? 'var(--success)' : 'var(--warning)' }}
             />
             <span className={isAlive ? 'text-text' : 'text-secondary'}>
               {isAlive ? 'Online' : 'Stale'}
@@ -409,7 +409,7 @@ function DeleteConfirmModal({
             onClick={onConfirm}
             disabled={!confirmed || deleting}
             className="text-[13px] px-3.5 py-1.5 rounded-default border-none text-white cursor-pointer font-medium transition-opacity duration-150 disabled:opacity-40 disabled:cursor-default"
-            style={{ background: '#ef4444' }}
+            style={{ background: 'var(--danger)' }}
           >
             {deleting ? 'Deleting...' : 'Delete my account'}
           </button>
@@ -523,7 +523,7 @@ export function AccountTab({
                 onClick={onUpgrade}
                 className="text-[13px] px-3.5 py-1.5 rounded-xl border-none cursor-pointer font-semibold shrink-0"
                 style={{
-                  background: 'var(--primary, #8b5cf6)',
+                  background: 'var(--primary)',
                   color: `var(--accent-contrast, ${PRIMARY_CONTRAST_FALLBACK})`,
                 }}
               >
@@ -571,7 +571,10 @@ export function AccountTab({
         <SectionHeading>Danger Zone</SectionHeading>
         <div
           className="rounded-2xl border p-5"
-          style={{ borderColor: 'rgba(239, 68, 68, 0.3)', background: 'var(--surface)' }}
+          style={{
+            borderColor: 'color-mix(in oklch, var(--danger) 30%, transparent)',
+            background: 'var(--surface)',
+          }}
         >
           <div className="flex items-center justify-between">
             <div>
@@ -584,9 +587,13 @@ export function AccountTab({
               type="button"
               onClick={() => setShowDeleteModal(true)}
               className="text-[13px] px-3.5 py-1.5 rounded-xl border cursor-pointer font-medium transition-colors duration-150 bg-transparent shrink-0"
-              style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+              style={{
+                color: 'var(--danger)',
+                borderColor: 'color-mix(in oklch, var(--danger) 30%, transparent)',
+              }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                e.currentTarget.style.background =
+                  'color-mix(in oklch, var(--danger) 10%, transparent)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';

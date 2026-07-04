@@ -1,27 +1,49 @@
 import type { Plan } from '@agendex/web';
 import { api } from '@convex/_generated/api';
-import { useQuery } from 'convex/react';
+import { usePaginatedQuery } from 'convex/react';
+import { useEffect } from 'react';
+
+// Page size for the paginated `getMyPublishedPlans` query. Deliberately small:
+// even though the query strips `content` from the response, the server still
+// reads full documents (up to ~1MB each) against Convex's ~8MB per-query read
+// budget, so the page count must stay low enough that one page's underlying
+// docs don't blow it. The hook eagerly loads every page below, so a smaller
+// page only costs extra round-trips, not completeness.
+const PLANS_PAGE_SIZE = 25;
 
 export function useCloudPlans(): {
   plans: Plan[];
   loading: boolean;
   error: string | null;
 } {
-  const result = useQuery(api.plans.getMyPublishedPlans);
+  const { results, status, loadMore } = usePaginatedQuery(
+    api.plans.getMyPublishedPlans,
+    {},
+    { initialNumItems: PLANS_PAGE_SIZE },
+  );
 
-  if (result === undefined) {
+  // The list UI aggregates and searches over the FULL set (agent counts, tag
+  // filters, content search), so eagerly walk every page. Each page is its own
+  // bounded query — only the client ever holds the whole collection.
+  useEffect(() => {
+    if (status === 'CanLoadMore') loadMore(PLANS_PAGE_SIZE);
+  }, [status, loadMore]);
+
+  if (status === 'LoadingFirstPage') {
     return { plans: [], loading: true, error: null };
   }
 
   try {
     // Convex query returns untyped documents
     // oxlint-disable-next-line typescript/no-explicit-any
-    const plans: Plan[] = result.map((p: any) => ({
+    const plans: Plan[] = results.map((p: any) => ({
       id: p._id,
       ownerId: p.ownerId,
       agent: p.agent,
       title: p.title,
-      content: p.content,
+      // List items ship without content (see getMyPublishedPlans); the detail
+      // view hydrates it on open via useCloudPlanContent.
+      content: p.content ?? '',
       filePath: p.filePath ?? '',
       format: p.format,
       createdAt: new Date(p.createdAt).toISOString(),

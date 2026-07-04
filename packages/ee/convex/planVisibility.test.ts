@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { assessPlanValue } from '@agendex/shared/plan-value';
 import {
   assessPlanForVisibility,
+  filterVisiblePlans,
   hasLowValueMetadata,
   isVisiblePlan,
   mergePlanMetadata,
@@ -108,6 +109,29 @@ test('custom-dir and user-created metadata do not bypass visibility classificati
       metadata: { userCreated: true },
     }),
   ).toBe(false);
+});
+
+test('filterVisiblePlans trusts the persisted low-value flag and skips live classification', () => {
+  const plans = [
+    // Persisted low-value flag -> hidden.
+    { title: 'Junk', content: '# x', metadata: { lowValue: true, lowValueReasons: ['code-only'] } },
+    // No persisted flag -> kept, even though the content alone would classify as
+    // low value. Collection reads rely on the flag being kept fresh at write
+    // time and by `backfillPlanValueMetadata`, not on per-plan classification.
+    {
+      title: 'Helper',
+      content: '```ts\nexport const x = 1;\n```',
+      metadata: { userCreated: true },
+    },
+    // Valuable plan with no flag -> kept.
+    {
+      title: 'Plan',
+      content: '# Plan\n\n## Approach\nAdd validation.\n\n## Steps\n- [ ] Implement helper\n',
+    },
+  ];
+
+  const visible = filterVisiblePlans(plans);
+  expect(visible.map((p) => p.title)).toEqual(['Helper', 'Plan']);
 });
 
 test('metadataWithPlanValueAssessment annotates low-value and removes stale keys from valuable plans', () => {

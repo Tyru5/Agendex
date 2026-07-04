@@ -105,7 +105,9 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
         )}
 
         {status === 'error' && (
-          <p className="text-[13px] text-[#ef4444]">Failed to authorize CLI. Please try again.</p>
+          <p className="text-[13px] text-[var(--danger)]">
+            Failed to authorize CLI. Please try again.
+          </p>
         )}
       </div>
     </div>

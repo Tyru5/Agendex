@@ -144,12 +144,12 @@ function PasswordGate({
             placeholder="Password"
             autoComplete="current-password"
             className={`w-full py-2.5 px-3.5 text-[13px] font-[inherit] rounded-xl border bg-bg text-text outline-none placeholder:text-tertiary mb-2 transition-colors ${
-              error ? 'border-[#ef4444]' : 'border-border focus:border-text'
+              error ? 'border-[var(--danger)]' : 'border-border focus:border-text'
             }`}
           />
           {error && (
             <p
-              className="share-reveal text-[12px] text-[#ef4444] mb-3 [--share-delay:0ms]"
+              className="share-reveal text-[12px] text-[var(--danger)] mb-3 [--share-delay:0ms]"
               role="alert"
             >
               {error}

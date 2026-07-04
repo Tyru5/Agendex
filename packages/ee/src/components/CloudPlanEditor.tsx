@@ -50,7 +50,7 @@ export function CloudPlanEditor({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {error && <span className="text-xs text-[#ef4444]">{error}</span>}
+          {error && <span className="text-xs text-[var(--danger)]">{error}</span>}
           <button
             type="button"
             onClick={onClose}

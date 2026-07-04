@@ -88,7 +88,10 @@ export default defineSchema({
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
-    .index('by_owner_plannotatorContinuityKey', ['ownerId', 'plannotatorContinuityKey']),
+    .index('by_owner_plannotatorContinuityKey', ['ownerId', 'plannotatorContinuityKey'])
+    // Server-side content search for the plan list. The list query no longer
+    // ships `content` to clients, so full-text matching has to happen here.
+    .searchIndex('search_content', { searchField: 'content', filterFields: ['ownerId'] }),
 
   shareLinks: defineTable({
     planId: v.id('plans'),

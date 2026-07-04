@@ -1,14 +1,12 @@
 import React, { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
+import { gsap } from 'gsap';
 import { startViewTransition } from '../lib/view-transition.ts';
 import {
-  CLOUD_STEPS,
   FAQ_ITEMS,
-  FEATURES,
   FREE_FEATURES,
-  LOCAL_STEPS,
+  CLI_INSTALL_OPTIONS,
   MONEY_BACK_GUARANTEE,
-  PKG_MANAGERS,
   PRO_FEATURES,
   setToken,
 } from './landing/data.ts';
@@ -18,10 +16,12 @@ import {
   LANDING_INITIAL,
   landingReducer,
 } from './landing/LandingContext.tsx';
+import { DexMascot } from './landing/DexMascot.tsx';
 import { LandingMascot, type LandingMascotProps } from './landing/LandingMascot.tsx';
+import { useTheme } from '../hooks/useTheme.ts';
 import { NavbarAuth, HeroCta, PricingCta } from './landing/LandingSlots.tsx';
 import type { SlotRenderFn, SlotComponent } from './landing/LandingSlots.tsx';
-import { TopoNeurons } from './landing/TopoNeurons.tsx';
+import { AgentIcon } from './AgentIcon.tsx';
 import { GitHubIcon } from './OAuthIcons.tsx';
 
 function Spinner({ size = 14, color }: { size?: number; color?: string }) {
@@ -31,8 +31,9 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      className="animate-spin shrink-0"
+      className="shrink-0 animate-spin"
       style={{ animationDuration: '0.8s' }}
+      aria-hidden="true"
     >
       <circle
         cx="12"
@@ -52,295 +53,804 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
   );
 }
 
-const ACCENT = '#c8ff32';
-const BG = '#041f1d';
-const BORDER = 'rgba(238,244,232,0.12)';
-const TEXT_PRIMARY = '#eef4e8';
-const TEXT_MUTED = '#61736b';
-const LANDING_ANCHOR_OFFSET = 96;
-const LANDING_SECTIONS = [
-  { id: 'features', label: 'Features' },
-  { id: 'pricing', label: 'Pricing' },
-  { id: 'faq', label: 'FAQ' },
+const LANDING_ANCHOR_OFFSET = 88;
+const LANDING_LINKS = [
+  { href: '/docs', label: 'Docs' },
+  { href: '/changelog', label: 'Changelog' },
 ] as const;
+type LandingTab = 'local' | 'cloud';
 
 export interface LandingPageProps {
   children?: ReactNode;
   mascot?: LandingMascotProps;
   onShowChangelog?: () => void;
+  onShowDocs?: () => void;
 }
 
-const DEMO_PLAN_ROWS = [
+const HERO_AGENT_CHIPS = [
+  { agent: 'amp', label: 'Amp' },
+  { agent: 'claude-code', label: 'Claude Code' },
+  { agent: 'codex-cli', label: 'Codex' },
+  { agent: 'copilot-chat', label: 'Copilot' },
+  { agent: 'droid', label: 'Droid' },
+  { agent: 'gemini', label: 'Gemini' },
+  { agent: 'oh-my-opencode', label: 'OpenCode' },
+  { agent: 'pi', label: 'Pi' },
+] as const;
+
+const PLAN_REVIEW_BULLETS = [
+  'Source path, agent, workspace, recency, and plan state stay visible together.',
+  'Full-text search moves across watched agent output and custom plan folders.',
+  'Low-value plans can be hidden while the raw local files remain readable.',
+  'Cloud sync can start from the same local index when review needs another person.',
+] as const;
+
+const CODE_REVIEW_BULLETS = [
+  'Share links, comments, tags, collections, and plan history live on Cloud Pro.',
+  'Workspace members can review synced plans without touching the source machine.',
+  'Dashboard creation, uploads, and editing cover plans that do not start in an agent.',
+  'Plannotator sessions can receive daemon-delivered request-changes feedback.',
+] as const;
+
+const PRODUCT_STEPS = [
   {
-    agent: 'Claude Code',
-    title: 'checkout-refactor.plan.md',
-    path: '~/work/storefront/.claude/plans',
-    status: 'Indexed 14s ago',
+    title: 'Use agents normally.',
+    body: 'Agendex scans the plan and session locations its implemented adapters know how to parse.',
   },
   {
-    agent: 'Codex',
-    title: 'rate-limit-rollout.md',
-    path: '~/work/api/.codex/tasks',
-    status: '2 comments',
+    title: 'Search the local index.',
+    body: 'Filter by agent or workspace, open read-only markdown, and keep custom plan sources in the same view.',
   },
   {
-    agent: 'Cursor',
-    title: 'billing-ui-followup.md',
-    path: '~/work/app/.cursor/plans',
-    status: 'Shared',
+    title: 'Sync only when useful.',
+    body: 'Use the CLI daemon to push selected local plans to Cloud Pro for sharing, comments, history, and workspace review.',
   },
 ] as const;
 
-const HERO_PROOF_POINTS = [
-  'Local files stay readable',
-  'Search spans every agent',
-  'Cloud review is optional',
-] as const;
+const SECTION_FRAME_CLASS =
+  'landing-frame border-b border-[var(--landing-border-subtle)] px-[clamp(18px,5vw,72px)]';
 
-const REVIEW_EVENTS = [
-  { label: 'Source', value: 'line-linked file path' },
-  { label: 'Search', value: 'auth refactor, owner:codex' },
-  { label: 'State', value: 'unseen changes highlighted' },
-] as const;
+const SECTION_SCROLL_STYLE = { scrollMarginTop: LANDING_ANCHOR_OFFSET };
 
-const TEAM_EVENTS = [
-  { label: 'Share link', value: 'token scoped to one plan' },
-  { label: 'Thread', value: 'review note on migration step' },
-  { label: 'Sync', value: 'local stays readable on disk' },
-] as const;
-
-const PRICING_PATH = [
-  {
-    number: '01',
-    title: 'Start local',
-    body: 'Index plans on your machine with every adapter included.',
-  },
-  {
-    number: '02',
-    title: 'Add sync',
-    body: 'Let the daemon mirror selected plans when work moves devices.',
-  },
-  {
-    number: '03',
-    title: 'Review together',
-    body: 'Use comments, links, and workspace access for team follow-up.',
-  },
-] as const;
-
-const FAQ_SUPPORT_POINTS = [
-  {
-    label: 'Local first',
-    body: 'Self-hosted works without an account and keeps files on disk.',
-  },
-  {
-    label: 'Cloud later',
-    body: 'Upgrade by signing in and starting the same CLI daemon.',
-  },
-  {
-    label: 'Adapter based',
-    body: 'New agent sources plug into the same plan index model.',
-  },
-] as const;
-
-function DemoPanel({
-  eyebrow,
-  title,
-  body,
+function ActionLink({
+  href,
   children,
-  className = '',
+  variant = 'secondary',
 }: {
-  eyebrow: string;
-  title: string;
-  body: string;
+  href: string;
   children: ReactNode;
-  className?: string;
+  variant?: 'primary' | 'secondary';
 }) {
   return (
-    <article
-      className={`relative min-w-0 overflow-hidden rounded-[8px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-surface)_82%,transparent)] p-[22px] max-sm:p-[18px] ${className}`}
+    <a
+      href={href}
+      target={href.startsWith('http') ? '_blank' : undefined}
+      rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
+      className={`landing-action landing-action--${variant}`}
     >
-      <div className="relative z-[1] mb-5 flex items-center justify-between gap-3">
-        <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold uppercase text-[var(--landing-accent)]">
-          {eyebrow}
-        </span>
-      </div>
-      <h3 className="relative z-[1] m-0 max-w-[460px] text-[18px] font-bold leading-[1.22] text-[var(--landing-text)]">
-        {title}
-      </h3>
-      <p className="relative z-[1] mt-2 mb-5 max-w-[520px] text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
-        {body}
-      </p>
-      <div className="relative z-[1]">{children}</div>
-    </article>
+      {children}
+    </a>
   );
 }
 
-function IndexDemoPanel() {
+function ActionButton({
+  children,
+  onClick,
+  variant = 'secondary',
+  disabled,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  variant?: 'primary' | 'secondary';
+  disabled?: boolean;
+}) {
   return (
-    <DemoPanel
-      eyebrow="01 / Index"
-      title="Watch every agent plan as it lands."
-      body="Agendex keeps the local source visible, so a plan never becomes detached from the repo and agent that produced it."
-      className="lg:col-span-5"
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`landing-action landing-action--${variant}`}
     >
-      <div className="flex flex-col gap-1">
-        {DEMO_PLAN_ROWS.map((row) => (
-          <div
-            key={row.title}
-            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-[5px] py-2.5 px-2 -mx-2 hover:bg-[color-mix(in_oklch,var(--landing-surface-raised)_40%,transparent)]"
+      {children}
+    </button>
+  );
+}
+
+function CliInstallOptions() {
+  const [activeOption, setActiveOption] =
+    useState<(typeof CLI_INSTALL_OPTIONS)[number]['id']>('installer');
+  const [copied, setCopied] = useState(false);
+  const active =
+    CLI_INSTALL_OPTIONS.find((option) => option.id === activeOption) ?? CLI_INSTALL_OPTIONS[0];
+  const cmd = active.cmd;
+
+  function copy() {
+    navigator.clipboard?.writeText(cmd).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    });
+  }
+
+  return (
+    <div className="rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] p-2.5">
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        {CLI_INSTALL_OPTIONS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => setActiveOption(option.id)}
+            className={`rounded-[5px] border px-2 py-1 text-[11px] font-semibold leading-none transition-colors duration-150 ${
+              activeOption === option.id
+                ? 'border-[color-mix(in_oklch,var(--landing-accent)_34%,transparent)] bg-[color-mix(in_oklch,var(--landing-accent)_12%,transparent)] text-[var(--landing-accent)]'
+                : 'border-transparent bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
+            }`}
           >
-            <div className="min-w-0">
-              <div className="truncate text-[13px] font-bold text-[var(--landing-text)]">
-                {row.title}
-              </div>
-              <div className="mt-1 truncate font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] text-[var(--landing-faint)]">
-                {row.path}
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-[11px] font-bold text-[var(--landing-muted)]">{row.agent}</div>
-              <div className="mt-1 text-[11px] text-[var(--landing-accent)]">{row.status}</div>
-            </div>
-          </div>
+            {option.label}
+          </button>
         ))}
       </div>
-      <div className="mt-4 rounded-[7px] border border-[color-mix(in_oklch,var(--landing-accent)_22%,transparent)] bg-[color-mix(in_oklch,var(--landing-accent)_7%,transparent)] px-3 py-2 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11.5px] leading-[1.55] text-[var(--landing-accent)]">
-        daemon: 3 new plans indexed, zero manual refreshes
-      </div>
-    </DemoPanel>
-  );
-}
-
-function ReviewDemoPanel() {
-  return (
-    <DemoPanel
-      eyebrow="02 / Review"
-      title="Search, inspect, and trace the source."
-      body="The plan viewer connects search, markdown, source path, and review state without forcing users back through each agent tool."
-      className="lg:col-span-4"
-    >
-      <div className="rounded-[7px] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] p-3">
-        <div className="flex items-center gap-2 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] text-[var(--landing-muted)]">
-          <span className="text-[var(--landing-accent)]">{'>'}</span>
-          <span className="min-w-0 truncate">auth refactor owner:codex</span>
-          <span className="ml-auto rounded bg-[color-mix(in_oklch,var(--landing-surface-raised)_70%,transparent)] px-[5px] py-0.5 text-[10.5px] text-[var(--landing-faint)]">
-            cmd k
-          </span>
-        </div>
-      </div>
-      <div className="mt-4 space-y-1">
-        {REVIEW_EVENTS.map((event) => (
-          <div
-            key={event.label}
-            className="flex min-h-[40px] items-center justify-between gap-4 text-[12.5px]"
-          >
-            <span className="font-bold text-[var(--landing-text)]">{event.label}</span>
-            <span className="min-w-0 truncate text-right text-[var(--landing-muted)]">
-              {event.value}
-            </span>
-          </div>
-        ))}
-      </div>
-    </DemoPanel>
-  );
-}
-
-function TeamDemoPanel() {
-  return (
-    <DemoPanel
-      eyebrow="03 / Share"
-      title="Add team review only when it earns its place."
-      body="Cloud sync layers links, comments, and workspace access onto the same plans that remain readable locally."
-      className="lg:col-span-3"
-    >
-      <div className="space-y-2">
-        {TEAM_EVENTS.map((event, index) => (
-          <div
-            key={event.label}
-            className="rounded-[7px] bg-[color-mix(in_oklch,var(--landing-bg)_72%,transparent)] p-3"
-          >
-            <div className="flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-accent)]">
-              {String(index + 1).padStart(2, '0')}
-              <span className="text-[var(--landing-text)]">{event.label}</span>
-            </div>
-            <div className="mt-1 text-[12.5px] leading-[1.5] text-[var(--landing-muted)]">
-              {event.value}
-            </div>
-          </div>
-        ))}
-      </div>
-    </DemoPanel>
-  );
-}
-
-function CapabilityList() {
-  return (
-    <div className="mt-4 grid grid-cols-3 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
-      {FEATURES.map((feature, index) => (
-        <div
-          key={feature.title}
-          className="min-w-0 rounded-[8px] bg-[color-mix(in_oklch,var(--landing-surface)_60%,transparent)] p-4"
+      <div className="flex min-w-0 items-center gap-2">
+        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] leading-[1.6] text-[var(--landing-accent)]">
+          {cmd}
+        </code>
+        <button
+          type="button"
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-[6px] border border-[var(--landing-border)] bg-[var(--landing-surface)] text-[var(--landing-muted)] hover:border-[var(--landing-border-strong)] hover:text-[var(--landing-text)]"
+          onClick={copy}
+          aria-label="Copy install command"
         >
-          <div className="mb-2 flex items-center gap-2">
-            <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[var(--landing-accent)]">
-              {String(index + 1).padStart(2, '0')}
-            </span>
-            <span className="truncate text-[13px] font-bold text-[var(--landing-text)]">
-              {feature.title}
-            </span>
-          </div>
-          <p className="m-0 line-clamp-2 text-[12.5px] leading-[1.55] text-[var(--landing-muted)]">
-            {feature.desc}
-          </p>
-        </div>
-      ))}
+          {copied ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M20 6 9 17l-5-5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect
+                x="9"
+                y="9"
+                width="11"
+                height="11"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+              <path
+                d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
 
-function ProductDemoSection({
-  sectionRef,
-  inView,
+function LandingNavbar({
+  mobileMenuOpen,
+  onMobileMenuToggle,
+  onMobileMenuClose,
+  onShowChangelog,
+  onShowDocs,
+  authSlot,
 }: {
-  sectionRef: React.RefObject<HTMLElement | null>;
-  inView: boolean;
+  mobileMenuOpen: boolean;
+  onMobileMenuToggle: () => void;
+  onMobileMenuClose: () => void;
+  onShowChangelog?: () => void;
+  onShowDocs?: () => void;
+  authSlot?: ReactNode;
 }) {
+  function handleChangelogClick(e: MouseEvent<HTMLAnchorElement>) {
+    if (!onShowChangelog) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onShowChangelog();
+    onMobileMenuClose();
+  }
+
+  function handleDocsClick(e: MouseEvent<HTMLAnchorElement>) {
+    if (!onShowDocs) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onShowDocs();
+    onMobileMenuClose();
+  }
+
   return (
-    <section
-      id="features"
-      ref={sectionRef}
-      className="relative z-[1] border-b border-[var(--landing-border-subtle)] px-[clamp(20px,5vw,88px)] py-[76px] max-sm:px-4 max-sm:py-[58px]"
-      style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
+    <nav
+      className="fixed inset-x-0 top-0 z-[100] border-b border-[var(--landing-border-subtle)] bg-[var(--landing-bg)]/96"
+      data-landing-animate="nav"
     >
-      <div className="mb-[44px] grid grid-cols-[minmax(160px,0.35fr)_minmax(0,0.65fr)] gap-[clamp(22px,5vw,72px)] max-lg:grid-cols-1 max-lg:gap-5">
-        <div className="flex items-baseline gap-3 self-start max-lg:w-full">
-          <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
-            01
-          </span>
-          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
-            Product flow
-          </span>
+      <div className="flex min-h-[49px] items-center justify-between gap-5 px-[18px]">
+        <a
+          href="/"
+          onClick={onMobileMenuClose}
+          className="shrink-0 text-[16px] font-bold text-[var(--landing-text)] no-underline"
+        >
+          Agendex<span className="text-[var(--landing-accent)]">.</span>
+        </a>
+
+        <div className="flex min-w-0 items-center gap-3 text-[13px] font-medium max-[860px]:hidden">
+          {LANDING_LINKS.map((link) => (
+            <React.Fragment key={link.href}>
+              <a
+                href={link.href}
+                onClick={link.href === '/docs' ? handleDocsClick : handleChangelogClick}
+                className="text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
+              >
+                {link.label}
+              </a>
+              <span className="text-[var(--landing-border-strong)]" aria-hidden="true">
+                |
+              </span>
+            </React.Fragment>
+          ))}
+          <a
+            href="https://github.com/tiru5/agendex"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
+          >
+            GitHub
+          </a>
+          <ThemeToggleButton />
+          {authSlot}
         </div>
-        <h2 className="m-0 max-w-[860px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[clamp(42px,4.8vw,60px)] font-[500] leading-[1.0] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[34px] max-sm:leading-[1.04]">
-          From scattered agent files to reviewed work.
-        </h2>
-        <p className="col-start-2 mt-3 mb-0 max-w-[560px] text-[15px] leading-[1.7] text-[var(--landing-muted)] max-lg:col-start-1 max-lg:mt-0">
-          Watch local plans, find the right thread, then share context with a team when the work
-          needs review.
-        </p>
+
+        <div className="hidden shrink-0 items-center gap-2.5 max-[860px]:flex">
+          <ThemeToggleButton />
+          <button
+            type="button"
+            aria-controls="landing-mobile-menu"
+            aria-expanded={mobileMenuOpen}
+            onClick={onMobileMenuToggle}
+            className="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-surface)] text-[var(--landing-text)]"
+          >
+            <span className="sr-only">Toggle navigation</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d={mobileMenuOpen ? 'M6 6l12 12M18 6 6 18' : 'M4 7h16M4 12h16M4 17h16'}
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div
-        className={`grid grid-cols-12 gap-3.5 max-lg:grid-cols-1 ${
-          inView ? 'animate-[landing-panel-in_260ms_cubic-bezier(0.22,1,0.36,1)_both]' : 'opacity-0'
+        id="landing-mobile-menu"
+        className={`landing-frame border-t border-[var(--landing-border-subtle)] px-5 py-4 min-[861px]:hidden ${
+          mobileMenuOpen ? 'block' : 'hidden'
         }`}
       >
-        <IndexDemoPanel />
-        <ReviewDemoPanel />
-        <TeamDemoPanel />
+        <div className="flex flex-col gap-2.5">
+          {LANDING_LINKS.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              onClick={link.href === '/docs' ? handleDocsClick : handleChangelogClick}
+              className="flex min-h-10 items-center rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 text-[13px] font-semibold text-[var(--landing-text)] no-underline"
+            >
+              {link.label}
+            </a>
+          ))}
+          {authSlot}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M16.4 12.6A6.4 6.4 0 0 1 7.4 3.6 6.7 6.7 0 1 0 16.4 12.6Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M10 1.5v2M10 16.5v2M18.5 10h-2M3.5 10h-2M16 4l-1.4 1.4M5.4 14.6 4 16M16 16l-1.4-1.4M5.4 5.4 4 4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ThemeToggleButton() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const next = resolvedTheme === 'dark' ? 'light' : 'dark';
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(next)}
+      aria-label={`Switch to ${next} theme`}
+      title={`Switch to ${next} theme`}
+      className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-[7px] border-0 bg-transparent p-0 text-[var(--landing-muted)] transition-colors duration-150 hover:text-[var(--landing-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-accent)]"
+    >
+      {resolvedTheme === 'dark' ? <MoonIcon /> : <SunIcon />}
+    </button>
+  );
+}
+
+function LandingCursorIcon() {
+  return (
+    <svg
+      className="landing-hero-cursor"
+      width="42"
+      height="42"
+      viewBox="0 0 42 42"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        data-landing-cursor-pointer
+        d="M11 7.5 31 20.2l-9.1 2.2 5.2 8.9-4.6 2.7-5.1-8.8-6.4 6.2V7.5Z"
+        fill="var(--landing-bg)"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinejoin="round"
+      />
+      <path
+        data-landing-cursor-rays
+        d="M28.3 9.8 32 6.5M31.6 14h4.8M24.5 7.8l1.4-4.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function HeroAgentStrip() {
+  return (
+    <div className="landing-hero-agents" aria-label="Supported agents">
+      {HERO_AGENT_CHIPS.map((agent) => (
+        <span key={agent.label} className="landing-hero-agent">
+          <span className="landing-hero-agent-mark">
+            <AgentIcon agent={agent.agent} size={18} />
+          </span>
+          {agent.label}
+        </span>
+      ))}
+      <span
+        className="landing-hero-agent landing-hero-agent--more"
+        data-tooltip="with the adapter system"
+        tabIndex={0}
+      >
+        and more...
+      </span>
+    </div>
+  );
+}
+
+const HERO_INSTALL_COMMANDS = [
+  {
+    id: 'unix',
+    label: 'macOS / Linux',
+    prompt: '$',
+    cmd: 'curl -fsSL https://agendex.dev/install.sh | bash',
+  },
+  {
+    id: 'windows',
+    label: 'Windows',
+    prompt: '>',
+    cmd: 'irm https://agendex.dev/install.ps1 | iex',
+  },
+] as const;
+
+function HeroInstallCommand() {
+  const { resolvedTheme } = useTheme();
+  const [activePlatform, setActivePlatform] =
+    useState<(typeof HERO_INSTALL_COMMANDS)[number]['id']>('unix');
+  const [copied, setCopied] = useState(false);
+  const active =
+    HERO_INSTALL_COMMANDS.find((option) => option.id === activePlatform) ??
+    HERO_INSTALL_COMMANDS[0];
+
+  function copy() {
+    navigator.clipboard?.writeText(active.cmd).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    });
+  }
+
+  return (
+    <div className="landing-hero-install">
+      <div className="mb-1.5 flex gap-1.5">
+        {HERO_INSTALL_COMMANDS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => setActivePlatform(option.id)}
+            className={`rounded-[5px] border px-2 py-1 text-[11px] font-semibold leading-none transition-colors duration-150 ${
+              activePlatform === option.id
+                ? 'border-[color-mix(in_oklch,var(--landing-accent)_34%,transparent)] bg-[color-mix(in_oklch,var(--landing-accent)_12%,transparent)] text-[var(--landing-accent)]'
+                : 'border-transparent bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <div className="landing-hero-command relative">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-6 top-0 z-[2] -translate-y-[88%] max-sm:hidden"
+        >
+          <DexMascot
+            variant={resolvedTheme === 'light' ? 'light' : 'dark'}
+            size={64}
+            decorative
+            className="dex-blink dex-sway"
+          />
+        </div>
+        <span className="landing-hero-command-prompt" aria-hidden="true">
+          {active.prompt}
+        </span>
+        <code>{active.cmd}</code>
+        <button
+          type="button"
+          onClick={copy}
+          className="landing-hero-copy"
+          aria-label="Copy install command"
+        >
+          {copied ? (
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="m5 12 4 4L19 6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : (
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect
+                x="8"
+                y="8"
+                width="12"
+                height="12"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              />
+              <path
+                d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+            </svg>
+          )}
+        </button>
       </div>
 
-      <CapabilityList />
+      <div className="landing-hero-runbook">
+        <p>Then configure sources and open the dashboard:</p>
+        <code>agendex configure</code>
+        <code>agendex add-dir ~/path/to/plans --live</code>
+        <code>agendex open</code>
+      </div>
+    </div>
+  );
+}
+
+function HeroProofBar() {
+  return (
+    <div className="landing-hero-proof">
+      <div>
+        <GitHubIcon size={15} />
+        <span className="landing-hero-star" aria-hidden="true">
+          ●
+        </span>
+        <span>Live local plan index</span>
+      </div>
+      <div>Source paths, agents, workspaces, and raw markdown stay inspectable.</div>
+      <div>Cloud sync only when enabled</div>
+    </div>
+  );
+}
+
+function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlot?: ReactNode }) {
+  const [isSyncAnimationVisible, setIsSyncAnimationVisible] = useState(false);
+  const syncAnimationTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (syncAnimationTimerRef.current !== null) {
+        window.clearTimeout(syncAnimationTimerRef.current);
+      }
+    };
+  }, []);
+
+  function renderSyncingAnimation() {
+    if (syncAnimationTimerRef.current !== null) {
+      window.clearTimeout(syncAnimationTimerRef.current);
+    }
+
+    setIsSyncAnimationVisible(true);
+    syncAnimationTimerRef.current = window.setTimeout(() => {
+      setIsSyncAnimationVisible(false);
+      syncAnimationTimerRef.current = null;
+    }, 1800);
+  }
+
+  return (
+    <div className="landing-hero-shell" data-landing-animate="hero-shell">
+      <div className="landing-hero-content">
+        <a
+          href="https://github.com/Tyru5/Agendex/releases"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-landing-animate-item
+          className="mb-5 inline-flex max-w-full items-center gap-2.5 rounded-full border border-[color-mix(in_oklch,var(--landing-accent)_26%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] py-[7px] pl-2 pr-3.5 text-[12px] font-semibold leading-[1.2] text-[var(--landing-text)] no-underline transition-[border-color,background-color] duration-150 hover:border-[color-mix(in_oklch,var(--landing-accent)_44%,var(--landing-border))] hover:bg-[color-mix(in_oklch,var(--landing-accent)_13%,transparent)]"
+        >
+          <span className="shrink-0 rounded-full bg-[var(--landing-accent)] px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--landing-bg)]">
+            New
+          </span>
+          <span className="min-w-0 truncate">
+            Agendex Desktop is here — for macOS &amp; Windows (coming soon)
+          </span>
+          <svg
+            aria-hidden="true"
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0 text-[var(--landing-accent)]"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </a>
+        <h1 className="landing-hero-title" data-landing-animate-item>
+          Your Agents Make Plans.
+          <br />
+          <span>Agendex Keeps Watch</span>
+        </h1>
+
+        <div className="landing-hero-copy-block" data-landing-animate-item>
+          <LandingCursorIcon />
+          <p>
+            <button
+              type="button"
+              className="landing-hero-index-trigger"
+              data-syncing={isSyncAnimationVisible || undefined}
+              onClick={renderSyncingAnimation}
+              aria-label={
+                isSyncAnimationVisible
+                  ? 'Syncing index'
+                  : 'Render syncing animation for the local plan index'
+              }
+            >
+              <span className="landing-hero-index-label" aria-hidden="true">
+                Index
+              </span>
+              <span className="landing-hero-index-spinner" aria-hidden="true">
+                <svg className="landing-hero-sync-icon" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M20 12a8 8 0 0 1-13.66 5.66L4 15.32M4 12A8 8 0 0 1 17.66 6.34L20 8.68M20 4v4.68h-4.68M4 20v-4.68h4.68"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span className="landing-hero-index-spinner-text">sync</span>
+              </span>
+              <span className="landing-hero-status" role="status" aria-live="polite">
+                {isSyncAnimationVisible ? 'Syncing index' : ''}
+              </span>
+            </button>{' '}
+            every plan and session your coding agents leave behind, scattered across your machines,
+            into one searchable place. Everything stays local by default — sync to Cloud Pro when
+            the work needs sharing, review, or access to pro features.
+          </p>
+          <div className="landing-hero-meta">
+            Watches local files <span>|</span> filters by agent and workspace <span>|</span> syncs
+            only when configured
+          </div>
+        </div>
+
+        <HeroAgentStrip />
+        <div data-landing-animate-item>
+          <HeroInstallCommand />
+        </div>
+
+        <div className="landing-hero-actions" data-landing-animate-item>
+          <ActionLink href="/docs">Read the docs</ActionLink>
+          {ctaSlot ?? (
+            <ActionButton onClick={onShowLogin} variant="primary">
+              Connect dashboard
+              <span aria-hidden="true">→</span>
+            </ActionButton>
+          )}
+        </div>
+      </div>
+
+      <div data-landing-animate-item>
+        <HeroProofBar />
+      </div>
+    </div>
+  );
+}
+
+function ReviewSplit({
+  title,
+  body,
+  bullets,
+  variant,
+}: {
+  title: string;
+  body: string;
+  bullets: readonly string[];
+  variant: 'plans' | 'teams';
+}) {
+  return (
+    <div className="grid gap-8 border-b border-[var(--landing-border-subtle)] py-[70px] last:border-b-0 max-sm:py-[50px] lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.84fr)] lg:items-center">
+      <div
+        className={`rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_78%,transparent)] p-4 ${
+          variant === 'teams' ? 'lg:order-2' : ''
+        }`}
+      >
+        <div className="mb-4 flex items-center gap-2 border-b border-[var(--landing-border-subtle)] pb-3 text-[12px] font-semibold text-[var(--landing-muted)]">
+          <span className="size-2 rounded-full bg-[#ff5f56]" aria-hidden="true" />
+          <span className="size-2 rounded-full bg-[#ffbd2e]" aria-hidden="true" />
+          <span className="size-2 rounded-full bg-[#27c93f]" aria-hidden="true" />
+          <span className="ml-2">{variant === 'plans' ? 'Local index' : 'Cloud review'}</span>
+        </div>
+        {variant === 'plans' ? <PlanReviewMock /> : <TeamReviewMock />}
+      </div>
+
+      <div className="max-w-[520px]">
+        <h2 className="m-0 text-balance text-[30px] font-[740] leading-[1.08] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[26px]">
+          {title}
+        </h2>
+        <p className="mt-4 mb-0 text-[15px] leading-[1.7] text-[var(--landing-muted)]">{body}</p>
+        <ul className="mt-6 space-y-3 p-0 text-[14px] leading-[1.65] text-[var(--landing-muted)]">
+          {bullets.map((bullet) => (
+            <li key={bullet} className="flex gap-3">
+              <span className="mt-[0.72em] size-1.5 shrink-0 rounded-full bg-[var(--landing-accent)]" />
+              <span>{bullet}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function PlanReviewMock() {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-[7px] border border-[var(--landing-border-subtle)] bg-[var(--landing-surface)] p-3">
+        <div className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] text-[var(--landing-faint)]">
+          ~/work/api/.codex/tasks/rate-limit-rollout.md
+        </div>
+        <h3 className="mt-2 mb-0 text-[17px] font-bold text-[var(--landing-text)]">
+          Rate limit rollout plan
+        </h3>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {['Source linked', 'Workspace: api', 'Hidden: no'].map((item) => (
+          <div
+            key={item}
+            className="rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_78%,transparent)] px-3 py-2 text-[12px] font-semibold text-[var(--landing-muted)]"
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+      <div className="rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_82%,transparent)] p-3 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] leading-[1.7] text-[var(--landing-muted)]">
+        <div className="text-[var(--landing-accent)]">## Execution notes</div>
+        <div>- Add per-user token bucket</div>
+        <div>- Gate rollout behind config</div>
+        <div>- Watch 429 rate after deploy</div>
+      </div>
+    </div>
+  );
+}
+
+function TeamReviewMock() {
+  return (
+    <div className="space-y-3">
+      {[
+        ['Ana', 'Can we stage this behind the workspace flag first?'],
+        ['Sam', 'Yes, tag this as backend before sharing it wider.'],
+        ['Agendex', 'Plan history saved from synced daemon payload.'],
+      ].map(([name, note]) => (
+        <div
+          key={note}
+          className="rounded-[7px] border border-[var(--landing-border-subtle)] bg-[var(--landing-surface)] p-3"
+        >
+          <div className="mb-1 text-[12px] font-bold text-[var(--landing-text)]">{name}</div>
+          <div className="text-[13px] leading-[1.55] text-[var(--landing-muted)]">{note}</div>
+        </div>
+      ))}
+      <div className="rounded-[7px] border border-[color-mix(in_oklch,var(--landing-accent)_25%,transparent)] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] p-3 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] text-[var(--landing-accent)]">
+        share link copied · scope: one synced plan
+      </div>
+    </div>
+  );
+}
+
+function ProductStepsSection() {
+  return (
+    <section
+      id="features"
+      className={`${SECTION_FRAME_CLASS} py-[76px] max-sm:py-[54px]`}
+      style={SECTION_SCROLL_STYLE}
+    >
+      <div className="mx-auto max-w-[680px] text-center">
+        <h2 className="m-0 text-balance text-[32px] font-[740] leading-[1.08] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[27px]">
+          A local index first, collaboration when you turn it on.
+        </h2>
+        <p className="mt-4 mb-0 text-[15px] leading-[1.7] text-[var(--landing-muted)]">
+          The landing page stays focused on what Agendex actually handles. Setup, adapter details,
+          and sync commands belong in the docs route.
+        </p>
+      </div>
+
+      <div className="mt-9 overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-surface)]">
+        <div className="flex items-center gap-2 border-b border-[var(--landing-border-subtle)] px-4 py-3 text-[12px] font-semibold text-[var(--landing-muted)]">
+          <span className="size-2 rounded-full bg-[#ff5f56]" aria-hidden="true" />
+          <span className="size-2 rounded-full bg-[#ffbd2e]" aria-hidden="true" />
+          <span className="size-2 rounded-full bg-[#27c93f]" aria-hidden="true" />
+          <span className="ml-2">Agendex review flow</span>
+        </div>
+        <div className="grid divide-y divide-[var(--landing-border-subtle)] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+          {PRODUCT_STEPS.map((step, index) => (
+            <div key={step.title} className="p-5">
+              <div className="mb-10 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-semibold text-[var(--landing-accent)]">
+                {String(index + 1).padStart(2, '0')}
+              </div>
+              <h3 className="m-0 text-[17px] font-bold text-[var(--landing-text)]">{step.title}</h3>
+              <p className="mt-3 mb-0 text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
+                {step.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--landing-border-subtle)] pt-7">
+        <p className="m-0 max-w-[560px] text-[14px] leading-[1.7] text-[var(--landing-muted)]">
+          Setup, CLI commands, adapter status, custom source folders, privacy, and cloud sync
+          details live in one reference route.
+        </p>
+        <ActionLink href="/docs">Open docs</ActionLink>
+      </div>
     </section>
   );
 }
@@ -348,7 +858,7 @@ function ProductDemoSection({
 function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: boolean) => void }) {
   return (
     <div
-      className="col-start-2 inline-flex w-fit max-w-full gap-1 rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] p-1 max-lg:col-start-1"
+      className="inline-flex w-fit max-w-full gap-1 rounded-[7px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] p-1"
       aria-label="Billing cadence"
     >
       {(['Monthly', 'Yearly'] as const).map((label) => {
@@ -358,12 +868,12 @@ function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: bo
             key={label}
             type="button"
             onClick={() => onChange(label === 'Yearly')}
-            className="min-h-[34px] rounded-md border border-transparent bg-transparent px-[13px] text-[12.5px] font-bold leading-[1.2] text-[var(--landing-muted)] data-[active=true]:border-[color-mix(in_oklch,var(--landing-accent)_20%,var(--landing-border))] data-[active=true]:bg-[color-mix(in_oklch,var(--landing-accent)_10%,var(--landing-surface-raised))] data-[active=true]:text-[var(--landing-text)]"
+            className="min-h-[32px] rounded-[6px] border border-transparent bg-transparent px-3 text-[12px] font-bold leading-[1.2] text-[var(--landing-muted)] data-[active=true]:border-[color-mix(in_oklch,var(--landing-accent)_22%,var(--landing-border))] data-[active=true]:bg-[color-mix(in_oklch,var(--landing-accent)_10%,var(--landing-surface-raised))] data-[active=true]:text-[var(--landing-text)]"
             data-active={active}
           >
             {label}
             {label === 'Yearly' && (
-              <span className="ml-1.5 text-[11px] font-semibold text-[color-mix(in_oklch,var(--landing-accent)_68%,var(--landing-muted))]">
+              <span className="ml-1.5 text-[11px] font-semibold text-[color-mix(in_oklch,var(--landing-accent)_70%,var(--landing-muted))]">
                 Save 17%
               </span>
             )}
@@ -375,63 +885,47 @@ function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: bo
 }
 
 function PricingCard({
+  tier,
   title,
-  eyebrow,
-  summary,
   price,
   period,
+  summary,
   features,
-  isPro,
   cta,
   onCta,
-  loading,
-  ctaButtons,
   note,
+  isPro,
+  signingIn,
 }: {
+  tier: string;
   title: string;
-  eyebrow: string;
-  summary: string;
   price: string;
-  period: string;
-  features: string[];
-  isPro?: boolean;
-  cta: string;
+  period?: string;
+  summary: string;
+  features: readonly string[];
+  cta: ReactNode;
   onCta?: () => void;
-  loading?: boolean;
-  ctaButtons?: React.ReactNode;
   note?: typeof MONEY_BACK_GUARANTEE;
+  isPro?: boolean;
+  signingIn?: boolean;
 }) {
-  const [hovered, setHovered] = useState(false);
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className={`relative flex min-h-[430px] flex-col overflow-hidden rounded-[8px] border p-7 transition-[transform,border-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] max-sm:min-h-0 max-sm:p-[22px] ${
+    <article
+      className={`flex min-h-[420px] min-w-0 flex-col rounded-[8px] border p-6 ${
         isPro
-          ? 'border-[color-mix(in_oklch,var(--landing-accent)_18%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-surface)_86%,var(--landing-bg))]'
-          : 'border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_78%,transparent)]'
-      } hover:border-[var(--landing-border-strong)]`}
-      style={{
-        transform: hovered ? 'translateY(-1px)' : 'none',
-      }}
+          ? 'border-[color-mix(in_oklch,var(--landing-accent)_24%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-surface)_92%,var(--landing-bg))]'
+          : 'border-[var(--landing-border)] bg-[var(--landing-surface)]'
+      }`}
     >
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div
-            className={`mb-3 text-[11px] font-bold uppercase ${
-              isPro
-                ? 'text-[color-mix(in_oklch,var(--landing-accent)_68%,var(--landing-muted))]'
-                : 'text-[var(--landing-muted)]'
-            }`}
-          >
-            {eyebrow}
-          </div>
+        <div>
+          <div className="mb-2 text-[11px] font-bold text-[var(--landing-muted)]">{tier}</div>
           <h3 className="m-0 text-[20px] font-bold leading-[1.15] text-[var(--landing-text)]">
             {title}
           </h3>
         </div>
         {isPro && (
-          <div className="shrink-0 rounded-[5px] border border-[color-mix(in_oklch,var(--landing-accent)_22%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_7%,transparent)] px-2 py-1 text-[11px] font-bold uppercase text-[color-mix(in_oklch,var(--landing-accent)_70%,var(--landing-muted))]">
+          <div className="shrink-0 rounded-[5px] border border-[color-mix(in_oklch,var(--landing-accent)_25%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] px-2 py-1 text-[11px] font-bold text-[color-mix(in_oklch,var(--landing-accent)_72%,var(--landing-muted))]">
             Cloud Pro
           </div>
         )}
@@ -441,719 +935,69 @@ function PricingCard({
         {summary}
       </p>
 
-      <div className="mt-8 mb-6 flex items-end gap-2">
-        <span className="font-[Unbounded,Inter,system-ui,sans-serif] text-[48px] font-[430] leading-none text-[var(--landing-text)]">
+      <div className="mt-7 mb-6 flex items-end gap-2">
+        <span
+          key={price}
+          className="landing-price-swap text-[44px] font-[760] leading-none tracking-[-0.03em] text-[var(--landing-text)]"
+        >
           {price}
         </span>
         {period && (
-          <span className="text-[14px] font-semibold text-[var(--landing-muted)]">{period}</span>
+          <span
+            key={period}
+            className="landing-price-swap landing-price-swap--trail text-[13px] font-semibold text-[var(--landing-muted)]"
+          >
+            {period}
+          </span>
         )}
       </div>
 
-      <div className="pt-5">
-        <div className="mb-3 text-[11px] font-bold uppercase text-[var(--landing-muted)]">
-          Included
-        </div>
-      </div>
-      <ul
-        className={`m-0 mb-7 flex flex-1 list-none flex-col gap-3 p-0 ${
-          isPro ? 'min-[1120px]:grid min-[1120px]:grid-cols-2 min-[1120px]:gap-x-5' : ''
-        }`}
-      >
-        {features.map((f) => (
-          <li
-            key={f}
-            className="flex items-start gap-2.5 text-[13.5px] leading-[1.5] text-[var(--landing-muted)]"
-          >
-            <span
-              aria-hidden="true"
-              className="font-bold text-[color-mix(in_oklch,var(--landing-accent)_62%,var(--landing-muted))]"
+      <div className="pt-4">
+        <div className="mb-3 text-[11px] font-bold text-[var(--landing-muted)]">Included</div>
+        <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          {features.map((f) => (
+            <li
+              key={f}
+              className="flex items-start gap-2.5 text-[13px] leading-[1.5] text-[var(--landing-muted)]"
             >
-              {'✓'}
-            </span>
-            {f}
-          </li>
-        ))}
-      </ul>
-      {note && (
-        <div className="mb-4 border-t border-[var(--landing-border-subtle)] pt-4">
-          <div className="text-[12px] font-bold text-[var(--landing-text)]">{note.label}</div>
-          <p className="m-0 mt-1 text-[12px] leading-[1.55] text-[var(--landing-muted)]">
-            {note.body}
-          </p>
-        </div>
-      )}
-      {ctaButtons || (
-        <button
-          type="button"
-          disabled={loading}
-          onClick={onCta}
-          className={`inline-flex min-h-[46px] items-center justify-center gap-2 rounded-[8px] border text-[13px] font-bold leading-[1.2] ${
-            isPro
-              ? 'border-[color-mix(in_oklch,var(--landing-accent)_28%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_11%,var(--landing-surface-raised))] text-[var(--landing-text)]'
-              : 'border-[var(--landing-border)] bg-transparent text-[var(--landing-text)]'
-          }`}
-          style={{
-            cursor: loading ? 'default' : 'pointer',
-            opacity: loading ? 0.7 : 1,
-          }}
-        >
-          {loading && <Spinner size={15} color={isPro ? TEXT_PRIMARY : undefined} />}
-          {loading ? 'Redirecting…' : cta}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function PricingBridge() {
-  return (
-    <div className="grid max-w-[820px] grid-cols-3 gap-2 max-md:grid-cols-1">
-      {PRICING_PATH.map((step) => (
-        <div
-          key={step.number}
-          className="rounded-[8px] bg-[color-mix(in_oklch,var(--landing-surface)_55%,transparent)] p-3.5"
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[color-mix(in_oklch,var(--landing-accent)_66%,var(--landing-muted))]">
-              {step.number}
-            </span>
-            <span className="text-[12px] font-bold text-[var(--landing-text)]">{step.title}</span>
-          </div>
-          <p className="m-0 text-[12.5px] leading-[1.55] text-[var(--landing-muted)]">
-            {step.body}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function LoginModal({
-  tokenValue,
-  tokenError,
-  onTokenChange,
-  onSubmit,
-  onClose,
-}: {
-  tokenValue: string;
-  tokenError?: string;
-  onTokenChange: (v: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
-  onClose: () => void;
-}) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const titleId = useId();
-  const descriptionId = useId();
-  const inputId = useId();
-  const hintId = useId();
-  const errorId = useId();
-  const describedBy = tokenError ? `${hintId} ${errorId}` : hintId;
-
-  useEffect(() => {
-    inputRef.current?.focus({ preventScroll: true });
-  }, []);
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      onClose();
-      return;
-    }
-
-    if (e.key !== 'Tab') return;
-
-    const focusable = Array.from(
-      dialogRef.current?.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ) ?? [],
-    );
-    if (!focusable.length) return;
-
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (!first || !last) return;
-
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[color-mix(in_oklch,var(--landing-bg)_82%,transparent)] p-5 backdrop-blur-xl"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      onKeyDown={handleKeyDown}
-    >
-      <div
-        ref={dialogRef}
-        className="w-[min(100%,430px)] rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-surface)] p-7 shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_68%,transparent)]"
-      >
-        <h2 id={titleId} className="m-0 mb-2 text-[20px] font-bold text-[var(--landing-text)]">
-          Connect to Agendex
-        </h2>
-        <p
-          id={descriptionId}
-          className="m-0 mb-6 text-[13.5px] leading-[1.6] text-[var(--landing-muted)]"
-        >
-          Run the local server, copy the token printed in your terminal, then paste it here.
-        </p>
-        <form onSubmit={onSubmit} noValidate>
-          <label
-            htmlFor={inputId}
-            className="mb-2 block text-[12px] font-bold text-[var(--landing-text)]"
-          >
-            Auth token
-          </label>
-          <input
-            ref={inputRef}
-            id={inputId}
-            type="password"
-            value={tokenValue}
-            onChange={(e) => onTokenChange(e.target.value)}
-            placeholder="Paste your token"
-            required
-            aria-invalid={tokenError ? 'true' : undefined}
-            aria-describedby={describedBy}
-            className="w-full rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] px-3.5 py-[13px] font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[13px] leading-[1.4] text-[var(--landing-text)] outline-none placeholder:text-[var(--landing-faint)]"
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(200,255,50,0.4)';
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = BORDER;
-            }}
-          />
-          <p
-            id={hintId}
-            className="mt-2 mb-0 text-[12px] leading-[1.55] text-[var(--landing-muted)]"
-          >
-            The token is local-only and stored in this browser.
-          </p>
-          {tokenError && (
-            <p
-              id={errorId}
-              role="alert"
-              className="mt-2 mb-0 text-[12px] font-semibold leading-[1.5] text-[color-mix(in_oklch,var(--landing-orange)_82%,var(--landing-text))]"
-            >
-              {tokenError}
-            </p>
-          )}
-          <button
-            type="submit"
-            className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[8px] border border-[color-mix(in_oklch,var(--landing-accent)_46%,transparent)] bg-[var(--landing-accent)] text-[13px] font-bold text-[var(--landing-bg)]"
-          >
-            Connect
-          </button>
-        </form>
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-[8px] border border-transparent bg-transparent text-[13px] font-bold text-[var(--landing-muted)]"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function PkgManagerInstall() {
-  const [activePkg, setActivePkg] = useState<string>(PKG_MANAGERS[0].id);
-  const [copied, setCopied] = useState(false);
-  const cmd = PKG_MANAGERS.find((p) => p.id === activePkg)?.cmd;
-
-  function copy() {
-    if (cmd) navigator.clipboard.writeText(cmd);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  return (
-    <div className="m-0 bg-[color-mix(in_oklch,var(--landing-bg)_88%,transparent)] p-3">
-      <div className="mb-2.5 flex flex-wrap gap-[5px]">
-        {PKG_MANAGERS.map((pm) => (
-          <button
-            key={pm.id}
-            type="button"
-            className={`min-h-7 rounded-[5px] border-0 px-[9px] font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-semibold leading-none ${
-              activePkg === pm.id
-                ? 'bg-[color-mix(in_oklch,var(--landing-accent)_14%,transparent)] text-[var(--landing-accent)]'
-                : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
-            }`}
-            onClick={() => setActivePkg(pm.id)}
-          >
-            {pm.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex items-center gap-2.5">
-        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12.5px] leading-[1.6] text-[var(--landing-accent)]">
-          {cmd}
-        </code>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--landing-border)] bg-transparent text-[var(--landing-muted)] hover:border-[var(--landing-border-strong)] hover:text-[var(--landing-text)]"
-          onClick={copy}
-          aria-label="Copy command"
-        >
-          {copied ? (
-            <svg
-              aria-hidden="true"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          ) : (
-            <svg
-              aria-hidden="true"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-            </svg>
-          )}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function StepsList({ steps }: { steps: typeof LOCAL_STEPS | typeof CLOUD_STEPS }) {
-  return (
-    <>
-      {steps.map((step) => (
-        <div
-          key={step.number}
-          className="overflow-hidden rounded-[7px] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)]"
-        >
-          <div className="bg-[color-mix(in_oklch,var(--landing-surface-raised)_80%,transparent)] px-3 py-2.5 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold uppercase leading-[1.2] text-[var(--landing-text)]">
-            {step.number} / {step.title.toUpperCase()}
-          </div>
-          {'hasPkgManager' in step && step.hasPkgManager ? (
-            <PkgManagerInstall />
-          ) : (
-            <pre className="m-0 overflow-x-auto bg-[color-mix(in_oklch,var(--landing-bg)_88%,transparent)] p-3.5 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12.5px] leading-[1.65] text-[var(--landing-accent)] max-sm:whitespace-pre-wrap max-sm:[overflow-wrap:anywhere]">
-              <code>{step.code}</code>
-            </pre>
-          )}
-        </div>
-      ))}
-    </>
-  );
-}
-
-function AnimatedSteps({ activeTab }: { activeTab: 'local' | 'cloud' }) {
-  const stackedPanelClass = 'flex flex-col gap-2.5 overflow-visible [&>*]:shrink-0';
-  const cloudGridClass =
-    'grid grid-cols-2 content-start gap-2.5 overflow-visible max-[560px]:grid-cols-1 [&>*]:min-w-0';
-  const steps = activeTab === 'cloud' ? CLOUD_STEPS : LOCAL_STEPS;
-
-  return (
-    <div
-      className="relative z-[1] p-2.5 animate-[landing-panel-in_220ms_cubic-bezier(0.22,1,0.36,1)_both]"
-      key={activeTab}
-    >
-      <div className={activeTab === 'cloud' ? cloudGridClass : stackedPanelClass}>
-        <StepsList steps={steps} />
-      </div>
-    </div>
-  );
-}
-
-function LandingNavbar({
-  signingIn,
-  onSignIn,
-  authSlot,
-  mobileMenuOpen,
-  onMobileMenuToggle,
-  onMobileMenuClose,
-  onShowChangelog,
-}: {
-  signingIn: boolean;
-  onSignIn: () => void;
-  authSlot?: SlotRenderFn;
-  mobileMenuOpen: boolean;
-  onMobileMenuToggle: () => void;
-  onMobileMenuClose: () => void;
-  onShowChangelog?: () => void;
-}) {
-  function handleChangelogClick(e: React.MouseEvent<HTMLAnchorElement>) {
-    if (!onShowChangelog) return;
-    if (e.defaultPrevented) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    e.preventDefault();
-    onMobileMenuClose();
-    onShowChangelog();
-  }
-
-  const authAction = authSlot ? (
-    authSlot()
-  ) : (
-    <button
-      type="button"
-      disabled={signingIn}
-      onClick={() => {
-        onMobileMenuClose();
-        onSignIn();
-      }}
-      className="inline-flex min-h-[38px] items-center justify-center gap-2 rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_76%,transparent)] px-4 text-[12.5px] font-semibold leading-[1.2] text-[var(--landing-text)] transition-[background-color,border-color,color] duration-150 hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-surface-raised)]"
-      style={{
-        cursor: signingIn ? 'default' : 'pointer',
-        opacity: signingIn ? 0.6 : 1,
-      }}
-    >
-      {signingIn && <Spinner size={12} />}
-      {signingIn ? 'Redirecting…' : 'Sign in'}
-    </button>
-  );
-
-  return (
-    <nav className="fixed inset-x-0 top-0 z-[100] border-b border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_88%,transparent)] backdrop-blur-[14px]">
-      <div className="flex min-h-16 items-center justify-between gap-5 px-[clamp(20px,5vw,88px)] max-sm:min-h-[58px] max-sm:px-4">
-        <div className="flex min-w-0 items-center gap-9">
-          <a
-            href="#overview"
-            onClick={onMobileMenuClose}
-            className="shrink-0 font-[Unbounded,Inter,system-ui,sans-serif] text-[15px] font-[430] text-[var(--landing-text)] no-underline"
-          >
-            Agendex<span className="text-[var(--landing-accent)]">.</span>
-          </a>
-          <div className="flex items-center gap-6 max-[980px]:hidden">
-            {LANDING_SECTIONS.map((section) => (
-              <a
-                key={section.id}
-                href={`#${section.id}`}
-                className="text-[12.5px] font-semibold text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
-              >
-                {section.label}
-              </a>
-            ))}
-            <a
-              href="/changelog"
-              onClick={handleChangelogClick}
-              className="text-[12.5px] font-semibold text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
-            >
-              Changelog
-            </a>
-          </div>
-        </div>
-
-        <div className="block shrink-0 max-[980px]:hidden [&>button]:min-h-[38px] [&>button]:rounded-[8px] [&>button]:border-[var(--landing-border)] [&>button]:bg-[color-mix(in_oklch,var(--landing-surface)_76%,transparent)] [&>button]:text-[var(--landing-text)] [&>div>button:first-child]:min-h-[38px] [&>div>button:first-child]:rounded-[8px] [&>div>button:first-child]:border-[var(--landing-border)] [&>div>button:first-child]:bg-[color-mix(in_oklch,var(--landing-surface)_76%,transparent)] [&>div>button:first-child]:text-[var(--landing-text)]">
-          {authAction}
-        </div>
-
-        <button
-          type="button"
-          aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-          aria-expanded={mobileMenuOpen}
-          aria-controls="landing-mobile-menu"
-          onClick={onMobileMenuToggle}
-          className="hidden size-[42px] shrink-0 items-center justify-center rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_70%,transparent)] text-[var(--landing-text)] max-[980px]:inline-flex"
-        >
-          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none">
-            {mobileMenuOpen ? (
-              <path
-                d="M6 6l12 12M18 6L6 18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            ) : (
-              <path
-                d="M4 7h16M4 12h16M4 17h16"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            )}
-          </svg>
-        </button>
-      </div>
-
-      <div
-        id="landing-mobile-menu"
-        className={`border-t border-[var(--landing-border)] px-5 py-4 min-[981px]:hidden ${
-          mobileMenuOpen ? 'block' : 'hidden'
-        }`}
-      >
-        <div className="flex flex-col gap-2.5">
-          {LANDING_SECTIONS.map((section) => (
-            <a
-              key={section.id}
-              href={`#${section.id}`}
-              onClick={onMobileMenuClose}
-              className="flex min-h-11 items-center rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_72%,transparent)] px-3.5 text-[14px] font-semibold text-[var(--landing-text)] no-underline"
-            >
-              {section.label}
-            </a>
-          ))}
-          <a
-            href="/changelog"
-            onClick={handleChangelogClick}
-            className="flex min-h-11 items-center rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_72%,transparent)] px-3.5 text-[14px] font-semibold text-[var(--landing-text)] no-underline"
-          >
-            Changelog
-          </a>
-          <div className="pt-1 [&>*]:w-full">{authSlot ? authSlot() : authAction}</div>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
-function LandingFooter({ onShowChangelog }: { onShowChangelog?: () => void }) {
-  function handleChangelogClick(e: React.MouseEvent<HTMLAnchorElement>) {
-    if (!onShowChangelog) return;
-    if (e.defaultPrevented) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    e.preventDefault();
-    onShowChangelog();
-  }
-
-  return (
-    <footer className="relative z-[1] flex min-h-[220px] items-end justify-between gap-8 border-t border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_94%,oklch(12%_0.03_184))] px-[clamp(20px,5vw,88px)] py-11 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start max-sm:px-4 max-sm:py-8">
-      <div className="flex flex-col gap-3 text-[12.5px]">
-        <span className="font-[Unbounded,Inter,system-ui,sans-serif] text-[42px] font-[430] leading-none text-[var(--landing-text)]">
-          Agendex<span className="text-[var(--landing-accent)]">.</span>
-        </span>
-        <span>© {new Date().getFullYear()} / All systems indexed</span>
-      </div>
-      <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-3 max-sm:justify-start [&>a]:text-[12.5px] [&>a]:font-semibold [&>a]:text-[var(--landing-muted)] [&>a]:no-underline [&>a:hover]:text-[var(--landing-text)]">
-        <a href="#overview">Overview</a>
-        <a href="#features">Features</a>
-        <a href="#pricing">Pricing</a>
-        <a href="/changelog" onClick={handleChangelogClick}>
-          Changelog
-        </a>
-        <a
-          href="https://github.com/Tyru5/Agendex"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex min-h-[38px] items-center gap-2 rounded-[8px] border border-[var(--landing-border)] px-[13px] !text-[var(--landing-text)]"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-          </svg>
-          View on GitHub
-        </a>
-      </div>
-    </footer>
-  );
-}
-
-const GitHubIcon16 = () => <GitHubIcon />;
-
-function HeroPlanRoom({
-  activeTab,
-  onSetActiveTab,
-}: {
-  activeTab: 'local' | 'cloud';
-  onSetActiveTab: (v: 'local' | 'cloud') => void;
-}) {
-  return (
-    <div className="relative z-[1] flex min-w-0 flex-col gap-3 max-[980px]:max-w-[720px]">
-      <div className="flex w-full items-center justify-between gap-2 text-[11px] font-bold uppercase text-[var(--landing-muted)] max-sm:flex-col max-sm:items-start">
-        <span>Plan room preview</span>
-        <span>{activeTab === 'cloud' ? 'Cloud sync path' : 'Local first path'}</span>
-      </div>
-
-      <div className="relative overflow-hidden rounded-[8px] border border-[var(--landing-border-subtle)] bg-[linear-gradient(135deg,color-mix(in_oklch,var(--landing-surface-raised)_58%,transparent),color-mix(in_oklch,var(--landing-bg)_92%,transparent))] shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_64%,transparent)]">
-        <div className="relative z-[1] border-b border-[var(--landing-border-subtle)] p-4 max-sm:p-3.5">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[11px] font-bold uppercase text-[var(--landing-accent)]">
-                <span
-                  aria-hidden="true"
-                  className="size-[6px] rounded-full bg-[var(--landing-accent)]"
-                />
-                Live index
-              </div>
-              <h2 className="mt-2 mb-0 text-[19px] font-bold leading-[1.18] text-[var(--landing-text)]">
-                Plans arrive with source, owner, and review state.
-              </h2>
-            </div>
-            <div className="shrink-0 rounded-[5px] bg-[color-mix(in_oklch,var(--landing-surface-raised)_60%,transparent)] px-2 py-1 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[10.5px] font-bold text-[var(--landing-muted)]">
-              daemon online
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-[7px] bg-[color-mix(in_oklch,var(--landing-bg)_86%,transparent)]">
-            {DEMO_PLAN_ROWS.map((row) => (
-              <div
-                key={`hero-${row.title}`}
-                className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-3.5 py-3 odd:bg-[color-mix(in_oklch,var(--landing-surface)_22%,transparent)]"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-[13px] font-bold text-[var(--landing-text)]">
-                    {row.title}
-                  </div>
-                  <div className="mt-1 truncate font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] text-[var(--landing-faint)]">
-                    {row.path}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[11px] font-bold text-[var(--landing-muted)]">
-                    {row.agent}
-                  </div>
-                  <div className="mt-1 text-[11px] text-[var(--landing-accent)]">{row.status}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {HERO_PROOF_POINTS.map((point) => (
               <span
-                key={point}
-                className="rounded-full bg-[color-mix(in_oklch,var(--landing-surface)_60%,transparent)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[var(--landing-muted)]"
-              >
-                {point}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="relative z-[1] p-2.5">
-          <div className="grid grid-cols-2 gap-1.5 rounded-[8px] bg-[color-mix(in_oklch,var(--landing-bg)_72%,transparent)] p-1">
-            <button
-              type="button"
-              className={`min-h-9 cursor-pointer rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
-                activeTab === 'local'
-                  ? 'bg-[var(--landing-surface-raised)] text-[var(--landing-text)]'
-                  : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
-              }`}
-              onClick={() => onSetActiveTab('local')}
-            >
-              Self-hosted
-            </button>
-            <button
-              type="button"
-              className={`min-h-9 cursor-pointer rounded-md border-0 text-[12px] font-bold leading-[1.2] ${
-                activeTab === 'cloud'
-                  ? 'bg-[var(--landing-surface-raised)] text-[var(--landing-text)]'
-                  : 'bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
-              }`}
-              onClick={() => onSetActiveTab('cloud')}
-            >
-              Cloud sync
-            </button>
-          </div>
-        </div>
-
-        <AnimatedSteps activeTab={activeTab} />
-      </div>
-    </div>
-  );
-}
-
-function LandingHero({
-  activeTab,
-  onShowLogin,
-  onSetActiveTab,
-  ctaSlot,
-}: {
-  activeTab: 'local' | 'cloud';
-  onShowLogin: () => void;
-  onSetActiveTab: (v: 'local' | 'cloud') => void;
-  ctaSlot?: ReactNode;
-}) {
-  return (
-    <div className="relative z-[1]">
-      <section
-        id="overview"
-        className="d3-hero grid min-h-[min(820px,88svh)] grid-cols-[minmax(0,0.96fr)_minmax(440px,1.04fr)] items-center gap-[clamp(24px,3vw,46px)] border-b border-[var(--landing-border-subtle)] px-[clamp(20px,5vw,88px)] pt-[116px] pb-[70px] max-[980px]:min-h-0 max-[980px]:grid-cols-1 max-[980px]:gap-6 max-[980px]:pt-[104px] max-sm:gap-5 max-sm:px-4 max-sm:pt-[92px] max-sm:pb-[54px]"
-        style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
-      >
-        <div className="relative z-[1] flex max-w-[800px] flex-col justify-center gap-12 max-[980px]:gap-10">
-          <div>
-            <a
-              href="https://github.com/Tyru5/Agendex/releases"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mb-5 inline-flex max-w-full items-center gap-2.5 rounded-full border border-[color-mix(in_oklch,var(--landing-accent)_26%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] py-[7px] pl-2 pr-3.5 text-[12px] font-semibold leading-[1.2] text-[var(--landing-text)] no-underline transition-[border-color,background-color] duration-150 [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_both] hover:border-[color-mix(in_oklch,var(--landing-accent)_44%,var(--landing-border))] hover:bg-[color-mix(in_oklch,var(--landing-accent)_13%,transparent)]"
-            >
-              <span className="shrink-0 rounded-full bg-[var(--landing-accent)] px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--landing-bg)]">
-                New
-              </span>
-              <span className="min-w-0 truncate">
-                Agendex Desktop is here — for macOS &amp; Windows (coming soon)
-              </span>
-              <svg
                 aria-hidden="true"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="shrink-0 text-[var(--landing-accent)]"
+                className="font-bold text-[color-mix(in_oklch,var(--landing-accent)_66%,var(--landing-muted))]"
               >
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </a>
-            <h1 className="mb-6 max-w-[760px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[74px] font-[430] leading-[0.98] text-[var(--landing-text)] [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_60ms_both] max-[980px]:text-[54px] max-sm:text-[40px] max-sm:leading-[1.04]">
-              Your agents make plans. <br />
-              Agendex keeps watch.
-            </h1>
+                ✓
+              </span>
+              <span>{f}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
-            <p className="m-0 max-w-[620px] text-pretty text-[16px] leading-[1.75] text-[var(--landing-muted)] [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_180ms_both] max-sm:text-[14.5px]">
-              Index local plan files from Claude Code, Codex, Cursor, and more. Search the source,
-              review changes, and add Cloud only when the work needs shared context.
+      <div className="mt-auto pt-6">
+        {note && (
+          <div className="mb-4 border-t border-[var(--landing-border-subtle)] pt-4">
+            <div className="text-[12px] font-bold text-[var(--landing-text)]">{note.label}</div>
+            <p className="m-0 mt-1 text-[12px] leading-[1.55] text-[var(--landing-muted)]">
+              {note.body}
             </p>
-
-            <div className="mt-[34px] flex flex-wrap gap-3 [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_300ms_both] max-sm:[&>*]:w-full [&>a]:inline-flex [&>a]:min-h-[46px] [&>a]:items-center [&>a]:justify-center [&>a]:gap-[9px] [&>a]:rounded-[8px] [&>a]:px-[18px] [&>a]:text-[13px] [&>a]:font-bold [&>a]:leading-[1.2] [&>a]:no-underline [&>button]:inline-flex [&>button]:min-h-[46px] [&>button]:items-center [&>button]:justify-center [&>button]:gap-[9px] [&>button]:rounded-[8px] [&>button]:px-[18px] [&>button]:text-[13px] [&>button]:font-bold [&>button]:leading-[1.2]">
-              {ctaSlot || (
-                <button
-                  type="button"
-                  onClick={onShowLogin}
-                  className="border border-[color-mix(in_oklch,var(--landing-accent)_48%,transparent)] bg-[var(--landing-accent)] text-[var(--landing-bg)]"
-                >
-                  Get Started
-                </button>
-              )}
-              <a
-                href="https://github.com/Tyru5/Agendex"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-surface)_78%,transparent)] text-[var(--landing-text)]"
-              >
-                <GitHubIcon16 />
-                View on GitHub
-              </a>
-            </div>
           </div>
-        </div>
-
-        <HeroPlanRoom activeTab={activeTab} onSetActiveTab={onSetActiveTab} />
-      </section>
-    </div>
+        )}
+        {onCta ? (
+          <button
+            type="button"
+            onClick={onCta}
+            disabled={signingIn}
+            className={`landing-action landing-action--full ${
+              isPro ? 'landing-action--primary' : 'landing-action--secondary'
+            }`}
+          >
+            {signingIn ? <Spinner size={13} /> : null}
+            {cta}
+          </button>
+        ) : (
+          cta
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -1173,56 +1017,46 @@ function LandingPricing({
   return (
     <section
       id="pricing"
-      className="relative z-[1] border-b border-[var(--landing-border-subtle)] px-[clamp(20px,5vw,88px)] py-[86px] max-sm:px-4 max-sm:py-[58px]"
-      style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
+      className={`${SECTION_FRAME_CLASS} py-[78px] max-sm:py-[54px]`}
+      style={SECTION_SCROLL_STYLE}
     >
-      <div className="mb-12 grid grid-cols-[minmax(160px,0.32fr)_minmax(0,0.68fr)] gap-[clamp(22px,5vw,72px)] max-lg:grid-cols-1 max-lg:gap-5">
-        <div className="flex items-baseline gap-3 self-start max-lg:w-full">
-          <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
-            02
-          </span>
-          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
-            Pricing
-          </span>
-        </div>
-        <div className="min-w-0">
-          <h2 className="m-0 max-w-[860px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[clamp(42px,4.8vw,60px)] font-[500] leading-[1.0] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[34px] max-sm:leading-[1.04]">
-            Start local. Upgrade when review becomes shared.
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)] lg:items-end">
+        <div>
+          <h2 className="m-0 max-w-[700px] text-balance text-[34px] font-[740] leading-[1.06] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[28px]">
+            Start with local search. Add cloud review when the work is shared.
           </h2>
-          <p className="mt-4 mb-0 max-w-[600px] text-[15px] leading-[1.7] text-[var(--landing-muted)]">
-            The free path is a complete local index. Cloud Pro adds sync, comments, links, and
-            workspace access without changing where plans originate.
+          <p className="mt-4 mb-0 max-w-[560px] text-[15px] leading-[1.7] text-[var(--landing-muted)]">
+            The free path is the local OSS index. Cloud Pro adds daemon sync, links, comments,
+            history, tags, collections, and workspace access without changing where plans originate.
           </p>
-          <div className="mt-7 flex flex-col gap-4">
-            <PricingBridge />
-            <PricingToggle yearly={yearly} onChange={onSetYearly} />
-          </div>
+        </div>
+        <div className="justify-self-start lg:justify-self-end">
+          <PricingToggle yearly={yearly} onChange={onSetYearly} />
         </div>
       </div>
-      <div className="d3-pricing-row grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-3.5 max-lg:grid-cols-1">
+
+      <div className="mt-8 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
         <PricingCard
+          tier="Local OSS"
           title="Self-hosted"
-          eyebrow="Local OSS"
-          summary="For solo review, private experiments, and teams that want the full source path before adding collaboration."
           price="$0"
-          period=""
+          summary="For indexing and searching local agent plans, sessions, custom folders, and fallback plans on one machine."
           features={FREE_FEATURES}
           cta="Get Started"
           onCta={onShowLogin}
         />
         <PricingCard
+          tier="Team review"
           title="Cloud Pro"
-          eyebrow="Team review"
-          summary="For shared plan review across machines, links, comments, and workspace access on top of the local daemon."
           price={yearly ? '$69' : '$7'}
           period={yearly ? '/year' : '/month'}
+          summary="For syncing local plans to the cloud dashboard with sharing, comments, history, tags, collections, and team access."
           features={PRO_FEATURES}
-          isPro
-          cta="Start Free Trial"
+          cta={proCtaSlot ?? 'Start Free Trial'}
           onCta={proCtaSlot ? undefined : onShowLogin}
-          loading={!proCtaSlot ? signingIn : undefined}
-          ctaButtons={proCtaSlot}
           note={MONEY_BACK_GUARANTEE}
+          isPro
+          signingIn={signingIn}
         />
       </div>
     </section>
@@ -1239,56 +1073,185 @@ function LandingFAQ({
   return (
     <section
       id="faq"
-      className="relative z-[1] border-b border-[var(--landing-border-subtle)] px-[clamp(20px,5vw,88px)] pt-[84px] pb-[110px] max-sm:px-4 max-sm:py-[58px]"
-      style={{ scrollMarginTop: LANDING_ANCHOR_OFFSET }}
+      className={`${SECTION_FRAME_CLASS} py-[78px] max-sm:py-[54px]`}
+      style={SECTION_SCROLL_STYLE}
     >
-      <div className="grid grid-cols-[minmax(230px,0.34fr)_minmax(0,0.66fr)] gap-[clamp(28px,6vw,88px)] max-lg:grid-cols-1">
-        <div className="min-w-0">
-          <div className="flex items-baseline gap-3">
-            <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] font-medium tabular-nums text-[var(--landing-faint)]">
-              03
-            </span>
-            <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--landing-muted)]">
-              Support
-            </span>
-          </div>
-          <h2 className="mt-7 mb-0 max-w-[640px] text-balance font-[Unbounded,Inter,system-ui,sans-serif] text-[clamp(42px,4.8vw,60px)] font-[500] leading-[1.0] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[34px] max-sm:leading-[1.04]">
+      <div className="grid gap-10 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div>
+          <h2 className="m-0 text-balance text-[34px] font-[740] leading-[1.06] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[28px]">
             Answers before you install.
           </h2>
-          <p className="mt-4 mb-0 max-w-[430px] text-[14.5px] leading-[1.7] text-[var(--landing-muted)]">
+          <p className="mt-4 mb-0 max-w-[310px] text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
             Privacy, adapters, and Cloud sync in plain terms. No account is required to start
             self-hosted.
           </p>
-          <div className="mt-8 border-t border-[var(--landing-border-subtle)]">
-            {FAQ_SUPPORT_POINTS.map((point) => (
-              <div
-                key={point.label}
-                className="border-b border-[var(--landing-border-subtle)] py-4"
-              >
-                <div className="text-[12px] font-bold text-[var(--landing-text)]">
-                  {point.label}
-                </div>
-                <p className="m-0 mt-1 text-[12.5px] leading-[1.55] text-[var(--landing-muted)]">
-                  {point.body}
-                </p>
-              </div>
-            ))}
-          </div>
         </div>
-        <div className="min-w-0 border-t border-[var(--landing-border-subtle)]">
-          {FAQ_ITEMS.map((item, i) => (
+        <div className="min-w-0">
+          {FAQ_ITEMS.map((item, index) => (
             <FAQItem
               key={item.q}
-              index={i + 1}
+              index={index + 1}
               question={item.q}
               answer={item.a}
-              open={openFaq === i}
-              onToggle={() => onSetOpenFaq(openFaq === i ? null : i)}
+              open={openFaq === index}
+              onToggle={() => onSetOpenFaq(openFaq === index ? null : index)}
             />
           ))}
         </div>
       </div>
     </section>
+  );
+}
+
+function LandingFooter({
+  onShowChangelog,
+  onShowDocs,
+}: {
+  onShowChangelog?: () => void;
+  onShowDocs?: () => void;
+}) {
+  function handleChangelogClick(e: MouseEvent<HTMLAnchorElement>) {
+    if (!onShowChangelog) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onShowChangelog();
+  }
+
+  function handleDocsClick(e: MouseEvent<HTMLAnchorElement>) {
+    if (!onShowDocs) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onShowDocs();
+  }
+
+  return (
+    <footer className="landing-frame flex min-h-[200px] items-end justify-between gap-8 px-[clamp(18px,5vw,72px)] py-10 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start">
+      <div className="flex flex-col gap-3 text-[12.5px]">
+        <span className="text-[36px] font-[760] leading-none tracking-[-0.03em] text-[var(--landing-text)]">
+          Agendex<span className="text-[var(--landing-accent)]">.</span>
+        </span>
+        <span>© 2026 / Local plans indexed</span>
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-3 max-sm:justify-start [&>a]:text-[12.5px] [&>a]:font-semibold [&>a]:text-[var(--landing-muted)] [&>a]:no-underline [&>a:hover]:text-[var(--landing-text)]">
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="/docs" onClick={handleDocsClick}>
+          Docs
+        </a>
+        <a href="/changelog" onClick={handleChangelogClick}>
+          Changelog
+        </a>
+        <a
+          href="https://github.com/tyru5/agendex"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="landing-action landing-action--secondary landing-action--compact"
+        >
+          <GitHubIcon size={14} />
+          View on GitHub
+        </a>
+      </div>
+    </footer>
+  );
+}
+
+function LoginModal({
+  tokenValue,
+  tokenError,
+  onTokenChange,
+  onSubmit,
+  onClose,
+}: {
+  tokenValue: string;
+  tokenError: string;
+  onTokenChange: (v: string) => void;
+  onSubmit: (e: { preventDefault: () => void }) => void;
+  onClose: () => void;
+}) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const inputId = useId();
+  const hintId = useId();
+  const errorId = useId();
+  const describedBy = tokenError ? `${hintId} ${errorId}` : hintId;
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      role="presentation"
+      className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-[color-mix(in_oklch,var(--landing-bg)_84%,transparent)] p-5"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <form
+        onSubmit={onSubmit}
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        className="w-[min(100%,430px)] rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-surface)] p-6 shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_68%,transparent)]"
+      >
+        <h2 id={titleId} className="m-0 mb-2 text-[20px] font-bold text-[var(--landing-text)]">
+          Connect to Agendex
+        </h2>
+        <p
+          id={descriptionId}
+          className="m-0 mb-6 text-[13.5px] leading-[1.6] text-[var(--landing-muted)]"
+        >
+          Paste the auth token printed by the local Agendex CLI. The token stays in this browser.
+        </p>
+
+        <label
+          htmlFor={inputId}
+          className="mb-2 block text-[12px] font-bold text-[var(--landing-text)]"
+        >
+          CLI auth token
+        </label>
+        <input
+          id={inputId}
+          value={tokenValue}
+          onChange={(e) => onTokenChange(e.target.value)}
+          placeholder="agx_..."
+          aria-invalid={tokenError ? 'true' : 'false'}
+          aria-describedby={describedBy}
+          className="w-full rounded-[7px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] px-3.5 py-[12px] font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[13px] leading-[1.4] text-[var(--landing-text)] outline-none placeholder:text-[color-mix(in_oklch,var(--landing-muted)_78%,var(--landing-text))]"
+        />
+        <p id={hintId} className="mt-2 mb-0 text-[12px] leading-[1.55] text-[var(--landing-muted)]">
+          Run <code>agendex login</code> or start the local server to print a fresh token.
+        </p>
+        {tokenError && (
+          <p
+            id={errorId}
+            role="alert"
+            className="mt-2 mb-0 text-[12px] font-semibold leading-[1.5] text-[color-mix(in_oklch,var(--landing-orange)_82%,var(--landing-text))]"
+          >
+            {tokenError}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          className="landing-action landing-action--primary landing-action--full mt-4"
+        >
+          Connect dashboard
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-[7px] border border-transparent bg-transparent text-[13px] font-bold text-[var(--landing-muted)] hover:text-[var(--landing-text)]"
+        >
+          Cancel
+        </button>
+      </form>
+    </div>
   );
 }
 
@@ -1309,53 +1272,19 @@ function extractSlots(children: ReactNode): Record<string, SlotRenderFn> {
   return slots;
 }
 
-function LandingPageInner({ children, mascot, onShowChangelog }: LandingPageProps) {
-  const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [tokenError, setTokenError] = useState('');
-  const { token, showLogin, yearly, openFaq, activeTab, bentoInView, signingIn } = state;
-  const setTokenValue = (v: string) => {
-    if (tokenError) setTokenError('');
-    dispatch({ type: 'SET_TOKEN', value: v });
-  };
-  const setShowLogin = (v: boolean) => dispatch({ type: 'SET_SHOW_LOGIN', value: v });
-  const setYearly = (v: boolean) => dispatch({ type: 'SET_YEARLY', value: v });
-  const setOpenFaq = (v: number | null) => dispatch({ type: 'SET_OPEN_FAQ', value: v });
-  const setActiveTab = (v: 'local' | 'cloud') => dispatch({ type: 'SET_ACTIVE_TAB', value: v });
-  const bentoRef = useRef<HTMLElement>(null);
+type LandingAction = Parameters<typeof landingReducer>[1];
+type LandingDispatch = (action: LandingAction) => void;
 
-  const ctxValue = useMemo<LandingContextValue>(
-    () => ({
-      signingIn,
-      activeTab,
-      showLogin: () => startViewTransition(() => setShowLogin(true)),
-      startSigningIn: () => dispatch({ type: 'START_SIGNING_IN' }),
-      stopSigningIn: () => dispatch({ type: 'STOP_SIGNING_IN' }),
-    }),
-    [signingIn, activeTab],
-  );
-
+function useLandingSlots(children: ReactNode) {
   const slots = useMemo(() => extractSlots(children), [children]);
+  return {
+    navbarAuthNode: slots.NavbarAuth ? slots.NavbarAuth() : undefined,
+    heroCtaNode: slots.HeroCta ? slots.HeroCta() : undefined,
+    pricingCtaNode: slots.PricingCta ? slots.PricingCta() : undefined,
+  };
+}
 
-  const heroCtaNode = slots.HeroCta ? slots.HeroCta() : undefined;
-  const pricingCtaNode = slots.PricingCta ? slots.PricingCta() : undefined;
-
-  useEffect(() => {
-    const el = bentoRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          dispatch({ type: 'SET_BENTO_IN_VIEW' });
-          observer.disconnect();
-        }
-      },
-      { rootMargin: '0px 0px -10% 0px', threshold: 0 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
+function useInitialHashScroll() {
   useEffect(() => {
     const hash = window.location.hash.slice(1);
     if (!hash) return;
@@ -1365,12 +1294,115 @@ function LandingPageInner({ children, mascot, onShowChangelog }: LandingPageProp
       target.scrollIntoView({ block: 'start' });
     });
   }, []);
+}
+
+function useLandingIntroAnimation() {
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const root = pageRef.current;
+    if (!root) return undefined;
+
+    const ctx = gsap.context(() => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) return;
+
+      const introItems = Array.from(
+        root.querySelectorAll<HTMLElement>('[data-landing-animate-item]'),
+      );
+      const agentChips = Array.from(root.querySelectorAll<HTMLElement>('.landing-hero-agent'));
+      const runbookLines = Array.from(
+        root.querySelectorAll<HTMLElement>('.landing-hero-runbook code'),
+      );
+      const cursor = root.querySelector<SVGSVGElement>('.landing-hero-cursor');
+      const cursorPointer = cursor?.querySelector<SVGPathElement>('[data-landing-cursor-pointer]');
+      const cursorRays = cursor?.querySelector<SVGPathElement>('[data-landing-cursor-rays]');
+      const nav = root.querySelector<HTMLElement>('[data-landing-animate="nav"]');
+      const heroShell = root.querySelector<HTMLElement>('[data-landing-animate="hero-shell"]');
+
+      gsap.set(introItems, { autoAlpha: 0, y: 18 });
+      gsap.set(agentChips, { autoAlpha: 0, scale: 0.96, y: 10 });
+      gsap.set(runbookLines, { autoAlpha: 0, x: -8 });
+      if (cursor) gsap.set(cursor, { transformOrigin: '40% 52%' });
+      if (cursorRays) gsap.set(cursorRays, { autoAlpha: 0.72, transformOrigin: '50% 50%' });
+
+      const timeline = gsap.timeline({
+        defaults: { duration: 0.62, ease: 'power3.out' },
+      });
+
+      if (nav) {
+        timeline.from(nav, { autoAlpha: 0, duration: 0.45, y: -10 });
+      }
+
+      if (heroShell) {
+        timeline.from(heroShell, { autoAlpha: 0, duration: 0.72, scale: 0.992, y: 14 }, '<0.04');
+      }
+
+      timeline
+        .to(introItems, { autoAlpha: 1, stagger: 0.075, y: 0 }, '<0.14')
+        .to(agentChips, { autoAlpha: 1, duration: 0.42, scale: 1, stagger: 0.035, y: 0 }, '<0.3')
+        .to(runbookLines, { autoAlpha: 1, duration: 0.34, stagger: 0.045, x: 0 }, '<0.12');
+
+      if (cursor) {
+        const cursorIdle = gsap.timeline({
+          paused: true,
+          repeat: -1,
+          repeatDelay: 0.42,
+          defaults: { ease: 'power3.out' },
+        });
+
+        cursorIdle
+          .to(cursor, { duration: 0.64, rotation: -1.5, x: 12, y: 8, ease: 'sine.inOut' })
+          .to(cursorPointer ?? cursor, { duration: 0.08, scale: 0.92, ease: 'power2.out' })
+          .to(cursorPointer ?? cursor, { duration: 0.2, scale: 1, ease: 'back.out(2.2)' });
+
+        if (cursorRays) {
+          cursorIdle
+            .to(cursorRays, { autoAlpha: 1, duration: 0.08 }, '<')
+            .to(cursorRays, { autoAlpha: 0.52, duration: 0.34, ease: 'power2.out' }, '>');
+        }
+
+        cursorIdle
+          .to(cursor, { duration: 0.68, rotation: -8.5, x: -2, y: -1, ease: 'sine.inOut' }, '<0.02')
+          .to(cursor, { duration: 0.38, rotation: -7, x: 0, y: 0, ease: 'power2.out' });
+
+        timeline.fromTo(
+          cursor,
+          { autoAlpha: 0, rotation: -15, scale: 0.86, x: -8, y: -5 },
+          {
+            autoAlpha: 1,
+            duration: 0.5,
+            ease: 'back.out(1.6)',
+            rotation: -7,
+            scale: 1,
+            x: 0,
+            y: 0,
+          },
+          '<0.08',
+        );
+        timeline.add(() => cursorIdle.play(0), '>-0.04');
+      }
+    }, root);
+
+    return () => ctx.revert();
+  }, []);
+
+  return pageRef;
+}
+
+function useMobileMenuControls({
+  activeTab,
+  showLogin,
+}: {
+  activeTab: LandingTab;
+  showLogin: boolean;
+}) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     function handleResize() {
-      if (window.innerWidth >= 768) setMobileMenuOpen(false);
+      if (window.innerWidth >= 861) setMobileMenuOpen(false);
     }
-
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -1379,66 +1411,57 @@ function LandingPageInner({ children, mascot, onShowChangelog }: LandingPageProp
     setMobileMenuOpen(false);
   }, [activeTab, showLogin]);
 
-  useEffect(() => {
-    const ids = ['overview', ...LANDING_SECTIONS.map((section) => section.id)];
-    const sections = ids
-      .map((id) => document.getElementById(id))
-      .filter((el): el is HTMLElement => el !== null)
-      .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
-    if (!sections.length) return;
+  return {
+    mobileMenuOpen,
+    toggleMobileMenu: () => setMobileMenuOpen((open) => !open),
+    closeMobileMenu: () => setMobileMenuOpen(false),
+  };
+}
 
-    let frame = 0;
-    let currentId: string | null = null;
+function useLandingContextValue({
+  signingIn,
+  activeTab,
+  openLogin,
+  dispatch,
+}: {
+  signingIn: boolean;
+  activeTab: LandingTab;
+  openLogin: () => void;
+  dispatch: LandingDispatch;
+}) {
+  return useMemo<LandingContextValue>(
+    () => ({
+      signingIn,
+      activeTab,
+      showLogin: () => startViewTransition(openLogin),
+      startSigningIn: () => dispatch({ type: 'START_SIGNING_IN' }),
+      stopSigningIn: () => dispatch({ type: 'STOP_SIGNING_IN' }),
+    }),
+    [signingIn, activeTab, openLogin, dispatch],
+  );
+}
 
-    function update() {
-      frame = 0;
-      const anchor = LANDING_ANCHOR_OFFSET + 1;
-      const doc = document.documentElement;
-      const atBottom = window.innerHeight + window.scrollY >= doc.scrollHeight - 2;
+function useLandingActions(
+  token: string,
+  tokenError: string,
+  dispatch: LandingDispatch,
+  setTokenError: (message: string) => void,
+) {
+  const setTokenValue = (nextToken: string) => {
+    if (tokenError) setTokenError('');
+    dispatch({ type: 'SET_TOKEN', value: nextToken });
+  };
+  const openLogin = () => dispatch({ type: 'SET_SHOW_LOGIN', value: true });
+  const closeLogin = () => {
+    setTokenError('');
+    dispatch({ type: 'SET_SHOW_LOGIN', value: false });
+  };
+  const setYearly = (useYearlyBilling: boolean) =>
+    dispatch({ type: 'SET_YEARLY', value: useYearlyBilling });
+  const setOpenFaq = (nextOpenFaq: number | null) =>
+    dispatch({ type: 'SET_OPEN_FAQ', value: nextOpenFaq });
 
-      const firstSection = sections[0];
-      if (!firstSection) return;
-      let activeId = firstSection.id;
-      if (atBottom) {
-        activeId = sections.at(-1)?.id ?? firstSection.id;
-      } else {
-        for (const section of sections) {
-          if (section.getBoundingClientRect().top <= anchor) {
-            activeId = section.id;
-          } else {
-            break;
-          }
-        }
-      }
-
-      if (activeId === currentId) return;
-      currentId = activeId;
-
-      const url = new URL(window.location.href);
-      url.hash = activeId === 'overview' ? '' : activeId;
-      const next = `${url.pathname}${url.search}${url.hash}`;
-      const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      if (next !== current) {
-        window.history.replaceState(window.history.state, '', next);
-      }
-    }
-
-    function schedule() {
-      if (frame) return;
-      frame = requestAnimationFrame(update);
-    }
-
-    update();
-    window.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule);
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      window.removeEventListener('scroll', schedule);
-      window.removeEventListener('resize', schedule);
-    };
-  }, []);
-
-  function submit(e: React.FormEvent) {
+  function submit(e: { preventDefault: () => void }) {
     e.preventDefault();
     const trimmed = token.trim();
     if (!trimmed) {
@@ -1449,46 +1472,92 @@ function LandingPageInner({ children, mascot, onShowChangelog }: LandingPageProp
     window.location.reload();
   }
 
-  function closeLogin() {
-    setTokenError('');
-    setShowLogin(false);
-  }
+  return { setTokenValue, openLogin, closeLogin, setYearly, setOpenFaq, submit };
+}
+
+function LandingPageInner({ children, mascot, onShowChangelog, onShowDocs }: LandingPageProps) {
+  const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
+  const [tokenError, setTokenError] = useState('');
+  const pageRef = useLandingIntroAnimation();
+  const { token, showLogin, yearly, openFaq, activeTab, signingIn } = state;
+  const actions = useLandingActions(token, tokenError, dispatch, setTokenError);
+  const ctxValue = useLandingContextValue({
+    signingIn,
+    activeTab,
+    openLogin: actions.openLogin,
+    dispatch,
+  });
+  const { navbarAuthNode, heroCtaNode, pricingCtaNode } = useLandingSlots(children);
+  const { mobileMenuOpen, toggleMobileMenu, closeMobileMenu } = useMobileMenuControls({
+    activeTab,
+    showLogin,
+  });
+
+  useInitialHashScroll();
 
   return (
     <LandingContext.Provider value={ctxValue}>
-      <div className="landing-page [&_a[href]]:cursor-pointer [&_button:not(:disabled)]:cursor-pointer">
-        <TopoNeurons />
-
+      <div
+        ref={pageRef}
+        className="landing-page [&_a[href]]:cursor-pointer [&_button:not(:disabled)]:cursor-pointer"
+      >
         <LandingNavbar
-          signingIn={signingIn}
-          onSignIn={() => startViewTransition(() => setShowLogin(true))}
-          authSlot={slots.NavbarAuth}
           mobileMenuOpen={mobileMenuOpen}
-          onMobileMenuToggle={() => setMobileMenuOpen((open) => !open)}
-          onMobileMenuClose={() => setMobileMenuOpen(false)}
+          onMobileMenuToggle={toggleMobileMenu}
+          onMobileMenuClose={closeMobileMenu}
           onShowChangelog={onShowChangelog}
+          onShowDocs={onShowDocs}
+          authSlot={navbarAuthNode}
         />
 
         <LandingHero
-          activeTab={activeTab}
-          onShowLogin={() => startViewTransition(() => setShowLogin(true))}
-          onSetActiveTab={setActiveTab}
+          onShowLogin={() => startViewTransition(actions.openLogin)}
           ctaSlot={heroCtaNode}
         />
 
-        <ProductDemoSection sectionRef={bentoRef} inView={bentoInView} />
+        <section className={`${SECTION_FRAME_CLASS} py-0`} style={SECTION_SCROLL_STYLE}>
+          <ReviewSplit
+            title="Review the plan before the work disappears into an agent log."
+            body="Agendex makes the plan itself the review surface, with enough source detail to trust what changed and where it came from."
+            bullets={PLAN_REVIEW_BULLETS}
+            variant="plans"
+          />
+          <ReviewSplit
+            title="Turn plan review into shared team knowledge."
+            body="Cloud review adds links, comments, tags, and history without turning the product into a heavyweight project board."
+            bullets={CODE_REVIEW_BULLETS}
+            variant="teams"
+          />
+        </section>
+
+        <ProductStepsSection />
 
         <LandingPricing
           yearly={yearly}
           signingIn={signingIn}
-          onSetYearly={setYearly}
-          onShowLogin={() => startViewTransition(() => setShowLogin(true))}
+          onSetYearly={actions.setYearly}
+          onShowLogin={() => startViewTransition(actions.openLogin)}
           proCtaSlot={pricingCtaNode}
         />
 
-        <LandingFAQ openFaq={openFaq} onSetOpenFaq={setOpenFaq} />
+        <LandingFAQ openFaq={openFaq} onSetOpenFaq={actions.setOpenFaq} />
 
-        <LandingFooter onShowChangelog={onShowChangelog} />
+        <section
+          className={`${SECTION_FRAME_CLASS} py-[58px] text-center max-sm:py-[44px]`}
+          style={SECTION_SCROLL_STYLE}
+        >
+          <h2 className="mx-auto m-0 max-w-[640px] text-balance text-[28px] font-[740] leading-[1.12] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[24px]">
+            Your local agent plans deserve a real index.
+          </h2>
+          <p className="mx-auto mt-3 mb-0 max-w-[520px] text-[14px] leading-[1.7] text-[var(--landing-muted)]">
+            Start with a local index. Add Cloud Pro when review moves across people and machines.
+          </p>
+          <div className="mx-auto mt-6 max-w-[520px] text-left">
+            <CliInstallOptions />
+          </div>
+        </section>
+
+        <LandingFooter onShowChangelog={onShowChangelog} onShowDocs={onShowDocs} />
 
         {mascot && (
           <LandingMascot
@@ -1502,9 +1571,9 @@ function LandingPageInner({ children, mascot, onShowChangelog }: LandingPageProp
           <LoginModal
             tokenValue={token}
             tokenError={tokenError}
-            onTokenChange={setTokenValue}
-            onSubmit={submit}
-            onClose={() => startViewTransition(closeLogin)}
+            onTokenChange={actions.setTokenValue}
+            onSubmit={actions.submit}
+            onClose={() => startViewTransition(actions.closeLogin)}
           />
         )}
       </div>
@@ -1512,9 +1581,14 @@ function LandingPageInner({ children, mascot, onShowChangelog }: LandingPageProp
   );
 }
 
-export function LandingPage({ children, mascot, onShowChangelog }: LandingPageProps = {}) {
+export function LandingPage({
+  children,
+  mascot,
+  onShowChangelog,
+  onShowDocs,
+}: LandingPageProps = {}) {
   return (
-    <LandingPageInner mascot={mascot} onShowChangelog={onShowChangelog}>
+    <LandingPageInner mascot={mascot} onShowChangelog={onShowChangelog} onShowDocs={onShowDocs}>
       {children}
     </LandingPageInner>
   );
@@ -1550,20 +1624,24 @@ function FAQItem({
         onMouseLeave={() => setHovered(false)}
         aria-expanded={open}
         aria-controls={contentId}
-        className="group grid min-h-[76px] w-full cursor-pointer grid-cols-[38px_minmax(0,1fr)_30px] items-center gap-4 border-0 bg-transparent px-0 py-[19px] text-left text-[15px] font-bold leading-[1.45] text-[var(--landing-text)] transition-colors duration-150 max-sm:grid-cols-[30px_minmax(0,1fr)_30px] max-sm:gap-3"
-        style={{
-          color: hovered || open ? TEXT_PRIMARY : undefined,
-        }}
+        className="group grid min-h-[70px] w-full grid-cols-[32px_minmax(0,1fr)_28px] items-center gap-4 border-0 bg-transparent px-0 py-[17px] text-left text-[14px] font-bold leading-[1.45] text-[var(--landing-text)] transition-colors duration-150 max-sm:grid-cols-[28px_minmax(0,1fr)_28px] max-sm:gap-3"
+        style={{ color: hovered || open ? 'var(--landing-text)' : undefined }}
       >
         <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold text-[var(--landing-accent)]">
           {String(index).padStart(2, '0')}
         </span>
         <span className="text-pretty">{question}</span>
         <div
-          className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-full transition-[background-color,border-color] duration-200"
+          className="inline-flex size-[28px] shrink-0 items-center justify-center rounded-full transition-[background-color,border-color] duration-200"
           style={{
-            border: `1px solid ${open ? ACCENT : hovered ? 'rgba(255,255,255,0.2)' : BORDER}`,
-            background: open ? ACCENT : 'transparent',
+            border: `1px solid ${
+              open
+                ? 'var(--landing-accent)'
+                : hovered
+                  ? 'var(--landing-border-strong)'
+                  : 'var(--landing-border)'
+            }`,
+            background: open ? 'var(--landing-accent)' : 'transparent',
           }}
         >
           <svg
@@ -1572,13 +1650,14 @@ function FAQItem({
             viewBox="0 0 12 12"
             fill="none"
             style={{
-              transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              transition: 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
               transform: open ? 'rotate(180deg)' : 'none',
             }}
+            aria-hidden="true"
           >
             <path
               d="M2.5 4.5L6 8L9.5 4.5"
-              stroke={open ? BG : TEXT_MUTED}
+              stroke={open ? 'var(--landing-bg)' : 'var(--landing-muted)'}
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -1591,17 +1670,15 @@ function FAQItem({
         aria-labelledby={buttonId}
         aria-hidden={!open}
         className="grid"
-        style={{
-          gridTemplateRows: open ? '1fr' : '0fr',
-        }}
+        style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
       >
         <div className="overflow-hidden">
           <p
-            className="m-0 max-w-[650px] pb-[24px] pl-[52px] text-[14px] leading-[1.75] text-[var(--landing-muted)] max-sm:pl-[42px]"
+            className="m-0 max-w-[650px] pb-[22px] pl-[46px] text-[13.5px] leading-[1.75] text-[var(--landing-muted)] max-sm:pl-[40px]"
             style={{
               opacity: open ? 1 : 0,
               transform: open ? 'translateY(0)' : 'translateY(-4px)',
-              transition: 'opacity 0.25s 0.05s, transform 0.25s 0.05s',
+              transition: 'opacity 0.22s 0.04s, transform 0.22s 0.04s',
             }}
           >
             {answer}

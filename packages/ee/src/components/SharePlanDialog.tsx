@@ -407,7 +407,7 @@ export function SharePlanDialog({ plan, mode, onClose }: SharePlanDialogProps) {
                           <button
                             type="button"
                             onClick={() => handleRevoke(link._id, link.token)}
-                            className={`py-1.5 px-3 text-[12px] font-medium font-[inherit] rounded-lg border border-border bg-transparent cursor-pointer text-[#ef4444] ${btnMotion}`}
+                            className={`py-1.5 px-3 text-[12px] font-medium font-[inherit] rounded-lg border border-border bg-transparent cursor-pointer text-[var(--danger)] ${btnMotion}`}
                           >
                             Revoke link
                           </button>
@@ -434,7 +434,7 @@ export function SharePlanDialog({ plan, mode, onClose }: SharePlanDialogProps) {
                         <button
                           type="button"
                           onClick={() => setRevokeConfirmId(link._id)}
-                          className={`py-1.5 px-3 text-[12px] font-medium font-[inherit] rounded-lg border border-border bg-transparent cursor-pointer text-[#ef4444] ${btnMotion}`}
+                          className={`py-1.5 px-3 text-[12px] font-medium font-[inherit] rounded-lg border border-border bg-transparent cursor-pointer text-[var(--danger)] ${btnMotion}`}
                         >
                           Revoke
                         </button>
@@ -449,7 +449,7 @@ export function SharePlanDialog({ plan, mode, onClose }: SharePlanDialogProps) {
 
         {publishError && (
           <p
-            className="share-reveal text-[12px] text-[#ef4444] mb-3 [--share-delay:0ms]"
+            className="share-reveal text-[12px] text-[var(--danger)] mb-3 [--share-delay:0ms]"
             role="alert"
           >
             {publishError}

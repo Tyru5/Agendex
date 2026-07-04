@@ -49,9 +49,33 @@ Agendex currently has **6 implemented adapters**:
 
 The adapter catalog also includes additional non-implemented or stub entries for broader ecosystem coverage.
 
+## Quick Start (Cloud CLI)
+
+Install the published CLI with the one-line installer:
+
+```bash
+# macOS / Linux
+curl -fsSL https://agendex.dev/install.sh | bash
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://agendex.dev/install.ps1 | iex
+```
+
+Then authenticate, choose which agents to index, and start syncing:
+
+```bash
+agendex login
+agendex configure
+agendex start
+```
+
+You can also install directly with `npm install -g agendex-cli`, `pnpm add -g agendex-cli`, `yarn global add agendex-cli`, or `bun install -g agendex-cli`. Installer flags are documented in [`packages/cli/README.md`](./packages/cli/README.md).
+
 ## Quick Start (Local OSS)
 
-### 1. Install
+### 1. Install dependencies
 
 ```bash
 bun install
@@ -118,28 +142,28 @@ bun run build:cloud         # build EE client bundle
 
 bun run cli:start           # start cloud sync daemon
 bun run cli:login           # browser login using https://app.agendex.dev
-bun run cli:login -- --url https://example.com
-bun run cli:login -- --dev  # login using dev config dir (~/.agendex-dev) + dev default site URL
+bun run cli:login --url https://example.com
+bun run cli:login --dev     # login using dev config dir (~/.agendex-dev) + dev default site URL
 bun run cli:open            # open the Agendex web app in your default browser
-bun run cli:open -- --url https://example.com
-bun run cli -- view https://app.agendex.dev/shared/<token>
-bun run cli -- logout       # clear stored cloud token
+bun run cli:open --url https://example.com
+bun run cli:view https://app.agendex.dev/shared/<token>
+bun run cli:logout          # clear stored cloud token
 bun run cli:configure       # select which agents/adapters to index
 bun run cli:hooks -- status            # show Claude Code, Codex, and Pi hook status
 bun run cli:hooks -- install <agent|all>   # install hook integration (claude-code requires --preview)
 bun run cli:hooks -- uninstall <agent|all> # remove managed Agendex hook entries
-bun run cli:review-plan -- --hook --agent <agent>  # hook-native plan review entrypoint
+bun run cli:review-plan --hook --agent <agent>  # hook-native plan review entrypoint
 bun run cli:sync            # one-shot cloud sync
-bun run cli:sync -- --force # re-sync all plans, ignoring cache
-bun run cli -- upload ~/path/to/plan.md          # upload a single Markdown plan to the cloud
-bun run cli -- upload ~/path/to/plan.md --agent codex  # override the plan's agent label
-bun run cli -- upload ~/path/to/plan.md --open   # upload and open the plan in the browser
+bun run cli:sync --force    # re-sync all plans, ignoring cache
+bun run cli:upload ~/path/to/plan.md          # upload a single Markdown plan to the cloud
+bun run cli:upload ~/path/to/plan.md --agent codex  # override the plan's agent label
+bun run cli:upload ~/path/to/plan.md --open   # upload and open the plan in the browser
 bun run cli:stop            # stop daemon
-bun run cli -- cleanup      # interactively remove cloud daemon records
-bun run cli -- cleanup --stale
+bun run cli:cleanup         # interactively remove cloud daemon records
+bun run cli:cleanup --stale
 bun run cli:status          # print current local/cloud config state
-bun run cli -- upgrade      # upgrade the globally installed CLI
-# Append `-- --dev` to any `cli:*` script to use ~/.agendex-dev (see packages/cli README)
+bun run cli:upgrade         # upgrade the globally installed CLI
+# Append `--dev` to any `cli:*` script to use ~/.agendex-dev (see packages/cli README)
 
 bun run changeset           # create a release note for agendex-cli
 bun run version-packages    # apply pending Changesets versions
@@ -155,7 +179,7 @@ bun run check
 bun run check:fix
 ```
 
-The published CLI is Node-compatible and can be installed with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://app.agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev ...` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
+The published CLI is Node-compatible and can be installed with `curl -fsSL https://agendex.dev/install.sh | bash` or directly with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://app.agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev ...` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
 
 ## Local API (OSS)
 

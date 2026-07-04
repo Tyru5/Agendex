@@ -1,4 +1,5 @@
 import { formatForDisplay } from '@tanstack/react-hotkeys';
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
 import type { Plan } from '../lib/api.ts';
@@ -41,7 +42,8 @@ interface TopbarProps {
   backendStatus: 'online' | 'offline' | 'checking';
   height: number;
   sidebarWidth?: number;
-  onManageSources?: () => void;
+  /** Extra controls rendered in the right cluster, before the theme toggle. */
+  actions?: ReactNode;
 }
 
 export function Topbar({
@@ -60,7 +62,7 @@ export function Topbar({
   backendStatus,
   height,
   sidebarWidth: sidebarWidthProp,
-  onManageSources,
+  actions,
 }: TopbarProps) {
   const shortcutLabel = formatForDisplay('Mod+B');
 
@@ -105,7 +107,7 @@ export function Topbar({
         <button
           type="button"
           onClick={() => onSelectPlan(undefined)}
-          className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[0] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
+          className="text-[14px] font-bold tracking-[-0.01em] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
         >
           Agendex<span className="agendex-brand-mark">.</span>
         </button>
@@ -124,32 +126,7 @@ export function Topbar({
       </div>
 
       <div className="flex items-center justify-end gap-3 min-w-0 justify-self-end pr-4">
-        {onManageSources && (
-          <>
-            <button
-              type="button"
-              onClick={onManageSources}
-              aria-label="Manage plan sources"
-              title="Manage plan sources"
-              className="agendex-topbar-button w-[30px] h-[30px] rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
-            </button>
-            <div className="hidden lg:block w-px h-[18px] bg-border" />
-          </>
-        )}
+        {actions}
         <ThemeToggle />
         <div className="hidden lg:block w-px h-[18px] bg-border" />
         <span className="hidden lg:inline text-xs text-tertiary">

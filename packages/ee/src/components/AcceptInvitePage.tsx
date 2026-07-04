@@ -130,7 +130,7 @@ export function AcceptInvitePage({ token }: { token: string }) {
               </p>
 
               {error && (
-                <div className="text-[12px] text-[#ef4444] mb-3 p-2.5 rounded-default bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)]">
+                <div className="text-[12px] text-[var(--danger)] mb-3 p-2.5 rounded-default bg-[var(--danger)]/10 border border-[var(--danger)]/20">
                   {error}
                 </div>
               )}

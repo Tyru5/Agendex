@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { hostname as osHostname } from 'node:os';
+import { isAbsolute, resolve } from 'node:path';
 import { loadConfig, loadOrCreateDeviceId, resolveCustomPlanDirPath } from '@agendex/shared';
 import { getSiteUrl, launchBrowser } from './auth.ts';
 import { type SyncPlanResult, syncPlan as defaultSyncPlan } from './api.ts';
@@ -39,6 +40,24 @@ function resolvePathArg(args: string[]): string | undefined {
   return undefined;
 }
 
+function resolveLaunchCwd(): string {
+  const initCwd = process.env.INIT_CWD?.trim();
+  if (initCwd && isAbsolute(initCwd)) return initCwd;
+
+  const shellPwd = process.env.PWD?.trim();
+  if (shellPwd && isAbsolute(shellPwd)) return shellPwd;
+
+  return process.cwd();
+}
+
+function resolveUploadFilePath(pathArg: string): string {
+  const trimmed = pathArg.trim();
+  if (isAbsolute(trimmed) || trimmed === '~' || trimmed.startsWith('~/')) {
+    return resolveCustomPlanDirPath(trimmed);
+  }
+  return resolve(resolveLaunchCwd(), trimmed);
+}
+
 export async function runUpload(args: string[], deps?: Partial<UploadDeps>): Promise<number> {
   const syncPlanFn = deps?.syncPlan ?? defaultSyncPlan;
   const log = deps?.log ?? ((m: string) => console.log(m));
@@ -51,7 +70,7 @@ export async function runUpload(args: string[], deps?: Partial<UploadDeps>): Pro
     return 1;
   }
 
-  const absolutePath = resolveCustomPlanDirPath(pathArg);
+  const absolutePath = resolveUploadFilePath(pathArg);
 
   if (!existsSync(absolutePath)) {
     error(`[agendex] path does not exist: ${absolutePath}`);

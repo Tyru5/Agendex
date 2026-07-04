@@ -1,8 +1,13 @@
 import { ConvexError, v } from 'convex/values';
+import { internal } from './_generated/api';
 import type { Doc } from './_generated/dataModel';
 import { internalMutation, internalQuery } from './_generated/server';
 import { deletePlanRelatedData } from './planDeletion';
-import { assessPlanForVisibility, hasLowValueMetadata } from './planVisibility';
+import {
+  assessPlanForVisibility,
+  hasLowValueMetadata,
+  metadataWithPlanValueAssessment,
+} from './planVisibility';
 
 const DEFAULT_BATCH_SIZE = 200;
 const MAX_BATCH_SIZE = 500;
@@ -182,6 +187,83 @@ export const cleanupLowValuePlans = internalMutation({
           ? null
           : result.continueCursor
         : (args.cursor ?? null),
+    };
+  },
+});
+
+// Only the persisted low-value keys can change when re-assessing a plan
+// (`metadataWithPlanValueAssessment` preserves every other metadata field), so
+// comparing just those keys tells us whether a rewrite is actually needed.
+function lowValueVerdictChanged(before: unknown, after: unknown): boolean {
+  const b = isRecord(before) ? before : {};
+  const a = isRecord(after) ? after : {};
+  return (
+    (b.lowValue === true) !== (a.lowValue === true) ||
+    JSON.stringify(b.lowValueReasons ?? null) !== JSON.stringify(a.lowValueReasons ?? null) ||
+    JSON.stringify(b.lowValueSignals ?? null) !== JSON.stringify(a.lowValueSignals ?? null)
+  );
+}
+
+type BackfillResult = {
+  mode: 'backfill';
+  scanned: number;
+  updated: number;
+  isDone: boolean;
+  continueCursor: string | null;
+};
+
+// Re-stamp every plan's persisted low-value flag so it reflects the CURRENT
+// classifier, then let collection reads trust that flag instead of classifying
+// live (see `filterVisiblePlans`). Run once after any change to the
+// `plan-value` classifier. Self-schedules through every page unless invoked
+// with `continue: false` (single-batch mode). Internal-only: drive via
+// `npx convex run planCleanup:backfillPlanValueMetadata` or the dashboard.
+export const backfillPlanValueMetadata = internalMutation({
+  args: {
+    adminToken: v.string(),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    limit: v.optional(v.number()),
+    continue: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<BackfillResult> => {
+    requireAdminToken(args.adminToken);
+
+    const result = await ctx.db.query('plans').paginate({
+      cursor: args.cursor ?? null,
+      numItems: batchSize(args.limit),
+    });
+
+    let updated = 0;
+    for (const plan of result.page) {
+      const nextMetadata = metadataWithPlanValueAssessment(plan.metadata, {
+        title: plan.title,
+        content: plan.content,
+      });
+      if (lowValueVerdictChanged(plan.metadata, nextMetadata)) {
+        // `metadata` is optional; patching `undefined` clears a now-stale flag.
+        await ctx.db.patch(plan._id, { metadata: nextMetadata });
+        updated++;
+      }
+    }
+
+    // Patches never remove rows, so `continueCursor` (computed against the
+    // just-read page) stays valid — unlike the delete path above, it's always
+    // safe to advance.
+    if (!result.isDone && args.continue !== false) {
+      await ctx.scheduler.runAfter(0, internal.planCleanup.backfillPlanValueMetadata, {
+        adminToken: args.adminToken,
+        cursor: result.continueCursor,
+        limit: args.limit,
+        continue: args.continue,
+      });
+    }
+
+    return {
+      mode: 'backfill',
+      scanned: result.page.length,
+      updated,
+      isDone: result.isDone,
+      continueCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });

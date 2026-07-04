@@ -2,6 +2,7 @@ import {
   AgentAvatarProvider,
   type AgentStats,
   ChangelogPage,
+  DocsPage,
   EmptyStateView,
   filterPlans,
   hasToken,
@@ -78,8 +79,10 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { useAuth } from './hooks/useAuth.ts';
+import { useCloudPlanContent } from './hooks/useCloudPlanContent.ts';
 import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
+import { useCloudPlanSearch } from './hooks/useCloudPlanSearch.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
@@ -376,8 +379,12 @@ function useDashboardData(
     [collectionPlanIds],
   );
 
+  // Cloud list items ship without `content`, so content matching runs
+  // server-side; the returned ids union into filterPlans' metadata matches.
+  const cloudContentMatchIds = useCloudPlanSearch(mode === 'cloud' ? search : '');
+
   const filteredPlans = useMemo(() => {
-    let result = filterPlans(plans, search);
+    let result = filterPlans(plans, search, mode === 'cloud' ? cloudContentMatchIds : undefined);
     if (mode === 'cloud' && agentFilter) {
       result = result.filter((p) => p.agent === agentFilter);
     }
@@ -417,6 +424,7 @@ function useDashboardData(
     collectionPlanIdSet,
     selectedTags,
     planTagsMap,
+    cloudContentMatchIds,
   ]);
 
   const refreshLocalPlans = localPlans.refresh;
@@ -1970,7 +1978,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     localStorage.setItem(CHART_PREF_STORAGE_KEY, chartHidden ? 'true' : 'false');
   }, [chartHidden]);
 
-  const selectedPlan = useMemo(() => {
+  const selectedPlanBase = useMemo(() => {
     const localFallback =
       mode === 'local' && !localAutoSelectSuppressed ? filteredPlans[0] : undefined;
     if (selectedPlanId) {
@@ -1990,6 +1998,19 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     mode,
     localAutoSelectSuppressed,
   ]);
+
+  // Cloud list items ship without `content` (see getMyPublishedPlans); hydrate
+  // the selected plan before it fans out to the viewer/editor/share/plannotator
+  // consumers below. Plans that already carry content (local mode, optimistic
+  // copies from the editor) skip the fetch.
+  const cloudSelectedPlanContent = useCloudPlanContent(
+    mode === 'cloud' && selectedPlanBase && !selectedPlanBase.content ? selectedPlanBase.id : null,
+  );
+  const selectedPlan = useMemo(() => {
+    if (!selectedPlanBase) return undefined;
+    if (mode !== 'cloud' || selectedPlanBase.content) return selectedPlanBase;
+    return { ...selectedPlanBase, content: cloudSelectedPlanContent ?? '' };
+  }, [selectedPlanBase, mode, cloudSelectedPlanContent]);
 
   // Auto-follow a live replacement only for a session that ended *while the user
   // was viewing it* (it got superseded while open). Deliberately opening an
@@ -2265,9 +2286,32 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onToggleChart={isPro ? toggleChart : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
         onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
-        onManageSources={mode === 'local' ? () => setSourcesOpen(true) : undefined}
         onSwitchMode={canSwitchMode ? switchMode : undefined}
         sidebarWidth={expandedWidth}
+        actions={
+          mode === 'local' ? (
+            <button
+              type="button"
+              onClick={() => setSourcesOpen(true)}
+              aria-label="Manage plan sources"
+              title="Manage plan sources"
+              className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+          ) : undefined
+        }
       />
 
       {mode === 'local' && (
@@ -2383,6 +2427,11 @@ function ChangelogRoute() {
   return <ChangelogPage onBack={() => startViewTransition(() => navigate('/'))} />;
 }
 
+function DocsRoute() {
+  const [, navigate] = useLocation();
+  return <DocsPage onBack={() => startViewTransition(() => navigate('/'))} />;
+}
+
 function CliAuthRoute() {
   const callback = new URLSearchParams(window.location.search).get('callback');
   if (!callback) return <Redirect to="/" />;
@@ -2456,6 +2505,7 @@ function LandingRoute() {
     <LandingPage
       mascot={{ onActivate: () => startViewTransition(() => navigate('/about-me')) }}
       onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
+      onShowDocs={() => startViewTransition(() => navigate('/docs'))}
     >
       <LandingPage.NavbarAuth>{() => <EENavbarAuth />}</LandingPage.NavbarAuth>
       <LandingPage.HeroCta>{() => <EEHeroCta />}</LandingPage.HeroCta>
@@ -2660,6 +2710,7 @@ export default function App() {
       </Route>
       <Route path="/about-me" component={AboutMePage} />
       <Route path="/changelog" component={ChangelogRoute} />
+      <Route path="/docs" component={DocsRoute} />
       <Route path="/welcome">
         <AuthRuntime>
           <OnboardingRoute>

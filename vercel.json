@@ -8,5 +8,9 @@
       "*": false
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/install.sh", "destination": "/install.sh" },
+    { "source": "/install.ps1", "destination": "/install.ps1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

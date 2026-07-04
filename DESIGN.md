@@ -2,25 +2,27 @@
 name: Agendex
 description: A precise plan workspace for solo AI-coding power users and engineering teams.
 colors:
-  deep-grid-bg: '#041f1d'
-  deep-grid-surface: '#082724'
-  deep-grid-raised: '#102f2b'
-  ivory-text: '#eef4e8'
-  muted-sage: '#879891'
-  hairline-grid: '#173d38'
-  acid-lime: '#c8ff32'
-  signal-orange: '#ff7a2f'
-  light-bg: '#f7f9f3'
-  light-surface: '#fcfdf8'
-  light-text: '#121610'
-  error-red: '#ef4444'
+  # Hex values are sRGB approximations; implementation tokens are OKLCH in
+  # packages/web/src/client/index.css (:root and .dark), the source of truth.
+  deep-grid-bg: '#000c09' # --bg dark, oklch(13.5% 0.036 181)
+  deep-grid-surface: '#00130f' # --surface dark, oklch(16.5% 0.037 181)
+  deep-grid-raised: '#001d18' # --surface-raised dark, oklch(20.5% 0.039 180)
+  ivory-text: '#ebf1e4' # --text dark, oklch(95% 0.018 127)
+  muted-sage: '#889e96' # --secondary dark, oklch(68% 0.028 170)
+  faint-sage: '#70867e' # --tertiary dark, oklch(60% 0.028 171), AA at 4.5:1
+  acid-lime: '#c8ff32' # --accent, oklch(90% 0.22 129)
+  signal-orange: '#fc7930' # --landing-orange dark, oklch(72% 0.18 46)
+  light-bg: '#f3f7ef' # --bg light, oklch(97.2% 0.012 128)
+  light-surface: '#fafdf7' # --surface light, oklch(99% 0.009 128)
+  light-text: '#0d1109' # --text light, oklch(17% 0.017 132)
+  danger: '#f14f43' # --danger dark, oklch(65% 0.2 28); light theme oklch(56% 0.18 28)
 typography:
   display:
-    fontFamily: 'Unbounded, Inter, system-ui, sans-serif'
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif'
     fontSize: '34px'
-    fontWeight: 430
+    fontWeight: 760
     lineHeight: 1.05
-    letterSpacing: '0'
+    letterSpacing: '-0.03em'
   headline:
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif'
     fontSize: '20px'
@@ -119,13 +121,20 @@ The palette should move from the current graphite-and-lime base toward a deep ed
 
 ### Neutral
 
-- **Deep Grid Background** (#041f1d): Target dark canvas for brand, public, onboarding, and high-focus product surfaces.
-- **Deep Grid Surface** (#082724): Panels, sidebar regions, command surfaces, and secondary dark containers.
-- **Deep Grid Raised** (#102f2b): Hovered rows, elevated controls, selected low-emphasis chips, and nested tool areas.
-- **Ivory Text** (#eef4e8): Primary text on dark surfaces. Avoid pure white.
-- **Muted Sage** (#879891): Secondary text, helper copy, timestamps, metadata, and inactive controls.
-- **Hairline Grid** (#173d38): Borders and structural dividers. It should read as architecture, not decoration.
-- **Light Background** (#f7f9f3), **Light Surface** (#fcfdf8), **Light Text** (#121610): Light theme equivalents with a green tint. Avoid pure white.
+- **Deep Grid Background** (`oklch(13.5% 0.036 181)`): Dark canvas for the dashboard; brand and landing surfaces sit slightly deeper at `oklch(10% 0.032 178)`.
+- **Deep Grid Surface** (`oklch(16.5% 0.037 181)`): Panels, sidebar regions, command surfaces, and secondary dark containers.
+- **Deep Grid Raised** (`oklch(20.5% 0.039 180)`): Hovered rows, elevated controls, selected low-emphasis chips, and nested tool areas.
+- **Ivory Text** (`oklch(95% 0.018 127)`): Primary text on dark surfaces. Avoid pure white.
+- **Muted Sage** (`oklch(68% 0.028 170)`): Secondary text, helper copy, and descriptions. Passes 4.5:1 on all dark surfaces.
+- **Faint Sage** (`oklch(60% 0.028 171)`): Tertiary text for timestamps, counts, and metadata. Tuned to hold 4.5:1 on bg, surface, and raised; do not darken below this.
+- **Hairline Grid** (`color-mix` of text at 9-10%): Borders and structural dividers. It should read as architecture, not decoration.
+- **Light theme** (`oklch(97.2% 0.012 128)` bg, `oklch(99% 0.009 128)` surface, `oklch(17% 0.017 132)` text): Green-tinted equivalents. Avoid pure white.
+
+### Semantic & Data
+
+- **Status tokens** `--success` / `--warning` / `--danger` / `--info` exist per theme and are the only way to color state; never hardcode status hexes. Light-theme steps are darkened to hold 4.5:1 as text.
+- **Chart tokens** `--chart-language` … `--chart-testing`: an 8-slot categorical palette per theme, validated for lightness band, chroma floor, adjacent-pair CVD separation, and 3:1 contrast against that theme's surface. Fixed assignment, never cycled; identity always carries a text label.
+- **Typography tokens** `--font-sans` / `--font-mono` and the z scale `--z-sticky < --z-topbar < --z-overlay < --z-toast` are defined in `:root`; use them instead of literal stacks or raw z values.
 
 ### Named Rules
 
@@ -135,7 +144,7 @@ The palette should move from the current graphite-and-lime base toward a deep ed
 
 ## 3. Typography
 
-**Display Font:** Unbounded with Inter and system fallbacks  
+**Display Font:** Inter at heavy weights (740-760) with tight tracking (-0.02em to -0.035em); no separate display family  
 **Body Font:** Inter with system fallbacks  
 **Label/Mono Font:** SF Mono, JetBrains Mono, Fira Code, ui-monospace
 
@@ -143,7 +152,7 @@ The palette should move from the current graphite-and-lime base toward a deep ed
 
 ### Hierarchy
 
-- **Display** (430, 34px, 1.05): Landing headlines, onboarding titles, empty-state headlines, public shared-plan page titles. Do not use in table rows, buttons, nav labels, settings labels, or plan metadata.
+- **Display** (760, 34px, 1.05, -0.03em): Landing headlines, onboarding titles, empty-state headlines, public shared-plan page titles. Heavy Inter with tight tracking, not a separate display family. Do not use in table rows, buttons, nav labels, settings labels, or plan metadata.
 - **Headline** (650, 20px, 1.2): Page headers, major panel titles, settings section headings.
 - **Title** (600, 14px, 1.35): Plan titles, popover headings, card titles, dialog titles.
 - **Body** (450, 13.5px, 1.55): Plan prose, comments, helper copy, descriptions. Prose should stay within 65-75ch when it is meant to be read continuously.

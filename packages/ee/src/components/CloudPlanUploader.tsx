@@ -269,7 +269,7 @@ export function CloudPlanUploader({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {error && <span className="text-xs text-[#ef4444]">{error}</span>}
+          {error && <span className="text-xs text-[var(--danger)]">{error}</span>}
           <button
             type="button"
             onClick={() => {

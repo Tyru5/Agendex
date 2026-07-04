@@ -2,10 +2,12 @@ import { getSiteUrl, launchBrowser } from './auth.ts';
 
 /**
  * Opens the Agendex web app in the system browser (same base URL rules as `agendex login`).
+ * Targets /dashboard (the authenticated app) rather than the site root, which
+ * renders the marketing landing page.
  */
 export async function openAgendexWeb(siteUrlOverride?: string): Promise<void> {
   const base = siteUrlOverride ?? getSiteUrl();
-  const url = base.replace(/\/$/, '');
+  const url = `${base.replace(/\/$/, '')}/dashboard`;
 
   launchBrowser(url, 'Agendex in your browser');
 }

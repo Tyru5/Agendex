@@ -68,6 +68,28 @@ Verification:
   expect(assessment.reasons).toContain('execution-report');
 });
 
+test('keeps detailed migration plans that mention completion vocabulary and backticked identifiers', () => {
+  const assessment = assessPlanValue({
+    title: 'Migration Plan — studio.client → Convex (strangler-fig) · v3',
+    content: `# Migration Plan — studio.client → Convex
+
+## Context
+The studio client currently talks to the legacy backend over a \`NatsConnection\`.
+Requests that failed previously are retried; nothing has changed in the wire format.
+
+## Steps
+1. Introduce a Convex adapter behind the existing interface.
+2. Route reads through Convex once backfill is done.
+3. Remove the legacy path after the cutover is resolved.
+
+## Verification
+Each phase will be verified against staging before the next begins.`,
+  });
+
+  expect(assessment.lowValue).toBe(false);
+  expect(assessment.reasons).toEqual([]);
+});
+
 test('marks Codex wrapper-title final answers as low-value when they are not plans', () => {
   const assessment = assessPlanValue({
     title: '<user_action>',
