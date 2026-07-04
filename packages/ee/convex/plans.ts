@@ -1,6 +1,7 @@
 import { ProFeature } from '@agendex/shared/types';
+import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { type QueryCtx, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
@@ -91,38 +92,121 @@ export const publishPlan = mutation({
   },
 });
 
+// Resolves whose plans `getMyPublishedPlans` returns: your own, unless you lack
+// an active subscription but belong to a workspace whose owner has one — then
+// you see that owner's plans. Preserves the pre-pagination branching exactly.
+async function resolvePublishedPlansOwnerId(ctx: QueryCtx, userId: string): Promise<string> {
+  const ownActive = await hasActiveSubscriptionForUserId(ctx, userId);
+  if (ownActive) return userId;
+
+  const membership = await ctx.db
+    .query('workspaceMembers')
+    .withIndex('by_member', (q) => q.eq('memberId', userId))
+    .first();
+  if (membership) {
+    const ownerActive = await hasActiveSubscriptionForUserId(ctx, membership.workspaceOwnerId);
+    if (ownerActive) return membership.workspaceOwnerId;
+  }
+  return userId;
+}
+
 export const getMyPublishedPlans = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) {
+      return { page: [], isDone: true, continueCursor: '' };
+    }
+
+    const ownerId = await resolvePublishedPlansOwnerId(ctx, user._id);
+
+    // Paginate rather than `.collect()`: a single query must never read an
+    // unbounded number of plans, nor exceed Convex's per-transaction read
+    // limits as plan count/content grows (the byte limit binds well before the
+    // doc limit, since each plan carries its full content). `useCloudPlans`
+    // walks every page client-side, so full-set aggregation still works.
+    // Post-filtering shrinks a page but leaves the cursor valid.
+    const result = await ctx.db
+      .query('plans')
+      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+      .order('desc')
+      .paginate(args.paginationOpts);
+
+    // Strip `content` from list items: the list UI renders only metadata, and
+    // shipping every plan's full body makes each reactive page push cost
+    // O(total content bytes) per client. The detail view hydrates content via
+    // `getMyPlanContent`; content search runs server-side via `searchMyPlans`.
+    // Note this trims the wire payload, not the DB read — the paginated read
+    // above still counts full document bytes against the transaction limit.
+    return {
+      ...result,
+      page: filterVisiblePlans(result.page).map(({ content: _content, ...plan }) => plan),
+    };
+  },
+});
+
+// Content for a single plan, fetched when the user opens it. Same access rules
+// as `getPlan`, but returns null instead of throwing: this backs a reactive
+// `useQuery` in the list UI, where a stale URL or a just-deleted plan must
+// degrade to "no content", not crash to the error boundary. Takes a plain
+// string and normalizes it so malformed ids (e.g. a local-mode id left in the
+// URL when switching to cloud mode) can't fail argument validation.
+export const getMyPlanContent = query({
+  args: { planId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return null;
+
+    const planId = ctx.db.normalizeId('plans', args.planId);
+    if (!planId) return null;
+
+    const plan = await ctx.db.get(planId);
+    if (!plan) return null;
+
+    if (plan.ownerId !== user._id) {
+      const membership = await ctx.db
+        .query('workspaceMembers')
+        .withIndex('by_workspace_member', (q) =>
+          q.eq('workspaceOwnerId', plan.ownerId).eq('memberId', user._id),
+        )
+        .first();
+      if (!membership) return null;
+
+      const ownerActive = await hasActiveSubscriptionForUserId(ctx, plan.ownerId);
+      if (!ownerActive) return null;
+    }
+
+    if (!isVisiblePlan(plan)) return null;
+
+    return { content: plan.content };
+  },
+});
+
+// Cap on server-side content-search matches. Search results are read as full
+// documents, so this bounds the transaction's read cost the same way the list
+// page size does. Relevance ordering means the cap drops the weakest matches.
+const CONTENT_SEARCH_MAX_RESULTS = 25;
+
+// Full-text content search over the same plan set `getMyPublishedPlans`
+// returns. List items no longer carry `content`, so the client can't substring
+// match it; instead it unions these ids into its metadata-search results.
+export const searchMyPlans = query({
+  args: { searchTerm: v.string() },
+  handler: async (ctx, args) => {
+    const term = args.searchTerm.trim();
+    if (!term) return [];
+
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return [];
 
-    const ownActive = await hasActiveSubscriptionForUserId(ctx, user._id);
-    if (!ownActive) {
-      const membership = await ctx.db
-        .query('workspaceMembers')
-        .withIndex('by_member', (q) => q.eq('memberId', user._id))
-        .first();
+    const ownerId = await resolvePublishedPlansOwnerId(ctx, user._id);
 
-      if (membership) {
-        const ownerActive = await hasActiveSubscriptionForUserId(ctx, membership.workspaceOwnerId);
-        if (ownerActive) {
-          const workspacePlans = await ctx.db
-            .query('plans')
-            .withIndex('by_owner', (q) => q.eq('ownerId', membership.workspaceOwnerId))
-            .order('desc')
-            .collect();
-          return filterVisiblePlans(workspacePlans);
-        }
-      }
-    }
-
-    const plans = await ctx.db
+    const matches = await ctx.db
       .query('plans')
-      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
-      .order('desc')
-      .collect();
-    return filterVisiblePlans(plans);
+      .withSearchIndex('search_content', (q) => q.search('content', term).eq('ownerId', ownerId))
+      .take(CONTENT_SEARCH_MAX_RESULTS);
+
+    return filterVisiblePlans(matches).map((plan) => plan._id);
   },
 });
 
