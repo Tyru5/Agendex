@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 1.4.0
+
+### Minor Changes
+
+- 501c238: Upload fixes to the plan upload command
+
 ## 1.3.0
 
 ### Minor Changes
