@@ -446,7 +446,9 @@ function looksLikeExecutionReport(normalized: string): boolean {
   );
   const hasCommandMarker =
     /::[a-z0-9_-]+(?:\{|\[|\s*$)/im.test(normalized) ||
-    /`[^`]*(?:bun|npm|pnpm|yarn|git|tsc|oxfmt|oxlint|biome)[^`]*`/i.test(normalized) ||
+    // Word boundaries so backticked identifiers like `NatsConnection` ("tsc")
+    // or `digitize` ("git") don't read as shell commands.
+    /`[^`]*\b(?:bun|npm|pnpm|yarn|git|tsc|oxfmt|oxlint|biome)\b[^`]*`/i.test(normalized) ||
     /\b(?:git\s+(?:stage|commit|push|status)|bunx?\s+|npm\s+|pnpm\s+|yarn\s+)\b/i.test(normalized);
 
   return hasPastCompletion && (hasReportSection || hasCommandMarker || hasReviewReportMarker);
@@ -512,7 +514,11 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
   if (toolLog && !explicitPlanBlock) reasons.push('tool-log');
   if (conversationArtifact && !explicitPlanBlock && !strongPositive)
     reasons.push('conversation-artifact');
-  if (executionReport && !explicitPlanBlock) reasons.push('execution-report');
+  // Execution reports are detected by the mere presence of completion verbs
+  // plus command mentions — vocabulary detailed forward-looking plans also
+  // use ("once X is done", verification commands). Strong plan structure
+  // rescues them, same as the other content-ambiguous detectors below.
+  if (executionReport && !explicitPlanBlock && !strongPositive) reasons.push('execution-report');
   if (wrapperTitle && !explicitPlanBlock) reasons.push('wrapper-title');
   if (reviewOutput && !explicitPlanBlock) reasons.push('review-output');
   if (promptTitle && !strongPositive && !explicitPlanBlock) reasons.push('prompt-like');

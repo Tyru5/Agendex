@@ -118,28 +118,28 @@ bun run build:cloud         # build EE client bundle
 
 bun run cli:start           # start cloud sync daemon
 bun run cli:login           # browser login using https://app.agendex.dev
-bun run cli:login -- --url https://example.com
-bun run cli:login -- --dev  # login using dev config dir (~/.agendex-dev) + dev default site URL
+bun run cli:login --url https://example.com
+bun run cli:login --dev     # login using dev config dir (~/.agendex-dev) + dev default site URL
 bun run cli:open            # open the Agendex web app in your default browser
-bun run cli:open -- --url https://example.com
-bun run cli -- view https://app.agendex.dev/shared/<token>
-bun run cli -- logout       # clear stored cloud token
+bun run cli:open --url https://example.com
+bun run cli:view https://app.agendex.dev/shared/<token>
+bun run cli:logout          # clear stored cloud token
 bun run cli:configure       # select which agents/adapters to index
 bun run cli:hooks -- status            # show Claude Code, Codex, and Pi hook status
 bun run cli:hooks -- install <agent|all>   # install hook integration (claude-code requires --preview)
 bun run cli:hooks -- uninstall <agent|all> # remove managed Agendex hook entries
-bun run cli:review-plan -- --hook --agent <agent>  # hook-native plan review entrypoint
+bun run cli:review-plan --hook --agent <agent>  # hook-native plan review entrypoint
 bun run cli:sync            # one-shot cloud sync
-bun run cli:sync -- --force # re-sync all plans, ignoring cache
-bun run cli -- upload ~/path/to/plan.md          # upload a single Markdown plan to the cloud
-bun run cli -- upload ~/path/to/plan.md --agent codex  # override the plan's agent label
-bun run cli -- upload ~/path/to/plan.md --open   # upload and open the plan in the browser
+bun run cli:sync --force    # re-sync all plans, ignoring cache
+bun run cli:upload ~/path/to/plan.md          # upload a single Markdown plan to the cloud
+bun run cli:upload ~/path/to/plan.md --agent codex  # override the plan's agent label
+bun run cli:upload ~/path/to/plan.md --open   # upload and open the plan in the browser
 bun run cli:stop            # stop daemon
-bun run cli -- cleanup      # interactively remove cloud daemon records
-bun run cli -- cleanup --stale
+bun run cli:cleanup         # interactively remove cloud daemon records
+bun run cli:cleanup --stale
 bun run cli:status          # print current local/cloud config state
-bun run cli -- upgrade      # upgrade the globally installed CLI
-# Append `-- --dev` to any `cli:*` script to use ~/.agendex-dev (see packages/cli README)
+bun run cli:upgrade         # upgrade the globally installed CLI
+# Append `--dev` to any `cli:*` script to use ~/.agendex-dev (see packages/cli README)
 
 bun run changeset           # create a release note for agendex-cli
 bun run version-packages    # apply pending Changesets versions

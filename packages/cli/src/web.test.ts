@@ -79,3 +79,58 @@ test('open prefers stored login site URL over AGENDEX_SITE_URL', async () => {
   expect(logs.some((line) => line.includes('https://self-hosted.example.com'))).toBe(true);
   expect(logs.some((line) => line.includes('https://app.agendex.dev'))).toBe(false);
 });
+
+async function captureOpenLogs(): Promise<string[]> {
+  const logs: string[] = [];
+  const originalLog = console.log;
+  console.log = (message?: unknown) => {
+    if (typeof message === 'string') logs.push(message);
+  };
+  try {
+    await openAgendexWeb();
+  } finally {
+    console.log = originalLog;
+  }
+  return logs;
+}
+
+test('open targets the authed dashboard, not the landing page (prod default)', async () => {
+  delete process.env.AGENDEX_SITE_URL;
+
+  const logs = await captureOpenLogs();
+
+  expect(logs.some((line) => line.includes('https://app.agendex.dev/dashboard'))).toBe(true);
+});
+
+test('open targets the authed dashboard, not the landing page (dev default)', async () => {
+  delete process.env.AGENDEX_SITE_URL;
+  const prevDev = process.env.AGENDEX_DEV;
+  process.env.AGENDEX_DEV = '1';
+  try {
+    const logs = await captureOpenLogs();
+    expect(logs.some((line) => line.includes('http://app.agendex.localhost:5174/dashboard'))).toBe(
+      true,
+    );
+  } finally {
+    if (prevDev === undefined) delete process.env.AGENDEX_DEV;
+    else process.env.AGENDEX_DEV = prevDev;
+  }
+});
+
+test('open appends /dashboard to a stored site URL with a trailing slash', async () => {
+  saveConfig({
+    configVersion: 3,
+    enabledAdapters: [],
+    customPlanDirs: [],
+    cloudToken: 'tok',
+    convexUrl: 'https://example.convex.cloud',
+    siteUrl: 'https://self-hosted.example.com/',
+  });
+  delete process.env.AGENDEX_SITE_URL;
+
+  const logs = await captureOpenLogs();
+
+  expect(logs.some((line) => line.includes('https://self-hosted.example.com/dashboard'))).toBe(
+    true,
+  );
+});
