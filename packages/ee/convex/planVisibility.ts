@@ -84,6 +84,15 @@ export function isVisiblePlan(plan: PlanWithMetadata): boolean {
   return !hasLowValueMetadata(plan.metadata) && !isLikelyLowValuePlan(plan);
 }
 
+// Collection reads (e.g. `getMyPublishedPlans`) filter on the PERSISTED
+// low-value flag rather than re-running the full `assessPlanValue` classifier
+// per plan. The classifier does non-trivial regex work over each plan's entire
+// content; running it across every plan on every read pushed the query past
+// Convex's 1s CPU budget. The flag is written at upload/update time
+// (`metadataWithPlanValueAssessment`) and kept in sync with the current
+// classifier by `backfillPlanValueMetadata` — so this is equivalent to the
+// live check in steady state, without the per-plan cost. Single-doc reads
+// (`isVisiblePlan`) keep the live classifier as a defense-in-depth safety net.
 export function filterVisiblePlans<T extends PlanWithMetadata>(plans: T[]): T[] {
-  return plans.filter(isVisiblePlan);
+  return plans.filter((plan) => !hasLowValueMetadata(plan.metadata));
 }
