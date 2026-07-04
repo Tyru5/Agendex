@@ -18,10 +18,16 @@ export function filterPlans(
   if (!normalizedQuery) return plans;
 
   return plans.filter((plan) => {
+    // Content matching is mode-exclusive: when contentMatchIds is provided
+    // (cloud mode), the server-side search is authoritative — even if a
+    // content snippet is ever shipped client-side, it must not be substring
+    // matched. Local mode falls back to substring matching on full content.
+    const contentMatches = contentMatchIds
+      ? contentMatchIds.has(plan.id)
+      : plan.content.toLowerCase().includes(normalizedQuery);
     return (
       plan.title.toLowerCase().includes(normalizedQuery) ||
-      plan.content.toLowerCase().includes(normalizedQuery) ||
-      (contentMatchIds?.has(plan.id) ?? false) ||
+      contentMatches ||
       plan.agent.toLowerCase().includes(normalizedQuery) ||
       plan.workspace?.toLowerCase().includes(normalizedQuery) ||
       plan.filePath.toLowerCase().includes(normalizedQuery)
