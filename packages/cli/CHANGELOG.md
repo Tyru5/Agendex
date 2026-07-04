@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 2.0.0
+
+### Major Changes
+
+- f2cf688: Complete refactor of UI, install scripts, docs route added, cloud sync logic updates, QoL changes
+
 ## 1.4.0
 
 ### Minor Changes
