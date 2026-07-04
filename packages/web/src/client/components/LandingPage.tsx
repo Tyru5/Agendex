@@ -18,6 +18,7 @@ import {
   LANDING_INITIAL,
   landingReducer,
 } from './landing/LandingContext.tsx';
+import { DexMascot } from './landing/DexMascot.tsx';
 import { LandingMascot, type LandingMascotProps } from './landing/LandingMascot.tsx';
 import { NavbarAuth, HeroCta, PricingCta } from './landing/LandingSlots.tsx';
 import type { SlotRenderFn, SlotComponent } from './landing/LandingSlots.tsx';
@@ -839,8 +840,9 @@ function LandingNavbar({
           <a
             href="#overview"
             onClick={onMobileMenuClose}
-            className="shrink-0 font-[Unbounded,Inter,system-ui,sans-serif] text-[15px] font-[430] text-[var(--landing-text)] no-underline"
+            className="flex shrink-0 items-center gap-2 font-[Unbounded,Inter,system-ui,sans-serif] text-[15px] font-[430] text-[var(--landing-text)] no-underline"
           >
+            <DexMascot variant="dark" size={26} />
             Agendex<span className="text-[var(--landing-accent)]">.</span>
           </a>
           <div className="flex items-center gap-6 max-[980px]:hidden">
@@ -938,7 +940,8 @@ function LandingFooter({ onShowChangelog }: { onShowChangelog?: () => void }) {
   return (
     <footer className="relative z-[1] flex min-h-[220px] items-end justify-between gap-8 border-t border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_94%,oklch(12%_0.03_184))] px-[clamp(20px,5vw,88px)] py-11 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start max-sm:px-4 max-sm:py-8">
       <div className="flex flex-col gap-3 text-[12.5px]">
-        <span className="font-[Unbounded,Inter,system-ui,sans-serif] text-[42px] font-[430] leading-none text-[var(--landing-text)]">
+        <span className="flex items-center gap-3 font-[Unbounded,Inter,system-ui,sans-serif] text-[42px] font-[430] leading-none text-[var(--landing-text)]">
+          <DexMascot variant="dark" size={48} />
           Agendex<span className="text-[var(--landing-accent)]">.</span>
         </span>
         <span>© {new Date().getFullYear()} / All systems indexed</span>
