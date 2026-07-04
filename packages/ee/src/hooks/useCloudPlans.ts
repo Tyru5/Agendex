@@ -4,11 +4,11 @@ import { usePaginatedQuery } from 'convex/react';
 import { useEffect } from 'react';
 
 // Page size for the paginated `getMyPublishedPlans` query. Deliberately small:
-// each plan carries its full content (up to ~1MB), and a single query reads at
-// most ~8MB, so the page count must stay low enough that one page's plans don't
-// blow that budget. The hook eagerly loads every page below, so a smaller page
-// only costs extra round-trips, not completeness. (A fully byte-safe fix would
-// stop shipping full content in the list query — see the PR notes.)
+// even though the query strips `content` from the response, the server still
+// reads full documents (up to ~1MB each) against Convex's ~8MB per-query read
+// budget, so the page count must stay low enough that one page's underlying
+// docs don't blow it. The hook eagerly loads every page below, so a smaller
+// page only costs extra round-trips, not completeness.
 const PLANS_PAGE_SIZE = 25;
 
 export function useCloudPlans(): {
@@ -41,7 +41,9 @@ export function useCloudPlans(): {
       ownerId: p.ownerId,
       agent: p.agent,
       title: p.title,
-      content: p.content,
+      // List items ship without content (see getMyPublishedPlans); the detail
+      // view hydrates it on open via useCloudPlanContent.
+      content: p.content ?? '',
       filePath: p.filePath ?? '',
       format: p.format,
       createdAt: new Date(p.createdAt).toISOString(),
