@@ -50,7 +50,8 @@ export const LOCAL_STEPS = [
 ];
 
 export const CLI_INSTALL_OPTIONS = [
-  { id: 'installer', label: 'curl', cmd: 'curl -fsSL https://agendex.ai/install.sh | bash' },
+  { id: 'installer', label: 'curl', cmd: 'curl -fsSL https://agendex.dev/install.sh | bash' },
+  { id: 'powershell', label: 'PowerShell', cmd: 'irm https://agendex.dev/install.ps1 | iex' },
   { id: 'bun', label: 'bun', cmd: 'bun install -g agendex-cli' },
   { id: 'npm', label: 'npm', cmd: 'npm install -g agendex-cli' },
   { id: 'yarn', label: 'yarn', cmd: 'yarn global add agendex-cli' },
@@ -61,7 +62,7 @@ export const CLOUD_STEPS = [
   {
     number: '1',
     title: 'Install CLI',
-    code: 'curl -fsSL https://agendex.ai/install.sh | bash',
+    code: `# macOS / Linux\ncurl -fsSL https://agendex.dev/install.sh | bash\n\n# Windows (PowerShell)\nirm https://agendex.dev/install.ps1 | iex`,
     hasPkgManager: true,
   },
   { number: '2', title: 'Authenticate', code: 'agendex login        # opens browser OAuth' },

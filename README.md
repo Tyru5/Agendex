@@ -54,7 +54,13 @@ The adapter catalog also includes additional non-implemented or stub entries for
 Install the published CLI with the one-line installer:
 
 ```bash
-curl -fsSL https://agendex.ai/install.sh | bash
+# macOS / Linux
+curl -fsSL https://agendex.dev/install.sh | bash
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://agendex.dev/install.ps1 | iex
 ```
 
 Then authenticate, choose which agents to index, and start syncing:
@@ -173,7 +179,7 @@ bun run check
 bun run check:fix
 ```
 
-The published CLI is Node-compatible and can be installed with `curl -fsSL https://agendex.ai/install.sh | bash` or directly with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://app.agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev ...` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
+The published CLI is Node-compatible and can be installed with `curl -fsSL https://agendex.dev/install.sh | bash` or directly with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://app.agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev ...` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
 
 ## Local API (OSS)
 

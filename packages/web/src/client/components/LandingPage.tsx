@@ -433,12 +433,31 @@ function HeroAgentStrip() {
   );
 }
 
+const HERO_INSTALL_COMMANDS = [
+  {
+    id: 'unix',
+    label: 'macOS / Linux',
+    prompt: '$',
+    cmd: 'curl -fsSL https://agendex.dev/install.sh | bash',
+  },
+  {
+    id: 'windows',
+    label: 'Windows',
+    prompt: '>',
+    cmd: 'irm https://agendex.dev/install.ps1 | iex',
+  },
+] as const;
+
 function HeroInstallCommand() {
-  const installCommand = 'curl -fsSL https://agendex.ai/install.sh | bash';
+  const [activePlatform, setActivePlatform] =
+    useState<(typeof HERO_INSTALL_COMMANDS)[number]['id']>('unix');
   const [copied, setCopied] = useState(false);
+  const active =
+    HERO_INSTALL_COMMANDS.find((option) => option.id === activePlatform) ??
+    HERO_INSTALL_COMMANDS[0];
 
   function copy() {
-    navigator.clipboard?.writeText(installCommand).then(() => {
+    navigator.clipboard?.writeText(active.cmd).then(() => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1400);
     });
@@ -446,11 +465,27 @@ function HeroInstallCommand() {
 
   return (
     <div className="landing-hero-install">
+      <div className="mb-1.5 flex gap-1.5">
+        {HERO_INSTALL_COMMANDS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => setActivePlatform(option.id)}
+            className={`rounded-[5px] border px-2 py-1 text-[11px] font-semibold leading-none transition-colors duration-150 ${
+              activePlatform === option.id
+                ? 'border-[color-mix(in_oklch,var(--landing-accent)_34%,transparent)] bg-[color-mix(in_oklch,var(--landing-accent)_12%,transparent)] text-[var(--landing-accent)]'
+                : 'border-transparent bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
       <div className="landing-hero-command">
         <span className="landing-hero-command-prompt" aria-hidden="true">
-          $
+          {active.prompt}
         </span>
-        <code>{installCommand}</code>
+        <code>{active.cmd}</code>
         <button
           type="button"
           onClick={copy}

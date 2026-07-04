@@ -7,7 +7,13 @@ Node-compatible Agendex CLI for browser login, opening the web app, one-shot syn
 Recommended one-line installer:
 
 ```bash
-curl -fsSL https://agendex.ai/install.sh | bash
+# macOS / Linux
+curl -fsSL https://agendex.dev/install.sh | bash
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://agendex.dev/install.ps1 | iex
 ```
 
 Or install directly with your package manager:
@@ -22,8 +28,13 @@ bun install -g agendex-cli
 Installer options:
 
 ```bash
-curl -fsSL https://agendex.ai/install.sh | bash -s -- --version 1.2.3
-curl -fsSL https://agendex.ai/install.sh | bash -s -- --pm pnpm
+curl -fsSL https://agendex.dev/install.sh | bash -s -- --version 1.2.3
+curl -fsSL https://agendex.dev/install.sh | bash -s -- --pm pnpm
+```
+
+```powershell
+& ([scriptblock]::Create((irm https://agendex.dev/install.ps1))) -Version 1.2.3
+& ([scriptblock]::Create((irm https://agendex.dev/install.ps1))) -Pm pnpm
 ```
 
 ## Commands

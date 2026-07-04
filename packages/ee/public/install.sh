@@ -25,8 +25,8 @@ fi
 usage() {
 	cat <<'USAGE'
 Usage: install.sh [options]
-       curl -fsSL https://agendex.ai/install.sh | bash
-       curl -fsSL https://agendex.ai/install.sh | bash -s -- --version 1.2.3
+       curl -fsSL https://agendex.dev/install.sh | bash
+       curl -fsSL https://agendex.dev/install.sh | bash -s -- --version 1.2.3
 
 Options:
   --version <version>  Install a specific agendex-cli version. A leading "v"
@@ -140,6 +140,38 @@ esac
 
 command_exists() {
 	command -v "$1" >/dev/null 2>&1
+}
+
+OS_NAME="$(uname -s 2>/dev/null || printf 'unknown')"
+ARCH_NAME="$(uname -m 2>/dev/null || printf 'unknown')"
+
+check_platform() {
+	case "$OS_NAME" in
+	Darwin | Linux) ;;
+	MINGW* | MSYS* | CYGWIN*)
+		warn "Windows shell detected ($OS_NAME). Installation via Git Bash usually works,"
+		warn "but the native Windows installer is recommended. From PowerShell, run:"
+		warn "  irm https://agendex.dev/install.ps1 | iex"
+		;;
+	unknown)
+		warn "could not detect your operating system (uname unavailable); attempting the install anyway."
+		;;
+	*)
+		fail "unsupported operating system: $OS_NAME. Agendex supports macOS, Linux, and Windows (via WSL or Git Bash). You can try installing manually with: npm install -g ${PACKAGE_NAME}"
+		;;
+	esac
+
+	case "$ARCH_NAME" in
+	x86_64 | amd64 | arm64 | aarch64 | unknown) ;;
+	*)
+		warn "untested CPU architecture: $ARCH_NAME. Continuing, but native components may need to compile from source."
+		;;
+	esac
+
+	if [ "$OS_NAME" = "Linux" ] && command_exists ldd && ldd --version 2>&1 | grep -qi musl; then
+		warn "musl libc detected (Alpine or similar). Native modules have no musl prebuilds and will compile from source;"
+		warn "make sure build tools are installed first (apk add python3 make g++)."
+	fi
 }
 
 check_node() {
@@ -267,13 +299,14 @@ For a self-hosted Agendex instance, use:
 NEXT
 }
 
+check_platform
 check_node
 PM="$(detect_package_manager)"
 check_package_manager "$PM"
 NORMALIZED_VERSION="$(normalize_version "$VERSION")"
 PKG_SPEC="${PACKAGE_NAME}@${NORMALIZED_VERSION}"
 
-info "Installing Agendex CLI (${PKG_SPEC})"
+info "Installing Agendex CLI (${PKG_SPEC}) on ${OS_NAME}/${ARCH_NAME}"
 if ! install_package "$PM" "$PKG_SPEC"; then
 	warn "installation failed."
 	if [ "$PM" = "npm" ]; then
