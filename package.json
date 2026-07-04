@@ -20,6 +20,7 @@
     "cli:view": "bun run --cwd ./packages/cli src/cli.ts view",
     "cli:configure": "bun run --cwd ./packages/cli src/cli.ts configure",
     "cli:sync": "bun run --cwd ./packages/cli src/cli.ts sync",
+    "cli:upload": "bun run --cwd ./packages/cli src/cli.ts upload",
     "cli:stop": "bun run --cwd ./packages/cli src/cli.ts stop",
     "cli:status": "bun run --cwd ./packages/cli src/cli.ts status",
     "cli:hooks": "bun run --cwd ./packages/cli src/cli.ts hooks",
