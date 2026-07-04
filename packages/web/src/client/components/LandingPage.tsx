@@ -337,7 +337,7 @@ function LandingNavbar({
             <a
               key={link.href}
               href={link.href}
-              onClick={link.href === '/docs' ? handleDocsClick : onMobileMenuClose}
+              onClick={link.href === '/docs' ? handleDocsClick : handleChangelogClick}
               className="flex min-h-10 items-center rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 text-[13px] font-semibold text-[var(--landing-text)] no-underline"
             >
               {link.label}
