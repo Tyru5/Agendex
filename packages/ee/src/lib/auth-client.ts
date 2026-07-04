@@ -46,8 +46,15 @@ async function desktopAuthFetch(input: RequestInfo | URL, init?: RequestInit): P
   return response;
 }
 
+// The Convex site origin auth requests actually go to: the desktop bridge's
+// runtime URL when present, the baked Vite env otherwise. Callback flows that
+// echo a `convexUrl` back to the desktop main process must use this same
+// value, or the session token and origin can disagree.
+export const AUTH_BASE_URL =
+  desktopConvexSiteUrl || ((import.meta.env.VITE_CONVEX_SITE_URL as string) ?? '');
+
 export const authClient = createAuthClient({
-  baseURL: desktopConvexSiteUrl || (import.meta.env.VITE_CONVEX_SITE_URL as string),
+  baseURL: AUTH_BASE_URL,
   plugins: [convexClient(), crossDomainClient({ disableCache: true })],
   // `customFetchImpl` (not a top-level `fetch` key) is how better-auth accepts
   // a fetch override; it routes every auth request (get-session, list-accounts,

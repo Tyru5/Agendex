@@ -1,6 +1,8 @@
+import { normalizeConvexSiteUrl } from '@agendex/shared/convex-url';
 import { GitHubIcon, GoogleIcon, Skeleton } from '@agendex/web';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
+import { AUTH_BASE_URL } from '../lib/auth-client.ts';
 import {
   buildDesktopAuthRedirectUrl,
   type DesktopAuthProvider,
@@ -42,9 +44,18 @@ export function DesktopAuthPage({ authRequest }: DesktopAuthPageProps) {
       return;
     }
 
+    // The desktop main process only trusts callbacks whose `convexUrl` passes
+    // the shared normalizer, so validate the origin the auth client actually
+    // used before redirecting; a bad value would fail silently after the
+    // browser hands off to the app.
+    const convexSiteUrl = normalizeConvexSiteUrl(AUTH_BASE_URL);
+    if (!convexSiteUrl) {
+      setStatus('error');
+      return;
+    }
+
     didRedirect.current = true;
     setStatus('redirecting');
-    const convexSiteUrl = import.meta.env.VITE_CONVEX_SITE_URL as string;
     window.location.replace(
       buildDesktopAuthRedirectUrl({
         request: authRequest,
