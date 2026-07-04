@@ -38,6 +38,8 @@ export interface AgendexConfig {
   token?: string;
   cloudToken?: string;
   convexUrl?: string;
+  /** Web app base URL used at login (for self-hosted / custom deployments). */
+  siteUrl?: string;
   deviceId?: string;
   collectLocalIpAddress?: boolean;
   enabledAdapters: AdapterId[];
@@ -49,6 +51,7 @@ interface StoredConfig {
   token?: unknown;
   cloudToken?: unknown;
   convexUrl?: unknown;
+  siteUrl?: unknown;
   deviceId?: unknown;
   collectLocalIpAddress?: unknown;
   enabledAdapters?: unknown;
@@ -119,6 +122,7 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     typeof raw.cloudToken === 'string' && raw.cloudToken.trim() ? raw.cloudToken : undefined;
   const convexUrl =
     typeof raw.convexUrl === 'string' && raw.convexUrl.trim() ? raw.convexUrl : undefined;
+  const siteUrl = typeof raw.siteUrl === 'string' && raw.siteUrl.trim() ? raw.siteUrl : undefined;
   const deviceId =
     typeof raw.deviceId === 'string' && raw.deviceId.trim() ? raw.deviceId : undefined;
   const collectLocalIpAddress =
@@ -129,6 +133,7 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     token,
     cloudToken,
     convexUrl,
+    siteUrl,
     deviceId,
     collectLocalIpAddress,
     enabledAdapters: normalizeAdapterIds(raw.enabledAdapters),
@@ -147,6 +152,7 @@ export function saveConfig(config: AgendexConfig) {
     token: config.token,
     cloudToken: config.cloudToken,
     convexUrl: config.convexUrl,
+    siteUrl: config.siteUrl,
     deviceId: config.deviceId,
     collectLocalIpAddress: config.collectLocalIpAddress,
     enabledAdapters: sanitizeEnabledAdapterIds(config.enabledAdapters),
@@ -239,6 +245,7 @@ export async function loadOrInitConfig(options: InitConfigOptions = {}): Promise
     token: tokenFromEnv ? existing?.token : currentToken,
     cloudToken: existing?.cloudToken,
     convexUrl: existing?.convexUrl,
+    siteUrl: existing?.siteUrl,
     deviceId,
     enabledAdapters,
     customPlanDirs: existing?.customPlanDirs ?? [],

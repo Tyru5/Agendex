@@ -1,4 +1,5 @@
-import type { Plan } from '@agendex/shared';
+import { basename, resolve } from 'node:path';
+import { hashPath, type Plan } from '@agendex/shared';
 import type { SyncPlanPayload } from './api.ts';
 
 const SYNC_METADATA_KEY = 'agendexSync';
@@ -23,6 +24,80 @@ function withSyncDeviceMetadata(
       ...(hostname !== undefined && { hostname }),
       ...(ipAddress !== undefined && { ipAddress }),
     },
+  };
+}
+
+export interface FileUploadParseResult {
+  title: string;
+  agent: string;
+  /** Body content with any leading YAML frontmatter stripped. */
+  body: string;
+}
+
+/**
+ * Parse a standalone Markdown plan file the same way the shared generic-markdown
+ * adapter does: title from the first `# heading` (else filename), agent from
+ * `agent:` frontmatter when no override is provided (else the override, else `uploaded`).
+ */
+export function parseUploadFile(
+  filePath: string,
+  content: string,
+  agentOverride?: string,
+): FileUploadParseResult {
+  const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
+
+  const override = agentOverride?.trim();
+  let agent = override || 'uploaded';
+  if (!override && fmMatch) {
+    const agentLine = fmMatch[1]?.match(/^agent:\s*(.+)$/m);
+    if (agentLine?.[1]) agent = agentLine[1].trim();
+  }
+
+  const body = fmMatch ? content.slice(fmMatch[0].length) : content;
+  const titleMatch = body.match(/^#\s+(.+)/m);
+  const title = titleMatch?.[1]?.trim() || basename(filePath).replace(/\.md$/i, '') || 'Untitled';
+
+  return { title, agent, body };
+}
+
+export interface FileToSyncPayloadOptions {
+  agentOverride?: string;
+  deviceId?: string;
+  hostname?: string;
+  ipAddress?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+/**
+ * Build a sync payload for a single standalone Markdown file (the `upload`
+ * command). The localPlanId is a hash of the absolute file path so that
+ * re-uploading the same file upserts the same cloud plan instead of duplicating.
+ */
+export function fileToSyncPayload(
+  filePath: string,
+  content: string,
+  options: FileToSyncPayloadOptions = {},
+): SyncPlanPayload {
+  const absolutePath = resolve(filePath);
+  const { title, agent, body } = parseUploadFile(absolutePath, content, options.agentOverride);
+  const now = Date.now();
+
+  return {
+    localPlanId: hashPath(absolutePath),
+    agent,
+    title,
+    content: body,
+    format: 'md',
+    filePath: absolutePath,
+    metadata: withSyncDeviceMetadata(
+      { uploaded: true, userCreated: true },
+      options.deviceId,
+      options.hostname,
+      options.ipAddress,
+    ),
+    createdAt: options.createdAt ?? now,
+    updatedAt: options.updatedAt ?? now,
   };
 }
 

@@ -1,0 +1,39 @@
+{
+  "decision": "submitted",
+  "stage": "interview",
+  "result": {
+    "stage": "interview",
+    "title": "Filter Non-Plan Sync",
+    "goalSlug": "filter-non-plan-sync",
+    "answers": [
+      {
+        "questionId": "scope",
+        "selectedOptionIds": ["all-sources"],
+        "customAnswer": "",
+        "answer": "All sources",
+        "completed": true
+      },
+      {
+        "questionId": "existing-rows",
+        "selectedOptionIds": ["dry-run-delete"],
+        "customAnswer": "",
+        "answer": "Dry-run then delete",
+        "completed": true
+      },
+      {
+        "questionId": "classifier-strictness",
+        "selectedOptionIds": ["strict-allowlist"],
+        "customAnswer": "",
+        "answer": "Strict allowlist",
+        "completed": true
+      },
+      {
+        "questionId": "verification",
+        "selectedOptionIds": ["unit-tests", "sync-tests", "convex-audit", "cleanup-dry-run"],
+        "customAnswer": "",
+        "answer": "Classifier tests\nSync path tests\nConvex audit\nCleanup dry-run",
+        "completed": true
+      }
+    ]
+  }
+}

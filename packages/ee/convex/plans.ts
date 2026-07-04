@@ -4,7 +4,11 @@ import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
-import { filterVisiblePlans, isVisiblePlan } from './planVisibility';
+import {
+  filterVisiblePlans,
+  isVisiblePlan,
+  metadataWithPlanValueAssessment,
+} from './planVisibility';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
 
 export const publishPlan = mutation({
@@ -29,6 +33,11 @@ export const publishPlan = mutation({
     const ownerId = user._id;
     const now = Date.now();
 
+    const metadata = metadataWithPlanValueAssessment(args.metadata, {
+      title: args.title,
+      content: args.content,
+    });
+
     const existing = await ctx.db
       .query('plans')
       .withIndex('by_owner_localPlanId', (q) =>
@@ -45,7 +54,7 @@ export const publishPlan = mutation({
         format: args.format,
         filePath: args.filePath,
         workspace: args.workspace,
-        metadata: args.metadata,
+        metadata,
         version: newVersion,
         updatedAt: now,
       });
@@ -58,7 +67,7 @@ export const publishPlan = mutation({
         format: args.format,
         filePath: args.filePath,
         workspace: args.workspace,
-        metadata: args.metadata,
+        metadata,
         source: 'cli_sync',
         createdAt: now,
       });
@@ -74,7 +83,7 @@ export const publishPlan = mutation({
       format: args.format,
       filePath: args.filePath,
       workspace: args.workspace,
-      metadata: args.metadata,
+      metadata,
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -248,10 +257,15 @@ export const updatePlanContent = mutation({
 
     const newVersion = plan.version + 1;
     const now = Date.now();
+    const metadata = metadataWithPlanValueAssessment(plan.metadata, {
+      title: args.title,
+      content: args.content,
+    });
 
     await ctx.db.patch(args.planId, {
       title: args.title,
       content: args.content,
+      metadata,
       version: newVersion,
       updatedAt: now,
     });
@@ -265,7 +279,7 @@ export const updatePlanContent = mutation({
       format: plan.format,
       filePath: plan.filePath,
       workspace: plan.workspace,
-      metadata: plan.metadata,
+      metadata,
       source: 'editor',
       createdAt: now,
     });

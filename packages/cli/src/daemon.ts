@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CLI_DAEMON_HEARTBEAT_INTERVAL_MS,
+  collectWatchPaths,
   getAll,
   getById,
   isDevMode,
@@ -32,6 +33,17 @@ import {
   sendShutdown,
   syncPlan,
 } from './api.ts';
+import {
+  dedupeSyncPayloads,
+  DEFAULT_LIVE_SESSION_POLL_MS,
+  DEFAULT_SYNC_RESCAN_INTERVAL_MS,
+  DEFAULT_WATCHER_REFRESH_INTERVAL_MS,
+  filterPayloadsNeedingSync,
+  nextRetryDelayMs,
+  parseEnvMs,
+  type SyncRetryEntry,
+  SYNC_MAX_RETRIES,
+} from './daemon-sync.ts';
 import { getLocalIpAddress } from './network.ts';
 import { planToSyncPayload } from './payload.ts';
 import { removePid, writePid } from './pid.ts';
@@ -53,6 +65,19 @@ const PLANNOTATOR_WRITEBACK_FAILED_ERROR =
 // watchers never fire. Re-scan periodically to catch dead sessions and publish
 // their "ended" state to the cloud.
 const PLANNOTATOR_LIVENESS_SWEEP_INTERVAL_MS = 20_000;
+const LIVE_SESSION_POLL_MS = parseEnvMs(
+  'AGENDEX_LIVE_SESSION_POLL_MS',
+  DEFAULT_LIVE_SESSION_POLL_MS,
+);
+const SYNC_RESCAN_INTERVAL_MS = parseEnvMs(
+  'AGENDEX_SYNC_RESCAN_INTERVAL_MS',
+  DEFAULT_SYNC_RESCAN_INTERVAL_MS,
+);
+const WATCHER_REFRESH_INTERVAL_MS = parseEnvMs(
+  'AGENDEX_WATCHER_REFRESH_INTERVAL_MS',
+  DEFAULT_WATCHER_REFRESH_INTERVAL_MS,
+);
+const RETRY_TICK_INTERVAL_MS = 1_000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -99,6 +124,12 @@ export async function runWorker(): Promise<void> {
 
   const syncCache = loadSyncCache();
   const syncQueue: SyncPlanPayload[] = [];
+  const retryQueue: SyncRetryEntry[] = [];
+  const retryAttemptByPlanId = new Map<string, number>();
+  // Tracks the updatedAt of the payload last successfully synced per plan, so a
+  // delayed retry of an older failed payload can detect that a newer edit has
+  // since synced and skip re-applying stale content/metadata.
+  const lastSyncedUpdatedAt = new Map<string, number>();
   const pendingWritebackReports = loadPendingWritebackReports();
   // Last-synced payload for each plan id that is currently a live Plannotator
   // session. When such a plan stops being live (process died, session removed),
@@ -134,17 +165,102 @@ export async function runWorker(): Promise<void> {
     return true;
   }
 
+  function pushToSyncQueue(...payloads: SyncPlanPayload[]) {
+    for (const payload of payloads) {
+      const idx = syncQueue.findIndex((p) => p.localPlanId === payload.localPlanId);
+      if (idx >= 0) {
+        const existing = syncQueue[idx];
+        // Never let an older payload (e.g. a delayed retry) clobber a newer one
+        // that's already queued.
+        if (
+          existing?.updatedAt !== undefined &&
+          payload.updatedAt !== undefined &&
+          existing.updatedAt >= payload.updatedAt
+        ) {
+          continue;
+        }
+        syncQueue[idx] = payload;
+      } else {
+        syncQueue.push(payload);
+      }
+    }
+  }
+
+  function scheduleSyncRetry(payload: SyncPlanPayload, attempt: number) {
+    const delayMs = nextRetryDelayMs(attempt);
+    if (delayMs === undefined) {
+      console.error(
+        `[agendex] sync gave up for "${payload.title}" after ${SYNC_MAX_RETRIES} attempts`,
+      );
+      return;
+    }
+    retryQueue.push({ payload, attempt: attempt + 1, retryAt: Date.now() + delayMs });
+  }
+
+  function flushReadyRetries() {
+    const now = Date.now();
+    let moved = 0;
+    for (let i = retryQueue.length - 1; i >= 0; i--) {
+      const entry = retryQueue[i];
+      if (!entry || entry.retryAt > now) continue;
+      retryQueue.splice(i, 1);
+
+      // A newer edit may have synced successfully while this retry was waiting.
+      // Re-applying the stale payload would overwrite that newer cloud state.
+      const lastSynced = lastSyncedUpdatedAt.get(entry.payload.localPlanId);
+      if (
+        lastSynced !== undefined &&
+        entry.payload.updatedAt !== undefined &&
+        lastSynced >= entry.payload.updatedAt
+      ) {
+        continue;
+      }
+
+      pushToSyncQueue(entry.payload);
+      retryAttemptByPlanId.set(entry.payload.localPlanId, entry.attempt);
+      moved++;
+    }
+    if (moved > 0) processSyncQueue();
+  }
+
+  async function enqueueChangedPlans(plans: Plan[]): Promise<number> {
+    if (plans.length === 0) return 0;
+    const ipAddress = await getSyncIpAddress();
+    const payloads = plans.map((plan) =>
+      planToSyncPayload(plan, config.deviceId, hostname, ipAddress),
+    );
+    const needingSync = filterPayloadsNeedingSync(payloads, syncCache);
+    if (needingSync.length === 0) return 0;
+    pushToSyncQueue(...needingSync);
+    processSyncQueue();
+    return needingSync.length;
+  }
+
   async function processSyncQueue() {
     if (syncing || syncQueue.length === 0) return;
     syncing = true;
 
-    const batch = syncQueue.splice(0);
+    const batch = dedupeSyncPayloads(syncQueue.splice(0));
     let syncedCount = 0;
     let lowValueSkippedCount = 0;
     let lowValueDeletedCount = 0;
     let failedCount = 0;
+    const failedPayloads: SyncPlanPayload[] = [];
     try {
       for (const payload of batch) {
+        // Re-check freshness right before syncing: a newer edit for this plan
+        // may have synced successfully after this (possibly stale, retried)
+        // payload was queued but before its turn in this batch came up.
+        const lastSynced = lastSyncedUpdatedAt.get(payload.localPlanId);
+        if (
+          lastSynced !== undefined &&
+          payload.updatedAt !== undefined &&
+          lastSynced >= payload.updatedAt
+        ) {
+          retryAttemptByPlanId.delete(payload.localPlanId);
+          continue;
+        }
+
         let result = await syncPlan(payload);
 
         if (!result.ok && result.error?.includes('401')) {
@@ -157,11 +273,12 @@ export async function runWorker(): Promise<void> {
         if (!result.ok) {
           if (result.error?.includes('401')) {
             console.error('[agendex] session expired. Run `agendex login` to re-authenticate.');
-            batch.length = 0;
             syncQueue.length = 0;
+            retryQueue.length = 0;
             break;
           }
           failedCount++;
+          failedPayloads.push(payload);
           console.error(`[agendex] sync failed for "${payload.title}": ${result.error}`);
         } else {
           if (result.skippedLowValue) {
@@ -171,14 +288,25 @@ export async function runWorker(): Promise<void> {
             syncedCount++;
           }
           syncCache[payload.localPlanId] = computePayloadHash(payload);
+          retryAttemptByPlanId.delete(payload.localPlanId);
+          if (payload.updatedAt !== undefined) {
+            lastSyncedUpdatedAt.set(payload.localPlanId, payload.updatedAt);
+          }
         }
       }
     } catch (err) {
       console.error('[agendex] sync error:', err);
-      syncQueue.unshift(...batch.slice(syncedCount + lowValueSkippedCount + failedCount));
+      pushToSyncQueue(...batch.slice(syncedCount + lowValueSkippedCount + failedCount));
     } finally {
       syncing = false;
     }
+
+    for (const payload of failedPayloads) {
+      const attempt = retryAttemptByPlanId.get(payload.localPlanId) ?? 0;
+      retryAttemptByPlanId.delete(payload.localPlanId);
+      scheduleSyncRetry(payload, attempt);
+    }
+
     if (syncedCount > 0 || lowValueSkippedCount > 0 || failedCount > 0) {
       saveSyncCache(syncCache);
       const lowValueSuffix =
@@ -213,7 +341,7 @@ export async function runWorker(): Promise<void> {
     for (const [planId, lastPayload] of liveSessions) {
       if (livePayloads.has(planId)) continue;
       const endedPayload = buildEndedPlannotatorPayload(lastPayload);
-      syncQueue.push(endedPayload);
+      pushToSyncQueue(endedPayload);
       liveSessions.delete(planId);
       queued = true;
       console.log(`[agendex] Plannotator session ended: ${endedPayload.title}`);
@@ -310,7 +438,7 @@ export async function runWorker(): Promise<void> {
           hostname,
           await getSyncIpAddress(),
         );
-        syncQueue.push(updatedPayload);
+        pushToSyncQueue(updatedPayload);
         if (isLivePlannotatorPayload(updatedPayload)) {
           liveSessions.set(updatedPayload.localPlanId, updatedPayload);
         }
@@ -347,7 +475,15 @@ export async function runWorker(): Promise<void> {
     }
   }
 
-  setOnPlansChanged(() => {});
+  let lastWatchPathKey = collectWatchPaths().join('\0');
+  const onPlansFileChange = (changedPlans: unknown[]) => {
+    void (async () => {
+      await enqueueChangedPlans(changedPlans as Plan[]);
+      await reconcileLivePlannotatorSessions(getAll());
+    })().catch((err) => {
+      console.error('[agendex] failed to queue changed plans:', err);
+    });
+  };
 
   console.log(`[agendex] initial scan...`);
   await scan();
@@ -362,9 +498,8 @@ export async function runWorker(): Promise<void> {
   const initialIpAddress = await getSyncIpAddress();
   for (const plan of plans) {
     const payload = planToSyncPayload(plan, config.deviceId, hostname, initialIpAddress);
-    const hash = computePayloadHash(payload);
 
-    if (syncCache[plan.id] === hash) {
+    if (syncCache[plan.id] === computePayloadHash(payload)) {
       initialSkipped++;
       continue;
     }
@@ -374,7 +509,7 @@ export async function runWorker(): Promise<void> {
     } else {
       initialQueuedSyncable++;
     }
-    syncQueue.push(payload);
+    pushToSyncQueue(payload);
   }
 
   // Keep daemon cache bounded by removing plans no longer present locally.
@@ -395,6 +530,12 @@ export async function runWorker(): Promise<void> {
   // of these sessions later stops being live.
   await reconcileLivePlannotatorSessions(getAll());
 
+  setOnPlansChanged((plans) => {
+    void enqueueChangedPlans(plans as Plan[]).catch((err) => {
+      console.error('[agendex] failed to sync plan store changes:', err);
+    });
+  });
+
   setInterval(() => {
     void (async () => {
       await sendHeartbeat(await getSyncIpAddress());
@@ -402,6 +543,33 @@ export async function runWorker(): Promise<void> {
       // Heartbeats are best-effort; the next interval will retry.
     });
   }, CLI_DAEMON_HEARTBEAT_INTERVAL_MS);
+
+  setInterval(() => {
+    flushReadyRetries();
+  }, RETRY_TICK_INTERVAL_MS);
+
+  if (SYNC_RESCAN_INTERVAL_MS > 0) {
+    setInterval(() => {
+      void (async () => {
+        await scan();
+        await enqueueChangedPlans(getAll());
+        await reconcileLivePlannotatorSessions(getAll());
+      })().catch((err) => {
+        console.error('[agendex] safety rescan failed:', err);
+      });
+    }, SYNC_RESCAN_INTERVAL_MS);
+  }
+
+  if (WATCHER_REFRESH_INTERVAL_MS > 0) {
+    setInterval(() => {
+      const nextKey = collectWatchPaths().join('\0');
+      if (nextKey === lastWatchPathKey) return;
+      lastWatchPathKey = nextKey;
+      console.log('[agendex] watch paths changed, refreshing file watchers...');
+      startWatching(onPlansFileChange);
+    }, WATCHER_REFRESH_INTERVAL_MS);
+  }
+
   if (shouldEnablePlannotatorSync(config)) {
     setInterval(() => void pollPlannotatorWritebacks(), PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS);
     void pollPlannotatorWritebacks();
@@ -412,27 +580,36 @@ export async function runWorker(): Promise<void> {
     setInterval(() => {
       void (async () => {
         await scan();
+        await enqueueChangedPlans(getAll());
         await reconcileLivePlannotatorSessions(getAll());
       })().catch((err) => {
         console.error('[agendex] Plannotator liveness sweep failed:', err);
       });
     }, PLANNOTATOR_LIVENESS_SWEEP_INTERVAL_MS);
+
+    if (LIVE_SESSION_POLL_MS > 0) {
+      setInterval(() => {
+        void (async () => {
+          const ipAddress = await getSyncIpAddress();
+          const livePlans = getAll().filter((plan) => {
+            const payload = planToSyncPayload(plan, config.deviceId, hostname, ipAddress);
+            return isLivePlannotatorPayload(payload);
+          });
+          if (livePlans.length === 0) return;
+          await scan();
+          const refreshedLive = getAll().filter((plan) => {
+            const payload = planToSyncPayload(plan, config.deviceId, hostname, ipAddress);
+            return isLivePlannotatorPayload(payload);
+          });
+          await enqueueChangedPlans(refreshedLive);
+        })().catch((err) => {
+          console.error('[agendex] live session poll failed:', err);
+        });
+      }, LIVE_SESSION_POLL_MS);
+    }
   }
 
-  startWatching((changedPlans) => {
-    void (async () => {
-      const ipAddress = await getSyncIpAddress();
-      for (const plan of changedPlans as Plan[]) {
-        syncQueue.push(planToSyncPayload(plan, config.deviceId, hostname, ipAddress));
-      }
-      processSyncQueue();
-      // A watcher event may have added or removed a live session; reconcile so a
-      // session that ended via a file change is published promptly.
-      await reconcileLivePlannotatorSessions(getAll());
-    })().catch((err) => {
-      console.error('[agendex] failed to queue changed plans:', err);
-    });
-  });
+  startWatching(onPlansFileChange);
 
   console.log(`[agendex] daemon running. Watching for file changes...`);
 

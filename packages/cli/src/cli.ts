@@ -21,6 +21,7 @@ import { runHookReviewCommand, runHooksCommand } from './hooks.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
 import { syncAll } from './sync.ts';
 import { runUpgrade } from './upgrade.ts';
+import { runUpload } from './upload.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
 import { openAgendexWeb, openSharedPlan } from './web.ts';
 
@@ -60,6 +61,7 @@ async function main(): Promise<number> {
     'add-dir',
     'remove-dir',
     'list-dirs',
+    'upload',
     'upgrade',
     'help',
     '--help',
@@ -176,6 +178,10 @@ async function main(): Promise<number> {
       const force = args.includes('--force');
       await syncAll(force);
       return 0;
+    }
+
+    case 'upload': {
+      return await runUpload(args);
     }
 
     case 'hooks': {
@@ -501,6 +507,9 @@ Usage:
   agendex list-dirs    List custom plan directories
   agendex sync         One-shot scan + sync to cloud (skips unchanged plans)
   agendex sync --force Re-sync all plans, ignoring cache
+  agendex upload <path>  Upload a single Markdown plan file to the cloud
+  agendex upload <path> --agent <name>  Override the uploaded plan's agent label
+  agendex upload <path> --open  Open the uploaded plan in the browser after upload
   agendex cleanup      Interactively remove cloud daemons
   agendex cleanup --stale  Auto-remove all stale daemons
   agendex status       Show current config state + daemon status

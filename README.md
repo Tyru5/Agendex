@@ -16,7 +16,7 @@ Agendex is a Bun workspaces monorepo:
 
 ### Free (Local OSS)
 
-- Local plan indexing, full-text search, and automatic low-value plan hiding
+- Local plan indexing, full-text search, and automatic low-value plan hiding (empty files, code dumps, logs, prompt-only artifacts, and other non-plans)
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
@@ -27,7 +27,7 @@ Agendex is a Bun workspaces monorepo:
 ### Cloud Pro / EE
 
 - Convex-backed auth and cloud dashboard flows
-- Cloud sync via CLI or daemon, with unchanged-plan caching and low-value pruning
+- Cloud sync via CLI or daemon, with hash-based skip for unchanged plans, real-time upload queue with retries, and automatic low-value pruning on the cloud side
 - Shareable plan links, comment threads, tags, collections, and plan history
 - Workspace members, daemon status/cleanup, and collaboration features
 - Dashboard plan creation, uploads, and editing
@@ -136,25 +136,28 @@ bun run build:cloud         # build EE client bundle
 
 bun run cli:start           # start cloud sync daemon
 bun run cli:login           # browser login using https://app.agendex.dev
-bun run cli:login -- --url https://example.com
-bun run cli:login -- --dev  # login using dev config dir (~/.agendex-dev) + dev default site URL
+bun run cli:login --url https://example.com
+bun run cli:login --dev     # login using dev config dir (~/.agendex-dev) + dev default site URL
 bun run cli:open            # open the Agendex web app in your default browser
-bun run cli:open -- --url https://example.com
-bun run cli -- view https://app.agendex.dev/shared/<token>
-bun run cli -- logout       # clear stored cloud token
+bun run cli:open --url https://example.com
+bun run cli:view https://app.agendex.dev/shared/<token>
+bun run cli:logout          # clear stored cloud token
 bun run cli:configure       # select which agents/adapters to index
 bun run cli:hooks -- status            # show Claude Code, Codex, and Pi hook status
 bun run cli:hooks -- install <agent|all>   # install hook integration (claude-code requires --preview)
 bun run cli:hooks -- uninstall <agent|all> # remove managed Agendex hook entries
-bun run cli:review-plan -- --hook --agent <agent>  # hook-native plan review entrypoint
+bun run cli:review-plan --hook --agent <agent>  # hook-native plan review entrypoint
 bun run cli:sync            # one-shot cloud sync
-bun run cli:sync -- --force # re-sync all plans, ignoring cache
+bun run cli:sync --force    # re-sync all plans, ignoring cache
+bun run cli:upload ~/path/to/plan.md          # upload a single Markdown plan to the cloud
+bun run cli:upload ~/path/to/plan.md --agent codex  # override the plan's agent label
+bun run cli:upload ~/path/to/plan.md --open   # upload and open the plan in the browser
 bun run cli:stop            # stop daemon
-bun run cli -- cleanup      # interactively remove cloud daemon records
-bun run cli -- cleanup --stale
+bun run cli:cleanup         # interactively remove cloud daemon records
+bun run cli:cleanup --stale
 bun run cli:status          # print current local/cloud config state
-bun run cli -- upgrade      # upgrade the globally installed CLI
-# Append `-- --dev` to any `cli:*` script to use ~/.agendex-dev (see packages/cli README)
+bun run cli:upgrade         # upgrade the globally installed CLI
+# Append `--dev` to any `cli:*` script to use ~/.agendex-dev (see packages/cli README)
 
 bun run changeset           # create a release note for agendex-cli
 bun run version-packages    # apply pending Changesets versions
@@ -227,6 +230,10 @@ Common environment variables:
   - `AGENDEX_DISABLE_BROWSER=1` - skip launching the browser for `login` and `open` (URL is still printed)
   - `AGENDEX_TOKEN` - override local token read from config
   - `AGENDEX_PLANNOTATOR_SYNC=0|1` - disable or force Plannotator sync/write-back polling
+  - `AGENDEX_LIVE_SESSION_POLL_MS` - Plannotator live-session poll interval (daemon; `0` disables)
+  - `AGENDEX_SYNC_RESCAN_INTERVAL_MS` - safety-net rescan interval (daemon; `0` disables)
+  - `AGENDEX_WATCHER_REFRESH_INTERVAL_MS` - watch-path rediscovery interval (daemon; `0` disables)
+  - `AGENDEX_DISABLE_LOCAL_IP=1` - omit local IP from sync provenance metadata
 - EE client:
   - `VITE_CONVEX_URL`
   - `VITE_CONVEX_SITE_URL`

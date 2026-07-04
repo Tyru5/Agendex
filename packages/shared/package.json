@@ -6,6 +6,7 @@
     ".": "./src/index.ts",
     "./annotations": "./src/annotations.ts",
     "./daemon-status": "./src/daemon-status.ts",
+    "./plan-value": "./src/services/plan-value.ts",
     "./types": "./src/types.ts"
   },
   "dependencies": {

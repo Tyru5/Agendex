@@ -68,6 +68,28 @@ Verification:
   expect(assessment.reasons).toContain('execution-report');
 });
 
+test('keeps detailed migration plans that mention completion vocabulary and backticked identifiers', () => {
+  const assessment = assessPlanValue({
+    title: 'Migration Plan — studio.client → Convex (strangler-fig) · v3',
+    content: `# Migration Plan — studio.client → Convex
+
+## Context
+The studio client currently talks to the legacy backend over a \`NatsConnection\`.
+Requests that failed previously are retried; nothing has changed in the wire format.
+
+## Steps
+1. Introduce a Convex adapter behind the existing interface.
+2. Route reads through Convex once backfill is done.
+3. Remove the legacy path after the cutover is resolved.
+
+## Verification
+Each phase will be verified against staging before the next begins.`,
+  });
+
+  expect(assessment.lowValue).toBe(false);
+  expect(assessment.reasons).toEqual([]);
+});
+
 test('marks Codex wrapper-title final answers as low-value when they are not plans', () => {
   const assessment = assessPlanValue({
     title: '<user_action>',
@@ -94,6 +116,97 @@ test('marks review JSON outputs as low-value', () => {
 
   expect(assessment.lowValue).toBe(true);
   expect(assessment.reasons).toContain('review-output');
+});
+
+test('marks code-only fenced blocks as low-value', () => {
+  const assessment = assessPlanValue({
+    content: `\`\`\`ts
+export function add(a: number, b: number) {
+  return a + b;
+}
+\`\`\``,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('code-only');
+});
+
+test('marks code-dominated answers without plan structure as low-value', () => {
+  const assessment = assessPlanValue({
+    content: `Use this helper:
+
+\`\`\`ts
+${Array.from({ length: 40 }, (_, i) => `export const value${i} = ${i};`).join('\n')}
+\`\`\``,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('code-dominated');
+});
+
+test('marks role-labeled conversation transcripts as low-value', () => {
+  const assessment = assessPlanValue({
+    content: `**user**: Can you check this?
+
+**assistant**: I looked at it and the files seem fine.
+
+**user**: Thanks.`,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('conversation-artifact');
+});
+
+test('marks tool logs as low-value', () => {
+  const assessment = assessPlanValue({
+    content: `<tool_call>{"name":"grep","args":{"pattern":"TODO"}}</tool_call>
+<tool_result>{"matches":[]}</tool_result>`,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('tool-log');
+});
+
+test('keeps code-heavy implementation plans when planning structure is explicit', () => {
+  const assessment = assessPlanValue({
+    content: `# Plan: Add helper
+
+## Approach
+Create a shared helper and wire it into the form.
+
+## Steps
+- [ ] Add helper
+- [ ] Update form
+- [ ] Add tests
+
+## Reference implementation
+
+\`\`\`ts
+${Array.from({ length: 40 }, (_, i) => `export const value${i} = ${i};`).join('\n')}
+\`\`\`
+
+## Verification
+Run the form tests.`,
+  });
+
+  expect(assessment.lowValue).toBe(false);
+});
+
+test('keeps prose-only plans with enough actionable planning language', () => {
+  const assessment = assessPlanValue({
+    content:
+      'We will update the login form validation and implement a shared helper that validates credentials before submit. The implementation should reuse the existing error component, add tests for empty credentials, verify the disabled state, and document the expected behavior in the form test suite.',
+  });
+
+  expect(assessment.lowValue).toBe(false);
+});
+
+test('keeps terse multi-action prose plans as valuable', () => {
+  const assessment = assessPlanValue({
+    content: 'Update validation, add tests, verify it works.',
+  });
+
+  expect(assessment.lowValue).toBe(false);
 });
 
 test('keeps structured implementation plans as valuable', () => {
