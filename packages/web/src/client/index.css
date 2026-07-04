@@ -2412,22 +2412,6 @@ body {
   animation: dex-blink 6.4s ease-in-out 1.6s infinite;
 }
 
-@keyframes dex-wink {
-  0%,
-  100% {
-    transform: scaleY(1);
-  }
-  45% {
-    transform: scaleY(0.1);
-  }
-}
-
-.dex-wink-on-hover:hover [data-dex-eye='right'] {
-  transform-box: fill-box;
-  transform-origin: 50% 55%;
-  animation: dex-wink 340ms ease-out;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .landing-page *,
   .landing-page *::before,
@@ -2438,8 +2422,7 @@ body {
     transition-duration: 0.01ms !important;
   }
 
-  .dex-blink [data-dex-eyes],
-  .dex-wink-on-hover:hover [data-dex-eye='right'] {
+  .dex-blink [data-dex-eyes] {
     animation: none !important;
   }
 }

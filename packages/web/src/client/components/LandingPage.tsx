@@ -840,9 +840,8 @@ function LandingNavbar({
           <a
             href="#overview"
             onClick={onMobileMenuClose}
-            className="dex-wink-on-hover flex shrink-0 items-center gap-2 font-[Unbounded,Inter,system-ui,sans-serif] text-[15px] font-[430] text-[var(--landing-text)] no-underline"
+            className="shrink-0 font-[Unbounded,Inter,system-ui,sans-serif] text-[15px] font-[430] text-[var(--landing-text)] no-underline"
           >
-            <DexMascot variant="dark" size={26} decorative />
             Agendex<span className="text-[var(--landing-accent)]">.</span>
           </a>
           <div className="flex items-center gap-6 max-[980px]:hidden">
@@ -940,8 +939,7 @@ function LandingFooter({ onShowChangelog }: { onShowChangelog?: () => void }) {
   return (
     <footer className="relative z-[1] flex min-h-[220px] items-end justify-between gap-8 border-t border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_94%,oklch(12%_0.03_184))] px-[clamp(20px,5vw,88px)] py-11 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start max-sm:px-4 max-sm:py-8">
       <div className="flex flex-col gap-3 text-[12.5px]">
-        <span className="flex items-center gap-3 font-[Unbounded,Inter,system-ui,sans-serif] text-[42px] font-[430] leading-none text-[var(--landing-text)]">
-          <DexMascot variant="dark" size={48} />
+        <span className="font-[Unbounded,Inter,system-ui,sans-serif] text-[42px] font-[430] leading-none text-[var(--landing-text)]">
           Agendex<span className="text-[var(--landing-accent)]">.</span>
         </span>
         <span>© {new Date().getFullYear()} / All systems indexed</span>
@@ -982,7 +980,7 @@ function HeroPlanRoom({
     <div className="relative z-[1] flex min-w-0 flex-col gap-3 max-[980px]:max-w-[720px]">
       <div className="flex w-full items-center justify-between gap-2 text-[11px] font-bold uppercase text-[var(--landing-muted)] max-sm:flex-col max-sm:items-start">
         <span>Plan room preview</span>
-        <span className="pr-14 max-sm:pr-0">
+        <span className="pr-20 max-sm:pr-0">
           {activeTab === 'cloud' ? 'Cloud sync path' : 'Local first path'}
         </span>
       </div>
@@ -992,7 +990,7 @@ function HeroPlanRoom({
           aria-hidden="true"
           className="pointer-events-none absolute right-7 top-0 z-[2] -translate-y-[91%] [animation:landing-panel-in_640ms_cubic-bezier(0.22,1,0.36,1)_420ms_both] max-sm:hidden"
         >
-          <DexMascot variant="dark" size={46} decorative className="dex-blink" />
+          <DexMascot variant="dark" size={76} decorative className="dex-blink" />
         </div>
         <div className="relative overflow-hidden rounded-[8px] border border-[var(--landing-border-subtle)] bg-[linear-gradient(135deg,color-mix(in_oklch,var(--landing-surface-raised)_58%,transparent),color-mix(in_oklch,var(--landing-bg)_92%,transparent))] shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_64%,transparent)]">
           <div className="relative z-[1] border-b border-[var(--landing-border-subtle)] p-4 max-sm:p-3.5">
