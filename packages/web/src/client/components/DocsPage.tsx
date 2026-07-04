@@ -2,7 +2,9 @@ import type { MouseEvent, ReactNode } from 'react';
 import { GitHubIcon } from './OAuthIcons.tsx';
 
 export interface DocsPageProps {
+  /** Called when the user activates the back link in the header. */
   onBack?: () => void;
+  /** Path the brand mark + back affordance link to. Defaults to "/". */
   homeHref?: string;
 }
 
@@ -254,13 +256,41 @@ function FeatureList({ items }: { items: ReadonlyArray<string> }) {
 export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
   function handleBack(e: MouseEvent<HTMLAnchorElement>) {
     if (!onBack) return;
+    if (e.defaultPrevented) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     onBack();
   }
 
   return (
     <DocsShell>
-      <div className="pt-10 lg:grid lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-14">
+      <nav className="mb-12 flex flex-wrap items-center justify-between gap-4">
+        <a
+          href={homeHref}
+          onClick={handleBack}
+          className="text-[14px] font-bold text-[var(--landing-text)] no-underline"
+        >
+          Agendex<span className="text-[var(--landing-accent)]">.</span>
+        </a>
+        <a
+          href={homeHref}
+          onClick={handleBack}
+          className="landing-action landing-action--secondary landing-action--compact"
+        >
+          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M19 12H5M12 5l-7 7 7 7"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Back
+        </a>
+      </nav>
+
+      <div className="lg:grid lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-14">
         <aside className="mb-10 lg:mb-0">
           <nav
             aria-label="Docs sections"

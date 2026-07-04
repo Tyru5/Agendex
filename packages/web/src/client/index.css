@@ -28,11 +28,12 @@
   --radius: 10px;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
-  /* Semantic z scale: sticky chrome < topbar < full-screen overlays < toasts. */
+  /* Semantic z scale: sticky chrome < topbar < overlays < toasts < modals < lightbox. */
   --z-sticky: 40;
   --z-topbar: 50;
   --z-overlay: 90;
   --z-toast: 100;
+  --z-lightbox: 2100;
   /* Categorical chart palette (fixed assignment; validated for lightness band,
      chroma floor, adjacent-pair CVD separation, and 3:1 contrast against this
      theme's surface). Identity is never color-alone: nodes carry text labels. */

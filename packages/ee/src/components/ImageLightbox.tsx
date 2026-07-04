@@ -49,7 +49,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: ImageLightboxPr
   return (
     <LazyMotion features={domAnimation}>
       <m.div
-        className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center"
+        className="fixed inset-0 z-[var(--z-lightbox)] flex items-center justify-center"
         role="dialog"
         aria-modal="true"
         initial={{ backgroundColor: 'rgba(0,0,0,0)' }}
