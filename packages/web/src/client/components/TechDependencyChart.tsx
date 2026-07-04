@@ -21,15 +21,15 @@ import { ExitFullscreenIcon, FullscreenIcon } from './FullscreenIcons.tsx';
 // ─── Node Component ───
 
 function TechNodeComponent({ data }: NodeProps<TechNode>) {
-  const color = CATEGORY_COLORS[data.category] ?? '#64748b';
+  const color = CATEGORY_COLORS[data.category] ?? 'var(--tertiary)';
   const mentionCount = data.mentionCount ?? 1;
 
   return (
     <div
       className="rounded-lg px-3.5 py-2 min-w-[100px] relative transition-opacity duration-150"
       style={{
-        background: `${color}18`,
-        borderLeft: `3px solid ${color}`,
+        background: `color-mix(in oklch, ${color} 10%, var(--surface))`,
+        border: `1px solid color-mix(in oklch, ${color} 55%, transparent)`,
       }}
     >
       <Handle
@@ -51,7 +51,7 @@ function TechNodeComponent({ data }: NodeProps<TechNode>) {
         {mentionCount > 1 && (
           <span
             className="text-[10px] font-semibold px-[5px] py-px rounded-[6px] leading-[1.4]"
-            style={{ background: `${color}30`, color }}
+            style={{ background: `color-mix(in oklch, ${color} 18%, transparent)`, color }}
           >
             {mentionCount}
           </span>
@@ -105,8 +105,10 @@ function CategoryFilters({
             onClick={() => onToggle(cat)}
             className="flex items-center gap-[5px] px-2.5 py-[3px] text-[11px] font-medium font-inherit rounded-[6px] cursor-pointer transition-[background-color,border-color,color,opacity] duration-150 capitalize"
             style={{
-              border: `1px solid ${active ? `${color}40` : 'var(--border)'}`,
-              background: active ? `${color}15` : 'transparent',
+              border: `1px solid ${
+                active ? `color-mix(in oklch, ${color} 45%, transparent)` : 'var(--border)'
+              }`,
+              background: active ? `color-mix(in oklch, ${color} 10%, transparent)` : 'transparent',
               color: active ? color : 'var(--tertiary)',
               opacity: active ? 1 : 0.6,
             }}
@@ -236,10 +238,13 @@ function GraphContent({
       onNodeMouseLeave={onNodeLeave}
       defaultEdgeOptions={{
         type: 'smoothstep',
-        style: { stroke: 'rgba(148,163,184,0.35)', strokeWidth: 1.5 },
+        style: {
+          stroke: 'color-mix(in oklch, var(--secondary) 40%, transparent)',
+          strokeWidth: 1.5,
+        },
       }}
     >
-      <Background gap={20} size={1} color="rgba(148,163,184,0.08)" />
+      <Background gap={20} size={1} color="var(--grid-line)" />
       <Controls
         showInteractive={false}
         style={{
@@ -258,7 +263,7 @@ function GraphContent({
         pannable
         zoomable
         nodeColor={(node) =>
-          CATEGORY_COLORS[(node.data as unknown as TechNodeData)?.category] ?? '#64748b'
+          CATEGORY_COLORS[(node.data as unknown as TechNodeData)?.category] ?? 'var(--tertiary)'
         }
       />
     </ReactFlow>

@@ -56,7 +56,7 @@ export function BrandSection({
       <button
         type="button"
         onClick={onLogoClick}
-        className="font-[Unbounded,sans-serif] font-medium text-[13px] tracking-[0] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
+        className="text-[14px] font-bold tracking-[-0.01em] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
       >
         Agendex<span className="agendex-brand-mark">.</span>
       </button>

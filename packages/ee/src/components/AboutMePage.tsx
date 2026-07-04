@@ -5,10 +5,19 @@ import { useLocation } from 'wouter';
 const DINO_SIZE = 84;
 const DINO_FRAMES = 4;
 
-const STORY_SECTIONS = [
+type StepStatus = 'merged' | 'in-progress';
+
+const PLAN_STEPS: Array<{
+  label: string;
+  status: StepStatus;
+  statusLabel: string;
+  title: string;
+  paragraphs: string[];
+}> = [
   {
-    number: '01',
     label: 'Builder',
+    status: 'merged',
+    statusLabel: 'merged',
     title: 'I build tools for the moments software starts to sprawl.',
     paragraphs: [
       'I am an adaptable software engineer who likes turning practical friction into clear, usable interfaces.',
@@ -16,8 +25,9 @@ const STORY_SECTIONS = [
     ],
   },
   {
-    number: '02',
     label: 'Origin',
+    status: 'merged',
+    statusLabel: 'merged',
     title: 'Agendex started as a specific annoyance in agent-heavy coding.',
     paragraphs: [
       'Coding agents create a lot of plans, but those plans usually scatter across sessions, folders, and machines. The context is valuable, yet it becomes hard to search, compare, and revisit.',
@@ -25,8 +35,9 @@ const STORY_SECTIONS = [
     ],
   },
   {
-    number: '03',
     label: 'Direction',
+    status: 'in-progress',
+    statusLabel: 'in progress',
     title: 'The project is moving toward calmer coordination for agent work.',
     paragraphs: [
       'The next version of agent tooling should make intent easier to read, not bury people under another task board. I want Agendex to stay precise, fast, and useful when the amount of agent work grows.',
@@ -35,7 +46,7 @@ const STORY_SECTIONS = [
   },
 ];
 
-const PRINCIPLES = [
+const ACCEPTANCE_CRITERIA = [
   'Plans should stay readable after the fourth agent gets involved.',
   'Local work should feel connected to cloud collaboration, not replaced by it.',
   'Polish matters most on the screens people return to every day.',
@@ -56,6 +67,24 @@ function BackArrow() {
     >
       <path d="M19 12H5" />
       <path d="m12 19-7-7 7-7" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m4.5 12.5 5 5 10-11" />
     </svg>
   );
 }
@@ -99,18 +128,19 @@ export function AboutMePage() {
         }
 
         .about-page {
-          --about-bg: oklch(17.5% 0.04 184);
-          --about-bg-deep: oklch(13.5% 0.03 184);
-          --about-surface: oklch(22% 0.043 184);
-          --about-raised: oklch(27% 0.04 184);
-          --about-text: oklch(95% 0.018 127);
-          --about-muted: oklch(68% 0.028 170);
-          --about-faint: oklch(51% 0.028 171);
+          --about-bg: oklch(10% 0.032 178);
+          --about-bg-deep: oklch(7% 0.028 178);
+          --about-surface: oklch(14.5% 0.035 180);
+          --about-raised: oklch(19% 0.038 178);
+          --about-text: oklch(94.5% 0.016 128);
+          --about-muted: oklch(70% 0.025 166);
+          --about-faint: oklch(58% 0.025 168);
           --about-border: color-mix(in oklch, var(--about-text) 13%, transparent);
           --about-border-strong: color-mix(in oklch, var(--about-text) 21%, transparent);
           --about-grid: color-mix(in oklch, var(--about-text) 7%, transparent);
           --about-accent: oklch(90% 0.22 129);
           --about-accent-soft: color-mix(in oklch, var(--about-accent) 12%, transparent);
+          --about-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 
           min-height: 100vh;
           position: relative;
@@ -153,7 +183,7 @@ export function AboutMePage() {
           background-size: 256px 256px;
         }
 
-        .about-page::selection {
+        .about-page ::selection {
           background: color-mix(in oklch, var(--about-accent) 34%, transparent);
           color: var(--about-text);
         }
@@ -217,9 +247,9 @@ export function AboutMePage() {
 
         .about-brand {
           color: var(--about-muted);
-          font-family: Unbounded, Inter, system-ui, sans-serif;
-          font-size: 13px;
-          font-weight: 430;
+          font-size: 14px;
+          font-weight: 700;
+          letter-spacing: -0.01em;
           text-decoration: none;
         }
 
@@ -228,43 +258,65 @@ export function AboutMePage() {
         }
 
         .about-hero {
-          min-height: min(680px, calc(100svh - 112px));
           display: grid;
           grid-template-columns: minmax(0, 1fr) 320px;
           align-items: end;
           gap: 48px;
-          padding: 72px 0 64px;
+          padding: 76px 0 64px;
           border-bottom: 1px solid var(--about-border);
           animation: about-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) 70ms both;
         }
 
-        .about-kicker {
-          display: inline-flex;
+        .about-provenance {
+          display: flex;
+          flex-wrap: wrap;
           align-items: center;
-          gap: 9px;
+          gap: 8px 10px;
           color: var(--about-muted);
+          font-family: var(--about-mono);
           font-size: 11.5px;
-          font-weight: 800;
+          line-height: 1.5;
         }
 
-        .about-kicker::before {
+        .about-provenance-file {
+          display: inline-flex;
+          align-items: center;
+          padding: 3px 8px;
+          border: 1px solid color-mix(in oklch, var(--about-accent) 26%, var(--about-border));
+          border-radius: 6px;
+          background: color-mix(in oklch, var(--about-accent) 8%, transparent);
+          color: var(--about-accent);
+          font-weight: 600;
+        }
+
+        .about-provenance-sep {
+          color: var(--about-faint);
+        }
+
+        .about-provenance-status {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .about-provenance-status::before {
           content: "";
-          width: 7px;
-          height: 7px;
+          width: 6px;
+          height: 6px;
           border-radius: 50%;
           background: var(--about-accent);
-          box-shadow: 0 0 16px color-mix(in oklch, var(--about-accent) 45%, transparent);
+          box-shadow: 0 0 12px color-mix(in oklch, var(--about-accent) 45%, transparent);
         }
 
         .about-title {
           max-width: 790px;
-          margin: 22px 0 0;
+          margin: 20px 0 0;
           color: var(--about-text);
-          font-family: Unbounded, Inter, system-ui, sans-serif;
           font-size: 64px;
-          font-weight: 430;
+          font-weight: 760;
           line-height: 0.98;
-          letter-spacing: 0;
+          letter-spacing: -0.035em;
+          text-wrap: balance;
         }
 
         .about-title-link {
@@ -272,7 +324,7 @@ export function AboutMePage() {
           text-decoration: underline;
           text-decoration-color: color-mix(in oklch, var(--about-text) 24%, transparent);
           text-decoration-thickness: 1px;
-          text-underline-offset: 5px;
+          text-underline-offset: 6px;
           transition:
             color 150ms cubic-bezier(0.22, 1, 0.36, 1),
             text-decoration-color 150ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -288,11 +340,12 @@ export function AboutMePage() {
         }
 
         .about-lead {
-          max-width: 620px;
-          margin: 28px 0 0;
+          max-width: 60ch;
+          margin: 26px 0 0;
           color: var(--about-muted);
           font-size: 16px;
           line-height: 1.75;
+          text-wrap: pretty;
         }
 
         .about-actions {
@@ -383,7 +436,7 @@ export function AboutMePage() {
           background-repeat: no-repeat;
           background-position: 0 0;
           image-rendering: pixelated;
-          filter: drop-shadow(0 14px 24px oklch(12% 0.02 184 / 0.36));
+          filter: drop-shadow(0 14px 24px oklch(7% 0.02 178 / 0.36));
         }
 
         .about-dossier-body {
@@ -412,7 +465,7 @@ export function AboutMePage() {
 
         .about-dossier-term {
           color: var(--about-faint);
-          font-family: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+          font-family: var(--about-mono);
           font-size: 11.5px;
           line-height: 1.5;
         }
@@ -425,7 +478,7 @@ export function AboutMePage() {
           line-height: 1.5;
         }
 
-        .about-story {
+        .about-plan {
           display: grid;
           grid-template-columns: 210px minmax(0, 1fr);
           gap: 54px;
@@ -434,67 +487,118 @@ export function AboutMePage() {
         }
 
         .about-section-label {
-          color: var(--about-faint);
-          font-size: 12px;
-          font-weight: 800;
-          line-height: 1.4;
-        }
-
-        .about-story-list {
-          border-top: 1px solid var(--about-border);
-        }
-
-        .about-story-row {
-          display: grid;
-          grid-template-columns: 64px minmax(0, 1fr);
-          gap: 28px;
-          border-bottom: 1px solid var(--about-border);
-          padding: 34px 0 38px;
-        }
-
-        .about-index {
-          color: color-mix(in oklch, var(--about-accent) 66%, var(--about-muted));
-          font-family: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
-          font-size: 12px;
-          font-weight: 800;
-          line-height: 1.7;
-        }
-
-        .about-story-label {
-          margin: 0 0 10px;
-          color: var(--about-faint);
-          font-size: 12px;
-          font-weight: 800;
-          line-height: 1.4;
-        }
-
-        .about-story-title {
-          max-width: 680px;
           margin: 0;
+          color: var(--about-faint);
+          font-size: 12px;
+          font-weight: 800;
+          line-height: 1.4;
+        }
+
+        .about-section-sublabel {
+          margin: 8px 0 0;
+          max-width: 24ch;
+          color: var(--about-faint);
+          font-size: 12px;
+          font-weight: 450;
+          line-height: 1.6;
+        }
+
+        .about-steps {
+          position: relative;
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+
+        .about-steps::before {
+          content: "";
+          position: absolute;
+          left: 6px;
+          top: 14px;
+          bottom: 14px;
+          width: 1px;
+          background: var(--about-border);
+        }
+
+        .about-step {
+          position: relative;
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr);
+          padding: 0 0 46px;
+        }
+
+        .about-step:last-child {
+          padding-bottom: 0;
+        }
+
+        .about-step-marker {
+          position: relative;
+          z-index: 1;
+          width: 13px;
+          height: 13px;
+          margin-top: 5px;
+          border-radius: 50%;
+          background: var(--about-accent);
+          border: 1.5px solid var(--about-accent);
+          box-shadow: 0 0 0 4px var(--about-bg);
+        }
+
+        .about-step[data-status="in-progress"] .about-step-marker {
+          background: var(--about-bg);
+        }
+
+        .about-step-meta {
+          display: flex;
+          align-items: baseline;
+          gap: 12px;
+        }
+
+        .about-step-label {
+          color: var(--about-text);
+          font-family: var(--about-mono);
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .about-step-status {
+          color: var(--about-faint);
+          font-family: var(--about-mono);
+          font-size: 11px;
+        }
+
+        .about-step[data-status="in-progress"] .about-step-status {
+          color: var(--about-accent);
+        }
+
+        .about-step-title {
+          max-width: 680px;
+          margin: 12px 0 0;
           color: var(--about-text);
           font-size: 25px;
           font-weight: 760;
           line-height: 1.22;
-          letter-spacing: 0;
+          letter-spacing: -0.015em;
+          text-wrap: balance;
         }
 
-        .about-story-copy {
-          max-width: 700px;
-          margin: 18px 0 0;
+        .about-step-copy {
+          max-width: 62ch;
+          margin: 16px 0 0;
           color: var(--about-muted);
           font-size: 15px;
           line-height: 1.78;
+          text-wrap: pretty;
         }
 
-        .about-story-copy p {
+        .about-step-copy p {
           margin: 0;
         }
 
-        .about-story-copy p + p {
+        .about-step-copy p + p {
           margin-top: 15px;
         }
 
-        .about-principles {
+        .about-criteria {
           display: grid;
           grid-template-columns: 210px minmax(0, 1fr);
           gap: 54px;
@@ -502,26 +606,28 @@ export function AboutMePage() {
           border-bottom: 1px solid var(--about-border);
         }
 
-        .about-principles-title {
+        .about-criteria-title {
           max-width: 650px;
           margin: 0 0 22px;
           color: var(--about-text);
           font-size: 28px;
           font-weight: 780;
           line-height: 1.2;
+          letter-spacing: -0.02em;
+          text-wrap: balance;
         }
 
-        .about-principles-list {
+        .about-criteria-list {
           margin: 0;
           padding: 0;
           border-top: 1px solid var(--about-border);
           list-style: none;
         }
 
-        .about-principle {
+        .about-criterion {
           display: grid;
-          grid-template-columns: 34px minmax(0, 1fr);
-          gap: 18px;
+          grid-template-columns: 24px minmax(0, 1fr);
+          gap: 14px;
           align-items: start;
           border-bottom: 1px solid var(--about-border);
           padding: 18px 0;
@@ -531,12 +637,17 @@ export function AboutMePage() {
           line-height: 1.6;
         }
 
-        .about-principle-mark {
-          width: 8px;
-          height: 8px;
-          margin-top: 8px;
-          border-radius: 2px;
-          background: var(--about-accent);
+        .about-criterion-check {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 20px;
+          height: 20px;
+          margin-top: 1px;
+          border: 1px solid color-mix(in oklch, var(--about-accent) 38%, var(--about-border));
+          border-radius: 6px;
+          background: var(--about-accent-soft);
+          color: var(--about-accent);
         }
 
         .about-footer {
@@ -579,16 +690,15 @@ export function AboutMePage() {
           }
 
           .about-hero,
-          .about-story,
-          .about-principles,
+          .about-plan,
+          .about-criteria,
           .about-footer {
             grid-template-columns: 1fr;
           }
 
           .about-hero {
-            min-height: 0;
             gap: 38px;
-            padding-top: 66px;
+            padding-top: 62px;
           }
 
           .about-title {
@@ -599,8 +709,8 @@ export function AboutMePage() {
             max-width: 420px;
           }
 
-          .about-story,
-          .about-principles {
+          .about-plan,
+          .about-criteria {
             gap: 24px;
           }
         }
@@ -619,12 +729,13 @@ export function AboutMePage() {
           }
 
           .about-hero {
-            padding: 54px 0 48px;
+            padding: 50px 0 48px;
           }
 
           .about-title {
-            font-size: 40px;
+            font-size: 38px;
             line-height: 1.04;
+            letter-spacing: -0.03em;
           }
 
           .about-lead {
@@ -643,28 +754,22 @@ export function AboutMePage() {
             max-width: none;
           }
 
-          .about-story,
-          .about-principles {
+          .about-plan,
+          .about-criteria {
             padding: 52px 0 58px;
           }
 
-          .about-story-row {
-            grid-template-columns: 1fr;
-            gap: 10px;
-            padding: 30px 0 34px;
+          .about-step {
+            grid-template-columns: 28px minmax(0, 1fr);
+            padding-bottom: 40px;
           }
 
-          .about-story-title {
-            font-size: 22px;
+          .about-step-title {
+            font-size: 21px;
           }
 
-          .about-principles-title {
+          .about-criteria-title {
             font-size: 24px;
-          }
-
-          .about-principle {
-            grid-template-columns: 22px minmax(0, 1fr);
-            gap: 14px;
           }
         }
 
@@ -702,7 +807,17 @@ export function AboutMePage() {
 
         <header className="about-hero">
           <div>
-            <div className="about-kicker">Maintainer note</div>
+            <p className="about-provenance">
+              <span className="about-provenance-file">maintainer-note.md</span>
+              <span className="about-provenance-sep" aria-hidden="true">
+                /
+              </span>
+              <span>human-authored</span>
+              <span className="about-provenance-sep" aria-hidden="true">
+                /
+              </span>
+              <span className="about-provenance-status">actively maintained</span>
+            </p>
 
             <h1 className="about-title">
               Hi, I&apos;m{' '}
@@ -761,44 +876,54 @@ export function AboutMePage() {
           </aside>
         </header>
 
-        <section className="about-story" aria-labelledby="about-story-title">
+        <section className="about-plan" aria-labelledby="about-plan-title">
           <div>
-            <h2 id="about-story-title" className="about-section-label">
-              The short version
+            <h2 id="about-plan-title" className="about-section-label">
+              The plan so far
             </h2>
+            <p className="about-section-sublabel">
+              Three steps, tracked the way Agendex tracks any plan.
+            </p>
           </div>
 
-          <div className="about-story-list">
-            {STORY_SECTIONS.map((section) => (
-              <article key={section.number} className="about-story-row">
-                <span className="about-index">{section.number}</span>
+          <ol className="about-steps">
+            {PLAN_STEPS.map((step) => (
+              <li key={step.label} className="about-step" data-status={step.status}>
+                <span className="about-step-marker" aria-hidden="true" />
                 <div>
-                  <p className="about-story-label">{section.label}</p>
-                  <h3 className="about-story-title">{section.title}</h3>
-                  <div className="about-story-copy">
-                    {section.paragraphs.map((paragraph) => (
+                  <div className="about-step-meta">
+                    <span className="about-step-label">{step.label}</span>
+                    <span className="about-step-status">{step.statusLabel}</span>
+                  </div>
+                  <h3 className="about-step-title">{step.title}</h3>
+                  <div className="about-step-copy">
+                    {step.paragraphs.map((paragraph) => (
                       <p key={paragraph}>{paragraph}</p>
                     ))}
                   </div>
                 </div>
-              </article>
+              </li>
             ))}
-          </div>
+          </ol>
         </section>
 
-        <section className="about-principles" aria-labelledby="about-principles-title">
-          <div className="about-section-label">What matters</div>
+        <section className="about-criteria" aria-labelledby="about-criteria-label">
+          <h2 id="about-criteria-label" className="about-section-label">
+            Acceptance criteria
+          </h2>
 
           <div>
-            <h2 id="about-principles-title" className="about-principles-title">
+            <p className="about-criteria-title">
               I want this to feel useful before it feels impressive.
-            </h2>
+            </p>
 
-            <ul className="about-principles-list">
-              {PRINCIPLES.map((principle) => (
-                <li key={principle} className="about-principle">
-                  <span className="about-principle-mark" aria-hidden="true" />
-                  <span>{principle}</span>
+            <ul className="about-criteria-list">
+              {ACCEPTANCE_CRITERIA.map((criterion) => (
+                <li key={criterion} className="about-criterion">
+                  <span className="about-criterion-check" aria-hidden="true">
+                    <CheckIcon />
+                  </span>
+                  <span>{criterion}</span>
                 </li>
               ))}
             </ul>

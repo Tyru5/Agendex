@@ -8,6 +8,8 @@ export { AgentIcon } from './client/components/AgentIcon.tsx';
 export { AgentSelect } from './client/components/AgentSelect.tsx';
 export type { ChangelogPageProps } from './client/components/ChangelogPage.tsx';
 export { ChangelogPage } from './client/components/ChangelogPage.tsx';
+export type { DocsPageProps } from './client/components/DocsPage.tsx';
+export { DocsPage } from './client/components/DocsPage.tsx';
 export { EmptyStateView } from './client/components/EmptyStateView.tsx';
 export { ExitFullscreenIcon, FullscreenIcon } from './client/components/FullscreenIcons.tsx';
 export type { LandingPageProps } from './client/components/LandingPage.tsx';

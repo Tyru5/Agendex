@@ -153,29 +153,15 @@ export function SidebarFilters({
     onCollectionSelect && collections && (collections.length > 0 || selectedCollection),
   );
 
+  // Only non-default filters earn a chip; defaults ("Modified", "Any time",
+  // "All agents") are noise and truncate to nothing at sidebar width.
   const chips = [
-    { key: 'sort', label: sortChip, active: sortBy !== 'updatedAt', optional: false },
-    { key: 'date', label: dateChip, active: dateBucket !== 'all', optional: false },
-    { key: 'agent', label: selectedAgentLabel, active: Boolean(selectedAgent), optional: true },
-    ...(selectedTagCount > 0
-      ? [
-          {
-            key: 'tags',
-            label: plural(selectedTagCount, 'tag'),
-            active: true,
-            optional: false,
-          },
-        ]
-      : []),
+    ...(sortBy !== 'updatedAt' ? [{ key: 'sort', label: sortChip }] : []),
+    ...(dateBucket !== 'all' ? [{ key: 'date', label: dateChip }] : []),
+    ...(selectedAgent ? [{ key: 'agent', label: selectedAgentLabel }] : []),
+    ...(selectedTagCount > 0 ? [{ key: 'tags', label: plural(selectedTagCount, 'tag') }] : []),
     ...(selectedCollection
-      ? [
-          {
-            key: 'collection',
-            label: selectedCollectionRecord?.name ?? 'Collection',
-            active: true,
-            optional: false,
-          },
-        ]
+      ? [{ key: 'collection', label: selectedCollectionRecord?.name ?? 'Collection' }]
       : []),
   ];
 
@@ -199,9 +185,7 @@ export function SidebarFilters({
           {chips.map((chip) => (
             <span
               key={chip.key}
-              className={`sidebar-filter-chip${chip.active ? ' sidebar-filter-chip--active' : ''}${
-                chip.optional ? ' sidebar-filter-chip--optional' : ''
-              }`}
+              className="sidebar-filter-chip sidebar-filter-chip--active"
               title={chip.label}
             >
               {chip.label}

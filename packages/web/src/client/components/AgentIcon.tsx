@@ -42,6 +42,30 @@ export function AgentIcon({
 
   const icon = getAgentIcon(agent);
 
+  if (icon?.imageSrc) {
+    return (
+      <span
+        aria-hidden="true"
+        className="inline-flex items-center justify-center shrink-0 overflow-hidden"
+        style={{
+          width: dimension,
+          height: dimension,
+          minWidth: dimension,
+          minHeight: dimension,
+        }}
+      >
+        <img
+          src={icon.imageSrc}
+          alt=""
+          width={size}
+          height={size}
+          className="h-full w-full object-contain"
+          loading="lazy"
+        />
+      </span>
+    );
+  }
+
   if (icon && (icon.path || icon.paths?.length)) {
     const iconHex = icon.hex.toUpperCase();
     const fill = DARK_ICON_HEX.has(iconHex) ? 'currentColor' : `#${icon.hex}`;

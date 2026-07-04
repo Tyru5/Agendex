@@ -86,7 +86,7 @@ export function SettingsSidebar({
               background: isActive
                 ? `rgba(var(--primary-rgb, ${PRIMARY_RGB_FALLBACK}), 0.15)`
                 : 'var(--hover)',
-              color: isActive ? 'var(--primary, #8b5cf6)' : 'var(--secondary)',
+              color: isActive ? 'var(--primary)' : 'var(--secondary)',
             }}
           >
             {statusLabel} Plan

@@ -2,6 +2,7 @@ import {
   AgentAvatarProvider,
   type AgentStats,
   ChangelogPage,
+  DocsPage,
   EmptyStateView,
   filterPlans,
   hasToken,
@@ -1971,9 +1972,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   // consumers below. Plans that already carry content (local mode, optimistic
   // copies from the editor) skip the fetch.
   const cloudSelectedPlanContent = useCloudPlanContent(
-    mode === 'cloud' && selectedPlanBase && !selectedPlanBase.content
-      ? selectedPlanBase.id
-      : null,
+    mode === 'cloud' && selectedPlanBase && !selectedPlanBase.content ? selectedPlanBase.id : null,
   );
   const selectedPlan = useMemo(() => {
     if (!selectedPlanBase) return undefined;
@@ -2217,37 +2216,38 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
         onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
         sidebarWidth={expandedWidth}
+        actions={
+          mode === 'local' ? (
+            <button
+              type="button"
+              onClick={() => setSourcesOpen(true)}
+              aria-label="Manage plan sources"
+              title="Manage plan sources"
+              className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+          ) : undefined
+        }
       />
 
       {mode === 'local' && (
-        <>
-          <button
-            type="button"
-            onClick={() => setSourcesOpen(true)}
-            title="Manage plan sources"
-            className="fixed z-50 w-[30px] h-[30px] rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
-            style={{ top: 20, right: 60 }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-          </button>
-
-          <PlanSourcesDialog
-            open={sourcesOpen}
-            onClose={() => setSourcesOpen(false)}
-            onSourcesChanged={() => refresh()}
-          />
-        </>
+        <PlanSourcesDialog
+          open={sourcesOpen}
+          onClose={() => setSourcesOpen(false)}
+          onSourcesChanged={() => refresh()}
+        />
       )}
 
       {sidebarHidden && (
@@ -2355,6 +2355,11 @@ function ChangelogRoute() {
   return <ChangelogPage onBack={() => startViewTransition(() => navigate('/'))} />;
 }
 
+function DocsRoute() {
+  const [, navigate] = useLocation();
+  return <DocsPage onBack={() => startViewTransition(() => navigate('/'))} />;
+}
+
 function CliAuthRoute() {
   const callback = new URLSearchParams(window.location.search).get('callback');
   if (!callback) return <Redirect to="/" />;
@@ -2409,6 +2414,7 @@ function LandingRoute() {
     <LandingPage
       mascot={{ onActivate: () => startViewTransition(() => navigate('/about-me')) }}
       onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
+      onShowDocs={() => startViewTransition(() => navigate('/docs'))}
     >
       <LandingPage.NavbarAuth>{() => <EENavbarAuth />}</LandingPage.NavbarAuth>
       <LandingPage.HeroCta>{() => <EEHeroCta />}</LandingPage.HeroCta>
@@ -2519,6 +2525,7 @@ export default function App() {
       </Route>
       <Route path="/about-me" component={AboutMePage} />
       <Route path="/changelog" component={ChangelogRoute} />
+      <Route path="/docs" component={DocsRoute} />
       <Route path="/welcome">
         <AuthRuntime>
           <OnboardingRoute>

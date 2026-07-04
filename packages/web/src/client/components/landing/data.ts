@@ -5,15 +5,15 @@ export { setToken };
 export const FAQ_ITEMS = [
   {
     q: 'What is Agendex?',
-    a: 'Agendex indexes the plan and todo files your AI coding agents create, then gives you one place to search, review, comment, share, and track follow-up.',
+    a: 'Agendex indexes plans and sessions produced by supported coding agents on your machine, then gives you one place to search, filter, inspect, and optionally sync them to Cloud Pro.',
   },
   {
     q: 'Which agents are supported?',
-    a: 'Built-in adapters cover Claude Code, Cursor, Codex CLI, Windsurf, Amp, Cline, GitHub Copilot, OpenCode, Continue, Aider, Droid, Kilo Code, Roo Code, Goose, Gemini CLI, and more. Adding another agent means implementing one adapter.',
+    a: 'Implemented adapters currently cover Claude Code, Codex CLI, Continue, Cursor, OpenCode, and Plannotator. The catalog includes additional stub entries, but those are not full adapters yet.',
   },
   {
     q: 'Is my data private?',
-    a: 'Self-hosted data stays on your machine. Cloud sync sends plan data to your Agendex account, and nothing becomes public unless you share it.',
+    a: 'Local OSS data stays on your machine. Cloud sync sends selected plan payloads to your Agendex account, and plans are not publicly visible unless you share them.',
   },
   {
     q: 'Can I switch from self-hosted to Cloud later?',
@@ -21,37 +21,21 @@ export const FAQ_ITEMS = [
   },
   {
     q: 'Do I need to pay to use Agendex?',
-    a: 'No. Self-hosted is free and open source. Cloud Pro is $7/month or $69/year for sync, sharing, comments, charts, plan creation, and up to five workspace members.',
+    a: 'No. Local OSS is free and open source. Cloud Pro is $7/month or $69/year for daemon sync, sharing, comments, tags, collections, history, dashboard plan creation, and up to five workspace members.',
   },
   {
     q: 'How does Cloud sync work?',
-    a: 'The CLI daemon watches configured plan directories and pushes changes to your account in real time while leaving local files readable on disk.',
+    a: 'The CLI daemon scans the same enabled adapters and custom source directories, skips unchanged payloads, prunes low-value noise, and pushes plan updates to your account while leaving local files readable on disk.',
   },
 ];
 
-export const AGENTS = [
-  'Claude Code',
-  'Cursor',
-  'Codex',
-  'Windsurf',
-  'Amp',
-  'Cline',
-  'GitHub Copilot',
-  'OpenCode',
-  'Continue',
-  'Aider',
-  'Droid',
-  'Kilo Code',
-  'Roo Code',
-  'Goose',
-  'Gemini CLI',
-];
+export const AGENTS = ['Claude Code', 'Codex', 'Continue', 'Cursor', 'OpenCode', 'Plannotator'];
 
 export const LOCAL_STEPS = [
   {
     number: '1',
     title: 'Clone & Install',
-    code: `git clone https://github.com/tiru5/agendex.git\ncd agendex && bun install`,
+    code: `git clone https://github.com/tyru5/agendex.git\ncd agendex && bun install`,
   },
   {
     number: '2',
@@ -65,7 +49,9 @@ export const LOCAL_STEPS = [
   },
 ];
 
-export const PKG_MANAGERS = [
+export const CLI_INSTALL_OPTIONS = [
+  { id: 'installer', label: 'curl', cmd: 'curl -fsSL https://agendex.dev/install.sh | bash' },
+  { id: 'powershell', label: 'PowerShell', cmd: 'irm https://agendex.dev/install.ps1 | iex' },
   { id: 'bun', label: 'bun', cmd: 'bun install -g agendex-cli' },
   { id: 'npm', label: 'npm', cmd: 'npm install -g agendex-cli' },
   { id: 'yarn', label: 'yarn', cmd: 'yarn global add agendex-cli' },
@@ -73,7 +59,12 @@ export const PKG_MANAGERS = [
 ] as const;
 
 export const CLOUD_STEPS = [
-  { number: '1', title: 'Install CLI', code: 'npm install -g agendex-cli', hasPkgManager: true },
+  {
+    number: '1',
+    title: 'Install CLI',
+    code: `# macOS / Linux\ncurl -fsSL https://agendex.dev/install.sh | bash\n\n# Windows (PowerShell)\nirm https://agendex.dev/install.ps1 | iex`,
+    hasPkgManager: true,
+  },
   { number: '2', title: 'Authenticate', code: 'agendex login        # opens browser OAuth' },
   { number: '3', title: 'Start Daemon', code: 'agendex start        # watches + syncs plans' },
   {
@@ -92,55 +83,47 @@ agendex status       # daemon health + connected devices`,
 
 export const FEATURES = [
   {
-    icon: '⚡',
     title: 'Instant Indexing',
-    desc: 'File watchers detect new plans the moment your agents create them. No polling, no manual refresh.',
+    desc: 'File watchers and polling fallback keep supported adapter output and custom plan folders current.',
   },
   {
-    icon: '🔗',
     title: 'Share Plans',
-    desc: 'Publish any plan to the cloud and generate shareable links. Control access with token-based permissions.',
+    desc: 'Sync a plan to Cloud Pro and generate a scoped share link when review needs to leave your machine.',
   },
   {
-    icon: '💬',
     title: 'Comments',
-    desc: 'Leave comments on any plan. Threaded discussions keep feedback attached to the plans that matter.',
+    desc: 'Cloud comments keep review feedback attached to the synced plan record.',
   },
   {
-    icon: '☁️',
     title: 'Cloud Sync',
-    desc: 'The CLI daemon watches local plans and syncs them to the cloud automatically. Access your plans from anywhere.',
+    desc: 'The CLI daemon pushes changed local plans to your account and keeps daemon/device status visible.',
   },
   {
-    icon: '🔍',
     title: 'Fuzzy Search',
-    desc: 'Find any plan across all agents instantly with blazing-fast fuzzy search powered by Fuse.js.',
+    desc: 'Search across indexed titles, content, agents, and workspaces from the local app.',
   },
   {
-    icon: '🔌',
     title: 'Adapter System',
-    desc: 'Modular adapters for each agent source. Enable or disable agents on the fly with zero config.',
+    desc: 'Enable implemented adapters, rescan them, and add custom plan source directories.',
   },
   {
-    icon: '🧬',
-    title: 'Tech Charts',
-    desc: 'Visualize technology relationships extracted from your plans as interactive dependency graphs.',
+    title: 'Plan History',
+    desc: 'Cloud Pro stores plan versions so shared review can follow how agent output changes over time.',
   },
   {
-    icon: '🔔',
     title: 'New Plan Tracking',
-    desc: 'Unseen plan indicators highlight what changed since your last visit. Never miss an agent update.',
+    desc: 'Local and cloud views can surface unseen plan updates while hiding low-value noise.',
   },
   {
-    icon: '📝',
     title: 'Plan Creation',
-    desc: 'Create and upload plans directly from the dashboard. Draft plans in Markdown with live preview.',
+    desc: 'Cloud Pro can create, upload, and edit dashboard plans that did not originate from an adapter.',
   },
 ];
 
 export const FREE_FEATURES = [
   'Local plan indexing and search',
-  'All agent adapters',
+  'Implemented agent adapters',
+  'Custom plan source directories',
   'Full source access',
   'No account required',
 ];
@@ -150,11 +133,14 @@ export const PRO_FEATURES = [
   'Cloud sync from the CLI daemon',
   'Shareable plan links',
   'Comment threads',
+  'Tags, collections, and plan history',
   'Technology dependency charts',
+  'Plannotator integration',
   'New plan indicators',
-  'Plan creation from the dashboard',
+  'Plan creation, uploads, and editing',
   'Up to five workspace members',
   'Access from any device',
+  '...and more!',
 ];
 
 export const MONEY_BACK_GUARANTEE = {

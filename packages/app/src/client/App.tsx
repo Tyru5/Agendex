@@ -1,5 +1,6 @@
 import {
   ChangelogPage,
+  DocsPage,
   EmptyStateView,
   filterPlans,
   hasToken,
@@ -82,7 +83,7 @@ function Dashboard() {
   const agents = useAgents(true, false);
   const backendStatus = useBackendStatus();
 
-  const { plans, loading, error } = localPlans;
+  const { plans, loading, error, refresh } = localPlans;
 
   const filteredPlans = useMemo(() => {
     let result = filterPlans(plans, search);
@@ -98,10 +99,10 @@ function Dashboard() {
   const prevBackendStatus = useRef(backendStatus);
   useEffect(() => {
     if (prevBackendStatus.current === 'offline' && backendStatus === 'online') {
-      localPlans.refresh();
+      refresh();
     }
     prevBackendStatus.current = backendStatus;
-  }, [backendStatus, localPlans.refresh]);
+  }, [backendStatus, refresh]);
 
   const totalPlans = useMemo(() => {
     return agents.reduce((sum, a) => sum + a.planCount, 0);
@@ -211,37 +212,38 @@ function Dashboard() {
         backendStatus={backendStatus}
         height={TOPBAR_HEIGHT}
         sidebarWidth={expandedWidth}
+        actions={
+          IS_LOCAL_WORKSPACE_SHELL ? (
+            <button
+              type="button"
+              onClick={() => setSourcesOpen(true)}
+              aria-label="Manage plan sources"
+              title="Manage plan sources"
+              className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+          ) : undefined
+        }
       />
 
       {IS_LOCAL_WORKSPACE_SHELL && (
-        <>
-          <button
-            type="button"
-            onClick={() => setSourcesOpen(true)}
-            title="Manage plan sources"
-            className="fixed z-50 w-[30px] h-[30px] rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
-            style={{ top: 20, right: 60 }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            </svg>
-          </button>
-
-          <PlanSourcesDialog
-            open={sourcesOpen}
-            onClose={() => setSourcesOpen(false)}
-            onSourcesChanged={() => localPlans.refresh()}
-          />
-        </>
+        <PlanSourcesDialog
+          open={sourcesOpen}
+          onClose={() => setSourcesOpen(false)}
+          onSourcesChanged={() => localPlans.refresh()}
+        />
       )}
 
       {sidebarHidden && (
@@ -377,6 +379,18 @@ export default function App() {
     );
   }
 
+  if (typeof window !== 'undefined' && window.location.pathname === '/docs') {
+    return (
+      <DocsPage
+        onBack={() => {
+          startViewTransition(() => {
+            window.location.href = '/';
+          });
+        }}
+      />
+    );
+  }
+
   if (!hasToken()) {
     return (
       <>
@@ -385,6 +399,11 @@ export default function App() {
           onShowChangelog={() => {
             startViewTransition(() => {
               window.location.href = '/changelog';
+            });
+          }}
+          onShowDocs={() => {
+            startViewTransition(() => {
+              window.location.href = '/docs';
             });
           }}
         />

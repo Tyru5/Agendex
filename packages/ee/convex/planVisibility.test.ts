@@ -118,7 +118,11 @@ test('filterVisiblePlans trusts the persisted low-value flag and skips live clas
     // No persisted flag -> kept, even though the content alone would classify as
     // low value. Collection reads rely on the flag being kept fresh at write
     // time and by `backfillPlanValueMetadata`, not on per-plan classification.
-    { title: 'Helper', content: '```ts\nexport const x = 1;\n```', metadata: { userCreated: true } },
+    {
+      title: 'Helper',
+      content: '```ts\nexport const x = 1;\n```',
+      metadata: { userCreated: true },
+    },
     // Valuable plan with no flag -> kept.
     {
       title: 'Plan',
