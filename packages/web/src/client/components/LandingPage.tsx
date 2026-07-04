@@ -16,6 +16,7 @@ import {
   LANDING_INITIAL,
   landingReducer,
 } from './landing/LandingContext.tsx';
+import { DexMascot } from './landing/DexMascot.tsx';
 import { LandingMascot, type LandingMascotProps } from './landing/LandingMascot.tsx';
 import { useTheme } from '../hooks/useTheme.ts';
 import { NavbarAuth, HeroCta, PricingCta } from './landing/LandingSlots.tsx';
@@ -449,6 +450,7 @@ const HERO_INSTALL_COMMANDS = [
 ] as const;
 
 function HeroInstallCommand() {
+  const { resolvedTheme } = useTheme();
   const [activePlatform, setActivePlatform] =
     useState<(typeof HERO_INSTALL_COMMANDS)[number]['id']>('unix');
   const [copied, setCopied] = useState(false);
@@ -481,7 +483,18 @@ function HeroInstallCommand() {
           </button>
         ))}
       </div>
-      <div className="landing-hero-command">
+      <div className="landing-hero-command relative">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-6 top-0 z-[2] -translate-y-[88%] max-sm:hidden"
+        >
+          <DexMascot
+            variant={resolvedTheme === 'light' ? 'light' : 'dark'}
+            size={64}
+            decorative
+            className="dex-blink"
+          />
+        </div>
         <span className="landing-hero-command-prompt" aria-hidden="true">
           {active.prompt}
         </span>

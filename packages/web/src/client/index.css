@@ -3033,6 +3033,25 @@ body {
   }
 }
 
+/* ─── Dex mascot micro-interactions (transform-only) ─── */
+@keyframes dex-blink {
+  0%,
+  92%,
+  96%,
+  100% {
+    transform: scaleY(1);
+  }
+  94% {
+    transform: scaleY(0.12);
+  }
+}
+
+.dex-blink [data-dex-eyes] {
+  transform-box: fill-box;
+  transform-origin: 50% 55%;
+  animation: dex-blink 6.4s ease-in-out 1.6s infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-page *,
   .landing-page *::before,
@@ -3041,6 +3060,10 @@ body {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .dex-blink [data-dex-eyes] {
+    animation: none !important;
   }
 }
 

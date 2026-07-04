@@ -77,8 +77,10 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { useAuth } from './hooks/useAuth.ts';
+import { useCloudPlanContent } from './hooks/useCloudPlanContent.ts';
 import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
+import { useCloudPlanSearch } from './hooks/useCloudPlanSearch.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
@@ -355,8 +357,12 @@ function useDashboardData(
     [collectionPlanIds],
   );
 
+  // Cloud list items ship without `content`, so content matching runs
+  // server-side; the returned ids union into filterPlans' metadata matches.
+  const cloudContentMatchIds = useCloudPlanSearch(mode === 'cloud' ? search : '');
+
   const filteredPlans = useMemo(() => {
-    let result = filterPlans(plans, search);
+    let result = filterPlans(plans, search, mode === 'cloud' ? cloudContentMatchIds : undefined);
     if (mode === 'cloud' && agentFilter) {
       result = result.filter((p) => p.agent === agentFilter);
     }
@@ -396,6 +402,7 @@ function useDashboardData(
     collectionPlanIdSet,
     selectedTags,
     planTagsMap,
+    cloudContentMatchIds,
   ]);
 
   const refreshLocalPlans = localPlans.refresh;
@@ -1939,7 +1946,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     localStorage.setItem(CHART_PREF_STORAGE_KEY, chartHidden ? 'true' : 'false');
   }, [chartHidden]);
 
-  const selectedPlan = useMemo(() => {
+  const selectedPlanBase = useMemo(() => {
     const localFallback =
       mode === 'local' && !localAutoSelectSuppressed ? filteredPlans[0] : undefined;
     if (selectedPlanId) {
@@ -1959,6 +1966,21 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     mode,
     localAutoSelectSuppressed,
   ]);
+
+  // Cloud list items ship without `content` (see getMyPublishedPlans); hydrate
+  // the selected plan before it fans out to the viewer/editor/share/plannotator
+  // consumers below. Plans that already carry content (local mode, optimistic
+  // copies from the editor) skip the fetch.
+  const cloudSelectedPlanContent = useCloudPlanContent(
+    mode === 'cloud' && selectedPlanBase && !selectedPlanBase.content
+      ? selectedPlanBase.id
+      : null,
+  );
+  const selectedPlan = useMemo(() => {
+    if (!selectedPlanBase) return undefined;
+    if (mode !== 'cloud' || selectedPlanBase.content) return selectedPlanBase;
+    return { ...selectedPlanBase, content: cloudSelectedPlanContent ?? '' };
+  }, [selectedPlanBase, mode, cloudSelectedPlanContent]);
 
   // Auto-follow a live replacement only for a session that ended *while the user
   // was viewing it* (it got superseded while open). Deliberately opening an
