@@ -60,3 +60,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .kilocode/
 .playwright-mcp/
 goals/
+
+# local release-status helper (contains personal App Store Connect defaults)
+scripts/release-status.sh

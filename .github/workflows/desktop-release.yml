@@ -58,7 +58,8 @@ jobs:
     name: Build and publish macOS
     needs: preflight
     runs-on: macos-latest
-    timeout-minutes: 45
+    # Generous limit: Apple notarization can stall for an hour+ during queue backlogs.
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v4
