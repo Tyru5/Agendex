@@ -40,7 +40,7 @@ async function verifyDirectRuntime() {
   try {
     const status = runSync(nodeBin, [workspaceCli, 'status'], { env });
     assert.equal(status.status, 0, status.stderr || status.stdout);
-    assert.match(status.stdout, /Config version: none/);
+    assert.match(status.stdout, /Config file\s+!\s+missing/);
 
     const cloudState = {
       heartbeatCount: 0,
