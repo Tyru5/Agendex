@@ -99,6 +99,7 @@ const FREE_FEATURES = [
 
 const PRO_FEATURES = [
   'Everything in Self-hosted',
+  'Agendex Desktop app for macOS',
   'Cloud sync from the CLI daemon',
   'Shareable plan links',
   'Comment threads',

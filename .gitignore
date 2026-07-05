@@ -5,6 +5,7 @@ node_modules
 out
 dist
 packages/cli/.release
+packages/desktop/release
 *.tgz
 
 # code coverage
@@ -50,6 +51,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 .codex
 .gstack/
+.omo/
 
 .agents/
 

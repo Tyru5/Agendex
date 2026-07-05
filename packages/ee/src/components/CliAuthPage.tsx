@@ -1,5 +1,5 @@
 import { GitHubIcon, GoogleIcon, Skeleton } from '@agendex/web';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
 
 interface CliAuthPageProps {
@@ -12,11 +12,30 @@ export function CliAuthPage({ callbackUrl }: CliAuthPageProps) {
     'choosing',
   );
   const didRedirect = useRef(false);
+  const didAutoStart = useRef(false);
 
-  function handleProvider(provider: 'github' | 'google') {
-    setStatus('signing-in');
-    signIn.social({ provider, callbackURL: window.location.href });
-  }
+  const handleProvider = useCallback(
+    (provider: 'github' | 'google') => {
+      setStatus('signing-in');
+      signIn.social({ provider, callbackURL: window.location.href });
+    },
+    [signIn],
+  );
+
+  // When the desktop app opens this page with `?provider=github|google`, skip the
+  // chooser and start that provider's OAuth immediately. The guard prevents
+  // re-triggering after the OAuth round-trip returns with `?ott=…` (a fresh
+  // page load where the auto-start ref has reset): we only fire when there is no
+  // OTT and the user is still unauthenticated.
+  useEffect(() => {
+    if (didAutoStart.current || isLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    const hasOtt = params.has('ott');
+    const provider = params.get('provider');
+    if (hasOtt || isAuthenticated || (provider !== 'github' && provider !== 'google')) return;
+    didAutoStart.current = true;
+    handleProvider(provider);
+  }, [isLoading, isAuthenticated, handleProvider]);
 
   useEffect(() => {
     if (isLoading || !isAuthenticated || didRedirect.current) return;

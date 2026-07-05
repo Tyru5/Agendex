@@ -606,6 +606,106 @@
   transform: translateY(0) scale(0.985);
 }
 
+/* Desktop sign-in gate — single calm arrival, no orchestrated sequence. */
+@keyframes desktop-signin-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.desktop-signin-shell::before,
+.desktop-signin-shell::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+
+.desktop-signin-shell::before {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 88% 62% at 50% 0%, black 18%, transparent 78%);
+}
+
+.desktop-signin-shell::after {
+  background: radial-gradient(
+    62% 78% at 50% 0%,
+    color-mix(in oklch, var(--accent) 12%, transparent),
+    transparent 72%
+  );
+}
+
+.desktop-signin-spinner {
+  animation-duration: 0.8s;
+}
+
+.desktop-signin-content {
+  animation: desktop-signin-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+
+.desktop-signin-error {
+  color: var(--danger);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  max-width: 34ch;
+}
+
+.desktop-signin-cta {
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.desktop-signin-cta:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+  box-shadow: 0 10px 26px color-mix(in oklch, var(--accent) 24%, transparent);
+}
+
+.desktop-signin-cta:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+}
+
+.desktop-signin-cta:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--accent) 55%, var(--border));
+  outline-offset: 2px;
+}
+
+/* Electron (macOS): frameless window — drag from chrome, not from controls. */
+html[data-agendex-desktop='true'] .agendex-topbar,
+html[data-agendex-desktop='true'] .desktop-signin-shell {
+  -webkit-app-region: drag;
+}
+
+html[data-agendex-desktop='true'] .agendex-topbar :is(
+    button,
+    a,
+    input,
+    textarea,
+    select,
+    [role='button'],
+    [role='group'],
+    [role='combobox'],
+    [role='listbox'],
+    [role='menu'],
+    [role='menuitem'],
+    .agendex-topbar-control
+  ),
+html[data-agendex-desktop='true'] .desktop-signin-shell :is(button, a, input) {
+  -webkit-app-region: no-drag;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .share-dialog-overlay,
   .share-dialog-panel,
@@ -614,14 +714,24 @@
   .share-link-row,
   .settings-tab-content,
   .local-ip-disclosure,
+  .desktop-signin-content,
+  .desktop-signin-spinner,
   .plannotator-live-dot {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
 
-  .plannotator-annotation-card {
+  .plannotator-annotation-card,
+  .desktop-signin-cta {
     transition: none !important;
+  }
+
+  .desktop-signin-cta:hover:not(:disabled),
+  .desktop-signin-cta:active:not(:disabled) {
+    transform: none;
+    filter: none;
+    box-shadow: none;
   }
 
   .plannotator-toolbar-option-surface {

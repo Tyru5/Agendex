@@ -1,0 +1,67 @@
+appId: dev.agendex.desktop
+productName: Agendex
+copyright: Copyright © Agendex
+artifactName: Agendex-${version}-${arch}.${ext}
+
+directories:
+  output: release
+  buildResources: build
+
+# Everything the runtime needs is bundled into out/ by electron-vite, so we ship
+# only the bundle + manifest (no node_modules packing for workspace deps).
+files:
+  - out/**/*
+  - package.json
+  # Everything is bundled into out/, so drop node_modules (incl. the workspace
+  # symlink to @agendex/app, which would otherwise pull in its built client).
+  - '!node_modules/**/*'
+
+# The built EE web client is served by the in-process Node server at runtime via
+# process.resourcesPath/client (see src/main/index.ts resolveClientDistDir).
+extraResources:
+  - from: ../ee/dist
+    to: client
+    filter:
+      - '**/*'
+
+# The runtime is fully bundled into out/ and uses no native modules, so skip
+# electron-builder's native dependency rebuild (which would try, and fail, to
+# compile better-sqlite3 from the transitive dep tree against Electron's ABI).
+npmRebuild: false
+
+asar: true
+
+mac:
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  protocols:
+    - name: Agendex Auth
+      schemes:
+        - agendex
+  target:
+    - dmg
+    - zip
+  icon: build/icon.png
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  # Registers the agendex:// deep-link scheme in the Windows registry at
+  # install time (the `protocols` option above is macOS-only). The app also
+  # re-registers at runtime via app.setAsDefaultProtocolClient, which covers
+  # the portable target.
+  include: build/installer.nsh

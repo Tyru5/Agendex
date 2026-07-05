@@ -4,6 +4,7 @@ import { useAction, useMutation } from 'convex/react';
 import { useEffect, useState } from 'react';
 import { Redirect, useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
+import { isDesktop } from '../lib/desktop.ts';
 import { useDaemonStatus } from '../hooks/useDaemonStatus';
 import { useSubscription } from '../hooks/useSubscription';
 import { useSubscriptionView } from '../hooks/useSubscriptionView';
@@ -61,7 +62,14 @@ export function SettingsPage() {
   }, []);
 
   if (isLoading) return null;
-  if (!isAuthenticated || !user) return <Redirect to="/login" />;
+  // Desktop can be `isAuthenticated` (stored cloud token) while `user` is null
+  // if the bearer-backed session fetch failed or the session was revoked. Its
+  // signed-out UX lives in DashboardRoute's sign-in gate, and the web /login
+  // form can't complete OAuth inside the embedded window, so bail to the
+  // dashboard there instead.
+  if (!isAuthenticated || !user) {
+    return <Redirect to={isDesktop() ? DASHBOARD_PATH : '/login'} />;
+  }
 
   async function handleDeleteAccount() {
     setDeleting(true);
@@ -72,7 +80,9 @@ export function SettingsPage() {
       } catch {
         // The auth session may already be gone after server-side deletion.
       }
-      startViewTransition(() => navigate('/'));
+      if (!isDesktop()) {
+        startViewTransition(() => navigate('/'));
+      }
     } catch (err) {
       console.error('Delete account error:', err);
       setDeleting(false);
@@ -85,7 +95,9 @@ export function SettingsPage() {
     } catch {
       // ignore
     } finally {
-      startViewTransition(() => navigate('/'));
+      if (!isDesktop()) {
+        startViewTransition(() => navigate('/'));
+      }
     }
   }
 

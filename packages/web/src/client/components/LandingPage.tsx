@@ -606,6 +606,34 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
   return (
     <div className="landing-hero-shell" data-landing-animate="hero-shell">
       <div className="landing-hero-content">
+        <a
+          href="https://github.com/Tyru5/Agendex/releases"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-landing-animate-item
+          className="mb-5 inline-flex max-w-full items-center gap-2.5 rounded-full border border-[color-mix(in_oklch,var(--landing-accent)_26%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] py-[7px] pl-2 pr-3.5 text-[12px] font-semibold leading-[1.2] text-[var(--landing-text)] no-underline transition-[border-color,background-color] duration-150 hover:border-[color-mix(in_oklch,var(--landing-accent)_44%,var(--landing-border))] hover:bg-[color-mix(in_oklch,var(--landing-accent)_13%,transparent)]"
+        >
+          <span className="shrink-0 rounded-full bg-[var(--landing-accent)] px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--landing-bg)]">
+            New
+          </span>
+          <span className="min-w-0 truncate">
+            Agendex Desktop for macOS is out — exclusive to Cloud Pro. Windows coming soon.
+          </span>
+          <svg
+            aria-hidden="true"
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0 text-[var(--landing-accent)]"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </a>
         <h1 className="landing-hero-title" data-landing-animate-item>
           Your Agents Make Plans.
           <br />

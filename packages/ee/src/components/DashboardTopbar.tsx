@@ -40,6 +40,7 @@ export function DashboardTopbar({
   onToggleChart,
   onDeletePlan,
   onShowChangelog,
+  onSwitchMode,
   sidebarWidth: sidebarWidthProp,
   actions,
 }: {
@@ -74,6 +75,7 @@ export function DashboardTopbar({
   onToggleChart?: () => void;
   onDeletePlan?: (planId: string) => void;
   onShowChangelog?: () => void;
+  onSwitchMode?: (mode: 'local' | 'cloud') => void;
   sidebarWidth?: number;
   /** Extra controls rendered at the start of the right cluster. */
   actions?: ReactNode;
@@ -123,6 +125,32 @@ export function DashboardTopbar({
       </div>
 
       <div className="flex items-center justify-end gap-2.5 min-w-0 shrink-0 pr-4">
+        {onSwitchMode && (
+          <>
+            <div
+              role="group"
+              aria-label="Plan source"
+              className="flex items-center rounded-lg border border-border p-0.5"
+            >
+              {(['cloud', 'local'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={mode === value}
+                  onClick={() => onSwitchMode(value)}
+                  className={`rounded-[6px] px-2.5 py-1 text-[12px] font-medium capitalize transition-colors duration-150 ${
+                    mode === value
+                      ? 'bg-hover text-text'
+                      : 'bg-transparent text-tertiary hover:text-text'
+                  }`}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+            <div className="w-px h-4 bg-border" />
+          </>
+        )}
         {actions}
         <MachinesIndicator devices={daemonDevices} aggregateStatus={daemonAggregateStatus} />
         <div className="w-px h-4 bg-border" />

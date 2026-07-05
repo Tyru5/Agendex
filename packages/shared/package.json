@@ -5,7 +5,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./annotations": "./src/annotations.ts",
+    "./convex-url": "./src/convex-url.ts",
     "./daemon-status": "./src/daemon-status.ts",
+    "./desktop-auth-callback": "./src/desktop-auth-callback.ts",
     "./plan-value": "./src/services/plan-value.ts",
     "./types": "./src/types.ts"
   },

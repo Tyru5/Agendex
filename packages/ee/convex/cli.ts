@@ -186,12 +186,16 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
+async function getRequestSession(ctx: Parameters<typeof createAuth>[0], request: Request) {
+  const auth = createAuth(ctx);
+  return await auth.api.getSession({ headers: request.headers });
+}
+
 async function authenticateRequest(
   ctx: Parameters<typeof createAuth>[0],
   request: Request,
 ): Promise<{ ownerId: string } | Response> {
-  const auth = createAuth(ctx);
-  const session = await auth.api.getSession({ headers: request.headers });
+  const session = await getRequestSession(ctx, request);
   if (!session?.user) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
@@ -775,8 +779,7 @@ export const refresh = httpAction(async (ctx, request) => {
     return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
-  const auth = createAuth(ctx);
-  const session = await auth.api.getSession({ headers: request.headers });
+  const session = await getRequestSession(ctx, request);
 
   if (!session?.session) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
@@ -789,5 +792,43 @@ export const refresh = httpAction(async (ctx, request) => {
     });
   } catch {
     return jsonResponse({ error: 'Failed to refresh' }, 500);
+  }
+});
+
+export const convexToken = httpAction(async (ctx, request) => {
+  if (request.method !== 'GET') {
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
+
+  const session = await getRequestSession(ctx, request);
+  if (!session?.session) {
+    return jsonResponse({ error: 'Unauthorized' }, 401);
+  }
+
+  try {
+    const tokenUrl = new URL('/api/auth/convex/token', request.url);
+    const authorization = request.headers.get('authorization');
+    const response = await fetch(tokenUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...(authorization ? { Authorization: authorization } : {}),
+      },
+    });
+    if (response.status === 401 || response.status === 403) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+    if (!response.ok) {
+      return jsonResponse({ error: 'Failed to get Convex token' }, 500);
+    }
+
+    const body = (await response.json()) as { token?: unknown };
+    if (typeof body.token !== 'string' || !body.token.trim()) {
+      return jsonResponse({ error: 'Failed to get Convex token' }, 500);
+    }
+
+    return jsonResponse({ token: body.token });
+  } catch {
+    return jsonResponse({ error: 'Failed to get Convex token' }, 500);
   }
 });

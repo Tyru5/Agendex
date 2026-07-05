@@ -1,0 +1,28 @@
+{
+  "name": "@agendex/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Agendex desktop app (Electron)",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "concurrently -k -n vite,electron -c green,cyan \"bun run --cwd ../ee dev:client\" \"cross-env AGENDEX_RENDERER_URL=http://app.agendex.localhost:5174/dashboard electron-vite dev --watch\"",
+    "build": "bun run --cwd ../ee build && electron-vite build",
+    "dist": "electron-builder --publish never",
+    "dist:mac": "bun run build && electron-builder --mac --publish never",
+    "dist:win": "bun run build && electron-builder --win --publish never"
+  },
+  "dependencies": {
+    "@agendex/app": "workspace:*",
+    "@agendex/ee": "workspace:*",
+    "@agendex/shared": "workspace:*",
+    "@electron-toolkit/preload": "^3.0.2",
+    "@electron-toolkit/utils": "^4.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^42.5.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0"
+  }
+}
