@@ -5,6 +5,7 @@ import { existsSync, statSync, writeSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  getConfigPath,
   loadConfig,
   loadOrInitConfig,
   normalizeCustomPlanDirs,
@@ -16,9 +17,11 @@ import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
 import type { DeviceInfo } from './api.ts';
 import { AuthExpiredError, deleteDaemons, fetchDevices, sendShutdown } from './api.ts';
 import { login, logout } from './auth.ts';
+import { renderHelp } from './help.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { runHookReviewCommand, runHooksCommand } from './hooks.ts';
 import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
+import { renderStatus, type CloudDaemonStatusError } from './status.ts';
 import { syncAll } from './sync.ts';
 import { runUpgrade } from './upgrade.ts';
 import { runUpload } from './upload.ts';
@@ -141,19 +144,17 @@ async function main(): Promise<number> {
       }
 
       process.kill(pid, 'SIGTERM');
-      const deadline = Date.now() + 5_000;
-      while (isRunning(pid) && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 200));
+      const stopped = await waitForProcessExit(pid, 5_000);
+
+      if (!stopped) {
+        writeStderr('[agendex] daemon did not stop in time');
+        return 1;
       }
 
-      if (isRunning(pid)) {
-        writeStderr('[agendex] daemon did not stop in time');
-      } else {
-        removePid();
-        await sendShutdown();
-        writeStdout(`[agendex] daemon stopped (PID ${pid})`);
-      }
-      return isRunning(pid) ? 1 : 0;
+      removePid();
+      await sendShutdown();
+      writeStdout(`[agendex] daemon stopped (PID ${pid})`);
+      return 0;
     }
 
     case 'login': {
@@ -181,184 +182,23 @@ async function main(): Promise<number> {
     }
 
     case 'upload': {
-      return await runUpload(args);
+      return runUpload(args);
     }
 
     case 'hooks': {
-      return await runHooksCommand(args, cliEntry);
+      return runHooksCommand(args, cliEntry);
     }
 
     case 'review-plan': {
-      return await runHookReviewCommand(args);
+      return runHookReviewCommand(args);
     }
 
     case 'cleanup': {
-      const config = loadConfig();
-      if (!config?.cloudToken || !config?.convexUrl) {
-        writeStderr('[agendex] not logged in. Run `agendex login` first.');
-        return 1;
-      }
-
-      let allDevices: DeviceInfo[];
-      try {
-        allDevices = await fetchDevices();
-      } catch (err) {
-        if (err instanceof AuthExpiredError) {
-          writeStderr('[agendex] cloud token expired. Run `agendex login` to re-authenticate.');
-          return 1;
-        }
-        throw err;
-      }
-      if (allDevices.length === 0) {
-        writeStdout('[agendex] no daemons found');
-        return 0;
-      }
-
-      const now = Date.now();
-      const staleDevices = allDevices.filter((d) => {
-        const age = d.lastSeenAt ? now - d.lastSeenAt : Number.POSITIVE_INFINITY;
-        return age >= CLI_DAEMON_STALE_AFTER_MS;
-      });
-
-      if (args.includes('--stale')) {
-        if (staleDevices.length === 0) {
-          writeStdout('[agendex] no stale daemons to remove');
-          return 0;
-        }
-        const staleIds = staleDevices
-          .map((d) => d.deviceId)
-          .filter((id): id is string => id != null);
-        if (staleIds.length === 0) {
-          writeStdout('[agendex] stale daemons have no device IDs and cannot be removed');
-          return 0;
-        }
-        const result = await deleteDaemons(staleIds);
-        if (result.ok) {
-          writeStdout(`[agendex] removed ${result.deleted} stale daemon(s)`);
-        } else {
-          writeStderr('[agendex] failed to remove stale daemons');
-          return 1;
-        }
-        return 0;
-      }
-
-      // Interactive mode: use @clack/prompts multiselect (same pattern as configure)
-      if (!process.stdin.isTTY || !process.stdout.isTTY) {
-        writeStderr(
-          '[agendex] interactive cleanup requires a TTY. Use --stale to auto-remove stale daemons.',
-        );
-        return 1;
-      }
-
-      const { promptForDaemonCleanup } = await import('./cleanup.ts');
-      const deviceIds = allDevices
-        .filter((d) => d.deviceId != null)
-        .map((d) => {
-          const age = d.lastSeenAt ? now - d.lastSeenAt : Number.POSITIVE_INFINITY;
-          const status = age < CLI_DAEMON_STALE_AFTER_MS ? 'alive' : 'stale';
-          return {
-            deviceId: d.deviceId as string,
-            hostname: d.hostname ?? 'unknown',
-            pid: d.pid,
-            status: status as 'alive' | 'stale',
-          };
-        });
-
-      if (deviceIds.length === 0) {
-        writeStdout('[agendex] no daemons with device IDs to remove');
-        return 0;
-      }
-
-      const selected = await promptForDaemonCleanup(deviceIds);
-      if (!selected) return 0;
-
-      const result = await deleteDaemons(selected);
-      if (result.ok) {
-        writeStdout(`[agendex] removed ${result.deleted} daemon(s)`);
-      } else {
-        writeStderr('[agendex] failed to remove daemons');
-        return 1;
-      }
-      return 0;
+      return runCleanupCommand(args);
     }
 
     case 'add-dir': {
-      const dirPath = args.find((a) => a !== 'add-dir' && a !== '--dev' && !a.startsWith('--'));
-      if (!dirPath || !dirPath.trim()) {
-        writeStderr('[agendex] usage: agendex add-dir <path>');
-        return 1;
-      }
-      const resolved = resolveCustomPlanDirPath(dirPath);
-      if (!existsSync(resolved)) {
-        writeStderr(`[agendex] path does not exist: ${resolved}`);
-        return 1;
-      }
-      if (!statSync(resolved).isDirectory()) {
-        writeStderr(`[agendex] path is not a directory: ${resolved}`);
-        return 1;
-      }
-
-      if (args.includes('--live')) {
-        // POST to the running local server so it scans + watches immediately
-        const cfg = loadConfig();
-        const token = cfg?.token;
-        if (!token) {
-          writeStderr('[agendex] no local token found in config — is the server running?');
-          return 1;
-        }
-        const port = process.env.PORT ?? '4890';
-        const { request } = await import('node:http');
-        const body = JSON.stringify({ path: resolved });
-        try {
-          const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
-            const req = request(
-              `http://localhost:${port}/api/v1/plan-sources`,
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                  'Content-Length': String(Buffer.byteLength(body)),
-                },
-              },
-              (res) => {
-                let data = '';
-                res.setEncoding('utf8');
-                res.on('data', (chunk) => {
-                  data += chunk;
-                });
-                res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
-                res.on('error', reject);
-              },
-            );
-            req.on('error', reject);
-            req.write(body);
-            req.end();
-          });
-          if (res.status >= 200 && res.status < 300) {
-            writeStdout(`[agendex] added custom plan dir: ${resolved}`);
-            writeStdout(`[agendex] server notified — scanning + watching now`);
-          } else {
-            writeStderr(`[agendex] server returned ${res.status}: ${res.body}`);
-            return 1;
-          }
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          writeStderr(`[agendex] could not reach local server on port ${port}: ${msg}`);
-          return 1;
-        }
-      } else {
-        const cfg = loadConfig();
-        const currentDirs = cfg?.customPlanDirs ?? [];
-        const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
-        saveConfig({
-          ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
-          customPlanDirs: updated,
-        });
-        writeStdout(`[agendex] added custom plan dir: ${resolved}`);
-        writeStdout(`[agendex] daemon will pick up the change automatically`);
-      }
-      return 0;
+      return runAddDirCommand(args);
     }
 
     case 'remove-dir': {
@@ -400,129 +240,48 @@ async function main(): Promise<number> {
     case 'status': {
       const config = loadConfig();
       const pidInfo = readPidInfo();
-
       const pid = pidInfo?.pid ?? null;
-
       const running = pid ? isRunning(pid) : false;
+      let devices: DeviceInfo[] | null = null;
+      let cloudDaemonError: CloudDaemonStatusError | null = null;
 
-      writeStdout(`[agendex] Config version: ${config?.configVersion ?? 'none'}`);
-      writeStdout(`[agendex] Local token: ${config?.token ? 'set' : 'not set'}`);
-      writeStdout(`[agendex] Cloud token: ${config?.cloudToken ? 'set' : 'not set'}`);
-      writeStdout(`[agendex] Convex URL: ${config?.convexUrl ?? 'not set'}`);
-      writeStdout(`[agendex] Enabled adapters: ${config?.enabledAdapters.join(', ') || 'none'}`);
-      const customDirs = config?.customPlanDirs ?? [];
-      writeStdout(
-        `[agendex] Custom plan dirs: ${customDirs.length > 0 ? customDirs.length : 'none'}`,
-      );
-      for (const dir of customDirs) {
-        writeStdout(`  - ${dir}`);
-      }
-      writeStdout(`[agendex] Daemon: ${running ? `running (PID ${pid})` : 'not running'}`);
-
-      if (running && pidInfo?.startedAtMs) {
-        writeStdout(`[agendex] Uptime: ${formatDuration(Date.now() - pidInfo.startedAtMs)}`);
-      } else if (running) {
-        writeStdout(`[agendex] Uptime: unknown (restart daemon to populate)`);
-      } else {
-        writeStdout(`[agendex] Uptime: n/a`);
-      }
-
-      if (running && pidInfo?.hostname) {
-        writeStdout(`[agendex] Hostname: ${pidInfo.hostname}`);
-      } else if (running) {
-        writeStdout(`[agendex] Hostname: unknown (restart daemon to populate)`);
-      } else {
-        writeStdout(`[agendex] Hostname: n/a`);
-      }
-
-      writeStdout(`[agendex] CLI version: ${CLI_VERSION}`);
-
-      // Fetch all daemons from the cloud
-      try {
-        if (config?.cloudToken && config?.convexUrl) {
-          const allDevices = await fetchDevices();
-          if (allDevices.length > 0) {
-            const now = Date.now();
-            const localDeviceId = config.deviceId;
-            writeStdout(`[agendex] All daemons:`);
-            for (const device of allDevices) {
-              const age = device.lastSeenAt ? now - device.lastSeenAt : Number.POSITIVE_INFINITY;
-              const status = age < CLI_DAEMON_STALE_AFTER_MS ? 'alive' : 'stale';
-              const uptimeStr =
-                device.startedAtMs != null ? formatDuration(now - device.startedAtMs) : '~';
-              const pidStr = device.pid != null ? String(device.pid) : '~';
-              const hostnameStr = device.hostname ?? '~';
-              const ipStr = device.ipAddress ?? '~';
-              const isLocal = localDeviceId && device.deviceId === localDeviceId;
-              writeStdout(
-                `- hostname: ${hostnameStr}${isLocal ? ' (this machine)' : ''}\n  ip: ${ipStr}\n  pid: ${pidStr}\n  uptime: ${uptimeStr}\n  status: ${status}`,
-              );
-            }
+      if (config?.cloudToken && config?.convexUrl) {
+        try {
+          devices = await fetchDevices();
+        } catch (err) {
+          if (err instanceof AuthExpiredError) {
+            cloudDaemonError = { kind: 'auth-expired' };
           } else {
-            writeStdout(`[agendex] All daemons: none`);
+            cloudDaemonError = {
+              kind: 'unavailable',
+              message: err instanceof Error ? err.message : String(err),
+            };
           }
         }
-      } catch (err) {
-        if (err instanceof AuthExpiredError) {
-          writeStderr(
-            `[agendex] Cloud token expired — cloud sync and daemon tracking are inactive.`,
-          );
-          writeStderr(`[agendex] Run \`agendex login\` to re-authenticate.`);
-        }
-        // Other errors (network, etc.) are best-effort — skip silently
       }
 
+      writeStdout(
+        renderStatus({
+          config,
+          configPath: getConfigPath(),
+          pidInfo,
+          running,
+          cliVersion: CLI_VERSION,
+          devices,
+          cloudDaemonError,
+        }),
+      );
       return 0;
     }
 
     case 'upgrade': {
-      return await runUpgrade({ force: args.includes('--force') });
+      return runUpgrade({ force: args.includes('--force') });
     }
 
     case 'help':
     case '--help':
     case '-h': {
-      writeStdout(
-        `
-agendex - CLI for syncing local agent plans to the cloud
-
-Usage:
-  agendex              Start daemon (default, backgrounds itself)
-  agendex start        Start daemon (backgrounds itself)
-  agendex stop         Stop the running daemon
-  agendex login        Authenticate via browser OAuth (agendex.dev)
-  agendex login --url <url>  Login to a self-hosted instance
-  agendex open         Open the Agendex web app in your browser
-  agendex open --url <url>  Open a self-hosted instance
-  agendex view <url>   Open a shared plan URL in your browser
-  agendex logout       Clear stored cloud token
-  agendex configure    Select which agents/adapters to index
-  agendex hooks status Show Claude Code, Codex, and Pi hook status
-  agendex hooks install <agent|all>  Install hook integration (--preview required for claude-code)
-  agendex hooks uninstall <agent|all>  Remove managed Agendex hook entries
-  agendex review-plan --hook --agent <agent>  Hook-native plan review command
-  agendex add-dir <path>  Add a custom directory to scan for plans
-  agendex add-dir <path> --live  Add dir and notify running server immediately
-  agendex remove-dir <path>  Remove a custom directory
-  agendex list-dirs    List custom plan directories
-  agendex sync         One-shot scan + sync to cloud (skips unchanged plans)
-  agendex sync --force Re-sync all plans, ignoring cache
-  agendex upload <path>  Upload a single Markdown plan file to the cloud
-  agendex upload <path> --agent <name>  Override the uploaded plan's agent label
-  agendex upload <path> --open  Open the uploaded plan in the browser after upload
-  agendex cleanup      Interactively remove cloud daemons
-  agendex cleanup --stale  Auto-remove all stale daemons
-  agendex status       Show current config state + daemon status
-  agendex upgrade      Upgrade the globally installed CLI to the latest version
-  agendex upgrade --force  Reinstall latest even if already up to date
-  agendex help         Show this help message
-  agendex --version    Print CLI version
-  agendex -v           Print CLI version
-
-Flags:
-  --dev                Use dev environment (~/.agendex-dev/ config dir)
-`.trim(),
-      );
+      writeStdout(renderHelp({ cliVersion: CLI_VERSION }));
       return 0;
     }
 
@@ -532,6 +291,196 @@ Flags:
       return 1;
     }
   }
+}
+
+function waitForProcessExit(pid: number, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const interval = setInterval(() => {
+      if (!isRunning(pid)) {
+        clearInterval(interval);
+        resolve(true);
+        return;
+      }
+
+      if (Date.now() >= deadline) {
+        clearInterval(interval);
+        resolve(false);
+      }
+    }, 200);
+  });
+}
+
+async function runCleanupCommand(commandArgs: string[]): Promise<number> {
+  const config = loadConfig();
+  if (!config?.cloudToken || !config?.convexUrl) {
+    writeStderr('[agendex] not logged in. Run `agendex login` first.');
+    return 1;
+  }
+
+  let allDevices: DeviceInfo[];
+  try {
+    allDevices = await fetchDevices();
+  } catch (err) {
+    if (err instanceof AuthExpiredError) {
+      writeStderr('[agendex] cloud token expired. Run `agendex login` to re-authenticate.');
+      return 1;
+    }
+    throw err;
+  }
+  if (allDevices.length === 0) {
+    writeStdout('[agendex] no daemons found');
+    return 0;
+  }
+
+  const now = Date.now();
+  const staleDevices = allDevices.filter((device) => {
+    const age = device.lastSeenAt !== null ? now - device.lastSeenAt : Number.POSITIVE_INFINITY;
+    return age >= CLI_DAEMON_STALE_AFTER_MS;
+  });
+
+  if (commandArgs.includes('--stale')) {
+    if (staleDevices.length === 0) {
+      writeStdout('[agendex] no stale daemons to remove');
+      return 0;
+    }
+    const staleIds = staleDevices.flatMap((device) =>
+      device.deviceId === null ? [] : [device.deviceId],
+    );
+    if (staleIds.length === 0) {
+      writeStdout('[agendex] stale daemons have no device IDs and cannot be removed');
+      return 0;
+    }
+    const result = await deleteDaemons(staleIds);
+    if (result.ok) {
+      writeStdout(`[agendex] removed ${result.deleted} stale daemon(s)`);
+    } else {
+      writeStderr('[agendex] failed to remove stale daemons');
+      return 1;
+    }
+    return 0;
+  }
+
+  // Interactive mode: use @clack/prompts multiselect (same pattern as configure)
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    writeStderr(
+      '[agendex] interactive cleanup requires a TTY. Use --stale to auto-remove stale daemons.',
+    );
+    return 1;
+  }
+
+  const { promptForDaemonCleanup } = await import('./cleanup.ts');
+  const deviceIds = allDevices.flatMap((device) => {
+    if (device.deviceId === null) return [];
+    const age = device.lastSeenAt !== null ? now - device.lastSeenAt : Number.POSITIVE_INFINITY;
+    const status = age < CLI_DAEMON_STALE_AFTER_MS ? 'alive' : 'stale';
+    return [
+      {
+        deviceId: device.deviceId,
+        hostname: device.hostname ?? 'unknown',
+        pid: device.pid,
+        status: status as 'alive' | 'stale',
+      },
+    ];
+  });
+
+  if (deviceIds.length === 0) {
+    writeStdout('[agendex] no daemons with device IDs to remove');
+    return 0;
+  }
+
+  const selected = await promptForDaemonCleanup(deviceIds);
+  if (!selected) return 0;
+
+  const result = await deleteDaemons(selected);
+  if (result.ok) {
+    writeStdout(`[agendex] removed ${result.deleted} daemon(s)`);
+  } else {
+    writeStderr('[agendex] failed to remove daemons');
+    return 1;
+  }
+  return 0;
+}
+
+async function runAddDirCommand(commandArgs: string[]): Promise<number> {
+  const dirPath = commandArgs.find(
+    (arg) => arg !== 'add-dir' && arg !== '--dev' && !arg.startsWith('--'),
+  );
+  if (dirPath === undefined || dirPath.trim() === '') {
+    writeStderr('[agendex] usage: agendex add-dir <path>');
+    return 1;
+  }
+  const resolved = resolveCustomPlanDirPath(dirPath);
+  if (!existsSync(resolved)) {
+    writeStderr(`[agendex] path does not exist: ${resolved}`);
+    return 1;
+  }
+  if (!statSync(resolved).isDirectory()) {
+    writeStderr(`[agendex] path is not a directory: ${resolved}`);
+    return 1;
+  }
+
+  if (commandArgs.includes('--live')) {
+    // POST to the running local server so it scans + watches immediately
+    const cfg = loadConfig();
+    const token = cfg?.token;
+    if (!token) {
+      writeStderr('[agendex] no local token found in config — is the server running?');
+      return 1;
+    }
+    const port = process.env.PORT ?? '4890';
+    const { request } = await import('node:http');
+    const body = JSON.stringify({ path: resolved });
+    try {
+      const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const req = request(
+          `http://localhost:${port}/api/v1/plan-sources`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'Content-Length': String(Buffer.byteLength(body)),
+            },
+          },
+          (res) => {
+            let data = '';
+            res.setEncoding('utf8');
+            res.on('data', (chunk) => {
+              data += chunk;
+            });
+            res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
+            res.on('error', reject);
+          },
+        );
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+      });
+      if (res.status >= 200 && res.status < 300) {
+        writeStdout(`[agendex] added custom plan dir: ${resolved}`);
+        writeStdout(`[agendex] server notified — scanning + watching now`);
+      } else {
+        writeStderr(`[agendex] server returned ${res.status}: ${res.body}`);
+        return 1;
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      writeStderr(`[agendex] could not reach local server on port ${port}: ${msg}`);
+      return 1;
+    }
+  } else {
+    const cfg = loadConfig();
+    const currentDirs = cfg?.customPlanDirs ?? [];
+    const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
+    saveConfig({
+      ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
+      customPlanDirs: updated,
+    });
+    writeStdout(`[agendex] added custom plan dir: ${resolved}`);
+    writeStdout(`[agendex] daemon will pick up the change automatically`);
+  }
+  return 0;
 }
 
 const exitCode = await main().catch((err) => {
@@ -567,17 +516,4 @@ function writeStdout(message: string): void {
 
 function writeStderr(message: string): void {
   writeSync(process.stderr.fd, `${message}\n`);
-}
-
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
 }
