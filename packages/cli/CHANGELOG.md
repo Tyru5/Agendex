@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 2.0.1
+
+### Patch Changes
+
+- f04249d: CLI status and help rendering layout changes
+
 ## 2.0.0
 
 ### Major Changes
