@@ -27,6 +27,10 @@ export const FAQ_ITEMS = [
     q: 'How does Cloud sync work?',
     a: 'The CLI daemon scans the same enabled adapters and custom source directories, skips unchanged payloads, prunes low-value noise, and pushes plan updates to your account while leaving local files readable on disk.',
   },
+  {
+    q: 'Is there a desktop app?',
+    a: 'Yes. Agendex Desktop for macOS is available now to Cloud Pro accounts — it bundles the local server and cloud dashboard in one window with browser-based sign-in. Download it from GitHub Releases. A Windows build is coming soon.',
+  },
 ];
 
 export const AGENTS = ['Claude Code', 'Codex', 'Continue', 'Cursor', 'OpenCode', 'Plannotator'];
@@ -84,7 +88,7 @@ agendex status       # daemon health + connected devices`,
 export const FEATURES = [
   {
     title: 'Desktop App',
-    desc: 'A native macOS and Windows app bundles the local server and cloud dashboard in one window, with browser-based sign-in.',
+    desc: 'The native macOS app is out now for Cloud Pro accounts, bundling the local server and cloud dashboard in one window with browser-based sign-in. Windows is coming soon.',
   },
   {
     title: 'Instant Indexing',
@@ -134,6 +138,7 @@ export const FREE_FEATURES = [
 
 export const PRO_FEATURES = [
   'Everything in Self-hosted',
+  'Agendex Desktop app for macOS',
   'Cloud sync from the CLI daemon',
   'Shareable plan links',
   'Comment threads',
