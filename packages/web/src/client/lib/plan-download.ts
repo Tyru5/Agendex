@@ -168,7 +168,9 @@ export function downloadPlanBlob(download: DirectPlanDownload): void {
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 0);
 }
 
 export function openPlanPdfPrintWindow(plan: PlanDownloadInput): void {
@@ -177,13 +179,23 @@ export function openPlanPdfPrintWindow(plan: PlanDownloadInput): void {
     throw new Error('Unable to open the print window. Allow popups and try again.');
   }
 
+  const triggerPrint = (): void => {
+    printWindow.requestAnimationFrame(() => {
+      printWindow.focus();
+      printWindow.print();
+    });
+  };
+
   printWindow.document.open();
   printWindow.document.write(createPlanHtmlDocument(plan));
   printWindow.document.close();
-  printWindow.focus();
-  printWindow.setTimeout(() => {
-    printWindow.print();
-  }, 200);
+
+  if (printWindow.document.readyState === 'complete') {
+    triggerPrint();
+    return;
+  }
+
+  printWindow.addEventListener('load', triggerPrint, { once: true });
 }
 
 export function downloadPlan(plan: PlanDownloadInput, format: PlanDownloadFormat): void {
