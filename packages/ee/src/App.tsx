@@ -63,6 +63,7 @@ import {
   CloudPlannotatorWritebackPanel,
 } from './components/CloudPlannotatorPanel.tsx';
 import { CloudPlanUploader } from './components/CloudPlanUploader.tsx';
+import { CloudPlanSourcesDialog } from './components/CloudPlanSourcesDialog.tsx';
 import { CloudUpgrade } from './components/CloudUpgrade.tsx';
 import { CommentThread } from './components/CommentThread.tsx';
 import { DashboardTopbar } from './components/DashboardTopbar.tsx';
@@ -1925,6 +1926,9 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const { canAccessCloud: isPro, isLoading: isWorkspaceAccessLoading } = useWorkspaceAccess();
   const localPlanState = usePlanState();
   const cloudPlanState = useCloudPlanPreferences();
+  const canManageLocalPlanSources = canManageCustomPlanSources(mode, isPro, canSwitchMode);
+  const canManageCloudPlanSources = mode === 'cloud' && isPro && !canManageLocalPlanSources;
+  const canShowPlanSourcesAction = canManageLocalPlanSources || canManageCloudPlanSources;
 
   const {
     agents,
@@ -2295,7 +2299,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onSwitchMode={canSwitchMode ? switchMode : undefined}
         sidebarWidth={expandedWidth}
         actions={
-          canManageCustomPlanSources(mode, isPro, canSwitchMode) ? (
+          canShowPlanSourcesAction ? (
             <button
               type="button"
               onClick={() => setSourcesOpen(true)}
@@ -2320,11 +2324,20 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         }
       />
 
-      {canManageCustomPlanSources(mode, isPro, canSwitchMode) && (
+      {canManageLocalPlanSources && (
         <PlanSourcesDialog
           open={sourcesOpen}
           onClose={() => setSourcesOpen(false)}
           onSourcesChanged={() => refresh()}
+        />
+      )}
+
+      {canManageCloudPlanSources && (
+        <CloudPlanSourcesDialog
+          open={sourcesOpen}
+          plans={plans}
+          onClose={() => setSourcesOpen(false)}
+          onDeletePlan={handleDeletePlan}
         />
       )}
 
