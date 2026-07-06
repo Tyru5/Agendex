@@ -19,6 +19,7 @@ export {
   loadOrCreateToken,
   loadOrInitConfig,
   normalizeCustomPlanDirs,
+  removeCustomPlanDir,
   resolveCustomPlanDirPath,
   saveConfig,
   setDevMode,

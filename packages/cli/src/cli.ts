@@ -9,6 +9,7 @@ import {
   loadConfig,
   loadOrInitConfig,
   normalizeCustomPlanDirs,
+  removeCustomPlanDir,
   resolveCustomPlanDirPath,
   saveConfig,
   setDevMode,
@@ -202,25 +203,7 @@ async function main(): Promise<number> {
     }
 
     case 'remove-dir': {
-      const dirPath = args.find((a) => a !== 'remove-dir' && a !== '--dev' && !a.startsWith('--'));
-      if (!dirPath || !dirPath.trim()) {
-        writeStderr('[agendex] usage: agendex remove-dir <path>');
-        return 1;
-      }
-      const resolved = resolveCustomPlanDirPath(dirPath);
-      const cfg = loadConfig();
-      const currentDirs = cfg?.customPlanDirs ?? [];
-      const updated = currentDirs.filter((d) => d !== resolved);
-      if (updated.length === currentDirs.length) {
-        writeStderr(`[agendex] directory not in custom plan dirs: ${resolved}`);
-        return 1;
-      }
-      saveConfig({
-        ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
-        customPlanDirs: updated,
-      });
-      writeStdout(`[agendex] removed custom plan dir: ${resolved}`);
-      return 0;
+      return runRemoveDirCommand(args);
     }
 
     case 'list-dirs': {
@@ -402,6 +385,64 @@ async function runCleanupCommand(commandArgs: string[]): Promise<number> {
   return 0;
 }
 
+/**
+ * Notifies the running local server about a plan-source change so it scans +
+ * (re)watches immediately. Returns an exit code (0 on success).
+ */
+async function notifyServerPlanSource(
+  method: 'POST' | 'DELETE',
+  resolved: string,
+): Promise<number> {
+  const cfg = loadConfig();
+  const token = cfg?.token;
+  if (!token) {
+    writeStderr('[agendex] no local token found in config — is the server running?');
+    return 1;
+  }
+  const port = process.env.PORT ?? '4890';
+  const { request } = await import('node:http');
+  const body = JSON.stringify({ path: resolved });
+  try {
+    const res = await new Promise<{ status: number; body: string }>((resolvePromise, reject) => {
+      const req = request(
+        `http://localhost:${port}/api/v1/plan-sources`,
+        {
+          method,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Content-Length': String(Buffer.byteLength(body)),
+          },
+        },
+        (res) => {
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          res.on('end', () => resolvePromise({ status: res.statusCode ?? 0, body: data }));
+          res.on('error', reject);
+        },
+      );
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+    if (res.status >= 200 && res.status < 300) {
+      const verb = method === 'POST' ? 'added' : 'removed';
+      writeStdout(`[agendex] ${verb} custom plan dir: ${resolved}`);
+      writeStdout(`[agendex] server notified — rescanning now`);
+      return 0;
+    }
+    writeStderr(`[agendex] server returned ${res.status}: ${res.body}`);
+    return 1;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    writeStderr(`[agendex] could not reach local server on port ${port}: ${msg}`);
+    return 1;
+  }
+}
+
 async function runAddDirCommand(commandArgs: string[]): Promise<number> {
   const dirPath = commandArgs.find(
     (arg) => arg !== 'add-dir' && arg !== '--dev' && !arg.startsWith('--'),
@@ -422,64 +463,49 @@ async function runAddDirCommand(commandArgs: string[]): Promise<number> {
 
   if (commandArgs.includes('--live')) {
     // POST to the running local server so it scans + watches immediately
-    const cfg = loadConfig();
-    const token = cfg?.token;
-    if (!token) {
-      writeStderr('[agendex] no local token found in config — is the server running?');
-      return 1;
-    }
-    const port = process.env.PORT ?? '4890';
-    const { request } = await import('node:http');
-    const body = JSON.stringify({ path: resolved });
-    try {
-      const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
-        const req = request(
-          `http://localhost:${port}/api/v1/plan-sources`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'Content-Length': String(Buffer.byteLength(body)),
-            },
-          },
-          (res) => {
-            let data = '';
-            res.setEncoding('utf8');
-            res.on('data', (chunk) => {
-              data += chunk;
-            });
-            res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
-            res.on('error', reject);
-          },
-        );
-        req.on('error', reject);
-        req.write(body);
-        req.end();
-      });
-      if (res.status >= 200 && res.status < 300) {
-        writeStdout(`[agendex] added custom plan dir: ${resolved}`);
-        writeStdout(`[agendex] server notified — scanning + watching now`);
-      } else {
-        writeStderr(`[agendex] server returned ${res.status}: ${res.body}`);
-        return 1;
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      writeStderr(`[agendex] could not reach local server on port ${port}: ${msg}`);
-      return 1;
-    }
-  } else {
-    const cfg = loadConfig();
-    const currentDirs = cfg?.customPlanDirs ?? [];
-    const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
-    saveConfig({
-      ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
-      customPlanDirs: updated,
-    });
-    writeStdout(`[agendex] added custom plan dir: ${resolved}`);
-    writeStdout(`[agendex] daemon will pick up the change automatically`);
+    return notifyServerPlanSource('POST', resolved);
   }
+
+  const cfg = loadConfig();
+  const currentDirs = cfg?.customPlanDirs ?? [];
+  const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
+  saveConfig({
+    ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
+    customPlanDirs: updated,
+  });
+  writeStdout(`[agendex] added custom plan dir: ${resolved}`);
+  writeStdout(`[agendex] daemon will pick up the change automatically`);
+  return 0;
+}
+
+async function runRemoveDirCommand(commandArgs: string[]): Promise<number> {
+  const dirPath = commandArgs.find(
+    (arg) => arg !== 'remove-dir' && arg !== '--dev' && !arg.startsWith('--'),
+  );
+  if (dirPath === undefined || dirPath.trim() === '') {
+    writeStderr('[agendex] usage: agendex remove-dir <path> [--live]');
+    return 1;
+  }
+  const resolved = resolveCustomPlanDirPath(dirPath);
+
+  if (commandArgs.includes('--live')) {
+    // DELETE on the running local server so it rescans + rewatches immediately
+    return notifyServerPlanSource('DELETE', resolved);
+  }
+
+  const cfg = loadConfig();
+  const currentDirs = cfg?.customPlanDirs ?? [];
+  const updated = removeCustomPlanDir(currentDirs, dirPath);
+  if (updated === null) {
+    writeStderr(`[agendex] directory not in custom plan dirs: ${resolved}`);
+    return 1;
+  }
+  saveConfig({
+    ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
+    customPlanDirs: updated,
+  });
+  writeStdout(`[agendex] removed custom plan dir: ${resolved}`);
+  writeStdout(`[agendex] daemon will pick up the change automatically`);
   return 0;
 }
 

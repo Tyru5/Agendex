@@ -8,6 +8,7 @@ import {
   listPlanAnnotations,
   loadConfig,
   normalizeCustomPlanDirs,
+  removeCustomPlanDir,
   resolveCustomPlanDirPath,
   saveConfig,
   scan,
@@ -220,8 +221,8 @@ plans.delete('/plan-sources', async (c) => {
   const resolved = resolveCustomPlanDirPath(body.path);
   const config = loadConfig();
   const currentDirs = config?.customPlanDirs ?? [];
-  const updated = currentDirs.filter((d) => d !== resolved);
-  if (updated.length === currentDirs.length) {
+  const updated = removeCustomPlanDir(currentDirs, body.path);
+  if (updated === null) {
     return c.json({ error: `directory not in custom plan dirs: ${resolved}` }, 404);
   }
   saveConfig({
