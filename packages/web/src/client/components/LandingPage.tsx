@@ -617,7 +617,8 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
             New
           </span>
           <span className="min-w-0 truncate">
-            Agendex Desktop for macOS is out — exclusive to Cloud Pro. Windows coming soon.
+            Agendex Desktop for macOS is on the way... — exclusive to Cloud Pro. Windows coming
+            later.
           </span>
           <svg
             aria-hidden="true"
