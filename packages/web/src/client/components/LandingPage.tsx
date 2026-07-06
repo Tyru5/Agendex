@@ -112,6 +112,18 @@ const SECTION_FRAME_CLASS =
 
 const SECTION_SCROLL_STYLE = { scrollMarginTop: LANDING_ANCHOR_OFFSET };
 
+type LandingAnchorProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+  href: string;
+};
+
+function LandingAnchor({ href, children, ...props }: LandingAnchorProps) {
+  return (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  );
+}
+
 function ActionLink({
   href,
   children,
@@ -122,14 +134,14 @@ function ActionLink({
   variant?: 'primary' | 'secondary';
 }) {
   return (
-    <a
+    <LandingAnchor
       href={href}
       target={href.startsWith('http') ? '_blank' : undefined}
       rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
       className={`landing-action landing-action--${variant}`}
     >
       {children}
-    </a>
+    </LandingAnchor>
   );
 }
 
@@ -273,37 +285,37 @@ function LandingNavbar({
       data-landing-animate="nav"
     >
       <div className="flex min-h-[49px] items-center justify-between gap-5 px-[18px]">
-        <a
+        <LandingAnchor
           href="/"
           onClick={onMobileMenuClose}
           className="shrink-0 text-[16px] font-bold text-[var(--landing-text)] no-underline"
         >
           Agendex<span className="text-[var(--landing-accent)]">.</span>
-        </a>
+        </LandingAnchor>
 
         <div className="flex min-w-0 items-center gap-3 text-[13px] font-medium max-[860px]:hidden">
           {LANDING_LINKS.map((link) => (
             <React.Fragment key={link.href}>
-              <a
+              <LandingAnchor
                 href={link.href}
                 onClick={link.href === '/docs' ? handleDocsClick : handleChangelogClick}
                 className="text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
               >
                 {link.label}
-              </a>
+              </LandingAnchor>
               <span className="text-[var(--landing-border-strong)]" aria-hidden="true">
                 |
               </span>
             </React.Fragment>
           ))}
-          <a
+          <LandingAnchor
             href="https://github.com/tiru5/agendex"
             target="_blank"
             rel="noopener noreferrer"
             className="text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
           >
             GitHub
-          </a>
+          </LandingAnchor>
           <ThemeToggleButton />
           {authSlot}
         </div>
@@ -338,14 +350,14 @@ function LandingNavbar({
       >
         <div className="flex flex-col gap-2.5">
           {LANDING_LINKS.map((link) => (
-            <a
+            <LandingAnchor
               key={link.href}
               href={link.href}
               onClick={link.href === '/docs' ? handleDocsClick : handleChangelogClick}
               className="flex min-h-10 items-center rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 text-[13px] font-semibold text-[var(--landing-text)] no-underline"
             >
               {link.label}
-            </a>
+            </LandingAnchor>
           ))}
           {authSlot}
         </div>
@@ -606,7 +618,7 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
   return (
     <div className="landing-hero-shell" data-landing-animate="hero-shell">
       <div className="landing-hero-content">
-        <a
+        <LandingAnchor
           href="https://github.com/Tyru5/Agendex/releases"
           target="_blank"
           rel="noopener noreferrer"
@@ -617,8 +629,7 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
             New
           </span>
           <span className="min-w-0 truncate">
-            Agendex Desktop for macOS is on the way... — exclusive to Cloud Pro. Windows coming
-            later.
+            Agendex Desktop for macOS is out — exclusive to Cloud Pro. Windows coming soon.
           </span>
           <svg
             aria-hidden="true"
@@ -634,7 +645,7 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
           >
             <path d="M9 18l6-6-6-6" />
           </svg>
-        </a>
+        </LandingAnchor>
         <h1 className="landing-hero-title" data-landing-animate-item>
           Your Agents Make Plans.
           <br />
@@ -1136,15 +1147,15 @@ function LandingFooter({
         <span>© 2026 / Local plans indexed</span>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-3 max-sm:justify-start [&>a]:text-[12.5px] [&>a]:font-semibold [&>a]:text-[var(--landing-muted)] [&>a]:no-underline [&>a:hover]:text-[var(--landing-text)]">
-        <a href="#features">Features</a>
-        <a href="#pricing">Pricing</a>
-        <a href="/docs" onClick={handleDocsClick}>
+        <LandingAnchor href="#features">Features</LandingAnchor>
+        <LandingAnchor href="#pricing">Pricing</LandingAnchor>
+        <LandingAnchor href="/docs" onClick={handleDocsClick}>
           Docs
-        </a>
-        <a href="/changelog" onClick={handleChangelogClick}>
+        </LandingAnchor>
+        <LandingAnchor href="/changelog" onClick={handleChangelogClick}>
           Changelog
-        </a>
-        <a
+        </LandingAnchor>
+        <LandingAnchor
           href="https://github.com/tyru5/agendex"
           target="_blank"
           rel="noopener noreferrer"
@@ -1152,7 +1163,7 @@ function LandingFooter({
         >
           <GitHubIcon size={14} />
           View on GitHub
-        </a>
+        </LandingAnchor>
       </div>
     </footer>
   );
