@@ -4,6 +4,14 @@ export function canUseCloudPlanMetadata(mode: CloudQueryMode, isPro: boolean): b
   return mode === 'cloud' && isPro;
 }
 
+export function canManageCustomPlanSources(
+  mode: CloudQueryMode,
+  isPro: boolean,
+  canSwitchMode: boolean,
+): boolean {
+  return mode === 'local' || (canSwitchMode && canUseCloudPlanMetadata(mode, isPro));
+}
+
 export function shouldQueryCloudPlanTags({
   mode,
   isPro,

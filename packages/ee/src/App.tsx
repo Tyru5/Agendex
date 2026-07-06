@@ -89,7 +89,11 @@ import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { authClient, normalizeLocalDevUrl } from './lib/auth-client.ts';
 import { parseCliAuthCallback } from './lib/cli-auth-callback.ts';
-import { canUseCloudPlanMetadata, shouldQueryCloudPlanTags } from './lib/cloud-query-mode.ts';
+import {
+  canManageCustomPlanSources,
+  canUseCloudPlanMetadata,
+  shouldQueryCloudPlanTags,
+} from './lib/cloud-query-mode.ts';
 import { convex } from './lib/convex-client.ts';
 import { parseDesktopAuthRequest } from './lib/desktop-auth-flow.ts';
 import {
@@ -273,7 +277,8 @@ function useAuthSessionSettled({
       async function verifySession() {
         try {
           await refreshSessionRef.current();
-        } catch {
+        } catch (err) {
+          if (!(err instanceof Error)) throw err;
           // Treat errors as settled so signed-out marketing users are not blocked forever.
         } finally {
           didVerifyUnauthRef.current = true;
@@ -2094,7 +2099,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       setModeOverride(next);
       try {
         localStorage.setItem(MODE_PREF_KEY, next);
-      } catch {
+      } catch (err) {
+        if (!(err instanceof Error)) throw err;
         // Non-fatal: preference just won't persist.
       }
     },
@@ -2289,7 +2295,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onSwitchMode={canSwitchMode ? switchMode : undefined}
         sidebarWidth={expandedWidth}
         actions={
-          mode === 'local' ? (
+          canManageCustomPlanSources(mode, isPro, canSwitchMode) ? (
             <button
               type="button"
               onClick={() => setSourcesOpen(true)}
@@ -2314,7 +2320,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         }
       />
 
-      {mode === 'local' && (
+      {canManageCustomPlanSources(mode, isPro, canSwitchMode) && (
         <PlanSourcesDialog
           open={sourcesOpen}
           onClose={() => setSourcesOpen(false)}
