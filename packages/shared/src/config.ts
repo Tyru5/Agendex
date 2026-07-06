@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { AdapterId } from './adapters/catalog.ts';
@@ -98,6 +98,33 @@ export function resolveCustomPlanDirPath(userPath: string): string {
   return resolve(expandHomePath(trimmed));
 }
 
+/** Resolves a path and, when it exists, its real (symlink-resolved) location. */
+function canonicalizeCustomPlanDir(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
+ * Removes the custom plan dir matching `target` from `dirs`. Matches by exact
+ * normalized path first, then falls back to symlink-resolved (realpath) equality
+ * so a dir can be removed even if supplied via a symlink or different-cwd relative
+ * path. Returns the updated list, or `null` if nothing matched.
+ */
+export function removeCustomPlanDir(dirs: string[], target: string): string[] | null {
+  const resolved = resolveCustomPlanDirPath(target);
+  const canonicalTarget = canonicalizeCustomPlanDir(resolved);
+  const updated = dirs.filter((d) => {
+    const normalized = resolveCustomPlanDirPath(d);
+    return normalized !== resolved && canonicalizeCustomPlanDir(normalized) !== canonicalTarget;
+  });
+  if (updated.length !== dirs.length) return updated;
+
+  return null;
+}
+
 export function normalizeCustomPlanDirs(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   const seen = new Set<string>();
@@ -173,7 +200,7 @@ export function loadOrCreateToken(): string {
 
   const token = generateToken();
   saveConfig({
-    ...(existing ?? {}),
+    ...existing,
     configVersion: 3,
     token,
     enabledAdapters: existing?.enabledAdapters ?? [],
@@ -190,7 +217,7 @@ export function loadOrCreateDeviceId(): string {
 
   const deviceId = randomBytes(16).toString('hex');
   saveConfig({
-    ...(existing ?? {}),
+    ...existing,
     configVersion: 3,
     deviceId,
     enabledAdapters: existing?.enabledAdapters ?? [],

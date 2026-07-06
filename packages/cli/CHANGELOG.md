@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 3.0.0
+
+### Major Changes
+
+- 0d4d4aa: Logic to remove custom sync dirs via UI and cli
+
 ## 2.0.1
 
 ### Patch Changes
