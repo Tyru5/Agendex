@@ -82,6 +82,15 @@ export {
   update,
 } from './services/plan-service.ts';
 export { isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
+export type { PlanSyncIdentity, PlanSyncIdentityStrength } from './services/plan-sync-identity.ts';
+export {
+  computeContentHash,
+  computePlanSyncIdentity,
+  exactDuplicateKey,
+  normalizeSyncPath,
+  PLAN_SYNC_IDENTITY_VERSION,
+  relativeSyncPath,
+} from './services/plan-sync-identity.ts';
 export { collectWatchPaths, startWatching, stopWatching } from './services/watcher.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 export type {

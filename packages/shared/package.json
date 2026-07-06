@@ -9,6 +9,7 @@
     "./daemon-status": "./src/daemon-status.ts",
     "./desktop-auth-callback": "./src/desktop-auth-callback.ts",
     "./plan-value": "./src/services/plan-value.ts",
+    "./plan-sync-identity": "./src/services/plan-sync-identity.ts",
     "./types": "./src/types.ts"
   },
   "dependencies": {

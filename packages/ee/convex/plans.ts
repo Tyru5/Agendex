@@ -6,6 +6,7 @@ import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
 import {
+  dedupeVisiblePlans,
   filterVisiblePlans,
   isVisiblePlan,
   metadataWithPlanValueAssessment,
@@ -140,7 +141,9 @@ export const getMyPublishedPlans = query({
     // above still counts full document bytes against the transaction limit.
     return {
       ...result,
-      page: filterVisiblePlans(result.page).map(({ content: _content, ...plan }) => plan),
+      page: dedupeVisiblePlans(filterVisiblePlans(result.page)).map(
+        ({ content: _content, ...plan }) => plan,
+      ),
     };
   },
 });
@@ -206,7 +209,7 @@ export const searchMyPlans = query({
       .withSearchIndex('search_content', (q) => q.search('content', term).eq('ownerId', ownerId))
       .take(CONTENT_SEARCH_MAX_RESULTS);
 
-    return filterVisiblePlans(matches).map((plan) => plan._id);
+    return dedupeVisiblePlans(filterVisiblePlans(matches)).map((plan) => plan._id);
   },
 });
 

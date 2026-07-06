@@ -15,6 +15,40 @@ function extractTitle(content: string, filename: string): string {
     .join(' ');
 }
 
+function frontmatterValue(content: string, key: string): string | undefined {
+  const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
+  const frontmatter = fmMatch?.[1];
+  if (!frontmatter) return undefined;
+
+  for (const line of frontmatter.split('\n')) {
+    const separatorIndex = line.indexOf(':');
+    if (separatorIndex === -1) continue;
+    if (line.slice(0, separatorIndex).trim() !== key) continue;
+    return line.slice(separatorIndex + 1).trim() || undefined;
+  }
+
+  return undefined;
+}
+
+function stableFilenameSessionId(filePath: string): string | undefined {
+  const stem = basename(filePath, '.md');
+  if (/^(?:[0-9a-f]{8,}(?:-[0-9a-f]{4,})*|[0-9A-Z]{20,}|[a-z0-9_-]{16,})$/i.test(stem)) {
+    return stem;
+  }
+  return undefined;
+}
+
+function extractMetadata(content: string, filePath: string): Record<string, unknown> {
+  const sessionId =
+    frontmatterValue(content, 'sessionId') ??
+    frontmatterValue(content, 'session_id') ??
+    frontmatterValue(content, 'conversationId') ??
+    frontmatterValue(content, 'conversation_id') ??
+    stableFilenameSessionId(filePath);
+
+  return sessionId ? { sessionId, sessionIdSource: 'claude-code' } : {};
+}
+
 export const claudeCodeAdapter: AgentAdapter = {
   agent: 'claude-code',
   writable: true,
@@ -48,7 +82,7 @@ export const claudeCodeAdapter: AgentAdapter = {
           format: 'md',
           createdAt: stats.birthtime,
           updatedAt: stats.mtime,
-          metadata: {},
+          metadata: extractMetadata(content, filePath),
         },
       ];
     } catch {

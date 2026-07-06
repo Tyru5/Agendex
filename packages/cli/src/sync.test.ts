@@ -56,7 +56,14 @@ function startSyncApi() {
         raw += chunk;
       });
       req.on('end', () => {
-        const payload = JSON.parse(raw) as SyncPlanPayload;
+        let payload: SyncPlanPayload;
+        try {
+          payload = JSON.parse(raw) as SyncPlanPayload;
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+          return;
+        }
         requests.push(payload);
         const lowValue = payload.metadata?.lowValue === true;
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -105,8 +112,13 @@ test('syncAll sends low-value local plans only as prune payloads and caches them
   const prunePayload = cloud.requests.find((payload) => payload.title === 'code-only');
 
   expect(normalPayload?.metadata?.lowValue).toBeUndefined();
+  expect(normalPayload?.syncIdentityKey).toContain(':custom-dir:path:real-plan.md');
+  expect(normalPayload?.contentHash).toBeDefined();
+  expect(normalPayload?.identityStrength).toBe('path');
   expect(prunePayload?.metadata?.lowValue).toBe(true);
   expect(prunePayload?.metadata?.lowValueReasons).toContain('code-only');
+  expect(prunePayload?.syncIdentityKey).toContain(':custom-dir:path:code-only.md');
+  expect(prunePayload?.contentHash).toBeDefined();
 
   await syncAll();
   expect(cloud.requests).toHaveLength(2);

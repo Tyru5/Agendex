@@ -42,6 +42,10 @@ export interface SyncPlanPayload {
   metadata?: Record<string, unknown>;
   createdAt?: number;
   updatedAt?: number;
+  syncIdentityKey?: string;
+  contentHash?: string;
+  identityVersion?: number;
+  identityStrength?: 'strong' | 'path' | 'content';
 }
 
 export interface SyncPlanResult {
@@ -51,28 +55,33 @@ export interface SyncPlanResult {
   skippedLowValue?: boolean;
   deleted?: boolean;
   planId?: string;
+  stale?: boolean;
 }
 
 export interface CliPreferences {
   collectLocalIpAddress: boolean;
 }
 
-function parseSyncSuccess(body: string): SyncPlanResult {
+function parseJsonObject(body: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(body) as unknown;
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      return { ok: true };
-    }
-    const result = parsed as Record<string, unknown>;
-    return {
-      ok: true,
-      skippedLowValue: result.skippedLowValue === true,
-      deleted: result.deleted === true,
-      ...(typeof result.planId === 'string' && { planId: result.planId }),
-    };
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+    return parsed as Record<string, unknown>;
   } catch {
-    return { ok: true };
+    return null;
   }
+}
+
+function parseSyncSuccess(body: string): SyncPlanResult {
+  const result = parseJsonObject(body);
+  if (!result) return { ok: true };
+  return {
+    ok: true,
+    skippedLowValue: result.skippedLowValue === true,
+    deleted: result.deleted === true,
+    stale: result.stale === true,
+    ...(typeof result.planId === 'string' && { planId: result.planId }),
+  };
 }
 
 export async function syncPlan(plan: SyncPlanPayload): Promise<SyncPlanResult> {
@@ -197,9 +206,11 @@ export async function refreshToken(
 
   if (res.status < 200 || res.status >= 300) return null;
 
-  const body = JSON.parse(res.body) as { token?: string; expiresAt?: number };
-  if (!body.token) return null;
-  return { token: body.token, expiresAt: body.expiresAt ?? 0 };
+  const body = parseJsonObject(res.body);
+  const token = typeof body?.token === 'string' ? body.token : undefined;
+  const expiresAt = typeof body?.expiresAt === 'number' ? body.expiresAt : 0;
+  if (!token) return null;
+  return { token, expiresAt };
 }
 
 export async function fetchCliPreferences(): Promise<CliPreferences | null> {
@@ -255,7 +266,12 @@ interface TextResponse {
 const REQUEST_TIMEOUT_MS = Number.parseInt(process.env.AGENDEX_HTTP_TIMEOUT_MS ?? '', 10) || 10_000;
 
 function requestText(urlString: string, options: RequestOptions): Promise<TextResponse> {
-  const url = new URL(urlString);
+  let url: URL;
+  try {
+    url = new URL(urlString);
+  } catch (err) {
+    return Promise.reject(err);
+  }
 
   const request = url.protocol === 'https:' ? httpsRequest : httpRequest;
   const headers: Record<string, string> = { ...options.headers };
@@ -347,8 +363,8 @@ export async function fetchPlannotatorWritebacks(limit = 10): Promise<Plannotato
   if (res.status === 401) throw new AuthExpiredError();
   if (res.status < 200 || res.status >= 300) return [];
 
-  const body = JSON.parse(res.body) as { writebacks?: PlannotatorWritebackJob[] };
-  return body.writebacks ?? [];
+  const body = parseJsonObject(res.body);
+  return Array.isArray(body?.writebacks) ? (body.writebacks as PlannotatorWritebackJob[]) : [];
 }
 
 export async function reportPlannotatorWriteback(
@@ -427,8 +443,8 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
     return [];
   }
 
-  const body = JSON.parse(res.body) as { devices?: DeviceInfo[] };
-  return body.devices ?? [];
+  const body = parseJsonObject(res.body);
+  return Array.isArray(body?.devices) ? (body.devices as DeviceInfo[]) : [];
 }
 
 export async function deleteDaemons(
@@ -468,6 +484,9 @@ export async function deleteDaemons(
     return { ok: false, deleted: 0 };
   }
 
-  const body = JSON.parse(res.body) as { ok?: boolean; deleted?: number };
-  return { ok: body.ok ?? false, deleted: body.deleted ?? 0 };
+  const body = parseJsonObject(res.body);
+  return {
+    ok: body?.ok === true,
+    deleted: typeof body?.deleted === 'number' ? body.deleted : 0,
+  };
 }

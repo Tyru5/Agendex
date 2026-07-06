@@ -1,3 +1,4 @@
+import { computePlanSyncIdentity, exactDuplicateKey } from '@agendex/shared/plan-sync-identity';
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc } from './_generated/dataModel';
@@ -212,6 +213,21 @@ type BackfillResult = {
   continueCursor: string | null;
 };
 
+type SyncIdentityBackfillResult = {
+  mode: 'sync-identity-backfill';
+  scanned: number;
+  updated: number;
+  isDone: boolean;
+  continueCursor: string | null;
+};
+
+type DuplicateAuditGroup = {
+  key: string;
+  count: number;
+  canonicalPlanId: string;
+  planIds: string[];
+};
+
 // Re-stamp every plan's persisted low-value flag so it reflects the CURRENT
 // classifier, then let collection reads trust that flag instead of classifying
 // live (see `filterVisiblePlans`). Run once after any change to the
@@ -262,6 +278,128 @@ export const backfillPlanValueMetadata = internalMutation({
       mode: 'backfill',
       scanned: result.page.length,
       updated,
+      isDone: result.isDone,
+      continueCursor: result.isDone ? null : result.continueCursor,
+    };
+  },
+});
+
+function syncIdentityPatch(plan: Doc<'plans'>) {
+  const identity = computePlanSyncIdentity({
+    agent: plan.agent,
+    title: plan.title,
+    content: plan.content,
+    format: plan.format,
+    filePath: plan.filePath,
+    workspace: plan.workspace,
+    metadata: plan.metadata,
+  });
+
+  return {
+    syncIdentityKey: identity.syncIdentityKey,
+    contentHash: identity.contentHash,
+    identityVersion: identity.identityVersion,
+    identityStrength: identity.identityStrength,
+  };
+}
+
+function syncDuplicateKey(plan: Doc<'plans'>): string {
+  if (plan.syncIdentityKey) return `sync:${plan.syncIdentityKey}`;
+  const contentHash = plan.contentHash ?? computePlanSyncIdentity(plan).contentHash;
+  return `exact:${exactDuplicateKey({ agent: plan.agent, title: plan.title, contentHash })}`;
+}
+
+function duplicateWinner(plans: Doc<'plans'>[]): Doc<'plans'> {
+  return plans.reduce((winner, plan) => {
+    if (plan.updatedAt !== winner.updatedAt)
+      return plan.updatedAt > winner.updatedAt ? plan : winner;
+    return plan._creationTime > winner._creationTime ? plan : winner;
+  });
+}
+
+export const backfillPlanSyncIdentity = internalMutation({
+  args: {
+    adminToken: v.string(),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    limit: v.optional(v.number()),
+    continue: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<SyncIdentityBackfillResult> => {
+    requireAdminToken(args.adminToken);
+
+    const result = await ctx.db.query('plans').paginate({
+      cursor: args.cursor ?? null,
+      numItems: batchSize(args.limit),
+    });
+
+    let updated = 0;
+    for (const plan of result.page) {
+      const patch = syncIdentityPatch(plan);
+      if (
+        plan.syncIdentityKey === patch.syncIdentityKey &&
+        plan.contentHash === patch.contentHash &&
+        plan.identityVersion === patch.identityVersion &&
+        plan.identityStrength === patch.identityStrength
+      ) {
+        continue;
+      }
+      await ctx.db.patch(plan._id, patch);
+      updated++;
+    }
+
+    if (!result.isDone && args.continue !== false) {
+      await ctx.scheduler.runAfter(0, internal.planCleanup.backfillPlanSyncIdentity, {
+        adminToken: args.adminToken,
+        cursor: result.continueCursor,
+        limit: args.limit,
+        continue: args.continue,
+      });
+    }
+
+    return {
+      mode: 'sync-identity-backfill',
+      scanned: result.page.length,
+      updated,
+      isDone: result.isDone,
+      continueCursor: result.isDone ? null : result.continueCursor,
+    };
+  },
+});
+
+export const auditDuplicatePlanSyncIdentities = internalQuery({
+  args: cleanupArgs,
+  handler: async (ctx, args) => {
+    requireAdminToken(args.adminToken);
+
+    const result = await ctx.db.query('plans').paginate({
+      cursor: args.cursor ?? null,
+      numItems: batchSize(args.limit),
+    });
+
+    const byKey = new Map<string, Doc<'plans'>[]>();
+    for (const plan of result.page) {
+      const key = syncDuplicateKey(plan);
+      const group = byKey.get(key) ?? [];
+      group.push(plan);
+      byKey.set(key, group);
+    }
+
+    const duplicateGroups: DuplicateAuditGroup[] = [];
+    for (const [key, group] of byKey) {
+      if (group.length < 2) continue;
+      const canonical = duplicateWinner(group);
+      duplicateGroups.push({
+        key,
+        count: group.length,
+        canonicalPlanId: String(canonical._id),
+        planIds: group.map((plan) => String(plan._id)),
+      });
+    }
+
+    return {
+      mode: 'duplicate-sync-dry-run' as const,
+      scanned: result.page.length,
+      duplicateGroups,
       isDone: result.isDone,
       continueCursor: result.isDone ? null : result.continueCursor,
     };

@@ -82,6 +82,10 @@ export default defineSchema({
     workspace: v.optional(v.string()),
     metadata: v.optional(v.any()),
     plannotatorContinuityKey: v.optional(v.string()),
+    syncIdentityKey: v.optional(v.string()),
+    contentHash: v.optional(v.string()),
+    identityVersion: v.optional(v.number()),
+    identityStrength: v.optional(v.string()),
     version: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -89,6 +93,8 @@ export default defineSchema({
     .index('by_owner', ['ownerId'])
     .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
     .index('by_owner_plannotatorContinuityKey', ['ownerId', 'plannotatorContinuityKey'])
+    .index('by_owner_syncIdentityKey', ['ownerId', 'syncIdentityKey'])
+    .index('by_owner_contentHash', ['ownerId', 'contentHash'])
     // Server-side content search for the plan list. The list query no longer
     // ships `content` to clients, so full-text matching has to happen here.
     .searchIndex('search_content', { searchField: 'content', filterFields: ['ownerId'] }),

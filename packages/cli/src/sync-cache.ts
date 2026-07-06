@@ -49,6 +49,10 @@ export function computePayloadHash(payload: SyncPlanPayload): string {
     payload.metadata ?? null,
     payload.createdAt ?? null,
     payload.updatedAt ?? null,
+    payload.syncIdentityKey ?? null,
+    payload.contentHash ?? null,
+    payload.identityVersion ?? null,
+    payload.identityStrength ?? null,
   ]);
   return createHash('sha256').update(canonical).digest('hex').slice(0, 20);
 }

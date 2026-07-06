@@ -1,3 +1,4 @@
+import { exactDuplicateKey } from '@agendex/shared/plan-sync-identity';
 import { assessPlanValue, type PlanValueAssessment } from '@agendex/shared/plan-value';
 
 type PlanMetadata = Record<string, unknown>;
@@ -6,6 +7,15 @@ type PlanWithMetadata = {
   title?: string;
   content?: string;
   metadata?: unknown;
+};
+
+type PlanWithDuplicateIdentity = PlanWithMetadata & {
+  agent: string;
+  title: string;
+  updatedAt: number;
+  _creationTime?: number;
+  syncIdentityKey?: string;
+  contentHash?: string;
 };
 
 const LOW_VALUE_METADATA_KEYS = ['lowValue', 'lowValueReasons', 'lowValueSignals'] as const;
@@ -95,4 +105,51 @@ export function isVisiblePlan(plan: PlanWithMetadata): boolean {
 // (`isVisiblePlan`) keep the live classifier as a defense-in-depth safety net.
 export function filterVisiblePlans<T extends PlanWithMetadata>(plans: T[]): T[] {
   return plans.filter((plan) => !hasLowValueMetadata(plan.metadata));
+}
+
+function duplicateKey(plan: PlanWithDuplicateIdentity): string | undefined {
+  if (plan.syncIdentityKey) return `sync:${plan.syncIdentityKey}`;
+  if (plan.contentHash) {
+    return `exact:${exactDuplicateKey({
+      agent: plan.agent,
+      title: plan.title,
+      contentHash: plan.contentHash,
+    })}`;
+  }
+  return undefined;
+}
+
+function betterDuplicateWinner<T extends PlanWithDuplicateIdentity>(current: T, candidate: T): T {
+  if (candidate.updatedAt !== current.updatedAt) {
+    return candidate.updatedAt > current.updatedAt ? candidate : current;
+  }
+  return (candidate._creationTime ?? 0) > (current._creationTime ?? 0) ? candidate : current;
+}
+
+export function dedupeVisiblePlans<T extends PlanWithDuplicateIdentity>(plans: T[]): T[] {
+  const keyed = new Map<string, T>();
+  const keyOrder: string[] = [];
+  const unkeyed: T[] = [];
+
+  for (const plan of plans) {
+    const key = duplicateKey(plan);
+    if (!key) {
+      unkeyed.push(plan);
+      continue;
+    }
+
+    const existing = keyed.get(key);
+    if (!existing) {
+      keyed.set(key, plan);
+      keyOrder.push(key);
+      continue;
+    }
+
+    keyed.set(key, betterDuplicateWinner(existing, plan));
+  }
+
+  return [
+    ...keyOrder.map((key) => keyed.get(key)).filter((plan): plan is T => Boolean(plan)),
+    ...unkeyed,
+  ];
 }

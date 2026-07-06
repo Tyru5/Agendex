@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { assessPlanValue } from '@agendex/shared/plan-value';
 import {
   assessPlanForVisibility,
+  dedupeVisiblePlans,
   filterVisiblePlans,
   hasLowValueMetadata,
   isVisiblePlan,
@@ -132,6 +133,65 @@ test('filterVisiblePlans trusts the persisted low-value flag and skips live clas
 
   const visible = filterVisiblePlans(plans);
   expect(visible.map((p) => p.title)).toEqual(['Helper', 'Plan']);
+});
+
+test('dedupeVisiblePlans keeps the newest canonical row per sync identity', () => {
+  const visible = dedupeVisiblePlans([
+    {
+      _creationTime: 1,
+      agent: 'cursor',
+      title: 'Plan',
+      content: 'old',
+      metadata: {},
+      updatedAt: 10,
+      syncIdentityKey: 'v1:cursor:path:plan.md',
+    },
+    {
+      _creationTime: 2,
+      agent: 'cursor',
+      title: 'Plan',
+      content: 'new',
+      metadata: {},
+      updatedAt: 20,
+      syncIdentityKey: 'v1:cursor:path:plan.md',
+    },
+    {
+      _creationTime: 3,
+      agent: 'cursor',
+      title: 'Other',
+      content: 'other',
+      metadata: {},
+      updatedAt: 5,
+    },
+  ]);
+
+  expect(visible.map((plan) => plan.content)).toEqual(['new', 'other']);
+});
+
+test('dedupeVisiblePlans falls back to exact content hash grouping', () => {
+  const visible = dedupeVisiblePlans([
+    {
+      _creationTime: 1,
+      agent: 'uploaded',
+      title: 'Same Plan',
+      content: 'a',
+      metadata: {},
+      updatedAt: 10,
+      contentHash: 'hash-1',
+    },
+    {
+      _creationTime: 2,
+      agent: 'uploaded',
+      title: '  Same   Plan  ',
+      content: 'a',
+      metadata: {},
+      updatedAt: 10,
+      contentHash: 'hash-1',
+    },
+  ]);
+
+  expect(visible).toHaveLength(1);
+  expect(visible[0]?.title).toBe('  Same   Plan  ');
 });
 
 test('metadataWithPlanValueAssessment annotates low-value and removes stale keys from valuable plans', () => {

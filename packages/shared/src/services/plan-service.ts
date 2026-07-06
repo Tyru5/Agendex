@@ -237,7 +237,7 @@ async function scanUserPlans(into: Map<string, Plan>) {
   const files = await walkDir(userPlansDir);
   for (const file of files) {
     if (!file.endsWith('.md')) continue;
-    const plan = await parseGenericMarkdownPlan(file, { userCreated: true });
+    const plan = await parseGenericMarkdownPlan(file, { userCreated: true, userPlansDir });
     if (plan) into.set(plan.id, preparePlanForIndex(plan));
   }
 }
@@ -605,7 +605,7 @@ export async function rescanFile(filePath: string) {
     normalized.endsWith('.md') &&
     (normalized.startsWith(userPlansDir + sep) || normalized === userPlansDir)
   ) {
-    const plan = await parseGenericMarkdownPlan(filePath, { userCreated: true });
+    const plan = await parseGenericMarkdownPlan(filePath, { userCreated: true, userPlansDir });
     if (plan) {
       const annotated = preparePlanForIndex(plan);
       store.set(annotated.id, annotated);
