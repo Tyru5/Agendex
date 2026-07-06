@@ -29,8 +29,12 @@ import { extractSyncOrigin, formatSyncOriginLabel } from '../lib/sync-origin.ts'
 import { AgentIcon } from './AgentIcon.tsx';
 import { ExitFullscreenIcon, FullscreenIcon } from './FullscreenIcons.tsx';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
+import { PlanActionButton } from './PlanActionButton.tsx';
+import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
 import { TechDependencyChart } from './TechDependencyChart.tsx';
+
+export { PlanActionButton } from './PlanActionButton.tsx';
 
 function extractWorkspace(plan: Plan): string | undefined {
   return plan.workspace || undefined;
@@ -165,39 +169,6 @@ type PlanViewerProps = {
   onClearAnnotationCreateError?: () => void;
   onSelectAnnotation?: (id: string | null) => void;
 };
-
-export function PlanActionButton({
-  label,
-  tooltip = label,
-  pressed,
-  disabled,
-  onClick,
-  children,
-  style,
-}: {
-  label: string;
-  tooltip?: string;
-  pressed?: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
-  children: ReactNode;
-  style?: CSSProperties;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={typeof pressed === 'boolean' ? pressed : undefined}
-      disabled={disabled}
-      data-tooltip={tooltip}
-      className="plan-action-button"
-      style={style}
-    >
-      {children}
-    </button>
-  );
-}
 
 export function PlanViewer({
   plan,
@@ -634,6 +605,7 @@ export function PlanViewer({
           </span>
         </span>
       </PlanActionButton>
+      <PlanDownloadButton plan={plan} />
       {actionToolbarExtra}
       {onEdit && (
         <PlanActionButton onClick={onEdit} label="Edit plan">
