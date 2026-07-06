@@ -785,10 +785,6 @@ export function EmptyStateView({
 
         <footer className={`empty-state-foot${showLedger ? ' empty-state-foot--divided' : ''}`}>
           <span className="empty-state-hint">
-            <kbd>{searchShortcut}</kbd>
-            Search plans
-          </span>
-          <span className="empty-state-hint">
             <kbd>{sidebarShortcut}</kbd>
             Toggle sidebar
           </span>
