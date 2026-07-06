@@ -59,6 +59,10 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .factory/
 .kilocode/
 .playwright-mcp/
+
+
+
+plans/
 goals/
 
 # local release-status helper (contains personal App Store Connect defaults)
