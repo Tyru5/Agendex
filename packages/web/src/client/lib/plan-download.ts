@@ -12,6 +12,7 @@ type DirectPlanDownload = {
 
 const MAX_FILENAME_STEM_LENGTH = 90;
 const FALLBACK_PLAN_NAME = 'agendex-plan';
+const BLOB_OBJECT_URL_REVOKE_DELAY_MS = 60_000;
 const INVALID_FILENAME_CHARS = '<>:"/\\|?*';
 const HTML_ESCAPE: Record<string, string> = {
   '&': '&amp;',
@@ -159,6 +160,12 @@ export function createPlanHtmlDocument(plan: PlanDownloadInput): string {
 </html>`;
 }
 
+function scheduleObjectUrlRevoke(url: string): void {
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, BLOB_OBJECT_URL_REVOKE_DELAY_MS);
+}
+
 export function downloadPlanBlob(download: DirectPlanDownload): void {
   const blob = new Blob([download.content], { type: download.mimeType });
   const url = URL.createObjectURL(blob);
@@ -168,9 +175,7 @@ export function downloadPlanBlob(download: DirectPlanDownload): void {
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
-  window.setTimeout(() => {
-    URL.revokeObjectURL(url);
-  }, 0);
+  scheduleObjectUrlRevoke(url);
 }
 
 export function openPlanPdfPrintWindow(plan: PlanDownloadInput): void {
