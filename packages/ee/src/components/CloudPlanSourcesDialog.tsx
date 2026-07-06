@@ -4,6 +4,10 @@ import {
   getCloudCustomPlanSources,
   type CloudCustomPlanSource,
 } from '../lib/cloud-plan-sources.ts';
+import {
+  CloudPlanSourcesDeleteActivity,
+  type DeleteJob,
+} from './CloudPlanSourcesDeleteActivity.tsx';
 
 interface CloudPlanSourcesDialogProps {
   readonly open: boolean;
@@ -14,13 +18,24 @@ interface CloudPlanSourcesDialogProps {
 
 const DELETE_BATCH_SIZE = 5;
 
+interface DeleteJobRequest {
+  readonly path: string;
+  readonly planIds: readonly string[];
+}
+
 async function deletePlansInBatches(
   planIds: readonly string[],
   onDeletePlan: (planId: string) => Promise<void>,
+  onProgress: () => void,
 ): Promise<void> {
   for (let start = 0; start < planIds.length; start += DELETE_BATCH_SIZE) {
     const batch = planIds.slice(start, start + DELETE_BATCH_SIZE);
-    await Promise.all(batch.map((planId) => onDeletePlan(planId)));
+    await Promise.all(
+      batch.map(async (planId) => {
+        await onDeletePlan(planId);
+        onProgress();
+      }),
+    );
   }
 }
 
@@ -32,25 +47,62 @@ export function CloudPlanSourcesDialog({
 }: CloudPlanSourcesDialogProps) {
   const sources = useMemo(() => getCloudCustomPlanSources(plans), [plans]);
   const [confirming, setConfirming] = useState<CloudCustomPlanSource | null>(null);
-  const [deletingPath, setDeletingPath] = useState<string | null>(null);
+  const [deleteJobs, setDeleteJobs] = useState<ReadonlyMap<string, DeleteJob>>(() => new Map());
   const [error, setError] = useState<string | null>(null);
+  const deleteJobList = useMemo(() => [...deleteJobs.values()], [deleteJobs]);
 
   if (!open) return null;
 
-  async function handleDelete(source: CloudCustomPlanSource) {
-    setDeletingPath(source.path);
-    setError(null);
+  function updateDeleteJob(
+    path: string,
+    getNextJob: (job: DeleteJob | undefined) => DeleteJob | undefined,
+  ) {
+    setDeleteJobs((currentJobs) => {
+      const nextJobs = new Map(currentJobs);
+      const nextJob = getNextJob(nextJobs.get(path));
+      if (nextJob) {
+        nextJobs.set(path, nextJob);
+      } else {
+        nextJobs.delete(path);
+      }
+      return nextJobs;
+    });
+  }
+
+  async function runDeleteJob(request: DeleteJobRequest): Promise<void> {
     try {
-      await deletePlansInBatches(
-        source.plans.map((plan) => plan.id),
-        onDeletePlan,
+      await deletePlansInBatches(request.planIds, onDeletePlan, () => {
+        updateDeleteJob(request.path, (job) =>
+          job ? { ...job, completed: Math.min(job.completed + 1, job.total) } : undefined,
+        );
+      });
+      updateDeleteJob(request.path, (job) =>
+        job
+          ? { ...job, completed: job.total, status: 'done', message: 'Finished in Cloud' }
+          : undefined,
       );
-      setConfirming(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove synced source');
-    } finally {
-      setDeletingPath(null);
+      const message = err instanceof Error ? err.message : 'Failed to remove synced source';
+      updateDeleteJob(request.path, (job) =>
+        job ? { ...job, status: 'failed', message } : undefined,
+      );
     }
+  }
+
+  function handleDelete(source: CloudCustomPlanSource) {
+    if (deleteJobs.get(source.path)?.status === 'running') return;
+    const planIds = source.plans.map((plan) => plan.id);
+    setConfirming(null);
+    setError(null);
+    updateDeleteJob(source.path, () => ({
+      path: source.path,
+      label: source.label,
+      completed: 0,
+      total: planIds.length,
+      status: 'running',
+      message: 'Removing in background',
+    }));
+    void runDeleteJob({ path: source.path, planIds });
   }
 
   return (
@@ -59,10 +111,10 @@ export function CloudPlanSourcesDialog({
       className="fixed inset-0 z-[100] flex items-center justify-center"
       style={{ background: 'rgba(0,0,0,0.5)' }}
       onClick={(e) => {
-        if (e.target === e.currentTarget && !deletingPath) onClose();
+        if (e.target === e.currentTarget) onClose();
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Escape' && !deletingPath) onClose();
+        if (e.key === 'Escape') onClose();
       }}
     >
       <div
@@ -70,7 +122,7 @@ export function CloudPlanSourcesDialog({
         aria-modal="true"
         aria-labelledby="cloud-plan-sources-title"
         className="rounded-xl border border-border bg-surface shadow-lg"
-        style={{ width: 520, maxHeight: '80vh', overflow: 'auto' }}
+        style={{ width: 'min(520px, calc(100vw - 24px))', maxHeight: '80vh', overflow: 'auto' }}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h3 id="cloud-plan-sources-title" className="text-[15px] font-semibold text-text m-0">
@@ -79,8 +131,7 @@ export function CloudPlanSourcesDialog({
           <button
             type="button"
             onClick={onClose}
-            disabled={Boolean(deletingPath)}
-            className="w-7 h-7 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center disabled:cursor-default disabled:opacity-50"
+            className="w-7 h-7 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
             style={{ lineHeight: 0 }}
             aria-label="Close"
           >
@@ -107,6 +158,11 @@ export function CloudPlanSourcesDialog({
             </div>
           )}
 
+          <CloudPlanSourcesDeleteActivity
+            jobs={deleteJobList}
+            onDismiss={(path) => updateDeleteJob(path, () => undefined)}
+          />
+
           {sources.length === 0 ? (
             <p className="text-[12px] text-tertiary m-0 text-center py-3">
               No synced custom directories found in Cloud.
@@ -115,7 +171,8 @@ export function CloudPlanSourcesDialog({
             <div className="flex flex-col gap-2">
               {sources.map((source) => {
                 const isConfirming = confirming?.path === source.path;
-                const isDeleting = deletingPath === source.path;
+                const deleteJob = deleteJobs.get(source.path);
+                const isDeleting = deleteJob?.status === 'running';
 
                 return (
                   <div
@@ -150,10 +207,15 @@ export function CloudPlanSourcesDialog({
                         </div>
                       </div>
                       <span className="sidebar-count-pill">{source.plans.length}</span>
+                      {isDeleting && (
+                        <span className="hidden sm:inline text-[11px] text-tertiary whitespace-nowrap">
+                          Removing in background
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={() => setConfirming(source)}
-                        disabled={Boolean(deletingPath)}
+                        disabled={isDeleting}
                         className="text-[12px] font-medium px-3 py-1.5 rounded-md border border-border bg-transparent text-[var(--danger)] cursor-pointer disabled:cursor-default disabled:opacity-50"
                       >
                         Remove
@@ -170,19 +232,18 @@ export function CloudPlanSourcesDialog({
                           <button
                             type="button"
                             onClick={() => setConfirming(null)}
-                            disabled={Boolean(deletingPath)}
-                            className="text-[12px] font-medium px-3 py-1.5 rounded-md border border-border bg-transparent text-secondary cursor-pointer disabled:cursor-default disabled:opacity-50"
+                            className="text-[12px] font-medium px-3 py-1.5 rounded-md border border-border bg-transparent text-secondary cursor-pointer"
                           >
                             Cancel
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(source)}
-                            disabled={Boolean(deletingPath)}
+                            disabled={isDeleting}
                             className="text-[12px] font-semibold px-3 py-1.5 rounded-md border border-border cursor-pointer disabled:cursor-default disabled:opacity-50"
                             style={{ background: 'var(--danger)', color: 'var(--bg)' }}
                           >
-                            {isDeleting ? 'Removing...' : 'Delete from Cloud'}
+                            {isDeleting ? 'Removing in background' : 'Delete from Cloud'}
                           </button>
                         </div>
                       </div>
