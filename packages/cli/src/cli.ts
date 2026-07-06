@@ -394,7 +394,7 @@ async function notifyServerPlanSource(
   resolved: string,
 ): Promise<number> {
   const cfg = loadConfig();
-  const token = cfg?.token;
+  const token = process.env.AGENDEX_TOKEN || cfg?.token;
   if (!token) {
     writeStderr('[agendex] no local token found in config — is the server running?');
     return 1;

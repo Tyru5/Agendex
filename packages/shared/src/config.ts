@@ -115,14 +115,12 @@ function canonicalizeCustomPlanDir(path: string): string {
  */
 export function removeCustomPlanDir(dirs: string[], target: string): string[] | null {
   const resolved = resolveCustomPlanDirPath(target);
-  const exact = dirs.filter((d) => d !== resolved);
-  if (exact.length !== dirs.length) return exact;
-
   const canonicalTarget = canonicalizeCustomPlanDir(resolved);
-  const byRealpath = dirs.filter(
-    (d) => canonicalizeCustomPlanDir(resolveCustomPlanDirPath(d)) !== canonicalTarget,
-  );
-  if (byRealpath.length !== dirs.length) return byRealpath;
+  const updated = dirs.filter((d) => {
+    const normalized = resolveCustomPlanDirPath(d);
+    return normalized !== resolved && canonicalizeCustomPlanDir(normalized) !== canonicalTarget;
+  });
+  if (updated.length !== dirs.length) return updated;
 
   return null;
 }
@@ -202,7 +200,7 @@ export function loadOrCreateToken(): string {
 
   const token = generateToken();
   saveConfig({
-    ...(existing ?? {}),
+    ...existing,
     configVersion: 3,
     token,
     enabledAdapters: existing?.enabledAdapters ?? [],
@@ -219,7 +217,7 @@ export function loadOrCreateDeviceId(): string {
 
   const deviceId = randomBytes(16).toString('hex');
   saveConfig({
-    ...(existing ?? {}),
+    ...existing,
     configVersion: 3,
     deviceId,
     enabledAdapters: existing?.enabledAdapters ?? [],
