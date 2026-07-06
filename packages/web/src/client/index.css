@@ -2117,6 +2117,79 @@ body {
   transform: translate(-50%, 0) rotate(45deg);
 }
 
+.plan-download-action {
+  position: relative;
+  display: inline-flex;
+}
+
+.plan-download-action[data-open="true"] .plan-action-button[data-tooltip]::after,
+.plan-download-action[data-open="true"] .plan-action-button[data-tooltip]::before {
+  display: none;
+}
+
+.plan-download-menu {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 70;
+  display: flex;
+  min-width: 158px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+  padding: 4px;
+}
+
+.plan-download-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 8px 9px;
+  text-align: left;
+  transition:
+    background 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.plan-download-menu-item:hover,
+.plan-download-menu-item:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+
+.plan-download-menu-status {
+  padding: 5px 9px 7px;
+  color: var(--danger);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.plan-action-toolbar[data-docked="true"] .plan-download-menu {
+  top: 0;
+  right: auto;
+  left: calc(100% + 8px);
+}
+
+.plan-action-toolbar[data-dock-placement="bottom"] .plan-download-menu {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .plan-readonly-badge {
   display: inline-flex;
   align-items: center;
@@ -2289,6 +2362,23 @@ body {
   .plan-action-button[data-tooltip]:hover::after,
   .plan-action-button[data-tooltip]:focus-visible::after {
     transform: translateY(0);
+  }
+
+  .plan-download-menu {
+    right: auto;
+    left: 0;
+    max-width: calc(100vw - 24px);
+    transform: none;
+  }
+
+  .plan-action-toolbar[data-docked="true"] .plan-download-menu,
+  .plan-action-toolbar[data-dock-placement="bottom"] .plan-download-menu {
+    position: fixed;
+    top: auto;
+    right: auto;
+    bottom: calc(68px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
   }
 }
 
