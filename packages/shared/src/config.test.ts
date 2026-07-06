@@ -1,8 +1,15 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getConfigPath, loadConfig, loadOrCreateToken, saveConfig } from './config.ts';
+import {
+  getConfigPath,
+  loadConfig,
+  loadOrCreateToken,
+  removeCustomPlanDir,
+  resolveCustomPlanDirPath,
+  saveConfig,
+} from './config.ts';
 
 const originalEnv: Record<string, string | undefined> = {
   AGENDEX_CONFIG_DIR: process.env.AGENDEX_CONFIG_DIR,
@@ -65,4 +72,66 @@ test('loadOrCreateToken preserves existing cloud session fields', async () => {
     enabledAdapters: ['cursor'],
     customPlanDirs: ['/tmp/agendex-plans'],
   });
+});
+
+test('removeCustomPlanDir removes an exactly matching normalized path', () => {
+  const dirs = ['/tmp/a', '/tmp/b'];
+  const updated = removeCustomPlanDir(dirs, '/tmp/a/');
+  expect(updated).toEqual(['/tmp/b']);
+});
+
+test('removeCustomPlanDir returns null when nothing matches', () => {
+  const dirs = ['/tmp/a', '/tmp/b'];
+  expect(removeCustomPlanDir(dirs, '/tmp/nope')).toBeNull();
+});
+
+test('removeCustomPlanDir matches via realpath when given a symlink to a stored dir', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'agendex-remove-'));
+  try {
+    const real = join(root, 'real');
+    const link = join(root, 'link');
+    await mkdir(real);
+    await symlink(real, link);
+
+    const stored = [resolveCustomPlanDirPath(real)];
+    const updated = removeCustomPlanDir(stored, link);
+
+    expect(updated).toEqual([]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('removeCustomPlanDir removes a stored symlink alias when removing the real path', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'agendex-remove-alias-'));
+  try {
+    const real = join(root, 'real');
+    const link = join(root, 'link');
+    await mkdir(real);
+    await symlink(real, link);
+
+    const stored = [resolveCustomPlanDirPath(real), resolveCustomPlanDirPath(link)];
+    const updated = removeCustomPlanDir(stored, real);
+
+    expect(updated).toEqual([]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('removeCustomPlanDir removes a stored real path alias when removing the symlink path', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'agendex-remove-alias-'));
+  try {
+    const real = join(root, 'real');
+    const link = join(root, 'link');
+    await mkdir(real);
+    await symlink(real, link);
+
+    const stored = [resolveCustomPlanDirPath(real), resolveCustomPlanDirPath(link)];
+    const updated = removeCustomPlanDir(stored, link);
+
+    expect(updated).toEqual([]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

@@ -76,7 +76,11 @@ const HELP_GROUPS: HelpGroup[] = [
         description: 'Add a custom directory to scan for plans',
         examples: ['agendex add-dir ~/plans --live'],
       },
-      { command: 'remove-dir <path>', description: 'Remove a custom plan directory' },
+      {
+        command: 'remove-dir <path>',
+        description: 'Remove a custom plan directory',
+        examples: ['agendex remove-dir ~/plans --live'],
+      },
       { command: 'list-dirs', description: 'List configured custom plan directories' },
     ],
   },
