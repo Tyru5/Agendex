@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -46,12 +47,12 @@ export const continueIdeAdapter: AgentAdapter = {
 
       let title = 'Continue Session';
       let workspace: string | undefined;
+      const sessionId = filePath.split('/').pop()?.replace('.json', '');
 
       const indexPath = join(continueDir, 'sessions.json');
       try {
         const indexRaw = await readFile(indexPath, 'utf-8');
         const sessions: SessionIndex[] = JSON.parse(indexRaw);
-        const sessionId = filePath.split('/').pop()?.replace('.json', '');
         const meta = sessions.find((s) => s.sessionId === sessionId);
         if (meta) {
           title = meta.title || title;
@@ -76,7 +77,7 @@ export const continueIdeAdapter: AgentAdapter = {
           createdAt: stats.birthtime,
           updatedAt: stats.mtime,
           workspace,
-          metadata: {},
+          metadata: sessionId ? { sessionId } : {},
         },
       ];
     } catch {

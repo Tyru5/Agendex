@@ -1,3 +1,4 @@
+import { computePlanSyncIdentity, exactDuplicateKey } from '@agendex/shared/plan-sync-identity';
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
@@ -26,6 +27,18 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function normalizedTitle(title: string): string {
+  return title.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function validIdentityStrength(value: unknown): 'strong' | 'path' | 'content' | undefined {
+  return value === 'strong' || value === 'path' || value === 'content' ? value : undefined;
+}
+
+function isIndexedIdentityStrength(value: unknown): boolean {
+  return value === 'strong' || value === 'path';
 }
 
 function getPlannotatorMetadata(metadata: unknown): Record<string, unknown> | undefined {
@@ -246,6 +259,79 @@ export const findPlanByOwnerAndLocalId = internalQuery({
   },
 });
 
+export const findPlanByOwnerAndSyncIdentityKey = internalQuery({
+  args: { ownerId: v.string(), syncIdentityKey: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('plans')
+      .withIndex('by_owner_syncIdentityKey', (q) =>
+        q.eq('ownerId', args.ownerId).eq('syncIdentityKey', args.syncIdentityKey),
+      )
+      .first();
+  },
+});
+
+export const findPlanByOwnerAndPlannotatorContinuityKey = internalQuery({
+  args: { ownerId: v.string(), plannotatorContinuityKey: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('plans')
+      .withIndex('by_owner_plannotatorContinuityKey', (q) =>
+        q.eq('ownerId', args.ownerId).eq('plannotatorContinuityKey', args.plannotatorContinuityKey),
+      )
+      .first();
+  },
+});
+
+export const findPlansByOwnerAndContentHash = internalQuery({
+  args: { ownerId: v.string(), contentHash: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('plans')
+      .withIndex('by_owner_contentHash', (q) =>
+        q.eq('ownerId', args.ownerId).eq('contentHash', args.contentHash),
+      )
+      .take(25);
+  },
+});
+
+export const patchPlanSyncIdentity = internalMutation({
+  args: {
+    ownerId: v.string(),
+    planId: v.id('plans'),
+    localPlanId: v.string(),
+    syncIdentityKey: v.optional(v.string()),
+    contentHash: v.optional(v.string()),
+    identityVersion: v.optional(v.number()),
+    identityStrength: v.optional(v.string()),
+    plannotatorContinuityKey: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    filePath: v.optional(v.string()),
+    workspace: v.optional(v.string()),
+    updatedAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const plan = await ctx.db.get(args.planId);
+    if (!plan || plan.ownerId !== args.ownerId) return false;
+
+    await ctx.db.patch(args.planId, {
+      ...(plan.localPlanId ? {} : { localPlanId: args.localPlanId }),
+      syncIdentityKey: args.syncIdentityKey,
+      contentHash: args.contentHash,
+      identityVersion: args.identityVersion,
+      identityStrength: args.identityStrength,
+      ...(args.plannotatorContinuityKey
+        ? { plannotatorContinuityKey: args.plannotatorContinuityKey }
+        : {}),
+      ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
+      ...(args.filePath !== undefined ? { filePath: args.filePath } : {}),
+      ...(args.workspace !== undefined ? { workspace: args.workspace } : {}),
+      ...(args.updatedAt !== undefined ? { updatedAt: args.updatedAt } : {}),
+    });
+    return true;
+  },
+});
+
 export const upsertPlan = internalMutation({
   args: {
     ownerId: v.string(),
@@ -259,6 +345,10 @@ export const upsertPlan = internalMutation({
     metadata: v.optional(v.any()),
     createdAt: v.optional(v.number()),
     updatedAt: v.optional(v.number()),
+    syncIdentityKey: v.optional(v.string()),
+    contentHash: v.optional(v.string()),
+    identityVersion: v.optional(v.number()),
+    identityStrength: v.optional(v.string()),
     existingId: v.optional(v.id('plans')),
     existingVersion: v.optional(v.number()),
   },
@@ -276,6 +366,10 @@ export const upsertPlan = internalMutation({
         workspace: args.workspace,
         metadata: args.metadata,
         ...(continuityKey ? { plannotatorContinuityKey: continuityKey } : {}),
+        syncIdentityKey: args.syncIdentityKey,
+        contentHash: args.contentHash,
+        identityVersion: args.identityVersion,
+        identityStrength: args.identityStrength,
         version: args.existingVersion + 1,
         updatedAt: args.updatedAt ?? now,
       });
@@ -301,6 +395,10 @@ export const upsertPlan = internalMutation({
       workspace: args.workspace,
       metadata: args.metadata,
       ...(continuityKey ? { plannotatorContinuityKey: continuityKey } : {}),
+      syncIdentityKey: args.syncIdentityKey,
+      contentHash: args.contentHash,
+      identityVersion: args.identityVersion,
+      identityStrength: args.identityStrength,
       version: 1,
       createdAt: args.createdAt ?? now,
       updatedAt: args.updatedAt ?? now,
@@ -392,7 +490,12 @@ export const sync = httpAction(async (ctx, request) => {
       (body.filePath !== undefined && typeof body.filePath !== 'string') ||
       (body.workspace !== undefined && typeof body.workspace !== 'string') ||
       (body.createdAt !== undefined && typeof body.createdAt !== 'number') ||
-      (body.updatedAt !== undefined && typeof body.updatedAt !== 'number')
+      (body.updatedAt !== undefined && typeof body.updatedAt !== 'number') ||
+      (body.syncIdentityKey !== undefined && typeof body.syncIdentityKey !== 'string') ||
+      (body.contentHash !== undefined && typeof body.contentHash !== 'string') ||
+      (body.identityVersion !== undefined && typeof body.identityVersion !== 'number') ||
+      (body.identityStrength !== undefined &&
+        validIdentityStrength(body.identityStrength) === undefined)
     ) {
       return jsonResponse({ error: 'Invalid optional field types' }, 400);
     }
@@ -402,31 +505,141 @@ export const sync = httpAction(async (ctx, request) => {
         ? stripLocalIpFromMetadata(body.metadata).metadata
         : body.metadata;
 
-    const existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndLocalId, {
+    const incomingIdentity = computePlanSyncIdentity({
+      agent: body.agent,
+      title: body.title,
+      content: body.content,
+      format: body.format,
+      filePath: body.filePath,
+      workspace: body.workspace,
+      metadata: incomingMetadata,
+    });
+    const incomingContinuityKey = plannotatorContinuityKey(incomingMetadata, body.filePath);
+    const incomingUpdatedAt = body.updatedAt ?? Date.now();
+
+    let existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndLocalId, {
       ownerId,
       localPlanId: body.localPlanId,
     });
+
+    if (
+      !existing &&
+      incomingIdentity.syncIdentityKey &&
+      isIndexedIdentityStrength(incomingIdentity.identityStrength)
+    ) {
+      existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndSyncIdentityKey, {
+        ownerId,
+        syncIdentityKey: incomingIdentity.syncIdentityKey,
+      });
+    }
+
+    if (!existing && incomingContinuityKey) {
+      existing = await ctx.runQuery(internal.cli.findPlanByOwnerAndPlannotatorContinuityKey, {
+        ownerId,
+        plannotatorContinuityKey: incomingContinuityKey,
+      });
+    }
+
+    if (!existing) {
+      const exactKey = exactDuplicateKey({
+        agent: body.agent,
+        title: body.title,
+        contentHash: incomingIdentity.contentHash,
+      });
+      const candidates = await ctx.runQuery(internal.cli.findPlansByOwnerAndContentHash, {
+        ownerId,
+        contentHash: incomingIdentity.contentHash,
+      });
+      existing =
+        candidates.find(
+          (candidate) =>
+            candidate.contentHash &&
+            exactDuplicateKey({
+              agent: candidate.agent,
+              title: candidate.title,
+              contentHash: candidate.contentHash,
+            }) === exactKey,
+        ) ?? null;
+    }
 
     const metadata = mergePlanMetadata(existing?.metadata, incomingMetadata);
     const classifiedMetadata = metadataWithPlanValueAssessment(metadata, {
       title: body.title,
       content: body.content,
     });
+    const identity = computePlanSyncIdentity({
+      agent: body.agent,
+      title: body.title,
+      content: body.content,
+      format: body.format,
+      filePath: body.filePath,
+      workspace: body.workspace,
+      metadata: classifiedMetadata,
+    });
+    const continuityKey = plannotatorContinuityKey(classifiedMetadata, body.filePath);
 
     if (hasLowValueMetadata(classifiedMetadata)) {
-      const deleted = existing
-        ? await ctx.runMutation(internal.cli.deleteSyncedPlan, {
-            ownerId,
-            planId: existing._id,
-          })
-        : false;
+      const canDelete = Boolean(
+        existing &&
+        (existing.contentHash === identity.contentHash || existing.content === body.content),
+      );
+      const deleted =
+        canDelete && existing
+          ? await ctx.runMutation(internal.cli.deleteSyncedPlan, {
+              ownerId,
+              planId: existing._id,
+            })
+          : false;
 
       return jsonResponse({
         ok: true,
         skippedLowValue: true,
         deleted,
+        stale: Boolean(existing && !canDelete),
         lowValueReasons: classifiedMetadata?.lowValueReasons,
       });
+    }
+
+    if (existing) {
+      const exactDuplicate =
+        (existing.contentHash === identity.contentHash &&
+          existing.agent === body.agent &&
+          normalizedTitle(existing.title) === normalizedTitle(body.title)) ||
+        (existing.title === body.title &&
+          existing.content === body.content &&
+          existing.format === body.format);
+
+      if (exactDuplicate) {
+        await ctx.runMutation(internal.cli.patchPlanSyncIdentity, {
+          ownerId,
+          planId: existing._id,
+          localPlanId: body.localPlanId,
+          syncIdentityKey: identity.syncIdentityKey,
+          contentHash: identity.contentHash,
+          identityVersion: identity.identityVersion,
+          identityStrength: identity.identityStrength,
+          plannotatorContinuityKey: continuityKey,
+          metadata: classifiedMetadata,
+          filePath: body.filePath,
+          workspace: body.workspace,
+          updatedAt: incomingUpdatedAt,
+        });
+        return jsonResponse({ ok: true, planId: existing._id, stale: false });
+      }
+
+      if (incomingUpdatedAt < existing.updatedAt) {
+        await ctx.runMutation(internal.cli.patchPlanSyncIdentity, {
+          ownerId,
+          planId: existing._id,
+          localPlanId: body.localPlanId,
+          syncIdentityKey: identity.syncIdentityKey,
+          contentHash: identity.contentHash,
+          identityVersion: identity.identityVersion,
+          identityStrength: identity.identityStrength,
+          plannotatorContinuityKey: continuityKey,
+        });
+        return jsonResponse({ ok: true, planId: existing._id, stale: true });
+      }
     }
 
     const planId = await ctx.runMutation(internal.cli.upsertPlan, {
@@ -441,6 +654,10 @@ export const sync = httpAction(async (ctx, request) => {
       metadata: classifiedMetadata,
       createdAt: body.createdAt,
       updatedAt: body.updatedAt,
+      syncIdentityKey: identity.syncIdentityKey,
+      contentHash: identity.contentHash,
+      identityVersion: identity.identityVersion,
+      identityStrength: identity.identityStrength,
       existingId: existing?._id,
       existingVersion: existing?.version,
     });
@@ -714,7 +931,12 @@ export const plannotatorWritebacks = httpAction(async (ctx, request) => {
   if (authResult instanceof Response) return authResult;
   const { ownerId } = authResult;
 
-  const url = new URL(request.url);
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return jsonResponse({ error: 'Invalid request URL' }, 400);
+  }
   const deviceId = url.searchParams.get('deviceId') || undefined;
   const rawLimit = Number.parseInt(url.searchParams.get('limit') ?? '10', 10);
   const limit = Number.isFinite(rawLimit) ? rawLimit : 10;

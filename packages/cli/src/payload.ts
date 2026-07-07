@@ -1,5 +1,5 @@
 import { basename, resolve } from 'node:path';
-import { hashPath, type Plan } from '@agendex/shared';
+import { computePlanSyncIdentity, hashPath, type Plan } from '@agendex/shared';
 import type { SyncPlanPayload } from './api.ts';
 
 const SYNC_METADATA_KEY = 'agendexSync';
@@ -83,21 +83,33 @@ export function fileToSyncPayload(
   const { title, agent, body } = parseUploadFile(absolutePath, content, options.agentOverride);
   const now = Date.now();
 
+  const localPlanId = hashPath(absolutePath);
+  const metadata = { uploaded: true, userCreated: true };
+  const identity = computePlanSyncIdentity({
+    agent,
+    title,
+    content: body,
+    format: 'md',
+    filePath: absolutePath,
+    metadata,
+  });
+
   return {
-    localPlanId: hashPath(absolutePath),
+    localPlanId,
     agent,
     title,
     content: body,
     format: 'md',
     filePath: absolutePath,
     metadata: withSyncDeviceMetadata(
-      { uploaded: true, userCreated: true },
+      metadata,
       options.deviceId,
       options.hostname,
       options.ipAddress,
     ),
     createdAt: options.createdAt ?? now,
     updatedAt: options.updatedAt ?? now,
+    ...identity,
   };
 }
 
@@ -107,6 +119,16 @@ export function planToSyncPayload(
   hostname?: string,
   ipAddress?: string,
 ): SyncPlanPayload {
+  const identity = computePlanSyncIdentity({
+    agent: plan.agent,
+    title: plan.title,
+    content: plan.content,
+    format: plan.format,
+    filePath: plan.filePath,
+    workspace: plan.workspace,
+    metadata: plan.metadata,
+  });
+
   return {
     localPlanId: plan.id,
     agent: plan.agent,
@@ -118,5 +140,6 @@ export function planToSyncPayload(
     metadata: withSyncDeviceMetadata(plan.metadata, deviceId, hostname, ipAddress),
     createdAt: plan.createdAt.getTime(),
     updatedAt: plan.updatedAt.getTime(),
+    ...identity,
   };
 }

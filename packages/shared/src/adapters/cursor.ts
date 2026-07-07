@@ -68,6 +68,11 @@ function stripFrontmatter(raw: string): { body: string; metadata: Record<string,
     metadata.isProject = projectMatch[1].trim() === 'true';
   }
 
+  const stableIdMatch = fmBody.match(/^(?:id|planId|sessionId|sourceId):\s*(.+)$/m);
+  if (stableIdMatch?.[1]) {
+    metadata.sessionId = stableIdMatch[1].trim();
+  }
+
   const body = text.slice(fmMatch[0].length).trim();
   return { body, metadata };
 }

@@ -1,3 +1,4 @@
+import { exactDuplicateKey } from '@agendex/shared/plan-sync-identity';
 import { assessPlanValue, type PlanValueAssessment } from '@agendex/shared/plan-value';
 
 type PlanMetadata = Record<string, unknown>;
@@ -6,6 +7,15 @@ type PlanWithMetadata = {
   title?: string;
   content?: string;
   metadata?: unknown;
+};
+
+type PlanWithDuplicateIdentity = PlanWithMetadata & {
+  agent: string;
+  title: string;
+  updatedAt: number;
+  _creationTime?: number;
+  syncIdentityKey?: string;
+  contentHash?: string;
 };
 
 const LOW_VALUE_METADATA_KEYS = ['lowValue', 'lowValueReasons', 'lowValueSignals'] as const;
@@ -95,4 +105,71 @@ export function isVisiblePlan(plan: PlanWithMetadata): boolean {
 // (`isVisiblePlan`) keep the live classifier as a defense-in-depth safety net.
 export function filterVisiblePlans<T extends PlanWithMetadata>(plans: T[]): T[] {
   return plans.filter((plan) => !hasLowValueMetadata(plan.metadata));
+}
+
+function duplicateKey(plan: PlanWithDuplicateIdentity): string | undefined {
+  if (plan.syncIdentityKey) return `sync:${plan.syncIdentityKey}`;
+  if (plan.contentHash) {
+    return `exact:${exactDuplicateKey({
+      agent: plan.agent,
+      title: plan.title,
+      contentHash: plan.contentHash,
+    })}`;
+  }
+  return undefined;
+}
+
+function betterDuplicateWinner<T extends PlanWithDuplicateIdentity>(current: T, candidate: T): T {
+  if (candidate.updatedAt !== current.updatedAt) {
+    return candidate.updatedAt > current.updatedAt ? candidate : current;
+  }
+  return (candidate._creationTime ?? 0) > (current._creationTime ?? 0) ? candidate : current;
+}
+
+export function dedupeVisiblePlans<T extends PlanWithDuplicateIdentity>(plans: T[]): T[] {
+  const winners = new Map<string, T>();
+
+  for (const plan of plans) {
+    const key = duplicateKey(plan);
+    if (!key) continue;
+    const existing = winners.get(key);
+    winners.set(key, existing ? betterDuplicateWinner(existing, plan) : plan);
+  }
+
+  const emitted = new Set<string>();
+  const result: T[] = [];
+
+  for (const plan of plans) {
+    const key = duplicateKey(plan);
+    if (!key) {
+      result.push(plan);
+      continue;
+    }
+    if (emitted.has(key)) continue;
+    emitted.add(key);
+    result.push(winners.get(key)!);
+  }
+
+  return result;
+}
+
+// Search results are already relevance-ranked. Keep the first hit per duplicate
+// group instead of promoting a newer non-matching winner that was not in the
+// search result set.
+export function dedupeSearchPlans<T extends PlanWithDuplicateIdentity>(plans: T[]): T[] {
+  const emitted = new Set<string>();
+  const result: T[] = [];
+
+  for (const plan of plans) {
+    const key = duplicateKey(plan);
+    if (!key) {
+      result.push(plan);
+      continue;
+    }
+    if (emitted.has(key)) continue;
+    emitted.add(key);
+    result.push(plan);
+  }
+
+  return result;
 }
