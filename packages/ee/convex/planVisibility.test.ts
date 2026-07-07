@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { assessPlanValue } from '@agendex/shared/plan-value';
 import {
   assessPlanForVisibility,
+  dedupeSearchPlans,
   dedupeVisiblePlans,
   filterVisiblePlans,
   hasLowValueMetadata,
@@ -192,6 +193,65 @@ test('dedupeVisiblePlans falls back to exact content hash grouping', () => {
 
   expect(visible).toHaveLength(1);
   expect(visible[0]?.title).toBe('  Same   Plan  ');
+});
+
+test('dedupeVisiblePlans preserves page order for unkeyed plans', () => {
+  const visible = dedupeVisiblePlans([
+    {
+      _creationTime: 1,
+      agent: 'cursor',
+      title: 'Keyed Old',
+      content: 'old',
+      metadata: {},
+      updatedAt: 10,
+      syncIdentityKey: 'v1:cursor:path:plan.md',
+    },
+    {
+      _creationTime: 2,
+      agent: 'cursor',
+      title: 'Unkeyed',
+      content: 'no key',
+      metadata: {},
+      updatedAt: 15,
+    },
+    {
+      _creationTime: 3,
+      agent: 'cursor',
+      title: 'Keyed New',
+      content: 'new',
+      metadata: {},
+      updatedAt: 20,
+      syncIdentityKey: 'v1:cursor:path:plan.md',
+    },
+  ]);
+
+  expect(visible.map((plan) => plan.content)).toEqual(['new', 'no key']);
+});
+
+test('dedupeSearchPlans keeps the first relevance-ranked match per duplicate group', () => {
+  const visible = dedupeSearchPlans([
+    {
+      _creationTime: 1,
+      agent: 'cursor',
+      title: 'Plan',
+      content: 'matching search term',
+      metadata: {},
+      updatedAt: 10,
+      syncIdentityKey: 'v1:cursor:path:plan.md',
+    },
+    {
+      _creationTime: 2,
+      agent: 'cursor',
+      title: 'Plan',
+      content: 'newer body without the term',
+      metadata: {},
+      updatedAt: 20,
+      syncIdentityKey: 'v1:cursor:path:plan.md',
+    },
+  ]);
+
+  expect(visible).toHaveLength(1);
+  expect(visible[0]?.content).toBe('matching search term');
 });
 
 test('metadataWithPlanValueAssessment annotates low-value and removes stale keys from valuable plans', () => {

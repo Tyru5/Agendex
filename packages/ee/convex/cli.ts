@@ -305,6 +305,10 @@ export const patchPlanSyncIdentity = internalMutation({
     identityVersion: v.optional(v.number()),
     identityStrength: v.optional(v.string()),
     plannotatorContinuityKey: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    filePath: v.optional(v.string()),
+    workspace: v.optional(v.string()),
+    updatedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const plan = await ctx.db.get(args.planId);
@@ -319,6 +323,10 @@ export const patchPlanSyncIdentity = internalMutation({
       ...(args.plannotatorContinuityKey
         ? { plannotatorContinuityKey: args.plannotatorContinuityKey }
         : {}),
+      ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
+      ...(args.filePath !== undefined ? { filePath: args.filePath } : {}),
+      ...(args.workspace !== undefined ? { workspace: args.workspace } : {}),
+      ...(args.updatedAt !== undefined ? { updatedAt: args.updatedAt } : {}),
     });
     return true;
   },
@@ -573,9 +581,7 @@ export const sync = httpAction(async (ctx, request) => {
     if (hasLowValueMetadata(classifiedMetadata)) {
       const canDelete = Boolean(
         existing &&
-        (existing.contentHash === identity.contentHash ||
-          existing.content === body.content ||
-          incomingUpdatedAt >= existing.updatedAt),
+        (existing.contentHash === identity.contentHash || existing.content === body.content),
       );
       const deleted =
         canDelete && existing
@@ -603,7 +609,25 @@ export const sync = httpAction(async (ctx, request) => {
           existing.content === body.content &&
           existing.format === body.format);
 
-      if (exactDuplicate || incomingUpdatedAt < existing.updatedAt) {
+      if (exactDuplicate) {
+        await ctx.runMutation(internal.cli.patchPlanSyncIdentity, {
+          ownerId,
+          planId: existing._id,
+          localPlanId: body.localPlanId,
+          syncIdentityKey: identity.syncIdentityKey,
+          contentHash: identity.contentHash,
+          identityVersion: identity.identityVersion,
+          identityStrength: identity.identityStrength,
+          plannotatorContinuityKey: continuityKey,
+          metadata: classifiedMetadata,
+          filePath: body.filePath,
+          workspace: body.workspace,
+          updatedAt: incomingUpdatedAt,
+        });
+        return jsonResponse({ ok: true, planId: existing._id, stale: false });
+      }
+
+      if (incomingUpdatedAt < existing.updatedAt) {
         await ctx.runMutation(internal.cli.patchPlanSyncIdentity, {
           ownerId,
           planId: existing._id,
@@ -614,7 +638,7 @@ export const sync = httpAction(async (ctx, request) => {
           identityStrength: identity.identityStrength,
           plannotatorContinuityKey: continuityKey,
         });
-        return jsonResponse({ ok: true, planId: existing._id, stale: !exactDuplicate });
+        return jsonResponse({ ok: true, planId: existing._id, stale: true });
       }
     }
 

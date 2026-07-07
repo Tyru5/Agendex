@@ -127,29 +127,49 @@ function betterDuplicateWinner<T extends PlanWithDuplicateIdentity>(current: T, 
 }
 
 export function dedupeVisiblePlans<T extends PlanWithDuplicateIdentity>(plans: T[]): T[] {
-  const keyed = new Map<string, T>();
-  const keyOrder: string[] = [];
-  const unkeyed: T[] = [];
+  const winners = new Map<string, T>();
+
+  for (const plan of plans) {
+    const key = duplicateKey(plan);
+    if (!key) continue;
+    const existing = winners.get(key);
+    winners.set(key, existing ? betterDuplicateWinner(existing, plan) : plan);
+  }
+
+  const emitted = new Set<string>();
+  const result: T[] = [];
 
   for (const plan of plans) {
     const key = duplicateKey(plan);
     if (!key) {
-      unkeyed.push(plan);
+      result.push(plan);
       continue;
     }
-
-    const existing = keyed.get(key);
-    if (!existing) {
-      keyed.set(key, plan);
-      keyOrder.push(key);
-      continue;
-    }
-
-    keyed.set(key, betterDuplicateWinner(existing, plan));
+    if (emitted.has(key)) continue;
+    emitted.add(key);
+    result.push(winners.get(key)!);
   }
 
-  return [
-    ...keyOrder.map((key) => keyed.get(key)).filter((plan): plan is T => Boolean(plan)),
-    ...unkeyed,
-  ];
+  return result;
+}
+
+// Search results are already relevance-ranked. Keep the first hit per duplicate
+// group instead of promoting a newer non-matching winner that was not in the
+// search result set.
+export function dedupeSearchPlans<T extends PlanWithDuplicateIdentity>(plans: T[]): T[] {
+  const emitted = new Set<string>();
+  const result: T[] = [];
+
+  for (const plan of plans) {
+    const key = duplicateKey(plan);
+    if (!key) {
+      result.push(plan);
+      continue;
+    }
+    if (emitted.has(key)) continue;
+    emitted.add(key);
+    result.push(plan);
+  }
+
+  return result;
 }
