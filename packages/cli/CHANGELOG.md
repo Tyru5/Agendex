@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 3.1.0
+
+### Minor Changes
+
+- 0e2396d: duplication of mutli-daemon filtering logic
+
 ## 3.0.0
 
 ### Major Changes
