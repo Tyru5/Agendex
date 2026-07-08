@@ -22,8 +22,11 @@ export function useUnseenPlanToasts({
   onSelectPlan: (plan: Plan) => void;
 }) {
   const notifiedKeysRef = useRef(new Set<string>());
+  const activeToastKeysRef = useRef(new Set<string>());
   const baselineEstablishedRef = useRef(false);
   const baselineKeyRef = useRef(baselineKey);
+  // Keys dismissed for mode-switch cleanup — skip markSeen (user did not acknowledge).
+  const suppressMarkSeenRef = useRef(new Set<string>());
 
   useEffect(() => {
     // One effect owns the baseline lifecycle: reset when not ready / not Pro,
@@ -41,9 +44,13 @@ export function useUnseenPlanToasts({
       baselineEstablishedRef.current = false;
       // Dismiss rendered toasts from the previous mode before clearing tracking;
       // otherwise stale View actions call onSelectPlan with the wrong mode's plan.
-      for (const key of notifiedKeysRef.current) {
+      // sonner fires onDismiss on programmatic dismiss — suppress markSeen so a
+      // mode switch does not silently acknowledge plans the user never opened.
+      for (const key of activeToastKeysRef.current) {
+        suppressMarkSeenRef.current.add(key);
         toast.dismiss(key);
       }
+      activeToastKeysRef.current = new Set();
       notifiedKeysRef.current = new Set();
     }
 
@@ -63,9 +70,15 @@ export function useUnseenPlanToasts({
       const key = unseenPlanKey(plan.id, plan.updatedAt);
       if (notifiedKeysRef.current.has(key)) continue;
       notifiedKeysRef.current.add(key);
+      activeToastKeysRef.current.add(key);
 
       const markPlanSeen = () => {
+        if (suppressMarkSeenRef.current.delete(key)) return;
         planState.markSeen(plan.id, plan.updatedAt);
+      };
+
+      const clearActive = () => {
+        activeToastKeysRef.current.delete(key);
       };
 
       const openPlan = () => {
@@ -81,8 +94,14 @@ export function useUnseenPlanToasts({
         // X / swipe dismiss and programmatic dismiss skip onClick; auto-close
         // uses onAutoClose only (not onDismiss). Without markSeen, notifiedKeysRef
         // suppresses re-toast and the plan stays unseen with no remaining UI path.
-        onDismiss: markPlanSeen,
-        onAutoClose: markPlanSeen,
+        onDismiss: () => {
+          clearActive();
+          markPlanSeen();
+        },
+        onAutoClose: () => {
+          clearActive();
+          markPlanSeen();
+        },
         action: {
           label: 'View',
           onClick: openPlan,
