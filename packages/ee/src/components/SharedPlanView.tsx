@@ -5,10 +5,11 @@ import {
   ExitFullscreenIcon,
   FullscreenIcon,
   getAgentLabel,
-  MarkdownCodeBlock,
+  planMarkdownComponents,
+  planMarkdownRehypePlugins,
+  planMarkdownRemarkPlugins,
   PlanOutline,
   SkeletonBlock,
-  sanitizeSchema,
   startViewTransition,
   useFullscreen,
 } from '@agendex/web';
@@ -18,10 +19,6 @@ import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import Markdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
-import rehypeSlug from 'rehype-slug';
-import remarkGfm from 'remark-gfm';
 import { CommentThread } from './CommentThread.tsx';
 import { OUTLINE_PREF_STORAGE_KEY } from '../outlinePref.ts';
 import { CommandPalette } from './command-palette/CommandPalette.tsx';
@@ -325,27 +322,9 @@ function SharedPlanViewInner({ token }: { token: string }) {
               <article className="plan-markdown">
                 <div id="plan-top" aria-hidden="true" />
                 <Markdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
-                  components={{
-                    code({ className, children, node: _node, ...props }) {
-                      const code = String(children).replace(/\n$/, '');
-                      const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
-                      const isBlock = Boolean(language) || code.includes('\n');
-
-                      if (!isBlock) {
-                        return (
-                          <code className={className} {...props}>
-                            {children}
-                          </code>
-                        );
-                      }
-
-                      return (
-                        <MarkdownCodeBlock className={className} code={code} language={language} />
-                      );
-                    },
-                  }}
+                  remarkPlugins={planMarkdownRemarkPlugins}
+                  rehypePlugins={planMarkdownRehypePlugins}
+                  components={planMarkdownComponents}
                 >
                   {renderContent}
                 </Markdown>

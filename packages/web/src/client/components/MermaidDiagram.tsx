@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../hooks/useTheme.ts';
 import type { ResolvedTheme } from './ThemeProvider.tsx';
@@ -384,7 +384,7 @@ function MermaidExpandedModal({
   );
 }
 
-export function MermaidDiagram({
+export const MermaidDiagram = memo(function MermaidDiagram({
   code,
   className,
 }: {
@@ -402,16 +402,17 @@ export function MermaidDiagram({
 
   useEffect(() => {
     let cancelled = false;
+    const definitionChanged = prevDefinitionRef.current !== definition;
 
-    if (prevDefinitionRef.current !== definition) {
+    if (definitionChanged) {
       setSvg(null);
       setExpanded(false);
+      setBusy(true);
+      setError(null);
       prevDefinitionRef.current = definition;
     }
 
     async function run() {
-      setBusy(true);
-      setError(null);
       try {
         const mermaid = (await import('mermaid')).default;
         mermaid.initialize({
@@ -422,6 +423,7 @@ export function MermaidDiagram({
         const { svg: out } = await mermaid.render(domId, definition);
         if (cancelled) return;
         setSvg(out);
+        setError(null);
       } catch (e) {
         if (cancelled) return;
         setSvg(null);
@@ -501,4 +503,4 @@ export function MermaidDiagram({
       {expandedModal}
     </>
   );
-}
+});

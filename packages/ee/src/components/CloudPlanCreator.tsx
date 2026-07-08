@@ -2,14 +2,14 @@ import {
   AGENT_IDS,
   type AgentStats,
   getAgentLabel,
-  MarkdownCodeBlock,
+  planMarkdownComponents,
+  planMarkdownRemarkPlugins,
   type Plan,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useMutation } from 'convex/react';
 import { useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 function getAgentOptions(agents: AgentStats[]) {
   return Array.from(new Set([...agents.map((agent) => agent.agent), ...AGENT_IDS]));
@@ -131,26 +131,8 @@ export function CloudPlanCreator({
           {content ? (
             <article className="plan-markdown">
               <Markdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  code({ className, children, node: _node, ...props }) {
-                    const code = String(children).replace(/\n$/, '');
-                    const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
-                    const isBlock = Boolean(language) || code.includes('\n');
-
-                    if (!isBlock) {
-                      return (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      );
-                    }
-
-                    return (
-                      <MarkdownCodeBlock className={className} code={code} language={language} />
-                    );
-                  },
-                }}
+                remarkPlugins={planMarkdownRemarkPlugins}
+                components={planMarkdownComponents}
               >
                 {`# ${title || 'Untitled'}\n\n${content}`}
               </Markdown>

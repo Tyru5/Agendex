@@ -1,9 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import { type AgentStats, api, type Plan } from '../lib/api.ts';
-import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
+import { planMarkdownComponents, planMarkdownRemarkPlugins } from './markdownRenderConfig.tsx';
 
 interface UploadFile {
   name: string;
@@ -323,26 +322,8 @@ export function PlanUploader({
           {previewFile ? (
             <article className="plan-markdown">
               <Markdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  code({ className, children, node: _node, ...props }) {
-                    const code = String(children).replace(/\n$/, '');
-                    const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
-                    const isBlock = Boolean(language) || code.includes('\n');
-
-                    if (!isBlock) {
-                      return (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      );
-                    }
-
-                    return (
-                      <MarkdownCodeBlock className={className} code={code} language={language} />
-                    );
-                  },
-                }}
+                remarkPlugins={planMarkdownRemarkPlugins}
+                components={planMarkdownComponents}
               >
                 {previewFile.content}
               </Markdown>

@@ -2,14 +2,14 @@ import {
   AGENT_IDS,
   type AgentStats,
   getAgentLabel,
-  MarkdownCodeBlock,
+  planMarkdownComponents,
+  planMarkdownRemarkPlugins,
   type Plan,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import { useMutation } from 'convex/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 interface UploadFile {
   name: string;
@@ -361,26 +361,8 @@ export function CloudPlanUploader({
           {previewFile ? (
             <article className="plan-markdown">
               <Markdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  code({ className, children, node: _node, ...props }) {
-                    const code = String(children).replace(/\n$/, '');
-                    const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
-                    const isBlock = Boolean(language) || code.includes('\n');
-
-                    if (!isBlock) {
-                      return (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      );
-                    }
-
-                    return (
-                      <MarkdownCodeBlock className={className} code={code} language={language} />
-                    );
-                  },
-                }}
+                remarkPlugins={planMarkdownRemarkPlugins}
+                components={planMarkdownComponents}
               >
                 {previewFile.content}
               </Markdown>

@@ -18,6 +18,11 @@ export { default as dinoShadow } from './client/components/landing/dino-shadow.p
 export { default as dinoVitaIdleStrip } from './client/components/landing/dino-vita-idle-strip.png';
 export { useLandingContext } from './client/components/landing/LandingContext.tsx';
 export { MarkdownCodeBlock } from './client/components/MarkdownCodeBlock.tsx';
+export {
+  planMarkdownComponents,
+  planMarkdownRehypePlugins,
+  planMarkdownRemarkPlugins,
+} from './client/components/markdownRenderConfig.tsx';
 export { GitHubIcon, GoogleIcon } from './client/components/OAuthIcons.tsx';
 export { OfflineView } from './client/components/OfflineView.tsx';
 export { PlanCreator } from './client/components/PlanCreator.tsx';

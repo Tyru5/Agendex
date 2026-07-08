@@ -9,10 +9,6 @@ import {
   useState,
 } from 'react';
 import Markdown from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
-import rehypeSlug from 'rehype-slug';
-import remarkGfm from 'remark-gfm';
 import { useFullscreen } from '../hooks/useFullscreen.ts';
 import { usePlanAnnotationHighlights } from '../hooks/usePlanAnnotationHighlights.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
@@ -24,11 +20,14 @@ import {
 } from '../lib/annotations.ts';
 import type { Plan } from '../lib/api.ts';
 import { buildPlanOutline } from '../lib/extract-headings.ts';
-import { sanitizeSchema } from '../lib/sanitize-schema.ts';
 import { extractSyncOrigin, formatSyncOriginLabel } from '../lib/sync-origin.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { ExitFullscreenIcon, FullscreenIcon } from './FullscreenIcons.tsx';
-import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
+import {
+  planMarkdownComponents,
+  planMarkdownRehypePlugins,
+  planMarkdownRemarkPlugins,
+} from './markdownRenderConfig.tsx';
 import { PlanActionButton } from './PlanActionButton.tsx';
 import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
@@ -832,27 +831,9 @@ export function PlanViewer({
             >
               <div id="plan-top" aria-hidden="true" />
               <Markdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug]}
-                components={{
-                  code({ className, children, node: _node, ...props }) {
-                    const code = String(children).replace(/\n$/, '');
-                    const language = /(?:lang|language)-([^\s]+)/.exec(className ?? '')?.[1];
-                    const isBlock = Boolean(language) || code.includes('\n');
-
-                    if (!isBlock) {
-                      return (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      );
-                    }
-
-                    return (
-                      <MarkdownCodeBlock className={className} code={code} language={language} />
-                    );
-                  },
-                }}
+                remarkPlugins={planMarkdownRemarkPlugins}
+                rehypePlugins={planMarkdownRehypePlugins}
+                components={planMarkdownComponents}
               >
                 {renderContent}
               </Markdown>
