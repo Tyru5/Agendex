@@ -14,6 +14,8 @@ const PLANS_PAGE_SIZE = 25;
 export function useCloudPlans(): {
   plans: Plan[];
   loading: boolean;
+  /** True once every page has been fetched (or the query failed). */
+  complete: boolean;
   error: string | null;
 } {
   const { results, status, loadMore } = usePaginatedQuery(
@@ -29,8 +31,13 @@ export function useCloudPlans(): {
     if (status === 'CanLoadMore') loadMore(PLANS_PAGE_SIZE);
   }, [status, loadMore]);
 
+  // `loading` covers only the first page so the list can render progressively;
+  // `complete` waits until pagination is exhausted so callers that need the
+  // full set (e.g. unseen-plan toast baselines) do not run early.
+  const complete = status === 'Exhausted';
+
   if (status === 'LoadingFirstPage') {
-    return { plans: [], loading: true, error: null };
+    return { plans: [], loading: true, complete: false, error: null };
   }
 
   try {
@@ -51,11 +58,12 @@ export function useCloudPlans(): {
       workspace: p.workspace,
       metadata: (p.metadata as Record<string, unknown>) ?? {},
     }));
-    return { plans, loading: false, error: null };
+    return { plans, loading: false, complete, error: null };
   } catch (e) {
     return {
       plans: [],
       loading: false,
+      complete: true,
       error: e instanceof Error ? e.message : 'Failed to load cloud plans',
     };
   }

@@ -5,7 +5,6 @@ export function BrandSection({
   sidebarHidden,
   sidebarWidth,
   isPro,
-  hasUnseenPlans,
   mode,
   backendStatus,
   onToggleSidebar,
@@ -17,7 +16,6 @@ export function BrandSection({
   sidebarHidden: boolean;
   sidebarWidth: number;
   isPro: boolean;
-  hasUnseenPlans: boolean;
   mode: 'local' | 'cloud';
   backendStatus: string;
   onToggleSidebar: () => void;
@@ -35,7 +33,7 @@ export function BrandSection({
         borderRight: sidebarPinnedOpen ? '1px solid var(--border)' : 'none',
       }}
     >
-      <div className="shrink-0 relative">
+      <div className="shrink-0">
         <button
           type="button"
           onClick={onToggleSidebar}
@@ -48,9 +46,6 @@ export function BrandSection({
         >
           <SidebarToggleIcon hidden={sidebarHidden} />
         </button>
-        {sidebarHidden && isPro && hasUnseenPlans && (
-          <span className="sidebar-dot absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-[var(--accent)] pointer-events-none" />
-        )}
       </div>
 
       <button
