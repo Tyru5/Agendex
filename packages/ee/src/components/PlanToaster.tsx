@@ -14,7 +14,7 @@ export function PlanToaster() {
         unstyled: true,
         classNames: {
           toast:
-            'flex w-[min(360px,calc(100vw-2rem))] items-start gap-3 rounded-xl border border-border bg-surface px-3.5 py-3 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] cursor-pointer',
+            'relative flex w-[min(360px,calc(100vw-2rem))] items-start gap-3 rounded-xl border border-border bg-surface px-3.5 py-3 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] cursor-pointer',
           title: 'text-[13px] font-semibold text-text leading-snug',
           description: 'text-[12px] text-tertiary leading-snug',
           actionButton:

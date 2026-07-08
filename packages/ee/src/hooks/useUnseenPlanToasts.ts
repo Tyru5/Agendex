@@ -70,7 +70,7 @@ export function useUnseenPlanToasts({
 
       const openPlan = () => {
         onSelectPlan(plan);
-        markPlanSeen();
+        // toast.dismiss triggers onDismiss (sonner v2), which marks seen once.
         toast.dismiss(key);
       };
 
@@ -78,9 +78,9 @@ export function useUnseenPlanToasts({
         id: key,
         description: getAgentLabel(plan.agent),
         onClick: openPlan,
-        // X / swipe dismiss and default timeout auto-close both skip onClick;
-        // without markSeen, notifiedKeysRef suppresses re-toast and the plan
-        // stays unseen with no remaining UI path after the topbar indicator.
+        // X / swipe dismiss and programmatic dismiss skip onClick; auto-close
+        // uses onAutoClose only (not onDismiss). Without markSeen, notifiedKeysRef
+        // suppresses re-toast and the plan stays unseen with no remaining UI path.
         onDismiss: markPlanSeen,
         onAutoClose: markPlanSeen,
         action: {
