@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 3.2.0
+
+### Minor Changes
+
+- 636a26d: resolved global cursor plan syncing issues
+
 ## 3.1.0
 
 ### Minor Changes
