@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
-import { dirname, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
 
@@ -20,8 +20,26 @@ function getPackageRoot(): string {
   }
 }
 
+function normalizeInstallPath(path: string): string {
+  return path.replace(/\\/g, '/').toLowerCase();
+}
+
+function getInvocationPath(): string | null {
+  const entry = process.argv[1];
+  if (!entry) return null;
+  return isAbsolute(entry) ? entry : resolve(process.cwd(), entry);
+}
+
+function getInstallPathHints(): string[] {
+  const invocationPath = getInvocationPath();
+  return invocationPath ? [invocationPath] : [];
+}
+
 /** Detect the package manager that most likely installed this CLI. */
-function detectPackageManager(packageRoot: string): PackageManager {
+export function detectPackageManager(
+  packageRoot: string,
+  installPathHints: string[] = getInstallPathHints(),
+): PackageManager {
   const userAgent = process.env.npm_config_user_agent ?? '';
   const execpath = process.env.npm_execpath ?? '';
 
@@ -31,10 +49,17 @@ function detectPackageManager(packageRoot: string): PackageManager {
   if (userAgent.startsWith('yarn/') || execpath.includes('yarn')) return 'yarn';
 
   // Layer 2: installed-path inspection (works when invoked directly from $PATH).
-  const lower = packageRoot.toLowerCase();
-  if (lower.includes(`${sep}.bun${sep}`) || lower.includes('/.bun/')) return 'bun';
-  if (lower.includes(`${sep}pnpm${sep}`) || lower.includes('/pnpm/')) return 'pnpm';
-  if (lower.includes(`${sep}yarn${sep}`) || lower.includes('/yarn/')) return 'yarn';
+  const lowerPaths = [packageRoot, ...installPathHints].map(normalizeInstallPath);
+  if (lowerPaths.some((path) => path.includes('/.bun/'))) return 'bun';
+  if (lowerPaths.some((path) => path.includes('/pnpm/'))) return 'pnpm';
+  if (lowerPaths.some((path) => path.includes('/yarn/'))) return 'yarn';
+  if (
+    lowerPaths.some(
+      (path) => path.includes('/lib/node_modules/') || path.includes('/appdata/roaming/npm/'),
+    )
+  ) {
+    return 'npm';
+  }
 
   // Layer 3: bun runtime globals.
   if (typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined' || process.versions.bun) {
@@ -54,10 +79,14 @@ type UpgradeCommandResult =
   | { supported: true; command: UpgradeCommand }
   | { supported: false; reason: string; manualCommand: string };
 
+function executableName(bin: string): string {
+  if (process.platform !== 'win32') return bin;
+  return bin === 'npm' || bin === 'pnpm' || bin === 'yarn' ? `${bin}.cmd` : bin;
+}
+
 function readYarnVersion(): string | null {
-  const result = spawnSync('yarn', ['--version'], {
+  const result = spawnSync(executableName('yarn'), ['--version'], {
     encoding: 'utf8',
-    shell: process.platform === 'win32',
   });
   if (result.error || result.status !== 0) return null;
   return result.stdout.trim() || null;
@@ -118,13 +147,8 @@ function buildGlobalInstallCommand(pm: PackageManager): UpgradeCommandResult {
   }
 }
 
-/** Heuristic: does this look like a real global install (vs a local repo / linked checkout)? */
-function isLikelyGlobalInstall(packageRoot: string): boolean {
-  const normalized = packageRoot.replace(/\\/g, '/');
-  if (!normalized.includes('/node_modules/')) {
-    // Not under any node_modules — almost certainly a source checkout or `npm link` target.
-    return false;
-  }
+function pathLooksGlobal(path: string): boolean {
+  const normalized = normalizeInstallPath(path);
   const globalMarkers = [
     '/lib/node_modules/',
     '/pnpm/global/',
@@ -132,11 +156,27 @@ function isLikelyGlobalInstall(packageRoot: string): boolean {
     '/.bun/install/global/',
     '/.bun/install/',
     '/.config/yarn/global/',
-    '/AppData/Roaming/npm/',
-    '/AppData/Local/Yarn/',
-    '/AppData/Local/pnpm/',
+    '/appdata/roaming/npm/',
+    '/appdata/local/yarn/',
+    '/appdata/local/pnpm/',
   ];
-  return globalMarkers.some((marker) => normalized.includes(marker));
+  if (globalMarkers.some((marker) => normalized.includes(marker))) return true;
+
+  // Bun exposes global binaries from ~/.bun/bin. When the installed package is a
+  // file/path dependency, Node follows the symlink back to the source checkout in
+  // import.meta.url, so the package root alone looks local. The invocation path is
+  // still a global Bun command, and running `bun add -g agendex-cli@latest` mutates
+  // Bun's global package list rather than the checkout.
+  const globalBinMarkers = ['/.bun/bin/'];
+  return globalBinMarkers.some((marker) => normalized.includes(marker));
+}
+
+/** Heuristic: does this look like a real global install (vs a local repo checkout)? */
+export function isLikelyGlobalInstall(
+  packageRoot: string,
+  installPathHints: string[] = getInstallPathHints(),
+): boolean {
+  return [packageRoot, ...installPathHints].some(pathLooksGlobal);
 }
 
 interface RunUpgradeOptions {
@@ -145,8 +185,9 @@ interface RunUpgradeOptions {
 
 export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
   const packageRoot = getPackageRoot();
-  const pm = detectPackageManager(packageRoot);
-  const isGlobal = isLikelyGlobalInstall(packageRoot);
+  const installPathHints = getInstallPathHints();
+  const pm = detectPackageManager(packageRoot, installPathHints);
+  const isGlobal = isLikelyGlobalInstall(packageRoot, installPathHints);
 
   // Bail out early on local checkouts / linked installs — don't mutate the user's project.
   if (!isGlobal) {
@@ -192,10 +233,9 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
   }
   process.stdout.write(`[agendex] running: ${cmd.display}\n`);
 
-  return await new Promise<number>((resolveExit) => {
-    const child = spawn(cmd.bin, cmd.args, {
+  return new Promise<number>((resolveExit) => {
+    const child = spawn(executableName(cmd.bin), cmd.args, {
       stdio: 'inherit',
-      shell: process.platform === 'win32',
       env: process.env,
     });
     let didError = false;
