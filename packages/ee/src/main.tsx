@@ -9,6 +9,7 @@ import { NuqsAdapter } from 'nuqs/adapters/react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
+import { PlanToaster } from './components/PlanToaster.tsx';
 import { isDesktop } from './lib/desktop.ts';
 
 if (isDesktop()) {
@@ -20,6 +21,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
     <NuqsAdapter>
       <ThemeProvider>
         <App />
+        <PlanToaster />
         <Analytics />
       </ThemeProvider>
     </NuqsAdapter>

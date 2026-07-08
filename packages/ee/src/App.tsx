@@ -82,6 +82,7 @@ import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { useCloudPlanContent } from './hooks/useCloudPlanContent.ts';
 import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
+import { useUnseenPlanToasts } from './hooks/useUnseenPlanToasts.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useCloudPlanSearch } from './hooks/useCloudPlanSearch.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
@@ -359,6 +360,10 @@ function useDashboardData(
           refresh: async () => {},
         }
       : localPlans;
+  // Cloud list renders after the first page (`loading`), but toast baselines
+  // must wait until pagination is exhausted so later pages aren't treated as
+  // fresh arrivals.
+  const plansComplete = mode === 'cloud' ? cloudPlans.complete : !loading;
 
   const planTagsMap = useQuery(
     api.planTags.getTagsForPlans,
@@ -370,14 +375,6 @@ function useDashboardData(
     })
       ? { planIds: plans.map((p) => p.id) as Array<Id<'plans'>> }
       : 'skip',
-  );
-
-  const hasUnseenPlans = useMemo(
-    () =>
-      plans.some((plan) =>
-        (mode === 'cloud' ? cloudPlanState : localPlanState).isUnseen(plan.id, plan.updatedAt),
-      ),
-    [plans, mode, cloudPlanState, localPlanState],
   );
 
   const collectionPlanIdSet = useMemo(
@@ -471,12 +468,12 @@ function useDashboardData(
     backendStatus,
     plans,
     loading,
+    plansComplete,
     error,
     refresh,
     allTags,
     allCollections,
     filteredPlans,
-    hasUnseenPlans,
     planState: mode === 'cloud' ? cloudPlanState : localPlanState,
     totalPlans,
     activeAgents,
@@ -1935,12 +1932,12 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     backendStatus,
     plans,
     loading,
+    plansComplete,
     error,
     refresh,
     allTags,
     allCollections,
     filteredPlans,
-    hasUnseenPlans,
     planState,
     totalPlans,
     activeAgents,
@@ -2078,6 +2075,17 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     },
     [setActivePanel, setSelectedPlanId, splitPlanId, setSplitPlanId],
   );
+
+  const planStateReady = mode === 'cloud' ? cloudPlanState.isReady : true;
+  useUnseenPlanToasts({
+    plans,
+    planState,
+    isPro,
+    ready: plansComplete && planStateReady,
+    baselineKey: mode,
+    selectedPlanId: selectedPlan?.id,
+    onSelectPlan: setSelectedPlan,
+  });
 
   const switchMode = useCallback(
     async (next: DashboardMode) => {
@@ -2263,7 +2271,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         sidebarPinnedOpen={sidebarPinnedOpen}
         sidebarHidden={sidebarHidden}
         isPro={isPro}
-        hasUnseenPlans={hasUnseenPlans}
         mode={mode}
         backendStatus={backendStatus}
         backendIndicator={backendIndicator}

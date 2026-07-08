@@ -13,7 +13,7 @@ function updatedAtToMs(updatedAt: string) {
   return new Date(updatedAt).getTime();
 }
 
-export function useCloudPlanPreferences(): PlanState {
+export function useCloudPlanPreferences(): PlanState & { isReady: boolean } {
   const preferences = useQuery(api.planPreferences.listForMyPlans, {});
   const setPinnedMutation = useMutation(api.planPreferences.setPinned);
   const markSeenMutation = useMutation(api.planPreferences.markSeen);
@@ -213,7 +213,8 @@ export function useCloudPlanPreferences(): PlanState {
       markAllSeen,
       isPinned,
       setPinned,
+      isReady: preferences !== undefined,
     }),
-    [isUnseen, markSeen, markUnseen, markAllSeen, isPinned, setPinned],
+    [isUnseen, markSeen, markUnseen, markAllSeen, isPinned, setPinned, preferences],
   );
 }

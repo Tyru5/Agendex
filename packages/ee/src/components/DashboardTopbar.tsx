@@ -12,7 +12,6 @@ export function DashboardTopbar({
   sidebarPinnedOpen,
   sidebarHidden,
   isPro,
-  hasUnseenPlans,
   mode,
   backendStatus,
   backendIndicator,
@@ -47,7 +46,6 @@ export function DashboardTopbar({
   sidebarPinnedOpen: boolean;
   sidebarHidden: boolean;
   isPro: boolean;
-  hasUnseenPlans: boolean;
   mode: 'local' | 'cloud';
   backendStatus: string;
   backendIndicator: { label: string; color: string };
@@ -90,7 +88,6 @@ export function DashboardTopbar({
         sidebarHidden={sidebarHidden}
         sidebarWidth={sidebarWidthProp ?? 260}
         isPro={isPro}
-        hasUnseenPlans={hasUnseenPlans}
         mode={mode}
         backendStatus={backendStatus}
         onToggleSidebar={onToggleSidebar}
