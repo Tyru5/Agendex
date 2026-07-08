@@ -2320,13 +2320,23 @@ body {
     margin-right: 0;
   }
 
-  .plan-action-toolbar[data-docked="true"] {
+  .plan-action-toolbar[data-docked="true"]:not([data-dock-placement="bottom"]) {
     position: sticky;
     top: 76px;
     left: auto;
     flex-direction: row;
     margin-left: auto;
     animation: none;
+  }
+
+  .plan-action-toolbar[data-dock-placement="bottom"] {
+    position: fixed;
+    top: auto;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    left: 50%;
+    margin-left: 0;
+    margin-bottom: 0;
+    z-index: 60;
   }
 
   .plan-header {

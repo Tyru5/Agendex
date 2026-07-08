@@ -84,12 +84,20 @@ const ACTION_TOOLBAR_EXPANDED_CHART_LEFT = 16;
 const PLAN_LAYOUT_CHANGE_EVENT = 'agendex:plan-layout-change';
 const SELECTION_TOOLBAR_EXIT_MS = 160;
 
+function isVerticalScrollContainer(element: HTMLElement): boolean {
+  const style = window.getComputedStyle(element);
+  return /(auto|scroll|overlay)/.test(style.overflowY);
+}
+
 function findScrollParent(element: HTMLElement): HTMLElement | Window {
+  const mainScroll = element.closest('.main-scroll');
+  if (mainScroll instanceof HTMLElement && isVerticalScrollContainer(mainScroll)) {
+    return mainScroll;
+  }
+
   let parent = element.parentElement;
   while (parent) {
-    const style = window.getComputedStyle(parent);
-    const canScrollY = /(auto|scroll|overlay)/.test(style.overflowY);
-    if (canScrollY && parent.scrollHeight > parent.clientHeight) return parent;
+    if (isVerticalScrollContainer(parent)) return parent;
     parent = parent.parentElement;
   }
   return window;
@@ -330,9 +338,26 @@ export function PlanViewer({
     const frame = frameRef.current;
     if (!frame) return;
 
-    const scrollParent = findScrollParent(frame);
-    const scrollTarget = scrollParent === window ? window : scrollParent;
+    let scrollTarget: HTMLElement | Window = findScrollParent(frame);
     let animationFrame = 0;
+
+    const scheduleUpdate = () => {
+      if (animationFrame) return;
+      animationFrame = window.requestAnimationFrame(updateDockedState);
+    };
+
+    const attachScrollListener = () => {
+      scrollTarget.addEventListener('scroll', scheduleUpdate, { passive: true });
+    };
+
+    const syncScrollListener = () => {
+      const nextScrollTarget = findScrollParent(frame);
+      if (nextScrollTarget === scrollTarget) return;
+
+      scrollTarget.removeEventListener('scroll', scheduleUpdate);
+      scrollTarget = nextScrollTarget;
+      attachScrollListener();
+    };
 
     const startDocking = () => {
       actionToolbarDockTargetRef.current = true;
@@ -370,11 +395,13 @@ export function PlanViewer({
 
     const updateDockedState = () => {
       animationFrame = 0;
+      syncScrollListener();
+      const scrollParent = scrollTarget;
       const frameRect = frame.getBoundingClientRect();
       const toolbarRect = actionToolbarRef.current?.getBoundingClientRect();
       const toolbarWidth = toolbarRect?.width ?? 38;
       const scrollParentRect =
-        scrollParent === window ? null : (scrollParent as HTMLElement).getBoundingClientRect();
+        scrollParent === window ? null : scrollParent.getBoundingClientRect();
       const viewportTop = scrollParentRect?.top ?? 0;
       const viewportLeft = scrollParentRect?.left ?? 0;
       const shouldDock = !isSplit && frameRect.top < viewportTop - 118;
@@ -406,11 +433,6 @@ export function PlanViewer({
       transitionDockState(shouldDock);
     };
 
-    const scheduleUpdate = () => {
-      if (animationFrame) return;
-      animationFrame = window.requestAnimationFrame(updateDockedState);
-    };
-
     const scheduleSettledUpdate = () => {
       scheduleUpdate();
       window.requestAnimationFrame(() => window.requestAnimationFrame(scheduleUpdate));
@@ -421,6 +443,8 @@ export function PlanViewer({
       actionToolbarRef.current,
       fullscreen.ref.current,
       frame.closest('.plannotator-review-shell'),
+      frame.closest('.main-scroll'),
+      frame.closest('.agendex-main-pane'),
     ].filter((element): element is Element => Boolean(element));
     const resizeObserver =
       typeof ResizeObserver === 'undefined'
@@ -428,8 +452,8 @@ export function PlanViewer({
         : new ResizeObserver(() => scheduleSettledUpdate());
     observedElements.forEach((element) => resizeObserver?.observe(element));
 
+    attachScrollListener();
     updateDockedState();
-    scrollTarget.addEventListener('scroll', scheduleUpdate, { passive: true });
     window.addEventListener('resize', scheduleSettledUpdate);
     window.addEventListener(PLAN_LAYOUT_CHANGE_EVENT, scheduleSettledUpdate);
 
@@ -449,6 +473,7 @@ export function PlanViewer({
     fullscreen.isFullscreen,
     fullscreen.ref,
     isSplit,
+    plan.id,
   ]);
 
   const showAnnotationUpgrade = Boolean(annotationUpgradeMessage && !canCreateAnnotations);
