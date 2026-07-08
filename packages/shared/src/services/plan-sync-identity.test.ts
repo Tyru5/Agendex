@@ -46,6 +46,20 @@ test('computes the same project-relative sync key across machines', () => {
   expect(windows.identityStrength).toBe('path');
 });
 
+test('computes stable sync keys for global ~/.cursor/plans files', () => {
+  const identity = computePlanSyncIdentity({
+    ...basePlan,
+    filePath: '/Users/alice/.cursor/plans/foo.plan.md',
+    metadata: {
+      source: 'global-cursor',
+      userPlansDir: '/Users/alice/.cursor/plans',
+    },
+  });
+
+  expect(identity.syncIdentityKey).toBe('v1:cursor:global-cursor:path:foo.plan.md');
+  expect(identity.identityStrength).toBe('path');
+});
+
 test('prefers stable metadata session ids over path identity', () => {
   const identity = computePlanSyncIdentity({
     ...basePlan,

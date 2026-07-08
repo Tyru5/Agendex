@@ -1,21 +1,50 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { hashPath } from '../hash.ts';
+import { normalizeSyncPath } from '../services/plan-sync-identity.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
-const cursorProjectsDir = join(homedir(), '.cursor', 'projects');
+function getRuntimeHomeDir(): string {
+  if (process.env.HOME) return process.env.HOME;
+  if (process.env.USERPROFILE) return process.env.USERPROFILE;
+  if (process.env.HOMEDRIVE && process.env.HOMEPATH) {
+    return `${process.env.HOMEDRIVE}${process.env.HOMEPATH}`;
+  }
+  return homedir();
+}
+
+function getCursorProjectsDir(): string {
+  return join(getRuntimeHomeDir(), '.cursor', 'projects');
+}
+
+function getGlobalCursorPlansDir(): string {
+  return join(getRuntimeHomeDir(), '.cursor', 'plans');
+}
+
+function isGlobalCursorPlanPath(filePath: string): boolean {
+  const normalizedFile = normalizeSyncPath(filePath);
+  const normalizedGlobal = normalizeSyncPath(getGlobalCursorPlansDir());
+  return normalizedFile === normalizedGlobal || normalizedFile.startsWith(`${normalizedGlobal}/`);
+}
 
 function discoverCursorPlanDirs(): string[] {
-  if (!existsSync(cursorProjectsDir)) return [];
+  const dirs = new Set<string>();
 
-  const dirs: string[] = [];
+  const globalPlansDir = getGlobalCursorPlansDir();
+  if (existsSync(globalPlansDir)) {
+    dirs.add(resolve(globalPlansDir));
+  }
+
+  const cursorProjectsDir = getCursorProjectsDir();
+  if (!existsSync(cursorProjectsDir)) return [...dirs];
+
   let entries: string[];
   try {
     entries = readdirSync(cursorProjectsDir);
   } catch {
-    return [];
+    return [...dirs];
   }
 
   for (const entry of entries) {
@@ -30,14 +59,14 @@ function discoverCursorPlanDirs(): string[] {
 
       const plansDir = join(raw.workspacePath, '.cursor', 'plans');
       if (existsSync(plansDir)) {
-        dirs.push(plansDir);
+        dirs.add(resolve(plansDir));
       }
     } catch {
       // skip unreadable entries
     }
   }
 
-  return dirs;
+  return [...dirs];
 }
 
 function extractTitle(content: string, filename: string): string {
@@ -50,12 +79,17 @@ function extractTitle(content: string, filename: string): string {
 }
 
 function stripFrontmatter(raw: string): { body: string; metadata: Record<string, unknown> } {
-  const text = raw.replace(/^<!--\s*[\w-]+\s*-->\s*\n?/, '');
+  const metadata: Record<string, unknown> = {};
+  let text = raw;
+
+  const commentMatch = text.match(/^<!--\s*([\w-]+)\s*-->\s*\n?/);
+  if (commentMatch?.[1]) {
+    metadata.sessionId = commentMatch[1];
+    text = text.slice(commentMatch[0].length);
+  }
 
   const fmMatch = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
-  if (!fmMatch) return { body: text.trim(), metadata: {} };
-
-  const metadata: Record<string, unknown> = {};
+  if (!fmMatch) return { body: text.trim(), metadata };
   const fmBody = fmMatch[1] ?? '';
 
   const todoIdMatches = fmBody.match(/^\s+-\s+id:\s/gm);
@@ -78,6 +112,8 @@ function stripFrontmatter(raw: string): { body: string; metadata: Record<string,
 }
 
 function workspaceFromPlanPath(filePath: string): string | undefined {
+  if (isGlobalCursorPlanPath(filePath)) return undefined;
+
   const normalized = filePath.replaceAll('\\', '/');
   const idx = normalized.indexOf('/.cursor/plans/');
   if (idx === -1) return undefined;
@@ -105,6 +141,7 @@ export const cursorAdapter: AgentAdapter = {
       const raw = await readFile(filePath, 'utf-8');
       const stats = await stat(filePath);
       const { body, metadata } = stripFrontmatter(raw);
+      const isGlobalPlan = isGlobalCursorPlanPath(filePath);
 
       return [
         {
@@ -117,7 +154,13 @@ export const cursorAdapter: AgentAdapter = {
           createdAt: stats.birthtime,
           updatedAt: stats.mtime,
           workspace: workspaceFromPlanPath(filePath),
-          metadata,
+          metadata: isGlobalPlan
+            ? {
+                ...metadata,
+                source: 'global-cursor',
+                userPlansDir: getGlobalCursorPlansDir(),
+              }
+            : metadata,
         },
       ];
     } catch {
