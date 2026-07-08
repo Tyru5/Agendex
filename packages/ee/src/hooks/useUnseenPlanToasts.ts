@@ -73,9 +73,11 @@ export function useUnseenPlanToasts({
         id: key,
         description: getAgentLabel(plan.agent),
         onClick: openPlan,
-        // X / swipe dismiss must still clear unseen; otherwise notifiedKeysRef
-        // suppresses re-toast and the plan stays hidden after reload.
+        // X / swipe dismiss and default timeout auto-close both skip onClick;
+        // without markSeen, notifiedKeysRef suppresses re-toast and the plan
+        // stays unseen with no remaining UI path after the topbar indicator.
         onDismiss: markPlanSeen,
+        onAutoClose: markPlanSeen,
         action: {
           label: 'View',
           onClick: openPlan,
