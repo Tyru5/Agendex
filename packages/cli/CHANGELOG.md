@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 3.3.0
+
+### Minor Changes
+
+- 6063c6a: Make local bun redirection of agendex-cli always pick up global package manager installs
+
 ## 3.2.0
 
 ### Minor Changes

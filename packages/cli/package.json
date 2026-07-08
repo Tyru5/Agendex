@@ -1,6 +1,6 @@
 {
   "name": "agendex-cli",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Agendex CLI for login, sync, and daemon workflows",
   "homepage": "https://github.com/Tyru5/Agendex#readme",
   "bugs": {
