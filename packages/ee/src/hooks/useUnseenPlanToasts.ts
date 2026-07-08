@@ -59,9 +59,13 @@ export function useUnseenPlanToasts({
       if (notifiedKeysRef.current.has(key)) continue;
       notifiedKeysRef.current.add(key);
 
+      const markPlanSeen = () => {
+        planState.markSeen(plan.id, plan.updatedAt);
+      };
+
       const openPlan = () => {
         onSelectPlan(plan);
-        planState.markSeen(plan.id, plan.updatedAt);
+        markPlanSeen();
         toast.dismiss(key);
       };
 
@@ -69,6 +73,9 @@ export function useUnseenPlanToasts({
         id: key,
         description: getAgentLabel(plan.agent),
         onClick: openPlan,
+        // X / swipe dismiss must still clear unseen; otherwise notifiedKeysRef
+        // suppresses re-toast and the plan stays hidden after reload.
+        onDismiss: markPlanSeen,
         action: {
           label: 'View',
           onClick: openPlan,
