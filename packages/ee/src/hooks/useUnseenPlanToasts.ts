@@ -26,13 +26,12 @@ export function useUnseenPlanToasts({
   const baselineKeyRef = useRef(baselineKey);
 
   useEffect(() => {
-    if (!ready) {
+    // One effect owns the baseline lifecycle: reset when not ready / not Pro,
+    // re-baseline on mode switches, then toast only post-baseline arrivals.
+    if (!isPro || !ready) {
       baselineEstablishedRef.current = false;
+      return;
     }
-  }, [ready]);
-
-  useEffect(() => {
-    if (!isPro || !ready) return;
 
     // Mode switches (and similar key changes) must re-baseline the active plan
     // set; otherwise every already-unseen plan in the new mode looks like a
@@ -69,6 +68,7 @@ export function useUnseenPlanToasts({
       toast(truncateTitle(plan.title), {
         id: key,
         description: getAgentLabel(plan.agent),
+        onClick: openPlan,
         action: {
           label: 'View',
           onClick: openPlan,
