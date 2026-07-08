@@ -39,6 +39,11 @@ export function useUnseenPlanToasts({
     if (baselineKeyRef.current !== baselineKey) {
       baselineKeyRef.current = baselineKey;
       baselineEstablishedRef.current = false;
+      // Dismiss rendered toasts from the previous mode before clearing tracking;
+      // otherwise stale View actions call onSelectPlan with the wrong mode's plan.
+      for (const key of notifiedKeysRef.current) {
+        toast.dismiss(key);
+      }
       notifiedKeysRef.current = new Set();
     }
 
