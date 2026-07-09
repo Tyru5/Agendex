@@ -27,13 +27,31 @@ export const APP_URL = normalizeLocalDevUrl(
 
 const desktopConvexSiteUrl = getDesktopConvexSiteUrl();
 
-async function desktopAuthFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+/**
+ * Desktop auth fetch: attach the cloud Bearer token and, on 401, try a one-shot
+ * session refresh. Only reload when we *had* a stored cloud session that the
+ * main process then cleared — reloading re-bootstraps the preload without a
+ * stale token and lands on the sign-in gate.
+ *
+ * Critical: unsigned-in desktop still mounts ConvexBetterAuthProvider, which
+ * probes `/api/auth/get-session`. That returns 401 with no cloud token. If we
+ * reloaded on every bare 401 the window would spin forever on a blank themed
+ * background (prod desktop blank-screen bug).
+ */
+export async function desktopAuthFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
   const headers = new Headers(init?.headers);
-  let token = getDesktopCloudToken();
+  const token = getDesktopCloudToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
   let response = await fetch(input, { ...init, headers });
   if (response.status !== 401) return response;
+
+  // No stored cloud session → ordinary unauthenticated response. Do not refresh
+  // or reload; the sign-in gate handles this state.
+  if (!token) return response;
 
   const refreshedToken = await refreshDesktopCloudSession();
   if (!refreshedToken) {

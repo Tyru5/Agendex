@@ -12,7 +12,9 @@ import App from './App.tsx';
 import { PlanToaster } from './components/PlanToaster.tsx';
 import { isDesktop } from './lib/desktop.ts';
 
-if (isDesktop()) {
+const desktop = isDesktop();
+
+if (desktop) {
   document.documentElement.dataset.agendexDesktop = 'true';
 }
 
@@ -22,7 +24,11 @@ createRoot(document.getElementById('root') as HTMLElement).render(
       <ThemeProvider>
         <App />
         <PlanToaster />
-        <Analytics />
+        {/* Vercel Analytics is hosted-web only. In the desktop shell the local
+            static server SPA-fallback returns index.html for
+            /_vercel/insights/script.js, which throws SyntaxError and spams
+            the console — skip it entirely offline/desktop. */}
+        {!desktop && <Analytics />}
       </ThemeProvider>
     </NuqsAdapter>
   </StrictMode>,

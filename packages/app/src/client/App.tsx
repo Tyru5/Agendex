@@ -1,6 +1,7 @@
 import {
   ChangelogPage,
   DocsPage,
+  DownloadPage,
   EmptyStateView,
   filterPlans,
   hasToken,
@@ -391,6 +392,18 @@ export default function App() {
     );
   }
 
+  if (typeof window !== 'undefined' && window.location.pathname === '/download') {
+    return (
+      <DownloadPage
+        onBack={() => {
+          startViewTransition(() => {
+            window.location.href = '/';
+          });
+        }}
+      />
+    );
+  }
+
   if (!hasToken()) {
     return (
       <>
@@ -404,6 +417,11 @@ export default function App() {
           onShowDocs={() => {
             startViewTransition(() => {
               window.location.href = '/docs';
+            });
+          }}
+          onShowDownload={() => {
+            startViewTransition(() => {
+              window.location.href = '/download';
             });
           }}
         />

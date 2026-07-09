@@ -90,7 +90,11 @@ Expected macOS assets:
 - matching `.blockmap` files
 - `latest-mac.yml` (auto-update metadata if you wire an updater later)
 
-The landing page links to GitHub Releases (`https://github.com/Tyru5/Agendex/releases`).
+The marketing download page is `/download` (`packages/web` `DownloadPage`). It links to
+GitHub Releases for assets and explains the macOS Keychain prompt first-run users see.
+When you ship a new desktop version, bump `DESKTOP_VERSION` in
+`packages/web/src/client/components/DownloadPage.tsx` so the direct `.dmg` / `.zip` links
+stay current.
 
 ## Root commands
 
