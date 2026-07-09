@@ -6,10 +6,16 @@ import {
   LOCAL_ORIGIN_PATTERNS,
 } from './auth-origins';
 
-test('isAgendexLocalOrigin accepts product-owned agendex.localhost http origins', () => {
+test('isAgendexLocalOrigin accepts only allowlisted product local hosts', () => {
   expect(isAgendexLocalOrigin('http://agendex.localhost:5174')).toBe(true);
   expect(isAgendexLocalOrigin('http://app.agendex.localhost:5174')).toBe(true);
   expect(isAgendexLocalOrigin('http://app.agendex.localhost:57352')).toBe(true);
+});
+
+test('isAgendexLocalOrigin rejects arbitrary agendex.localhost subdomains', () => {
+  expect(isAgendexLocalOrigin('http://evil.agendex.localhost:3000')).toBe(false);
+  expect(isAgendexLocalOrigin('http://anything.agendex.localhost:57352')).toBe(false);
+  expect(isAgendexLocalOrigin('http://www.agendex.localhost:5174')).toBe(false);
 });
 
 test('isAgendexLocalOrigin rejects bare loopback and non-product origins', () => {
@@ -33,6 +39,8 @@ test('buildTrustedOrigins includes site/app URLs and local patterns', () => {
   for (const pattern of LOCAL_ORIGIN_PATTERNS) {
     expect(origins).toContain(pattern);
   }
+  // No wildcard subdomain pattern — only exact product hosts with port wildcards.
+  expect(origins).not.toContain('http://*.agendex.localhost:*');
 });
 
 test('buildTrustedOrigins reflects Electron ephemeral app.agendex.localhost for CORS', () => {
@@ -44,8 +52,18 @@ test('buildTrustedOrigins reflects Electron ephemeral app.agendex.localhost for 
   });
 
   expect(origins).toContain(electronOrigin);
-  // Static Vite origins remain available via LOCAL_DEV_CORS_ORIGINS append in http.ts
   expect(LOCAL_DEV_CORS_ORIGINS).toContain('http://app.agendex.localhost:5174');
+});
+
+test('buildTrustedOrigins does not reflect arbitrary agendex.localhost subdomains', () => {
+  const attackerOrigin = 'http://evil.agendex.localhost:3000';
+  const origins = buildTrustedOrigins({
+    siteUrl: 'https://app.agendex.dev',
+    appUrl: 'https://app.agendex.dev',
+    requestOrigin: attackerOrigin,
+  });
+
+  expect(origins).not.toContain(attackerOrigin);
 });
 
 test('buildTrustedOrigins does not reflect bare localhost (any local process)', () => {
