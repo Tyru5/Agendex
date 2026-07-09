@@ -1,5 +1,4 @@
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { startNodeServer, type RunningNodeServer } from '@agendex/app/server';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { app, BrowserWindow, ipcMain } from 'electron';
@@ -12,17 +11,12 @@ import {
   saveCloudCreds,
   validateCloudCreds,
 } from './cloud-auth.ts';
-import {
-  clearPendingDesktopAuthLogin,
-  completePendingDesktopAuthLogin,
-  DesktopAuthLoginError,
-  loadPendingDesktopAuthLogin,
-  startDesktopAuthLogin,
-} from './cloud-login.ts';
-import { parseDesktopAuthProvider, type DesktopAuthProvider } from './cloud-login-url.ts';
+import { completePendingDesktopAuthLogin, loadPendingDesktopAuthLogin } from './cloud-login.ts';
 import { loadModePref, saveModePref } from './dashboard-mode.ts';
+import { registerDesktopIpc } from './desktop-ipc.ts';
 import { buildMenu } from './desktop-menu.ts';
 import { createDesktopProtocolController } from './desktop-protocol.ts';
+import { writeQaBootstrapEvidence, writeQaStartupEvidence } from './desktop-qa-evidence.ts';
 import { createDesktopWindow } from './desktop-window.ts';
 import { redactDesktopAuthCallbackUrl } from '@agendex/shared/desktop-auth-callback';
 import { installDesktopProtocolLifecycle } from './desktop-protocol-lifecycle.ts';
@@ -32,6 +26,9 @@ import { loadWithRetry } from './window-loader.ts';
 // macOS Keychain item for safeStorage as "@agendex/desktop Safe Storage".
 // Set before any safeStorage use so the prompt reads "Agendex Safe Storage".
 app.setName('Agendex');
+if (process.env.AGENDEX_DESKTOP_QA_USER_DATA_DIR) {
+  app.setPath('userData', process.env.AGENDEX_DESKTOP_QA_USER_DATA_DIR);
+}
 
 const DEV_SERVER_PORT = 4890;
 const DEV_RENDERER_URL = 'http://app.agendex.localhost:5174/dashboard';
@@ -41,22 +38,6 @@ let server: RunningNodeServer | null = null;
 let localApiToken = '';
 let rendererTargetUrl = '';
 let backendBoot: Promise<void> | null = null;
-
-function writeQaBootstrapEvidence(payload: unknown): void {
-  const path = process.env.AGENDEX_DESKTOP_QA_BOOTSTRAP_PATH;
-  if (!path) return;
-  const dir = dirname(path);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(path, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-}
-
-function writeQaStartupEvidence(payload: unknown): void {
-  const path = process.env.AGENDEX_DESKTOP_QA_STARTUP_PATH;
-  if (!path) return;
-  const dir = dirname(path);
-  mkdirSync(dir, { recursive: true });
-  appendFileSync(path, `${JSON.stringify(payload)}\n`, 'utf8');
-}
 
 function resolveClientDistDir(): string {
   if (app.isPackaged) {
@@ -184,75 +165,6 @@ async function reopenFromSecondInstance() {
   await startBackendAndWindow();
 }
 
-/**
- * A pending login attempt survives window reloads and app restarts (it lives
- * in userData), so an abandoned browser flow would otherwise block sign-in
- * with `active-attempt` for up to 5 minutes. A fresh user gesture supersedes
- * the stale attempt: its state is invalidated and a new flow starts.
- */
-async function startLoginSupersedingStaleAttempt(siteUrl: string, provider?: DesktopAuthProvider) {
-  try {
-    return await startDesktopAuthLogin(siteUrl, provider);
-  } catch (err) {
-    if (!(err instanceof DesktopAuthLoginError) || err.code !== 'active-attempt') throw err;
-    clearPendingDesktopAuthLogin();
-    return await startDesktopAuthLogin(siteUrl, provider);
-  }
-}
-
-function registerIpc() {
-  // Synchronous bootstrap so the preload can seed tokens before page scripts run.
-  ipcMain.on('agendex:get-bootstrap', (event) => {
-    const cloud = loadCloudCreds();
-    event.returnValue = {
-      localToken: localApiToken,
-      cloudToken: cloud?.token ?? null,
-      convexSiteUrl: cloud?.convexSiteUrl ?? null,
-      modePref: loadModePref(),
-    };
-  });
-
-  ipcMain.handle('agendex:set-mode-pref', (_event, mode: unknown) => {
-    if (mode !== 'local' && mode !== 'cloud') return false;
-    saveModePref(mode);
-    return true;
-  });
-
-  ipcMain.handle('agendex:refresh-cloud-session', async () => refreshCloudSession());
-  ipcMain.handle('agendex:get-convex-auth-token', async () => {
-    const result = await getConvexAuthToken();
-    if (result) return result;
-    // A null token is ambiguous: the session may have been definitively
-    // revoked (creds cleared after a 401/403) or the request may have failed
-    // transiently. Tell the preload which one so it only drops to the sign-in
-    // gate for real revocations.
-    return { sessionCleared: loadCloudCreds() === null };
-  });
-
-  ipcMain.on('agendex:qa-bootstrap-observed', (_event, payload: unknown) => {
-    writeQaBootstrapEvidence(payload);
-  });
-
-  ipcMain.handle('agendex:login', async (_event, provider: unknown) => {
-    try {
-      const parsedProvider = parseDesktopAuthProvider(provider);
-      if (parsedProvider === null) return false;
-      const siteUrl = getSiteUrl(is.dev);
-      const pending = await startLoginSupersedingStaleAttempt(siteUrl, parsedProvider);
-      return await desktopProtocol.createPendingLoginCompletion(pending.state, pending.expiresAtMs);
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      console.error('[agendex-desktop] cloud login failed', error);
-      return false;
-    }
-  });
-
-  ipcMain.handle('agendex:logout', () => {
-    clearCloudCreds();
-    return true;
-  });
-}
-
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -288,7 +200,22 @@ if (!gotLock) {
       optimizer.watchWindowShortcuts(window);
     });
 
-    registerIpc();
+    registerDesktopIpc({
+      ipcMain,
+      getLocalApiToken: () => localApiToken,
+      loadCloudCreds,
+      loadModePref,
+      saveModePref,
+      refreshCloudSession,
+      getConvexAuthToken,
+      writeQaBootstrapEvidence,
+      getSiteUrl: () => getSiteUrl(is.dev),
+      createPendingLoginCompletion: desktopProtocol.createPendingLoginCompletion,
+      clearCloudCreds,
+      logLoginError: (error) => {
+        console.error('[agendex-desktop] cloud login failed', error);
+      },
+    });
     buildMenu();
 
     void refreshCloudSession()

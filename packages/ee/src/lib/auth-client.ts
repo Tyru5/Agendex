@@ -2,10 +2,14 @@ import { convexClient, crossDomainClient } from '@convex-dev/better-auth/client/
 import { createAuthClient } from 'better-auth/react';
 import {
   clearDesktopCloudSession,
+  desktopBridgeAuthFetch,
+  getDesktopBridgeIdentity,
   getDesktopCloudToken,
   getDesktopConvexSiteUrl,
   isDesktop,
   refreshDesktopCloudSession,
+  type DesktopAuthFetchInit,
+  type DesktopAuthFetchResult,
 } from './desktop.ts';
 
 export function normalizeLocalDevUrl(url: string | undefined): string {
@@ -27,6 +31,59 @@ export const APP_URL = normalizeLocalDevUrl(
 );
 
 const desktopConvexSiteUrl = getDesktopConvexSiteUrl();
+let refreshedDesktopCloudToken: string | null = null;
+let cachedBridgeIdentity = getDesktopBridgeIdentity();
+
+function getEffectiveDesktopCloudToken(): string | null {
+  const bridge = getDesktopBridgeIdentity();
+  if (bridge !== cachedBridgeIdentity) {
+    cachedBridgeIdentity = bridge;
+    refreshedDesktopCloudToken = null;
+  }
+  return refreshedDesktopCloudToken ?? getDesktopCloudToken();
+}
+
+async function serializeDesktopAuthRequest(request: Request): Promise<DesktopAuthFetchInit> {
+  const body = request.method === 'GET' || request.method === 'HEAD' ? null : await request.text();
+  return {
+    method: request.method,
+    headers: Array.from(request.headers.entries()),
+    body: body && body.length > 0 ? body : null,
+  };
+}
+
+function createResponseFromDesktopAuthFetch(result: DesktopAuthFetchResult): Response {
+  const headers = new Headers();
+  for (const [name, value] of result.headers) {
+    headers.append(name, value);
+  }
+  return new Response(result.body, {
+    headers,
+    status: result.status,
+    statusText: result.statusText,
+  });
+}
+
+function createRequestFromDesktopAuthFetchInit(url: string, init: DesktopAuthFetchInit): Request {
+  const headers = new Headers();
+  for (const [name, value] of init.headers) {
+    headers.append(name, value);
+  }
+  return new Request(url, {
+    body: init.body ?? undefined,
+    headers,
+    method: init.method,
+  });
+}
+
+async function fetchViaDesktopBridge(request: Request): Promise<Response> {
+  if (!getDesktopCloudToken() || !getDesktopConvexSiteUrl()) return fetch(request);
+  const init = await serializeDesktopAuthRequest(request);
+  const result = await desktopBridgeAuthFetch(request.url, init);
+  return result
+    ? createResponseFromDesktopAuthFetch(result)
+    : fetch(createRequestFromDesktopAuthFetchInit(request.url, init));
+}
 
 /**
  * Desktop auth fetch: attach the cloud Bearer token and, on 401, try a one-shot
@@ -47,13 +104,13 @@ export async function desktopAuthFetch(
   init?: RequestInit,
 ): Promise<Response> {
   const headers = new Headers(init?.headers);
-  const token = getDesktopCloudToken();
+  const token = getEffectiveDesktopCloudToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
   // Materialize a Request up front so we can clone it before the first fetch
   // consumes any body stream, then rebuild with a rotated Authorization header.
   const request = new Request(input, { ...init, headers });
-  let response = await fetch(request.clone());
+  let response = await fetchViaDesktopBridge(request.clone());
   if (response.status !== 401) return response;
 
   // No stored cloud session → ordinary unauthenticated response. Do not refresh
@@ -62,16 +119,18 @@ export async function desktopAuthFetch(
 
   const refreshedToken = await refreshDesktopCloudSession();
   if (!refreshedToken) {
+    refreshedDesktopCloudToken = null;
     // Drop main-process + bridge creds before reload so the next boot cannot
     // re-expose the same revoked token and re-enter this 401→reload loop.
     await clearDesktopCloudSession();
     if (typeof window !== 'undefined') window.location.reload();
     return response;
   }
+  refreshedDesktopCloudToken = refreshedToken;
 
   const retryHeaders = new Headers(request.headers);
   retryHeaders.set('Authorization', `Bearer ${refreshedToken}`);
-  response = await fetch(new Request(request, { headers: retryHeaders }));
+  response = await fetchViaDesktopBridge(new Request(request, { headers: retryHeaders }));
   return response;
 }
 

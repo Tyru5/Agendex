@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import {
   type AgendexDesktopBridge,
   type DesktopAuthProvider,
+  desktopLogout,
   desktopLogin,
   getDesktopConvexAuthToken,
   normalizeDesktopAuthProvider,
@@ -19,22 +20,39 @@ type TestDesktopWindow = {
   readonly location: TestLocation;
 };
 
-function installDesktopWindow(login: AgendexDesktopBridge['login']) {
+function installDesktopWindow(
+  login: AgendexDesktopBridge['login'],
+  bridgeOverrides: Partial<AgendexDesktopBridge> = {},
+) {
   let reloadCount = 0;
   let loginProvider: DesktopAuthProvider | undefined;
+  const cloudToken = bridgeOverrides.cloudToken ?? null;
+  const convexSiteUrl = bridgeOverrides.convexSiteUrl ?? null;
 
   const bridge: AgendexDesktopBridge = {
     isDesktop: true,
-    cloudToken: null,
-    convexSiteUrl: null,
+    get cloudToken() {
+      return cloudToken;
+    },
+    get convexSiteUrl() {
+      return convexSiteUrl;
+    },
     login: async (provider?: DesktopAuthProvider) => {
       loginProvider = provider;
       return login(provider);
     },
-    logout: async () => true,
-    setModePref: async () => true,
-    refreshCloudSession: async () => null,
-    getConvexAuthToken: async () => null,
+    logout: bridgeOverrides.logout ?? (async () => true),
+    setModePref: bridgeOverrides.setModePref ?? (async () => true),
+    refreshCloudSession: bridgeOverrides.refreshCloudSession ?? (async () => null),
+    getConvexAuthToken: bridgeOverrides.getConvexAuthToken ?? (async () => null),
+    authFetch:
+      bridgeOverrides.authFetch ??
+      (async () => ({
+        body: null,
+        headers: [],
+        status: 204,
+        statusText: 'No Content',
+      })),
   };
 
   const desktopWindow: TestDesktopWindow = {
@@ -55,6 +73,7 @@ function installDesktopWindow(login: AgendexDesktopBridge['login']) {
   });
 
   return {
+    bridge,
     getLoginProvider: () => loginProvider,
     getReloadCount: () => reloadCount,
   };
@@ -132,12 +151,11 @@ test('desktopLogin surfaces rejected preload login as false without reloading', 
 
 test('desktop Convex auth token is requested through the preload bridge', async () => {
   // Given
-  installDesktopWindow(async () => true);
-  (window as unknown as TestDesktopWindow).agendexDesktop.cloudToken = 'desktop-cloud-token';
-  (window as unknown as TestDesktopWindow).agendexDesktop.convexSiteUrl =
-    'https://enduring-eagle-295.convex.site';
-  (window as unknown as TestDesktopWindow).agendexDesktop.getConvexAuthToken = async () =>
-    'convex-jwt';
+  installDesktopWindow(async () => true, {
+    cloudToken: 'desktop-cloud-token',
+    convexSiteUrl: 'https://enduring-eagle-295.convex.site',
+    getConvexAuthToken: async () => 'convex-jwt',
+  });
 
   try {
     // When
@@ -145,6 +163,29 @@ test('desktop Convex auth token is requested through the preload bridge', async 
 
     // Then
     expect(token).toBe('convex-jwt');
+  } finally {
+    uninstallDesktopWindow();
+  }
+});
+
+test('desktopLogout does not mutate a frozen contextBridge object', async () => {
+  // Given
+  const runtime = installDesktopWindow(async () => true);
+  const { bridge } = runtime;
+  let logoutCount = 0;
+  bridge.logout = async () => {
+    logoutCount += 1;
+    return true;
+  };
+  Object.freeze(bridge);
+
+  try {
+    // When
+    await desktopLogout();
+
+    // Then
+    expect(logoutCount).toBe(1);
+    expect(window.location.href).toBe('http://app.agendex.localhost:5174/dashboard');
   } finally {
     uninstallDesktopWindow();
   }

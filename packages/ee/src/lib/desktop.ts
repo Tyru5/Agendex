@@ -2,6 +2,19 @@ import { deriveConvexDeploymentUrl } from '@agendex/shared/convex-url';
 
 export type DesktopAuthProvider = 'github' | 'google';
 
+export type DesktopAuthFetchInit = {
+  readonly method: string;
+  readonly headers: readonly [string, string][];
+  readonly body: string | null;
+};
+
+export type DesktopAuthFetchResult = {
+  readonly body: string | null;
+  readonly headers: readonly [string, string][];
+  readonly status: number;
+  readonly statusText: string;
+};
+
 /**
  * Desktop (Electron) integration bridge.
  *
@@ -15,13 +28,14 @@ export type DesktopAuthProvider = 'github' | 'google';
 
 export interface AgendexDesktopBridge {
   readonly isDesktop: true;
-  cloudToken: string | null;
-  convexSiteUrl: string | null;
+  readonly cloudToken: string | null;
+  readonly convexSiteUrl: string | null;
   login: (provider?: DesktopAuthProvider) => Promise<boolean>;
   logout: () => Promise<boolean>;
   setModePref: (mode: 'local' | 'cloud') => Promise<boolean>;
   refreshCloudSession: () => Promise<{ token: string; convexSiteUrl: string } | null>;
   getConvexAuthToken: () => Promise<string | null>;
+  authFetch: (url: string, init: DesktopAuthFetchInit) => Promise<DesktopAuthFetchResult>;
 }
 
 function getBridge(): AgendexDesktopBridge | undefined {
@@ -75,24 +89,18 @@ export async function desktopLogin(provider?: DesktopAuthProvider): Promise<bool
 }
 
 /**
- * Clears the stored cloud session in the main process and nulls the renderer
- * bridge fields. Does not navigate — callers decide whether to reload.
+ * Clears the stored cloud session in the main process. Does not navigate —
+ * callers decide whether to reload.
  *
- * `contextBridge` freezes the exposed object at inject time, so nulling
- * `cloudToken` here mainly keeps non-isolated / test bridges consistent; a
- * full reload is still required for the preload to re-bootstrap without a
- * token. Always clear main-process creds first so that reload cannot re-read
- * a revoked session from disk.
+ * `contextBridge` freezes the exposed object at inject time; a full reload is
+ * required for the preload to re-bootstrap without a token. Always clear
+ * main-process creds first so that reload cannot re-read a revoked session
+ * from disk.
  */
 export async function clearDesktopCloudSession(): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
-  try {
-    await bridge.logout();
-  } finally {
-    bridge.cloudToken = null;
-    bridge.convexSiteUrl = null;
-  }
+  await bridge.logout();
 }
 
 /** Clears the stored cloud session and reloads into the dashboard sign-in gate. */
@@ -127,4 +135,16 @@ export async function getDesktopConvexAuthToken(): Promise<string | null> {
   const bridge = getBridge();
   if (!bridge?.cloudToken || !bridge.convexSiteUrl) return null;
   return bridge.getConvexAuthToken();
+}
+
+export async function desktopBridgeAuthFetch(
+  url: string,
+  init: DesktopAuthFetchInit,
+): Promise<DesktopAuthFetchResult | null> {
+  const bridge = getBridge();
+  return bridge ? bridge.authFetch(url, init) : null;
+}
+
+export function getDesktopBridgeIdentity(): AgendexDesktopBridge | undefined {
+  return getBridge();
 }
