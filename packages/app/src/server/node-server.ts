@@ -71,15 +71,18 @@ function resolveStaticFile(rootDir: string, pathname: string): string | null {
 }
 
 /**
- * True when the path looks like a static asset request (has a file extension)
- * rather than a client-side route. SPA fallback should only apply to routes;
- * missing assets (e.g. `/_vercel/insights/script.js`) must 404 instead of
+ * True when the path looks like a known static asset (JS/CSS/image/font/…),
+ * not a client-side route. SPA fallback must still apply to routes whose path
+ * segments merely contain dots (e.g. `/shared/abc.def`, `/invite/token.with.dots`).
+ * Missing real assets (e.g. `/_vercel/insights/script.js`) must 404 instead of
  * returning `index.html` (which browsers then try to execute as JS).
  */
 function looksLikeAssetPath(pathname: string): boolean {
   const lastSegment = pathname.split('/').pop() ?? '';
-  // Extension present and not a trailing-dot edge case.
-  return /\.[a-zA-Z0-9]{1,12}$/.test(lastSegment);
+  const dot = lastSegment.lastIndexOf('.');
+  if (dot <= 0) return false;
+  const ext = lastSegment.slice(dot).toLowerCase();
+  return MIME_TYPES[ext] !== undefined;
 }
 
 /**
