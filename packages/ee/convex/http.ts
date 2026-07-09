@@ -19,8 +19,9 @@ import { stripeComponent } from './stripe';
 const http = httpRouter();
 
 authComponent.registerRoutes(http, createAuth, {
-  // registerRoutes appends these to createAuth().trustedOrigins, so SITE_URL,
-  // APP_URL, and preview origins remain part of the CORS allowlist.
+  // Appended to createAuth().trustedOrigins (which is request-aware and reflects
+  // Electron's ephemeral http://localhost:<port> for CORS exact-match). These
+  // fixed Vite/dev origins cover local web clients on :5174.
   cors: { allowedOrigins: [...LOCAL_DEV_CORS_ORIGINS] },
 });
 

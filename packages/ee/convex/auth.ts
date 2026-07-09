@@ -6,15 +6,11 @@ import { components } from './_generated/api';
 import type { DataModel } from './_generated/dataModel';
 import { query } from './_generated/server';
 import authConfig from './auth.config';
+import { buildTrustedOrigins } from './auth-origins';
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
-export const LOCAL_DEV_CORS_ORIGINS = [
-  'http://agendex.localhost:5174',
-  'http://app.agendex.localhost:5174',
-  'http://localhost:5174',
-  'http://127.0.0.1:5174',
-] as const;
+export { LOCAL_DEV_CORS_ORIGINS, buildTrustedOrigins, isLocalDevOrigin } from './auth-origins';
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
   const siteUrl = process.env.SITE_URL ?? '';
@@ -31,17 +27,14 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
   return betterAuth({
     baseURL: convexSiteUrl,
     secret: process.env.BETTER_AUTH_SECRET,
-    trustedOrigins: [
-      siteUrl,
-      siteUrl && siteUrl.includes('://www.')
-        ? siteUrl.replace('://www.', '://')
-        : siteUrl && `${siteUrl.replace('://', '://www.')}`,
-      appUrl,
-      'https://*.vercel.app',
-      'http://localhost:*',
-      'http://agendex.localhost:*',
-      'http://*.agendex.localhost:*',
-    ].filter(Boolean),
+    // Function form so each CORS preflight can reflect Electron's ephemeral
+    // `http://localhost:<port>` origin into the exact-match allowlist.
+    trustedOrigins: (request) =>
+      buildTrustedOrigins({
+        siteUrl,
+        appUrl,
+        requestOrigin: request?.headers.get('origin'),
+      }),
     database: authComponent.adapter(ctx),
     socialProviders: {
       ...(githubClientId && githubClientSecret

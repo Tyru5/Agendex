@@ -15,8 +15,13 @@ export type DesktopAuthProvider = 'github' | 'google';
 
 export interface AgendexDesktopBridge {
   readonly isDesktop: true;
-  cloudToken: string | null;
-  convexSiteUrl: string | null;
+  /**
+   * Live cloud session fields. In production Electron these are getters over a
+   * mutable preload session bag — `contextBridge` freezes the exposed object, so
+   * the renderer must never assign them (TypeError: read only property).
+   */
+  readonly cloudToken: string | null;
+  readonly convexSiteUrl: string | null;
   login: (provider?: DesktopAuthProvider) => Promise<boolean>;
   logout: () => Promise<boolean>;
   setModePref: (mode: 'local' | 'cloud') => Promise<boolean>;
@@ -75,24 +80,18 @@ export async function desktopLogin(provider?: DesktopAuthProvider): Promise<bool
 }
 
 /**
- * Clears the stored cloud session in the main process and nulls the renderer
- * bridge fields. Does not navigate — callers decide whether to reload.
+ * Clears the stored cloud session in the main process (and the preload session
+ * bag via `logout()`). Does not navigate — callers decide whether to reload.
  *
- * `contextBridge` freezes the exposed object at inject time, so nulling
- * `cloudToken` here mainly keeps non-isolated / test bridges consistent; a
- * full reload is still required for the preload to re-bootstrap without a
- * token. Always clear main-process creds first so that reload cannot re-read
- * a revoked session from disk.
+ * Never assign `bridge.cloudToken` / `bridge.convexSiteUrl` here:
+ * `contextBridge.exposeInMainWorld` freezes those properties in the renderer
+ * (`Cannot assign to read only property 'cloudToken'`). `logout()` mutates the
+ * preload session bag; a full reload re-bootstraps without a token.
  */
 export async function clearDesktopCloudSession(): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
-  try {
-    await bridge.logout();
-  } finally {
-    bridge.cloudToken = null;
-    bridge.convexSiteUrl = null;
-  }
+  await bridge.logout();
 }
 
 /** Clears the stored cloud session and reloads into the dashboard sign-in gate. */

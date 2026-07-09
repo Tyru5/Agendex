@@ -7,14 +7,19 @@ type TestLocation = {
 };
 
 type TestDesktopWindow = {
-  readonly agendexDesktop: AgendexDesktopBridge;
+  readonly agendexDesktop: MutableTestBridge;
   readonly location: TestLocation;
 };
 
-function installDesktopWindow(bridge: Partial<AgendexDesktopBridge> = {}) {
+/** Mutable test double — production Electron freezes cloudToken via contextBridge. */
+type MutableTestBridge = {
+  -readonly [K in keyof AgendexDesktopBridge]: AgendexDesktopBridge[K];
+};
+
+function installDesktopWindow(bridge: Partial<MutableTestBridge> = {}) {
   let reloadCount = 0;
   let logoutCount = 0;
-  const desktop: AgendexDesktopBridge = {
+  const desktop: MutableTestBridge = {
     isDesktop: true,
     cloudToken: null,
     convexSiteUrl: null,

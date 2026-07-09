@@ -28,12 +28,24 @@ function readBootstrap(): Bootstrap {
 
 const bootstrap = readBootstrap();
 
+/**
+ * Mutable session bag. `contextBridge.exposeInMainWorld` freezes the exposed
+ * object in the renderer, so we must not assign `agendexDesktop.cloudToken`
+ * (that throws "Cannot assign to read only property"). Getters read this bag
+ * live from the isolated world so refresh/logout updates are visible without
+ * reloading, and methods mutate the bag rather than the frozen facade.
+ */
+const session = {
+  cloudToken: bootstrap.cloudToken as string | null,
+  convexSiteUrl: bootstrap.convexSiteUrl as string | null,
+};
+
 function reportQaBootstrap() {
   if (!process.env.AGENDEX_DESKTOP_QA_BOOTSTRAP_PATH) return;
   ipcRenderer.send('agendex:qa-bootstrap-observed', {
     href: window.location.href,
-    cloudTokenPresent: Boolean(bootstrap.cloudToken),
-    convexSiteUrl: bootstrap.convexSiteUrl,
+    cloudTokenPresent: Boolean(session.cloudToken),
+    convexSiteUrl: session.convexSiteUrl,
     modePref: bootstrap.modePref,
     desktopDataset: true,
   });
@@ -69,16 +81,20 @@ function injectDesktopPrefs() {
 // credential by the EE client) plus the system-browser login/logout flows.
 const agendexDesktop = {
   isDesktop: true as const,
-  cloudToken: bootstrap.cloudToken,
-  convexSiteUrl: bootstrap.convexSiteUrl,
+  get cloudToken(): string | null {
+    return session.cloudToken;
+  },
+  get convexSiteUrl(): string | null {
+    return session.convexSiteUrl;
+  },
   login: async (provider?: DesktopAuthProvider): Promise<boolean> => {
     const ok = await ipcRenderer.invoke('agendex:login', provider);
     return ok === true;
   },
   logout: async (): Promise<boolean> => {
     const ok = (await ipcRenderer.invoke('agendex:logout')) as boolean;
-    agendexDesktop.cloudToken = null;
-    agendexDesktop.convexSiteUrl = null;
+    session.cloudToken = null;
+    session.convexSiteUrl = null;
     return ok;
   },
   setModePref: (mode: 'local' | 'cloud'): Promise<boolean> =>
@@ -92,13 +108,13 @@ const agendexDesktop = {
       convexSiteUrl?: string;
     } | null;
     if (refreshed?.token && refreshed.convexSiteUrl) {
-      agendexDesktop.cloudToken = refreshed.token;
-      agendexDesktop.convexSiteUrl = refreshed.convexSiteUrl;
+      session.cloudToken = refreshed.token;
+      session.convexSiteUrl = refreshed.convexSiteUrl;
       return { token: refreshed.token, convexSiteUrl: refreshed.convexSiteUrl };
     }
     if (refreshed === null) {
-      agendexDesktop.cloudToken = null;
-      agendexDesktop.convexSiteUrl = null;
+      session.cloudToken = null;
+      session.convexSiteUrl = null;
     }
     return null;
   },
@@ -109,17 +125,14 @@ const agendexDesktop = {
       sessionCleared?: boolean;
     } | null;
     if (result?.cloudSession?.token && result.cloudSession.convexSiteUrl) {
-      agendexDesktop.cloudToken = result.cloudSession.token;
-      agendexDesktop.convexSiteUrl = result.cloudSession.convexSiteUrl;
+      session.cloudToken = result.cloudSession.token;
+      session.convexSiteUrl = result.cloudSession.convexSiteUrl;
     }
-    if (result?.sessionCleared && bootstrap.cloudToken) {
-      // The session was revoked and the main process cleared the stored creds.
-      // The renderer's copy of this bridge is frozen at expose time
-      // (contextBridge copies values), so nulling `cloudToken` here cannot
-      // reach it — reload so the page re-bootstraps without the stale token
-      // and lands on the sign-in gate.
-      agendexDesktop.cloudToken = null;
-      agendexDesktop.convexSiteUrl = null;
+    if (result?.sessionCleared && session.cloudToken) {
+      // Session revoked and main process cleared stored creds. Reload so the
+      // page re-bootstraps without a stale token and lands on the sign-in gate.
+      session.cloudToken = null;
+      session.convexSiteUrl = null;
       window.location.reload();
       return null;
     }
