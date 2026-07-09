@@ -10,6 +10,7 @@ export {
 } from './adapters/registry.ts';
 export type { AgendexConfig, InitConfigOptions } from './config.ts';
 export {
+  CURRENT_CONFIG_VERSION,
   getConfigDir,
   getConfigPath,
   getHomeDir,

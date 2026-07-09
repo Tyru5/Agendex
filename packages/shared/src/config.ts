@@ -118,12 +118,18 @@ export function applyAdapterEnableMigrations(
   let version = fromVersion > 0 ? fromVersion : 0;
   const next = [...adapters];
 
-  for (const migration of ADAPTER_ENABLE_MIGRATIONS) {
-    if (version >= migration.toVersion) continue;
-    for (const id of migration.enable) {
-      if (!next.includes(id)) next.push(id);
+  // An empty list means "unset" (e.g. fresh login before loadOrInitConfig fills
+  // catalog defaults). Only append newly-default adapters onto non-empty frozen
+  // lists from pre-existing installs — otherwise we would pin installs to just
+  // the migrated adapters (e.g. only `grok`) and skip cursor/codex/etc.
+  if (next.length > 0) {
+    for (const migration of ADAPTER_ENABLE_MIGRATIONS) {
+      if (version >= migration.toVersion) continue;
+      for (const id of migration.enable) {
+        if (!next.includes(id)) next.push(id);
+      }
+      version = migration.toVersion;
     }
-    version = migration.toVersion;
   }
 
   if (version < CURRENT_CONFIG_VERSION) version = CURRENT_CONFIG_VERSION;
