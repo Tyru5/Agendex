@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 3.4.0
+
+### Minor Changes
+
+- 1ced684: grok adapter addition
+
 ## 3.3.0
 
 ### Minor Changes
