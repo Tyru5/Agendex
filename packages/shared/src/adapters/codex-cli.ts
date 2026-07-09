@@ -300,14 +300,18 @@ export const codexCliAdapter: AgentAdapter = {
 
       const messages = extractMessages(lines);
       const { content, planBlocks } = selectPlanContent(messages);
+      // Only index explicit Codex plan artifacts. Final-answer fallbacks are
+      // agent transcripts (commit messages, reviews, TASK harness runs), not plans.
+      if (planBlocks.length === 0) return [];
 
       const stats = await stat(filePath);
       const sessionMeta = extractSessionMeta(lines);
       const createdAt = parseDate(sessionMeta.startedAt) ?? stats.birthtime;
 
-      const metadata: Record<string, unknown> = {};
+      const metadata: Record<string, unknown> = {
+        planBlocks: planBlocks.length,
+      };
       if (sessionMeta.sessionId) metadata.sessionId = sessionMeta.sessionId;
-      if (planBlocks.length > 0) metadata.planBlocks = planBlocks.length;
 
       return [
         {
