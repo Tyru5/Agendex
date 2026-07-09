@@ -73,7 +73,10 @@ function authorizationFromFetchArgs(input: RequestInfo | URL, init?: RequestInit
   return new Headers(init?.headers).get('Authorization');
 }
 
-async function bodyFromFetchArgs(input: RequestInfo | URL, init?: RequestInit): Promise<string | null> {
+async function bodyFromFetchArgs(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<string | null> {
   if (input instanceof Request) {
     try {
       return await input.text();
