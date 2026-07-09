@@ -1,112 +1,73 @@
 import { afterEach, expect, test } from 'bun:test';
 import { desktopAuthFetch } from './auth-client.ts';
-import type { AgendexDesktopBridge } from './desktop.ts';
-
-type TestLocation = {
-  reload: () => void;
-};
-
-type TestDesktopWindow = {
-  readonly agendexDesktop: AgendexDesktopBridge;
-  readonly location: TestLocation;
-};
-
-function installDesktopWindow(bridge: Partial<AgendexDesktopBridge> = {}) {
-  let reloadCount = 0;
-  let logoutCount = 0;
-  const desktop: AgendexDesktopBridge = {
-    isDesktop: true,
-    cloudToken: null,
-    convexSiteUrl: null,
-    login: async () => false,
-    logout: async () => {
-      logoutCount += 1;
-      desktop.cloudToken = null;
-      desktop.convexSiteUrl = null;
-      return true;
-    },
-    setModePref: async () => true,
-    refreshCloudSession: async () => null,
-    getConvexAuthToken: async () => null,
-    ...bridge,
-  };
-
-  // Preserve logout wrapper if caller overrode logout without counting.
-  if (bridge.logout) {
-    const override = bridge.logout;
-    desktop.logout = async () => {
-      logoutCount += 1;
-      return override();
-    };
-  }
-
-  const desktopWindow: TestDesktopWindow = {
-    agendexDesktop: desktop,
-    location: {
-      reload: () => {
-        reloadCount += 1;
-      },
-    },
-  };
-
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: desktopWindow,
-  });
-
-  return {
-    desktop,
-    getReloadCount: () => reloadCount,
-    getLogoutCount: () => logoutCount,
-  };
-}
-
-function uninstallDesktopWindow() {
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: undefined,
-  });
-}
-
-function authorizationFromFetchArgs(input: RequestInfo | URL, init?: RequestInit): string | null {
-  if (input instanceof Request) return input.headers.get('Authorization');
-  return new Headers(init?.headers).get('Authorization');
-}
-
-async function bodyFromFetchArgs(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<string | null> {
-  if (input instanceof Request) {
-    try {
-      return await input.text();
-    } catch {
-      return null;
-    }
-  }
-  if (typeof init?.body === 'string') return init.body;
-  return null;
-}
+import {
+  authorizationFromFetchArgs,
+  bodyFromFetchArgs,
+  createTestFetch,
+  installDesktopWindow,
+  uninstallDesktopWindow,
+} from './auth-client-desktop-test-helpers.ts';
 
 afterEach(() => {
   uninstallDesktopWindow();
 });
 
 test('desktopAuthFetch does not reload on 401 when there is no stored cloud token', async () => {
-  const { getReloadCount, getLogoutCount } = installDesktopWindow({ cloudToken: null });
+  let bridgeFetchCalls = 0;
+  const { getReloadCount, getLogoutCount } = installDesktopWindow({
+    cloudToken: null,
+    authFetch: async () => {
+      bridgeFetchCalls += 1;
+      return {
+        body: JSON.stringify({ error: 'forbidden' }),
+        headers: [['Content-Type', 'application/json']],
+        status: 403,
+        statusText: 'Forbidden',
+      };
+    },
+  });
   const originalFetch = globalThis.fetch;
 
-  globalThis.fetch = (async () =>
-    new Response(JSON.stringify({ error: 'unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    })) as typeof fetch;
+  globalThis.fetch = createTestFetch(
+    async () =>
+      new Response(JSON.stringify({ error: 'unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+  );
 
   try {
     const response = await desktopAuthFetch('http://localhost/api/auth/get-session');
     expect(response.status).toBe(401);
+    expect(bridgeFetchCalls).toBe(0);
     expect(getReloadCount()).toBe(0);
     expect(getLogoutCount()).toBe(0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('desktopAuthFetch fallback preserves POST bodies when there is no desktop bridge', async () => {
+  uninstallDesktopWindow();
+  const originalFetch = globalThis.fetch;
+  const bodies: Array<string | null> = [];
+
+  globalThis.fetch = createTestFetch(async (input, init) => {
+    bodies.push(await bodyFromFetchArgs(input, init));
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+
+  try {
+    const response = await desktopAuthFetch('http://localhost/api/auth/sign-in', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'github' }),
+    });
+    expect(response.status).toBe(200);
+    expect(bodies).toEqual([JSON.stringify({ provider: 'github' })]);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -120,11 +81,13 @@ test('desktopAuthFetch clears the session then reloads when a stored token canno
   });
   const originalFetch = globalThis.fetch;
 
-  globalThis.fetch = (async () =>
-    new Response(JSON.stringify({ error: 'unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    })) as typeof fetch;
+  globalThis.fetch = createTestFetch(
+    async () =>
+      new Response(JSON.stringify({ error: 'unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+  );
 
   try {
     const response = await desktopAuthFetch('http://localhost/api/auth/get-session');
@@ -151,7 +114,7 @@ test('desktopAuthFetch retries once after a successful cloud session refresh', a
   const authHeaders: Array<string | null> = [];
   let calls = 0;
 
-  globalThis.fetch = (async (input, init) => {
+  globalThis.fetch = createTestFetch(async (input, init) => {
     calls += 1;
     authHeaders.push(authorizationFromFetchArgs(input, init));
     if (calls === 1) {
@@ -164,7 +127,7 @@ test('desktopAuthFetch retries once after a successful cloud session refresh', a
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  }) as typeof fetch;
+  });
 
   try {
     const response = await desktopAuthFetch('http://localhost/api/auth/get-session');
@@ -174,6 +137,43 @@ test('desktopAuthFetch retries once after a successful cloud session refresh', a
     expect(authHeaders[1]).toBe('Bearer fresh-token');
     expect(getReloadCount()).toBe(0);
     expect(getLogoutCount()).toBe(0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('desktopAuthFetch uses a refreshed cloud token on subsequent requests', async () => {
+  installDesktopWindow({
+    cloudToken: 'stale-token',
+    convexSiteUrl: 'https://example.convex.site',
+    refreshCloudSession: async () => ({
+      token: 'fresh-token',
+      convexSiteUrl: 'https://example.convex.site',
+    }),
+  });
+  const originalFetch = globalThis.fetch;
+  const authHeaders: Array<string | null> = [];
+  let calls = 0;
+
+  globalThis.fetch = createTestFetch(async (input, init) => {
+    calls += 1;
+    authHeaders.push(authorizationFromFetchArgs(input, init));
+    if (calls === 1) {
+      return new Response(JSON.stringify({ error: 'unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+
+  try {
+    await desktopAuthFetch('http://localhost/api/auth/get-session');
+    await desktopAuthFetch('http://localhost/api/auth/list-accounts');
+    expect(authHeaders).toEqual(['Bearer stale-token', 'Bearer fresh-token', 'Bearer fresh-token']);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -192,7 +192,7 @@ test('desktopAuthFetch re-sends a POST body after a successful token refresh', a
   const bodies: Array<string | null> = [];
   let calls = 0;
 
-  globalThis.fetch = (async (input, init) => {
+  globalThis.fetch = createTestFetch(async (input, init) => {
     calls += 1;
     bodies.push(await bodyFromFetchArgs(input, init));
     if (calls === 1) {
@@ -205,7 +205,7 @@ test('desktopAuthFetch re-sends a POST body after a successful token refresh', a
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  }) as typeof fetch;
+  });
 
   try {
     const response = await desktopAuthFetch('http://localhost/api/auth/sign-in', {

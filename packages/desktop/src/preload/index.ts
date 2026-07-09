@@ -14,6 +14,19 @@ interface CloudSession {
   convexSiteUrl: string;
 }
 
+type DesktopAuthFetchInit = {
+  readonly method: string;
+  readonly headers: readonly [string, string][];
+  readonly body: string | null;
+};
+
+type DesktopAuthFetchResult = {
+  readonly body: string | null;
+  readonly headers: readonly [string, string][];
+  readonly status: number;
+  readonly statusText: string;
+};
+
 const MODE_PREF_KEY = 'agendex_dashboard_mode';
 
 function readBootstrap(): Bootstrap {
@@ -125,6 +138,8 @@ const agendexDesktop = {
     }
     return typeof result?.token === 'string' && result.token.trim() ? result.token : null;
   },
+  authFetch: (url: string, init: DesktopAuthFetchInit): Promise<DesktopAuthFetchResult> =>
+    ipcRenderer.invoke('agendex:auth-fetch', url, init),
 };
 
 if (process.contextIsolated) {
