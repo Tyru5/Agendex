@@ -96,6 +96,36 @@ test('v4 migration does not re-enable grok after user disables it', () => {
   expect(migrated.adapters).toEqual(['claude-code', 'cursor']);
 });
 
+test('v4 migration leaves empty adapter lists empty so defaults can apply', () => {
+  // Login and other writers may persist [] with an older configVersion.
+  // Freezing that to ['grok'] would skip catalog defaults and break indexing.
+  const migrated = applyAdapterEnableMigrations(3, []);
+  expect(migrated.version).toBe(CURRENT_CONFIG_VERSION);
+  expect(migrated.adapters).toEqual([]);
+});
+
+test('login-style empty adapters still resolve to catalog defaults', async () => {
+  await useTempConfigDir();
+
+  // Simulate login writing cloud session fields without a frozen adapter list.
+  saveConfig({
+    configVersion: 3,
+    cloudToken: 'cloud-session',
+    convexUrl: 'http://127.0.0.1:3210',
+    enabledAdapters: [],
+    customPlanDirs: [],
+  });
+
+  const loaded = loadConfig();
+  expect(loaded?.enabledAdapters).toEqual([]);
+  expect(loaded?.configVersion).toBe(CURRENT_CONFIG_VERSION);
+
+  const inited = await loadOrInitConfig();
+  expect(inited.enabledAdapters.length).toBeGreaterThan(1);
+  expect(inited.enabledAdapters).toContain('cursor');
+  expect(inited.enabledAdapters).toContain('grok');
+});
+
 test('loadConfig migrates v3 on-disk config and loadOrInitConfig persists it', async () => {
   const configDir = await useTempConfigDir();
   await mkdir(configDir, { recursive: true });

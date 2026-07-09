@@ -401,7 +401,7 @@ async function writeSmokeConfig(homeDir) {
     join(configDir, 'config.json'),
     `${JSON.stringify(
       {
-        configVersion: 3,
+        configVersion: 4,
         token: 'local-token',
         cloudToken: 'cloud-token',
         convexUrl: 'http://127.0.0.1:9',
