@@ -45,15 +45,7 @@ function Body({ children }: { children: ReactNode }) {
   );
 }
 
-function Section({
-  id,
-  title,
-  children,
-}: {
-  id: string;
-  title: string;
-  children: ReactNode;
-}) {
+function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section
       id={id}
@@ -242,7 +234,7 @@ export function DownloadPage({ onBack, homeHref = '/' }: DownloadPageProps) {
         <figure className="m-0 max-w-[560px] overflow-hidden rounded-[12px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_70%,#0a0a0a)] p-3 sm:p-4">
           <img
             src={KEYCHAIN_PROMPT_IMAGE}
-            alt='macOS dialog: “Agendex wants to use your confidential information stored in Safe Storage in your keychain. To allow this, enter the login keychain password.” with Always Allow, Deny, and Allow buttons.'
+            alt="macOS dialog: “Agendex wants to use your confidential information stored in Safe Storage in your keychain. To allow this, enter the login keychain password.” with Always Allow, Deny, and Allow buttons."
             width={996}
             height={460}
             className="block h-auto w-full rounded-[8px]"
@@ -283,29 +275,27 @@ export function DownloadPage({ onBack, homeHref = '/' }: DownloadPageProps) {
           </div>
 
           <div>
-            <h3 className="m-0 text-[15px] font-bold text-[var(--landing-text)]">
-              What to click
-            </h3>
+            <h3 className="m-0 text-[15px] font-bold text-[var(--landing-text)]">What to click</h3>
             <ul className="m-0 grid max-w-[68ch] list-none gap-2 p-0 text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
               <li>
-                <strong className="text-[var(--landing-text)]">Allow</strong> — unlocks the item
-                for this launch.
+                <strong className="text-[var(--landing-text)]">Allow</strong> — unlocks the item for
+                this launch.
               </li>
               <li>
-                <strong className="text-[var(--landing-text)]">Always Allow</strong> — remembers
-                the choice for Agendex so you are not prompted every time (recommended if you trust
-                this install).
+                <strong className="text-[var(--landing-text)]">Always Allow</strong> — remembers the
+                choice for Agendex so you are not prompted every time (recommended if you trust this
+                install).
               </li>
               <li>
-                <strong className="text-[var(--landing-text)]">Deny</strong> — Agendex cannot read
-                a saved session and will show the sign-in screen again.
+                <strong className="text-[var(--landing-text)]">Deny</strong> — Agendex cannot read a
+                saved session and will show the sign-in screen again.
               </li>
             </ul>
           </div>
 
           <div className="rounded-[8px] border border-[var(--landing-border)] border-l-2 border-l-[var(--landing-accent)] bg-[var(--landing-surface)] px-4 py-3 text-[13px] leading-[1.65] text-[var(--landing-muted)]">
-            Agendex never stores your cloud session token in plaintext on disk. If secure storage
-            is unavailable, it refuses to save the session rather than writing an unprotected
+            Agendex never stores your cloud session token in plaintext on disk. If secure storage is
+            unavailable, it refuses to save the session rather than writing an unprotected
             credential.
           </div>
         </div>

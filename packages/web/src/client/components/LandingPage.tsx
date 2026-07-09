@@ -1167,10 +1167,7 @@ function LandingFooter({
       <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-3 max-sm:justify-start [&>a]:text-[12.5px] [&>a]:font-semibold [&>a]:text-[var(--landing-muted)] [&>a]:no-underline [&>a:hover]:text-[var(--landing-text)]">
         <LandingAnchor href="#features">Features</LandingAnchor>
         <LandingAnchor href="#pricing">Pricing</LandingAnchor>
-        <LandingAnchor
-          href="/download"
-          onClick={landingNavClickHandler('/download', navHandlers)}
-        >
+        <LandingAnchor href="/download" onClick={landingNavClickHandler('/download', navHandlers)}>
           Download
         </LandingAnchor>
         <LandingAnchor href="/docs" onClick={landingNavClickHandler('/docs', navHandlers)}>
