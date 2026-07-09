@@ -106,6 +106,82 @@ Full review comments:
   expect(assessment.reasons).toContain('review-output');
 });
 
+test('marks <task> / TASK: / LENS: harness titles as low-value wrappers', () => {
+  for (const title of [
+    '<task>Write a commit message for the staged changes below.</task>',
+    'TASK: Final goal/constraint verification for current HEAD',
+    'LENS: DX — process / rule compliance',
+  ]) {
+    const assessment = assessPlanValue({
+      title,
+      content: 'Updated the parser and verified the change.\n\nVerification:\n- `bun test` passed.',
+      metadata: { sessionId: 'codex-session' },
+    });
+
+    expect(assessment.lowValue).toBe(true);
+    expect(assessment.reasons).toContain('wrapper-title');
+  }
+});
+
+test('does not mark structured plans low-value solely for wrapper titles', () => {
+  for (const title of [
+    '<task>Draft a mobile optimization plan</task>',
+    'TASK: Mobile optimization plan',
+    'LENS: Mobile optimization plan',
+  ]) {
+    const assessment = assessPlanValue({
+      title,
+      content: `# Mobile Optimization Plan
+
+## Approach
+Use responsive CSS and a collapsible nav.
+
+## Steps
+1. Replace hide-only mobile CSS
+2. Add responsive nav
+
+## Verification
+Open the landing page on a phone-width viewport.`,
+    });
+
+    expect(assessment.lowValue).toBe(false);
+    expect(assessment.reasons).not.toContain('wrapper-title');
+  }
+});
+
+test('marks conventional commit messages as low-value without plan structure', () => {
+  const assessment = assessPlanValue({
+    title: '<task>Write a commit message for the staged changes below.</task>',
+    content: `chore: add grok updater
+
+Add grok to the agent tool list, include its install path on Windows and Unix, probe \`grok --version\`, and update it via \`grok update\` with curl install fallback when the binary is missing.`,
+    metadata: { sessionId: 'codex-session' },
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('wrapper-title');
+  expect(assessment.reasons).toContain('commit-message');
+});
+
+test('marks execution reports with ordered steps but no plan structure as low-value', () => {
+  const assessment = assessPlanValue({
+    title: 'Please resolve this bug:',
+    content: `Fixed the stale-closure bug in use-root-bootstrap.ts.
+
+1. Patched the hook to capture the latest callback
+2. Updated the dependent effect
+3. Verified the boot sequence
+
+Verification:
+- \`bun test\` passed
+- \`git push\` completed`,
+    metadata: { sessionId: 'codex-session' },
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('execution-report');
+});
+
 test('marks review JSON outputs as low-value', () => {
   const assessment = assessPlanValue({
     title: "Review the code changes against the base branch 'main'.",

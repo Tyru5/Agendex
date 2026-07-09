@@ -12,6 +12,7 @@ export type PlanLowValueReason =
   | 'conversation-artifact'
   | 'code-only'
   | 'code-dominated'
+  | 'commit-message'
   | 'no-plan-signals';
 
 export interface PlanValueAssessment {
@@ -331,6 +332,27 @@ function hasStrongPlanSignal(positiveSignals: string[]): boolean {
   return positiveSignals.some(isStrongPositiveSignal) || sectionCount >= 2;
 }
 
+/**
+ * Plan *structure* — not generic action prose. Used to rescue execution-style
+ * writeups that also contain a real plan outline. Ordered steps / action
+ * bullets alone are common in "what I did" reports and must not rescue them.
+ */
+function hasPlanStructureSignal(positiveSignals: string[]): boolean {
+  if (
+    positiveSignals.includes('metadata:proposed-plan-block') ||
+    positiveSignals.includes('checklist') ||
+    positiveSignals.includes('section:approach') ||
+    positiveSignals.includes('section:implementation-plan') ||
+    positiveSignals.includes('section:files-to-modify') ||
+    positiveSignals.includes('section:steps') ||
+    positiveSignals.includes('section:acceptance-criteria')
+  ) {
+    return true;
+  }
+  const sectionCount = positiveSignals.filter((signal) => signal.startsWith('section:')).length;
+  return sectionCount >= 2;
+}
+
 function isPromptLikeOneLiner(line: string): boolean {
   if (isHeadingLine(line) || isChecklistLine(line) || isOrderedListLine(line)) return false;
 
@@ -353,12 +375,25 @@ function normalizedTitle(title: string | undefined): string {
 }
 
 function looksLikeWrapperTitle(title: string | undefined): boolean {
-  return /^<user_(?:action|instructions|prompt)>$/i.test((title ?? '').trim());
+  const raw = (title ?? '').trim();
+  // Agent harness wrappers and task envelopes are never plan titles.
+  return (
+    /^<user_(?:action|instructions|prompt)>$/i.test(raw) ||
+    /^<task\b/i.test(raw) ||
+    /^(?:TASK|LENS)\s*:/i.test(raw)
+  );
 }
 
 function looksLikePromptTitle(title: string | undefined): boolean {
   const cleaned = normalizedTitle(title);
   if (!cleaned) return false;
+
+  // Strip a leading <task>…</task> envelope so the inner prompt still matches.
+  const withoutTaskEnvelope = cleaned
+    .replace(/^<\/?task\b[^>]*>/gi, '')
+    .replace(/<\/task>/gi, '')
+    .trim();
+  const candidate = withoutTaskEnvelope || cleaned;
 
   return [
     /^(?:important:\s*)?work in\b/,
@@ -370,7 +405,19 @@ function looksLikePromptTitle(title: string | undefined): boolean {
     /^(?:help|fix|implement|create|add|update|remove|delete|refactor|write|review|investigate|debug|plan)\b/,
     /\?$/,
     /\b(?:repository|repo|existing branch|worktree|pull request|pr)\b/,
-  ].some((pattern) => pattern.test(cleaned));
+  ].some((pattern) => pattern.test(candidate));
+}
+
+const CONVENTIONAL_COMMIT_SUBJECT =
+  /^(?:feat|fix|chore|docs|refactor|test|ci|build|perf|style|revert)(?:\([^)]+\))?!?:\s+\S/i;
+
+function looksLikeCommitMessage(lines: string[]): boolean {
+  const first = lines[0] ?? '';
+  if (!CONVENTIONAL_COMMIT_SUBJECT.test(first)) return false;
+  // A real plan that happens to start with a commit-style heading still has
+  // structure elsewhere; those are handled by hasPlanStructureSignal at the
+  // call site. Here we only detect the commit-message shape.
+  return true;
 }
 
 function looksLikeReviewOutput(normalized: string, title: string | undefined): boolean {
@@ -480,10 +527,12 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
 
   const explicitPlanBlock = metadataHasPlanBlocks(metadata);
   const strongPositive = hasStrongPlanSignal(positiveSignals);
+  const planStructure = hasPlanStructureSignal(positiveSignals);
   const systemContext = looksLikeSystemContext(normalized, lines);
   const toolLog = looksLikeToolLog(normalized);
   const conversationArtifact = looksLikeConversationArtifact(lines);
   const executionReport = looksLikeExecutionReport(normalized);
+  const commitMessage = looksLikeCommitMessage(lines);
   const wrapperTitle = looksLikeWrapperTitle(input.title);
   const promptTitle = looksLikePromptTitle(input.title);
   const reviewOutput = looksLikeReviewOutput(normalized, input.title);
@@ -498,6 +547,7 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
   if (toolLog) signals.push('negative:tool-log');
   if (conversationArtifact) signals.push('negative:conversation-artifact');
   if (executionReport) signals.push('negative:execution-report');
+  if (commitMessage) signals.push('negative:commit-message');
   if (wrapperTitle) signals.push('negative:wrapper-title');
   if (promptTitle) signals.push('negative:prompt-title');
   if (reviewOutput) signals.push('negative:review-output');
@@ -514,12 +564,13 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
   if (toolLog && !explicitPlanBlock) reasons.push('tool-log');
   if (conversationArtifact && !explicitPlanBlock && !strongPositive)
     reasons.push('conversation-artifact');
-  // Execution reports are detected by the mere presence of completion verbs
-  // plus command mentions — vocabulary detailed forward-looking plans also
-  // use ("once X is done", verification commands). Strong plan structure
-  // rescues them, same as the other content-ambiguous detectors below.
-  if (executionReport && !explicitPlanBlock && !strongPositive) reasons.push('execution-report');
-  if (wrapperTitle && !explicitPlanBlock) reasons.push('wrapper-title');
+  // Execution reports share vocabulary with forward-looking plans ("done",
+  // verification commands). Only true plan structure rescues them — not
+  // ordered-steps / action-bullets / planning-prose alone, which are common in
+  // completed-work writeups.
+  if (executionReport && !explicitPlanBlock && !planStructure) reasons.push('execution-report');
+  if (commitMessage && !explicitPlanBlock && !planStructure) reasons.push('commit-message');
+  if (wrapperTitle && !explicitPlanBlock && !planStructure) reasons.push('wrapper-title');
   if (reviewOutput && !explicitPlanBlock) reasons.push('review-output');
   if (promptTitle && !strongPositive && !explicitPlanBlock) reasons.push('prompt-like');
   if (codeOnly && !explicitPlanBlock && !strongPositive) reasons.push('code-only');
