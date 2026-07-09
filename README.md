@@ -36,12 +36,13 @@ Agendex is a Bun workspaces monorepo:
 
 ## Adapter Status
 
-Agendex currently has **6 implemented adapters**:
+Agendex currently has **7 implemented adapters**:
 
 - `claude-code`
 - `codex`
 - `continue`
 - `cursor`
+- `grok`
 - `opencode`
 - `plannotator`
 

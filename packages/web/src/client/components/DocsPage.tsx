@@ -82,6 +82,7 @@ const IMPLEMENTED_ADAPTERS = [
   'Codex CLI',
   'Continue',
   'Cursor',
+  'Grok',
   'OpenCode',
   'Plannotator',
 ] as const;
