@@ -1,5 +1,6 @@
 import { existsSync, statSync } from 'node:fs';
 import {
+  CURRENT_CONFIG_VERSION,
   getAgentStats,
   createPlanAnnotation,
   deletePlanAnnotation,
@@ -205,7 +206,7 @@ plans.post('/plan-sources', async (c) => {
   const currentDirs = config?.customPlanDirs ?? [];
   const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
   saveConfig({
-    ...(config ?? { configVersion: 3, enabledAdapters: [] }),
+    ...(config ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
     customPlanDirs: updated,
   });
   await scan();
@@ -226,7 +227,7 @@ plans.delete('/plan-sources', async (c) => {
     return c.json({ error: `directory not in custom plan dirs: ${resolved}` }, 404);
   }
   saveConfig({
-    ...(config ?? { configVersion: 3, enabledAdapters: [] }),
+    ...(config ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
     customPlanDirs: updated,
   });
   await scan();

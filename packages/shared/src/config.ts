@@ -110,6 +110,11 @@ function normalizeConfigVersion(input: unknown): number {
  * Apply versioned adapter-enable migrations for upgrades.
  * Callers that write config should persist CURRENT_CONFIG_VERSION so each
  * migration runs at most once per install.
+ *
+ * Empty adapter lists are left alone: callers treat `[]` as "no frozen
+ * selection yet" and fall back to catalog defaults. Only append newly
+ * default-enabled adapters when the user already has a non-empty list
+ * (i.e. a frozen selection from a prior install).
  */
 export function applyAdapterEnableMigrations(
   fromVersion: number,
@@ -117,11 +122,17 @@ export function applyAdapterEnableMigrations(
 ): { version: number; adapters: AdapterId[] } {
   let version = fromVersion > 0 ? fromVersion : 0;
   const next = [...adapters];
+  // Empty means "no frozen selection" — do not invent a one-adapter list
+  // (e.g. login writes [] with an older configVersion; that must stay empty
+  // so loadOrInitConfig can still auto-enable catalog defaults).
+  const hasFrozenList = next.length > 0;
 
   for (const migration of ADAPTER_ENABLE_MIGRATIONS) {
     if (version >= migration.toVersion) continue;
-    for (const id of migration.enable) {
-      if (!next.includes(id)) next.push(id);
+    if (hasFrozenList) {
+      for (const id of migration.enable) {
+        if (!next.includes(id)) next.push(id);
+      }
     }
     version = migration.toVersion;
   }

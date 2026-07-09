@@ -5,6 +5,7 @@ import { existsSync, statSync, writeSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  CURRENT_CONFIG_VERSION,
   getConfigPath,
   loadConfig,
   loadOrInitConfig,
@@ -470,7 +471,7 @@ async function runAddDirCommand(commandArgs: string[]): Promise<number> {
   const currentDirs = cfg?.customPlanDirs ?? [];
   const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
   saveConfig({
-    ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
+    ...(cfg ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
     customPlanDirs: updated,
   });
   writeStdout(`[agendex] added custom plan dir: ${resolved}`);
@@ -501,7 +502,7 @@ async function runRemoveDirCommand(commandArgs: string[]): Promise<number> {
     return 1;
   }
   saveConfig({
-    ...(cfg ?? { configVersion: 3, enabledAdapters: [] }),
+    ...(cfg ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
     customPlanDirs: updated,
   });
   writeStdout(`[agendex] removed custom plan dir: ${resolved}`);

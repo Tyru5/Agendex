@@ -1,6 +1,12 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { type AgendexConfig, isDevMode, loadConfig, saveConfig } from '@agendex/shared';
+import {
+  type AgendexConfig,
+  CURRENT_CONFIG_VERSION,
+  isDevMode,
+  loadConfig,
+  saveConfig,
+} from '@agendex/shared';
 
 const PROD_SITE_URL = 'https://app.agendex.dev';
 const DEV_SITE_URL = 'http://app.agendex.localhost:5174';
@@ -47,7 +53,7 @@ export async function login(siteUrlOverride?: string): Promise<void> {
   const callback = await result;
 
   const config: AgendexConfig = {
-    configVersion: 3,
+    configVersion: CURRENT_CONFIG_VERSION,
     cloudToken: callback.token,
     convexUrl: callback.convexUrl,
     siteUrl,
@@ -70,7 +76,7 @@ export function logout(): void {
   }
 
   const config: AgendexConfig = {
-    configVersion: 3,
+    configVersion: CURRENT_CONFIG_VERSION,
     enabledAdapters: existing.enabledAdapters,
     customPlanDirs: existing.customPlanDirs,
     ...(existing.token ? { token: existing.token } : {}),
