@@ -64,11 +64,25 @@ function createResponseFromDesktopAuthFetch(result: DesktopAuthFetchResult): Res
   });
 }
 
+function createRequestFromDesktopAuthFetchInit(url: string, init: DesktopAuthFetchInit): Request {
+  const headers = new Headers();
+  for (const [name, value] of init.headers) {
+    headers.append(name, value);
+  }
+  return new Request(url, {
+    body: init.body ?? undefined,
+    headers,
+    method: init.method,
+  });
+}
+
 async function fetchViaDesktopBridge(request: Request): Promise<Response> {
   if (!getDesktopCloudToken() || !getDesktopConvexSiteUrl()) return fetch(request);
   const init = await serializeDesktopAuthRequest(request);
   const result = await desktopBridgeAuthFetch(request.url, init);
-  return result ? createResponseFromDesktopAuthFetch(result) : fetch(request);
+  return result
+    ? createResponseFromDesktopAuthFetch(result)
+    : fetch(createRequestFromDesktopAuthFetchInit(request.url, init));
 }
 
 /**

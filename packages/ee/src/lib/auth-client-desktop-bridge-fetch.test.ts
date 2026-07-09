@@ -97,3 +97,67 @@ test('desktopAuthFetch routes cloud auth requests through the desktop bridge', a
     globalThis.fetch = originalFetch;
   }
 });
+
+test('desktopAuthFetch preserves POST bodies when the desktop bridge disappears after serialization', async () => {
+  // Given
+  let bridgeReads = 0;
+  const desktop: AgendexDesktopBridge = {
+    isDesktop: true,
+    cloudToken: 'desktop-cloud-token',
+    convexSiteUrl: 'https://example.convex.site',
+    login: async () => false,
+    logout: async () => true,
+    setModePref: async () => true,
+    refreshCloudSession: async () => null,
+    getConvexAuthToken: async () => null,
+    authFetch: async (url, init) => {
+      authFetchCalls.push({ url, init });
+      return {
+        body: JSON.stringify({ ok: true }),
+        headers: [['Content-Type', 'application/json']],
+        status: 200,
+        statusText: 'OK',
+      };
+    },
+  };
+  const desktopWindow = {
+    location: {
+      reload: () => undefined,
+    },
+  };
+  Object.defineProperty(desktopWindow, 'agendexDesktop', {
+    configurable: true,
+    get: () => {
+      bridgeReads += 1;
+      return bridgeReads <= 4 ? desktop : undefined;
+    },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: desktopWindow,
+  });
+
+  const originalFetch = globalThis.fetch;
+  const requestBodies: string[] = [];
+  globalThis.fetch = createTestFetch(async (input) => {
+    const request = input instanceof Request ? input : new Request(input);
+    requestBodies.push(await request.text());
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  });
+
+  try {
+    // When
+    const response = await desktopAuthFetch('https://example.convex.site/api/auth/sign-in', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'github' }),
+    });
+
+    // Then
+    expect(response.status).toBe(200);
+    expect(authFetchCalls).toEqual([]);
+    expect(requestBodies).toEqual([JSON.stringify({ provider: 'github' })]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
