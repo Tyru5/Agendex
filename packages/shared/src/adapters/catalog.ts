@@ -5,6 +5,7 @@ import { claudeCodeAdapter } from './claude-code.ts';
 import { codexCliAdapter } from './codex-cli.ts';
 import { continueIdeAdapter } from './continue-ide.ts';
 import { cursorAdapter } from './cursor.ts';
+import { grokAdapter } from './grok.ts';
 import { ohMyOpencodeAdapter } from './oh-my-opencode.ts';
 import { plannotatorAdapter } from './plannotator.ts';
 import { createStubAdapter } from './stub.ts';
@@ -28,6 +29,7 @@ export type SkillsAdapterId =
   | 'gemini-cli'
   | 'github-copilot'
   | 'goose'
+  | 'grok'
   | 'junie'
   | 'iflow-cli'
   | 'kilo'
@@ -84,6 +86,7 @@ export const ADAPTER_AGENT_ALIASES: Record<AdapterId, string> = {
   'gemini-cli': 'gemini-cli',
   'github-copilot': 'copilot-chat',
   goose: 'goose',
+  grok: 'grok',
   junie: 'junie',
   'iflow-cli': 'iflow-cli',
   kilo: 'kilo-cli',
@@ -261,6 +264,14 @@ const CATALOG: AdapterCatalogEntry[] = [
     implemented: false,
     defaultEnabled: false,
     createAdapter: () => createStubAdapter('goose', [join(home, '.config', 'goose')], '.json'),
+  },
+  {
+    id: 'grok',
+    displayName: 'Grok',
+    group: 'universal',
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => grokAdapter,
   },
   {
     id: 'junie',
