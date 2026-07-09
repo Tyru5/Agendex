@@ -86,11 +86,7 @@ export function buildTrustedOrigins({
     ...LOCAL_ORIGIN_PATTERNS,
   ].filter((value): value is string => Boolean(value));
 
-  if (
-    requestOrigin &&
-    isAgendexLocalOrigin(requestOrigin) &&
-    !origins.includes(requestOrigin)
-  ) {
+  if (requestOrigin && isAgendexLocalOrigin(requestOrigin) && !origins.includes(requestOrigin)) {
     origins.push(requestOrigin);
   }
 
