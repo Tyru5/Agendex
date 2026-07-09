@@ -33,8 +33,23 @@ export function getConfigDir(): string {
   return join(getHomeDir(), isDevMode() ? '.agendex-dev' : '.agendex');
 }
 
+/** Current on-disk config schema version. Bump when applying one-shot migrations. */
+export const CURRENT_CONFIG_VERSION = 4;
+
+/**
+ * One-shot adapter enable migrations.
+ * When upgrading past `toVersion`, missing adapters in `enable` are appended to
+ * the user's stored list. After the user saves at that version (or higher), the
+ * migration does not re-add adapters they later disable via configure.
+ */
+const ADAPTER_ENABLE_MIGRATIONS: Array<{ toVersion: number; enable: AdapterId[] }> = [
+  // v4: Grok adapter shipped default-enabled; existing installs had a frozen
+  // enabledAdapters list from before the catalog entry existed.
+  { toVersion: 4, enable: ['grok'] },
+];
+
 export interface AgendexConfig {
-  configVersion: 3;
+  configVersion: number;
   token?: string;
   cloudToken?: string;
   convexUrl?: string;
@@ -82,6 +97,41 @@ function normalizeAdapterIds(input: unknown): AdapterId[] {
   return sanitizeEnabledAdapterIds(
     input.filter((item): item is string => typeof item === 'string'),
   );
+}
+
+function normalizeConfigVersion(input: unknown): number {
+  if (typeof input === 'number' && Number.isFinite(input) && input > 0) {
+    return Math.floor(input);
+  }
+  return 0;
+}
+
+/**
+ * Apply versioned adapter-enable migrations for upgrades.
+ * Callers that write config should persist CURRENT_CONFIG_VERSION so each
+ * migration runs at most once per install.
+ */
+export function applyAdapterEnableMigrations(
+  fromVersion: number,
+  adapters: AdapterId[],
+): { version: number; adapters: AdapterId[] } {
+  let version = fromVersion > 0 ? fromVersion : 0;
+  const next = [...adapters];
+
+  for (const migration of ADAPTER_ENABLE_MIGRATIONS) {
+    if (version >= migration.toVersion) continue;
+    for (const id of migration.enable) {
+      if (!next.includes(id)) next.push(id);
+    }
+    version = migration.toVersion;
+  }
+
+  if (version < CURRENT_CONFIG_VERSION) version = CURRENT_CONFIG_VERSION;
+
+  return {
+    version,
+    adapters: sanitizeEnabledAdapterIds(next),
+  };
 }
 
 function expandHomePath(p: string): string {
@@ -155,15 +205,21 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
   const collectLocalIpAddress =
     typeof raw.collectLocalIpAddress === 'boolean' ? raw.collectLocalIpAddress : undefined;
 
+  const rawVersion = normalizeConfigVersion(raw.configVersion);
+  const migrated = applyAdapterEnableMigrations(
+    rawVersion,
+    normalizeAdapterIds(raw.enabledAdapters),
+  );
+
   return {
-    configVersion: 3, //TODO: implement actual logic here for incrementing the configVersion
+    configVersion: migrated.version,
     token,
     cloudToken,
     convexUrl,
     siteUrl,
     deviceId,
     collectLocalIpAddress,
-    enabledAdapters: normalizeAdapterIds(raw.enabledAdapters),
+    enabledAdapters: migrated.adapters,
     customPlanDirs: normalizeCustomPlanDirs(raw.customPlanDirs),
   };
 }
@@ -174,15 +230,27 @@ export function loadConfig(): AgendexConfig | null {
 
 export function saveConfig(config: AgendexConfig) {
   ensureConfigDir();
+  const fromVersion = normalizeConfigVersion(config.configVersion);
+  // If the caller is still on an older schema version, apply enable migrations
+  // before bumping to CURRENT. Callers that already pass CURRENT (e.g. after a
+  // deliberate configure that dropped an auto-enabled adapter) are left alone.
+  const migrated =
+    fromVersion < CURRENT_CONFIG_VERSION
+      ? applyAdapterEnableMigrations(fromVersion, sanitizeEnabledAdapterIds(config.enabledAdapters))
+      : {
+          version: CURRENT_CONFIG_VERSION,
+          adapters: sanitizeEnabledAdapterIds(config.enabledAdapters),
+        };
+
   const payload: AgendexConfig = {
-    configVersion: 3,
+    configVersion: migrated.version,
     token: config.token,
     cloudToken: config.cloudToken,
     convexUrl: config.convexUrl,
     siteUrl: config.siteUrl,
     deviceId: config.deviceId,
     collectLocalIpAddress: config.collectLocalIpAddress,
-    enabledAdapters: sanitizeEnabledAdapterIds(config.enabledAdapters),
+    enabledAdapters: migrated.adapters,
     customPlanDirs: normalizeCustomPlanDirs(config.customPlanDirs),
   };
   writeFileSync(getConfigPath(), JSON.stringify(payload, null, 2));
@@ -201,7 +269,7 @@ export function loadOrCreateToken(): string {
   const token = generateToken();
   saveConfig({
     ...existing,
-    configVersion: 3,
+    configVersion: CURRENT_CONFIG_VERSION,
     token,
     enabledAdapters: existing?.enabledAdapters ?? [],
     customPlanDirs: existing?.customPlanDirs ?? [],
@@ -218,7 +286,7 @@ export function loadOrCreateDeviceId(): string {
   const deviceId = randomBytes(16).toString('hex');
   saveConfig({
     ...existing,
-    configVersion: 3,
+    configVersion: CURRENT_CONFIG_VERSION,
     deviceId,
     enabledAdapters: existing?.enabledAdapters ?? [],
     customPlanDirs: existing?.customPlanDirs ?? [],
@@ -268,7 +336,7 @@ export async function loadOrInitConfig(options: InitConfigOptions = {}): Promise
   const deviceId = existing?.deviceId || randomBytes(16).toString('hex');
 
   const nextConfig: AgendexConfig = {
-    configVersion: 3,
+    configVersion: CURRENT_CONFIG_VERSION,
     token: tokenFromEnv ? existing?.token : currentToken,
     cloudToken: existing?.cloudToken,
     convexUrl: existing?.convexUrl,

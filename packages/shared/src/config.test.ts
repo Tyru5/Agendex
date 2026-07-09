@@ -1,11 +1,15 @@
 import { afterEach, expect, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  applyAdapterEnableMigrations,
+  CURRENT_CONFIG_VERSION,
   getConfigPath,
   loadConfig,
   loadOrCreateToken,
+  loadOrInitConfig,
   removeCustomPlanDir,
   resolveCustomPlanDirPath,
   saveConfig,
@@ -69,9 +73,62 @@ test('loadOrCreateToken preserves existing cloud session fields', async () => {
     cloudToken: 'cloud-session',
     convexUrl: 'http://127.0.0.1:3210',
     deviceId: 'device-1',
-    enabledAdapters: ['cursor'],
+    // v3→v4 migration auto-enables grok for pre-existing installs.
+    enabledAdapters: ['cursor', 'grok'],
     customPlanDirs: ['/tmp/agendex-plans'],
   });
+  expect(config?.configVersion).toBe(CURRENT_CONFIG_VERSION);
+});
+
+test('v4 migration auto-enables grok on pre-existing enabledAdapters lists', () => {
+  const migrated = applyAdapterEnableMigrations(3, ['claude-code', 'codex', 'cursor'] as never);
+  expect(migrated.version).toBe(CURRENT_CONFIG_VERSION);
+  expect(migrated.adapters).toContain('grok');
+  expect(migrated.adapters).toEqual(
+    expect.arrayContaining(['claude-code', 'codex', 'cursor', 'grok']),
+  );
+});
+
+test('v4 migration does not re-enable grok after user disables it', () => {
+  const migrated = applyAdapterEnableMigrations(4, ['claude-code', 'cursor'] as never);
+  expect(migrated.version).toBe(CURRENT_CONFIG_VERSION);
+  expect(migrated.adapters).not.toContain('grok');
+  expect(migrated.adapters).toEqual(['claude-code', 'cursor']);
+});
+
+test('loadConfig migrates v3 on-disk config and loadOrInitConfig persists it', async () => {
+  const configDir = await useTempConfigDir();
+  await mkdir(configDir, { recursive: true });
+  const path = getConfigPath();
+  writeFileSync(
+    path,
+    JSON.stringify(
+      {
+        configVersion: 3,
+        token: 'a'.repeat(64),
+        deviceId: 'device-1',
+        enabledAdapters: ['claude-code', 'codex', 'cursor'],
+        customPlanDirs: [],
+      },
+      null,
+      2,
+    ),
+  );
+
+  const loaded = loadConfig();
+  expect(loaded?.enabledAdapters).toContain('grok');
+  expect(loaded?.configVersion).toBe(CURRENT_CONFIG_VERSION);
+
+  const inited = await loadOrInitConfig();
+  expect(inited.enabledAdapters).toContain('grok');
+  expect(inited.configVersion).toBe(CURRENT_CONFIG_VERSION);
+
+  const onDisk = JSON.parse(await Bun.file(path).text()) as {
+    configVersion: number;
+    enabledAdapters: string[];
+  };
+  expect(onDisk.configVersion).toBe(CURRENT_CONFIG_VERSION);
+  expect(onDisk.enabledAdapters).toContain('grok');
 });
 
 test('removeCustomPlanDir removes an exactly matching normalized path', () => {
