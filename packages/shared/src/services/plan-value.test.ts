@@ -123,6 +123,32 @@ test('marks <task> / TASK: / LENS: harness titles as low-value wrappers', () => 
   }
 });
 
+test('does not mark structured plans low-value solely for wrapper titles', () => {
+  for (const title of [
+    '<task>Draft a mobile optimization plan</task>',
+    'TASK: Mobile optimization plan',
+    'LENS: Mobile optimization plan',
+  ]) {
+    const assessment = assessPlanValue({
+      title,
+      content: `# Mobile Optimization Plan
+
+## Approach
+Use responsive CSS and a collapsible nav.
+
+## Steps
+1. Replace hide-only mobile CSS
+2. Add responsive nav
+
+## Verification
+Open the landing page on a phone-width viewport.`,
+    });
+
+    expect(assessment.lowValue).toBe(false);
+    expect(assessment.reasons).not.toContain('wrapper-title');
+  }
+});
+
 test('marks conventional commit messages as low-value without plan structure', () => {
   const assessment = assessPlanValue({
     title: '<task>Write a commit message for the staged changes below.</task>',

@@ -41,7 +41,7 @@ test('matches rollout jsonl session files only', () => {
   expect(codexCliAdapter.matches('/tmp/rollout-2026-01-01-abc.json')).toBe(false);
 });
 
-test('ignores sessions without proposed_plan blocks (final-answer transcripts)', async () => {
+test('ignores low-value final-answer transcripts without proposed_plan blocks', async () => {
   const { dir, path } = await writeRollout([
     sessionMeta('sess-commit'),
     message('user', '<task>Write a commit message for the staged changes below.</task>'),
@@ -60,8 +60,7 @@ test('ignores sessions without proposed_plan blocks (final-answer transcripts)',
   }
 });
 
-test('indexes sessions that contain proposed_plan blocks', async () => {
-  const planBody = `# Mobile Optimization Plan
+const PLAN_BODY = `# Mobile Optimization Plan
 
 ## Context
 Landing page is unusable on phones.
@@ -73,12 +72,13 @@ Landing page is unusable on phones.
 ## Verification
 Open the landing page on a phone-width viewport.`;
 
+test('indexes sessions that contain proposed_plan blocks', async () => {
   const { dir, path } = await writeRollout([
     sessionMeta('sess-plan'),
     message('user', 'Please draft a plan for mobile optimization.'),
     message(
       'assistant',
-      `Here is the plan:\n\n<proposed_plan>\n${planBody}\n</proposed_plan>`,
+      `Here is the plan:\n\n<proposed_plan>\n${PLAN_BODY}\n</proposed_plan>`,
       'final_answer',
     ),
   ]);
@@ -94,6 +94,27 @@ Open the landing page on a phone-width viewport.`;
     expect(plan.metadata.planBlocks).toBe(1);
     expect(plan.metadata.sessionId).toBe('sess-plan');
     expect(plan.workspace).toBe('/Users/tiru5/Documents/dotfiles');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('indexes plain final-answer markdown plans without proposed_plan wrappers', async () => {
+  const { dir, path } = await writeRollout([
+    sessionMeta('sess-plain-plan'),
+    message('user', 'Please draft a plan for mobile optimization.'),
+    message('assistant', PLAN_BODY, 'final_answer'),
+  ]);
+
+  try {
+    const plans = await codexCliAdapter.parse(path);
+    expect(plans).toHaveLength(1);
+    const plan = plans[0]!;
+    expect(plan.agent).toBe('codex-cli');
+    expect(plan.content).toContain('## Steps');
+    expect(plan.content).toContain('Mobile Optimization Plan');
+    expect(plan.metadata.planBlocks).toBeUndefined();
+    expect(plan.metadata.sessionId).toBe('sess-plain-plan');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

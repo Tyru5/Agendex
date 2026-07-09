@@ -2,6 +2,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { hashPath } from '../hash.ts';
+import { assessPlanValue } from '../services/plan-value.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
 const sessionsDir = join(homedir(), '.codex', 'sessions');
@@ -300,24 +301,31 @@ export const codexCliAdapter: AgentAdapter = {
 
       const messages = extractMessages(lines);
       const { content, planBlocks } = selectPlanContent(messages);
-      // Only index explicit Codex plan artifacts. Final-answer fallbacks are
-      // agent transcripts (commit messages, reviews, TASK harness runs), not plans.
-      if (planBlocks.length === 0) return [];
+      if (!content.trim()) return [];
 
       const stats = await stat(filePath);
       const sessionMeta = extractSessionMeta(lines);
       const createdAt = parseDate(sessionMeta.startedAt) ?? stats.birthtime;
+      const title = extractTitle(messages, planBlocks, filePath);
 
-      const metadata: Record<string, unknown> = {
-        planBlocks: planBlocks.length,
-      };
+      const metadata: Record<string, unknown> = {};
       if (sessionMeta.sessionId) metadata.sessionId = sessionMeta.sessionId;
+      if (planBlocks.length > 0) metadata.planBlocks = planBlocks.length;
+
+      // Prefer <proposed_plan> blocks, but older/differently formatted rollouts
+      // may put a real markdown plan only in the final answer. Skip only when
+      // that fallback is low-value (commit messages, reviews, harness runs) so
+      // rescan does not delete previously indexed plans for the file.
+      if (planBlocks.length === 0) {
+        const assessment = assessPlanValue({ content, title, metadata });
+        if (assessment.lowValue) return [];
+      }
 
       return [
         {
           id: hashPath(filePath),
           agent: 'codex-cli',
-          title: extractTitle(messages, planBlocks, filePath),
+          title,
           content,
           filePath,
           format: 'jsonl',

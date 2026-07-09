@@ -570,7 +570,7 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
   // completed-work writeups.
   if (executionReport && !explicitPlanBlock && !planStructure) reasons.push('execution-report');
   if (commitMessage && !explicitPlanBlock && !planStructure) reasons.push('commit-message');
-  if (wrapperTitle && !explicitPlanBlock) reasons.push('wrapper-title');
+  if (wrapperTitle && !explicitPlanBlock && !planStructure) reasons.push('wrapper-title');
   if (reviewOutput && !explicitPlanBlock) reasons.push('review-output');
   if (promptTitle && !strongPositive && !explicitPlanBlock) reasons.push('prompt-like');
   if (codeOnly && !explicitPlanBlock && !strongPositive) reasons.push('code-only');
