@@ -74,11 +74,30 @@ export async function desktopLogin(provider?: DesktopAuthProvider): Promise<bool
   }
 }
 
-/** Clears the stored cloud session and reloads into the dashboard sign-in gate. */
-export async function desktopLogout(): Promise<void> {
+/**
+ * Clears the stored cloud session in the main process and nulls the renderer
+ * bridge fields. Does not navigate — callers decide whether to reload.
+ *
+ * `contextBridge` freezes the exposed object at inject time, so nulling
+ * `cloudToken` here mainly keeps non-isolated / test bridges consistent; a
+ * full reload is still required for the preload to re-bootstrap without a
+ * token. Always clear main-process creds first so that reload cannot re-read
+ * a revoked session from disk.
+ */
+export async function clearDesktopCloudSession(): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
-  await bridge.logout();
+  try {
+    await bridge.logout();
+  } finally {
+    bridge.cloudToken = null;
+    bridge.convexSiteUrl = null;
+  }
+}
+
+/** Clears the stored cloud session and reloads into the dashboard sign-in gate. */
+export async function desktopLogout(): Promise<void> {
+  await clearDesktopCloudSession();
   if (typeof window === 'undefined') return;
 
   const dashboard = new URL('/dashboard', window.location.origin);

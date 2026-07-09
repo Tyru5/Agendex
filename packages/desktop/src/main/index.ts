@@ -28,6 +28,11 @@ import { redactDesktopAuthCallbackUrl } from '@agendex/shared/desktop-auth-callb
 import { installDesktopProtocolLifecycle } from './desktop-protocol-lifecycle.ts';
 import { loadWithRetry } from './window-loader.ts';
 
+// Package name is `@agendex/desktop`; without this, Electron labels the
+// macOS Keychain item for safeStorage as "@agendex/desktop Safe Storage".
+// Set before any safeStorage use so the prompt reads "Agendex Safe Storage".
+app.setName('Agendex');
+
 const DEV_SERVER_PORT = 4890;
 const DEV_RENDERER_URL = 'http://app.agendex.localhost:5174/dashboard';
 

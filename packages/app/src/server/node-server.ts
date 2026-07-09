@@ -71,6 +71,21 @@ function resolveStaticFile(rootDir: string, pathname: string): string | null {
 }
 
 /**
+ * True when the path looks like a known static asset (JS/CSS/image/font/…),
+ * not a client-side route. SPA fallback must still apply to routes whose path
+ * segments merely contain dots (e.g. `/shared/abc.def`, `/invite/token.with.dots`).
+ * Missing real assets (e.g. `/_vercel/insights/script.js`) must 404 instead of
+ * returning `index.html` (which browsers then try to execute as JS).
+ */
+function looksLikeAssetPath(pathname: string): boolean {
+  const lastSegment = pathname.split('/').pop() ?? '';
+  const dot = lastSegment.lastIndexOf('.');
+  if (dot <= 0) return false;
+  const ext = lastSegment.slice(dot).toLowerCase();
+  return MIME_TYPES[ext] !== undefined;
+}
+
+/**
  * Serves the built client from an absolute directory with an SPA fallback to
  * `index.html`. Avoids serveStatic `root` resolution quirks so packaged
  * Electron apps (unpredictable cwd) work cross-platform.
@@ -85,6 +100,12 @@ function mountStaticFromDir(app: Hono, clientDistDir: string) {
     if (file) {
       const body = readFileSync(file);
       return c.body(body, 200, { 'Content-Type': contentTypeFor(file) });
+    }
+
+    // Missing asset paths must not SPA-fallback: that turns 404s into HTML
+    // payloads executed as scripts (`Unexpected token '<'`).
+    if (looksLikeAssetPath(pathname)) {
+      return c.text('Not found', 404);
     }
 
     if (existsSync(indexPath)) {

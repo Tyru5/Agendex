@@ -55,6 +55,7 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
 
 const LANDING_ANCHOR_OFFSET = 88;
 const LANDING_LINKS = [
+  { href: '/download', label: 'Download' },
   { href: '/docs', label: 'Docs' },
   { href: '/changelog', label: 'Changelog' },
 ] as const;
@@ -65,6 +66,7 @@ export interface LandingPageProps {
   mascot?: LandingMascotProps;
   onShowChangelog?: () => void;
   onShowDocs?: () => void;
+  onShowDownload?: () => void;
 }
 
 const HERO_AGENT_CHIPS = [
@@ -246,12 +248,48 @@ function CliInstallOptions() {
   );
 }
 
+function landingNavClickHandler(
+  href: string,
+  handlers: {
+    onShowDownload?: () => void;
+    onShowDocs?: () => void;
+    onShowChangelog?: () => void;
+  },
+): ((e: MouseEvent<HTMLAnchorElement>) => void) | undefined {
+  if (href === '/download' && handlers.onShowDownload) {
+    return (e) => {
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      handlers.onShowDownload?.();
+    };
+  }
+  if (href === '/docs' && handlers.onShowDocs) {
+    return (e) => {
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      handlers.onShowDocs?.();
+    };
+  }
+  if (href === '/changelog' && handlers.onShowChangelog) {
+    return (e) => {
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      handlers.onShowChangelog?.();
+    };
+  }
+  return undefined;
+}
+
 function LandingNavbar({
   mobileMenuOpen,
   onMobileMenuToggle,
   onMobileMenuClose,
   onShowChangelog,
   onShowDocs,
+  onShowDownload,
   authSlot,
 }: {
   mobileMenuOpen: boolean;
@@ -259,24 +297,18 @@ function LandingNavbar({
   onMobileMenuClose: () => void;
   onShowChangelog?: () => void;
   onShowDocs?: () => void;
+  onShowDownload?: () => void;
   authSlot?: ReactNode;
 }) {
-  function handleChangelogClick(e: MouseEvent<HTMLAnchorElement>) {
-    if (!onShowChangelog) return;
-    if (e.defaultPrevented) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    e.preventDefault();
-    onShowChangelog();
-    onMobileMenuClose();
-  }
+  const navHandlers = { onShowDownload, onShowDocs, onShowChangelog };
 
-  function handleDocsClick(e: MouseEvent<HTMLAnchorElement>) {
-    if (!onShowDocs) return;
-    if (e.defaultPrevented) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    e.preventDefault();
-    onShowDocs();
-    onMobileMenuClose();
+  function handleNavClick(href: string) {
+    const handler = landingNavClickHandler(href, navHandlers);
+    if (!handler) return undefined;
+    return (e: MouseEvent<HTMLAnchorElement>) => {
+      handler(e);
+      if (e.defaultPrevented) onMobileMenuClose();
+    };
   }
 
   return (
@@ -298,7 +330,7 @@ function LandingNavbar({
             <React.Fragment key={link.href}>
               <LandingAnchor
                 href={link.href}
-                onClick={link.href === '/docs' ? handleDocsClick : handleChangelogClick}
+                onClick={handleNavClick(link.href)}
                 className="text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
               >
                 {link.label}
@@ -353,7 +385,7 @@ function LandingNavbar({
             <LandingAnchor
               key={link.href}
               href={link.href}
-              onClick={link.href === '/docs' ? handleDocsClick : handleChangelogClick}
+              onClick={handleNavClick(link.href)}
               className="flex min-h-10 items-center rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 text-[13px] font-semibold text-[var(--landing-text)] no-underline"
             >
               {link.label}
@@ -619,9 +651,7 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
     <div className="landing-hero-shell" data-landing-animate="hero-shell">
       <div className="landing-hero-content">
         <LandingAnchor
-          href="https://github.com/Tyru5/Agendex/releases"
-          target="_blank"
-          rel="noopener noreferrer"
+          href="/download"
           data-landing-animate-item
           className="mb-5 inline-flex max-w-full items-center gap-2.5 rounded-full border border-[color-mix(in_oklch,var(--landing-accent)_26%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] py-[7px] pl-2 pr-3.5 text-[12px] font-semibold leading-[1.2] text-[var(--landing-text)] no-underline transition-[border-color,background-color] duration-150 hover:border-[color-mix(in_oklch,var(--landing-accent)_44%,var(--landing-border))] hover:bg-[color-mix(in_oklch,var(--landing-accent)_13%,transparent)]"
         >
@@ -1118,25 +1148,13 @@ function LandingFAQ({
 function LandingFooter({
   onShowChangelog,
   onShowDocs,
+  onShowDownload,
 }: {
   onShowChangelog?: () => void;
   onShowDocs?: () => void;
+  onShowDownload?: () => void;
 }) {
-  function handleChangelogClick(e: MouseEvent<HTMLAnchorElement>) {
-    if (!onShowChangelog) return;
-    if (e.defaultPrevented) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    e.preventDefault();
-    onShowChangelog();
-  }
-
-  function handleDocsClick(e: MouseEvent<HTMLAnchorElement>) {
-    if (!onShowDocs) return;
-    if (e.defaultPrevented) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    e.preventDefault();
-    onShowDocs();
-  }
+  const navHandlers = { onShowDownload, onShowDocs, onShowChangelog };
 
   return (
     <footer className="landing-frame flex min-h-[200px] items-end justify-between gap-8 px-[clamp(18px,5vw,72px)] py-10 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start">
@@ -1149,10 +1167,16 @@ function LandingFooter({
       <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-3 max-sm:justify-start [&>a]:text-[12.5px] [&>a]:font-semibold [&>a]:text-[var(--landing-muted)] [&>a]:no-underline [&>a:hover]:text-[var(--landing-text)]">
         <LandingAnchor href="#features">Features</LandingAnchor>
         <LandingAnchor href="#pricing">Pricing</LandingAnchor>
-        <LandingAnchor href="/docs" onClick={handleDocsClick}>
+        <LandingAnchor href="/download" onClick={landingNavClickHandler('/download', navHandlers)}>
+          Download
+        </LandingAnchor>
+        <LandingAnchor href="/docs" onClick={landingNavClickHandler('/docs', navHandlers)}>
           Docs
         </LandingAnchor>
-        <LandingAnchor href="/changelog" onClick={handleChangelogClick}>
+        <LandingAnchor
+          href="/changelog"
+          onClick={landingNavClickHandler('/changelog', navHandlers)}
+        >
           Changelog
         </LandingAnchor>
         <LandingAnchor
@@ -1487,7 +1511,13 @@ function useLandingActions(
   return { setTokenValue, openLogin, closeLogin, setYearly, setOpenFaq, submit };
 }
 
-function LandingPageInner({ children, mascot, onShowChangelog, onShowDocs }: LandingPageProps) {
+function LandingPageInner({
+  children,
+  mascot,
+  onShowChangelog,
+  onShowDocs,
+  onShowDownload,
+}: LandingPageProps) {
   const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
   const [tokenError, setTokenError] = useState('');
   const pageRef = useLandingIntroAnimation();
@@ -1519,6 +1549,7 @@ function LandingPageInner({ children, mascot, onShowChangelog, onShowDocs }: Lan
           onMobileMenuClose={closeMobileMenu}
           onShowChangelog={onShowChangelog}
           onShowDocs={onShowDocs}
+          onShowDownload={onShowDownload}
           authSlot={navbarAuthNode}
         />
 
@@ -1569,7 +1600,11 @@ function LandingPageInner({ children, mascot, onShowChangelog, onShowDocs }: Lan
           </div>
         </section>
 
-        <LandingFooter onShowChangelog={onShowChangelog} onShowDocs={onShowDocs} />
+        <LandingFooter
+          onShowChangelog={onShowChangelog}
+          onShowDocs={onShowDocs}
+          onShowDownload={onShowDownload}
+        />
 
         {mascot && (
           <LandingMascot
@@ -1598,9 +1633,15 @@ export function LandingPage({
   mascot,
   onShowChangelog,
   onShowDocs,
+  onShowDownload,
 }: LandingPageProps = {}) {
   return (
-    <LandingPageInner mascot={mascot} onShowChangelog={onShowChangelog} onShowDocs={onShowDocs}>
+    <LandingPageInner
+      mascot={mascot}
+      onShowChangelog={onShowChangelog}
+      onShowDocs={onShowDocs}
+      onShowDownload={onShowDownload}
+    >
       {children}
     </LandingPageInner>
   );

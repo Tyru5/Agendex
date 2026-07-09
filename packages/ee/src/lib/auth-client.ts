@@ -1,6 +1,7 @@
 import { convexClient, crossDomainClient } from '@convex-dev/better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 import {
+  clearDesktopCloudSession,
   getDesktopCloudToken,
   getDesktopConvexSiteUrl,
   isDesktop,
@@ -27,22 +28,50 @@ export const APP_URL = normalizeLocalDevUrl(
 
 const desktopConvexSiteUrl = getDesktopConvexSiteUrl();
 
-async function desktopAuthFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+/**
+ * Desktop auth fetch: attach the cloud Bearer token and, on 401, try a one-shot
+ * session refresh. Only reload when we *had* a stored cloud session that the
+ * main process then cleared — reloading re-bootstraps the preload without a
+ * stale token and lands on the sign-in gate.
+ *
+ * Critical: unsigned-in desktop still mounts ConvexBetterAuthProvider, which
+ * probes `/api/auth/get-session`. That returns 401 with no cloud token. If we
+ * reloaded on every bare 401 the window would spin forever on a blank themed
+ * background (prod desktop blank-screen bug).
+ *
+ * Bodies are carried via a `Request` that is cloned for the first attempt so a
+ * retry after refresh can re-send POST bodies (streams are one-shot).
+ */
+export async function desktopAuthFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
   const headers = new Headers(init?.headers);
-  let token = getDesktopCloudToken();
+  const token = getDesktopCloudToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
-  let response = await fetch(input, { ...init, headers });
+  // Materialize a Request up front so we can clone it before the first fetch
+  // consumes any body stream, then rebuild with a rotated Authorization header.
+  const request = new Request(input, { ...init, headers });
+  let response = await fetch(request.clone());
   if (response.status !== 401) return response;
+
+  // No stored cloud session → ordinary unauthenticated response. Do not refresh
+  // or reload; the sign-in gate handles this state.
+  if (!token) return response;
 
   const refreshedToken = await refreshDesktopCloudSession();
   if (!refreshedToken) {
+    // Drop main-process + bridge creds before reload so the next boot cannot
+    // re-expose the same revoked token and re-enter this 401→reload loop.
+    await clearDesktopCloudSession();
     if (typeof window !== 'undefined') window.location.reload();
     return response;
   }
 
-  headers.set('Authorization', `Bearer ${refreshedToken}`);
-  response = await fetch(input, { ...init, headers });
+  const retryHeaders = new Headers(request.headers);
+  retryHeaders.set('Authorization', `Bearer ${refreshedToken}`);
+  response = await fetch(new Request(request, { headers: retryHeaders }));
   return response;
 }
 
