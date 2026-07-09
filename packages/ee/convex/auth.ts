@@ -10,11 +10,7 @@ import { buildTrustedOrigins } from './auth-origins';
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
-export {
-  LOCAL_DEV_CORS_ORIGINS,
-  buildTrustedOrigins,
-  isAgendexLocalOrigin,
-} from './auth-origins';
+export { LOCAL_DEV_CORS_ORIGINS, buildTrustedOrigins, isAgendexLocalOrigin } from './auth-origins';
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
   const siteUrl = process.env.SITE_URL ?? '';
