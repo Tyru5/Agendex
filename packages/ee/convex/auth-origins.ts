@@ -1,11 +1,16 @@
 /**
  * Origin helpers for better-auth trustedOrigins / CORS.
  *
- * Desktop prod serves the EE client from an ephemeral `http://localhost:<port>`
- * origin. better-auth understands `http://localhost:*`, but @convex-dev/better-auth
- * strips trailing `*` when building the CORS allowlist, and convex-helpers only
- * exact-matches origins (plus `*.host` https subdomain wildcards). Reflecting a
- * matching request Origin as an exact string keeps Electron auth fetches working.
+ * Desktop prod serves the EE client from an ephemeral
+ * `http://app.agendex.localhost:<port>` origin. better-auth understands
+ * `http://*.agendex.localhost:*`, but @convex-dev/better-auth strips trailing
+ * `*` when building the CORS allowlist, and convex-helpers only exact-matches
+ * origins (plus `*.host` https subdomain wildcards). Reflecting a matching
+ * request Origin as an exact string keeps Electron auth fetches working.
+ *
+ * Only product-owned `*.agendex.localhost` hosts are reflected — never bare
+ * `localhost` / `127.0.0.1`, which any local process can use and would otherwise
+ * become a trusted browser origin for credentialed auth CORS.
  */
 
 /** Fixed local origins used for Vite / anonymous Convex dev. */
@@ -16,7 +21,10 @@ export const LOCAL_DEV_CORS_ORIGINS = [
   'http://127.0.0.1:5174',
 ] as const;
 
-/** better-auth patterns (port/subdomain wildcards). Not sufficient alone for CORS. */
+/**
+ * better-auth origin patterns (port/subdomain wildcards).
+ * Not sufficient alone for CORS after trailing-`*` strip.
+ */
 export const LOCAL_ORIGIN_PATTERNS = [
   'http://localhost:*',
   'http://127.0.0.1:*',
@@ -25,20 +33,16 @@ export const LOCAL_ORIGIN_PATTERNS = [
 ] as const;
 
 /**
- * True for loopback / agendex.localhost HTTP origins (any port), i.e. local web
- * dev and packaged Electron which binds an ephemeral localhost port.
+ * True for product-owned local HTTP hosts (`agendex.localhost` / subdomains).
+ * Used when deciding whether to reflect a request Origin into the CORS
+ * exact-match allowlist. Bare loopback hosts are intentionally excluded.
  */
-export function isLocalDevOrigin(origin: string): boolean {
+export function isAgendexLocalOrigin(origin: string): boolean {
   try {
     const url = new URL(origin);
     if (url.protocol !== 'http:') return false;
     const host = url.hostname;
-    return (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host === 'agendex.localhost' ||
-      host.endsWith('.agendex.localhost')
-    );
+    return host === 'agendex.localhost' || host.endsWith('.agendex.localhost');
   } catch {
     return false;
   }
@@ -53,8 +57,8 @@ export type TrustedOriginsInput = {
 
 /**
  * Builds the trustedOrigins list for better-auth, optionally reflecting the
- * request Origin when it is a known local/desktop origin so CORS exact-match
- * accepts Electron's ephemeral localhost ports.
+ * request Origin when it is a product-owned agendex.localhost origin so CORS
+ * exact-match accepts Electron's ephemeral desktop ports.
  */
 export function buildTrustedOrigins({
   siteUrl,
@@ -76,7 +80,11 @@ export function buildTrustedOrigins({
     ...LOCAL_ORIGIN_PATTERNS,
   ].filter((value): value is string => Boolean(value));
 
-  if (requestOrigin && isLocalDevOrigin(requestOrigin) && !origins.includes(requestOrigin)) {
+  if (
+    requestOrigin &&
+    isAgendexLocalOrigin(requestOrigin) &&
+    !origins.includes(requestOrigin)
+  ) {
     origins.push(requestOrigin);
   }
 

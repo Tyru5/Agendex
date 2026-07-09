@@ -190,9 +190,9 @@ test('clearDesktopCloudSession only calls logout and does not assign frozen brid
     value: {
       agendexDesktop: bridge,
       location: {
-        origin: 'http://localhost:57352',
+        origin: 'http://app.agendex.localhost:57352',
         pathname: '/dashboard',
-        href: 'http://localhost:57352/dashboard',
+        href: 'http://app.agendex.localhost:57352/dashboard',
         reload: () => {},
       },
     },
@@ -241,9 +241,9 @@ test('desktopLogout reloads dashboard after clearing session without throwing on
     value: {
       agendexDesktop: bridge,
       location: {
-        origin: 'http://localhost:57352',
+        origin: 'http://app.agendex.localhost:57352',
         pathname: '/dashboard',
-        href: 'http://localhost:57352/dashboard',
+        href: 'http://app.agendex.localhost:57352/dashboard',
         reload: () => {
           reloadCount += 1;
         },

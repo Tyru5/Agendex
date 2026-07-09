@@ -90,11 +90,12 @@ async function ensureBackend() {
       localApiToken = server.token;
       rendererTargetUrl = process.env.AGENDEX_RENDERER_URL ?? DEV_RENDERER_URL;
     } else {
-      // Prod: ephemeral port on `localhost` (a cloud-trusted origin so better-auth
-      // CORS accepts the desktop), client + local API served from the same origin.
-      server = await startNodeServer({ port: 0, clientDistDir, hostname: 'localhost' });
+      // Prod: ephemeral port, window origin is product-owned app.agendex.localhost
+      // (not bare localhost) so better-auth can reflect it for CORS without trusting
+      // every local process. Listen on loopback; *.localhost resolves to 127.0.0.1.
+      server = await startNodeServer({ port: 0, clientDistDir, hostname: '127.0.0.1' });
       localApiToken = server.token;
-      rendererTargetUrl = `http://localhost:${server.port}/dashboard`;
+      rendererTargetUrl = `http://app.agendex.localhost:${server.port}/dashboard`;
     }
   })();
 
