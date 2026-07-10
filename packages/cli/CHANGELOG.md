@@ -1,5 +1,15 @@
 # agendex-cli
 
+## 4.0.0
+
+### Major Changes
+
+- b7c73f0: add desktop-owned daemon worker
+
+### Patch Changes
+
+- d48db98: Fix v4 adapter migration so empty enabledAdapters lists stay empty (login no longer freezes installs to grok-only and skips catalog defaults).
+
 ## 3.4.0
 
 ### Minor Changes
