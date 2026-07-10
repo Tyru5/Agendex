@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import { getConfigDir } from '@agendex/shared';
 import type { SyncPlanPayload } from './api.ts';
 
-function getCachePath(): string {
-  return join(getConfigDir(), 'sync-cache.json');
+function getCachePath(scope: string): string {
+  return join(getConfigDir(), `sync-cache-${scope}.json`);
 }
 
 interface SyncCacheFile {
@@ -33,7 +33,7 @@ function parseSyncCache(raw: unknown): SyncCacheFile | null {
 }
 
 export function loadSyncCache(scope: string): Record<string, string> {
-  const cachePath = getCachePath();
+  const cachePath = getCachePath(scope);
   if (!existsSync(cachePath)) return {};
   try {
     const parsed = parseSyncCache(JSON.parse(readFileSync(cachePath, 'utf-8')));
@@ -49,7 +49,7 @@ export function saveSyncCache(
 ): void {
   const dir = getConfigDir();
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const cachePath = getCachePath();
+  const cachePath = getCachePath(options.scope);
   const plans = options.replace
     ? cache
     : // Merge with latest same-scope state to reduce lost updates from concurrent writers.

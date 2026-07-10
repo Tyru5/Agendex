@@ -270,13 +270,11 @@ function readProcessCommand(pid: number): string | null {
 function isAgendexDaemonCommand(command: string | null): boolean {
   if (!command) return false;
   const normalized = command.toLowerCase();
+  if (normalized.includes('--agendex-daemon-worker') || normalized.includes('daemon-worker')) {
+    return true;
+  }
   if (!normalized.includes('agendex')) return false;
-  return (
-    normalized.includes('--daemon') ||
-    normalized.includes('--worker') ||
-    normalized.includes('daemon-worker') ||
-    normalized.includes('--agendex-daemon-worker')
-  );
+  return normalized.includes('--daemon') || normalized.includes('--worker');
 }
 
 export function requestDaemonStop(pid: number, options: DaemonPathOptions = {}): void {

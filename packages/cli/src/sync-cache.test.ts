@@ -31,7 +31,7 @@ test('loads cache entries only for the matching cloud credential scope', () => {
 
   saveSyncCache({ 'plan-1': 'hash-b' }, { scope: 'account-b', replace: true });
   expect(loadSyncCache('account-b')).toEqual({ 'plan-1': 'hash-b' });
-  expect(loadSyncCache('account-a')).toEqual({});
+  expect(loadSyncCache('account-a')).toEqual({ 'plan-1': 'hash-a' });
 });
 
 test('ignores legacy account-agnostic cache files', () => {

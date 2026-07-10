@@ -262,7 +262,7 @@ async function main(): Promise<number> {
         }
         const runningPid = pidInfo.pid;
 
-        if (process.platform === 'win32' && pidInfo.launcher === 'cli') {
+        if (process.platform === 'win32') {
           requestDaemonStop(runningPid);
         } else {
           process.kill(runningPid, 'SIGTERM');

@@ -1,4 +1,6 @@
 import {
+  clearDaemonStopRequest,
+  consumeDaemonStopRequest,
   type DaemonCloudCredentials,
   requestWorkerShutdown,
   runWorker,
@@ -58,6 +60,11 @@ async function startWorker(
   if (started || !message || !setCredentials(message.credentials)) return;
   started = true;
 
+  clearDaemonStopRequest(process.pid);
+  const stopRequestPoll = setInterval(() => {
+    if (consumeDaemonStopRequest(process.pid)) void requestWorkerShutdown();
+  }, 100);
+  stopRequestPoll.unref();
   writePid({ launcher: 'desktop', parentPid: message.parentPid });
 
   const parentWatchdog = setInterval(() => {
@@ -83,6 +90,7 @@ async function startWorker(
     });
     process.exit(1);
   } finally {
+    clearInterval(stopRequestPoll);
     clearInterval(parentWatchdog);
   }
 }

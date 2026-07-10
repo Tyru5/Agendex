@@ -120,6 +120,12 @@ test('daemon PID ownership accepts only CLI or marked desktop daemon commands', 
   expect(
     isDaemonPidInfoRunning(info, {
       ...runtime,
+      processCommand: 'RenamedDesktop.exe --type=utility --agendex-daemon-worker',
+    }),
+  ).toBe(true);
+  expect(
+    isDaemonPidInfoRunning(info, {
+      ...runtime,
       processCommand: 'unrelated-process --daemon',
     }),
   ).toBe(false);
