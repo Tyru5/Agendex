@@ -74,7 +74,13 @@ test('loadOrCreateToken preserves existing cloud session fields', async () => {
     convexUrl: 'http://127.0.0.1:3210',
     deviceId: 'device-1',
     // v3→v4 migration auto-enables grok for pre-existing installs.
-    enabledAdapters: ['cursor', 'grok'],
+    enabledAdapters: expect.arrayContaining([
+      'cursor',
+      'grok',
+      'antigravity',
+      'gemini-cli',
+      'kiro-cli',
+    ]),
     customPlanDirs: ['/tmp/agendex-plans'],
   });
   expect(config?.configVersion).toBe(CURRENT_CONFIG_VERSION);
@@ -89,11 +95,13 @@ test('v4 migration auto-enables grok on pre-existing enabledAdapters lists', () 
   );
 });
 
-test('v4 migration does not re-enable grok after user disables it', () => {
+test('v5 migration adds file adapters without re-enabling grok', () => {
   const migrated = applyAdapterEnableMigrations(4, ['claude-code', 'cursor'] as never);
   expect(migrated.version).toBe(CURRENT_CONFIG_VERSION);
   expect(migrated.adapters).not.toContain('grok');
-  expect(migrated.adapters).toEqual(['claude-code', 'cursor']);
+  expect(migrated.adapters).toEqual(
+    expect.arrayContaining(['claude-code', 'cursor', 'antigravity', 'kiro-cli', 'windsurf']),
+  );
 });
 
 test('v4 migration leaves empty adapter lists empty so defaults can apply', () => {

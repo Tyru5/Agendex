@@ -2851,10 +2851,6 @@ body {
   flex-wrap: nowrap;
   gap: 8px;
   margin-top: 48px;
-  /* bottom padding + negative margin give the hover tooltip room to render
-     inside this scroll container without shifting the layout below */
-  padding-bottom: 48px;
-  margin-bottom: -48px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -2889,68 +2885,6 @@ body {
   justify-content: center;
   border-radius: 5px;
   color: var(--landing-text);
-}
-
-.landing-hero-agent--more {
-  position: relative;
-  border-style: dashed;
-  cursor: default;
-}
-
-.landing-hero-agent--more::after,
-.landing-hero-agent--more::before {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.landing-hero-agent--more::after {
-  content: attr(data-tooltip);
-  min-width: max-content;
-  top: calc(100% + 9px);
-  left: 50%;
-  transform: translate(-50%, -4px);
-  border: 1px solid var(--landing-border-strong);
-  border-radius: 7px;
-  background: var(--landing-surface);
-  color: var(--landing-text);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.25;
-  padding: 6px 8px;
-  white-space: nowrap;
-}
-
-.landing-hero-agent--more::before {
-  content: "";
-  top: calc(100% + 5px);
-  left: 50%;
-  width: 7px;
-  height: 7px;
-  transform: translate(-50%, -2px) rotate(45deg);
-  background: var(--landing-surface);
-  border-top: 1px solid var(--landing-border-strong);
-  border-left: 1px solid var(--landing-border-strong);
-}
-
-.landing-hero-agent--more:hover::after,
-.landing-hero-agent--more:hover::before,
-.landing-hero-agent--more:focus-visible::after,
-.landing-hero-agent--more:focus-visible::before {
-  opacity: 1;
-}
-
-.landing-hero-agent--more:hover::after,
-.landing-hero-agent--more:focus-visible::after {
-  transform: translate(-50%, 0);
-}
-
-.landing-hero-agent--more:hover::before,
-.landing-hero-agent--more:focus-visible::before {
-  transform: translate(-50%, 2px) rotate(45deg);
 }
 
 .landing-hero-install {

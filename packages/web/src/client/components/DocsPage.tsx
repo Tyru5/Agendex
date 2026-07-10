@@ -78,17 +78,38 @@ const QUICKSTART_STEPS = [
 ] as const;
 
 const IMPLEMENTED_ADAPTERS = [
+  'Antigravity',
   'Claude Code',
+  'CodeBuddy',
   'Codex CLI',
-  'Continue',
+  'Continue (experimental)',
   'Cursor',
+  'Factory Droid',
+  'Gemini CLI',
+  'GitHub Copilot',
   'Grok',
+  'Junie',
+  'Kilo Code',
+  'Kimi Code',
+  'Kiro',
+  'Mux',
   'OpenCode',
+  'Oh My OpenCode',
   'Plannotator',
+  'Qwen Code',
+  'Windsurf / Devin Desktop',
+] as const;
+
+const CAPTURE_PLAN_AGENTS = [
+  'Antigravity',
+  'Augment',
+  'Command Code',
+  'Gemini CLI',
+  'iFlow CLI',
 ] as const;
 
 const CATALOG_ADAPTERS =
-  'Windsurf, Amp, Cline, GitHub Copilot, Aider, Droid, Kilo Code, Roo Code, Goose, and Gemini CLI';
+  'Amp, Cline, Goose, Aider, Roo Code, and other agents without a stable plan artifact or explicit plan hook';
 
 const FREE_FEATURES = [
   'Local plan indexing and search',
@@ -465,8 +486,9 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
 
           <DocSection id="plan-sources" title="Plan sources">
             <Body>
-              Adapters teach Agendex where each agent keeps its plans and how to parse them. Fully
-              implemented adapters currently cover:
+              Adapters teach Agendex where each agent keeps its plans and how to parse them. Agendex
+              has 19 automatic integrations backed by durable artifacts or explicit plan-session
+              evidence, plus the experimental Continue adapter:
             </Body>
             <ul className="m-0 flex max-w-[68ch] list-none flex-wrap gap-2 p-0">
               {IMPLEMENTED_ADAPTERS.map((adapter) => (
@@ -479,10 +501,9 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               ))}
             </ul>
             <Body>
-              A broader adapter catalog — {CATALOG_ADAPTERS} — is rolling out through the same
-              adapter system, and custom directories cover anything the catalog doesn&rsquo;t reach
-              yet. Each adapter knows its agent&rsquo;s default plan locations, so there is nothing
-              to point at manually.
+              Unsupported catalog entries — {CATALOG_ADAPTERS} — stay hidden from selection until
+              they have a stable, testable ingestion contract. Custom directories and the hook
+              capture spool cover explicit Markdown exports in the meantime.
             </Body>
           </DocSection>
 
@@ -654,8 +675,8 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
 
           <DocSection id="agent-hooks" title="Agent hooks">
             <Body>
-              Hooks let supported agents notify Agendex the moment a plan is written, instead of
-              waiting on file watchers. Hook integrations are currently available for{' '}
+              Review hooks let supported agents notify Agendex the moment a plan is ready for
+              review. Managed review-hook integrations are currently available for{' '}
               <InlineCode>claude-code</InlineCode>, <InlineCode>codex</InlineCode>, and{' '}
               <InlineCode>pi</InlineCode>.
             </Body>
@@ -667,6 +688,29 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             <Body>
               Agendex only manages its own hook entries — installing and uninstalling never touches
               hooks you configured yourself.
+            </Body>
+            <SubHeading>Plan capture hooks</SubHeading>
+            <Body>
+              Agents whose plans are transient can pipe their hook JSON into{' '}
+              <InlineCode>capture-plan</InlineCode>. The capture bridge accepts{' '}
+              {CAPTURE_PLAN_AGENTS.map((agent, index) => (
+                <span key={agent}>
+                  {index > 0 && (index === CAPTURE_PLAN_AGENTS.length - 1 ? ', and ' : ', ')}
+                  {agent}
+                </span>
+              ))}
+              . Augment, Command Code, and iFlow CLI are capture-only integrations rather than
+              selectable automatic adapters.
+            </Body>
+            <div className="max-w-[560px]">
+              <CodeBlock>
+                {'agendex capture-plan --agent antigravity < hook-payload.json'}
+              </CodeBlock>
+            </div>
+            <Body>
+              Captured plans are written to <InlineCode>~/.agendex/plans/hooks/</InlineCode>. Only
+              explicit plan fields and known plan artifact paths are accepted; conversation
+              transcripts and tool output are not imported.
             </Body>
           </DocSection>
 

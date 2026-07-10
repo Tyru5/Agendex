@@ -102,6 +102,10 @@ const HELP_GROUPS: HelpGroup[] = [
   {
     title: 'Hooks & review',
     commands: [
+      {
+        command: 'capture-plan --agent <agent>',
+        description: 'Capture a plan from a hook JSON payload on stdin',
+      },
       { command: 'hooks status', description: 'Show Claude Code, Codex, and Pi hook status' },
       {
         command: 'hooks install <agent|all>',

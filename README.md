@@ -36,19 +36,52 @@ Agendex is a Bun workspaces monorepo:
 
 ## Adapter Status
 
-Agendex currently has **7 implemented adapters**:
+Agendex currently has **20 implemented adapters**. Nineteen use durable plan artifacts or
+explicit Plan-mode session state; Continue is retained as an experimental session adapter:
 
+- `antigravity`
 - `claude-code`
+- `codebuddy`
 - `codex`
-- `continue`
 - `cursor`
+- `droid`
+- `gemini-cli`
+- `github-copilot`
 - `grok`
+- `junie`
+- `kilo`
+- `kimi-cli`
+- `kiro-cli`
+- `mux`
 - `opencode`
+- `oh-my-opencode`
 - `plannotator`
+- `qwen-code`
+- `windsurf`
+- `continue` (experimental; requires explicit Plan-mode evidence)
 
 `plannotator` is implemented but not default-enabled in the OSS local app. CLI sync and daemon workflows auto-enable it when a cloud login target is configured; set `AGENDEX_PLANNOTATOR_SYNC=0` to opt out or `AGENDEX_PLANNOTATOR_SYNC=1` to force it on.
 
-The adapter catalog also includes additional non-implemented or stub entries for broader ecosystem coverage.
+Unsupported catalog entries are retained for ecosystem tracking but are hidden from adapter selection
+and cannot be enabled. Stock OpenCode session plans and Oh My OpenCode Markdown plans are separate
+adapters.
+
+File adapters honor the agents' documented roots and these optional path-list overrides (use the
+platform path delimiter): `AGENDEX_ANTIGRAVITY_PLAN_DIRS`, `AGENDEX_CODEBUDDY_PLAN_DIRS`,
+`AGENDEX_DROID_PLAN_DIRS`, `AGENDEX_GEMINI_CLI_PLAN_DIRS`,
+`AGENDEX_GITHUB_COPILOT_PLAN_DIRS`, `AGENDEX_JUNIE_PLAN_DIRS`, `AGENDEX_KILO_PLAN_DIRS`,
+`AGENDEX_KIMI_CODE_PLAN_DIRS`, `AGENDEX_KIRO_PLAN_DIRS`, `AGENDEX_MUX_PLAN_DIRS`,
+`AGENDEX_QWEN_CODE_PLAN_DIRS`, and `AGENDEX_WINDSURF_PLAN_DIRS`.
+
+Agents with transient or hook-only plans can send their hook JSON payload to the durable local spool:
+
+```bash
+agendex capture-plan --agent antigravity < hook-payload.json
+```
+
+The capture command accepts `antigravity`, `augment`, `command-code`, `gemini-cli`, and `iflow-cli`.
+It copies only explicit plan fields or known plan paths into `~/.agendex/plans/hooks/`; it never imports
+the transcript path from a hook payload.
 
 ## Quick Start (Cloud CLI)
 

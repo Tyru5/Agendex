@@ -9,7 +9,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: 'Which agents are supported?',
-    a: 'Implemented adapters currently cover Claude Code, Codex CLI, Continue, Cursor, OpenCode, and Plannotator. The catalog includes additional stub entries, but those are not full adapters yet.',
+    a: 'Agendex has 19 automatic plan integrations, including Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, Kiro, OpenCode, and Plannotator. Continue is experimental and only imports output with explicit Plan-mode evidence. Unsupported catalog entries are hidden.',
   },
   {
     q: 'Is my data private?',
@@ -33,7 +33,28 @@ export const FAQ_ITEMS = [
   },
 ];
 
-export const AGENTS = ['Claude Code', 'Codex', 'Continue', 'Cursor', 'OpenCode', 'Plannotator'];
+export const AGENTS = [
+  'Antigravity',
+  'Claude Code',
+  'CodeBuddy',
+  'Codex',
+  'Continue',
+  'Cursor',
+  'Factory Droid',
+  'Gemini CLI',
+  'GitHub Copilot',
+  'Grok',
+  'Junie',
+  'Kilo Code',
+  'Kimi Code',
+  'Kiro',
+  'Mux',
+  'OpenCode',
+  'Oh My OpenCode',
+  'Plannotator',
+  'Qwen Code',
+  'Windsurf / Devin Desktop',
+];
 
 export const LOCAL_STEPS = [
   {

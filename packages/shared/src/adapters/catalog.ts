@@ -5,8 +5,23 @@ import { claudeCodeAdapter } from './claude-code.ts';
 import { codexCliAdapter } from './codex-cli.ts';
 import { continueIdeAdapter } from './continue-ide.ts';
 import { cursorAdapter } from './cursor.ts';
+import {
+  antigravityAdapter,
+  codeBuddyAdapter,
+  droidAdapter,
+  geminiCliAdapter,
+  githubCopilotAdapter,
+  junieAdapter,
+  kiloAdapter,
+  kimiCodeAdapter,
+  kiroAdapter,
+  muxAdapter,
+  qwenCodeAdapter,
+  windsurfAdapter,
+} from './file-artifact-adapters.ts';
 import { grokAdapter } from './grok.ts';
 import { ohMyOpencodeAdapter } from './oh-my-opencode.ts';
+import { openCodeAdapter } from './opencode.ts';
 import { plannotatorAdapter } from './plannotator.ts';
 import { createStubAdapter } from './stub.ts';
 
@@ -36,10 +51,10 @@ export type SkillsAdapterId =
   | 'kimi-cli'
   | 'kiro-cli'
   | 'kode'
-  | 'mcpjam'
   | 'mistral-vibe'
   | 'mux'
   | 'opencode'
+  | 'oh-my-opencode'
   | 'openhands'
   | 'pi'
   | 'plannotator'
@@ -93,10 +108,10 @@ export const ADAPTER_AGENT_ALIASES: Record<AdapterId, string> = {
   'kimi-cli': 'kimi-cli',
   'kiro-cli': 'kiro-cli',
   kode: 'kode',
-  mcpjam: 'mcpjam',
   'mistral-vibe': 'mistral-vibe',
   mux: 'mux',
-  opencode: 'oh-my-opencode',
+  opencode: 'opencode',
+  'oh-my-opencode': 'oh-my-opencode',
   openhands: 'openhands',
   pi: 'pi',
   plannotator: 'plannotator',
@@ -120,17 +135,16 @@ const CATALOG: AdapterCatalogEntry[] = [
     displayName: 'Amp',
     group: 'universal',
     implemented: false,
-    defaultEnabled: true,
+    defaultEnabled: false,
     createAdapter: () => createStubAdapter('amp', [join(home, '.amp')], '.json'),
   },
   {
     id: 'antigravity',
     displayName: 'Antigravity',
     group: 'other',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () =>
-      createStubAdapter('antigravity', [join(home, '.gemini', 'antigravity')], '.json'),
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => antigravityAdapter,
   },
   {
     id: 'augment',
@@ -145,7 +159,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     displayName: 'Claude Code',
     group: 'other',
     implemented: true,
-    defaultEnabled: true,
+    defaultEnabled: false,
     createAdapter: () => claudeCodeAdapter,
   },
   {
@@ -161,7 +175,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     displayName: 'Cline',
     group: 'other',
     implemented: false,
-    defaultEnabled: true,
+    defaultEnabled: false,
     createAdapter: () =>
       createStubAdapter(
         'cline',
@@ -184,9 +198,9 @@ const CATALOG: AdapterCatalogEntry[] = [
     id: 'codebuddy',
     displayName: 'CodeBuddy',
     group: 'other',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () => createStubAdapter('codebuddy', [join(home, '.codebuddy')], '.md'),
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => codeBuddyAdapter,
   },
   {
     id: 'codex',
@@ -230,32 +244,27 @@ const CATALOG: AdapterCatalogEntry[] = [
   },
   {
     id: 'droid',
-    displayName: 'Droid',
+    displayName: 'Factory Droid',
     group: 'other',
-    implemented: false,
+    implemented: true,
     defaultEnabled: true,
-    createAdapter: () => createStubAdapter('droid', [join(home, '.factory', 'droids')], '.md'),
+    createAdapter: () => droidAdapter,
   },
   {
     id: 'gemini-cli',
     displayName: 'Gemini CLI',
     group: 'universal',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () => createStubAdapter('gemini-cli', [join(home, '.gemini')], '.md'),
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => geminiCliAdapter,
   },
   {
     id: 'github-copilot',
     displayName: 'GitHub Copilot',
     group: 'universal',
-    implemented: false,
+    implemented: true,
     defaultEnabled: true,
-    createAdapter: () =>
-      createStubAdapter(
-        'copilot-chat',
-        [join(home, '.vscode', 'User', 'workspaceStorage')],
-        '.json',
-      ),
+    createAdapter: () => githubCopilotAdapter,
   },
   {
     id: 'goose',
@@ -277,9 +286,9 @@ const CATALOG: AdapterCatalogEntry[] = [
     id: 'junie',
     displayName: 'Junie',
     group: 'other',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () => createStubAdapter('junie', [join(home, '.junie')], '.json'),
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => junieAdapter,
   },
   {
     id: 'iflow-cli',
@@ -293,25 +302,25 @@ const CATALOG: AdapterCatalogEntry[] = [
     id: 'kilo',
     displayName: 'Kilo Code',
     group: 'other',
-    implemented: false,
+    implemented: true,
     defaultEnabled: true,
-    createAdapter: () => createStubAdapter('kilo-cli', [join(home, '.kilo')], '.md'),
+    createAdapter: () => kiloAdapter,
   },
   {
     id: 'kimi-cli',
     displayName: 'Kimi Code CLI',
     group: 'universal',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () => createStubAdapter('kimi-cli', [join(home, '.kimi')], '.md'),
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => kimiCodeAdapter,
   },
   {
     id: 'kiro-cli',
     displayName: 'Kiro CLI',
     group: 'other',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () => createStubAdapter('kiro-cli', [join(home, '.kiro')], '.json'),
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => kiroAdapter,
   },
   {
     id: 'kode',
@@ -320,14 +329,6 @@ const CATALOG: AdapterCatalogEntry[] = [
     implemented: false,
     defaultEnabled: false,
     createAdapter: () => createStubAdapter('kode', [join(home, '.kode')], '.json'),
-  },
-  {
-    id: 'mcpjam',
-    displayName: 'MCPJam',
-    group: 'other',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () => createStubAdapter('mcpjam', [join(home, '.mcpjam')], '.json'),
   },
   {
     id: 'mistral-vibe',
@@ -341,14 +342,22 @@ const CATALOG: AdapterCatalogEntry[] = [
     id: 'mux',
     displayName: 'Mux',
     group: 'other',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () => createStubAdapter('mux', [join(home, '.mux')], '.json'),
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => muxAdapter,
   },
   {
     id: 'opencode',
     displayName: 'OpenCode',
     group: 'universal',
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => openCodeAdapter,
+  },
+  {
+    id: 'oh-my-opencode',
+    displayName: 'Oh My OpenCode',
+    group: 'other',
     implemented: true,
     defaultEnabled: true,
     createAdapter: () => ohMyOpencodeAdapter,
@@ -389,9 +398,9 @@ const CATALOG: AdapterCatalogEntry[] = [
     id: 'qwen-code',
     displayName: 'Qwen Code',
     group: 'other',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () => createStubAdapter('qwen-code', [join(home, '.qwen')], '.json'),
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => qwenCodeAdapter,
   },
   {
     id: 'replit',
@@ -427,11 +436,11 @@ const CATALOG: AdapterCatalogEntry[] = [
   },
   {
     id: 'windsurf',
-    displayName: 'Windsurf',
+    displayName: 'Windsurf / Devin Desktop',
     group: 'other',
-    implemented: false,
+    implemented: true,
     defaultEnabled: true,
-    createAdapter: () => createStubAdapter('windsurf', [join(home, '.cascade_backups')], '.md'),
+    createAdapter: () => windsurfAdapter,
   },
   {
     id: 'zencoder',
@@ -470,7 +479,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     displayName: 'Aider',
     group: 'other',
     implemented: false,
-    defaultEnabled: true,
+    defaultEnabled: false,
     createAdapter: () =>
       createStubAdapter('aider', [join(home, '.aider')], '.aider.chat.history.md'),
   },
@@ -485,7 +494,9 @@ export function getCatalogAdapterIds(): AdapterId[] {
 }
 
 export function getCatalogDefaultAdapterIds(): AdapterId[] {
-  return CATALOG.filter((entry) => entry.defaultEnabled).map((entry) => entry.id);
+  return CATALOG.filter((entry) => entry.implemented && entry.defaultEnabled).map(
+    (entry) => entry.id,
+  );
 }
 
 export function isAdapterId(value: string): value is AdapterId {

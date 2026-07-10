@@ -18,6 +18,14 @@ const MAX_DEPTH = 6;
 const DISCOVERY_MAX_DEPTH = 4;
 
 const PROJECT_PLAN_MARKERS = [
+  { marker: '.codebuddy/plans', agent: 'codebuddy' },
+  { marker: '.factory/docs', agent: 'droid' },
+  { marker: '.gemini/antigravity/artifacts', agent: 'antigravity' },
+  { marker: '.gemini/plans', agent: 'gemini-cli' },
+  { marker: '.junie/plans', agent: 'junie' },
+  { marker: '.kilo/plans', agent: 'kilo-cli' },
+  { marker: '.kiro/specs', agent: 'kiro-cli' },
+  { marker: '.qwen/plans', agent: 'qwen-code' },
   { marker: '.sisyphus/plans', agent: 'oh-my-opencode' },
   { marker: '@plans', agent: 'plannotator' },
 ];
@@ -549,8 +557,13 @@ function removePlansForPath(filePath: string, adapter?: AgentAdapter): Plan[] {
       typeof plan.metadata.plannotator === 'object' && plan.metadata.plannotator !== null
         ? (plan.metadata.plannotator as Record<string, unknown>).sessionPath
         : undefined;
+    const sourcePaths = Array.isArray(plan.metadata.sourcePaths)
+      ? plan.metadata.sourcePaths.filter((path): path is string => typeof path === 'string')
+      : [];
     if (
-      (planPath === normalized || sessionPath === normalized) &&
+      (planPath === normalized ||
+        sessionPath === normalized ||
+        sourcePaths.some((path) => resolve(path) === normalized)) &&
       (!adapter || planBelongsToAdapter(plan, adapter))
     ) {
       removed.push(plan);

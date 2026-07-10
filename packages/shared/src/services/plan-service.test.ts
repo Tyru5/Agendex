@@ -65,6 +65,28 @@ async function useTempHome(prefix: string): Promise<string> {
   return tempHome;
 }
 
+test('discovers documented project-local plan markers', async () => {
+  const home = await useTempHome('agendex-project-markers-');
+  const workspace = join(home, 'workspace');
+  const markers = [
+    ['.codebuddy/plans', 'codebuddy'],
+    ['.factory/docs', 'droid'],
+    ['.gemini/antigravity/artifacts', 'antigravity'],
+    ['.gemini/plans', 'gemini-cli'],
+    ['.junie/plans', 'junie'],
+    ['.kilo/plans', 'kilo-cli'],
+    ['.kiro/specs', 'kiro-cli'],
+    ['.qwen/plans', 'qwen-code'],
+  ] as const;
+  for (const [marker] of markers) await mkdir(join(workspace, marker), { recursive: true });
+  process.chdir(workspace);
+
+  const discovered = discoverProjectPlanDirs();
+  for (const [marker, agent] of markers) {
+    expect(discovered).toContainEqual({ dir: await realpath(join(workspace, marker)), agent });
+  }
+});
+
 test('scan keeps adapter-parsed plans when a custom dir overlaps a discovered project dir', async () => {
   tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-'));
   const parsedHome = parse(tempHome);

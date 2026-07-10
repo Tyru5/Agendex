@@ -70,14 +70,26 @@ export interface LandingPageProps {
 }
 
 const HERO_AGENT_CHIPS = [
-  { agent: 'amp', label: 'Amp' },
+  { agent: 'antigravity', label: 'Antigravity' },
   { agent: 'claude-code', label: 'Claude Code' },
+  { agent: 'codebuddy', label: 'CodeBuddy' },
   { agent: 'codex-cli', label: 'Codex' },
-  { agent: 'copilot-chat', label: 'Copilot' },
-  { agent: 'droid', label: 'Droid' },
-  { agent: 'gemini', label: 'Gemini' },
-  { agent: 'oh-my-opencode', label: 'OpenCode' },
-  { agent: 'pi', label: 'Pi' },
+  { agent: 'continue-ide', label: 'Continue' },
+  { agent: 'cursor', label: 'Cursor' },
+  { agent: 'droid', label: 'Factory Droid' },
+  { agent: 'gemini-cli', label: 'Gemini CLI' },
+  { agent: 'copilot-chat', label: 'GitHub Copilot' },
+  { agent: 'grok', label: 'Grok' },
+  { agent: 'junie', label: 'Junie' },
+  { agent: 'kilo-cli', label: 'Kilo Code' },
+  { agent: 'kimi-cli', label: 'Kimi Code' },
+  { agent: 'kiro-cli', label: 'Kiro' },
+  { agent: 'mux', label: 'Mux' },
+  { agent: 'opencode', label: 'OpenCode' },
+  { agent: 'oh-my-opencode', label: 'Oh My OpenCode' },
+  { agent: 'plannotator', label: 'Plannotator' },
+  { agent: 'qwen-code', label: 'Qwen Code' },
+  { agent: 'windsurf', label: 'Windsurf / Devin Desktop' },
 ] as const;
 
 const PLAN_REVIEW_BULLETS = [
@@ -483,13 +495,6 @@ function HeroAgentStrip() {
           {agent.label}
         </span>
       ))}
-      <span
-        className="landing-hero-agent landing-hero-agent--more"
-        data-tooltip="with the adapter system"
-        tabIndex={0}
-      >
-        and more...
-      </span>
     </div>
   );
 }
