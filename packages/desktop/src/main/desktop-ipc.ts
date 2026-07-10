@@ -20,6 +20,8 @@ type RegisterDesktopIpcDeps = {
   readonly getSiteUrl: () => string;
   readonly createPendingLoginCompletion: (state: string, expiresAtMs?: number) => Promise<boolean>;
   readonly clearCloudCreds: () => void;
+  readonly syncDaemonSession: (creds: CloudCreds) => Promise<void>;
+  readonly stopDesktopDaemon: () => Promise<void>;
   readonly logLoginError: (error: Error) => void;
 };
 
@@ -38,7 +40,10 @@ async function startLogin(deps: RegisterDesktopIpcDeps, provider: unknown): Prom
     const parsedProvider = parseDesktopAuthProvider(provider);
     if (parsedProvider === null) return false;
     const pending = await startLoginSupersedingStaleAttempt(deps.getSiteUrl(), parsedProvider);
-    return await deps.createPendingLoginCompletion(pending.state, pending.expiresAtMs);
+    const completed = await deps.createPendingLoginCompletion(pending.state, pending.expiresAtMs);
+    const creds = completed ? deps.loadCloudCreds() : null;
+    if (creds) await deps.syncDaemonSession(creds);
+    return completed;
   } catch (err) {
     deps.logLoginError(err instanceof Error ? err : new Error(String(err)));
     return false;
@@ -62,10 +67,17 @@ export function registerDesktopIpc(deps: RegisterDesktopIpcDeps): void {
     return true;
   });
 
-  deps.ipcMain.handle('agendex:refresh-cloud-session', async () => deps.refreshCloudSession());
+  deps.ipcMain.handle('agendex:refresh-cloud-session', async () => {
+    const creds = await deps.refreshCloudSession();
+    if (creds) await deps.syncDaemonSession(creds);
+    return creds;
+  });
   deps.ipcMain.handle('agendex:get-convex-auth-token', async () => {
     const result = await deps.getConvexAuthToken();
-    if (result) return result;
+    if (result) {
+      await deps.syncDaemonSession(result.cloudSession);
+      return result;
+    }
     return { sessionCleared: deps.loadCloudCreds() === null };
   });
 
@@ -81,7 +93,8 @@ export function registerDesktopIpc(deps: RegisterDesktopIpcDeps): void {
     return startLogin(deps, provider);
   });
 
-  deps.ipcMain.handle('agendex:logout', () => {
+  deps.ipcMain.handle('agendex:logout', async () => {
+    await deps.stopDesktopDaemon();
     deps.clearCloudCreds();
     return true;
   });

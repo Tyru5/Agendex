@@ -65,7 +65,7 @@
     },
     "packages/cli": {
       "name": "agendex-cli",
-      "version": "3.3.0",
+      "version": "3.4.0",
       "bin": {
         "agendex": "./dist/cli.js",
       },
@@ -87,6 +87,7 @@
         "@agendex/shared": "workspace:*",
         "@electron-toolkit/preload": "^3.0.2",
         "@electron-toolkit/utils": "^4.0.0",
+        "agendex-cli": "workspace:*",
       },
       "devDependencies": {
         "concurrently": "^9.0.3",

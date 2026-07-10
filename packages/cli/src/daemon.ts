@@ -10,12 +10,10 @@ import {
   isDevMode,
   isIndexablePlan,
   isLowValuePlan,
-  loadConfig,
   loadOrInitConfig,
   type Plan,
   requestChanges,
   resolveAdapters,
-  saveConfig,
   scan,
   setActiveAdapters,
   setOnPlansChanged,
@@ -25,8 +23,9 @@ import {
 import { resolveCliAdapterIds, shouldEnablePlannotatorSync } from './adapters.ts';
 import {
   fetchPlannotatorWritebacks,
+  hasDaemonCloudCredentials,
   type PlannotatorWritebackJob,
-  refreshToken,
+  refreshCurrentDaemonToken,
   reportPlannotatorWriteback,
   type SyncPlanPayload,
   sendHeartbeat,
@@ -79,6 +78,18 @@ const WATCHER_REFRESH_INTERVAL_MS = parseEnvMs(
 );
 const RETRY_TICK_INTERVAL_MS = 1_000;
 
+export interface RunWorkerOptions {
+  onReady?: () => void;
+}
+
+let activeShutdown: (() => Promise<void>) | null = null;
+let shutdownRequested = false;
+
+export async function requestWorkerShutdown(): Promise<void> {
+  shutdownRequested = true;
+  await activeShutdown?.();
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -115,10 +126,11 @@ export function buildEndedPlannotatorPayload(payload: SyncPlanPayload): SyncPlan
   };
 }
 
-export async function runWorker(): Promise<void> {
+export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
   const config = await loadOrInitConfig();
   const hostname = osHostname();
-  const adapterIds = resolveCliAdapterIds(config);
+  const cloudConfigured = hasDaemonCloudCredentials();
+  const adapterIds = resolveCliAdapterIds(config, cloudConfigured);
   const adapters = resolveAdapters(adapterIds);
   setActiveAdapters(adapters);
 
@@ -152,15 +164,10 @@ export async function runWorker(): Promise<void> {
   console.log(`[agendex] daemon starting with ${adapterIds.length} adapters`);
 
   await sendHeartbeat(await getSyncIpAddress());
+  options.onReady?.();
 
   async function tryRefreshToken(): Promise<boolean> {
-    const cfg = loadConfig();
-    if (!cfg?.cloudToken || !cfg.convexUrl) return false;
-
-    const result = await refreshToken(cfg.cloudToken, cfg.convexUrl);
-    if (!result) return false;
-
-    saveConfig({ ...cfg, cloudToken: result.token });
+    if (!(await refreshCurrentDaemonToken())) return false;
     console.log('[agendex] cloud token refreshed');
     return true;
   }
@@ -570,7 +577,7 @@ export async function runWorker(): Promise<void> {
     }, WATCHER_REFRESH_INTERVAL_MS);
   }
 
-  if (shouldEnablePlannotatorSync(config)) {
+  if (shouldEnablePlannotatorSync(config, cloudConfigured)) {
     setInterval(() => void pollPlannotatorWritebacks(), PLANNOTATOR_WRITEBACK_POLL_INTERVAL_MS);
     void pollPlannotatorWritebacks();
 
@@ -613,19 +620,24 @@ export async function runWorker(): Promise<void> {
 
   console.log(`[agendex] daemon running. Watching for file changes...`);
 
+  let shuttingDown = false;
   async function gracefulShutdown() {
+    if (shuttingDown) return;
+    shuttingDown = true;
     stopWatching();
     await sendShutdown();
     process.exit(0);
   }
+  activeShutdown = gracefulShutdown;
   process.on('SIGTERM', () => void gracefulShutdown());
   process.on('SIGINT', () => void gracefulShutdown());
+  if (shutdownRequested) await gracefulShutdown();
 
   await new Promise(() => {});
 }
 
 export async function startSupervisor(): Promise<void> {
-  writePid();
+  writePid({ launcher: 'cli' });
 
   let stopping = false;
   let workerProc: ChildProcess | null = null;

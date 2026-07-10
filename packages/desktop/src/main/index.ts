@@ -1,9 +1,10 @@
 import { join } from 'node:path';
 import { startNodeServer, type RunningNodeServer } from '@agendex/app/server';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, utilityProcess } from 'electron';
 import {
   clearCloudCreds,
+  type CloudCreds,
   getConvexAuthToken,
   getSiteUrl,
   loadCloudCreds,
@@ -20,7 +21,9 @@ import { writeQaBootstrapEvidence, writeQaStartupEvidence } from './desktop-qa-e
 import { createDesktopWindow } from './desktop-window.ts';
 import { redactDesktopAuthCallbackUrl } from '@agendex/shared/desktop-auth-callback';
 import { installDesktopProtocolLifecycle } from './desktop-protocol-lifecycle.ts';
+import { stopDesktopServices } from './desktop-shutdown.ts';
 import { loadWithRetry } from './window-loader.ts';
+import { DesktopDaemonManager } from './desktop-daemon-manager.ts';
 
 // Package name is `@agendex/desktop`; without this, Electron labels the
 // macOS Keychain item for safeStorage as "@agendex/desktop Safe Storage".
@@ -38,6 +41,8 @@ let server: RunningNodeServer | null = null;
 let localApiToken = '';
 let rendererTargetUrl = '';
 let backendBoot: Promise<void> | null = null;
+let quitAfterShutdown = false;
+let shutdownPromise: Promise<void> | null = null;
 
 function resolveClientDistDir(): string {
   if (app.isPackaged) {
@@ -104,6 +109,54 @@ async function startBackendAndWindow() {
 function reloadMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   loadWithRetry(mainWindow, rendererTargetUrl);
+}
+
+const desktopDaemon = new DesktopDaemonManager({
+  isDev: is.dev,
+  forkWorker: utilityProcess.fork,
+  rotateCloudToken: (previousToken, token) => {
+    const current = loadCloudCreds();
+    if (!current) return null;
+    if (current.token !== previousToken) return current;
+    const rotated = { ...current, token };
+    saveCloudCreds(rotated);
+    return rotated;
+  },
+  onAuthExpired: async () => {
+    await desktopDaemon.stop();
+    clearCloudCreds();
+    reloadMainWindow();
+  },
+  log: (message, error) => {
+    if (error === undefined) console.error(`[agendex-desktop] ${message}`);
+    else console.error(`[agendex-desktop] ${message}`, error);
+  },
+});
+
+async function syncDaemonSession(creds: CloudCreds): Promise<void> {
+  try {
+    await desktopDaemon.ensureRunning(creds);
+  } catch (error) {
+    console.error('[agendex-desktop] failed to start sync daemon', error);
+  }
+}
+
+async function shutdownDesktopServices(): Promise<void> {
+  if (shutdownPromise) return shutdownPromise;
+  const window = mainWindow;
+  const runningServer = server;
+  mainWindow = null;
+  server = null;
+  let resolveShutdown: (() => void) | undefined;
+  shutdownPromise = new Promise<void>((resolve) => {
+    resolveShutdown = resolve;
+  });
+  void stopDesktopServices({
+    window,
+    stopDaemon: () => desktopDaemon.stop(),
+    ...(runningServer && { closeServer: () => runningServer.close() }),
+  }).then(resolveShutdown, resolveShutdown);
+  return shutdownPromise;
 }
 
 const desktopProtocol = createDesktopProtocolController({
@@ -212,6 +265,8 @@ if (!gotLock) {
       getSiteUrl: () => getSiteUrl(is.dev),
       createPendingLoginCompletion: desktopProtocol.createPendingLoginCompletion,
       clearCloudCreds,
+      syncDaemonSession,
+      stopDesktopDaemon: () => desktopDaemon.stop(),
       logLoginError: (error) => {
         console.error('[agendex-desktop] cloud login failed', error);
       },
@@ -219,7 +274,10 @@ if (!gotLock) {
     buildMenu();
 
     void refreshCloudSession()
-      .then(() => startBackendWindowAndDrainProtocolCallbacks())
+      .then(async (creds) => {
+        if (creds) void syncDaemonSession(creds);
+        await startBackendWindowAndDrainProtocolCallbacks();
+      })
       .catch((err) => {
         console.error('[agendex-desktop] failed to start backend', err);
         app.quit();
@@ -239,8 +297,12 @@ if (!gotLock) {
     if (process.platform !== 'darwin') app.quit();
   });
 
-  app.on('before-quit', () => {
-    void server?.close();
-    server = null;
+  app.on('before-quit', (event) => {
+    if (quitAfterShutdown) return;
+    event.preventDefault();
+    void shutdownDesktopServices().finally(() => {
+      quitAfterShutdown = true;
+      app.quit();
+    });
   });
 }

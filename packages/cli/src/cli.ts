@@ -22,7 +22,7 @@ import { login, logout } from './auth.ts';
 import { renderHelp } from './help.ts';
 import { runWorker, startSupervisor } from './daemon.ts';
 import { runHookReviewCommand, runHooksCommand } from './hooks.ts';
-import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
+import { acquireDaemonStartLock, isRunning, readPid, readPidInfo, removePid } from './pid.ts';
 import { renderStatus, type CloudDaemonStatusError } from './status.ts';
 import { syncAll } from './sync.ts';
 import { runUpgrade } from './upgrade.ts';
@@ -120,21 +120,37 @@ async function main(): Promise<number> {
 
       if (existingPid) removePid();
 
-      const daemonArgs = [cliEntry, 'start', '--daemon'];
-      if (devFlag) daemonArgs.push('--dev');
+      const releaseStartLock = acquireDaemonStartLock();
+      if (!releaseStartLock) {
+        await new Promise((r) => setTimeout(r, 500));
+        const pendingPid = readPid();
+        if (pendingPid && isRunning(pendingPid)) {
+          writeStdout(`[agendex] daemon already running (PID ${pendingPid})`);
+          return 0;
+        }
+        writeStderr('[agendex] daemon startup is already in progress');
+        return 1;
+      }
 
-      const child = spawn(process.execPath, daemonArgs, {
-        detached: true,
-        stdio: 'ignore',
-        env: { ...process.env, ...(devFlag ? { AGENDEX_DEV: '1' } : {}) },
-      });
-      child.unref();
+      try {
+        const daemonArgs = [cliEntry, 'start', '--daemon'];
+        if (devFlag) daemonArgs.push('--dev');
 
-      // brief wait to let child write PID
-      await new Promise((r) => setTimeout(r, 500));
-      const pid = readPid();
-      writeStdout(`[agendex] daemon started${pid ? ` (PID ${pid})` : ''}`);
-      return 0;
+        const child = spawn(process.execPath, daemonArgs, {
+          detached: true,
+          stdio: 'ignore',
+          env: { ...process.env, ...(devFlag ? { AGENDEX_DEV: '1' } : {}) },
+        });
+        child.unref();
+
+        // brief wait to let child write PID
+        await new Promise((r) => setTimeout(r, 500));
+        const pid = readPid();
+        writeStdout(`[agendex] daemon started${pid ? ` (PID ${pid})` : ''}`);
+        return 0;
+      } finally {
+        releaseStartLock();
+      }
     }
 
     case 'stop': {

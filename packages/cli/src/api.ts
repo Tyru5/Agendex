@@ -19,16 +19,59 @@ export class AuthExpiredError extends Error {
 
 let cachedDeviceId: string | undefined;
 
-function getCloudConfig() {
-  const config = loadConfig();
+export interface DaemonCloudCredentials {
+  token: string;
+  convexUrl: string;
+}
 
-  if (!config?.cloudToken) throw new Error('Not logged in. Run `agendex login` first.');
+export interface DaemonCredentialStore {
+  load: () => DaemonCloudCredentials | null;
+  saveToken: (currentToken: string, nextToken: string) => void;
+  onAuthExpired?: () => void;
+}
+
+const configCredentialStore: DaemonCredentialStore = {
+  load: () => {
+    const config = loadConfig();
+    if (!config?.cloudToken || !config.convexUrl) return null;
+    return { token: config.cloudToken, convexUrl: config.convexUrl };
+  },
+  saveToken: (currentToken, nextToken) => {
+    const config = loadConfig();
+    if (!config || config.cloudToken !== currentToken) return;
+    saveConfig({ ...config, cloudToken: nextToken });
+  },
+};
+
+let credentialStore: DaemonCredentialStore = configCredentialStore;
+
+export function setDaemonCredentialStore(store: DaemonCredentialStore): void {
+  credentialStore = store;
+}
+
+export function resetDaemonCredentialStore(): void {
+  credentialStore = configCredentialStore;
+}
+
+export function hasDaemonCloudCredentials(): boolean {
+  return credentialStore.load() !== null;
+}
+
+function getCloudConfig(): DaemonCloudCredentials {
+  const config = credentialStore.load();
+
+  if (!config?.token) throw new Error('Not logged in. Run `agendex login` first.');
   if (!config.convexUrl) throw new Error('No Convex URL configured. Run `agendex login` first.');
 
-  return {
-    token: config.cloudToken,
-    convexUrl: config.convexUrl,
-  };
+  return config;
+}
+
+function isAuthenticationFailure(status: number): boolean {
+  return status === 401;
+}
+
+function reportAuthExpired(status: number): void {
+  if (isAuthenticationFailure(status)) credentialStore.onAuthExpired?.();
 }
 
 export interface SyncPlanPayload {
@@ -99,7 +142,7 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<SyncPlanResult> {
     body: JSON.stringify(plan),
   });
 
-  if (res.status === 401) {
+  if (isAuthenticationFailure(res.status)) {
     const refreshed = await refreshStoredToken(activeToken, convexUrl);
     if (refreshed) {
       activeToken = refreshed;
@@ -116,6 +159,7 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<SyncPlanResult> {
   }
 
   if (res.status < 200 || res.status >= 300) {
+    reportAuthExpired(res.status);
     return { ok: false, status: res.status, error: `${res.status}: ${res.body}` };
   }
 
@@ -126,12 +170,15 @@ async function refreshStoredToken(currentToken: string, convexUrl: string): Prom
   const refreshed = await refreshToken(currentToken, convexUrl);
   if (!refreshed) return null;
 
-  const config = loadConfig();
-  if (config) {
-    saveConfig({ ...config, cloudToken: refreshed.token });
-  }
+  credentialStore.saveToken(currentToken, refreshed.token);
 
   return refreshed.token;
+}
+
+export async function refreshCurrentDaemonToken(): Promise<boolean> {
+  const current = credentialStore.load();
+  if (!current) return false;
+  return (await refreshStoredToken(current.token, current.convexUrl)) !== null;
 }
 
 export async function sendHeartbeat(ipAddress?: string): Promise<void> {
@@ -157,9 +204,12 @@ export async function sendHeartbeat(ipAddress?: string): Promise<void> {
       body: heartbeatBody,
     });
 
-    if (res.status === 401) {
+    if (isAuthenticationFailure(res.status)) {
       const refreshedToken = await refreshStoredToken(activeToken, convexUrl);
-      if (!refreshedToken) return;
+      if (!refreshedToken) {
+        reportAuthExpired(res.status);
+        return;
+      }
 
       activeToken = refreshedToken;
       res = await requestText(`${convexUrl}/api/cli/heartbeat`, {
@@ -173,7 +223,8 @@ export async function sendHeartbeat(ipAddress?: string): Promise<void> {
       });
     }
 
-    if (res.status === 401) {
+    if (isAuthenticationFailure(res.status)) {
+      reportAuthExpired(res.status);
       return;
     }
   } catch {
@@ -222,7 +273,7 @@ export async function fetchCliPreferences(): Promise<CliPreferences | null> {
       headers: authHeaders(activeToken),
     });
 
-    if (res.status === 401) {
+    if (isAuthenticationFailure(res.status)) {
       const refreshed = await refreshStoredToken(activeToken, convexUrl);
       if (refreshed) {
         activeToken = refreshed;
@@ -233,7 +284,10 @@ export async function fetchCliPreferences(): Promise<CliPreferences | null> {
       }
     }
 
-    if (res.status < 200 || res.status >= 300) return null;
+    if (res.status < 200 || res.status >= 300) {
+      reportAuthExpired(res.status);
+      return null;
+    }
 
     const body = JSON.parse(res.body) as { collectLocalIpAddress?: unknown };
     if (typeof body.collectLocalIpAddress !== 'boolean') return null;
@@ -349,7 +403,7 @@ export async function fetchPlannotatorWritebacks(limit = 10): Promise<Plannotato
     headers: authHeaders(activeToken),
   });
 
-  if (res.status === 401) {
+  if (isAuthenticationFailure(res.status)) {
     const refreshed = await refreshStoredToken(activeToken, convexUrl);
     if (refreshed) {
       activeToken = refreshed;
@@ -360,7 +414,10 @@ export async function fetchPlannotatorWritebacks(limit = 10): Promise<Plannotato
     }
   }
 
-  if (res.status === 401) throw new AuthExpiredError();
+  if (isAuthenticationFailure(res.status)) {
+    reportAuthExpired(res.status);
+    throw new AuthExpiredError();
+  }
   if (res.status < 200 || res.status >= 300) return [];
 
   const body = parseJsonObject(res.body);
@@ -383,7 +440,7 @@ export async function reportPlannotatorWriteback(
     body,
   });
 
-  if (res.status === 401) {
+  if (isAuthenticationFailure(res.status)) {
     const refreshed = await refreshStoredToken(activeToken, convexUrl);
     if (refreshed) {
       activeToken = refreshed;
@@ -395,6 +452,7 @@ export async function reportPlannotatorWriteback(
     }
   }
 
+  reportAuthExpired(res.status);
   return res.status >= 200 && res.status < 300;
 }
 
@@ -421,7 +479,7 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
     },
   });
 
-  if (res.status === 401) {
+  if (isAuthenticationFailure(res.status)) {
     const refreshed = await refreshStoredToken(activeToken, convexUrl);
     if (refreshed) {
       activeToken = refreshed;
@@ -435,7 +493,8 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
     }
   }
 
-  if (res.status === 401) {
+  if (isAuthenticationFailure(res.status)) {
+    reportAuthExpired(res.status);
     throw new AuthExpiredError();
   }
 
@@ -464,7 +523,7 @@ export async function deleteDaemons(
     body: JSON.stringify({ deviceIds }),
   });
 
-  if (res.status === 401) {
+  if (isAuthenticationFailure(res.status)) {
     const refreshed = await refreshStoredToken(activeToken, convexUrl);
     if (refreshed) {
       activeToken = refreshed;
@@ -481,6 +540,7 @@ export async function deleteDaemons(
   }
 
   if (res.status < 200 || res.status >= 300) {
+    reportAuthExpired(res.status);
     return { ok: false, deleted: 0 };
   }
 

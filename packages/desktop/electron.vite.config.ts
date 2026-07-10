@@ -1,4 +1,8 @@
 import { defineConfig } from 'electron-vite';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const desktopDir = dirname(fileURLToPath(import.meta.url));
 
 // The renderer is served by the app Vite server in dev and by the in-process
 // Node server in prod, so electron-vite only builds `main` and `preload` here.
@@ -16,6 +20,10 @@ export default defineConfig({
     build: {
       externalizeDeps: false,
       rollupOptions: {
+        input: {
+          index: resolve(desktopDir, 'src/main/index.ts'),
+          'daemon-worker': resolve(desktopDir, 'src/main/daemon-worker.ts'),
+        },
         // `electron` + node built-ins stay external. `bufferutil` and
         // `utf-8-validate` are optional native deps of `ws` (pulled in by
         // @hono/node-ws); they are not installed, and `ws` already wraps their
