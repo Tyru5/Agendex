@@ -55,6 +55,7 @@ test('AGENDEX_CONFIG_DIR overrides the user config path for tests and tooling', 
 
 test('loadOrCreateToken preserves existing cloud session fields', async () => {
   await useTempConfigDir();
+  const customPlanDir = join(tmpdir(), 'agendex-plans');
 
   saveConfig({
     configVersion: 3,
@@ -62,7 +63,7 @@ test('loadOrCreateToken preserves existing cloud session fields', async () => {
     convexUrl: 'http://127.0.0.1:3210',
     deviceId: 'device-1',
     enabledAdapters: ['cursor'],
-    customPlanDirs: ['/tmp/agendex-plans'],
+    customPlanDirs: [customPlanDir],
   });
 
   const token = loadOrCreateToken();
@@ -76,7 +77,7 @@ test('loadOrCreateToken preserves existing cloud session fields', async () => {
     deviceId: 'device-1',
     // v3→v4 migration auto-enables grok for pre-existing installs.
     enabledAdapters: ['cursor', 'grok'],
-    customPlanDirs: ['/tmp/agendex-plans'],
+    customPlanDirs: [customPlanDir],
   });
   expect(config?.configVersion).toBe(CURRENT_CONFIG_VERSION);
 });
