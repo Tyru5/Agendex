@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { hostname as osHostname } from 'node:os';
@@ -6,7 +7,7 @@ import {
   loadOrCreateDeviceId,
   type PlannotatorFeedbackAnnotation,
   type PlannotatorWritebackAction,
-  saveConfig,
+  updateConfig,
 } from '@agendex/shared';
 import { readPidInfo } from './pid.ts';
 
@@ -19,16 +20,92 @@ export class AuthExpiredError extends Error {
 
 let cachedDeviceId: string | undefined;
 
-function getCloudConfig() {
-  const config = loadConfig();
+export interface DaemonCloudCredentials {
+  token: string;
+  convexUrl: string;
+  accountId?: string;
+}
 
-  if (!config?.cloudToken) throw new Error('Not logged in. Run `agendex login` first.');
+export interface DaemonCredentialStore {
+  load: () => DaemonCloudCredentials | null;
+  saveToken: (current: DaemonCloudCredentials, nextToken: string, accountId: string) => boolean;
+  onAuthExpired?: (failedToken: string) => void;
+}
+
+const configCredentialStore: DaemonCredentialStore = {
+  load: () => {
+    const config = loadConfig();
+    if (!config?.cloudToken || !config.convexUrl) return null;
+    return {
+      token: config.cloudToken,
+      convexUrl: config.convexUrl,
+      accountId: config.cloudAccountId,
+    };
+  },
+  saveToken: (current, nextToken, accountId) =>
+    updateConfig((config) => {
+      if (
+        !config ||
+        config.cloudToken !== current.token ||
+        config.convexUrl !== current.convexUrl
+      ) {
+        return null;
+      }
+      return { ...config, cloudToken: nextToken, cloudAccountId: accountId };
+    }),
+};
+
+let credentialStore: DaemonCredentialStore = configCredentialStore;
+
+export function setDaemonCredentialStore(store: DaemonCredentialStore): void {
+  credentialStore = store;
+}
+
+export function resetDaemonCredentialStore(): void {
+  credentialStore = configCredentialStore;
+}
+
+export function hasDaemonCloudCredentials(): boolean {
+  return credentialStore.load() !== null;
+}
+
+export function getDaemonCloudScope(): string | null {
+  const credentials = credentialStore.load();
+  if (!credentials) return null;
+  return createHash('sha256')
+    .update(`${credentials.convexUrl}\0${credentials.accountId ?? credentials.token}`)
+    .digest('hex')
+    .slice(0, 32);
+}
+
+function getCloudConfig(): DaemonCloudCredentials {
+  const config = credentialStore.load();
+
+  if (!config?.token) throw new Error('Not logged in. Run `agendex login` first.');
   if (!config.convexUrl) throw new Error('No Convex URL configured. Run `agendex login` first.');
 
-  return {
-    token: config.cloudToken,
-    convexUrl: config.convexUrl,
-  };
+  return config;
+}
+
+function isAuthenticationFailure(status: number): boolean {
+  return status === 401;
+}
+
+function reportAuthExpired(status: number, failedToken: string): void {
+  if (isAuthenticationFailure(status)) credentialStore.onAuthExpired?.(failedToken);
+}
+
+type TokenRefreshRequestResult =
+  | { kind: 'refreshed'; token: string; accountId: string; expiresAt: number }
+  | { kind: 'auth-rejected' }
+  | { kind: 'unavailable' };
+
+type StoredTokenRefreshResult =
+  | { kind: 'refreshed'; credentials: DaemonCloudCredentials }
+  | { kind: 'auth-rejected' | 'unavailable' | 'credentials-changed' };
+
+function reportRefreshRejection(result: StoredTokenRefreshResult, failedToken: string): void {
+  if (result.kind === 'auth-rejected') reportAuthExpired(401, failedToken);
 }
 
 export interface SyncPlanPayload {
@@ -99,10 +176,10 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<SyncPlanResult> {
     body: JSON.stringify(plan),
   });
 
-  if (res.status === 401) {
-    const refreshed = await refreshStoredToken(activeToken, convexUrl);
-    if (refreshed) {
-      activeToken = refreshed;
+  if (isAuthenticationFailure(res.status)) {
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
       res = await requestText(url, {
         method: 'POST',
         headers: {
@@ -112,26 +189,49 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<SyncPlanResult> {
         },
         body: JSON.stringify(plan),
       });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      return {
+        ok: false,
+        status: refreshed.kind === 'auth-rejected' ? 401 : 503,
+        error:
+          refreshed.kind === 'auth-rejected'
+            ? '401: Unauthorized'
+            : refreshed.kind === 'credentials-changed'
+              ? 'Cloud credentials changed during sync'
+              : 'Cloud session refresh unavailable',
+      };
     }
   }
 
   if (res.status < 200 || res.status >= 300) {
+    reportAuthExpired(res.status, activeToken);
     return { ok: false, status: res.status, error: `${res.status}: ${res.body}` };
   }
 
   return parseSyncSuccess(res.body);
 }
 
-async function refreshStoredToken(currentToken: string, convexUrl: string): Promise<string | null> {
-  const refreshed = await refreshToken(currentToken, convexUrl);
-  if (!refreshed) return null;
-
-  const config = loadConfig();
-  if (config) {
-    saveConfig({ ...config, cloudToken: refreshed.token });
+async function refreshStoredToken(
+  current: DaemonCloudCredentials,
+): Promise<StoredTokenRefreshResult> {
+  const refreshed = await requestTokenRefresh(current.token, current.convexUrl);
+  if (refreshed.kind !== 'refreshed') return refreshed;
+  if (!credentialStore.saveToken(current, refreshed.token, refreshed.accountId)) {
+    return { kind: 'credentials-changed' };
   }
+  return {
+    kind: 'refreshed',
+    credentials: { ...current, token: refreshed.token, accountId: refreshed.accountId },
+  };
+}
 
-  return refreshed.token;
+export async function refreshCurrentDaemonToken(): Promise<boolean> {
+  const current = credentialStore.load();
+  if (!current) return false;
+  const refreshed = await refreshStoredToken(current);
+  reportRefreshRejection(refreshed, current.token);
+  return refreshed.kind === 'refreshed';
 }
 
 export async function sendHeartbeat(ipAddress?: string): Promise<void> {
@@ -157,11 +257,14 @@ export async function sendHeartbeat(ipAddress?: string): Promise<void> {
       body: heartbeatBody,
     });
 
-    if (res.status === 401) {
-      const refreshedToken = await refreshStoredToken(activeToken, convexUrl);
-      if (!refreshedToken) return;
+    if (isAuthenticationFailure(res.status)) {
+      const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+      if (refreshed.kind !== 'refreshed') {
+        reportRefreshRejection(refreshed, activeToken);
+        return;
+      }
 
-      activeToken = refreshedToken;
+      activeToken = refreshed.credentials.token;
       res = await requestText(`${convexUrl}/api/cli/heartbeat`, {
         method: 'POST',
         headers: {
@@ -173,7 +276,8 @@ export async function sendHeartbeat(ipAddress?: string): Promise<void> {
       });
     }
 
-    if (res.status === 401) {
+    if (isAuthenticationFailure(res.status)) {
+      reportAuthExpired(res.status, activeToken);
       return;
     }
   } catch {
@@ -194,7 +298,17 @@ export async function sendShutdown(): Promise<void> {
 export async function refreshToken(
   currentToken: string,
   convexUrl: string,
-): Promise<{ token: string; expiresAt: number } | null> {
+): Promise<{ token: string; accountId: string; expiresAt: number } | null> {
+  const result = await requestTokenRefresh(currentToken, convexUrl);
+  return result.kind === 'refreshed'
+    ? { token: result.token, accountId: result.accountId, expiresAt: result.expiresAt }
+    : null;
+}
+
+async function requestTokenRefresh(
+  currentToken: string,
+  convexUrl: string,
+): Promise<TokenRefreshRequestResult> {
   const res = await requestText(`${convexUrl}/api/cli/refresh`, {
     method: 'POST',
     headers: {
@@ -204,13 +318,15 @@ export async function refreshToken(
     },
   });
 
-  if (res.status < 200 || res.status >= 300) return null;
+  if (isAuthenticationFailure(res.status)) return { kind: 'auth-rejected' };
+  if (res.status < 200 || res.status >= 300) return { kind: 'unavailable' };
 
   const body = parseJsonObject(res.body);
   const token = typeof body?.token === 'string' ? body.token : undefined;
+  const accountId = typeof body?.accountId === 'string' ? body.accountId : undefined;
   const expiresAt = typeof body?.expiresAt === 'number' ? body.expiresAt : 0;
-  if (!token) return null;
-  return { token, expiresAt };
+  if (!token || !accountId) return { kind: 'unavailable' };
+  return { kind: 'refreshed', token, accountId, expiresAt };
 }
 
 export async function fetchCliPreferences(): Promise<CliPreferences | null> {
@@ -222,29 +338,36 @@ export async function fetchCliPreferences(): Promise<CliPreferences | null> {
       headers: authHeaders(activeToken),
     });
 
-    if (res.status === 401) {
-      const refreshed = await refreshStoredToken(activeToken, convexUrl);
-      if (refreshed) {
-        activeToken = refreshed;
+    if (isAuthenticationFailure(res.status)) {
+      const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+      if (refreshed.kind === 'refreshed') {
+        activeToken = refreshed.credentials.token;
         res = await requestText(`${convexUrl}/api/cli/preferences`, {
           method: 'GET',
           headers: authHeaders(activeToken),
         });
+      } else {
+        reportRefreshRejection(refreshed, activeToken);
+        return null;
       }
     }
 
-    if (res.status < 200 || res.status >= 300) return null;
+    if (res.status < 200 || res.status >= 300) {
+      reportAuthExpired(res.status, activeToken);
+      return null;
+    }
 
     const body = JSON.parse(res.body) as { collectLocalIpAddress?: unknown };
     if (typeof body.collectLocalIpAddress !== 'boolean') return null;
 
-    const config = loadConfig();
-    if (config) {
-      saveConfig({
-        ...config,
-        collectLocalIpAddress: body.collectLocalIpAddress,
-      });
-    }
+    updateConfig((config) =>
+      config
+        ? {
+            ...config,
+            collectLocalIpAddress: body.collectLocalIpAddress as boolean,
+          }
+        : null,
+    );
 
     return { collectLocalIpAddress: body.collectLocalIpAddress };
   } catch {
@@ -349,18 +472,25 @@ export async function fetchPlannotatorWritebacks(limit = 10): Promise<Plannotato
     headers: authHeaders(activeToken),
   });
 
-  if (res.status === 401) {
-    const refreshed = await refreshStoredToken(activeToken, convexUrl);
-    if (refreshed) {
-      activeToken = refreshed;
+  if (isAuthenticationFailure(res.status)) {
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
       res = await requestText(url, {
         method: 'GET',
         headers: authHeaders(activeToken),
       });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      if (refreshed.kind === 'auth-rejected') throw new AuthExpiredError();
+      return [];
     }
   }
 
-  if (res.status === 401) throw new AuthExpiredError();
+  if (isAuthenticationFailure(res.status)) {
+    reportAuthExpired(res.status, activeToken);
+    throw new AuthExpiredError();
+  }
   if (res.status < 200 || res.status >= 300) return [];
 
   const body = parseJsonObject(res.body);
@@ -383,18 +513,22 @@ export async function reportPlannotatorWriteback(
     body,
   });
 
-  if (res.status === 401) {
-    const refreshed = await refreshStoredToken(activeToken, convexUrl);
-    if (refreshed) {
-      activeToken = refreshed;
+  if (isAuthenticationFailure(res.status)) {
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
       res = await requestText(url, {
         method: 'POST',
         headers: authHeaders(activeToken, true),
         body,
       });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      return false;
     }
   }
 
+  reportAuthExpired(res.status, activeToken);
   return res.status >= 200 && res.status < 300;
 }
 
@@ -421,10 +555,10 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
     },
   });
 
-  if (res.status === 401) {
-    const refreshed = await refreshStoredToken(activeToken, convexUrl);
-    if (refreshed) {
-      activeToken = refreshed;
+  if (isAuthenticationFailure(res.status)) {
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
       res = await requestText(url, {
         method: 'GET',
         headers: {
@@ -432,10 +566,15 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
           Connection: 'close',
         },
       });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      if (refreshed.kind === 'auth-rejected') throw new AuthExpiredError();
+      return [];
     }
   }
 
-  if (res.status === 401) {
+  if (isAuthenticationFailure(res.status)) {
+    reportAuthExpired(res.status, activeToken);
     throw new AuthExpiredError();
   }
 
@@ -464,10 +603,10 @@ export async function deleteDaemons(
     body: JSON.stringify({ deviceIds }),
   });
 
-  if (res.status === 401) {
-    const refreshed = await refreshStoredToken(activeToken, convexUrl);
-    if (refreshed) {
-      activeToken = refreshed;
+  if (isAuthenticationFailure(res.status)) {
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
       res = await requestText(url, {
         method: 'DELETE',
         headers: {
@@ -477,10 +616,14 @@ export async function deleteDaemons(
         },
         body: JSON.stringify({ deviceIds }),
       });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      return { ok: false, deleted: 0 };
     }
   }
 
   if (res.status < 200 || res.status >= 300) {
+    reportAuthExpired(res.status, activeToken);
     return { ok: false, deleted: 0 };
   }
 

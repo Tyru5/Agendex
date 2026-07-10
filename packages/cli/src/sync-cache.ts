@@ -4,17 +4,40 @@ import { join } from 'node:path';
 import { getConfigDir } from '@agendex/shared';
 import type { SyncPlanPayload } from './api.ts';
 
-function getCachePath(): string {
-  return join(getConfigDir(), 'sync-cache.json');
+function getCachePath(scope: string): string {
+  return join(getConfigDir(), `sync-cache-${scope}.json`);
 }
 
-export function loadSyncCache(): Record<string, string> {
-  const cachePath = getCachePath();
+interface SyncCacheFile {
+  version: 2;
+  scope: string;
+  plans: Record<string, string>;
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((entry) => typeof entry === 'string')
+  );
+}
+
+function parseSyncCache(raw: unknown): SyncCacheFile | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const file = raw as Partial<SyncCacheFile>;
+  if (file.version !== 2 || typeof file.scope !== 'string' || !isStringRecord(file.plans)) {
+    return null;
+  }
+  return { version: 2, scope: file.scope, plans: file.plans };
+}
+
+export function loadSyncCache(scope: string): Record<string, string> {
+  const cachePath = getCachePath(scope);
   if (!existsSync(cachePath)) return {};
   try {
-    const raw = JSON.parse(readFileSync(cachePath, 'utf-8'));
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-    return raw as Record<string, string>;
+    const parsed = parseSyncCache(JSON.parse(readFileSync(cachePath, 'utf-8')));
+    return parsed?.scope === scope ? parsed.plans : {};
   } catch {
     return {};
   }
@@ -22,19 +45,17 @@ export function loadSyncCache(): Record<string, string> {
 
 export function saveSyncCache(
   cache: Record<string, string>,
-  options?: { replace?: boolean },
+  options: { scope: string; replace?: boolean },
 ): void {
   const dir = getConfigDir();
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const cachePath = getCachePath();
-  if (options?.replace) {
-    writeFileSync(cachePath, JSON.stringify(cache));
-    return;
-  }
-
-  // Merge with latest on-disk state to reduce lost updates from concurrent writers.
-  const existing = loadSyncCache();
-  writeFileSync(cachePath, JSON.stringify({ ...existing, ...cache }));
+  const cachePath = getCachePath(options.scope);
+  const plans = options.replace
+    ? cache
+    : // Merge with latest same-scope state to reduce lost updates from concurrent writers.
+      { ...loadSyncCache(options.scope), ...cache };
+  const file: SyncCacheFile = { version: 2, scope: options.scope, plans };
+  writeFileSync(cachePath, JSON.stringify(file));
 }
 
 export function computePayloadHash(payload: SyncPlanPayload): string {

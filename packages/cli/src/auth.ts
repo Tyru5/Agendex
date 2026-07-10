@@ -1,12 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import {
-  type AgendexConfig,
-  CURRENT_CONFIG_VERSION,
-  isDevMode,
-  loadConfig,
-  saveConfig,
-} from '@agendex/shared';
+import { CURRENT_CONFIG_VERSION, isDevMode, loadConfig, updateConfig } from '@agendex/shared';
+import { refreshToken } from './api.ts';
 
 const PROD_SITE_URL = 'https://app.agendex.dev';
 const DEV_SITE_URL = 'http://app.agendex.localhost:5174';
@@ -51,18 +46,19 @@ export async function login(siteUrlOverride?: string): Promise<void> {
   launchBrowser(authUrl, 'browser for authentication');
 
   const callback = await result;
+  const session = await refreshToken(callback.token, callback.convexUrl);
+  if (!session) throw new Error('Cloud session validation failed. Run `agendex login` again.');
 
-  const config: AgendexConfig = {
+  updateConfig((current) => ({
+    ...(current ?? existing),
     configVersion: CURRENT_CONFIG_VERSION,
-    cloudToken: callback.token,
+    cloudToken: session.token,
+    cloudAccountId: session.accountId,
     convexUrl: callback.convexUrl,
     siteUrl,
-    enabledAdapters: existing?.enabledAdapters ?? [],
-    customPlanDirs: existing?.customPlanDirs ?? [],
-    ...(existing?.token ? { token: existing.token } : {}),
-    ...(existing?.deviceId ? { deviceId: existing.deviceId } : {}),
-  };
-  saveConfig(config);
+    enabledAdapters: current?.enabledAdapters ?? existing?.enabledAdapters ?? [],
+    customPlanDirs: current?.customPlanDirs ?? existing?.customPlanDirs ?? [],
+  }));
 
   console.log(`[agendex] Logged in successfully!`);
   console.log(`[agendex] Cloud token saved to config.`);
@@ -75,15 +71,16 @@ export function logout(): void {
     return;
   }
 
-  const config: AgendexConfig = {
-    configVersion: CURRENT_CONFIG_VERSION,
-    enabledAdapters: existing.enabledAdapters,
-    customPlanDirs: existing.customPlanDirs,
-    ...(existing.token ? { token: existing.token } : {}),
-    ...(existing.deviceId ? { deviceId: existing.deviceId } : {}),
-    ...(existing.siteUrl ? { siteUrl: existing.siteUrl } : {}),
-  };
-  saveConfig(config);
+  updateConfig((current) => {
+    if (!current) return null;
+    const {
+      cloudToken: _cloudToken,
+      cloudAccountId: _cloudAccountId,
+      convexUrl: _convexUrl,
+      ...config
+    } = current;
+    return config;
+  });
   console.log('[agendex] Logged out. Cloud token removed.');
 }
 

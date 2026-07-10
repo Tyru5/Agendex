@@ -1,12 +1,12 @@
 import type { IpcMain } from 'electron';
 import type { CloudCreds, ConvexAuthTokenResult } from './cloud-auth.ts';
-import {
-  clearPendingDesktopAuthLogin,
-  DesktopAuthLoginError,
-  startDesktopAuthLogin,
-} from './cloud-login.ts';
 import { parseDesktopAuthProvider, type DesktopAuthProvider } from './cloud-login-url.ts';
 import { handleDesktopAuthFetch } from './desktop-auth-fetch.ts';
+
+type PendingDesktopLogin = {
+  readonly state: string;
+  readonly expiresAtMs: number;
+};
 
 type RegisterDesktopIpcDeps = {
   readonly ipcMain: IpcMain;
@@ -18,27 +18,62 @@ type RegisterDesktopIpcDeps = {
   readonly getConvexAuthToken: () => Promise<ConvexAuthTokenResult | null>;
   readonly writeQaBootstrapEvidence: (payload: unknown) => void;
   readonly getSiteUrl: () => string;
+  readonly startDesktopAuthLogin: (
+    siteUrl: string,
+    provider?: DesktopAuthProvider,
+  ) => Promise<PendingDesktopLogin>;
+  readonly clearPendingDesktopAuthLogin: () => void;
   readonly createPendingLoginCompletion: (state: string, expiresAtMs?: number) => Promise<boolean>;
   readonly clearCloudCreds: () => void;
+  readonly getAuthSessionGeneration: () => number;
+  readonly isAuthSessionGenerationCurrent: (generation: number) => boolean;
+  readonly invalidateAuthSession: () => void;
+  readonly syncDaemonSession: (creds: CloudCreds) => Promise<void>;
+  readonly stopDesktopDaemon: () => Promise<void>;
   readonly logLoginError: (error: Error) => void;
 };
 
-async function startLoginSupersedingStaleAttempt(siteUrl: string, provider?: DesktopAuthProvider) {
+function syncDaemonSession(deps: RegisterDesktopIpcDeps, creds: CloudCreds): void {
+  void deps.syncDaemonSession(creds).catch((error) => {
+    deps.logLoginError(error instanceof Error ? error : new Error(String(error)));
+  });
+}
+
+async function startLoginSupersedingStaleAttempt(
+  deps: RegisterDesktopIpcDeps,
+  siteUrl: string,
+  provider?: DesktopAuthProvider,
+) {
   try {
-    return await startDesktopAuthLogin(siteUrl, provider);
+    return await deps.startDesktopAuthLogin(siteUrl, provider);
   } catch (err) {
-    if (!(err instanceof DesktopAuthLoginError) || err.code !== 'active-attempt') throw err;
-    clearPendingDesktopAuthLogin();
-    return await startDesktopAuthLogin(siteUrl, provider);
+    if (
+      !(err instanceof Error) ||
+      !('code' in err) ||
+      Reflect.get(err, 'code') !== 'active-attempt'
+    ) {
+      throw err;
+    }
+    deps.clearPendingDesktopAuthLogin();
+    return await deps.startDesktopAuthLogin(siteUrl, provider);
   }
 }
 
 async function startLogin(deps: RegisterDesktopIpcDeps, provider: unknown): Promise<boolean> {
+  const authGeneration = deps.getAuthSessionGeneration();
   try {
     const parsedProvider = parseDesktopAuthProvider(provider);
     if (parsedProvider === null) return false;
-    const pending = await startLoginSupersedingStaleAttempt(deps.getSiteUrl(), parsedProvider);
-    return await deps.createPendingLoginCompletion(pending.state, pending.expiresAtMs);
+    const pending = await startLoginSupersedingStaleAttempt(
+      deps,
+      deps.getSiteUrl(),
+      parsedProvider,
+    );
+    const completed = await deps.createPendingLoginCompletion(pending.state, pending.expiresAtMs);
+    if (!deps.isAuthSessionGenerationCurrent(authGeneration)) return false;
+    const creds = completed ? deps.loadCloudCreds() : null;
+    if (creds) syncDaemonSession(deps, creds);
+    return completed;
   } catch (err) {
     deps.logLoginError(err instanceof Error ? err : new Error(String(err)));
     return false;
@@ -62,11 +97,27 @@ export function registerDesktopIpc(deps: RegisterDesktopIpcDeps): void {
     return true;
   });
 
-  deps.ipcMain.handle('agendex:refresh-cloud-session', async () => deps.refreshCloudSession());
+  deps.ipcMain.handle('agendex:refresh-cloud-session', async () => {
+    const authGeneration = deps.getAuthSessionGeneration();
+    const creds = await deps.refreshCloudSession();
+    if (!deps.isAuthSessionGenerationCurrent(authGeneration)) return null;
+    if (creds) syncDaemonSession(deps, creds);
+    else if (deps.loadCloudCreds() === null) await deps.stopDesktopDaemon();
+    return creds;
+  });
   deps.ipcMain.handle('agendex:get-convex-auth-token', async () => {
+    const authGeneration = deps.getAuthSessionGeneration();
     const result = await deps.getConvexAuthToken();
-    if (result) return result;
-    return { sessionCleared: deps.loadCloudCreds() === null };
+    if (!deps.isAuthSessionGenerationCurrent(authGeneration)) {
+      return { sessionCleared: true };
+    }
+    if (result) {
+      syncDaemonSession(deps, result.cloudSession);
+      return result;
+    }
+    const sessionCleared = deps.loadCloudCreds() === null;
+    if (sessionCleared) await deps.stopDesktopDaemon();
+    return { sessionCleared };
   });
 
   deps.ipcMain.handle('agendex:auth-fetch', async (_event, url: unknown, init: unknown) => {
@@ -81,7 +132,10 @@ export function registerDesktopIpc(deps: RegisterDesktopIpcDeps): void {
     return startLogin(deps, provider);
   });
 
-  deps.ipcMain.handle('agendex:logout', () => {
+  deps.ipcMain.handle('agendex:logout', async () => {
+    deps.invalidateAuthSession();
+    deps.clearPendingDesktopAuthLogin();
+    await deps.stopDesktopDaemon();
     deps.clearCloudCreds();
     return true;
   });

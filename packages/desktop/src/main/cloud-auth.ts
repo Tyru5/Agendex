@@ -7,6 +7,7 @@ import { app, safeStorage } from 'electron';
 export interface CloudCreds {
   token: string;
   convexSiteUrl: string;
+  accountId?: string;
 }
 
 export interface ConvexAuthTokenResult {
@@ -29,6 +30,14 @@ function credsPath(): string {
 
 let cache: CloudCreds | null | undefined;
 
+function sameCloudCreds(left: CloudCreds | null, right: CloudCreds): boolean {
+  return (
+    left?.token === right.token &&
+    left.convexSiteUrl === right.convexSiteUrl &&
+    left.accountId === right.accountId
+  );
+}
+
 function allowsQaPlaintextCloudCreds(): boolean {
   return process.env.AGENDEX_DESKTOP_QA_ALLOW_PLAINTEXT_CLOUD_CREDS === 'true';
 }
@@ -45,6 +54,7 @@ export function loadCloudCreds(): CloudCreds | null {
       token?: string;
       enc?: boolean | string;
       convexSiteUrl?: string;
+      accountId?: string;
     };
 
     // Fail closed: only ever trust tokens we wrote encrypted via safeStorage.
@@ -64,9 +74,11 @@ export function loadCloudCreds(): CloudCreds | null {
       cache = null;
       return cache;
     }
+    const accountId = raw.accountId?.trim() || undefined;
+    const session = { token: raw.token, convexSiteUrl, ...(accountId ? { accountId } : {}) };
 
     if (raw.enc === QA_PLAINTEXT_ENC) {
-      cache = allowsQaPlaintextCloudCreds() ? { token: raw.token, convexSiteUrl } : null;
+      cache = allowsQaPlaintextCloudCreds() ? session : null;
       return cache;
     }
 
@@ -83,7 +95,7 @@ export function loadCloudCreds(): CloudCreds | null {
     }
 
     const token = safeStorage.decryptString(Buffer.from(raw.token, 'base64'));
-    cache = token ? { token, convexSiteUrl } : null;
+    cache = token ? { ...session, token } : null;
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     console.error('[agendex-desktop] failed to load cloud creds', error);
@@ -102,13 +114,11 @@ export function saveCloudCreds(creds: CloudCreds): void {
 
   const dir = app.getPath('userData');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const accountId = creds.accountId?.trim() || undefined;
+  const session = { token: creds.token, convexSiteUrl, ...(accountId ? { accountId } : {}) };
   if (allowsQaPlaintextCloudCreds()) {
-    writeFileSync(
-      credsPath(),
-      JSON.stringify({ token: creds.token, enc: QA_PLAINTEXT_ENC, convexSiteUrl }),
-      'utf8',
-    );
-    cache = { token: creds.token, convexSiteUrl };
+    writeFileSync(credsPath(), JSON.stringify({ ...session, enc: QA_PLAINTEXT_ENC }), 'utf8');
+    cache = session;
     return;
   }
 
@@ -119,8 +129,8 @@ export function saveCloudCreds(creds: CloudCreds): void {
     );
   }
   const token = safeStorage.encryptString(creds.token).toString('base64');
-  writeFileSync(credsPath(), JSON.stringify({ token, enc: true, convexSiteUrl }), 'utf8');
-  cache = { token: creds.token, convexSiteUrl };
+  writeFileSync(credsPath(), JSON.stringify({ ...session, token, enc: true }), 'utf8');
+  cache = session;
 }
 
 export function clearCloudCreds(): void {
@@ -138,6 +148,12 @@ function getResponseToken(body: unknown): string | null {
   if (!body || typeof body !== 'object' || !('token' in body)) return null;
   const token = body.token;
   return typeof token === 'string' && token.trim() ? token : null;
+}
+
+function getResponseAccountId(body: unknown): string | null {
+  if (!body || typeof body !== 'object' || !('accountId' in body)) return null;
+  const accountId = body.accountId;
+  return typeof accountId === 'string' && accountId.trim() ? accountId : null;
 }
 
 function sessionAuthHeaders(sessionToken: string): Record<string, string> {
@@ -178,14 +194,23 @@ export async function refreshCloudSession(): Promise<CloudCreds | null> {
     // outages) are not proof the session is bad, so keep the existing creds and
     // let a later refresh retry instead of needlessly signing the user out.
     if (res.status === 401 || res.status === 403) {
+      const current = loadCloudCreds();
+      if (!sameCloudCreds(current, creds)) return current;
       clearCloudCreds();
       return null;
     }
-    if (!res.ok) return creds;
+    if (!res.ok) {
+      const current = loadCloudCreds();
+      return sameCloudCreds(current, creds) ? creds : current;
+    }
 
-    const refreshedToken = getResponseToken(await res.json());
-    if (refreshedToken && refreshedToken !== creds.token) {
-      const refreshed = { ...creds, token: refreshedToken };
+    const body = await res.json();
+    const refreshedToken = getResponseToken(body);
+    const accountId = getResponseAccountId(body) ?? creds.accountId;
+    const current = loadCloudCreds();
+    if (!sameCloudCreds(current, creds)) return current;
+    if (refreshedToken && (refreshedToken !== creds.token || accountId !== creds.accountId)) {
+      const refreshed = { ...creds, token: refreshedToken, accountId };
       saveCloudCreds(refreshed);
       return refreshed;
     }
@@ -193,7 +218,8 @@ export async function refreshCloudSession(): Promise<CloudCreds | null> {
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     console.error('[agendex-desktop] cloud session refresh failed', error);
-    return creds;
+    const current = loadCloudCreds();
+    return sameCloudCreds(current, creds) ? creds : current;
   }
 }
 
@@ -207,8 +233,10 @@ export async function validateCloudCreds(creds: CloudCreds): Promise<CloudCreds 
       headers: sessionAuthHeaders(creds.token),
     });
     if (!res.ok) return null;
-    const refreshedToken = getResponseToken(await res.json());
-    return refreshedToken ? { ...creds, token: refreshedToken } : null;
+    const body = await res.json();
+    const refreshedToken = getResponseToken(body);
+    const accountId = getResponseAccountId(body);
+    return refreshedToken && accountId ? { ...creds, token: refreshedToken, accountId } : null;
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     console.error('[agendex-desktop] cloud creds validation failed', error);
@@ -222,7 +250,7 @@ async function requestConvexAuthToken(
 ): Promise<ConvexAuthTokenResult | null> {
   const tokenUrl = getCliConvexTokenUrl(creds.convexSiteUrl);
   if (!tokenUrl) {
-    clearCloudCreds();
+    if (sameCloudCreds(loadCloudCreds(), creds)) clearCloudCreds();
     return null;
   }
 
@@ -237,12 +265,13 @@ async function requestConvexAuthToken(
       return refreshed ? requestConvexAuthToken(refreshed, true) : null;
     }
     if (res.status === 401 || res.status === 403) {
-      clearCloudCreds();
+      if (sameCloudCreds(loadCloudCreds(), creds)) clearCloudCreds();
       return null;
     }
     if (!res.ok) return null;
 
     const token = getResponseToken(await res.json());
+    if (!sameCloudCreds(loadCloudCreds(), creds)) return null;
     return token ? { token, cloudSession: creds } : null;
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));

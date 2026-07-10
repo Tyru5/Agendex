@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   applyAdapterEnableMigrations,
   CURRENT_CONFIG_VERSION,
@@ -54,14 +55,16 @@ test('AGENDEX_CONFIG_DIR overrides the user config path for tests and tooling', 
 
 test('loadOrCreateToken preserves existing cloud session fields', async () => {
   await useTempConfigDir();
+  const customPlanDir = join(tmpdir(), 'agendex-plans');
 
   saveConfig({
     configVersion: 3,
     cloudToken: 'cloud-session',
+    cloudAccountId: 'account-1',
     convexUrl: 'http://127.0.0.1:3210',
     deviceId: 'device-1',
     enabledAdapters: ['cursor'],
-    customPlanDirs: ['/tmp/agendex-plans'],
+    customPlanDirs: [customPlanDir],
   });
 
   const token = loadOrCreateToken();
@@ -71,13 +74,39 @@ test('loadOrCreateToken preserves existing cloud session fields', async () => {
   expect(config).toMatchObject({
     token,
     cloudToken: 'cloud-session',
+    cloudAccountId: 'account-1',
     convexUrl: 'http://127.0.0.1:3210',
     deviceId: 'device-1',
     // v3→v4 migration auto-enables grok for pre-existing installs.
     enabledAdapters: ['cursor', 'grok'],
-    customPlanDirs: ['/tmp/agendex-plans'],
+    customPlanDirs: [customPlanDir],
   });
   expect(config?.configVersion).toBe(CURRENT_CONFIG_VERSION);
+});
+
+test('concurrent config updates preserve both process changes', async () => {
+  const configDir = await useTempConfigDir();
+  const contender = fileURLToPath(
+    new URL('../scripts/config-update-contender.ts', import.meta.url),
+  );
+  const env = { ...process.env, AGENDEX_CONFIG_DIR: configDir };
+  const device = Bun.spawn([process.execPath, contender, 'device', '100'], {
+    env,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const ip = Bun.spawn([process.execPath, contender, 'ip', '100'], {
+    env,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const [deviceExit, ipExit] = await Promise.all([device.exited, ip.exited]);
+  expect([deviceExit, ipExit]).toEqual([0, 0]);
+  expect(loadConfig()).toMatchObject({
+    deviceId: 'concurrent-device',
+    collectLocalIpAddress: true,
+  });
 });
 
 test('v4 migration auto-enables grok on pre-existing enabledAdapters lists', () => {

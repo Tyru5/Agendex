@@ -1003,13 +1003,14 @@ export const refresh = httpAction(async (ctx, request) => {
 
   const session = await getRequestSession(ctx, request);
 
-  if (!session?.session) {
+  if (!session?.session || !session.user?.id) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 
   try {
     return jsonResponse({
       token: session.session.token,
+      accountId: session.user.id,
       expiresAt: session.session.expiresAt ? new Date(session.session.expiresAt).getTime() : 0,
     });
   } catch {

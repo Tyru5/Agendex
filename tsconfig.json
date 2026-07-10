@@ -19,6 +19,7 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
     "paths": {
+      "@agendex/daemon-runtime": ["./packages/cli/src/daemon-runtime.ts"],
       "@convex/*": ["./packages/ee/convex/*"]
     }
   },

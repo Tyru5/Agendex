@@ -11,6 +11,7 @@ Agendex is a Bun workspaces monorepo:
 - `packages/web` - shared React/web UI package consumed by the OSS and EE apps
 - `packages/ee` - cloud/pro package (`@agendex/ee`) with Convex auth, subscriptions, sharing, comments, and EE dashboard flows
 - `packages/cli` - CLI (`agendex-cli`) for login, sync, daemon, and status workflows
+- `packages/desktop` - Electron app with an embedded local API and app-owned cloud sync worker
 
 ## Feature Split
 
@@ -33,6 +34,11 @@ Agendex is a Bun workspaces monorepo:
 - Dashboard plan creation, uploads, and editing
 - Pro Plannotator sync and daemon-mediated request-changes write-back
 - Trial and subscription flows
+
+The Electron app starts its cloud sync worker automatically after desktop sign-in when no
+CLI daemon is already running. The worker uses the encrypted desktop session, requires no
+separate CLI login, and stops with the Electron application. Existing CLI daemons remain
+independently owned and are never stopped by desktop logout or shutdown.
 
 ## Adapter Status
 
@@ -140,6 +146,9 @@ bun run dev:client:oss      # run OSS client on :5173
 bun run dev:client:ee       # run EE client on :5174
 bun run build               # build OSS client bundle
 bun run build:cloud         # build EE client bundle
+bun run desktop:dev         # run Electron with renderer HMR
+bun run desktop:build       # build the EE client and Electron bundles
+bun run desktop:dist:win    # build an unsigned Windows package
 
 bun run cli:start           # start cloud sync daemon
 bun run cli:login           # browser login using https://app.agendex.dev

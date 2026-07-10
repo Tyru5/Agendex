@@ -107,6 +107,7 @@ async function exerciseLogin(env, baseUrl) {
   const configPath = join(env.HOME, '.agendex', 'config.json');
   const config = JSON.parse(await readFile(configPath, 'utf-8'));
   assert.equal(config.cloudToken, 'cloud-token');
+  assert.equal(config.cloudAccountId, 'account-1');
   assert.ok(typeof config.convexUrl === 'string' && config.convexUrl.length > 0);
 }
 
@@ -282,7 +283,12 @@ async function startFakeCloud(state) {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/cli/refresh') {
-      respond(res, 200, '{"token":"cloud-token","expiresAt":0}', 'application/json');
+      respond(
+        res,
+        200,
+        '{"token":"cloud-token","accountId":"account-1","expiresAt":0}',
+        'application/json',
+      );
       return;
     }
 
@@ -404,6 +410,7 @@ async function writeSmokeConfig(homeDir) {
         configVersion: 4,
         token: 'local-token',
         cloudToken: 'cloud-token',
+        cloudAccountId: 'account-1',
         convexUrl: 'http://127.0.0.1:9',
         enabledAdapters: ['cursor'],
       },

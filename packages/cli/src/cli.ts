@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync, statSync, writeSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,17 +12,27 @@ import {
   normalizeCustomPlanDirs,
   removeCustomPlanDir,
   resolveCustomPlanDirPath,
-  saveConfig,
   setDevMode,
+  updateConfig,
 } from '@agendex/shared';
 import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
 import type { DeviceInfo } from './api.ts';
 import { AuthExpiredError, deleteDaemons, fetchDevices, sendShutdown } from './api.ts';
 import { login, logout } from './auth.ts';
 import { renderHelp } from './help.ts';
-import { runWorker, startSupervisor } from './daemon.ts';
+import { requestWorkerShutdown, runWorker, startSupervisor } from './daemon.ts';
 import { runHookReviewCommand, runHooksCommand } from './hooks.ts';
-import { isRunning, readPid, readPidInfo, removePid } from './pid.ts';
+import {
+  acquireDaemonStartLock,
+  isAgendexDaemonProcess,
+  isDaemonPidInfoCurrent,
+  isDaemonPidInfoRunning,
+  isRunning,
+  readPidInfo,
+  removePid,
+  requestDaemonStop,
+  writePidForProcess,
+} from './pid.ts';
 import { renderStatus, type CloudDaemonStatusError } from './status.ts';
 import { syncAll } from './sync.ts';
 import { runUpgrade } from './upgrade.ts';
@@ -45,6 +55,10 @@ function firstCommandToken(argv: string[]): string | undefined {
 
 const command = firstCommandToken(args) ?? 'start';
 const cliEntry = resolve(process.argv[1] ?? fileURLToPath(import.meta.url));
+const DAEMON_START_TIMEOUT_MS = 30_000;
+const DAEMON_ORPHAN_DRAIN_TIMEOUT_MS = 3_000;
+const DAEMON_START_CLEANUP_TIMEOUT_MS = 4_000;
+const DAEMON_START_FORCE_KILL_TIMEOUT_MS = 2_000;
 
 async function main(): Promise<number> {
   const isInternal = args.includes('--daemon') || args.includes('--worker');
@@ -108,55 +122,176 @@ async function main(): Promise<number> {
       }
 
       if (args.includes('--worker')) {
-        await runWorker();
+        const supervisorPid = Number(process.env.AGENDEX_DAEMON_SUPERVISOR_PID);
+        const supervisorWatchdog =
+          Number.isInteger(supervisorPid) && supervisorPid > 0
+            ? setInterval(() => {
+                if (!isRunning(supervisorPid)) void requestWorkerShutdown({ skipRemote: true });
+              }, 250)
+            : null;
+        supervisorWatchdog?.unref();
+        try {
+          await runWorker({
+            onReady: () => {
+              const readyDelayMs = Number(process.env.AGENDEX_DAEMON_READY_DELAY_MS ?? 0);
+              const reportReady = () => process.send?.({ type: 'ready' });
+              if (Number.isFinite(readyDelayMs) && readyDelayMs > 0) {
+                setTimeout(reportReady, readyDelayMs);
+              } else {
+                reportReady();
+              }
+            },
+          });
+        } finally {
+          if (supervisorWatchdog) clearInterval(supervisorWatchdog);
+        }
         return 0;
       }
 
-      const existingPid = readPid();
-      if (existingPid && isRunning(existingPid)) {
-        writeStdout(`[agendex] daemon already running (PID ${existingPid})`);
-        return 0;
-      }
-
-      if (existingPid) removePid();
-
-      const daemonArgs = [cliEntry, 'start', '--daemon'];
-      if (devFlag) daemonArgs.push('--dev');
-
-      const child = spawn(process.execPath, daemonArgs, {
-        detached: true,
-        stdio: 'ignore',
-        env: { ...process.env, ...(devFlag ? { AGENDEX_DEV: '1' } : {}) },
-      });
-      child.unref();
-
-      // brief wait to let child write PID
-      await new Promise((r) => setTimeout(r, 500));
-      const pid = readPid();
-      writeStdout(`[agendex] daemon started${pid ? ` (PID ${pid})` : ''}`);
-      return 0;
-    }
-
-    case 'stop': {
-      const pid = readPid();
-      if (!pid || !isRunning(pid)) {
-        removePid();
-        writeStdout('[agendex] daemon is not running');
-        return 0;
-      }
-
-      process.kill(pid, 'SIGTERM');
-      const stopped = await waitForProcessExit(pid, 5_000);
-
-      if (!stopped) {
-        writeStderr('[agendex] daemon did not stop in time');
+      const releaseStartLock =
+        acquireDaemonStartLock() ?? (await waitForDaemonStartLock(DAEMON_START_TIMEOUT_MS));
+      if (!releaseStartLock) {
+        writeStderr('[agendex] daemon startup is already in progress');
         return 1;
       }
 
-      removePid();
-      await sendShutdown();
-      writeStdout(`[agendex] daemon stopped (PID ${pid})`);
-      return 0;
+      try {
+        const current = readPidInfo();
+        const currentPid = current?.pid ?? null;
+        const currentPidInfoIsTrusted = current ? isDaemonPidInfoCurrent(current) : false;
+        if (current && isDaemonPidInfoRunning(current)) {
+          const desktopOrphan =
+            current?.launcher === 'desktop' &&
+            current.parentPid !== undefined &&
+            !isRunning(current.parentPid);
+          if (
+            !desktopOrphan ||
+            !(await waitForProcessExit(current.pid, DAEMON_ORPHAN_DRAIN_TIMEOUT_MS))
+          ) {
+            if (desktopOrphan) {
+              writeStderr('[agendex] previous desktop daemon worker is still shutting down');
+              return 1;
+            }
+            writeStdout(`[agendex] daemon already running (PID ${currentPid})`);
+            return 0;
+          }
+        }
+        if (
+          currentPidInfoIsTrusted &&
+          current?.launcher === 'cli' &&
+          Number.isInteger(current.workerPid) &&
+          (current.workerPid as number) > 0 &&
+          isAgendexDaemonProcess(current.workerPid as number) &&
+          !(await waitForProcessExit(current.workerPid as number, DAEMON_ORPHAN_DRAIN_TIMEOUT_MS))
+        ) {
+          writeStderr('[agendex] previous daemon worker is still shutting down');
+          return 1;
+        }
+        if (currentPid) removePid(currentPid);
+
+        const daemonArgs = [cliEntry, 'start', '--daemon'];
+        if (devFlag) daemonArgs.push('--dev');
+
+        const child = spawn(process.execPath, daemonArgs, {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+          env: { ...process.env, ...(devFlag ? { AGENDEX_DEV: '1' } : {}) },
+        });
+        const pid = await waitForSpawnedDaemon(child, DAEMON_START_TIMEOUT_MS);
+        if (!pid) {
+          const stopped = await stopFailedDaemonStart(child);
+          if (child.pid && stopped) {
+            removePid(child.pid);
+          } else if (child.pid) {
+            const current = readPidInfo();
+            writePidForProcess(child.pid, {
+              launcher: 'cli',
+              ...(current?.pid === child.pid && current.workerPid
+                ? { workerPid: current.workerPid }
+                : {}),
+              ...(current?.pid === child.pid && current.ready !== undefined
+                ? { ready: current.ready }
+                : { ready: false }),
+            });
+            child.unref();
+          }
+          writeStderr(
+            stopped
+              ? '[agendex] daemon failed to start'
+              : '[agendex] daemon failed to start and could not be terminated',
+          );
+          return 1;
+        }
+        child.unref();
+        writeStdout(`[agendex] daemon started (PID ${pid})`);
+        return 0;
+      } finally {
+        releaseStartLock();
+      }
+    }
+
+    case 'stop': {
+      const releaseStartLock = await waitForDaemonStartLock(DAEMON_START_TIMEOUT_MS);
+      if (!releaseStartLock) {
+        writeStderr('[agendex] daemon startup is still in progress');
+        return 1;
+      }
+
+      try {
+        const pidInfo = readPidInfo();
+        const pid = pidInfo?.pid ?? null;
+        if (!pidInfo || !isDaemonPidInfoRunning(pidInfo)) {
+          const workerPid = pidInfo?.workerPid;
+          const ownedWorkerIsRunning =
+            pidInfo?.launcher === 'cli' &&
+            isDaemonPidInfoCurrent(pidInfo) &&
+            Number.isInteger(workerPid) &&
+            (workerPid as number) > 0 &&
+            isAgendexDaemonProcess(workerPid as number);
+          if (
+            ownedWorkerIsRunning &&
+            !(await waitForProcessExit(workerPid as number, DAEMON_ORPHAN_DRAIN_TIMEOUT_MS))
+          ) {
+            writeStderr('[agendex] daemon worker is still shutting down');
+            return 1;
+          }
+          if (pid) removePid(pid);
+          writeStdout('[agendex] daemon is not running');
+          return 0;
+        }
+        const runningPid = pidInfo.pid;
+
+        if (process.platform === 'win32') {
+          requestDaemonStop(runningPid);
+        } else {
+          process.kill(runningPid, 'SIGTERM');
+        }
+        const stopped = await waitForProcessExit(runningPid, 5_000);
+
+        if (!stopped) {
+          writeStderr('[agendex] daemon did not stop in time');
+          return 1;
+        }
+
+        const workerPid = pidInfo.workerPid;
+        if (
+          Number.isInteger(workerPid) &&
+          (workerPid as number) > 0 &&
+          isAgendexDaemonProcess(workerPid as number) &&
+          !(await waitForProcessExit(workerPid as number, DAEMON_ORPHAN_DRAIN_TIMEOUT_MS))
+        ) {
+          writeStderr('[agendex] daemon worker did not stop in time');
+          return 1;
+        }
+
+        removePid(runningPid);
+        await sendShutdown();
+        writeStdout(`[agendex] daemon stopped (PID ${runningPid})`);
+        return 0;
+      } finally {
+        releaseStartLock();
+      }
     }
 
     case 'login': {
@@ -224,8 +359,7 @@ async function main(): Promise<number> {
     case 'status': {
       const config = loadConfig();
       const pidInfo = readPidInfo();
-      const pid = pidInfo?.pid ?? null;
-      const running = pid ? isRunning(pid) : false;
+      const running = pidInfo ? isDaemonPidInfoRunning(pidInfo) : false;
       let devices: DeviceInfo[] | null = null;
       let cloudDaemonError: CloudDaemonStatusError | null = null;
 
@@ -293,6 +427,87 @@ function waitForProcessExit(pid: number, timeoutMs: number): Promise<boolean> {
       }
     }, 200);
   });
+}
+
+async function stopFailedDaemonStart(child: ChildProcess): Promise<boolean> {
+  const pid = child.pid;
+  if (!pid) return true;
+  const observed = readPidInfo();
+  const workerPid = observed?.pid === pid ? observed.workerPid : undefined;
+
+  if (child.exitCode === null && child.signalCode === null && isRunning(pid)) {
+    if (process.platform === 'win32') requestDaemonStop(pid);
+    else child.kill('SIGTERM');
+    if (!(await waitForProcessExit(pid, DAEMON_START_CLEANUP_TIMEOUT_MS))) {
+      child.kill('SIGKILL');
+      if (!(await waitForProcessExit(pid, DAEMON_START_FORCE_KILL_TIMEOUT_MS))) return false;
+    }
+  }
+
+  if (!workerPid || !isAgendexDaemonProcess(workerPid)) return true;
+  if (await waitForDaemonProcessExit(workerPid, DAEMON_START_FORCE_KILL_TIMEOUT_MS)) return true;
+  if (!isAgendexDaemonProcess(workerPid)) return true;
+  try {
+    process.kill(workerPid, 'SIGKILL');
+  } catch {}
+  return await waitForDaemonProcessExit(workerPid, DAEMON_START_FORCE_KILL_TIMEOUT_MS);
+}
+
+function waitForDaemonProcessExit(pid: number, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const check = () => {
+      if (!isAgendexDaemonProcess(pid)) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        resolve(false);
+        return;
+      }
+      setTimeout(check, 100);
+    };
+    check();
+  });
+}
+
+async function waitForDaemonStartLock(timeoutMs: number): Promise<(() => void) | null> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const release = acquireDaemonStartLock();
+    if (release) return release;
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
+  }
+  return null;
+}
+
+async function waitForSpawnedDaemon(
+  child: ChildProcess,
+  timeoutMs: number,
+): Promise<number | null> {
+  let spawnError: Error | null = null;
+  child.once('error', (error) => {
+    spawnError = error;
+  });
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (spawnError || child.exitCode !== null || child.signalCode !== null) return null;
+    const pidInfo = readPidInfo();
+    if (
+      pidInfo &&
+      pidInfo.pid === child.pid &&
+      pidInfo.ready === true &&
+      isDaemonPidInfoRunning(pidInfo) &&
+      Number.isInteger(pidInfo.workerPid) &&
+      (pidInfo.workerPid as number) > 0 &&
+      isAgendexDaemonProcess(pidInfo.workerPid as number)
+    ) {
+      return pidInfo.pid;
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
+  }
+  return null;
 }
 
 async function runCleanupCommand(commandArgs: string[]): Promise<number> {
@@ -467,13 +682,10 @@ async function runAddDirCommand(commandArgs: string[]): Promise<number> {
     return notifyServerPlanSource('POST', resolved);
   }
 
-  const cfg = loadConfig();
-  const currentDirs = cfg?.customPlanDirs ?? [];
-  const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
-  saveConfig({
-    ...(cfg ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
-    customPlanDirs: updated,
-  });
+  updateConfig((config) => ({
+    ...(config ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
+    customPlanDirs: normalizeCustomPlanDirs([...(config?.customPlanDirs ?? []), resolved]),
+  }));
   writeStdout(`[agendex] added custom plan dir: ${resolved}`);
   writeStdout(`[agendex] daemon will pick up the change automatically`);
   return 0;
@@ -494,17 +706,19 @@ async function runRemoveDirCommand(commandArgs: string[]): Promise<number> {
     return notifyServerPlanSource('DELETE', resolved);
   }
 
-  const cfg = loadConfig();
-  const currentDirs = cfg?.customPlanDirs ?? [];
-  const updated = removeCustomPlanDir(currentDirs, dirPath);
+  let updated: string[] | null = null;
+  updateConfig((config) => {
+    updated = removeCustomPlanDir(config?.customPlanDirs ?? [], dirPath);
+    if (updated === null) return null;
+    return {
+      ...(config ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
+      customPlanDirs: updated,
+    };
+  });
   if (updated === null) {
     writeStderr(`[agendex] directory not in custom plan dirs: ${resolved}`);
     return 1;
   }
-  saveConfig({
-    ...(cfg ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
-    customPlanDirs: updated,
-  });
   writeStdout(`[agendex] removed custom plan dir: ${resolved}`);
   writeStdout(`[agendex] daemon will pick up the change automatically`);
   return 0;
