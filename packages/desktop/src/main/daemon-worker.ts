@@ -29,7 +29,7 @@ function postMessage(message: DesktopDaemonWorkerMessage): void {
 function setCredentials(next: DesktopDaemonCredentials): boolean {
   const convexUrl = normalizeConvexSiteUrl(next.convexSiteUrl);
   if (!convexUrl) return false;
-  credentials = { token: next.token, convexUrl };
+  credentials = { token: next.token, convexUrl, accountId: next.accountId };
   return true;
 }
 
