@@ -128,11 +128,11 @@ function reloadMainWindow() {
 const desktopDaemon = new DesktopDaemonManager({
   isDev: is.dev,
   forkWorker: utilityProcess.fork,
-  rotateCloudToken: (previousToken, token) => {
+  rotateCloudToken: (previousToken, token, accountId) => {
     const current = loadCloudCreds();
     if (!current) return null;
     if (current.token !== previousToken) return current;
-    const rotated = { ...current, token };
+    const rotated = { ...current, token, accountId: accountId ?? current.accountId };
     try {
       saveCloudCreds(rotated);
       return rotated;

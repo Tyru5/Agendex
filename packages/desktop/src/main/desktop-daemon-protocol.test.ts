@@ -8,12 +8,20 @@ test('desktop daemon protocol accepts the closed parent message set', () => {
   expect(
     parseDesktopDaemonParentMessage({
       type: 'start',
-      credentials: { token: 'secret', convexSiteUrl: 'https://example.convex.site' },
+      credentials: {
+        token: 'secret',
+        convexSiteUrl: 'https://example.convex.site',
+        accountId: 'account-1',
+      },
       parentPid: 42,
     }),
   ).toEqual({
     type: 'start',
-    credentials: { token: 'secret', convexSiteUrl: 'https://example.convex.site' },
+    credentials: {
+      token: 'secret',
+      convexSiteUrl: 'https://example.convex.site',
+      accountId: 'account-1',
+    },
     parentPid: 42,
   });
   expect(parseDesktopDaemonParentMessage({ type: 'shutdown' })).toEqual({ type: 'shutdown' });
@@ -30,8 +38,14 @@ test('desktop daemon protocol rejects malformed worker messages', () => {
       type: 'token-rotated',
       previousToken: 'old',
       token: 'new',
+      accountId: 'account-1',
     }),
-  ).toEqual({ type: 'token-rotated', previousToken: 'old', token: 'new' });
+  ).toEqual({
+    type: 'token-rotated',
+    previousToken: 'old',
+    token: 'new',
+    accountId: 'account-1',
+  });
   expect(
     parseDesktopDaemonWorkerMessage({ type: 'auth-expired', failedToken: 'expired-token' }),
   ).toEqual({ type: 'auth-expired', failedToken: 'expired-token' });

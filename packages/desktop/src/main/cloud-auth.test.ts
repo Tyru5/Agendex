@@ -51,7 +51,11 @@ test('validates callback tokens through the CLI refresh endpoint', async () => {
     requestedAuthHeaders.push(headers.get('Authorization'));
 
     if (requestUrl === 'http://127.0.0.1:3211/api/cli/refresh') {
-      return Response.json({ token: 'refreshed-token', expiresAt: Date.now() + 60_000 });
+      return Response.json({
+        token: 'refreshed-token',
+        accountId: 'account-1',
+        expiresAt: Date.now() + 60_000,
+      });
     }
 
     return Response.json({ session: null });
@@ -73,6 +77,7 @@ test('validates callback tokens through the CLI refresh endpoint', async () => {
   expect(validated).toEqual({
     token: 'refreshed-token',
     convexSiteUrl: 'http://127.0.0.1:3211',
+    accountId: 'account-1',
   });
   expect(requestedUrls).toEqual(['http://127.0.0.1:3211/api/cli/refresh']);
   expect(requestedAuthHeaders).toEqual(['Bearer callback-token']);
@@ -87,7 +92,11 @@ test('validates production callback tokens against the Convex site HTTP action h
     requestedUrls.push(requestUrl);
 
     if (requestUrl === 'https://enduring-eagle-295.convex.site/api/cli/refresh') {
-      return Response.json({ token: 'refreshed-token', expiresAt: Date.now() + 60_000 });
+      return Response.json({
+        token: 'refreshed-token',
+        accountId: 'account-1',
+        expiresAt: Date.now() + 60_000,
+      });
     }
 
     return Response.json({ error: 'wrong host' }, { status: 404 });
@@ -109,6 +118,7 @@ test('validates production callback tokens against the Convex site HTTP action h
   expect(validated).toEqual({
     token: 'refreshed-token',
     convexSiteUrl: 'https://enduring-eagle-295.convex.site',
+    accountId: 'account-1',
   });
   expect(requestedUrls).toEqual(['https://enduring-eagle-295.convex.site/api/cli/refresh']);
 });

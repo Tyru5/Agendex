@@ -35,7 +35,7 @@ function setCredentials(next: DesktopDaemonCredentials): boolean {
 
 setDaemonCredentialStore({
   load: () => credentials,
-  saveToken: (previous, token) => {
+  saveToken: (previous, token, accountId) => {
     if (
       !credentials ||
       credentials.token !== previous.token ||
@@ -43,8 +43,8 @@ setDaemonCredentialStore({
     ) {
       return false;
     }
-    credentials = { ...credentials, token };
-    postMessage({ type: 'token-rotated', previousToken: previous.token, token });
+    credentials = { ...credentials, token, accountId };
+    postMessage({ type: 'token-rotated', previousToken: previous.token, token, accountId });
     return true;
   },
   onAuthExpired: (failedToken) => {

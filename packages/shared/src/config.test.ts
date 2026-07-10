@@ -60,6 +60,7 @@ test('loadOrCreateToken preserves existing cloud session fields', async () => {
   saveConfig({
     configVersion: 3,
     cloudToken: 'cloud-session',
+    cloudAccountId: 'account-1',
     convexUrl: 'http://127.0.0.1:3210',
     deviceId: 'device-1',
     enabledAdapters: ['cursor'],
@@ -73,6 +74,7 @@ test('loadOrCreateToken preserves existing cloud session fields', async () => {
   expect(config).toMatchObject({
     token,
     cloudToken: 'cloud-session',
+    cloudAccountId: 'account-1',
     convexUrl: 'http://127.0.0.1:3210',
     deviceId: 'device-1',
     // v3→v4 migration auto-enables grok for pre-existing installs.

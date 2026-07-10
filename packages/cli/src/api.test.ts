@@ -6,6 +6,7 @@ import { join, parse } from 'node:path';
 import { saveConfig } from '@agendex/shared';
 import {
   fetchPlannotatorWritebacks,
+  getDaemonCloudScope,
   resetDaemonCredentialStore,
   type PlannotatorWritebackJob,
   reportPlannotatorWriteback,
@@ -71,7 +72,11 @@ function startCloudApi(writebacks: PlannotatorWritebackJob[], options: CloudApiO
       res.end(
         JSON.stringify(
           status === 200
-            ? { token: 'refreshed-token', expiresAt: Date.now() + 60_000 }
+            ? {
+                token: 'refreshed-token',
+                accountId: 'account-1',
+                expiresAt: Date.now() + 60_000,
+              }
             : { error: 'Unauthorized' },
         ),
       );
@@ -145,11 +150,31 @@ function saveCloudConfig(convexUrl: string) {
   saveConfig({
     configVersion: 3,
     cloudToken: 'token',
+    cloudAccountId: 'account-1',
     convexUrl,
     enabledAdapters: [],
     customPlanDirs: [],
   });
 }
+
+test('keeps the cloud cache scope stable across token rotation', () => {
+  let credentials = {
+    token: 'token-a',
+    convexUrl: 'https://example.convex.site',
+    accountId: 'account-1',
+  };
+  setDaemonCredentialStore({
+    load: () => credentials,
+    saveToken: () => true,
+  });
+
+  const scope = getDaemonCloudScope();
+  credentials = { ...credentials, token: 'token-b' };
+  expect(getDaemonCloudScope()).toBe(scope);
+
+  credentials = { ...credentials, accountId: 'account-2' };
+  expect(getDaemonCloudScope()).not.toBe(scope);
+});
 
 test('sends local IP address in heartbeat payload', async () => {
   await useTempHome();

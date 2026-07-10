@@ -61,6 +61,7 @@ export interface AgendexConfig {
   configVersion: number;
   token?: string;
   cloudToken?: string;
+  cloudAccountId?: string;
   convexUrl?: string;
   /** Web app base URL used at login (for self-hosted / custom deployments). */
   siteUrl?: string;
@@ -74,6 +75,7 @@ interface StoredConfig {
   configVersion?: number;
   token?: unknown;
   cloudToken?: unknown;
+  cloudAccountId?: unknown;
   convexUrl?: unknown;
   siteUrl?: unknown;
   deviceId?: unknown;
@@ -243,6 +245,10 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
   const token = typeof raw.token === 'string' && raw.token.trim() ? raw.token : undefined;
   const cloudToken =
     typeof raw.cloudToken === 'string' && raw.cloudToken.trim() ? raw.cloudToken : undefined;
+  const cloudAccountId =
+    typeof raw.cloudAccountId === 'string' && raw.cloudAccountId.trim()
+      ? raw.cloudAccountId
+      : undefined;
   const convexUrl =
     typeof raw.convexUrl === 'string' && raw.convexUrl.trim() ? raw.convexUrl : undefined;
   const siteUrl = typeof raw.siteUrl === 'string' && raw.siteUrl.trim() ? raw.siteUrl : undefined;
@@ -261,6 +267,7 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     configVersion: migrated.version,
     token,
     cloudToken,
+    cloudAccountId,
     convexUrl,
     siteUrl,
     deviceId,
@@ -291,6 +298,7 @@ function normalizedConfigForWrite(config: AgendexConfig): AgendexConfig {
     configVersion: migrated.version,
     token: config.token,
     cloudToken: config.cloudToken,
+    cloudAccountId: config.cloudAccountId,
     convexUrl: config.convexUrl,
     siteUrl: config.siteUrl,
     deviceId: config.deviceId,

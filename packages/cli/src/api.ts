@@ -23,11 +23,12 @@ let cachedDeviceId: string | undefined;
 export interface DaemonCloudCredentials {
   token: string;
   convexUrl: string;
+  accountId?: string;
 }
 
 export interface DaemonCredentialStore {
   load: () => DaemonCloudCredentials | null;
-  saveToken: (current: DaemonCloudCredentials, nextToken: string) => boolean;
+  saveToken: (current: DaemonCloudCredentials, nextToken: string, accountId: string) => boolean;
   onAuthExpired?: (failedToken: string) => void;
 }
 
@@ -35,9 +36,13 @@ const configCredentialStore: DaemonCredentialStore = {
   load: () => {
     const config = loadConfig();
     if (!config?.cloudToken || !config.convexUrl) return null;
-    return { token: config.cloudToken, convexUrl: config.convexUrl };
+    return {
+      token: config.cloudToken,
+      convexUrl: config.convexUrl,
+      accountId: config.cloudAccountId,
+    };
   },
-  saveToken: (current, nextToken) =>
+  saveToken: (current, nextToken, accountId) =>
     updateConfig((config) => {
       if (
         !config ||
@@ -46,7 +51,7 @@ const configCredentialStore: DaemonCredentialStore = {
       ) {
         return null;
       }
-      return { ...config, cloudToken: nextToken };
+      return { ...config, cloudToken: nextToken, cloudAccountId: accountId };
     }),
 };
 
@@ -68,7 +73,7 @@ export function getDaemonCloudScope(): string | null {
   const credentials = credentialStore.load();
   if (!credentials) return null;
   return createHash('sha256')
-    .update(`${credentials.convexUrl}\0${credentials.token}`)
+    .update(`${credentials.convexUrl}\0${credentials.accountId ?? credentials.token}`)
     .digest('hex')
     .slice(0, 32);
 }
@@ -91,7 +96,7 @@ function reportAuthExpired(status: number, failedToken: string): void {
 }
 
 type TokenRefreshRequestResult =
-  | { kind: 'refreshed'; token: string; expiresAt: number }
+  | { kind: 'refreshed'; token: string; accountId: string; expiresAt: number }
   | { kind: 'auth-rejected' }
   | { kind: 'unavailable' };
 
@@ -212,10 +217,13 @@ async function refreshStoredToken(
 ): Promise<StoredTokenRefreshResult> {
   const refreshed = await requestTokenRefresh(current.token, current.convexUrl);
   if (refreshed.kind !== 'refreshed') return refreshed;
-  if (!credentialStore.saveToken(current, refreshed.token)) {
+  if (!credentialStore.saveToken(current, refreshed.token, refreshed.accountId)) {
     return { kind: 'credentials-changed' };
   }
-  return { kind: 'refreshed', credentials: { ...current, token: refreshed.token } };
+  return {
+    kind: 'refreshed',
+    credentials: { ...current, token: refreshed.token, accountId: refreshed.accountId },
+  };
 }
 
 export async function refreshCurrentDaemonToken(): Promise<boolean> {
@@ -290,9 +298,11 @@ export async function sendShutdown(): Promise<void> {
 export async function refreshToken(
   currentToken: string,
   convexUrl: string,
-): Promise<{ token: string; expiresAt: number } | null> {
+): Promise<{ token: string; accountId: string; expiresAt: number } | null> {
   const result = await requestTokenRefresh(currentToken, convexUrl);
-  return result.kind === 'refreshed' ? { token: result.token, expiresAt: result.expiresAt } : null;
+  return result.kind === 'refreshed'
+    ? { token: result.token, accountId: result.accountId, expiresAt: result.expiresAt }
+    : null;
 }
 
 async function requestTokenRefresh(
@@ -313,9 +323,10 @@ async function requestTokenRefresh(
 
   const body = parseJsonObject(res.body);
   const token = typeof body?.token === 'string' ? body.token : undefined;
+  const accountId = typeof body?.accountId === 'string' ? body.accountId : undefined;
   const expiresAt = typeof body?.expiresAt === 'number' ? body.expiresAt : 0;
-  if (!token) return { kind: 'unavailable' };
-  return { kind: 'refreshed', token, expiresAt };
+  if (!token || !accountId) return { kind: 'unavailable' };
+  return { kind: 'refreshed', token, accountId, expiresAt };
 }
 
 export async function fetchCliPreferences(): Promise<CliPreferences | null> {

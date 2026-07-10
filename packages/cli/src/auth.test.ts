@@ -31,6 +31,7 @@ test('logout preserves stored siteUrl for subsequent open/upload URLs', () => {
     enabledAdapters: [],
     customPlanDirs: [],
     cloudToken: 'tok',
+    cloudAccountId: 'account-1',
     convexUrl: 'https://example.convex.cloud',
     siteUrl: 'https://self-hosted.example.com',
   });
@@ -39,6 +40,7 @@ test('logout preserves stored siteUrl for subsequent open/upload URLs', () => {
 
   const config = loadConfig();
   expect(config?.cloudToken).toBeUndefined();
+  expect(config?.cloudAccountId).toBeUndefined();
   expect(config?.siteUrl).toBe('https://self-hosted.example.com');
   expect(getSiteUrl()).toBe('https://self-hosted.example.com');
 });

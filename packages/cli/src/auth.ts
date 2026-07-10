@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { CURRENT_CONFIG_VERSION, isDevMode, loadConfig, updateConfig } from '@agendex/shared';
+import { refreshToken } from './api.ts';
 
 const PROD_SITE_URL = 'https://app.agendex.dev';
 const DEV_SITE_URL = 'http://app.agendex.localhost:5174';
@@ -45,11 +46,14 @@ export async function login(siteUrlOverride?: string): Promise<void> {
   launchBrowser(authUrl, 'browser for authentication');
 
   const callback = await result;
+  const session = await refreshToken(callback.token, callback.convexUrl);
+  if (!session) throw new Error('Cloud session validation failed. Run `agendex login` again.');
 
   updateConfig((current) => ({
     ...(current ?? existing),
     configVersion: CURRENT_CONFIG_VERSION,
-    cloudToken: callback.token,
+    cloudToken: session.token,
+    cloudAccountId: session.accountId,
     convexUrl: callback.convexUrl,
     siteUrl,
     enabledAdapters: current?.enabledAdapters ?? existing?.enabledAdapters ?? [],
@@ -69,7 +73,12 @@ export function logout(): void {
 
   updateConfig((current) => {
     if (!current) return null;
-    const { cloudToken: _cloudToken, convexUrl: _convexUrl, ...config } = current;
+    const {
+      cloudToken: _cloudToken,
+      cloudAccountId: _cloudAccountId,
+      convexUrl: _convexUrl,
+      ...config
+    } = current;
     return config;
   });
   console.log('[agendex] Logged out. Cloud token removed.');

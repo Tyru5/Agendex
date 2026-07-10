@@ -34,7 +34,7 @@ export interface DesktopDaemonTimings {
 
 export interface DesktopDaemonManagerOptions {
   isDev: boolean;
-  rotateCloudToken: (previousToken: string, token: string) => CloudCreds | null;
+  rotateCloudToken: (previousToken: string, token: string, accountId?: string) => CloudCreds | null;
   onAuthExpired: (failedToken: string) => void | Promise<void>;
   log: (message: string, error?: unknown) => void;
   workerEntry?: string;
@@ -245,6 +245,7 @@ export class DesktopDaemonManager {
               const currentCredentials = this.options.rotateCloudToken(
                 message.previousToken,
                 message.token,
+                message.accountId,
               );
               if (currentCredentials) this.updateCredentials(currentCredentials);
             } catch (error) {

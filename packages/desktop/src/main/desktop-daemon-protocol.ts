@@ -1,6 +1,7 @@
 export interface DesktopDaemonCredentials {
   token: string;
   convexSiteUrl: string;
+  accountId?: string;
 }
 
 export type DesktopDaemonParentMessage =
@@ -14,7 +15,7 @@ export type DesktopDaemonParentMessage =
 
 export type DesktopDaemonWorkerMessage =
   | { type: 'ready'; pid: number }
-  | { type: 'token-rotated'; previousToken: string; token: string }
+  | { type: 'token-rotated'; previousToken: string; token: string; accountId?: string }
   | { type: 'auth-expired'; failedToken: string }
   | { type: 'fatal'; message: string };
 
@@ -27,7 +28,8 @@ function parseCredentials(value: unknown): DesktopDaemonCredentials | null {
   const { token, convexSiteUrl } = value;
   if (typeof token !== 'string' || !token.trim()) return null;
   if (typeof convexSiteUrl !== 'string' || !convexSiteUrl.trim()) return null;
-  return { token, convexSiteUrl };
+  const accountId = typeof value.accountId === 'string' ? value.accountId.trim() : '';
+  return { token, convexSiteUrl, ...(accountId ? { accountId } : {}) };
 }
 
 export function parseDesktopDaemonParentMessage(value: unknown): DesktopDaemonParentMessage | null {
@@ -60,7 +62,13 @@ export function parseDesktopDaemonWorkerMessage(value: unknown): DesktopDaemonWo
     value.previousToken &&
     value.token
   ) {
-    return { type: 'token-rotated', previousToken: value.previousToken, token: value.token };
+    const accountId = typeof value.accountId === 'string' ? value.accountId.trim() : '';
+    return {
+      type: 'token-rotated',
+      previousToken: value.previousToken,
+      token: value.token,
+      ...(accountId ? { accountId } : {}),
+    };
   }
   if (value.type === 'fatal' && typeof value.message === 'string') {
     return { type: 'fatal', message: value.message };
