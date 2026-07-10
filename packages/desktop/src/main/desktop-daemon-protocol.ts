@@ -15,7 +15,7 @@ export type DesktopDaemonParentMessage =
 export type DesktopDaemonWorkerMessage =
   | { type: 'ready'; pid: number }
   | { type: 'token-rotated'; previousToken: string; token: string }
-  | { type: 'auth-expired' }
+  | { type: 'auth-expired'; failedToken: string }
   | { type: 'fatal'; message: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -47,7 +47,9 @@ export function parseDesktopDaemonParentMessage(value: unknown): DesktopDaemonPa
 
 export function parseDesktopDaemonWorkerMessage(value: unknown): DesktopDaemonWorkerMessage | null {
   if (!isRecord(value) || typeof value.type !== 'string') return null;
-  if (value.type === 'auth-expired') return { type: 'auth-expired' };
+  if (value.type === 'auth-expired' && typeof value.failedToken === 'string' && value.failedToken) {
+    return { type: 'auth-expired', failedToken: value.failedToken };
+  }
   if (value.type === 'ready' && typeof value.pid === 'number' && value.pid > 0) {
     return { type: 'ready', pid: value.pid };
   }

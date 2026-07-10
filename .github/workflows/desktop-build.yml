@@ -51,7 +51,7 @@ jobs:
         run: bun run check
 
       - name: Run desktop-related tests
-        run: bun test packages/desktop packages/shared/src/convex-url.test.ts packages/shared/src/desktop-auth-callback.test.ts packages/ee/src/lib/desktop.test.ts packages/ee/src/lib/desktop-auth-flow.test.ts packages/ee/src/lib/cli-auth-callback.test.ts packages/ee/src/lib/cloud-query-mode.test.ts
+        run: bun test packages/cli packages/desktop packages/shared/src/config.test.ts packages/shared/src/convex-url.test.ts packages/shared/src/desktop-auth-callback.test.ts packages/ee/src/lib/desktop.test.ts packages/ee/src/lib/desktop-auth-flow.test.ts packages/ee/src/lib/cli-auth-callback.test.ts packages/ee/src/lib/cloud-query-mode.test.ts
 
   build-macos:
     name: Package macOS (unsigned)
@@ -123,7 +123,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run Windows daemon process tests
-        run: bun test packages/desktop/src/main/desktop-daemon-manager.test.ts packages/desktop/src/main/desktop-daemon-protocol.test.ts packages/cli/src/pid.test.ts
+        run: bun test packages/desktop/src/main/desktop-daemon-manager.test.ts packages/desktop/src/main/desktop-daemon-protocol.test.ts packages/cli/src/pid.test.ts packages/cli/src/cli-daemon-lifecycle.test.ts packages/shared/src/config.test.ts
 
       - name: Build desktop app
         run: bun run desktop:build
@@ -142,6 +142,12 @@ jobs:
           if ($portable.Count -ne 1) {
             throw "Expected one portable executable, found $($portable.Count)"
           }
+
+      - name: Smoke packaged Electron daemon lifecycle
+        shell: pwsh
+        run: |
+          $app = (Get-Item 'packages/desktop/release/win-unpacked/Agendex.exe').FullName
+          bun packages/desktop/scripts/smoke-daemon-worker.mjs --app $app
 
       - name: Upload Windows build assets
         uses: actions/upload-artifact@v4

@@ -1,11 +1,10 @@
 import {
   type DaemonCloudCredentials,
-  removePid,
   requestWorkerShutdown,
   runWorker,
   setDaemonCredentialStore,
   writePid,
-} from 'agendex-cli/daemon-runtime';
+} from '@agendex/daemon-runtime';
 import { normalizeConvexSiteUrl } from '@agendex/shared/convex-url';
 import {
   parseDesktopDaemonParentMessage,
@@ -18,7 +17,8 @@ if (!parentPort) throw new Error('Agendex daemon worker requires an Electron par
 
 let credentials: DaemonCloudCredentials | null = null;
 let started = false;
-let authExpiredReported = false;
+let authExpiredToken: string | null = null;
+let credentialUpdateHandler: (() => void) | null = null;
 
 function postMessage(message: DesktopDaemonWorkerMessage): void {
   parentPort.postMessage(message);
@@ -33,15 +33,22 @@ function setCredentials(next: DesktopDaemonCredentials): boolean {
 
 setDaemonCredentialStore({
   load: () => credentials,
-  saveToken: (previousToken, token) => {
-    if (!credentials || credentials.token !== previousToken) return;
+  saveToken: (previous, token) => {
+    if (
+      !credentials ||
+      credentials.token !== previous.token ||
+      credentials.convexUrl !== previous.convexUrl
+    ) {
+      return false;
+    }
     credentials = { ...credentials, token };
-    postMessage({ type: 'token-rotated', previousToken, token });
+    postMessage({ type: 'token-rotated', previousToken: previous.token, token });
+    return true;
   },
-  onAuthExpired: () => {
-    if (authExpiredReported) return;
-    authExpiredReported = true;
-    postMessage({ type: 'auth-expired' });
+  onAuthExpired: (failedToken) => {
+    if (credentials?.token !== failedToken || authExpiredToken === failedToken) return;
+    authExpiredToken = failedToken;
+    postMessage({ type: 'auth-expired', failedToken });
   },
 });
 
@@ -52,13 +59,12 @@ async function startWorker(
   started = true;
 
   writePid({ launcher: 'desktop', parentPid: message.parentPid });
-  process.once('exit', () => removePid(process.pid));
 
   const parentWatchdog = setInterval(() => {
     try {
       process.kill(message.parentPid, 0);
     } catch {
-      void requestWorkerShutdown();
+      void requestWorkerShutdown({ skipRemote: true });
     }
   }, 1_000);
   parentWatchdog.unref();
@@ -66,6 +72,9 @@ async function startWorker(
   try {
     await runWorker({
       onReady: () => postMessage({ type: 'ready', pid: process.pid }),
+      registerCredentialUpdateHandler: (handler) => {
+        credentialUpdateHandler = handler;
+      },
     });
   } catch (error) {
     postMessage({
@@ -75,7 +84,6 @@ async function startWorker(
     process.exit(1);
   } finally {
     clearInterval(parentWatchdog);
-    removePid(process.pid);
   }
 }
 
@@ -88,8 +96,9 @@ parentPort.on('message', (event) => {
     return;
   }
   if (message.type === 'credentials-updated') {
-    setCredentials(message.credentials);
-    authExpiredReported = false;
+    if (!setCredentials(message.credentials)) return;
+    authExpiredToken = null;
+    credentialUpdateHandler?.();
     return;
   }
 

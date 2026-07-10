@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { hostname as osHostname } from 'node:os';
@@ -6,7 +7,7 @@ import {
   loadOrCreateDeviceId,
   type PlannotatorFeedbackAnnotation,
   type PlannotatorWritebackAction,
-  saveConfig,
+  updateConfig,
 } from '@agendex/shared';
 import { readPidInfo } from './pid.ts';
 
@@ -26,8 +27,8 @@ export interface DaemonCloudCredentials {
 
 export interface DaemonCredentialStore {
   load: () => DaemonCloudCredentials | null;
-  saveToken: (currentToken: string, nextToken: string) => void;
-  onAuthExpired?: () => void;
+  saveToken: (current: DaemonCloudCredentials, nextToken: string) => boolean;
+  onAuthExpired?: (failedToken: string) => void;
 }
 
 const configCredentialStore: DaemonCredentialStore = {
@@ -36,11 +37,17 @@ const configCredentialStore: DaemonCredentialStore = {
     if (!config?.cloudToken || !config.convexUrl) return null;
     return { token: config.cloudToken, convexUrl: config.convexUrl };
   },
-  saveToken: (currentToken, nextToken) => {
-    const config = loadConfig();
-    if (!config || config.cloudToken !== currentToken) return;
-    saveConfig({ ...config, cloudToken: nextToken });
-  },
+  saveToken: (current, nextToken) =>
+    updateConfig((config) => {
+      if (
+        !config ||
+        config.cloudToken !== current.token ||
+        config.convexUrl !== current.convexUrl
+      ) {
+        return null;
+      }
+      return { ...config, cloudToken: nextToken };
+    }),
 };
 
 let credentialStore: DaemonCredentialStore = configCredentialStore;
@@ -57,6 +64,15 @@ export function hasDaemonCloudCredentials(): boolean {
   return credentialStore.load() !== null;
 }
 
+export function getDaemonCloudScope(): string | null {
+  const credentials = credentialStore.load();
+  if (!credentials) return null;
+  return createHash('sha256')
+    .update(`${credentials.convexUrl}\0${credentials.token}`)
+    .digest('hex')
+    .slice(0, 32);
+}
+
 function getCloudConfig(): DaemonCloudCredentials {
   const config = credentialStore.load();
 
@@ -70,8 +86,21 @@ function isAuthenticationFailure(status: number): boolean {
   return status === 401;
 }
 
-function reportAuthExpired(status: number): void {
-  if (isAuthenticationFailure(status)) credentialStore.onAuthExpired?.();
+function reportAuthExpired(status: number, failedToken: string): void {
+  if (isAuthenticationFailure(status)) credentialStore.onAuthExpired?.(failedToken);
+}
+
+type TokenRefreshRequestResult =
+  | { kind: 'refreshed'; token: string; expiresAt: number }
+  | { kind: 'auth-rejected' }
+  | { kind: 'unavailable' };
+
+type StoredTokenRefreshResult =
+  | { kind: 'refreshed'; credentials: DaemonCloudCredentials }
+  | { kind: 'auth-rejected' | 'unavailable' | 'credentials-changed' };
+
+function reportRefreshRejection(result: StoredTokenRefreshResult, failedToken: string): void {
+  if (result.kind === 'auth-rejected') reportAuthExpired(401, failedToken);
 }
 
 export interface SyncPlanPayload {
@@ -143,9 +172,9 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<SyncPlanResult> {
   });
 
   if (isAuthenticationFailure(res.status)) {
-    const refreshed = await refreshStoredToken(activeToken, convexUrl);
-    if (refreshed) {
-      activeToken = refreshed;
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
       res = await requestText(url, {
         method: 'POST',
         headers: {
@@ -155,30 +184,46 @@ export async function syncPlan(plan: SyncPlanPayload): Promise<SyncPlanResult> {
         },
         body: JSON.stringify(plan),
       });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      return {
+        ok: false,
+        status: refreshed.kind === 'auth-rejected' ? 401 : 503,
+        error:
+          refreshed.kind === 'auth-rejected'
+            ? '401: Unauthorized'
+            : refreshed.kind === 'credentials-changed'
+              ? 'Cloud credentials changed during sync'
+              : 'Cloud session refresh unavailable',
+      };
     }
   }
 
   if (res.status < 200 || res.status >= 300) {
-    reportAuthExpired(res.status);
+    reportAuthExpired(res.status, activeToken);
     return { ok: false, status: res.status, error: `${res.status}: ${res.body}` };
   }
 
   return parseSyncSuccess(res.body);
 }
 
-async function refreshStoredToken(currentToken: string, convexUrl: string): Promise<string | null> {
-  const refreshed = await refreshToken(currentToken, convexUrl);
-  if (!refreshed) return null;
-
-  credentialStore.saveToken(currentToken, refreshed.token);
-
-  return refreshed.token;
+async function refreshStoredToken(
+  current: DaemonCloudCredentials,
+): Promise<StoredTokenRefreshResult> {
+  const refreshed = await requestTokenRefresh(current.token, current.convexUrl);
+  if (refreshed.kind !== 'refreshed') return refreshed;
+  if (!credentialStore.saveToken(current, refreshed.token)) {
+    return { kind: 'credentials-changed' };
+  }
+  return { kind: 'refreshed', credentials: { ...current, token: refreshed.token } };
 }
 
 export async function refreshCurrentDaemonToken(): Promise<boolean> {
   const current = credentialStore.load();
   if (!current) return false;
-  return (await refreshStoredToken(current.token, current.convexUrl)) !== null;
+  const refreshed = await refreshStoredToken(current);
+  reportRefreshRejection(refreshed, current.token);
+  return refreshed.kind === 'refreshed';
 }
 
 export async function sendHeartbeat(ipAddress?: string): Promise<void> {
@@ -205,13 +250,13 @@ export async function sendHeartbeat(ipAddress?: string): Promise<void> {
     });
 
     if (isAuthenticationFailure(res.status)) {
-      const refreshedToken = await refreshStoredToken(activeToken, convexUrl);
-      if (!refreshedToken) {
-        reportAuthExpired(res.status);
+      const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+      if (refreshed.kind !== 'refreshed') {
+        reportRefreshRejection(refreshed, activeToken);
         return;
       }
 
-      activeToken = refreshedToken;
+      activeToken = refreshed.credentials.token;
       res = await requestText(`${convexUrl}/api/cli/heartbeat`, {
         method: 'POST',
         headers: {
@@ -224,7 +269,7 @@ export async function sendHeartbeat(ipAddress?: string): Promise<void> {
     }
 
     if (isAuthenticationFailure(res.status)) {
-      reportAuthExpired(res.status);
+      reportAuthExpired(res.status, activeToken);
       return;
     }
   } catch {
@@ -246,6 +291,14 @@ export async function refreshToken(
   currentToken: string,
   convexUrl: string,
 ): Promise<{ token: string; expiresAt: number } | null> {
+  const result = await requestTokenRefresh(currentToken, convexUrl);
+  return result.kind === 'refreshed' ? { token: result.token, expiresAt: result.expiresAt } : null;
+}
+
+async function requestTokenRefresh(
+  currentToken: string,
+  convexUrl: string,
+): Promise<TokenRefreshRequestResult> {
   const res = await requestText(`${convexUrl}/api/cli/refresh`, {
     method: 'POST',
     headers: {
@@ -255,13 +308,14 @@ export async function refreshToken(
     },
   });
 
-  if (res.status < 200 || res.status >= 300) return null;
+  if (isAuthenticationFailure(res.status)) return { kind: 'auth-rejected' };
+  if (res.status < 200 || res.status >= 300) return { kind: 'unavailable' };
 
   const body = parseJsonObject(res.body);
   const token = typeof body?.token === 'string' ? body.token : undefined;
   const expiresAt = typeof body?.expiresAt === 'number' ? body.expiresAt : 0;
-  if (!token) return null;
-  return { token, expiresAt };
+  if (!token) return { kind: 'unavailable' };
+  return { kind: 'refreshed', token, expiresAt };
 }
 
 export async function fetchCliPreferences(): Promise<CliPreferences | null> {
@@ -274,31 +328,35 @@ export async function fetchCliPreferences(): Promise<CliPreferences | null> {
     });
 
     if (isAuthenticationFailure(res.status)) {
-      const refreshed = await refreshStoredToken(activeToken, convexUrl);
-      if (refreshed) {
-        activeToken = refreshed;
+      const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+      if (refreshed.kind === 'refreshed') {
+        activeToken = refreshed.credentials.token;
         res = await requestText(`${convexUrl}/api/cli/preferences`, {
           method: 'GET',
           headers: authHeaders(activeToken),
         });
+      } else {
+        reportRefreshRejection(refreshed, activeToken);
+        return null;
       }
     }
 
     if (res.status < 200 || res.status >= 300) {
-      reportAuthExpired(res.status);
+      reportAuthExpired(res.status, activeToken);
       return null;
     }
 
     const body = JSON.parse(res.body) as { collectLocalIpAddress?: unknown };
     if (typeof body.collectLocalIpAddress !== 'boolean') return null;
 
-    const config = loadConfig();
-    if (config) {
-      saveConfig({
-        ...config,
-        collectLocalIpAddress: body.collectLocalIpAddress,
-      });
-    }
+    updateConfig((config) =>
+      config
+        ? {
+            ...config,
+            collectLocalIpAddress: body.collectLocalIpAddress as boolean,
+          }
+        : null,
+    );
 
     return { collectLocalIpAddress: body.collectLocalIpAddress };
   } catch {
@@ -404,18 +462,22 @@ export async function fetchPlannotatorWritebacks(limit = 10): Promise<Plannotato
   });
 
   if (isAuthenticationFailure(res.status)) {
-    const refreshed = await refreshStoredToken(activeToken, convexUrl);
-    if (refreshed) {
-      activeToken = refreshed;
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
       res = await requestText(url, {
         method: 'GET',
         headers: authHeaders(activeToken),
       });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      if (refreshed.kind === 'auth-rejected') throw new AuthExpiredError();
+      return [];
     }
   }
 
   if (isAuthenticationFailure(res.status)) {
-    reportAuthExpired(res.status);
+    reportAuthExpired(res.status, activeToken);
     throw new AuthExpiredError();
   }
   if (res.status < 200 || res.status >= 300) return [];
@@ -441,18 +503,21 @@ export async function reportPlannotatorWriteback(
   });
 
   if (isAuthenticationFailure(res.status)) {
-    const refreshed = await refreshStoredToken(activeToken, convexUrl);
-    if (refreshed) {
-      activeToken = refreshed;
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
       res = await requestText(url, {
         method: 'POST',
         headers: authHeaders(activeToken, true),
         body,
       });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      return false;
     }
   }
 
-  reportAuthExpired(res.status);
+  reportAuthExpired(res.status, activeToken);
   return res.status >= 200 && res.status < 300;
 }
 
@@ -480,9 +545,9 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
   });
 
   if (isAuthenticationFailure(res.status)) {
-    const refreshed = await refreshStoredToken(activeToken, convexUrl);
-    if (refreshed) {
-      activeToken = refreshed;
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
       res = await requestText(url, {
         method: 'GET',
         headers: {
@@ -490,11 +555,15 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
           Connection: 'close',
         },
       });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      if (refreshed.kind === 'auth-rejected') throw new AuthExpiredError();
+      return [];
     }
   }
 
   if (isAuthenticationFailure(res.status)) {
-    reportAuthExpired(res.status);
+    reportAuthExpired(res.status, activeToken);
     throw new AuthExpiredError();
   }
 
@@ -524,9 +593,9 @@ export async function deleteDaemons(
   });
 
   if (isAuthenticationFailure(res.status)) {
-    const refreshed = await refreshStoredToken(activeToken, convexUrl);
-    if (refreshed) {
-      activeToken = refreshed;
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
       res = await requestText(url, {
         method: 'DELETE',
         headers: {
@@ -536,11 +605,14 @@ export async function deleteDaemons(
         },
         body: JSON.stringify({ deviceIds }),
       });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      return { ok: false, deleted: 0 };
     }
   }
 
   if (res.status < 200 || res.status >= 300) {
-    reportAuthExpired(res.status);
+    reportAuthExpired(res.status, activeToken);
     return { ok: false, deleted: 0 };
   }
 

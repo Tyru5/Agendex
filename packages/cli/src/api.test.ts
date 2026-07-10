@@ -200,7 +200,7 @@ test('uses an injected in-memory credential store for desktop workers', async ()
   const cloud = await startCloudApi([]);
   setDaemonCredentialStore({
     load: () => ({ token: 'token', convexUrl: cloud.url }),
-    saveToken: () => undefined,
+    saveToken: () => true,
   });
 
   await sendHeartbeat();
@@ -214,7 +214,7 @@ test('does not treat a Cloud Pro entitlement response as expired authentication'
   let authExpiredCount = 0;
   setDaemonCredentialStore({
     load: () => ({ token: 'token', convexUrl: cloud.url }),
-    saveToken: () => undefined,
+    saveToken: () => true,
     onAuthExpired: () => {
       authExpiredCount += 1;
     },
@@ -236,19 +236,56 @@ test('does not treat a Cloud Pro entitlement response as expired authentication'
 test('reports authentication expiry when heartbeat token refresh fails', async () => {
   await useTempHome();
   const cloud = await startCloudApi([], { heartbeatStatus: 401, refreshStatus: 401 });
-  let authExpiredCount = 0;
+  const expiredTokens: string[] = [];
   setDaemonCredentialStore({
     load: () => ({ token: 'token', convexUrl: cloud.url }),
-    saveToken: () => undefined,
-    onAuthExpired: () => {
-      authExpiredCount += 1;
-    },
+    saveToken: () => true,
+    onAuthExpired: (failedToken) => expiredTokens.push(failedToken),
   });
 
   await sendHeartbeat();
 
-  expect(authExpiredCount).toBe(1);
+  expect(expiredTokens).toEqual(['token']);
   expect(cloud.requests.some((request) => request.endsWith('/api/cli/refresh'))).toBe(true);
+});
+
+test('does not expire authentication when token refresh is transiently unavailable', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([], { heartbeatStatus: 401, refreshStatus: 500 });
+  const expiredTokens: string[] = [];
+  setDaemonCredentialStore({
+    load: () => ({ token: 'token', convexUrl: cloud.url }),
+    saveToken: () => true,
+    onAuthExpired: (failedToken) => expiredTokens.push(failedToken),
+  });
+
+  await sendHeartbeat();
+
+  expect(expiredTokens).toEqual([]);
+});
+
+test('does not retry an old account when refreshed credentials fail compare-and-swap', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([], { syncStatus: 401 });
+  let current = { token: 'token', convexUrl: cloud.url };
+  setDaemonCredentialStore({
+    load: () => current,
+    saveToken: () => {
+      current = { token: 'new-account-token', convexUrl: 'https://new.convex.site' };
+      return false;
+    },
+  });
+
+  const result = await syncPlan({
+    localPlanId: 'plan-1',
+    agent: 'codex',
+    title: 'Account switch',
+    content: '# Plan',
+    format: 'markdown',
+  });
+
+  expect(result.status).toBe(503);
+  expect(cloud.requests.filter((request) => request === 'POST /api/cli/sync')).toHaveLength(1);
 });
 
 afterEach(async () => {

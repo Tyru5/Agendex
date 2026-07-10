@@ -5,9 +5,17 @@ export { requestWorkerShutdown, runWorker } from './daemon.ts';
 export type { DaemonPathOptions, DaemonPidInfo } from './pid.ts';
 export {
   acquireDaemonStartLock,
+  clearDaemonStopRequest,
+  consumeDaemonStopRequest,
+  getDaemonBootId,
+  isAgendexDaemonProcess,
+  isDaemonPidInfoCurrent,
+  isDaemonPidInfoRunning,
   isRunning,
   readPid,
   readPidInfo,
   removePid,
+  requestDaemonStop,
   writePid,
+  writePidForProcess,
 } from './pid.ts';

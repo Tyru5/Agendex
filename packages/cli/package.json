@@ -21,9 +21,6 @@
     "LICENSE"
   ],
   "type": "module",
-  "exports": {
-    "./daemon-runtime": "./src/daemon-runtime.ts"
-  },
   "publishConfig": {
     "access": "public"
   },

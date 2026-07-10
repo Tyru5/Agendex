@@ -32,6 +32,10 @@ test('desktop daemon protocol rejects malformed worker messages', () => {
       token: 'new',
     }),
   ).toEqual({ type: 'token-rotated', previousToken: 'old', token: 'new' });
+  expect(
+    parseDesktopDaemonWorkerMessage({ type: 'auth-expired', failedToken: 'expired-token' }),
+  ).toEqual({ type: 'auth-expired', failedToken: 'expired-token' });
+  expect(parseDesktopDaemonWorkerMessage({ type: 'auth-expired' })).toBeNull();
   expect(parseDesktopDaemonWorkerMessage({ type: 'ready', pid: 0 })).toBeNull();
   expect(parseDesktopDaemonWorkerMessage({ type: 'unknown' })).toBeNull();
 });

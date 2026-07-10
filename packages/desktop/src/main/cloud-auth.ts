@@ -29,6 +29,10 @@ function credsPath(): string {
 
 let cache: CloudCreds | null | undefined;
 
+function sameCloudCreds(left: CloudCreds | null, right: CloudCreds): boolean {
+  return left?.token === right.token && left.convexSiteUrl === right.convexSiteUrl;
+}
+
 function allowsQaPlaintextCloudCreds(): boolean {
   return process.env.AGENDEX_DESKTOP_QA_ALLOW_PLAINTEXT_CLOUD_CREDS === 'true';
 }
@@ -178,12 +182,19 @@ export async function refreshCloudSession(): Promise<CloudCreds | null> {
     // outages) are not proof the session is bad, so keep the existing creds and
     // let a later refresh retry instead of needlessly signing the user out.
     if (res.status === 401 || res.status === 403) {
+      const current = loadCloudCreds();
+      if (!sameCloudCreds(current, creds)) return current;
       clearCloudCreds();
       return null;
     }
-    if (!res.ok) return creds;
+    if (!res.ok) {
+      const current = loadCloudCreds();
+      return sameCloudCreds(current, creds) ? creds : current;
+    }
 
     const refreshedToken = getResponseToken(await res.json());
+    const current = loadCloudCreds();
+    if (!sameCloudCreds(current, creds)) return current;
     if (refreshedToken && refreshedToken !== creds.token) {
       const refreshed = { ...creds, token: refreshedToken };
       saveCloudCreds(refreshed);
@@ -193,7 +204,8 @@ export async function refreshCloudSession(): Promise<CloudCreds | null> {
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     console.error('[agendex-desktop] cloud session refresh failed', error);
-    return creds;
+    const current = loadCloudCreds();
+    return sameCloudCreds(current, creds) ? creds : current;
   }
 }
 
@@ -222,7 +234,7 @@ async function requestConvexAuthToken(
 ): Promise<ConvexAuthTokenResult | null> {
   const tokenUrl = getCliConvexTokenUrl(creds.convexSiteUrl);
   if (!tokenUrl) {
-    clearCloudCreds();
+    if (sameCloudCreds(loadCloudCreds(), creds)) clearCloudCreds();
     return null;
   }
 
@@ -237,12 +249,13 @@ async function requestConvexAuthToken(
       return refreshed ? requestConvexAuthToken(refreshed, true) : null;
     }
     if (res.status === 401 || res.status === 403) {
-      clearCloudCreds();
+      if (sameCloudCreds(loadCloudCreds(), creds)) clearCloudCreds();
       return null;
     }
     if (!res.ok) return null;
 
     const token = getResponseToken(await res.json());
+    if (!sameCloudCreds(loadCloudCreds(), creds)) return null;
     return token ? { token, cloudSession: creds } : null;
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));

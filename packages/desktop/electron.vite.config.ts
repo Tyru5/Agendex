@@ -13,6 +13,11 @@ const desktopDir = dirname(fileURLToPath(import.meta.url));
 // on the runtime path, so bundling everything except `electron` is safe.
 export default defineConfig({
   main: {
+    resolve: {
+      alias: {
+        '@agendex/daemon-runtime': resolve(desktopDir, '../cli/src/daemon-runtime.ts'),
+      },
+    },
     // electron-vite auto-applies `externalizeDepsPlugin` (build.externalizeDeps
     // defaults to true), which keeps node_modules out of the bundle. Disable it
     // so the workspace TS packages, hono, and the node adapters get bundled into
