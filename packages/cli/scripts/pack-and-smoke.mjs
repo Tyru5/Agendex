@@ -230,9 +230,24 @@ async function createCursorFixture(homeDir) {
 
   const plansDir = join(homeDir, '.cursor', 'plans');
   await mkdir(plansDir, { recursive: true });
+  // Must include real plan structure (sections + ordered steps). Thin heading+prose
+  // fixtures are low-value after plan-value tightened section detection in fc8a596.
   await writeFile(
     join(plansDir, 'smoke-test.plan.md'),
-    '# Plan: Ship the npm release pipeline\n\nSmoke test plan content.\n',
+    `# Plan: Ship the npm release pipeline
+
+## Context
+Release the CLI package to npm from CI with a packed smoke test.
+
+## Steps
+1. Pack the CLI package with the release script.
+2. Install the packed tarball into a temporary project.
+3. Run sync against a fake cloud endpoint and verify plan discovery.
+
+## Verification
+- Smoke test expects one syncable plan.
+- CLI help and upgrade notice still work.
+`,
   );
 }
 
