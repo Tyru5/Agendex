@@ -82,7 +82,7 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { useAuth } from './hooks/useAuth.ts';
-import { useCloudPlanContent } from './hooks/useCloudPlanContent.ts';
+import { useHydratedCloudPlan } from './hooks/useCloudPlanContent.ts';
 import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
 import { useUnseenPlanToasts } from './hooks/useUnseenPlanToasts.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
@@ -2008,17 +2008,10 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   ]);
 
   // Cloud list items ship without `content` (see getMyPublishedPlans); hydrate
-  // the selected plan before it fans out to the viewer/editor/share/plannotator
-  // consumers below. Plans that already carry content (local mode, optimistic
-  // copies from the editor) skip the fetch.
-  const cloudSelectedPlanContent = useCloudPlanContent(
-    mode === 'cloud' && selectedPlanBase && !selectedPlanBase.content ? selectedPlanBase.id : null,
-  );
-  const selectedPlan = useMemo(() => {
-    if (!selectedPlanBase) return undefined;
-    if (mode !== 'cloud' || selectedPlanBase.content) return selectedPlanBase;
-    return { ...selectedPlanBase, content: cloudSelectedPlanContent ?? '' };
-  }, [selectedPlanBase, mode, cloudSelectedPlanContent]);
+  // any plan open in the viewer (selected + split pane) before it fans out to
+  // editor/share/plannotator consumers. Plans that already carry content (local
+  // mode, optimistic copies from the editor) skip the fetch.
+  const selectedPlan = useHydratedCloudPlan(mode, selectedPlanBase);
 
   // Auto-follow a live replacement only for a session that ended *while the user
   // was viewing it* (it got superseded while open). Deliberately opening an
@@ -2057,10 +2050,11 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     if (splitPlanId === replacement.id) setSplitPlanId(null);
   }, [mode, selectedPlan, plans, setSelectedPlanId, splitPlanId, setSplitPlanId]);
 
-  const splitPlan = useMemo(() => {
+  const splitPlanBase = useMemo(() => {
     if (!splitPlanId) return undefined;
     return plansById.get(splitPlanId) ?? plans.find((p) => p.id === splitPlanId);
   }, [plansById, plans, splitPlanId]);
+  const splitPlan = useHydratedCloudPlan(mode, splitPlanBase);
 
   const isSplitView = !!selectedPlan && !!splitPlan && selectedPlan.id !== splitPlan.id;
   const effectiveChartHidden = !isPro && !isWorkspaceAccessLoading ? false : chartHidden;
