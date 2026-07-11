@@ -5,6 +5,7 @@ import {
   DocsPage,
   DownloadPage,
   EmptyStateView,
+  ToolsUsedPage,
   filterPlans,
   hasToken,
   LandingPage,
@@ -2464,6 +2465,11 @@ function DownloadRoute() {
   return <DownloadPage onBack={() => startViewTransition(() => navigate('/'))} />;
 }
 
+function ToolsUsedRoute() {
+  const [, navigate] = useLocation();
+  return <ToolsUsedPage onBack={() => startViewTransition(() => navigate('/'))} />;
+}
+
 function CliAuthRoute() {
   const callback = new URLSearchParams(window.location.search).get('callback');
   if (!callback) return <Redirect to="/" />;
@@ -2539,6 +2545,7 @@ function LandingRoute() {
       onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
       onShowDocs={() => startViewTransition(() => navigate('/docs'))}
       onShowDownload={() => startViewTransition(() => navigate('/download'))}
+      onShowTools={() => startViewTransition(() => navigate('/tools'))}
     >
       <LandingPage.NavbarAuth>{() => <EENavbarAuth />}</LandingPage.NavbarAuth>
       <LandingPage.HeroCta>{() => <EEHeroCta />}</LandingPage.HeroCta>
@@ -2745,6 +2752,7 @@ export default function App() {
       <Route path="/changelog" component={ChangelogRoute} />
       <Route path="/docs" component={DocsRoute} />
       <Route path="/download" component={DownloadRoute} />
+      <Route path="/tools" component={ToolsUsedRoute} />
       <Route path="/welcome">
         <AuthRuntime>
           <OnboardingRoute>

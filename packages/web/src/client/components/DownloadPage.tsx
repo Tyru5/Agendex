@@ -310,6 +310,7 @@ export function DownloadPage({ onBack, homeHref = '/' }: DownloadPageProps) {
           <DownloadButton href="/docs#installation">CLI install docs</DownloadButton>
           <DownloadButton href="/docs">Full documentation</DownloadButton>
           <DownloadButton href="/changelog">Changelog</DownloadButton>
+          <DownloadButton href="/tools">Stack & tools</DownloadButton>
         </div>
       </Section>
     </DownloadShell>
