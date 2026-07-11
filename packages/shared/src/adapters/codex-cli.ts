@@ -236,16 +236,62 @@ function titleFromPlanBlock(block: string): string | undefined {
   return undefined;
 }
 
-function isMeaningfulUserText(text: string): boolean {
+/**
+ * Codex injects many non-prompt "user" envelopes (plugin catalogs, env context,
+ * hooks, subagent notifications). These must not become plan titles or be
+ * treated as the session intent.
+ */
+const USER_ENVELOPE_OPENERS = [
+  /^#\s*agents\.md instructions\b/i,
+  /^<environment_context\b/i,
+  /^<system-reminder\b/i,
+  /^<recommended_plugins\b/i,
+  /^<user_action\b/i,
+  /^<user_instructions\b/i,
+  /^<user_prompt\b/i,
+  /^<hook_prompt\b/i,
+  /^<codex_internal_context\b/i,
+  /^<subagent_notification\b/i,
+  /^<skill\b/i,
+  /^<instructions\b/i,
+  /^<permissions(?:_|\s)?instructions\b/i,
+  /^<multi_agent_mode\b/i,
+  /^<collaboration_mode\b/i,
+  /^<turn_aborted\b/i,
+  /^<permissions\b/i,
+  /^<image\b/i,
+  /^files mentioned by the user:\s*$/i,
+];
+
+function isUserEnvelopeText(text: string): boolean {
   const normalized = normalizeLineEndings(text).trim();
-  if (!normalized) return false;
+  if (!normalized) return true;
+  return USER_ENVELOPE_OPENERS.some((pattern) => pattern.test(normalized));
+}
 
-  const lower = normalized.toLowerCase();
-  if (lower.startsWith('# agents.md instructions')) return false;
-  if (lower.startsWith('<environment_context>')) return false;
-  if (lower.startsWith('<system-reminder>')) return false;
+/** Prefer real user intent; strip a leading <task>… envelope when present. */
+function titleFromUserText(text: string): string | undefined {
+  let normalized = normalizeLineEndings(text).trim();
+  if (!normalized || isUserEnvelopeText(normalized)) return undefined;
 
-  return true;
+  // Unwrap <task>…</task> so the title is the inner prompt, not the tag.
+  const taskMatch = normalized.match(/^<task\b[^>]*>([\s\S]*?)(?:<\/task>|$)/i);
+  if (taskMatch?.[1]?.trim()) {
+    normalized = taskMatch[1].trim();
+  }
+
+  const firstLine = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line && !isUserEnvelopeText(line));
+  if (!firstLine) return undefined;
+
+  // Still looks like an XML control tag — not a usable title.
+  if (/^<\/?[a-z][\w:-]*(?:\s[^>]*)?>/i.test(firstLine) && firstLine.length < 80) {
+    return undefined;
+  }
+
+  return shorten(cleanTitle(firstLine), 80);
 }
 
 function extractTitle(
@@ -258,13 +304,10 @@ function extractTitle(
     if (planTitle) return shorten(planTitle, 120);
   }
 
-  const firstUser = messages.find((m) => m.role === 'user' && isMeaningfulUserText(m.text));
-  if (firstUser) {
-    const firstLine = normalizeLineEndings(firstUser.text)
-      .split('\n')
-      .map((line) => line.trim())
-      .find(Boolean);
-    if (firstLine) return shorten(cleanTitle(firstLine), 80);
+  for (const message of messages) {
+    if (message.role !== 'user') continue;
+    const title = titleFromUserText(message.text);
+    if (title) return title;
   }
 
   return basename(filename, '.jsonl');
@@ -312,13 +355,21 @@ export const codexCliAdapter: AgentAdapter = {
       if (sessionMeta.sessionId) metadata.sessionId = sessionMeta.sessionId;
       if (planBlocks.length > 0) metadata.planBlocks = planBlocks.length;
 
-      // Prefer <proposed_plan> blocks, but older/differently formatted rollouts
-      // may put a real markdown plan only in the final answer. Skip only when
-      // that fallback is low-value (commit messages, reviews, harness runs) so
-      // rescan does not delete previously indexed plans for the file.
+      // Prefer <proposed_plan> blocks. Older/differently formatted rollouts may
+      // put a real markdown plan only in the final answer — keep those only when
+      // they have explicit plan structure (sections/checklists), not mere
+      // progress prose, ordered findings, or execution status dumps.
       if (planBlocks.length === 0) {
         const assessment = assessPlanValue({ content, title, metadata });
         if (assessment.lowValue) return [];
+
+        const hasPlanStructure = assessment.signals.some(
+          (signal) =>
+            signal === 'checklist' ||
+            signal === 'metadata:proposed-plan-block' ||
+            signal.startsWith('section:'),
+        );
+        if (!hasPlanStructure) return [];
       }
 
       return [

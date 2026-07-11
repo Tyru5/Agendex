@@ -106,6 +106,151 @@ Full review comments:
   expect(assessment.reasons).toContain('review-output');
 });
 
+test('marks <recommended_plugins> and other XML envelope titles as wrappers', () => {
+  for (const title of [
+    '<recommended_plugins>',
+    '<subagent_notification>',
+    '<environment_context>',
+    '<hook_prompt hook_run_id="stop:1">',
+  ]) {
+    const assessment = assessPlanValue({
+      title,
+      content: 'Updated the parser and verified the change.\n\nVerification:\n- `bun test` passed.',
+      metadata: { sessionId: 'codex-session' },
+    });
+
+    expect(assessment.lowValue).toBe(true);
+    expect(assessment.reasons).toContain('wrapper-title');
+  }
+});
+
+test('marks Codex progress narrations joined by --- as low-value', () => {
+  const assessment = assessPlanValue({
+    title: 'the ci/cd for this PR failed. investigate and resolve the root issues.',
+    content: `I'll start from the failing PR checks and job logs, then trace each failure to its source.
+
+---
+
+I'm using the github:gh-fix-ci skill because this is a failing GitHub PR-check investigation.
+
+---
+
+I'm now correlating the failing job logs with that exact patch.
+
+---
+
+I've isolated two root causes and I'm tracing the fixture/boot-helper contract.
+
+---
+
+Implementation is in place. I'm starting with the two pure helper suites.
+
+---
+
+The helper tests pass 19/19 and Playwright successfully discovers the affected projects.`,
+    metadata: { sessionId: 'codex-session' },
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('progress-narrative');
+});
+
+test('does not treat prose starting with Plan: or Verification is as section structure', () => {
+  const assessment = assessPlanValue({
+    content: `I've isolated two root causes.
+
+Plan: centralize the selection action and update the readiness gates. I'll cover the handler with focused tests.
+
+---
+
+Verification is running in parallel: full Electron unit suite and typecheck.
+
+---
+
+I'm waiting on the captured result before publishing.`,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.signals).not.toContain('section:implementation-plan');
+  expect(assessment.signals).not.toContain('section:verification');
+  expect(assessment.reasons).toContain('progress-narrative');
+});
+
+test('marks FAIL/PASS Codex status verdicts as low-value review/execution output', () => {
+  const assessment = assessPlanValue({
+    title: '<recommended_plugins>',
+    content: `FAIL
+
+- True first-bad commit remains \`c7f8f6f86\`. Its parent advertises the legacy \`9321\`.
+- HIL evidence is conclusive: mDNS advertising \`9421\`, followed by \`ECONNREFUSED :9421\`.
+- Focused tests pass: 10/10 across mDNS registration.
+
+Remaining contract gaps:
+
+1. mdns-ipc still falls back to a static port when the caller supplies no service.
+2. mDNS resolves the port only once after rebind.
+
+The immediate HIL first-boot regression is fixed, but the broader contract is not yet complete.`,
+    metadata: { sessionId: 'codex-session' },
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('wrapper-title');
+  expect(
+    assessment.reasons.includes('review-output') || assessment.reasons.includes('execution-report'),
+  ).toBe(true);
+});
+
+test('marks accessibility/review finding lists as low-value', () => {
+  const assessment = assessPlanValue({
+    content: `Three findings:
+
+1. **[P1] Dialogs have no accessible name** — studio-picker.tsx. Add stable title IDs.
+2. **[P2] Current studio is visual-only** — studio-card.tsx. Add aria-current.
+3. **[P1] Hive users can receive Iris branding** — use-root-bootstrap.ts.
+
+Read-only review; no files modified.`,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('review-output');
+});
+
+test('marks JSON red-team finding payloads as low-value', () => {
+  const assessment = assessPlanValue({
+    content: `{"severity":"INFORMATIONAL","confidence":10,"path":"auto-link-controller.ts","line":730,"category":"maintainability","summary":"The unbounded promise disables recovery.","fix":"Model human waiting explicitly."}`,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('review-output');
+});
+
+test('marks curly-apostrophe Codex progress narrations as low-value', () => {
+  const assessment = assessPlanValue({
+    title: 'the ci/cd for this PR failed. investigate and resolve the root issues.',
+    content: `I’ll start from the failing PR checks and job logs, then trace each failure to its source.
+
+---
+
+I’m using the github:gh-fix-ci skill because this is a failing investigation.
+
+---
+
+I’m now correlating the failing job logs with that exact patch.
+
+---
+
+I’ve isolated two root causes and I’m tracing the fixture contract.
+
+---
+
+Implementation is in place. I’m starting with the two pure helper suites.`,
+  });
+
+  expect(assessment.lowValue).toBe(true);
+  expect(assessment.reasons).toContain('progress-narrative');
+});
+
 test('marks <task> / TASK: / LENS: harness titles as low-value wrappers', () => {
   for (const title of [
     '<task>Write a commit message for the staged changes below.</task>',
