@@ -16,9 +16,18 @@ interface LegacySessionMeta {
 }
 
 interface NormalizedSessionMeta {
+  /** Unique thread id for this rollout (payload.id). */
   sessionId?: string;
+  /** Parent thread id when this rollout is a multi-agent child. */
+  parentThreadId?: string;
+  /** Codex thread_source: "user" | "subagent" | … */
+  threadSource?: string;
+  agentNickname?: string;
+  agentRole?: string;
   startedAt?: string;
   cwd?: string;
+  /** True when this rollout is a multi-agent subagent thread, not a user plan session. */
+  isSubagent: boolean;
 }
 
 interface NormalizedMessage {
@@ -72,8 +81,17 @@ function extractTextFromContent(content: unknown): string {
   return parts.join('\n');
 }
 
+function isSubagentSource(source: unknown): boolean {
+  if (source === 'subagent') return true;
+  if (!isRecord(source)) return false;
+  // Modern Codex: { subagent: { thread_spawn: { parent_thread_id, … } } }
+  if (isRecord(source.subagent)) return true;
+  if (source.type === 'subagent' || source.kind === 'subagent') return true;
+  return false;
+}
+
 function extractSessionMeta(lines: unknown[]): NormalizedSessionMeta {
-  const meta: NormalizedSessionMeta = {};
+  const meta: NormalizedSessionMeta = { isSubagent: false };
 
   for (const line of lines) {
     if (!isRecord(line)) continue;
@@ -87,11 +105,34 @@ function extractSessionMeta(lines: unknown[]): NormalizedSessionMeta {
 
     if (line.type !== 'session_meta' || !isRecord(line.payload)) continue;
 
+    // Prefer the unique thread id (payload.id). For subagents, payload.session_id
+    // is often the *parent* thread — useful for parentThreadId fallback, not as
+    // this rollout's identity.
     if (typeof line.payload.id === 'string' && !meta.sessionId) {
       meta.sessionId = line.payload.id;
     }
-    if (typeof line.payload.session_id === 'string' && !meta.sessionId) {
-      meta.sessionId = line.payload.session_id;
+    if (typeof line.payload.session_id === 'string') {
+      if (!meta.sessionId) meta.sessionId = line.payload.session_id;
+      // When id and session_id differ, session_id is the parent/root thread.
+      if (
+        typeof line.payload.id === 'string' &&
+        line.payload.session_id !== line.payload.id &&
+        !meta.parentThreadId
+      ) {
+        meta.parentThreadId = line.payload.session_id;
+      }
+    }
+    if (typeof line.payload.parent_thread_id === 'string' && !meta.parentThreadId) {
+      meta.parentThreadId = line.payload.parent_thread_id;
+    }
+    if (typeof line.payload.thread_source === 'string' && !meta.threadSource) {
+      meta.threadSource = line.payload.thread_source;
+    }
+    if (typeof line.payload.agent_nickname === 'string' && !meta.agentNickname) {
+      meta.agentNickname = line.payload.agent_nickname;
+    }
+    if (typeof line.payload.agent_role === 'string' && !meta.agentRole) {
+      meta.agentRole = line.payload.agent_role;
     }
     if (typeof line.payload.timestamp === 'string' && !meta.startedAt) {
       meta.startedAt = line.payload.timestamp;
@@ -102,6 +143,15 @@ function extractSessionMeta(lines: unknown[]): NormalizedSessionMeta {
     if (typeof line.payload.cwd === 'string' && !meta.cwd) {
       meta.cwd = line.payload.cwd;
     }
+    if (isSubagentSource(line.payload.source) || line.payload.thread_source === 'subagent') {
+      meta.isSubagent = true;
+    }
+  }
+
+  // Defensive: any child thread with a parent is a multi-agent spawn, even if
+  // an older Codex build omitted thread_source / source.subagent.
+  if (meta.parentThreadId && meta.sessionId && meta.parentThreadId !== meta.sessionId) {
+    meta.isSubagent = true;
   }
 
   return meta;
@@ -342,17 +392,23 @@ export const codexCliAdapter: AgentAdapter = {
       const lines = parseJsonLines(raw);
       if (lines.length === 0) return [];
 
+      // Multi-agent child threads get their own rollout files. They re-use the
+      // parent prompt (and sometimes plan-like structure), which previously
+      // flooded the index/cloud with near-duplicate "plans". Never index them.
+      const sessionMeta = extractSessionMeta(lines);
+      if (sessionMeta.isSubagent) return [];
+
       const messages = extractMessages(lines);
       const { content, planBlocks } = selectPlanContent(messages);
       if (!content.trim()) return [];
 
       const stats = await stat(filePath);
-      const sessionMeta = extractSessionMeta(lines);
       const createdAt = parseDate(sessionMeta.startedAt) ?? stats.birthtime;
       const title = extractTitle(messages, planBlocks, filePath);
 
       const metadata: Record<string, unknown> = {};
       if (sessionMeta.sessionId) metadata.sessionId = sessionMeta.sessionId;
+      if (sessionMeta.threadSource) metadata.threadSource = sessionMeta.threadSource;
       if (planBlocks.length > 0) metadata.planBlocks = planBlocks.length;
 
       // Prefer <proposed_plan> blocks. Older/differently formatted rollouts may

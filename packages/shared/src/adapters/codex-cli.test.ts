@@ -249,3 +249,108 @@ test('unwraps task envelopes for titles when content is a real plan', async () =
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+function subagentSessionMeta(
+  threadId: string,
+  parentThreadId: string,
+  opts: { nickname?: string; role?: string } = {},
+) {
+  return {
+    type: 'session_meta',
+    payload: {
+      id: threadId,
+      session_id: parentThreadId,
+      parent_thread_id: parentThreadId,
+      timestamp: '2026-07-08T20:37:11.533Z',
+      cwd: '/Users/tiru5/Documents/dotfiles',
+      thread_source: 'subagent',
+      agent_nickname: opts.nickname ?? 'Code Reviewer',
+      agent_role: opts.role ?? 'lazycodex-code-reviewer',
+      source: {
+        subagent: {
+          thread_spawn: {
+            parent_thread_id: parentThreadId,
+            depth: 1,
+            agent_nickname: opts.nickname ?? 'Code Reviewer',
+            agent_role: opts.role ?? 'lazycodex-code-reviewer',
+          },
+        },
+      },
+    },
+  };
+}
+
+test('skips multi-agent subagent rollouts even when they contain proposed_plan blocks', async () => {
+  const { dir, path } = await writeRollout([
+    subagentSessionMeta('child-thread', 'parent-thread', { nickname: 'Planner the 2nd' }),
+    message('user', 'Okay we are going back to the drawing board...'),
+    message(
+      'assistant',
+      `Here is the plan:\n\n<proposed_plan>\n${PLAN_BODY}\n</proposed_plan>`,
+      'final_answer',
+    ),
+  ]);
+
+  try {
+    expect(await codexCliAdapter.parse(path)).toEqual([]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('skips subagent rollouts detected only via parent_thread_id', async () => {
+  const { dir, path } = await writeRollout([
+    {
+      type: 'session_meta',
+      payload: {
+        id: 'child-only-parent-field',
+        session_id: 'parent-only-parent-field',
+        parent_thread_id: 'parent-only-parent-field',
+        timestamp: '2026-07-08T20:37:11.533Z',
+        cwd: '/Users/tiru5/Documents/dotfiles',
+        // Older builds may omit thread_source / source.subagent.
+        source: 'cli',
+      },
+    },
+    message('user', 'Okay we are going back to the drawing board...'),
+    message('assistant', PLAN_BODY, 'final_answer'),
+  ]);
+
+  try {
+    expect(await codexCliAdapter.parse(path)).toEqual([]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('still indexes the parent user thread that spawned subagents', async () => {
+  const { dir, path } = await writeRollout([
+    {
+      type: 'session_meta',
+      payload: {
+        id: 'parent-thread',
+        session_id: 'parent-thread',
+        timestamp: '2026-07-08T20:37:11.533Z',
+        cwd: '/Users/tiru5/Documents/dotfiles',
+        thread_source: 'user',
+        source: 'cli',
+      },
+    },
+    message('user', 'Okay we are going back to the drawing board...'),
+    message(
+      'assistant',
+      `Here is the plan:\n\n<proposed_plan>\n${PLAN_BODY}\n</proposed_plan>`,
+      'final_answer',
+    ),
+  ]);
+
+  try {
+    const plans = await codexCliAdapter.parse(path);
+    expect(plans).toHaveLength(1);
+    expect(plans[0]!.title).toBe('Mobile Optimization Plan');
+    expect(plans[0]!.metadata.sessionId).toBe('parent-thread');
+    expect(plans[0]!.metadata.threadSource).toBe('user');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
