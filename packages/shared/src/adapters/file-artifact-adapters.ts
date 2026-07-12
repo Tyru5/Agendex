@@ -155,11 +155,15 @@ function antigravityRoots(): string[] {
 export const antigravityAdapter = createMarkdownArtifactAdapter({
   agent: 'antigravity',
   getSearchPaths: antigravityRoots,
-  matches(filePath) {
+  matches(filePath, scanRoot) {
     const filename = basename(filePath).toLowerCase();
     if (filename !== 'implementation_plan.md' && filename !== 'implementation-plan.md')
       return false;
-    return antigravityRoots().some((root) => isWithin(filePath, root));
+    if (antigravityRoots().some((root) => isWithin(filePath, root))) return true;
+    return Boolean(
+      scanRoot &&
+      markdownInConfiguredRoot(filePath, () => [], '.gemini/antigravity/artifacts', scanRoot),
+    );
   },
   workspace: ({ filePath }) => workspaceBeforeMarker(filePath, '.gemini/antigravity'),
   metadata: ({ filePath }) => ({

@@ -133,6 +133,13 @@ test('Antigravity rejects marker-shaped paths outside its declared roots', () =>
   expect(antigravityAdapter.matches(archivedPlan)).toBe(false);
 });
 
+test('Antigravity accepts plans under a discovered project marker root', () => {
+  const markerRoot = join(tmpdir(), 'repo', '.gemini', 'antigravity', 'artifacts');
+  const discoveredPlan = join(markerRoot, 'implementation_plan.md');
+
+  expect(antigravityAdapter.matches(discoveredPlan, markerRoot)).toBe(true);
+});
+
 test('marker-based adapters reject archived paths outside the concrete marker root', () => {
   const exportRoot = join(tmpdir(), 'export');
   const cases = [
