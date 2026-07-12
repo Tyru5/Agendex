@@ -382,6 +382,50 @@ test('rescanFile removes empty results owned by the matching adapter', async () 
   expect(getAll()).toHaveLength(0);
 });
 
+test('rescanFile removes plans that disappear from a multi-plan source', async () => {
+  const home = await useTempHome('agendex-plan-service-multi-source-');
+  const plansDir = join(home, 'structured');
+  const sourcePath = join(plansDir, 'sessions.db');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(sourcePath, 'fixture');
+
+  const plan = (id: string): Plan => ({
+    id,
+    agent: 'structured-agent',
+    title: id,
+    content: `# ${id}`,
+    filePath: sourcePath,
+    format: 'sqlite',
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    metadata: { sourcePaths: [sourcePath] },
+  });
+  let plans = [plan('a'), plan('b')];
+  const adapter: AgentAdapter = {
+    agent: 'structured-agent',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [plansDir],
+    getSourcePath: () => sourcePath,
+    matches: (filePath) => filePath === sourcePath || filePath === `${sourcePath}-wal`,
+    parse: async () => plans,
+    write: async () => false,
+  };
+
+  setActiveAdapters([adapter]);
+  await scan();
+  expect(
+    getAll()
+      .map(({ id }) => id)
+      .sort(),
+  ).toEqual(['a', 'b']);
+
+  plans = [plan('a')];
+  await rescanFile(`${sourcePath}-wal`);
+
+  expect(getAll().map(({ id }) => id)).toEqual(['a']);
+});
+
 test('discoverProjectPlanDirs keeps the nearest current-project marker when ancestors also match', async () => {
   tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-nearest-marker-'));
   const parsedHome = parse(tempHome);

@@ -37,6 +37,10 @@ export function createStructuredSessionAdapter(
       return Array.from(new Set(options.getSearchPaths()));
     },
 
+    getSourcePath(filePath: string) {
+      return options.resolveSourcePath?.(filePath) ?? filePath;
+    },
+
     matches(filePath: string) {
       return options.matches(filePath);
     },

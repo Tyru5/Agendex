@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { basename, join, resolve, sep } from 'node:path';
 import { getConfigDir } from '@agendex/shared';
 
@@ -45,6 +45,14 @@ function isWithin(path: string, root: string): boolean {
   const resolvedPath = resolve(path);
   const resolvedRoot = resolve(root);
   return resolvedPath === resolvedRoot || resolvedPath.startsWith(resolvedRoot + sep);
+}
+
+async function canonicalPath(path: string): Promise<string | undefined> {
+  try {
+    return await realpath(path);
+  } catch {
+    return undefined;
+  }
 }
 
 function isKnownPlanPath(agent: CapturePlanAgent, path: string): boolean {
@@ -128,13 +136,21 @@ export async function capturePlanFromHook(
       (value): value is string => Boolean(value),
     ),
   ];
+  const canonicalRoots = (
+    await Promise.all(allowedRoots.map((root) => canonicalPath(root)))
+  ).filter((root): root is string => Boolean(root));
   const captured: string[] = [];
 
   for (const sourcePath of candidatePaths(agent, payload)) {
-    if (allowedRoots.length === 0 || !allowedRoots.some((root) => isWithin(sourcePath, root)))
+    const canonicalSource = await canonicalPath(sourcePath);
+    if (
+      !canonicalSource ||
+      canonicalRoots.length === 0 ||
+      !canonicalRoots.some((root) => isWithin(canonicalSource, root))
+    )
       continue;
     try {
-      const content = await readFile(sourcePath, 'utf-8');
+      const content = await readFile(canonicalSource, 'utf-8');
       const destination = join(destinationDir, safeSegment(basename(sourcePath)));
       await writeFile(
         destination,

@@ -140,6 +140,21 @@ test('Antigravity accepts plans under a discovered project marker root', () => {
   expect(antigravityAdapter.matches(discoveredPlan, markerRoot)).toBe(true);
 });
 
+test('Gemini rejects Markdown outside a plans directory under its temp root', async () => {
+  tempRoot = await mkdtemp(join(tmpdir(), 'agendex-gemini-temp-root-'));
+  process.env.HOME = tempRoot;
+  const tempPlansRoot = join(tempRoot, '.gemini', 'tmp');
+
+  expect(geminiCliAdapter.matches(join(tempPlansRoot, 'session', 'notes.md'))).toBe(false);
+  expect(
+    geminiCliAdapter.matches(join(tempPlansRoot, 'project', 'session', 'plans', 'auth.md')),
+  ).toBe(true);
+
+  const configuredRoot = join(tempPlansRoot, 'custom');
+  process.env.AGENDEX_GEMINI_CLI_PLAN_DIRS = configuredRoot;
+  expect(geminiCliAdapter.matches(join(configuredRoot, 'notes.md'))).toBe(true);
+});
+
 test('marker-based adapters reject archived paths outside the concrete marker root', () => {
   const exportRoot = join(tmpdir(), 'export');
   const cases = [

@@ -119,6 +119,8 @@ test('OpenCode indexes the latest assistant text emitted by the Plan agent', asy
   expect(openCodeAdapter.matches(`${databasePath}-shm`)).toBe(true);
   expect(openCodeAdapter.matches(`${databasePath}.backup`)).toBe(false);
   expect(openCodeAdapter.matches(`${databasePath}-old`)).toBe(false);
+  expect(openCodeAdapter.getSourcePath?.(`${databasePath}-wal`)).toBe(databasePath);
+  expect(openCodeAdapter.getSourcePath?.(`${databasePath}-shm`)).toBe(databasePath);
   const plans = await openCodeAdapter.parse(databasePath);
   expect(plans).toHaveLength(1);
   expect(plans[0]?.title).toBe('OAuth rollout');

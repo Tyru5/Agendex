@@ -187,7 +187,7 @@ export const droidAdapter = simpleProjectAdapter({
   writable: true,
 });
 
-function geminiRoots(): string[] {
+function geminiConfiguredRoots(): string[] {
   const home = runtimeHomeDir();
   const projectConfigured = configuredProjectDirectory('.gemini/settings.json', [
     'general',
@@ -202,19 +202,30 @@ function geminiRoots(): string[] {
     ]),
   );
   return unique([
-    join(home, '.gemini', 'tmp'),
     ...(projectConfigured ? [projectConfigured] : []),
     ...(userConfigured ? [userConfigured] : []),
     ...envPlanDirs('AGENDEX_GEMINI_CLI_PLAN_DIRS'),
   ]);
 }
 
+function geminiRoots(): string[] {
+  return unique([join(runtimeHomeDir(), '.gemini', 'tmp'), ...geminiConfiguredRoots()]);
+}
+
 export const geminiCliAdapter = createMarkdownArtifactAdapter({
   agent: 'gemini-cli',
   writable: true,
   getSearchPaths: geminiRoots,
-  matches: (filePath, scanRoot) =>
-    markdownInConfiguredRoot(filePath, geminiRoots, '.gemini/plans', scanRoot),
+  matches(filePath, scanRoot) {
+    if (!filePath.toLowerCase().endsWith('.md')) return false;
+    const configuredRoots = geminiConfiguredRoots();
+    if (configuredRoots.some((root) => isWithin(filePath, root))) return true;
+    const tempRoot = join(runtimeHomeDir(), '.gemini', 'tmp');
+    if (isWithin(filePath, tempRoot)) {
+      return normalizePath(filePath).toLowerCase().includes('/plans/');
+    }
+    return markdownInConfiguredRoot(filePath, () => [], '.gemini/plans', scanRoot);
+  },
   workspace: ({ filePath }) => workspaceBeforeMarker(filePath, '.gemini/plans'),
   metadata: ({ filePath }) => ({
     sessionId: normalizePath(filePath).match(/\/\.gemini\/tmp\/[^/]+\/([^/]+)\/plans\//i)?.[1],

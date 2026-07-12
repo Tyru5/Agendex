@@ -1,5 +1,5 @@
 import { afterEach, expect, spyOn, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { capturePlanFromHook, runCapturePlanCommand } from './capture-plan.ts';
@@ -97,6 +97,24 @@ test('capture rejects non-plan artifacts and file paths outside declared hook ro
       conversationId: 'session-1',
       toolCall: { args: { filePath: source } },
       artifact: { type: 'walkthrough', content: '# Not a plan' },
+    }),
+  ).toEqual([]);
+});
+
+test('capture rejects plan symlinks that escape declared hook roots', async () => {
+  const root = await useTempRoot();
+  const workspace = join(root, 'repo');
+  const privatePlan = join(root, 'private-plan.md');
+  const linkedPlan = join(workspace, 'plan.md');
+  await mkdir(workspace, { recursive: true });
+  await writeFile(privatePlan, '# Private Plan\n\n- [ ] Do not capture');
+  await symlink(privatePlan, linkedPlan);
+
+  expect(
+    await capturePlanFromHook('augment', {
+      conversationId: 'session-1',
+      workspacePaths: [workspace],
+      toolCall: { args: { filePath: linkedPlan } },
     }),
   ).toEqual([]);
 });
