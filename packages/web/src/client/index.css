@@ -2845,19 +2845,69 @@ body {
   color: color-mix(in oklch, var(--landing-muted) 44%, transparent);
 }
 
+.landing-hero-agents-shell {
+  position: relative;
+  max-width: min(100%, 1200px);
+  margin-top: 48px;
+}
+
 .landing-hero-agents {
   display: flex;
-  max-width: min(100%, 1200px);
   flex-wrap: nowrap;
   gap: 8px;
-  margin-top: 48px;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
+  padding: 0 36px 8px;
+  scrollbar-color: var(--landing-border-strong) transparent;
+  scrollbar-width: thin;
 }
 
 .landing-hero-agents::-webkit-scrollbar {
-  display: none;
+  height: 6px;
+}
+
+.landing-hero-agents::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--landing-border-strong);
+}
+
+.landing-hero-agents-control {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  display: grid;
+  width: 28px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--landing-border-strong);
+  border-radius: 8px;
+  background: var(--landing-surface);
+  color: var(--landing-text);
+  cursor: pointer;
+}
+
+.landing-hero-agents-control:hover,
+.landing-hero-agents-control:focus-visible {
+  border-color: var(--landing-lime);
+  color: var(--landing-lime);
+}
+
+.landing-hero-agents-control svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.landing-hero-agents-control--previous {
+  left: 0;
+}
+
+.landing-hero-agents-control--next {
+  right: 0;
 }
 
 .landing-hero-agent {

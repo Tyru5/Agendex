@@ -498,17 +498,41 @@ function LandingCursorIcon() {
 }
 
 function HeroAgentStrip() {
+  const stripRef = useRef<HTMLDivElement>(null);
+
   return (
-    <div className="landing-hero-agents" aria-label="Supported agents">
-      {HERO_AGENT_CHIPS.map((agent) => (
-        <span key={agent.label} className="landing-hero-agent">
-          <span className="landing-hero-agent-mark">
-            <AgentIcon agent={agent.agent} size={18} />
+    <section className="landing-hero-agents-shell" aria-label="Supported agents">
+      <button
+        type="button"
+        className="landing-hero-agents-control landing-hero-agents-control--previous"
+        aria-label="Scroll supported agents left"
+        onClick={() => stripRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m15 18-6-6 6-6" />
+        </svg>
+      </button>
+      <div ref={stripRef} className="landing-hero-agents">
+        {HERO_AGENT_CHIPS.map((agent) => (
+          <span key={agent.label} className="landing-hero-agent">
+            <span className="landing-hero-agent-mark">
+              <AgentIcon agent={agent.agent} size={18} />
+            </span>
+            {agent.label}
           </span>
-          {agent.label}
-        </span>
-      ))}
-    </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="landing-hero-agents-control landing-hero-agents-control--next"
+        aria-label="Scroll supported agents right"
+        onClick={() => stripRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      </button>
+    </section>
   );
 }
 
