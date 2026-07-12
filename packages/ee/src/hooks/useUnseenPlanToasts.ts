@@ -2,7 +2,12 @@ import { getAgentLabel, type Plan, type PlanState } from '@agendex/web';
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { registerClearAllPlanToasts, setActivePlanToastCount } from './plan-toast-store.ts';
-import { planToastId, shouldShowPlanToast, truncateTitle } from './unseen-plan-toast-utils.ts';
+import {
+  isActiveToastVersion,
+  planToastId,
+  shouldShowPlanToast,
+  truncateTitle,
+} from './unseen-plan-toast-utils.ts';
 
 type ActiveToast = {
   updatedAt: string;
@@ -32,8 +37,6 @@ export function useUnseenPlanToasts({
   const activeToastsRef = useRef(new Map<string, ActiveToast>());
   const baselineEstablishedRef = useRef(false);
   const baselineKeyRef = useRef(baselineKey);
-  // Plan ids dismissed for mode-switch / bulk cleanup — skip markSeen in onDismiss.
-  const suppressMarkSeenRef = useRef(new Set<string>());
   // Latest planState / onSelectPlan for clear-all and toast handlers without stale closures.
   const planStateRef = useRef(planState);
   const onSelectPlanRef = useRef(onSelectPlan);
@@ -45,18 +48,18 @@ export function useUnseenPlanToasts({
   });
 
   dismissActiveToastsRef.current = (options: { markSeen: boolean }) => {
-    // Snapshot first — onDismiss may mutate the live map mid-loop.
+    // Snapshot, then clear the live map *before* dismiss so any Sonner callback
+    // (including a replaced toast version A after version B was shown) sees no
+    // active entry and cannot markSeen a stale updatedAt over a newer one.
     const entries = [...activeToastsRef.current.entries()];
+    activeToastsRef.current = new Map();
+    setActivePlanToastCount(0);
     for (const [planId, entry] of entries) {
-      // Always suppress toast onDismiss markSeen; we own bulk semantics here.
-      suppressMarkSeenRef.current.add(planId);
       if (options.markSeen) {
         planStateRef.current.markSeen(planId, entry.updatedAt);
       }
       toast.dismiss(planToastId(planId));
     }
-    activeToastsRef.current = new Map();
-    setActivePlanToastCount(0);
   };
 
   // Register clear-all once; handler always reads current refs.
@@ -88,8 +91,8 @@ export function useUnseenPlanToasts({
       baselineEstablishedRef.current = false;
       // Dismiss rendered toasts from the previous mode before clearing tracking;
       // otherwise stale View actions call onSelectPlan with the wrong mode's plan.
-      // sonner fires onDismiss on programmatic dismiss — suppress markSeen so a
-      // mode switch does not silently acknowledge plans the user never opened.
+      // markSeen: false — mode switch is not user acknowledgment (map is cleared
+      // first so Sonner onDismiss cannot silently mark plans seen).
       dismissActiveToastsRef.current({ markSeen: false });
       notifiedUpdatedAtRef.current = new Map();
     }
@@ -116,18 +119,15 @@ export function useUnseenPlanToasts({
 
       const toastId = planToastId(plan.id);
 
-      const markPlanSeen = () => {
-        if (suppressMarkSeenRef.current.delete(plan.id)) return;
-        // Mark this toast's version only — a newer replace may already be active.
-        planStateRef.current.markSeen(plan.id, plan.updatedAt);
-      };
-
-      const clearActive = () => {
+      // Version-gated settle: only the active toast version may clear the map
+      // entry and markSeen. Replaced versions and bulk-cleared toasts no-op, so a
+      // delayed Sonner callback for version A cannot overwrite seen state for B.
+      const settleToast = () => {
         const current = activeToastsRef.current.get(plan.id);
-        // Ignore dismiss from a toast that was replaced by a newer updatedAt.
-        if (!current || current.updatedAt !== plan.updatedAt) return;
+        if (!isActiveToastVersion(current?.updatedAt, plan.updatedAt)) return;
         activeToastsRef.current.delete(plan.id);
         setActivePlanToastCount(activeToastsRef.current.size);
+        planStateRef.current.markSeen(plan.id, plan.updatedAt);
       };
 
       const openPlan = () => {
@@ -143,14 +143,8 @@ export function useUnseenPlanToasts({
         // X / swipe dismiss and programmatic dismiss skip onClick; auto-close
         // uses onAutoClose only (not onDismiss). Without markSeen, notified
         // suppresses re-toast and the plan stays unseen with no remaining UI path.
-        onDismiss: () => {
-          clearActive();
-          markPlanSeen();
-        },
-        onAutoClose: () => {
-          clearActive();
-          markPlanSeen();
-        },
+        onDismiss: settleToast,
+        onAutoClose: settleToast,
         action: {
           label: 'View',
           onClick: openPlan,

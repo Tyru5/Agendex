@@ -6,6 +6,7 @@ import {
   setActivePlanToastCount,
 } from './plan-toast-store.ts';
 import {
+  isActiveToastVersion,
   maxVisibleToasts,
   planToastId,
   shouldShowClearAll,
@@ -43,6 +44,18 @@ describe('useUnseenPlanToasts helpers', () => {
   test('shouldShowPlanToast allows first notify and newer updatedAt', () => {
     expect(shouldShowPlanToast(undefined, '2026-01-01T00:00:00.000Z')).toBe(true);
     expect(shouldShowPlanToast('2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')).toBe(true);
+  });
+
+  test('isActiveToastVersion rejects replaced and bulk-cleared toast versions', () => {
+    const a = '2026-01-01T00:00:00.000Z';
+    const b = '2026-01-02T00:00:00.000Z';
+    // Active is B — stale callback for A must not settle.
+    expect(isActiveToastVersion(b, a)).toBe(false);
+    // Bulk dismiss clears the map before Sonner callbacks.
+    expect(isActiveToastVersion(undefined, a)).toBe(false);
+    expect(isActiveToastVersion(undefined, b)).toBe(false);
+    // Matching active version may markSeen / clear.
+    expect(isActiveToastVersion(b, b)).toBe(true);
   });
 
   test('shouldShowClearAll only when multiple toasts', () => {
