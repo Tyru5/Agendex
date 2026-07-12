@@ -19,6 +19,7 @@ import {
 
 const ENV_NAMES = [
   'HOME',
+  'AGENDEX_ANTIGRAVITY_PLAN_DIRS',
   'AGENDEX_GITHUB_COPILOT_PLAN_DIRS',
   'AGENDEX_KIMI_CODE_PLAN_DIRS',
   'AGENDEX_MUX_PLAN_DIRS',
@@ -46,19 +47,18 @@ async function createPlan(path: string): Promise<void> {
 test('documented Markdown artifact adapters parse only their plan locations', async () => {
   tempRoot = await mkdtemp(join(tmpdir(), 'agendex-artifact-adapters-'));
   const copilotRoot = join(tempRoot, 'copilot-plans');
+  const antigravityRoot = join(tempRoot, 'antigravity-plans');
   const kimiRoot = join(tempRoot, 'kimi', 'plans');
   const muxRoot = join(tempRoot, 'mux-plans');
   const windsurfRoot = join(tempRoot, 'windsurf-plans');
+  process.env.AGENDEX_ANTIGRAVITY_PLAN_DIRS = antigravityRoot;
   process.env.AGENDEX_GITHUB_COPILOT_PLAN_DIRS = copilotRoot;
   process.env.AGENDEX_KIMI_CODE_PLAN_DIRS = kimiRoot;
   process.env.AGENDEX_MUX_PLAN_DIRS = muxRoot;
   process.env.AGENDEX_WINDSURF_PLAN_DIRS = windsurfRoot;
 
   const cases = [
-    [
-      antigravityAdapter,
-      join(tempRoot, 'repo', '.gemini', 'antigravity', 'artifacts', 'implementation_plan.md'),
-    ],
+    [antigravityAdapter, join(antigravityRoot, 'conversation-1', 'implementation_plan.md')],
     [codeBuddyAdapter, join(tempRoot, 'repo', '.codebuddy', 'plans', 'auth.md')],
     [droidAdapter, join(tempRoot, 'repo', '.factory', 'docs', '2026-07-09-auth.md')],
     [geminiCliAdapter, join(tempRoot, 'repo', '.gemini', 'plans', 'auth.md')],
@@ -82,6 +82,19 @@ test('documented Markdown artifact adapters parse only their plan locations', as
     expect(plans[0]?.metadata.revision).toMatch(/^[a-f0-9]{64}$/);
     expect(plans[0]?.metadata.sourcePaths).toEqual([path]);
   }
+});
+
+test('Antigravity rejects marker-shaped paths outside its declared roots', () => {
+  const archivedPlan = join(
+    tmpdir(),
+    'export',
+    '.gemini',
+    'antigravity',
+    'old',
+    'implementation_plan.md',
+  );
+
+  expect(antigravityAdapter.matches(archivedPlan)).toBe(false);
 });
 
 test('Kiro combines requirements, design, and tasks into one plan', async () => {

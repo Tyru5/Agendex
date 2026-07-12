@@ -166,11 +166,7 @@ export const antigravityAdapter = createMarkdownArtifactAdapter({
     const filename = basename(filePath).toLowerCase();
     if (filename !== 'implementation_plan.md' && filename !== 'implementation-plan.md')
       return false;
-    return (
-      hasMarker(filePath, '.gemini/antigravity') ||
-      hasMarker(filePath, '.gemini/antigravity-cli') ||
-      antigravityRoots().some((root) => isWithin(filePath, root))
-    );
+    return antigravityRoots().some((root) => isWithin(filePath, root));
   },
   workspace: ({ filePath }) => workspaceBeforeMarker(filePath, '.gemini/antigravity'),
   metadata: ({ filePath }) => ({
