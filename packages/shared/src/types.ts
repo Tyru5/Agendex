@@ -108,8 +108,9 @@ export interface AgentAdapter {
   agent: string;
   getSearchPaths(): string[];
   getWatchPaths(): string[];
-  matches(filePath: string): boolean;
-  parse(filePath: string): Promise<Plan[]>;
+  getSourcePath?(filePath: string): string;
+  matches(filePath: string, scanRoot?: string): boolean;
+  parse(filePath: string, scanRoot?: string): Promise<Plan[]>;
   write(plan: Plan, newContent: string): Promise<boolean>;
   requestChanges?(plan: Plan, payload: PlannotatorWritebackPayload): Promise<boolean>;
   readonly writable: boolean;

@@ -43,7 +43,7 @@ export function getConfigDir(): string {
 }
 
 /** Current on-disk config schema version. Bump when applying one-shot migrations. */
-export const CURRENT_CONFIG_VERSION = 4;
+export const CURRENT_CONFIG_VERSION = 5;
 
 /**
  * One-shot adapter enable migrations.
@@ -55,6 +55,26 @@ const ADAPTER_ENABLE_MIGRATIONS: Array<{ toVersion: number; enable: AdapterId[] 
   // v4: Grok adapter shipped default-enabled; existing installs had a frozen
   // enabledAdapters list from before the catalog entry existed.
   { toVersion: 4, enable: ['grok'] },
+  // v5: documented file adapters replace their catalog stubs. Existing frozen
+  // selections receive the same coverage as fresh installs.
+  {
+    toVersion: 5,
+    enable: [
+      'antigravity',
+      'codebuddy',
+      'droid',
+      'gemini-cli',
+      'github-copilot',
+      'junie',
+      'kilo',
+      'kimi-cli',
+      'kiro-cli',
+      'mux',
+      'oh-my-opencode',
+      'qwen-code',
+      'windsurf',
+    ],
+  },
 ];
 
 export interface AgendexConfig {

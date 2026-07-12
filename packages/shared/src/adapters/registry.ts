@@ -25,7 +25,9 @@ export function sanitizeEnabledAdapterIds(ids: string[]): AdapterId[] {
   const seen = new Set<AdapterId>();
   for (const id of ids) {
     const typedId = resolveAdapterId(id);
-    if (!typedId || !catalogById.has(typedId)) continue;
+    if (!typedId) continue;
+    const entry = catalogById.get(typedId);
+    if (!entry?.implemented) continue;
     if (seen.has(typedId)) continue;
     seen.add(typedId);
     selected.push(typedId);

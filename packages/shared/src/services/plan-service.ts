@@ -18,6 +18,14 @@ const MAX_DEPTH = 6;
 const DISCOVERY_MAX_DEPTH = 4;
 
 const PROJECT_PLAN_MARKERS = [
+  { marker: '.codebuddy/plans', agent: 'codebuddy' },
+  { marker: '.factory/docs', agent: 'droid' },
+  { marker: '.gemini/antigravity/artifacts', agent: 'antigravity' },
+  { marker: '.gemini/plans', agent: 'gemini-cli' },
+  { marker: '.junie/plans', agent: 'junie' },
+  { marker: '.kilo/plans', agent: 'kilo-cli' },
+  { marker: '.kiro/specs', agent: 'kiro-cli' },
+  { marker: '.qwen/plans', agent: 'qwen-code' },
   { marker: '.sisyphus/plans', agent: 'oh-my-opencode' },
   { marker: '@plans', agent: 'plannotator' },
 ];
@@ -319,12 +327,17 @@ export async function scan() {
 
   const coveredPaths = new Set<string>();
   for (const adapter of adapters) {
+    const seenSources = new Set<string>();
     for (const searchPath of adapter.getSearchPaths()) {
       coveredPaths.add(canonicalPath(searchPath));
       const files = await walkDir(searchPath);
       for (const file of files) {
-        if (!adapter.matches(file)) continue;
-        const plans = await adapter.parse(file);
+        if (!adapter.matches(file, searchPath)) continue;
+        const sourcePath = adapter.getSourcePath?.(file) ?? file;
+        const sourceKey = resolve(sourcePath);
+        if (seenSources.has(sourceKey)) continue;
+        seenSources.add(sourceKey);
+        const plans = await adapter.parse(sourcePath, searchPath);
         for (const plan of plans) {
           const annotated = preparePlanForIndex(plan);
           next.set(annotated.id, annotated);
@@ -341,8 +354,9 @@ export async function scan() {
     if (!adapter) continue;
     const files = await walkDir(dir);
     for (const file of files) {
-      if (!adapter.matches(file)) continue;
-      const plans = await adapter.parse(file);
+      if (!adapter.matches(file, dir)) continue;
+      const sourcePath = adapter.getSourcePath?.(file) ?? file;
+      const plans = await adapter.parse(sourcePath, dir);
       for (const plan of plans) {
         const annotated = preparePlanForIndex(plan);
         next.set(annotated.id, annotated);
@@ -549,15 +563,19 @@ function removePlansForPath(filePath: string, adapter?: AgentAdapter): Plan[] {
       typeof plan.metadata.plannotator === 'object' && plan.metadata.plannotator !== null
         ? (plan.metadata.plannotator as Record<string, unknown>).sessionPath
         : undefined;
+    const sourcePaths = Array.isArray(plan.metadata.sourcePaths)
+      ? plan.metadata.sourcePaths.filter((path): path is string => typeof path === 'string')
+      : [];
     if (
-      (planPath === normalized || sessionPath === normalized) &&
+      (planPath === normalized ||
+        sessionPath === normalized ||
+        sourcePaths.some((path) => resolve(path) === normalized)) &&
       (!adapter || planBelongsToAdapter(plan, adapter))
     ) {
       removed.push(plan);
       store.delete(id);
     }
   }
-  if (removed.length > 0) notifyPlansChanged();
   return removed;
 }
 
@@ -565,11 +583,10 @@ export async function rescanFile(filePath: string) {
   const adapters = getActiveAdapters();
   const normalized = resolve(filePath);
   const removedPlans: Plan[] = [];
+  const discoveredPlanDirs = discoverProjectPlanDirs();
 
   for (const adapter of adapters) {
-    if (!adapter.matches(filePath)) continue;
-
-    const discoveredDirs = discoverProjectPlanDirs()
+    const discoveredDirs = discoveredPlanDirs
       .filter((d) => d.agent === adapter.agent)
       .map((d) => resolve(d.dir));
 
@@ -578,17 +595,19 @@ export async function rescanFile(filePath: string) {
       ...discoveredDirs,
     ];
 
-    const isInSearchPath = allSearchPaths.some(
+    const scanRoot = allSearchPaths.find(
       (sp) => normalized.startsWith(sp + sep) || normalized === sp,
     );
 
-    if (!isInSearchPath) continue;
+    if (!scanRoot || !adapter.matches(filePath, scanRoot)) continue;
 
-    const rawPlans = await adapter.parse(filePath);
+    const sourcePath = adapter.getSourcePath?.(filePath) ?? filePath;
+    const rawPlans = await adapter.parse(sourcePath, scanRoot);
     if (rawPlans.length === 0) {
-      removedPlans.push(...removePlansForPath(filePath, adapter));
+      removedPlans.push(...removePlansForPath(sourcePath, adapter));
       continue;
     }
+    removePlansForPath(sourcePath, adapter);
     const plans = rawPlans.map(preparePlanForIndex);
     for (const plan of plans) {
       store.set(plan.id, plan);
@@ -597,7 +616,10 @@ export async function rescanFile(filePath: string) {
     return plans;
   }
 
-  if (removedPlans.length > 0) return removedPlans;
+  if (removedPlans.length > 0) {
+    notifyPlansChanged();
+    return removedPlans;
+  }
 
   // Check user plans dir
   const userPlansDir = resolve(getUserPlansDir());

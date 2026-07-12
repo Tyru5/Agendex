@@ -19,6 +19,7 @@ import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
 import type { DeviceInfo } from './api.ts';
 import { AuthExpiredError, deleteDaemons, fetchDevices, sendShutdown } from './api.ts';
 import { login, logout } from './auth.ts';
+import { runCapturePlanCommand } from './capture-plan.ts';
 import { renderHelp } from './help.ts';
 import { requestWorkerShutdown, runWorker, startSupervisor } from './daemon.ts';
 import { runHookReviewCommand, runHooksCommand } from './hooks.ts';
@@ -77,6 +78,7 @@ async function main(): Promise<number> {
     'cleanup',
     'hooks',
     'review-plan',
+    'capture-plan',
     'add-dir',
     'remove-dir',
     'list-dirs',
@@ -328,6 +330,12 @@ async function main(): Promise<number> {
 
     case 'review-plan': {
       return runHookReviewCommand(args);
+    }
+
+    case 'capture-plan': {
+      const result = await runCapturePlanCommand(args);
+      if (result === 0) writeStdout('{}');
+      return result;
     }
 
     case 'cleanup': {

@@ -34,7 +34,7 @@ export async function promptForAdapterSelection(
     throw new Error('Cannot prompt for adapter selection without an interactive TTY.');
   }
 
-  const catalog = getCatalog();
+  const catalog = getCatalog().filter((entry) => entry.implemented);
   const lockedIds = catalog.filter((entry) => entry.locked).map((entry) => entry.id);
   const initialValues = Array.from(
     new Set<AdapterId>([...lockedIds, ...getPromptInitialSelection(options.currentIds)]),
@@ -49,14 +49,7 @@ export async function promptForAdapterSelection(
       .map((entry) => ({
         value: entry.id,
         label: entry.displayName,
-        hint:
-          entry.group === 'universal'
-            ? entry.implemented
-              ? 'universal'
-              : 'universal, stub'
-            : entry.implemented
-              ? 'agent adapter'
-              : 'agent adapter (stub)',
+        hint: entry.group === 'universal' ? 'universal' : 'agent adapter',
         disabled: Boolean(entry.locked),
       }));
 

@@ -35,6 +35,17 @@ function message(role: string, text: string, phase?: string) {
   };
 }
 
+function planModeContext() {
+  return {
+    type: 'turn_context',
+    payload: {
+      collaboration_mode: {
+        mode: 'plan',
+      },
+    },
+  };
+}
+
 test('matches rollout jsonl session files only', () => {
   expect(codexCliAdapter.matches('/tmp/rollout-2026-01-01-abc.jsonl')).toBe(true);
   expect(codexCliAdapter.matches('/tmp/session.jsonl')).toBe(false);
@@ -99,9 +110,24 @@ test('indexes sessions that contain proposed_plan blocks', async () => {
   }
 });
 
-test('indexes plain final-answer markdown plans without proposed_plan wrappers', async () => {
+test('ignores plan-shaped final answers without explicit plan evidence', async () => {
+  const { dir, path } = await writeRollout([
+    sessionMeta('sess-plain-answer'),
+    message('user', 'Please implement mobile optimization.'),
+    message('assistant', PLAN_BODY, 'final_answer'),
+  ]);
+
+  try {
+    expect(await codexCliAdapter.parse(path)).toEqual([]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('indexes plan-mode final answers without proposed_plan wrappers', async () => {
   const { dir, path } = await writeRollout([
     sessionMeta('sess-plain-plan'),
+    planModeContext(),
     message('user', 'Please draft a plan for mobile optimization.'),
     message('assistant', PLAN_BODY, 'final_answer'),
   ]);
@@ -114,6 +140,7 @@ test('indexes plain final-answer markdown plans without proposed_plan wrappers',
     expect(plan.content).toContain('## Steps');
     expect(plan.content).toContain('Mobile Optimization Plan');
     expect(plan.metadata.planBlocks).toBeUndefined();
+    expect(plan.metadata.planEvidence).toBe('collaboration-mode-plan');
     expect(plan.metadata.sessionId).toBe('sess-plain-plan');
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -236,6 +263,7 @@ Implementation is in place. I'm starting with the two pure helper suites.`,
 test('unwraps task envelopes for titles when content is a real plan', async () => {
   const { dir, path } = await writeRollout([
     sessionMeta('sess-task-plan'),
+    planModeContext(),
     message('user', '<task>Draft a mobile optimization plan for the landing page.</task>'),
     message('assistant', PLAN_BODY, 'final_answer'),
   ]);

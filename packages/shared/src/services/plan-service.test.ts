@@ -65,6 +65,28 @@ async function useTempHome(prefix: string): Promise<string> {
   return tempHome;
 }
 
+test('discovers documented project-local plan markers', async () => {
+  const home = await useTempHome('agendex-project-markers-');
+  const workspace = join(home, 'workspace');
+  const markers = [
+    ['.codebuddy/plans', 'codebuddy'],
+    ['.factory/docs', 'droid'],
+    ['.gemini/antigravity/artifacts', 'antigravity'],
+    ['.gemini/plans', 'gemini-cli'],
+    ['.junie/plans', 'junie'],
+    ['.kilo/plans', 'kilo-cli'],
+    ['.kiro/specs', 'kiro-cli'],
+    ['.qwen/plans', 'qwen-code'],
+  ] as const;
+  for (const [marker] of markers) await mkdir(join(workspace, marker), { recursive: true });
+  process.chdir(workspace);
+
+  const discovered = discoverProjectPlanDirs();
+  for (const [marker, agent] of markers) {
+    expect(discovered).toContainEqual({ dir: await realpath(join(workspace, marker)), agent });
+  }
+});
+
 test('scan keeps adapter-parsed plans when a custom dir overlaps a discovered project dir', async () => {
   tempHome = await mkdtemp(join(tmpdir(), 'agendex-plan-service-'));
   const parsedHome = parse(tempHome);
@@ -358,6 +380,50 @@ test('rescanFile removes empty results owned by the matching adapter', async () 
   expect(rescanned).toHaveLength(1);
   expect(rescanned[0]).toMatchObject({ id: adapterPlan.id, agent: 'owned-agent' });
   expect(getAll()).toHaveLength(0);
+});
+
+test('rescanFile removes plans that disappear from a multi-plan source', async () => {
+  const home = await useTempHome('agendex-plan-service-multi-source-');
+  const plansDir = join(home, 'structured');
+  const sourcePath = join(plansDir, 'sessions.db');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(sourcePath, 'fixture');
+
+  const plan = (id: string): Plan => ({
+    id,
+    agent: 'structured-agent',
+    title: id,
+    content: `# ${id}`,
+    filePath: sourcePath,
+    format: 'sqlite',
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    metadata: { sourcePaths: [sourcePath] },
+  });
+  let plans = [plan('a'), plan('b')];
+  const adapter: AgentAdapter = {
+    agent: 'structured-agent',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [plansDir],
+    getSourcePath: () => sourcePath,
+    matches: (filePath) => filePath === sourcePath || filePath === `${sourcePath}-wal`,
+    parse: async () => plans,
+    write: async () => false,
+  };
+
+  setActiveAdapters([adapter]);
+  await scan();
+  expect(
+    getAll()
+      .map(({ id }) => id)
+      .sort(),
+  ).toEqual(['a', 'b']);
+
+  plans = [plan('a')];
+  await rescanFile(`${sourcePath}-wal`);
+
+  expect(getAll().map(({ id }) => id)).toEqual(['a']);
 });
 
 test('discoverProjectPlanDirs keeps the nearest current-project marker when ancestors also match', async () => {

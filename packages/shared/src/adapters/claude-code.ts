@@ -4,7 +4,11 @@ import { basename, join, resolve, sep } from 'node:path';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
-const plansDir = join(homedir(), '.claude', 'plans');
+function plansDir(): string {
+  const configDir = process.env.CLAUDE_CONFIG_DIR?.trim();
+  const home = process.env.HOME || process.env.USERPROFILE || homedir();
+  return join(configDir || join(home, '.claude'), 'plans');
+}
 
 function extractTitle(content: string, filename: string): string {
   const match = content.match(/^#\s+(.+)/m);
@@ -54,17 +58,17 @@ export const claudeCodeAdapter: AgentAdapter = {
   writable: true,
 
   getSearchPaths() {
-    return [plansDir];
+    return [plansDir()];
   },
 
   getWatchPaths() {
-    return [plansDir];
+    return [plansDir()];
   },
 
   matches(filePath: string) {
     if (!filePath.endsWith('.md')) return false;
     const normalized = resolve(filePath);
-    const baseDir = resolve(plansDir);
+    const baseDir = resolve(plansDir());
     return normalized.startsWith(baseDir + sep);
   },
 

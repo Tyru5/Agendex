@@ -219,6 +219,17 @@ function extractProposedPlanBlocks(messages: NormalizedMessage[]): string[] {
   return blocks;
 }
 
+function hasPlanModeEvidence(lines: unknown[]): boolean {
+  return lines.some((line) => {
+    if (!isRecord(line) || line.type !== 'turn_context' || !isRecord(line.payload)) {
+      return false;
+    }
+
+    const collaborationMode = line.payload.collaboration_mode;
+    return isRecord(collaborationMode) && collaborationMode.mode === 'plan';
+  });
+}
+
 function selectPlanContent(messages: NormalizedMessage[]): {
   content: string;
   planBlocks: string[];
@@ -402,6 +413,9 @@ export const codexCliAdapter: AgentAdapter = {
       const { content, planBlocks } = selectPlanContent(messages);
       if (!content.trim()) return [];
 
+      const hasPlanMode = hasPlanModeEvidence(lines);
+      if (planBlocks.length === 0 && !hasPlanMode) return [];
+
       const stats = await stat(filePath);
       const createdAt = parseDate(sessionMeta.startedAt) ?? stats.birthtime;
       const title = extractTitle(messages, planBlocks, filePath);
@@ -409,12 +423,15 @@ export const codexCliAdapter: AgentAdapter = {
       const metadata: Record<string, unknown> = {};
       if (sessionMeta.sessionId) metadata.sessionId = sessionMeta.sessionId;
       if (sessionMeta.threadSource) metadata.threadSource = sessionMeta.threadSource;
-      if (planBlocks.length > 0) metadata.planBlocks = planBlocks.length;
+      if (planBlocks.length > 0) {
+        metadata.planBlocks = planBlocks.length;
+        metadata.planEvidence = 'proposed-plan-block';
+      } else {
+        metadata.planEvidence = 'collaboration-mode-plan';
+      }
 
-      // Prefer <proposed_plan> blocks. Older/differently formatted rollouts may
-      // put a real markdown plan only in the final answer — keep those only when
-      // they have explicit plan structure (sections/checklists), not mere
-      // progress prose, ordered findings, or execution status dumps.
+      // Plan-mode sessions can predate the <proposed_plan> wrapper. The content
+      // heuristic remains a second guard against indexing low-value final answers.
       if (planBlocks.length === 0) {
         const assessment = assessPlanValue({ content, title, metadata });
         if (assessment.lowValue) return [];

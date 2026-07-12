@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
-import { saveConfig } from '@agendex/shared';
+import { CURRENT_CONFIG_VERSION, saveConfig } from '@agendex/shared';
 import type { SyncPlanPayload } from './api.ts';
 import { syncAll } from './sync.ts';
 
@@ -98,7 +98,7 @@ test('syncAll sends low-value local plans only as prune payloads and caches them
 
   const cloud = await startSyncApi();
   saveConfig({
-    configVersion: 3,
+    configVersion: CURRENT_CONFIG_VERSION,
     cloudToken: 'token',
     convexUrl: cloud.url,
     enabledAdapters: ['antigravity'],

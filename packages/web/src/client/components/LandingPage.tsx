@@ -72,14 +72,26 @@ export interface LandingPageProps {
 }
 
 const HERO_AGENT_CHIPS = [
-  { agent: 'amp', label: 'Amp' },
+  { agent: 'antigravity', label: 'Antigravity' },
   { agent: 'claude-code', label: 'Claude Code' },
+  { agent: 'codebuddy', label: 'CodeBuddy' },
   { agent: 'codex-cli', label: 'Codex' },
-  { agent: 'copilot-chat', label: 'Copilot' },
-  { agent: 'droid', label: 'Droid' },
-  { agent: 'gemini', label: 'Gemini' },
-  { agent: 'oh-my-opencode', label: 'OpenCode' },
-  { agent: 'pi', label: 'Pi' },
+  { agent: 'continue-ide', label: 'Continue' },
+  { agent: 'cursor', label: 'Cursor' },
+  { agent: 'droid', label: 'Factory Droid' },
+  { agent: 'gemini-cli', label: 'Gemini CLI' },
+  { agent: 'copilot-chat', label: 'GitHub Copilot' },
+  { agent: 'grok', label: 'Grok' },
+  { agent: 'junie', label: 'Junie' },
+  { agent: 'kilo-cli', label: 'Kilo Code' },
+  { agent: 'kimi-cli', label: 'Kimi Code' },
+  { agent: 'kiro-cli', label: 'Kiro' },
+  { agent: 'mux', label: 'Mux' },
+  { agent: 'opencode', label: 'OpenCode' },
+  { agent: 'oh-my-opencode', label: 'Oh My OpenCode' },
+  { agent: 'plannotator', label: 'Plannotator' },
+  { agent: 'qwen-code', label: 'Qwen Code' },
+  { agent: 'windsurf', label: 'Windsurf / Devin Desktop' },
 ] as const;
 
 const PLAN_REVIEW_BULLETS = [
@@ -486,24 +498,41 @@ function LandingCursorIcon() {
 }
 
 function HeroAgentStrip() {
+  const stripRef = useRef<HTMLDivElement>(null);
+
   return (
-    <div className="landing-hero-agents" aria-label="Supported agents">
-      {HERO_AGENT_CHIPS.map((agent) => (
-        <span key={agent.label} className="landing-hero-agent">
-          <span className="landing-hero-agent-mark">
-            <AgentIcon agent={agent.agent} size={18} />
-          </span>
-          {agent.label}
-        </span>
-      ))}
-      <span
-        className="landing-hero-agent landing-hero-agent--more"
-        data-tooltip="with the adapter system"
-        tabIndex={0}
+    <section className="landing-hero-agents-shell" aria-label="Supported agents">
+      <button
+        type="button"
+        className="landing-hero-agents-control landing-hero-agents-control--previous"
+        aria-label="Scroll supported agents left"
+        onClick={() => stripRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
       >
-        and more...
-      </span>
-    </div>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m15 18-6-6 6-6" />
+        </svg>
+      </button>
+      <div ref={stripRef} className="landing-hero-agents">
+        {HERO_AGENT_CHIPS.map((agent) => (
+          <span key={agent.label} className="landing-hero-agent">
+            <span className="landing-hero-agent-mark">
+              <AgentIcon agent={agent.agent} size={18} />
+            </span>
+            {agent.label}
+          </span>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="landing-hero-agents-control landing-hero-agents-control--next"
+        aria-label="Scroll supported agents right"
+        onClick={() => stripRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      </button>
+    </section>
   );
 }
 

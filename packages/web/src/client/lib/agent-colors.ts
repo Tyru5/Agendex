@@ -156,6 +156,11 @@ const GROK_ICON: AgentIcon = {
 };
 
 const AGENT_BRANDING: Record<string, AgentBranding> = {
+  antigravity: {
+    label: 'Antigravity',
+    color: '#2563eb',
+    icon: GEMINI_ICON,
+  },
   'claude-code': {
     label: 'Claude Code',
     color: '#8b5cf6',
@@ -176,13 +181,23 @@ const AGENT_BRANDING: Record<string, AgentBranding> = {
     color: '#22c55e',
     icon: siCursor,
   },
+  codebuddy: {
+    label: 'CodeBuddy',
+    color: '#0f766e',
+    fallbackGlyph: 'CB',
+  },
   amp: {
     label: 'Amp',
     color: '#ff5f3d',
     icon: AMP_AGENT_ICON,
   },
   gemini: {
-    label: 'Gemini',
+    label: 'Gemini CLI',
+    color: '#1e88e5',
+    icon: GEMINI_ICON,
+  },
+  'gemini-cli': {
+    label: 'Gemini CLI',
     color: '#1e88e5',
     icon: GEMINI_ICON,
   },
@@ -202,22 +217,27 @@ const AGENT_BRANDING: Record<string, AgentBranding> = {
     icon: COPILOT_ICON,
   },
   droid: {
-    label: 'Droid',
+    label: 'Factory Droid',
     color: '#ef4444',
     icon: DROID_ICON,
   },
   'kilo-cli': {
-    label: 'Kilo CLI',
+    label: 'Kilo Code',
     color: '#eab308',
     fallbackGlyph: 'KL',
   },
   windsurf: {
-    label: 'Windsurf',
+    label: 'Windsurf / Devin Desktop',
     color: '#14b8a6',
     icon: siWindsurf,
   },
-  'oh-my-opencode': {
+  opencode: {
     label: 'OpenCode',
+    color: '#131010',
+    icon: OPENCODE_ICON,
+  },
+  'oh-my-opencode': {
+    label: 'Oh My OpenCode',
     color: '#131010',
     icon: OPENCODE_ICON,
   },
@@ -235,6 +255,31 @@ const AGENT_BRANDING: Record<string, AgentBranding> = {
     label: 'Kiro',
     color: '#9046ff',
     icon: KIRO_ICON,
+  },
+  'kiro-cli': {
+    label: 'Kiro',
+    color: '#9046ff',
+    icon: KIRO_ICON,
+  },
+  junie: {
+    label: 'Junie',
+    color: '#087cfa',
+    fallbackGlyph: 'JN',
+  },
+  'kimi-cli': {
+    label: 'Kimi Code',
+    color: '#111827',
+    fallbackGlyph: 'KM',
+  },
+  mux: {
+    label: 'Mux',
+    color: '#dc2626',
+    fallbackGlyph: 'MX',
+  },
+  'qwen-code': {
+    label: 'Qwen Code',
+    color: '#7c3aed',
+    fallbackGlyph: 'QW',
   },
   pi: {
     label: 'Pi',

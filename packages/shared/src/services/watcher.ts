@@ -28,7 +28,12 @@ function closeAllWatchers() {
   activeWatchers.length = 0;
 }
 
-function watchDir(dir: string, matchFn: (f: string) => boolean, onChange?: ChangeCallback) {
+function watchDir(
+  dir: string,
+  matchFn: (f: string) => boolean,
+  sourcePath: (f: string) => string,
+  onChange?: ChangeCallback,
+) {
   if (!existsSync(dir)) return;
   try {
     const watcher = watch(dir, { recursive: true }, async (_event, filename) => {
@@ -36,7 +41,7 @@ function watchDir(dir: string, matchFn: (f: string) => boolean, onChange?: Chang
       const fullPath = join(dir, filename);
       if (!matchFn(fullPath)) return;
 
-      pendingFiles.add(fullPath);
+      pendingFiles.add(sourcePath(fullPath));
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
         const files = [...pendingFiles];
@@ -105,7 +110,12 @@ function setupWatchers(onChange?: ChangeCallback) {
   for (const adapter of adapters) {
     for (const watchPath of adapter.getWatchPaths()) {
       watchedPaths.add(resolve(watchPath));
-      watchDir(watchPath, (f) => adapter.matches(f), onChange);
+      watchDir(
+        watchPath,
+        (f) => adapter.matches(f, watchPath),
+        (f) => adapter.getSourcePath?.(f) ?? f,
+        onChange,
+      );
     }
   }
 
@@ -115,7 +125,12 @@ function setupWatchers(onChange?: ChangeCallback) {
     const adapter = adapters.find((a) => a.agent === agent);
     if (!adapter) continue;
     watchedPaths.add(resolve(dir));
-    watchDir(dir, (f) => adapter.matches(f), onChange);
+    watchDir(
+      dir,
+      (f) => adapter.matches(f, dir),
+      (f) => adapter.getSourcePath?.(f) ?? f,
+      onChange,
+    );
   }
 
   const customDirs = getCustomPlanDirs();
@@ -130,6 +145,11 @@ function setupWatchers(onChange?: ChangeCallback) {
     }
     if (overlaps) continue;
     watchedPaths.add(resolvedCustom);
-    watchDir(dir, (f) => f.endsWith('.md'), onChange);
+    watchDir(
+      dir,
+      (f) => f.endsWith('.md'),
+      (f) => f,
+      onChange,
+    );
   }
 }
