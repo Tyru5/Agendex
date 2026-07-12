@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 4.1.0
+
+### Minor Changes
+
+- 1511295: expanded plan ingestion
+
 ## 4.0.0
 
 ### Major Changes
