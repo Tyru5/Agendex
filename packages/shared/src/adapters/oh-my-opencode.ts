@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
@@ -24,9 +24,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function isPlanMarkdown(filePath: string): boolean {
+function isPlanMarkdown(filePath: string, scanRoot?: string): boolean {
   const normalized = normalizePath(filePath).toLowerCase();
-  return normalized.endsWith('.md') && normalized.includes(PLAN_PATH_MARKER);
+  if (!normalized.endsWith('.md')) return false;
+
+  const markerIndex = normalized.lastIndexOf(PLAN_PATH_MARKER);
+  if (markerIndex < 0) return false;
+  const markerRoot = normalized.slice(0, markerIndex + PLAN_PATH_MARKER.length - 1);
+  const declaredRoots = scanRoot
+    ? [...discoverPlanDirectories(), scanRoot]
+    : discoverPlanDirectories();
+  return declaredRoots.some((root) => normalizePath(resolve(root)).toLowerCase() === markerRoot);
 }
 
 function isSessionFile(filePath: string): boolean {
@@ -171,12 +179,12 @@ export const ohMyOpencodeAdapter: AgentAdapter = {
     return [opencodeSessionDir, ...discoverPlanDirectories()];
   },
 
-  matches(filePath: string) {
-    return isPlanMarkdown(filePath) || isSessionFile(filePath);
+  matches(filePath: string, scanRoot?: string) {
+    return isPlanMarkdown(filePath, scanRoot) || isSessionFile(filePath);
   },
 
-  async parse(filePath: string): Promise<Plan[]> {
-    if (isPlanMarkdown(filePath)) {
+  async parse(filePath: string, scanRoot?: string): Promise<Plan[]> {
+    if (isPlanMarkdown(filePath, scanRoot)) {
       return parsePlanFile(filePath, workspaceFromPlanPath(filePath), {
         source: 'plan-file',
       });

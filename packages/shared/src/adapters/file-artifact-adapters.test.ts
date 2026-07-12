@@ -16,13 +16,21 @@ import {
   qwenCodeAdapter,
   windsurfAdapter,
 } from './file-artifact-adapters.ts';
+import { ohMyOpencodeAdapter } from './oh-my-opencode.ts';
 
 const ENV_NAMES = [
   'HOME',
   'AGENDEX_ANTIGRAVITY_PLAN_DIRS',
+  'AGENDEX_CODEBUDDY_PLAN_DIRS',
+  'AGENDEX_DROID_PLAN_DIRS',
+  'AGENDEX_GEMINI_CLI_PLAN_DIRS',
   'AGENDEX_GITHUB_COPILOT_PLAN_DIRS',
+  'AGENDEX_JUNIE_PLAN_DIRS',
+  'AGENDEX_KILO_PLAN_DIRS',
+  'AGENDEX_KIRO_PLAN_DIRS',
   'AGENDEX_KIMI_CODE_PLAN_DIRS',
   'AGENDEX_MUX_PLAN_DIRS',
+  'AGENDEX_QWEN_CODE_PLAN_DIRS',
   'AGENDEX_WINDSURF_PLAN_DIRS',
 ] as const;
 
@@ -58,23 +66,51 @@ test('documented Markdown artifact adapters parse only their plan locations', as
   process.env.AGENDEX_WINDSURF_PLAN_DIRS = windsurfRoot;
 
   const cases = [
-    [antigravityAdapter, join(antigravityRoot, 'conversation-1', 'implementation_plan.md')],
-    [codeBuddyAdapter, join(tempRoot, 'repo', '.codebuddy', 'plans', 'auth.md')],
-    [droidAdapter, join(tempRoot, 'repo', '.factory', 'docs', '2026-07-09-auth.md')],
-    [geminiCliAdapter, join(tempRoot, 'repo', '.gemini', 'plans', 'auth.md')],
-    [githubCopilotAdapter, join(copilotRoot, 'session-1', 'plan.md')],
-    [junieAdapter, join(tempRoot, 'repo', '.junie', 'plans', 'auth.md')],
-    [kiloAdapter, join(tempRoot, 'repo', '.kilo', 'plans', 'auth.md')],
-    [kimiCodeAdapter, join(kimiRoot, 'auth.md')],
-    [muxAdapter, join(muxRoot, 'project', 'workspace-a.md')],
-    [qwenCodeAdapter, join(tempRoot, 'repo', '.qwen', 'plans', 'auth.md')],
-    [windsurfAdapter, join(windsurfRoot, 'auth.md')],
+    [
+      antigravityAdapter,
+      join(antigravityRoot, 'conversation-1', 'implementation_plan.md'),
+      antigravityRoot,
+    ],
+    [
+      codeBuddyAdapter,
+      join(tempRoot, 'repo', '.codebuddy', 'plans', 'auth.md'),
+      join(tempRoot, 'repo', '.codebuddy', 'plans'),
+    ],
+    [
+      droidAdapter,
+      join(tempRoot, 'repo', '.factory', 'docs', '2026-07-09-auth.md'),
+      join(tempRoot, 'repo', '.factory', 'docs'),
+    ],
+    [
+      geminiCliAdapter,
+      join(tempRoot, 'repo', '.gemini', 'plans', 'auth.md'),
+      join(tempRoot, 'repo', '.gemini', 'plans'),
+    ],
+    [githubCopilotAdapter, join(copilotRoot, 'session-1', 'plan.md'), copilotRoot],
+    [
+      junieAdapter,
+      join(tempRoot, 'repo', '.junie', 'plans', 'auth.md'),
+      join(tempRoot, 'repo', '.junie', 'plans'),
+    ],
+    [
+      kiloAdapter,
+      join(tempRoot, 'repo', '.kilo', 'plans', 'auth.md'),
+      join(tempRoot, 'repo', '.kilo', 'plans'),
+    ],
+    [kimiCodeAdapter, join(kimiRoot, 'auth.md'), kimiRoot],
+    [muxAdapter, join(muxRoot, 'project', 'workspace-a.md'), muxRoot],
+    [
+      qwenCodeAdapter,
+      join(tempRoot, 'repo', '.qwen', 'plans', 'auth.md'),
+      join(tempRoot, 'repo', '.qwen', 'plans'),
+    ],
+    [windsurfAdapter, join(windsurfRoot, 'auth.md'), windsurfRoot],
   ] as const;
 
-  for (const [adapter, path] of cases) {
+  for (const [adapter, path, scanRoot] of cases) {
     await createPlan(path);
-    expect(adapter.matches(path)).toBe(true);
-    const plans = await adapter.parse(path);
+    expect(adapter.matches(path, scanRoot)).toBe(true);
+    const plans = await adapter.parse(path, scanRoot);
     expect(plans).toHaveLength(1);
     expect(plans[0]?.agent).toBe(adapter.agent);
     expect(plans[0]?.title).toBe('Authentication Plan');
@@ -97,6 +133,31 @@ test('Antigravity rejects marker-shaped paths outside its declared roots', () =>
   expect(antigravityAdapter.matches(archivedPlan)).toBe(false);
 });
 
+test('marker-based adapters reject archived paths outside the concrete marker root', () => {
+  const exportRoot = join(tmpdir(), 'export');
+  const cases = [
+    [codeBuddyAdapter, join(exportRoot, '.codebuddy', 'plans', 'auth.md')],
+    [droidAdapter, join(exportRoot, '.factory', 'docs', 'auth.md')],
+    [geminiCliAdapter, join(exportRoot, '.gemini', 'plans', 'auth.md')],
+    [junieAdapter, join(exportRoot, '.junie', 'plans', 'auth.md')],
+    [kiloAdapter, join(exportRoot, '.kilo', 'plans', 'auth.md')],
+    [kiroAdapter, join(exportRoot, '.kiro', 'specs', 'oauth-login', 'tasks.md')],
+    [qwenCodeAdapter, join(exportRoot, '.qwen', 'plans', 'auth.md')],
+    [ohMyOpencodeAdapter, join(exportRoot, '.sisyphus', 'plans', 'auth.md')],
+  ] as const;
+
+  for (const [adapter, archivedPlan] of cases) {
+    expect(adapter.matches(archivedPlan, exportRoot)).toBe(false);
+  }
+
+  expect(
+    kimiCodeAdapter.matches(
+      join(exportRoot, 'sessions', 'project', 'session', 'agents', 'main', 'plans', 'auth.md'),
+      exportRoot,
+    ),
+  ).toBe(false);
+});
+
 test('Kiro combines requirements, design, and tasks into one plan', async () => {
   tempRoot = await mkdtemp(join(tmpdir(), 'agendex-kiro-adapter-'));
   const specDir = join(tempRoot, 'repo', '.kiro', 'specs', 'oauth-login');
@@ -108,8 +169,9 @@ test('Kiro combines requirements, design, and tasks into one plan', async () => 
   await writeFile(design, '# Design\n\nUse OAuth PKCE.');
   await writeFile(tasks, '# Tasks\n\n- [ ] Implement callback');
 
-  const [fromRequirements] = await kiroAdapter.parse(requirements);
-  const [fromTasks] = await kiroAdapter.parse(tasks);
+  const markerRoot = join(tempRoot, 'repo', '.kiro', 'specs');
+  const [fromRequirements] = await kiroAdapter.parse(requirements, markerRoot);
+  const [fromTasks] = await kiroAdapter.parse(tasks, markerRoot);
 
   expect(fromRequirements?.id).toBe(fromTasks?.id);
   expect(fromTasks?.title).toBe('Oauth Login');
@@ -125,7 +187,7 @@ test('writable artifact adapters persist edits', async () => {
   tempRoot = await mkdtemp(join(tmpdir(), 'agendex-writable-adapter-'));
   const path = join(tempRoot, 'repo', '.codebuddy', 'plans', 'auth.md');
   await createPlan(path);
-  const [plan] = await codeBuddyAdapter.parse(path);
+  const [plan] = await codeBuddyAdapter.parse(path, join(tempRoot, 'repo', '.codebuddy', 'plans'));
   expect(plan).toBeDefined();
   if (!plan) throw new Error('Expected CodeBuddy plan');
 

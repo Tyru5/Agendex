@@ -105,7 +105,7 @@ function setupWatchers(onChange?: ChangeCallback) {
   for (const adapter of adapters) {
     for (const watchPath of adapter.getWatchPaths()) {
       watchedPaths.add(resolve(watchPath));
-      watchDir(watchPath, (f) => adapter.matches(f), onChange);
+      watchDir(watchPath, (f) => adapter.matches(f, watchPath), onChange);
     }
   }
 
@@ -115,7 +115,7 @@ function setupWatchers(onChange?: ChangeCallback) {
     const adapter = adapters.find((a) => a.agent === agent);
     if (!adapter) continue;
     watchedPaths.add(resolve(dir));
-    watchDir(dir, (f) => adapter.matches(f), onChange);
+    watchDir(dir, (f) => adapter.matches(f, dir), onChange);
   }
 
   const customDirs = getCustomPlanDirs();

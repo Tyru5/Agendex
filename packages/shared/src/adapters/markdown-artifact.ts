@@ -14,7 +14,7 @@ export interface MarkdownArtifactContext {
 export interface MarkdownArtifactAdapterOptions {
   agent: string;
   getSearchPaths: () => string[];
-  matches: (filePath: string) => boolean;
+  matches: (filePath: string, scanRoot?: string) => boolean;
   writable?: boolean;
   title?: (context: MarkdownArtifactContext) => MaybePromise<string | undefined>;
   workspace?: (context: MarkdownArtifactContext) => MaybePromise<string | undefined>;
@@ -36,7 +36,7 @@ export interface MarkdownBundleContext {
 export interface MarkdownBundleAdapterOptions {
   agent: string;
   getSearchPaths: () => string[];
-  matches: (filePath: string) => boolean;
+  matches: (filePath: string, scanRoot?: string) => boolean;
   getBundleDir: (filePath: string) => string;
   documents: MarkdownBundleDocument[];
   title?: (context: MarkdownBundleContext) => MaybePromise<string | undefined>;
@@ -84,12 +84,12 @@ export function createMarkdownArtifactAdapter(
       return uniquePaths(options.getSearchPaths());
     },
 
-    matches(filePath: string) {
-      return options.matches(filePath);
+    matches(filePath: string, scanRoot?: string) {
+      return options.matches(filePath, scanRoot);
     },
 
-    async parse(filePath: string): Promise<Plan[]> {
-      if (!options.matches(filePath)) return [];
+    async parse(filePath: string, scanRoot?: string): Promise<Plan[]> {
+      if (!options.matches(filePath, scanRoot)) return [];
 
       try {
         const [content, stats] = await Promise.all([readFile(filePath, 'utf-8'), stat(filePath)]);
@@ -149,12 +149,12 @@ export function createMarkdownBundleAdapter(options: MarkdownBundleAdapterOption
       return uniquePaths(options.getSearchPaths());
     },
 
-    matches(filePath: string) {
-      return options.matches(filePath);
+    matches(filePath: string, scanRoot?: string) {
+      return options.matches(filePath, scanRoot);
     },
 
-    async parse(filePath: string): Promise<Plan[]> {
-      if (!options.matches(filePath)) return [];
+    async parse(filePath: string, scanRoot?: string): Promise<Plan[]> {
+      if (!options.matches(filePath, scanRoot)) return [];
 
       const bundleDir = options.getBundleDir(filePath);
       const loaded: Array<{

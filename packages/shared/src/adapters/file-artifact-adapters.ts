@@ -18,10 +18,6 @@ function isWithin(filePath: string, directory: string): boolean {
   return file === root || file.startsWith(`${root}/`);
 }
 
-function hasMarker(filePath: string, marker: string): boolean {
-  return normalizePath(filePath).toLowerCase().includes(`/${marker.toLowerCase()}/`);
-}
-
 function workspaceBeforeMarker(filePath: string, marker: string): string | undefined {
   const normalized = normalizePath(filePath);
   const index = normalized.toLowerCase().lastIndexOf(`/${marker.toLowerCase()}/`);
@@ -45,29 +41,25 @@ function unique(paths: string[]): string[] {
 }
 
 /**
- * Match Markdown plans under declared roots, or under a project-local agent marker
- * directory that discovery walks separately from getSearchPaths.
- *
- * Marker paths no longer short-circuit with a bare `true`: the marker segment is
- * resolved to a concrete directory and the file must be `isWithin` that directory
- * (same containment rule as declared roots). A path that only contains the marker
- * as a loose substring cannot match.
+ * Match Markdown plans under configured roots or the concrete project marker root
+ * currently being scanned. Candidate paths cannot declare their own marker roots.
  */
 function markdownInConfiguredRoot(
   filePath: string,
   getRoots: () => string[],
   marker?: string,
+  scanRoot?: string,
 ): boolean {
   if (!filePath.toLowerCase().endsWith('.md')) return false;
 
   const roots = [...getRoots()];
-  if (marker) {
+  if (marker && scanRoot) {
     const normalized = normalizePath(filePath);
     const needle = `/${marker.replaceAll('\\', '/')}/`;
     const index = normalized.toLowerCase().lastIndexOf(needle.toLowerCase());
     if (index >= 0) {
-      // Treat the marker directory itself as the root (e.g. `/repo/.kilo/plans`).
-      roots.push(normalized.slice(0, index + needle.length - 1));
+      const markerRoot = normalized.slice(0, index + needle.length - 1);
+      if (normalizePath(scanRoot) === markerRoot) roots.push(markerRoot);
     }
   }
   return roots.some((root) => isWithin(filePath, root));
@@ -142,7 +134,8 @@ function simpleProjectAdapter(options: {
     agent: options.agent,
     writable: options.writable,
     getSearchPaths,
-    matches: (filePath) => markdownInConfiguredRoot(filePath, getSearchPaths, options.marker),
+    matches: (filePath, scanRoot) =>
+      markdownInConfiguredRoot(filePath, getSearchPaths, options.marker, scanRoot),
     workspace: ({ filePath }) => workspaceBeforeMarker(filePath, options.marker),
     metadata: ({ filePath }) => ({
       artifactRoot: getSearchPaths().find((root) => isWithin(filePath, root)),
@@ -216,15 +209,8 @@ export const geminiCliAdapter = createMarkdownArtifactAdapter({
   agent: 'gemini-cli',
   writable: true,
   getSearchPaths: geminiRoots,
-  matches(filePath) {
-    if (!filePath.toLowerCase().endsWith('.md')) return false;
-    const normalized = normalizePath(filePath).toLowerCase();
-    return (
-      normalized.includes('/.gemini/plans/') ||
-      (normalized.includes('/.gemini/tmp/') && normalized.includes('/plans/')) ||
-      geminiRoots().some((root) => isWithin(filePath, root))
-    );
-  },
+  matches: (filePath, scanRoot) =>
+    markdownInConfiguredRoot(filePath, geminiRoots, '.gemini/plans', scanRoot),
   workspace: ({ filePath }) => workspaceBeforeMarker(filePath, '.gemini/plans'),
   metadata: ({ filePath }) => ({
     sessionId: normalizePath(filePath).match(/\/\.gemini\/tmp\/[^/]+\/([^/]+)\/plans\//i)?.[1],
@@ -280,7 +266,8 @@ export const kimiCodeAdapter = createMarkdownArtifactAdapter({
     if (!filePath.toLowerCase().endsWith('.md')) return false;
     const normalized = normalizePath(filePath).toLowerCase();
     return (
-      normalized.includes('/agents/main/plans/') ||
+      (normalized.includes('/agents/main/plans/') &&
+        kimiRoots().some((root) => isWithin(filePath, root))) ||
       kimiRoots().some(
         (root) => isWithin(filePath, root) && normalizePath(root).toLowerCase().endsWith('/plans'),
       )
@@ -306,11 +293,11 @@ function kiroRoots(): string[] {
 export const kiroAdapter = createMarkdownBundleAdapter({
   agent: 'kiro-cli',
   getSearchPaths: kiroRoots,
-  matches(filePath) {
+  matches(filePath, scanRoot) {
     const filename = basename(filePath).toLowerCase();
     return (
       KIRO_DOCUMENTS.some((document) => document.filenames.includes(filename)) &&
-      (hasMarker(filePath, '.kiro/specs') || kiroRoots().some((root) => isWithin(filePath, root)))
+      markdownInConfiguredRoot(filePath, kiroRoots, '.kiro/specs', scanRoot)
     );
   },
   getBundleDir: dirname,
@@ -358,7 +345,8 @@ export const qwenCodeAdapter = createMarkdownArtifactAdapter({
   agent: 'qwen-code',
   writable: true,
   getSearchPaths: qwenRoots,
-  matches: (filePath) => markdownInConfiguredRoot(filePath, qwenRoots, '.qwen/plans'),
+  matches: (filePath, scanRoot) =>
+    markdownInConfiguredRoot(filePath, qwenRoots, '.qwen/plans', scanRoot),
   workspace: ({ filePath }) => workspaceBeforeMarker(filePath, '.qwen/plans'),
 });
 

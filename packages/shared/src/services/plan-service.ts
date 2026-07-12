@@ -331,8 +331,8 @@ export async function scan() {
       coveredPaths.add(canonicalPath(searchPath));
       const files = await walkDir(searchPath);
       for (const file of files) {
-        if (!adapter.matches(file)) continue;
-        const plans = await adapter.parse(file);
+        if (!adapter.matches(file, searchPath)) continue;
+        const plans = await adapter.parse(file, searchPath);
         for (const plan of plans) {
           const annotated = preparePlanForIndex(plan);
           next.set(annotated.id, annotated);
@@ -349,8 +349,8 @@ export async function scan() {
     if (!adapter) continue;
     const files = await walkDir(dir);
     for (const file of files) {
-      if (!adapter.matches(file)) continue;
-      const plans = await adapter.parse(file);
+      if (!adapter.matches(file, dir)) continue;
+      const plans = await adapter.parse(file, dir);
       for (const plan of plans) {
         const annotated = preparePlanForIndex(plan);
         next.set(annotated.id, annotated);
@@ -580,8 +580,6 @@ export async function rescanFile(filePath: string) {
   const removedPlans: Plan[] = [];
 
   for (const adapter of adapters) {
-    if (!adapter.matches(filePath)) continue;
-
     const discoveredDirs = discoverProjectPlanDirs()
       .filter((d) => d.agent === adapter.agent)
       .map((d) => resolve(d.dir));
@@ -591,13 +589,13 @@ export async function rescanFile(filePath: string) {
       ...discoveredDirs,
     ];
 
-    const isInSearchPath = allSearchPaths.some(
+    const scanRoot = allSearchPaths.find(
       (sp) => normalized.startsWith(sp + sep) || normalized === sp,
     );
 
-    if (!isInSearchPath) continue;
+    if (!scanRoot || !adapter.matches(filePath, scanRoot)) continue;
 
-    const rawPlans = await adapter.parse(filePath);
+    const rawPlans = await adapter.parse(filePath, scanRoot);
     if (rawPlans.length === 0) {
       removedPlans.push(...removePlansForPath(filePath, adapter));
       continue;
