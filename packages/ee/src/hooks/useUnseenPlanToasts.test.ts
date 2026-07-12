@@ -86,4 +86,21 @@ describe('plan-toast-store', () => {
 
     registerClearAllPlanToasts(null);
   });
+
+  test('unmount cleanup must reset count when clearing the handler', () => {
+    // Mirrors useUnseenPlanToasts effect cleanup: null the handler AND zero
+    // the count so PlanToaster cannot show Clear all bound to a no-op.
+    setActivePlanToastCount(3);
+    registerClearAllPlanToasts(() => {
+      setActivePlanToastCount(0);
+    });
+
+    registerClearAllPlanToasts(null);
+    setActivePlanToastCount(0);
+
+    expect(getActivePlanToastCount()).toBe(0);
+    expect(shouldShowClearAll(getActivePlanToastCount())).toBe(false);
+    clearAllPlanToasts(); // no-op handler; must not throw
+    expect(getActivePlanToastCount()).toBe(0);
+  });
 });

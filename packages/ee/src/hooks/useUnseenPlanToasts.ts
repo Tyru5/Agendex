@@ -66,6 +66,9 @@ export function useUnseenPlanToasts({
     });
     return () => {
       registerClearAllPlanToasts(null);
+      // Drop active count (and dismiss UI) so PlanToaster does not keep
+      // Clear all bound to a removed handler after unmount.
+      dismissActiveToastsRef.current({ markSeen: false });
     };
   }, []);
 
