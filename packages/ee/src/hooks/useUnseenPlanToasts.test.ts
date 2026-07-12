@@ -1,5 +1,19 @@
 import { describe, expect, test } from 'bun:test';
-import { truncateTitle, unseenPlanKey } from './unseen-plan-toast-utils.ts';
+import {
+  clearAllPlanToasts,
+  getActivePlanToastCount,
+  registerClearAllPlanToasts,
+  setActivePlanToastCount,
+} from './plan-toast-store.ts';
+import {
+  isActiveToastVersion,
+  maxVisibleToasts,
+  planToastId,
+  shouldShowClearAll,
+  shouldShowPlanToast,
+  truncateTitle,
+  unseenPlanKey,
+} from './unseen-plan-toast-utils.ts';
 
 describe('useUnseenPlanToasts helpers', () => {
   test('truncateTitle leaves short titles unchanged', () => {
@@ -16,5 +30,90 @@ describe('useUnseenPlanToasts helpers', () => {
     expect(unseenPlanKey('plan-1', '2026-01-01T00:00:00.000Z')).toBe(
       'plan-1:2026-01-01T00:00:00.000Z',
     );
+  });
+
+  test('planToastId is stable per plan', () => {
+    expect(planToastId('plan-1')).toBe('plan-toast:plan-1');
+    expect(planToastId('plan-1')).toBe(planToastId('plan-1'));
+  });
+
+  test('shouldShowPlanToast skips exact duplicate updatedAt', () => {
+    expect(shouldShowPlanToast('2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')).toBe(false);
+  });
+
+  test('shouldShowPlanToast allows first notify and newer updatedAt', () => {
+    expect(shouldShowPlanToast(undefined, '2026-01-01T00:00:00.000Z')).toBe(true);
+    expect(shouldShowPlanToast('2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')).toBe(true);
+  });
+
+  test('isActiveToastVersion rejects replaced and bulk-cleared toast versions', () => {
+    const a = '2026-01-01T00:00:00.000Z';
+    const b = '2026-01-02T00:00:00.000Z';
+    // Active is B — stale callback for A must not settle.
+    expect(isActiveToastVersion(b, a)).toBe(false);
+    // Bulk dismiss clears the map before Sonner callbacks.
+    expect(isActiveToastVersion(undefined, a)).toBe(false);
+    expect(isActiveToastVersion(undefined, b)).toBe(false);
+    // Matching active version may markSeen / clear.
+    expect(isActiveToastVersion(b, b)).toBe(true);
+  });
+
+  test('shouldShowClearAll only when multiple toasts', () => {
+    expect(shouldShowClearAll(0)).toBe(false);
+    expect(shouldShowClearAll(1)).toBe(false);
+    expect(shouldShowClearAll(2)).toBe(true);
+    expect(shouldShowClearAll(5)).toBe(true);
+  });
+
+  test('maxVisibleToasts never drops below 1', () => {
+    expect(maxVisibleToasts(0)).toBe(1);
+    expect(maxVisibleToasts(-10)).toBe(1);
+    expect(maxVisibleToasts(50)).toBe(1);
+  });
+
+  test('maxVisibleToasts grows with viewport height', () => {
+    const short = maxVisibleToasts(400);
+    const tall = maxVisibleToasts(1200);
+    expect(tall).toBeGreaterThan(short);
+    expect(tall).toBeGreaterThan(3);
+  });
+});
+
+describe('plan-toast-store', () => {
+  test('tracks active count and clear-all handler', () => {
+    setActivePlanToastCount(0);
+    registerClearAllPlanToasts(null);
+
+    setActivePlanToastCount(3);
+    expect(getActivePlanToastCount()).toBe(3);
+    expect(shouldShowClearAll(getActivePlanToastCount())).toBe(true);
+
+    let cleared = false;
+    registerClearAllPlanToasts(() => {
+      cleared = true;
+      setActivePlanToastCount(0);
+    });
+    clearAllPlanToasts();
+    expect(cleared).toBe(true);
+    expect(getActivePlanToastCount()).toBe(0);
+
+    registerClearAllPlanToasts(null);
+  });
+
+  test('unmount cleanup must reset count when clearing the handler', () => {
+    // Mirrors useUnseenPlanToasts effect cleanup: null the handler AND zero
+    // the count so PlanToaster cannot show Clear all bound to a no-op.
+    setActivePlanToastCount(3);
+    registerClearAllPlanToasts(() => {
+      setActivePlanToastCount(0);
+    });
+
+    registerClearAllPlanToasts(null);
+    setActivePlanToastCount(0);
+
+    expect(getActivePlanToastCount()).toBe(0);
+    expect(shouldShowClearAll(getActivePlanToastCount())).toBe(false);
+    clearAllPlanToasts(); // no-op handler; must not throw
+    expect(getActivePlanToastCount()).toBe(0);
   });
 });

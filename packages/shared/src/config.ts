@@ -1,7 +1,16 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import lockfile from 'proper-lockfile';
 import type { AdapterId } from './adapters/catalog.ts';
 import { getDefaultAdapterIds, sanitizeEnabledAdapterIds } from './adapters/registry.ts';
 import { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
@@ -72,6 +81,7 @@ export interface AgendexConfig {
   configVersion: number;
   token?: string;
   cloudToken?: string;
+  cloudAccountId?: string;
   convexUrl?: string;
   /** Web app base URL used at login (for self-hosted / custom deployments). */
   siteUrl?: string;
@@ -85,6 +95,7 @@ interface StoredConfig {
   configVersion?: number;
   token?: unknown;
   cloudToken?: unknown;
+  cloudAccountId?: unknown;
   convexUrl?: unknown;
   siteUrl?: unknown;
   deviceId?: unknown;
@@ -96,6 +107,32 @@ interface StoredConfig {
 function ensureConfigDir() {
   const dir = getConfigDir();
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+}
+
+function withConfigLock<T>(operation: () => T): T {
+  ensureConfigDir();
+  const deadline = Date.now() + 2_000;
+  const sleepSignal = new Int32Array(new SharedArrayBuffer(4));
+  let release: (() => void) | null = null;
+  while (!release) {
+    try {
+      release = lockfile.lockSync(getConfigPath(), {
+        realpath: false,
+        stale: 10_000,
+        update: 5_000,
+      });
+    } catch (error) {
+      const code =
+        error instanceof Error && 'code' in error ? Reflect.get(error, 'code') : undefined;
+      if (code !== 'ELOCKED' || Date.now() >= deadline) throw error;
+      Atomics.wait(sleepSignal, 0, 0, 10);
+    }
+  }
+  try {
+    return operation();
+  } finally {
+    release();
+  }
 }
 
 function readStoredConfig(): StoredConfig | null {
@@ -228,6 +265,10 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
   const token = typeof raw.token === 'string' && raw.token.trim() ? raw.token : undefined;
   const cloudToken =
     typeof raw.cloudToken === 'string' && raw.cloudToken.trim() ? raw.cloudToken : undefined;
+  const cloudAccountId =
+    typeof raw.cloudAccountId === 'string' && raw.cloudAccountId.trim()
+      ? raw.cloudAccountId
+      : undefined;
   const convexUrl =
     typeof raw.convexUrl === 'string' && raw.convexUrl.trim() ? raw.convexUrl : undefined;
   const siteUrl = typeof raw.siteUrl === 'string' && raw.siteUrl.trim() ? raw.siteUrl : undefined;
@@ -246,6 +287,7 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     configVersion: migrated.version,
     token,
     cloudToken,
+    cloudAccountId,
     convexUrl,
     siteUrl,
     deviceId,
@@ -259,8 +301,7 @@ export function loadConfig(): AgendexConfig | null {
   return normalizeStoredConfig(readStoredConfig());
 }
 
-export function saveConfig(config: AgendexConfig) {
-  ensureConfigDir();
+function normalizedConfigForWrite(config: AgendexConfig): AgendexConfig {
   const fromVersion = normalizeConfigVersion(config.configVersion);
   // If the caller is still on an older schema version, apply enable migrations
   // before bumping to CURRENT. Callers that already pass CURRENT (e.g. after a
@@ -273,10 +314,11 @@ export function saveConfig(config: AgendexConfig) {
           adapters: sanitizeEnabledAdapterIds(config.enabledAdapters),
         };
 
-  const payload: AgendexConfig = {
+  return {
     configVersion: migrated.version,
     token: config.token,
     cloudToken: config.cloudToken,
+    cloudAccountId: config.cloudAccountId,
     convexUrl: config.convexUrl,
     siteUrl: config.siteUrl,
     deviceId: config.deviceId,
@@ -284,7 +326,37 @@ export function saveConfig(config: AgendexConfig) {
     enabledAdapters: migrated.adapters,
     customPlanDirs: normalizeCustomPlanDirs(config.customPlanDirs),
   };
-  writeFileSync(getConfigPath(), JSON.stringify(payload, null, 2));
+}
+
+function writeConfigUnlocked(config: AgendexConfig): void {
+  const path = getConfigPath();
+  const candidatePath = `${path}.candidate-${process.pid}-${randomBytes(8).toString('hex')}`;
+  try {
+    writeFileSync(candidatePath, JSON.stringify(normalizedConfigForWrite(config), null, 2), {
+      flag: 'wx',
+    });
+    renameSync(candidatePath, path);
+  } finally {
+    try {
+      unlinkSync(candidatePath);
+    } catch {}
+  }
+}
+
+export function saveConfig(config: AgendexConfig): void {
+  withConfigLock(() => writeConfigUnlocked(config));
+}
+
+/** Atomically reads, conditionally updates, and writes config across processes. */
+export function updateConfig(
+  update: (current: AgendexConfig | null) => AgendexConfig | null,
+): boolean {
+  return withConfigLock(() => {
+    const next = update(loadConfig());
+    if (!next) return false;
+    writeConfigUnlocked(next);
+    return true;
+  });
 }
 
 function generateToken(): string {
@@ -297,16 +369,24 @@ export function loadOrCreateToken(): string {
   const existing = loadConfig();
   if (existing?.token) return existing.token;
 
-  const token = generateToken();
-  saveConfig({
-    ...existing,
-    configVersion: CURRENT_CONFIG_VERSION,
-    token,
-    enabledAdapters: existing?.enabledAdapters ?? [],
-    customPlanDirs: existing?.customPlanDirs ?? [],
+  let token = generateToken();
+  const created = updateConfig((current) => {
+    if (current?.token) {
+      token = current.token;
+      return null;
+    }
+    return {
+      ...current,
+      configVersion: CURRENT_CONFIG_VERSION,
+      token,
+      enabledAdapters: current?.enabledAdapters ?? [],
+      customPlanDirs: current?.customPlanDirs ?? [],
+    };
   });
-  console.log(`\n[agendex] generated auth token: ${token}`);
-  console.log(`[agendex] saved to ${getConfigPath()}\n`);
+  if (created) {
+    console.log(`\n[agendex] generated auth token: ${token}`);
+    console.log(`[agendex] saved to ${getConfigPath()}\n`);
+  }
   return token;
 }
 
@@ -314,13 +394,19 @@ export function loadOrCreateDeviceId(): string {
   const existing = loadConfig();
   if (existing?.deviceId) return existing.deviceId;
 
-  const deviceId = randomBytes(16).toString('hex');
-  saveConfig({
-    ...existing,
-    configVersion: CURRENT_CONFIG_VERSION,
-    deviceId,
-    enabledAdapters: existing?.enabledAdapters ?? [],
-    customPlanDirs: existing?.customPlanDirs ?? [],
+  let deviceId = randomBytes(16).toString('hex');
+  updateConfig((current) => {
+    if (current?.deviceId) {
+      deviceId = current.deviceId;
+      return null;
+    }
+    return {
+      ...current,
+      configVersion: CURRENT_CONFIG_VERSION,
+      deviceId,
+      enabledAdapters: current?.enabledAdapters ?? [],
+      customPlanDirs: current?.customPlanDirs ?? [],
+    };
   });
   return deviceId;
 }
@@ -366,17 +452,23 @@ export async function loadOrInitConfig(options: InitConfigOptions = {}): Promise
 
   const deviceId = existing?.deviceId || randomBytes(16).toString('hex');
 
-  const nextConfig: AgendexConfig = {
-    configVersion: CURRENT_CONFIG_VERSION,
-    token: tokenFromEnv ? existing?.token : currentToken,
-    cloudToken: existing?.cloudToken,
-    convexUrl: existing?.convexUrl,
-    siteUrl: existing?.siteUrl,
-    deviceId,
-    enabledAdapters,
-    customPlanDirs: existing?.customPlanDirs ?? [],
-  };
-  saveConfig(nextConfig);
+  let nextConfig!: AgendexConfig;
+  updateConfig((current) => {
+    const latest = current ?? existing;
+    const adaptersToPersist =
+      configureAdapters || !current?.enabledAdapters.length
+        ? enabledAdapters
+        : sanitizeEnabledAdapterIds(current.enabledAdapters);
+    nextConfig = {
+      ...latest,
+      configVersion: CURRENT_CONFIG_VERSION,
+      token: tokenFromEnv ? latest?.token : currentToken,
+      deviceId: latest?.deviceId ?? deviceId,
+      enabledAdapters: adaptersToPersist,
+      customPlanDirs: latest?.customPlanDirs ?? [],
+    };
+    return nextConfig;
+  });
 
   return {
     ...nextConfig,

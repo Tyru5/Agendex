@@ -65,6 +65,7 @@ function PlanRow({
       type="button"
       onClick={isRenaming ? undefined : onClick}
       onContextMenu={onContextMenu}
+      title={!isRenaming && overflows ? plan.title : undefined}
       className={`w-full text-left block plan-row sidebar-plan-row${selected ? ' plan-row--selected' : ''}${isSplit ? ' plan-row--split' : ''} cursor-pointer font-[inherit]`}
       style={{
         background: selected ? 'var(--active)' : isSplit ? 'var(--hover)' : 'transparent',

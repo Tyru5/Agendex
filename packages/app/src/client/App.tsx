@@ -12,6 +12,7 @@ import {
   PlanViewer,
   Sidebar,
   startViewTransition,
+  ToolsUsedPage,
   Topbar,
   useAgents,
   useBackendStatus,
@@ -404,6 +405,18 @@ export default function App() {
     );
   }
 
+  if (typeof window !== 'undefined' && window.location.pathname === '/tools') {
+    return (
+      <ToolsUsedPage
+        onBack={() => {
+          startViewTransition(() => {
+            window.location.href = '/';
+          });
+        }}
+      />
+    );
+  }
+
   if (!hasToken()) {
     return (
       <>
@@ -422,6 +435,11 @@ export default function App() {
           onShowDownload={() => {
             startViewTransition(() => {
               window.location.href = '/download';
+            });
+          }}
+          onShowTools={() => {
+            startViewTransition(() => {
+              window.location.href = '/tools';
             });
           }}
         />

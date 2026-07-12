@@ -58,6 +58,7 @@ const LANDING_LINKS = [
   { href: '/download', label: 'Download' },
   { href: '/docs', label: 'Docs' },
   { href: '/changelog', label: 'Changelog' },
+  { href: '/tools', label: 'Stack' },
 ] as const;
 type LandingTab = 'local' | 'cloud';
 
@@ -67,6 +68,7 @@ export interface LandingPageProps {
   onShowChangelog?: () => void;
   onShowDocs?: () => void;
   onShowDownload?: () => void;
+  onShowTools?: () => void;
 }
 
 const HERO_AGENT_CHIPS = [
@@ -266,6 +268,7 @@ function landingNavClickHandler(
     onShowDownload?: () => void;
     onShowDocs?: () => void;
     onShowChangelog?: () => void;
+    onShowTools?: () => void;
   },
 ): ((e: MouseEvent<HTMLAnchorElement>) => void) | undefined {
   if (href === '/download' && handlers.onShowDownload) {
@@ -292,6 +295,14 @@ function landingNavClickHandler(
       handlers.onShowChangelog?.();
     };
   }
+  if (href === '/tools' && handlers.onShowTools) {
+    return (e) => {
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      handlers.onShowTools?.();
+    };
+  }
   return undefined;
 }
 
@@ -302,6 +313,7 @@ function LandingNavbar({
   onShowChangelog,
   onShowDocs,
   onShowDownload,
+  onShowTools,
   authSlot,
 }: {
   mobileMenuOpen: boolean;
@@ -310,9 +322,10 @@ function LandingNavbar({
   onShowChangelog?: () => void;
   onShowDocs?: () => void;
   onShowDownload?: () => void;
+  onShowTools?: () => void;
   authSlot?: ReactNode;
 }) {
-  const navHandlers = { onShowDownload, onShowDocs, onShowChangelog };
+  const navHandlers = { onShowDownload, onShowDocs, onShowChangelog, onShowTools };
 
   function handleNavClick(href: string) {
     const handler = landingNavClickHandler(href, navHandlers);
@@ -1154,12 +1167,14 @@ function LandingFooter({
   onShowChangelog,
   onShowDocs,
   onShowDownload,
+  onShowTools,
 }: {
   onShowChangelog?: () => void;
   onShowDocs?: () => void;
   onShowDownload?: () => void;
+  onShowTools?: () => void;
 }) {
-  const navHandlers = { onShowDownload, onShowDocs, onShowChangelog };
+  const navHandlers = { onShowDownload, onShowDocs, onShowChangelog, onShowTools };
 
   return (
     <footer className="landing-frame flex min-h-[200px] items-end justify-between gap-8 px-[clamp(18px,5vw,72px)] py-10 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start">
@@ -1183,6 +1198,9 @@ function LandingFooter({
           onClick={landingNavClickHandler('/changelog', navHandlers)}
         >
           Changelog
+        </LandingAnchor>
+        <LandingAnchor href="/tools" onClick={landingNavClickHandler('/tools', navHandlers)}>
+          Stack
         </LandingAnchor>
         <LandingAnchor
           href="https://github.com/tyru5/agendex"
@@ -1522,6 +1540,7 @@ function LandingPageInner({
   onShowChangelog,
   onShowDocs,
   onShowDownload,
+  onShowTools,
 }: LandingPageProps) {
   const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
   const [tokenError, setTokenError] = useState('');
@@ -1555,6 +1574,7 @@ function LandingPageInner({
           onShowChangelog={onShowChangelog}
           onShowDocs={onShowDocs}
           onShowDownload={onShowDownload}
+          onShowTools={onShowTools}
           authSlot={navbarAuthNode}
         />
 
@@ -1609,6 +1629,7 @@ function LandingPageInner({
           onShowChangelog={onShowChangelog}
           onShowDocs={onShowDocs}
           onShowDownload={onShowDownload}
+          onShowTools={onShowTools}
         />
 
         {mascot && (

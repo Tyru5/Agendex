@@ -1,9 +1,10 @@
 import { join } from 'node:path';
 import { startNodeServer, type RunningNodeServer } from '@agendex/app/server';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, utilityProcess } from 'electron';
 import {
   clearCloudCreds,
+  type CloudCreds,
   getConvexAuthToken,
   getSiteUrl,
   loadCloudCreds,
@@ -11,7 +12,12 @@ import {
   saveCloudCreds,
   validateCloudCreds,
 } from './cloud-auth.ts';
-import { completePendingDesktopAuthLogin, loadPendingDesktopAuthLogin } from './cloud-login.ts';
+import {
+  clearPendingDesktopAuthLogin,
+  completePendingDesktopAuthLogin,
+  loadPendingDesktopAuthLogin,
+  startDesktopAuthLogin,
+} from './cloud-login.ts';
 import { loadModePref, saveModePref } from './dashboard-mode.ts';
 import { registerDesktopIpc } from './desktop-ipc.ts';
 import { buildMenu } from './desktop-menu.ts';
@@ -20,7 +26,9 @@ import { writeQaBootstrapEvidence, writeQaStartupEvidence } from './desktop-qa-e
 import { createDesktopWindow } from './desktop-window.ts';
 import { redactDesktopAuthCallbackUrl } from '@agendex/shared/desktop-auth-callback';
 import { installDesktopProtocolLifecycle } from './desktop-protocol-lifecycle.ts';
+import { stopDesktopServices } from './desktop-shutdown.ts';
 import { loadWithRetry } from './window-loader.ts';
+import { DesktopDaemonManager } from './desktop-daemon-manager.ts';
 
 // Package name is `@agendex/desktop`; without this, Electron labels the
 // macOS Keychain item for safeStorage as "@agendex/desktop Safe Storage".
@@ -38,6 +46,17 @@ let server: RunningNodeServer | null = null;
 let localApiToken = '';
 let rendererTargetUrl = '';
 let backendBoot: Promise<void> | null = null;
+let quitAfterShutdown = false;
+let shutdownPromise: Promise<void> | null = null;
+let authSessionGeneration = 0;
+
+function invalidateAuthSession(): void {
+  authSessionGeneration += 1;
+}
+
+function isAuthSessionGenerationCurrent(generation: number): boolean {
+  return generation === authSessionGeneration;
+}
 
 function resolveClientDistDir(): string {
   if (app.isPackaged) {
@@ -106,16 +125,88 @@ function reloadMainWindow() {
   loadWithRetry(mainWindow, rendererTargetUrl);
 }
 
+const desktopDaemon = new DesktopDaemonManager({
+  isDev: is.dev,
+  forkWorker: utilityProcess.fork,
+  rotateCloudToken: (previousToken, token, accountId) => {
+    const current = loadCloudCreds();
+    if (!current) return null;
+    if (current.token !== previousToken) return current;
+    const rotated = { ...current, token, accountId: accountId ?? current.accountId };
+    try {
+      saveCloudCreds(rotated);
+      return rotated;
+    } catch (error) {
+      console.error('[agendex-desktop] failed to persist rotated cloud token', error);
+      return current;
+    }
+  },
+  onAuthExpired: async (failedToken) => {
+    if (shutdownPromise) return;
+    const authGeneration = authSessionGeneration;
+    const current = loadCloudCreds();
+    if (!current || current.token !== failedToken) return;
+    await desktopDaemon.stop();
+
+    if (shutdownPromise || !isAuthSessionGenerationCurrent(authGeneration)) return;
+
+    const latest = loadCloudCreds();
+    if (!latest) return;
+    if (latest.token !== failedToken) {
+      if (isAuthSessionGenerationCurrent(authGeneration)) await syncDaemonSession(latest);
+      return;
+    }
+
+    await refreshCloudSession();
+    if (!isAuthSessionGenerationCurrent(authGeneration)) return;
+    const revalidated = loadCloudCreds();
+    if (revalidated) await syncDaemonSession(revalidated);
+    else reloadMainWindow();
+  },
+  log: (message, error) => {
+    if (error === undefined) console.error(`[agendex-desktop] ${message}`);
+    else console.error(`[agendex-desktop] ${message}`, error);
+  },
+});
+
+async function syncDaemonSession(creds: CloudCreds): Promise<void> {
+  try {
+    await desktopDaemon.ensureRunning(creds);
+  } catch (error) {
+    console.error('[agendex-desktop] failed to start sync daemon', error);
+  }
+}
+
+async function shutdownDesktopServices(): Promise<void> {
+  if (shutdownPromise) return shutdownPromise;
+  const window = mainWindow;
+  const runningServer = server;
+  mainWindow = null;
+  server = null;
+  let resolveShutdown: (() => void) | undefined;
+  shutdownPromise = new Promise<void>((resolve) => {
+    resolveShutdown = resolve;
+  });
+  void stopDesktopServices({
+    window,
+    stopDaemon: () => desktopDaemon.stop(),
+    ...(runningServer && { closeServer: () => runningServer.close() }),
+  }).then(resolveShutdown, resolveShutdown);
+  return shutdownPromise;
+}
+
 const desktopProtocol = createDesktopProtocolController({
   loadPendingLogin: loadPendingDesktopAuthLogin,
   completePendingLogin: completePendingDesktopAuthLogin,
   validateCloudCreds: async (creds) => {
+    const authGeneration = authSessionGeneration;
     writeQaStartupEvidence({
       event: 'desktop-auth-callback-validate-start',
       convexSiteUrl: creds.convexSiteUrl,
       tokenPresent: Boolean(creds.token),
     });
     const validated = await validateCloudCreds(creds);
+    if (!isAuthSessionGenerationCurrent(authGeneration)) return null;
     writeQaStartupEvidence({
       event: 'desktop-auth-callback-validate-result',
       ok: Boolean(validated),
@@ -210,16 +301,29 @@ if (!gotLock) {
       getConvexAuthToken,
       writeQaBootstrapEvidence,
       getSiteUrl: () => getSiteUrl(is.dev),
+      startDesktopAuthLogin,
+      clearPendingDesktopAuthLogin,
       createPendingLoginCompletion: desktopProtocol.createPendingLoginCompletion,
       clearCloudCreds,
+      getAuthSessionGeneration: () => authSessionGeneration,
+      isAuthSessionGenerationCurrent,
+      invalidateAuthSession,
+      syncDaemonSession,
+      stopDesktopDaemon: () => desktopDaemon.stop(),
       logLoginError: (error) => {
         console.error('[agendex-desktop] cloud login failed', error);
       },
     });
     buildMenu();
 
+    const bootstrapAuthGeneration = authSessionGeneration;
     void refreshCloudSession()
-      .then(() => startBackendWindowAndDrainProtocolCallbacks())
+      .then(async (creds) => {
+        if (creds && isAuthSessionGenerationCurrent(bootstrapAuthGeneration)) {
+          void syncDaemonSession(creds);
+        }
+        await startBackendWindowAndDrainProtocolCallbacks();
+      })
       .catch((err) => {
         console.error('[agendex-desktop] failed to start backend', err);
         app.quit();
@@ -239,8 +343,12 @@ if (!gotLock) {
     if (process.platform !== 'darwin') app.quit();
   });
 
-  app.on('before-quit', () => {
-    void server?.close();
-    server = null;
+  app.on('before-quit', (event) => {
+    if (quitAfterShutdown) return;
+    event.preventDefault();
+    void shutdownDesktopServices().finally(() => {
+      quitAfterShutdown = true;
+      app.quit();
+    });
   });
 }

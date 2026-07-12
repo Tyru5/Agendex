@@ -6,6 +6,7 @@ export type PlanLowValueReason =
   | 'prompt-like'
   | 'system-context'
   | 'execution-report'
+  | 'progress-narrative'
   | 'review-output'
   | 'wrapper-title'
   | 'tool-log'
@@ -211,13 +212,26 @@ const SECTION_LABELS = new Set([
   'existing code',
   'acceptance criteria',
   'success criteria',
+  'summary',
 ]);
 
-function hasSectionSyntax(line: string, section: string): boolean {
-  const cleaned = cleanMarkdownLine(line);
-  return (
-    isHeadingLine(line) || /^[a-z][\w\s/&+-]{1,48}:/i.test(cleaned) || SECTION_LABELS.has(section)
-  );
+/**
+ * Section labels only count as plan structure when the line is a real section
+ * header — a markdown heading or a pure label line like `Steps:` / `**Steps**`.
+ * Prose that merely starts with "Plan:" or "Verification is running..." must not
+ * mint strong plan signals (common in Codex progress narrations).
+ */
+function isPureSectionLabelLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+
+  if (isHeadingLine(trimmed)) {
+    return SECTION_LABELS.has(sectionName(trimmed));
+  }
+
+  const cleaned = cleanMarkdownLine(trimmed);
+  const label = cleaned.replace(/:$/, '').toLowerCase().replace(/\s+/g, ' ');
+  return SECTION_LABELS.has(label);
 }
 
 function collectPositiveSignals(
@@ -230,38 +244,38 @@ function collectPositiveSignals(
   if (metadataHasPlanBlocks(metadata)) signals.push('metadata:proposed-plan-block');
 
   for (const line of lines) {
+    if (!isPureSectionLabelLine(line)) continue;
     const section = sectionName(line);
-    if (!hasSectionSyntax(line, section)) continue;
 
-    if (/^(context|background|problem|goal|goals|scope)\b/.test(section)) {
+    if (/^(context|background|problem|goal|goals|scope)$/.test(section)) {
       signals.push('section:context');
       continue;
     }
-    if (/^(approach|strategy|design)\b/.test(section)) {
+    if (/^(approach|strategy|design)$/.test(section)) {
       signals.push('section:approach');
       continue;
     }
-    if (/^(implementation plan|implementation|plan)\b/.test(section)) {
+    if (/^(implementation plan|implementation|plan)$/.test(section)) {
       signals.push('section:implementation-plan');
       continue;
     }
-    if (/^(files? to modify|files? changed|affected files?)\b/.test(section)) {
+    if (/^(files? to modify|files? changed|affected files?)$/.test(section)) {
       signals.push('section:files-to-modify');
       continue;
     }
-    if (/^(steps?|tasks?|checklist|todo|todos)\b/.test(section)) {
+    if (/^(steps?|tasks?|checklist|todo|todos)$/.test(section)) {
       signals.push('section:steps');
       continue;
     }
-    if (/^(verification|testing|tests?|validation)\b/.test(section)) {
+    if (/^(verification|testing|tests?|validation)$/.test(section)) {
       signals.push('section:verification');
       continue;
     }
-    if (/^(reuse|existing utilities|existing code)\b/.test(section)) {
+    if (/^(reuse|existing utilities|existing code)$/.test(section)) {
       signals.push('section:reuse');
       continue;
     }
-    if (/^(acceptance criteria|success criteria)\b/.test(section)) {
+    if (/^(acceptance criteria|success criteria)$/.test(section)) {
       signals.push('section:acceptance-criteria');
     }
   }
@@ -376,11 +390,21 @@ function normalizedTitle(title: string | undefined): string {
 
 function looksLikeWrapperTitle(title: string | undefined): boolean {
   const raw = (title ?? '').trim();
-  // Agent harness wrappers and task envelopes are never plan titles.
+  // Agent harness wrappers, XML envelope tags, and task envelopes are never plan titles.
   return (
-    /^<user_(?:action|instructions|prompt)>$/i.test(raw) ||
-    /^<task\b/i.test(raw) ||
+    /^<[a-z][\w:-]*(?:\s[^>]*)?>/i.test(raw) ||
+    /^<\/?[a-z][\w:-]*>$/i.test(raw) ||
     /^(?:TASK|LENS)\s*:/i.test(raw)
+  );
+}
+
+/** XML control envelopes are never meaningful plan titles, even when body is structured. */
+function isHardWrapperTitle(title: string | undefined): boolean {
+  const raw = (title ?? '').trim();
+  return (
+    /^<(?:recommended_plugins|user_action|user_instructions|user_prompt|environment_context|system-reminder|hook_prompt|codex_internal_context|subagent_notification|skill|instructions|image|permissions)\b/i.test(
+      raw,
+    ) || /^<\/?[a-z][\w:-]*>$/i.test(raw)
   );
 }
 
@@ -423,6 +447,7 @@ function looksLikeCommitMessage(lines: string[]): boolean {
 function looksLikeReviewOutput(normalized: string, title: string | undefined): boolean {
   const cleanedTitle = normalizedTitle(title);
   const lower = normalized.toLowerCase();
+  const trimmed = normalized.trim();
 
   return (
     /^review the code changes against\b/.test(cleanedTitle) ||
@@ -431,7 +456,17 @@ function looksLikeReviewOutput(normalized: string, title: string | undefined): b
     /"overall_correctness"\s*:/.test(normalized) ||
     /\bfull review comments\s*:/i.test(normalized) ||
     /\bthe patch (?:currently )?(?:breaks|introduces|regresses)\b/i.test(normalized) ||
-    /\bshould not be considered correct\b/i.test(lower)
+    /\bshould not be considered correct\b/i.test(lower) ||
+    // Codex review/audit verdicts and finding lists (not implementation plans).
+    /^(?:\*{0,2}VERDICT\*{0,2}\s*:\s*)?(?:FAIL|PASS|FAILED|PASSED)\b/im.test(trimmed) ||
+    /^(?:\*{0,2}Verdict\*{0,2}\s*:\s*)/im.test(trimmed) ||
+    /^(?:INVESTIGATE|FINDINGS?)\b(?:\s*[—:-]|\s*$)/im.test(trimmed) ||
+    /^- \*\*INVESTIGATE\b/im.test(trimmed) ||
+    /"severity"\s*:\s*"(?:CRITICAL|HIGH|MEDIUM|LOW|INFORMATIONAL)"/i.test(normalized) ||
+    /\b(?:CRITICAL|HIGH)\b.*\bconfidence\b/i.test(normalized) ||
+    /(?:^|\n)\s*(?:\d+\.\s+)?\*{0,2}\[P[0-3]\]\*{0,2}\b/i.test(normalized) ||
+    /^\s*(?:three|four|five|\d+)\s+findings?\s*:/im.test(trimmed) ||
+    /\bread-only review(?:;|,|\.)?\s*no files modified\b/i.test(lower)
   );
 }
 
@@ -461,7 +496,9 @@ function looksLikeToolLog(normalized: string): boolean {
   return (
     /::[a-z0-9_-]+(?:\{|\[|\s*$)/i.test(normalized) ||
     /<\/?(?:tool_call|tool_result)\b[^>]*>/i.test(normalized) ||
-    /\b(?:function_call|tool_calls|tool_result)\b/i.test(normalized)
+    /\b(?:function_call|tool_calls|tool_result)\b/i.test(normalized) ||
+    /\[external_agent_tool_call\b/i.test(normalized) ||
+    /\[external_agent_tool_result\b/i.test(normalized)
   );
 }
 
@@ -497,8 +534,62 @@ function looksLikeExecutionReport(normalized: string): boolean {
     // or `digitize` ("git") don't read as shell commands.
     /`[^`]*\b(?:bun|npm|pnpm|yarn|git|tsc|oxfmt|oxlint|biome)\b[^`]*`/i.test(normalized) ||
     /\b(?:git\s+(?:stage|commit|push|status)|bunx?\s+|npm\s+|pnpm\s+|yarn\s+)\b/i.test(normalized);
+  const hasStatusVerdict =
+    /^(?:\*{0,2}VERDICT\*{0,2}\s*:\s*)?(?:FAIL|PASS|FAILED|PASSED)\b/im.test(normalized.trim()) ||
+    /^(?:\*{0,2}Verdict\*{0,2}\s*:)/im.test(normalized.trim());
+  const hasRemainingGaps =
+    /\b(?:remaining (?:contract )?gaps?|remaining (?:issues?|work)|true first-bad)\b/i.test(
+      normalized,
+    );
 
-  return hasPastCompletion && (hasReportSection || hasCommandMarker || hasReviewReportMarker);
+  return (
+    (hasPastCompletion && (hasReportSection || hasCommandMarker || hasReviewReportMarker)) ||
+    (hasStatusVerdict && (hasPastCompletion || hasRemainingGaps || hasCommandMarker)) ||
+    (hasRemainingGaps && hasPastCompletion)
+  );
+}
+
+/**
+ * Codex commentary / status streams: first-person progressive updates often
+ * joined with `---` separators. These are live work logs, not plans.
+ * Codex frequently emits curly apostrophes (I'm / I'll), so match both.
+ */
+const APOSTROPHE = "['\u2019]";
+
+function looksLikeProgressNarrative(normalized: string, lines: string[]): boolean {
+  const separatorCount = (normalized.match(/^\s*---\s*$/gm) ?? []).length;
+
+  const firstPersonOpener = new RegExp(
+    `^(?:I(?:${APOSTROPHE}m| am|${APOSTROPHE}ll| will|${APOSTROPHE}ve| have)|We(?:${APOSTROPHE}re| are|${APOSTROPHE}ll| will))\\b`,
+    'i',
+  );
+  const firstPersonProgress = new RegExp(
+    `\\bI(?:${APOSTROPHE}m| am) (?:now |also |still )?(?:using|applying|running|checking|looking|tracing|mapping|tightening|switching|waiting|keeping|retaining|documenting|starting|loading|reading|verifying|rerunning|continuing|extracting|isolating|implementing|following|treating|stopping|removing|rewriting|correlating)\\b`,
+    'i',
+  );
+
+  const isFirstPersonStatus = (line: string): boolean => {
+    const trimmed = line.trim();
+    if (!trimmed) return false;
+    return firstPersonOpener.test(trimmed) || firstPersonProgress.test(trimmed);
+  };
+
+  const progressLineCount = lines.filter(isFirstPersonStatus).length;
+  if (progressLineCount === 0) return false;
+
+  // Multi-segment Codex status streams joined with ---.
+  if (separatorCount >= 2 && progressLineCount >= 3) return true;
+
+  // Dense first-person status without separators (short commentary dumps).
+  if (lines.length >= 4 && progressLineCount / lines.length >= 0.35) return true;
+
+  // Long streams where many paragraphs open in first-person progressive.
+  if (separatorCount >= 1 && progressLineCount >= 5) return true;
+
+  // Very long multi-segment status dumps (Codex final_answer joins many turns).
+  if (separatorCount >= 4 && progressLineCount >= 2) return true;
+
+  return false;
 }
 
 function lowValueAssessment(reasons: PlanLowValueReason[], signals: string[]): PlanValueAssessment {
@@ -532,6 +623,7 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
   const toolLog = looksLikeToolLog(normalized);
   const conversationArtifact = looksLikeConversationArtifact(lines);
   const executionReport = looksLikeExecutionReport(normalized);
+  const progressNarrative = looksLikeProgressNarrative(normalized, lines);
   const commitMessage = looksLikeCommitMessage(lines);
   const wrapperTitle = looksLikeWrapperTitle(input.title);
   const promptTitle = looksLikePromptTitle(input.title);
@@ -547,6 +639,7 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
   if (toolLog) signals.push('negative:tool-log');
   if (conversationArtifact) signals.push('negative:conversation-artifact');
   if (executionReport) signals.push('negative:execution-report');
+  if (progressNarrative) signals.push('negative:progress-narrative');
   if (commitMessage) signals.push('negative:commit-message');
   if (wrapperTitle) signals.push('negative:wrapper-title');
   if (promptTitle) signals.push('negative:prompt-title');
@@ -569,8 +662,15 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
   // ordered-steps / action-bullets / planning-prose alone, which are common in
   // completed-work writeups.
   if (executionReport && !explicitPlanBlock && !planStructure) reasons.push('execution-report');
+  // Progress / status narrations can mention future work ("I'll fix…") and even
+  // a mid-stream "Plan:" sentence; only an explicit proposed_plan block rescues.
+  if (progressNarrative && !explicitPlanBlock) reasons.push('progress-narrative');
   if (commitMessage && !explicitPlanBlock && !planStructure) reasons.push('commit-message');
-  if (wrapperTitle && !explicitPlanBlock && !planStructure) reasons.push('wrapper-title');
+  // Hard XML envelopes (recommended_plugins, user_instructions, image, …) never
+  // produce a real plan title — only an explicit proposed_plan block rescues them.
+  // Softer wrappers (TASK:/LENS:/<task>) may still wrap a structured plan body.
+  if (isHardWrapperTitle(input.title) && !explicitPlanBlock) reasons.push('wrapper-title');
+  else if (wrapperTitle && !explicitPlanBlock && !planStructure) reasons.push('wrapper-title');
   if (reviewOutput && !explicitPlanBlock) reasons.push('review-output');
   if (promptTitle && !strongPositive && !explicitPlanBlock) reasons.push('prompt-like');
   if (codeOnly && !explicitPlanBlock && !strongPositive) reasons.push('code-only');

@@ -55,6 +55,7 @@ win:
   icon: build/icon.png
 
 nsis:
+  artifactName: Agendex-${version}-${arch}-Setup.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
@@ -65,3 +66,6 @@ nsis:
   # re-registers at runtime via app.setAsDefaultProtocolClient, which covers
   # the portable target.
   include: build/installer.nsh
+
+portable:
+  artifactName: Agendex-${version}-${arch}-Portable.${ext}

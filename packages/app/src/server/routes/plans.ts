@@ -11,9 +11,9 @@ import {
   normalizeCustomPlanDirs,
   removeCustomPlanDir,
   resolveCustomPlanDirPath,
-  saveConfig,
   scan,
   startWatching,
+  updateConfig,
   updatePlanAnnotationStatus,
   validatePlanAnnotationInput,
 } from '@agendex/shared';
@@ -195,19 +195,21 @@ plans.post('/plan-sources', async (c) => {
   if (typeof body.path !== 'string' || !body.path.trim()) {
     return c.json({ error: 'path is required' }, 400);
   }
-  const resolved = resolveCustomPlanDirPath(body.path);
+  const requestedPath = body.path;
+  const resolved = resolveCustomPlanDirPath(requestedPath);
   if (!existsSync(resolved)) {
     return c.json({ error: `path does not exist: ${resolved}` }, 400);
   }
   if (!statSync(resolved).isDirectory()) {
     return c.json({ error: `path is not a directory: ${resolved}` }, 400);
   }
-  const config = loadConfig();
-  const currentDirs = config?.customPlanDirs ?? [];
-  const updated = normalizeCustomPlanDirs([...currentDirs, resolved]);
-  saveConfig({
-    ...(config ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
-    customPlanDirs: updated,
+  let updated: string[] = [];
+  updateConfig((config) => {
+    updated = normalizeCustomPlanDirs([...(config?.customPlanDirs ?? []), resolved]);
+    return {
+      ...(config ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
+      customPlanDirs: updated,
+    };
   });
   await scan();
   startWatching(watcherOnChange);
@@ -219,17 +221,20 @@ plans.delete('/plan-sources', async (c) => {
   if (typeof body.path !== 'string' || !body.path.trim()) {
     return c.json({ error: 'path is required' }, 400);
   }
-  const resolved = resolveCustomPlanDirPath(body.path);
-  const config = loadConfig();
-  const currentDirs = config?.customPlanDirs ?? [];
-  const updated = removeCustomPlanDir(currentDirs, body.path);
+  const requestedPath = body.path;
+  const resolved = resolveCustomPlanDirPath(requestedPath);
+  let updated: string[] | null = null;
+  updateConfig((config) => {
+    updated = removeCustomPlanDir(config?.customPlanDirs ?? [], requestedPath);
+    if (updated === null) return null;
+    return {
+      ...(config ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
+      customPlanDirs: updated,
+    };
+  });
   if (updated === null) {
     return c.json({ error: `directory not in custom plan dirs: ${resolved}` }, 404);
   }
-  saveConfig({
-    ...(config ?? { configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [] }),
-    customPlanDirs: updated,
-  });
   await scan();
   startWatching(watcherOnChange);
   return c.json({ customPlanDirs: updated });

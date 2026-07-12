@@ -405,3 +405,379 @@ export const auditDuplicatePlanSyncIdentities = internalQuery({
     };
   },
 });
+
+// ---------------------------------------------------------------------------
+// Codex multi-agent subagent / same-title clone cleanup
+//
+// Codex writes one rollout file per subagent thread. Before the adapter skipped
+// those threads, each child synced as its own cloud plan — often with the same
+// parent user title. Historical rows may lack subagent metadata, so cleanup
+// supports:
+//   1. Explicit subagent signals on metadata
+//   2. Optional titleContains filter (e.g. "drawing board") with keepPlanId
+//   3. Optional owner-scoped title-family dedupe for codex session rollouts
+// ---------------------------------------------------------------------------
+
+const CODEX_AGENTS = new Set(['codex-cli', 'codex']);
+const MAX_OWNER_SCAN = 2_000;
+
+function normalizedPlanTitle(title: string): string {
+  return title.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function isCodexAgent(agent: string): boolean {
+  return CODEX_AGENTS.has(agent.trim().toLowerCase());
+}
+
+function isCodexSessionRollout(plan: Doc<'plans'>): boolean {
+  if (!isCodexAgent(plan.agent)) return false;
+  if (plan.format === 'jsonl') return true;
+  const path = plan.filePath ?? '';
+  return path.includes('/.codex/sessions/') || /(?:^|\/)rollout-.*\.jsonl$/i.test(path);
+}
+
+/**
+ * True when metadata (or path-coupled fields) prove this row is a multi-agent
+ * child thread rather than a user plan session.
+ */
+function hasExplicitCodexSubagentSignals(plan: Doc<'plans'>): boolean {
+  if (!isCodexAgent(plan.agent)) return false;
+  const metadata = isRecord(plan.metadata) ? plan.metadata : {};
+
+  if (metadata.threadSource === 'subagent' || metadata.thread_source === 'subagent') return true;
+
+  const parentThreadId =
+    stringField(metadata.parentThreadId) ?? stringField(metadata.parent_thread_id);
+  const sessionId = stringField(metadata.sessionId) ?? stringField(metadata.session_id);
+  if (parentThreadId && (!sessionId || parentThreadId !== sessionId)) return true;
+
+  // Subagent-only fields written by newer adapters / future backfills.
+  if (stringField(metadata.agentNickname) || stringField(metadata.agent_nickname)) return true;
+  if (stringField(metadata.agentRole) || stringField(metadata.agent_role)) return true;
+
+  return false;
+}
+
+function stringField(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function titleMatchesFilter(title: string, titleContains: string | undefined): boolean {
+  if (!titleContains) return true;
+  return title.toLowerCase().includes(titleContains.trim().toLowerCase());
+}
+
+type CodexSubagentMatchReason = 'explicit-subagent-metadata' | 'title-family-duplicate';
+
+type CodexSubagentExample = {
+  planId: string;
+  localPlanId?: string;
+  ownerId: string;
+  title: string;
+  agent: string;
+  filePath?: string;
+  contentLength: number;
+  reasons: CodexSubagentMatchReason[];
+  sessionId?: string;
+  parentThreadId?: string;
+};
+
+type CodexSubagentCleanupSummary = {
+  scanned: number;
+  matched: number;
+  byReason: Record<string, number>;
+  examples: CodexSubagentExample[];
+};
+
+function emptyCodexSubagentSummary(): CodexSubagentCleanupSummary {
+  return { scanned: 0, matched: 0, byReason: {}, examples: [] };
+}
+
+function addCodexSubagentExample(
+  summary: CodexSubagentCleanupSummary,
+  plan: Doc<'plans'>,
+  reasons: CodexSubagentMatchReason[],
+) {
+  summary.matched++;
+  for (const reason of reasons) increment(summary.byReason, reason);
+  if (summary.examples.length >= MAX_EXAMPLES) return;
+
+  const metadata = isRecord(plan.metadata) ? plan.metadata : {};
+  summary.examples.push({
+    planId: String(plan._id),
+    localPlanId: plan.localPlanId,
+    ownerId: plan.ownerId,
+    title: plan.title.slice(0, 120),
+    agent: plan.agent,
+    filePath: plan.filePath,
+    contentLength: plan.content.length,
+    reasons,
+    sessionId: stringField(metadata.sessionId) ?? stringField(metadata.session_id),
+    parentThreadId: stringField(metadata.parentThreadId) ?? stringField(metadata.parent_thread_id),
+  });
+}
+
+function titleFamilyWinner(group: Doc<'plans'>[], keepPlanId: string | undefined): Doc<'plans'> {
+  if (keepPlanId) {
+    const kept = group.find((plan) => String(plan._id) === keepPlanId);
+    if (kept) return kept;
+  }
+
+  // Prefer rows that do *not* look like subagents, then earliest creation
+  // (parent session usually lands first), then longest content, then newest update.
+  return group.reduce((winner, plan) => {
+    const planSub = hasExplicitCodexSubagentSignals(plan);
+    const winSub = hasExplicitCodexSubagentSignals(winner);
+    if (planSub !== winSub) return planSub ? winner : plan;
+    if (plan.createdAt !== winner.createdAt) {
+      return plan.createdAt < winner.createdAt ? plan : winner;
+    }
+    if (plan.content.length !== winner.content.length) {
+      return plan.content.length > winner.content.length ? plan : winner;
+    }
+    return plan.updatedAt >= winner.updatedAt ? plan : winner;
+  });
+}
+
+const codexSubagentCleanupArgs = {
+  adminToken: v.string(),
+  cursor: v.optional(v.union(v.string(), v.null())),
+  limit: v.optional(v.number()),
+  /** Case-insensitive substring match against plan.title. */
+  titleContains: v.optional(v.string()),
+  /**
+   * Never delete this plan id (string form of Id<'plans'>). Validated at
+   * runtime rather than via v.id('plans') so dry-runs can target a prod id
+   * without failing validation on another deployment.
+   */
+  keepPlanId: v.optional(v.string()),
+  /**
+   * When true *and* titleContains is set, for each owner seen on the page load
+   * their recent codex session plans and delete same-title siblings matching
+   * the filter (keeping one winner per title). Requires titleContains so we
+   * don't collapse unrelated same-prompt sessions globally.
+   */
+  dedupeTitleFamilies: v.optional(v.boolean()),
+  /** Minimum group size for title-family dedupe (default 2). */
+  minTitleFamilySize: v.optional(v.number()),
+  continue: v.optional(v.boolean()),
+};
+
+/**
+ * Decide whether a single plan should be removed via *standalone* signals
+ * (explicit subagent metadata). Title-family membership is handled separately
+ * so we only delete non-winners of a group.
+ */
+function matchStandaloneCodexSubagentPlan(
+  plan: Doc<'plans'>,
+  args: { keepPlanId?: string },
+): CodexSubagentMatchReason[] | null {
+  if (args.keepPlanId && String(plan._id) === args.keepPlanId) return null;
+  if (!isCodexAgent(plan.agent)) return null;
+
+  if (hasExplicitCodexSubagentSignals(plan)) {
+    return ['explicit-subagent-metadata'];
+  }
+
+  return null;
+}
+
+function minTitleFamilySize(value: number | undefined): number {
+  if (!value || !Number.isFinite(value)) return 2;
+  return Math.max(2, Math.floor(value));
+}
+
+function shouldDedupeTitleFamilies(args: {
+  dedupeTitleFamilies?: boolean;
+  titleContains?: string;
+}): boolean {
+  // Title-family collapse requires an explicit title scope so we never wipe
+  // every repeated prompt (AGENTS.md generators, review templates, etc.).
+  // Setting titleContains alone is enough — dedupeTitleFamilies defaults on
+  // in that case; pass dedupeTitleFamilies:false to disable.
+  if (!args.titleContains?.trim()) return false;
+  if (args.dedupeTitleFamilies === false) return false;
+  return true;
+}
+
+export const auditCodexSubagentPlans = internalQuery({
+  args: codexSubagentCleanupArgs,
+  handler: async (ctx, args) => {
+    requireAdminToken(args.adminToken);
+
+    const result = await ctx.db.query('plans').paginate({
+      cursor: args.cursor ?? null,
+      numItems: batchSize(args.limit),
+    });
+
+    const summary = emptyCodexSubagentSummary();
+    const keepPlanId = args.keepPlanId?.trim() || undefined;
+    const matchedIds = new Set<string>();
+    const familyMin = minTitleFamilySize(args.minTitleFamilySize);
+
+    for (const plan of result.page) {
+      summary.scanned++;
+      const reasons = matchStandaloneCodexSubagentPlan(plan, { keepPlanId });
+      if (!reasons) continue;
+      matchedIds.add(String(plan._id));
+      addCodexSubagentExample(summary, plan, reasons);
+    }
+
+    // Title-family pass (owner-scoped) for historical clones without subagent
+    // metadata. Requires titleContains — see shouldDedupeTitleFamilies.
+    if (shouldDedupeTitleFamilies(args)) {
+      const owners = new Set(result.page.map((plan) => plan.ownerId));
+      for (const ownerId of owners) {
+        const ownerPlans = await ctx.db
+          .query('plans')
+          .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+          .order('desc')
+          .take(MAX_OWNER_SCAN);
+
+        const byTitle = new Map<string, Doc<'plans'>[]>();
+        for (const plan of ownerPlans) {
+          if (!isCodexSessionRollout(plan)) continue;
+          if (!titleMatchesFilter(plan.title, args.titleContains)) continue;
+          const key = normalizedPlanTitle(plan.title);
+          if (!key) continue;
+          const group = byTitle.get(key) ?? [];
+          group.push(plan);
+          byTitle.set(key, group);
+        }
+
+        for (const group of byTitle.values()) {
+          if (group.length < familyMin) continue;
+          const winner = titleFamilyWinner(group, keepPlanId);
+          for (const plan of group) {
+            if (plan._id === winner._id) continue;
+            const id = String(plan._id);
+            if (matchedIds.has(id)) continue;
+            matchedIds.add(id);
+            addCodexSubagentExample(summary, plan, ['title-family-duplicate']);
+          }
+        }
+      }
+    }
+
+    return {
+      mode: 'codex-subagent-dry-run' as const,
+      ...summary,
+      isDone: result.isDone,
+      continueCursor: result.isDone ? null : result.continueCursor,
+    };
+  },
+});
+
+export const cleanupCodexSubagentPlans = internalMutation({
+  args: codexSubagentCleanupArgs,
+  handler: async (ctx, args) => {
+    requireAdminToken(args.adminToken);
+
+    const result = await ctx.db.query('plans').paginate({
+      cursor: args.cursor ?? null,
+      numItems: batchSize(args.limit),
+    });
+
+    const summary = emptyCodexSubagentSummary();
+    const keepPlanId = args.keepPlanId?.trim() || undefined;
+    const familyMin = minTitleFamilySize(args.minTitleFamilySize);
+    const toDelete = new Map<string, { plan: Doc<'plans'>; reasons: CodexSubagentMatchReason[] }>();
+
+    for (const plan of result.page) {
+      summary.scanned++;
+      const reasons = matchStandaloneCodexSubagentPlan(plan, { keepPlanId });
+      if (!reasons) continue;
+      toDelete.set(String(plan._id), { plan, reasons });
+    }
+
+    if (shouldDedupeTitleFamilies(args)) {
+      const owners = new Set(result.page.map((plan) => plan.ownerId));
+      for (const ownerId of owners) {
+        const ownerPlans = await ctx.db
+          .query('plans')
+          .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+          .order('desc')
+          .take(MAX_OWNER_SCAN);
+
+        const byTitle = new Map<string, Doc<'plans'>[]>();
+        for (const plan of ownerPlans) {
+          if (!isCodexSessionRollout(plan)) continue;
+          if (!titleMatchesFilter(plan.title, args.titleContains)) continue;
+          const key = normalizedPlanTitle(plan.title);
+          if (!key) continue;
+          const group = byTitle.get(key) ?? [];
+          group.push(plan);
+          byTitle.set(key, group);
+        }
+
+        for (const group of byTitle.values()) {
+          if (group.length < familyMin) continue;
+          const winner = titleFamilyWinner(group, keepPlanId);
+          for (const plan of group) {
+            if (plan._id === winner._id) continue;
+            const id = String(plan._id);
+            const existing = toDelete.get(id);
+            if (existing) {
+              if (!existing.reasons.includes('title-family-duplicate')) {
+                existing.reasons.push('title-family-duplicate');
+              }
+            } else {
+              toDelete.set(id, { plan, reasons: ['title-family-duplicate'] });
+            }
+          }
+        }
+      }
+    }
+
+    let deleted = 0;
+    for (const { plan, reasons } of toDelete.values()) {
+      if (keepPlanId && String(plan._id) === keepPlanId) continue;
+      addCodexSubagentExample(summary, plan, reasons);
+      await deletePlanRelatedData(ctx, { planId: plan._id, ownerId: plan.ownerId });
+      await ctx.db.delete(plan._id);
+      deleted++;
+    }
+
+    // Deleting shifts pagination; only advance when nothing was deleted.
+    const advance = deleted === 0;
+
+    if (!result.isDone && args.continue !== false && advance) {
+      await ctx.scheduler.runAfter(0, internal.planCleanup.cleanupCodexSubagentPlans, {
+        adminToken: args.adminToken,
+        cursor: result.continueCursor,
+        limit: args.limit,
+        titleContains: args.titleContains,
+        keepPlanId: args.keepPlanId,
+        dedupeTitleFamilies: args.dedupeTitleFamilies,
+        minTitleFamilySize: args.minTitleFamilySize,
+        continue: args.continue,
+      });
+    } else if (!advance && args.continue !== false) {
+      // Re-scan from the same cursor so rows that slid into this page aren't skipped.
+      await ctx.scheduler.runAfter(0, internal.planCleanup.cleanupCodexSubagentPlans, {
+        adminToken: args.adminToken,
+        cursor: args.cursor ?? null,
+        limit: args.limit,
+        titleContains: args.titleContains,
+        keepPlanId: args.keepPlanId,
+        dedupeTitleFamilies: args.dedupeTitleFamilies,
+        minTitleFamilySize: args.minTitleFamilySize,
+        continue: args.continue,
+      });
+    }
+
+    return {
+      mode: 'codex-subagent-apply' as const,
+      ...summary,
+      deleted,
+      isDone: advance && result.isDone,
+      continueCursor: advance
+        ? result.isDone
+          ? null
+          : result.continueCursor
+        : (args.cursor ?? null),
+    };
+  },
+});

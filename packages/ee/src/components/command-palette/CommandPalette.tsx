@@ -385,6 +385,15 @@ export function CommandPalette({
     }
 
     cmds.push({
+      id: 'stack',
+      label: 'Stack & Tools',
+      group: 'support',
+      icon: <ChartIcon />,
+      footerHint: 'Tools, libraries, and packages used to build Agendex',
+      action: () => onNavigate('/tools'),
+    });
+
+    cmds.push({
       id: 'report-issue',
       label: 'Report Issue',
       group: 'support',

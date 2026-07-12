@@ -48,8 +48,8 @@ export function useCloudPlans(): {
       ownerId: p.ownerId,
       agent: p.agent,
       title: p.title,
-      // List items ship without content (see getMyPublishedPlans); the detail
-      // view hydrates it on open via useCloudPlanContent.
+      // List items ship without content (see getMyPublishedPlans); selected and
+      // split-view panes hydrate via useHydratedCloudPlan / useCloudPlanContent.
       content: p.content ?? '',
       filePath: p.filePath ?? '',
       format: p.format,

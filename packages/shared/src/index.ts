@@ -24,6 +24,7 @@ export {
   resolveCustomPlanDirPath,
   saveConfig,
   setDevMode,
+  updateConfig,
 } from './config.ts';
 export {
   CLI_DAEMON_HEARTBEAT_INTERVAL_MS,

@@ -18,7 +18,7 @@ This directory contains the Convex backend for Agendex Cloud / EE. It powers aut
 - `plans.ts` - EE plan retrieval helpers and shared plan access
 - `planVisibility.ts` - shared low-value plan classification on ingest, metadata merge, and visibility gates for reads
 - `planVersions.ts` - plan history listing, snapshot reads, and restore flow
-- `planCleanup.ts` - internal dry-run audit and apply cleanup for existing low-value cloud rows (maintainer-only)
+- `planCleanup.ts` - internal dry-run audit and apply cleanup for existing low-value cloud rows and Codex subagent/title-family clones (maintainer-only)
 - `sharing.ts` - create and revoke share links
 - `comments.ts` - read, create, and delete plan comments
 - `collections.ts` - collection-level EE feature logic
@@ -78,6 +78,7 @@ For deployments that already accumulated low-value plans before filtering tighte
 
 - `auditLowValuePlans` — paginated dry-run summary (`mode: "dry-run"`)
 - `cleanupLowValuePlans` — paginated delete of classified low-value rows (`mode: "apply"`)
+- `auditCodexSubagentPlans` / `cleanupCodexSubagentPlans` — remove Codex multi-agent subagent clones and optional same-title codex session floods (`mode: "codex-subagent-dry-run"` / `"codex-subagent-apply"`)
 
 Both require `PLAN_CLEANUP_ADMIN_TOKEN` to be set on the Convex deployment and passed as `adminToken` in the function args. Paginate with `cursor` / `continueCursor` until `isDone` is true. Review dry-run output before running apply.
 
@@ -91,6 +92,12 @@ npx convex run internal/planCleanup:auditLowValuePlans '{"adminToken":"<token>"}
 
 # Apply first batch (repeat with continueCursor until isDone)
 npx convex run internal/planCleanup:cleanupLowValuePlans '{"adminToken":"<token>"}'
+
+# Codex subagent / same-title clone cleanup (dry-run then apply).
+# titleContains scopes title-family collapse to matching codex session rollouts
+# (keeps one winner per exact title per owner). keepPlanId forces the winner when present.
+npx convex run planCleanup:auditCodexSubagentPlans '{"adminToken":"<token>","titleContains":"drawing board","keepPlanId":"<canonical-plan-id>"}'
+npx convex run planCleanup:cleanupCodexSubagentPlans '{"adminToken":"<token>","titleContains":"drawing board","keepPlanId":"<canonical-plan-id>","continue":true}'
 ```
 
 ## Local Development

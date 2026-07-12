@@ -9,7 +9,7 @@ import {
   setActiveAdapters,
 } from '@agendex/shared';
 import { resolveCliAdapterIds } from './adapters.ts';
-import { syncPlan } from './api.ts';
+import { getDaemonCloudScope, syncPlan } from './api.ts';
 import { getLocalIpAddress } from './network.ts';
 import { planToSyncPayload } from './payload.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
@@ -35,7 +35,8 @@ export async function syncAll(force = false): Promise<void> {
     `[agendex] Found ${syncablePlans.length} syncable plans${hiddenSuffix}. Syncing to cloud...`,
   );
 
-  const cache = force ? {} : loadSyncCache();
+  const syncCacheScope = getDaemonCloudScope() ?? 'unconfigured';
+  const cache = force ? {} : loadSyncCache(syncCacheScope);
   const activePlanIds = new Set<string>();
 
   let synced = 0;
@@ -45,6 +46,9 @@ export async function syncAll(force = false): Promise<void> {
   let failed = 0;
 
   for (const plan of [...syncablePlans, ...lowValuePlans]) {
+    if ((getDaemonCloudScope() ?? 'unconfigured') !== syncCacheScope) {
+      throw new Error('Cloud credentials changed during sync. Run `agendex sync` again.');
+    }
     activePlanIds.add(plan.id);
 
     const payload = planToSyncPayload(plan, config.deviceId, hostname, ipAddress);
@@ -57,6 +61,9 @@ export async function syncAll(force = false): Promise<void> {
     }
 
     const result = await syncPlan(payload);
+    if ((getDaemonCloudScope() ?? 'unconfigured') !== syncCacheScope) {
+      throw new Error('Cloud credentials changed during sync. Run `agendex sync` again.');
+    }
     if (result.ok) {
       if (result.skippedLowValue) {
         lowValueSkipped++;
@@ -77,7 +84,7 @@ export async function syncAll(force = false): Promise<void> {
   }
 
   // Use replace mode so prune deletions and force-run failures are reflected on disk.
-  saveSyncCache(cache, { replace: true });
+  saveSyncCache(cache, { scope: syncCacheScope, replace: true });
   const lowValueSuffix =
     lowValueSkipped > 0
       ? `, ${lowValueSkipped} low-value skipped/pruned${

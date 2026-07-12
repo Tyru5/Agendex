@@ -16,9 +16,18 @@ interface LegacySessionMeta {
 }
 
 interface NormalizedSessionMeta {
+  /** Unique thread id for this rollout (payload.id). */
   sessionId?: string;
+  /** Parent thread id when this rollout is a multi-agent child. */
+  parentThreadId?: string;
+  /** Codex thread_source: "user" | "subagent" | … */
+  threadSource?: string;
+  agentNickname?: string;
+  agentRole?: string;
   startedAt?: string;
   cwd?: string;
+  /** True when this rollout is a multi-agent subagent thread, not a user plan session. */
+  isSubagent: boolean;
 }
 
 interface NormalizedMessage {
@@ -72,8 +81,17 @@ function extractTextFromContent(content: unknown): string {
   return parts.join('\n');
 }
 
+function isSubagentSource(source: unknown): boolean {
+  if (source === 'subagent') return true;
+  if (!isRecord(source)) return false;
+  // Modern Codex: { subagent: { thread_spawn: { parent_thread_id, … } } }
+  if (isRecord(source.subagent)) return true;
+  if (source.type === 'subagent' || source.kind === 'subagent') return true;
+  return false;
+}
+
 function extractSessionMeta(lines: unknown[]): NormalizedSessionMeta {
-  const meta: NormalizedSessionMeta = {};
+  const meta: NormalizedSessionMeta = { isSubagent: false };
 
   for (const line of lines) {
     if (!isRecord(line)) continue;
@@ -87,11 +105,34 @@ function extractSessionMeta(lines: unknown[]): NormalizedSessionMeta {
 
     if (line.type !== 'session_meta' || !isRecord(line.payload)) continue;
 
+    // Prefer the unique thread id (payload.id). For subagents, payload.session_id
+    // is often the *parent* thread — useful for parentThreadId fallback, not as
+    // this rollout's identity.
     if (typeof line.payload.id === 'string' && !meta.sessionId) {
       meta.sessionId = line.payload.id;
     }
-    if (typeof line.payload.session_id === 'string' && !meta.sessionId) {
-      meta.sessionId = line.payload.session_id;
+    if (typeof line.payload.session_id === 'string') {
+      if (!meta.sessionId) meta.sessionId = line.payload.session_id;
+      // When id and session_id differ, session_id is the parent/root thread.
+      if (
+        typeof line.payload.id === 'string' &&
+        line.payload.session_id !== line.payload.id &&
+        !meta.parentThreadId
+      ) {
+        meta.parentThreadId = line.payload.session_id;
+      }
+    }
+    if (typeof line.payload.parent_thread_id === 'string' && !meta.parentThreadId) {
+      meta.parentThreadId = line.payload.parent_thread_id;
+    }
+    if (typeof line.payload.thread_source === 'string' && !meta.threadSource) {
+      meta.threadSource = line.payload.thread_source;
+    }
+    if (typeof line.payload.agent_nickname === 'string' && !meta.agentNickname) {
+      meta.agentNickname = line.payload.agent_nickname;
+    }
+    if (typeof line.payload.agent_role === 'string' && !meta.agentRole) {
+      meta.agentRole = line.payload.agent_role;
     }
     if (typeof line.payload.timestamp === 'string' && !meta.startedAt) {
       meta.startedAt = line.payload.timestamp;
@@ -102,6 +143,15 @@ function extractSessionMeta(lines: unknown[]): NormalizedSessionMeta {
     if (typeof line.payload.cwd === 'string' && !meta.cwd) {
       meta.cwd = line.payload.cwd;
     }
+    if (isSubagentSource(line.payload.source) || line.payload.thread_source === 'subagent') {
+      meta.isSubagent = true;
+    }
+  }
+
+  // Defensive: any child thread with a parent is a multi-agent spawn, even if
+  // an older Codex build omitted thread_source / source.subagent.
+  if (meta.parentThreadId && meta.sessionId && meta.parentThreadId !== meta.sessionId) {
+    meta.isSubagent = true;
   }
 
   return meta;
@@ -247,16 +297,62 @@ function titleFromPlanBlock(block: string): string | undefined {
   return undefined;
 }
 
-function isMeaningfulUserText(text: string): boolean {
+/**
+ * Codex injects many non-prompt "user" envelopes (plugin catalogs, env context,
+ * hooks, subagent notifications). These must not become plan titles or be
+ * treated as the session intent.
+ */
+const USER_ENVELOPE_OPENERS = [
+  /^#\s*agents\.md instructions\b/i,
+  /^<environment_context\b/i,
+  /^<system-reminder\b/i,
+  /^<recommended_plugins\b/i,
+  /^<user_action\b/i,
+  /^<user_instructions\b/i,
+  /^<user_prompt\b/i,
+  /^<hook_prompt\b/i,
+  /^<codex_internal_context\b/i,
+  /^<subagent_notification\b/i,
+  /^<skill\b/i,
+  /^<instructions\b/i,
+  /^<permissions(?:_|\s)?instructions\b/i,
+  /^<multi_agent_mode\b/i,
+  /^<collaboration_mode\b/i,
+  /^<turn_aborted\b/i,
+  /^<permissions\b/i,
+  /^<image\b/i,
+  /^files mentioned by the user:\s*$/i,
+];
+
+function isUserEnvelopeText(text: string): boolean {
   const normalized = normalizeLineEndings(text).trim();
-  if (!normalized) return false;
+  if (!normalized) return true;
+  return USER_ENVELOPE_OPENERS.some((pattern) => pattern.test(normalized));
+}
 
-  const lower = normalized.toLowerCase();
-  if (lower.startsWith('# agents.md instructions')) return false;
-  if (lower.startsWith('<environment_context>')) return false;
-  if (lower.startsWith('<system-reminder>')) return false;
+/** Prefer real user intent; strip a leading <task>… envelope when present. */
+function titleFromUserText(text: string): string | undefined {
+  let normalized = normalizeLineEndings(text).trim();
+  if (!normalized || isUserEnvelopeText(normalized)) return undefined;
 
-  return true;
+  // Unwrap <task>…</task> so the title is the inner prompt, not the tag.
+  const taskMatch = normalized.match(/^<task\b[^>]*>([\s\S]*?)(?:<\/task>|$)/i);
+  if (taskMatch?.[1]?.trim()) {
+    normalized = taskMatch[1].trim();
+  }
+
+  const firstLine = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line && !isUserEnvelopeText(line));
+  if (!firstLine) return undefined;
+
+  // Still looks like an XML control tag — not a usable title.
+  if (/^<\/?[a-z][\w:-]*(?:\s[^>]*)?>/i.test(firstLine) && firstLine.length < 80) {
+    return undefined;
+  }
+
+  return shorten(cleanTitle(firstLine), 80);
 }
 
 function extractTitle(
@@ -269,13 +365,10 @@ function extractTitle(
     if (planTitle) return shorten(planTitle, 120);
   }
 
-  const firstUser = messages.find((m) => m.role === 'user' && isMeaningfulUserText(m.text));
-  if (firstUser) {
-    const firstLine = normalizeLineEndings(firstUser.text)
-      .split('\n')
-      .map((line) => line.trim())
-      .find(Boolean);
-    if (firstLine) return shorten(cleanTitle(firstLine), 80);
+  for (const message of messages) {
+    if (message.role !== 'user') continue;
+    const title = titleFromUserText(message.text);
+    if (title) return title;
   }
 
   return basename(filename, '.jsonl');
@@ -310,6 +403,12 @@ export const codexCliAdapter: AgentAdapter = {
       const lines = parseJsonLines(raw);
       if (lines.length === 0) return [];
 
+      // Multi-agent child threads get their own rollout files. They re-use the
+      // parent prompt (and sometimes plan-like structure), which previously
+      // flooded the index/cloud with near-duplicate "plans". Never index them.
+      const sessionMeta = extractSessionMeta(lines);
+      if (sessionMeta.isSubagent) return [];
+
       const messages = extractMessages(lines);
       const { content, planBlocks } = selectPlanContent(messages);
       if (!content.trim()) return [];
@@ -318,12 +417,12 @@ export const codexCliAdapter: AgentAdapter = {
       if (planBlocks.length === 0 && !hasPlanMode) return [];
 
       const stats = await stat(filePath);
-      const sessionMeta = extractSessionMeta(lines);
       const createdAt = parseDate(sessionMeta.startedAt) ?? stats.birthtime;
       const title = extractTitle(messages, planBlocks, filePath);
 
       const metadata: Record<string, unknown> = {};
       if (sessionMeta.sessionId) metadata.sessionId = sessionMeta.sessionId;
+      if (sessionMeta.threadSource) metadata.threadSource = sessionMeta.threadSource;
       if (planBlocks.length > 0) {
         metadata.planBlocks = planBlocks.length;
         metadata.planEvidence = 'proposed-plan-block';
@@ -336,6 +435,14 @@ export const codexCliAdapter: AgentAdapter = {
       if (planBlocks.length === 0) {
         const assessment = assessPlanValue({ content, title, metadata });
         if (assessment.lowValue) return [];
+
+        const hasPlanStructure = assessment.signals.some(
+          (signal) =>
+            signal === 'checklist' ||
+            signal === 'metadata:proposed-plan-block' ||
+            signal.startsWith('section:'),
+        );
+        if (!hasPlanStructure) return [];
       }
 
       return [
