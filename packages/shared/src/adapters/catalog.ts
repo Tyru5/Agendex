@@ -159,7 +159,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     displayName: 'Claude Code',
     group: 'other',
     implemented: true,
-    defaultEnabled: false,
+    defaultEnabled: true,
     createAdapter: () => claudeCodeAdapter,
   },
   {

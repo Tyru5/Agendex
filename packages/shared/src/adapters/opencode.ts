@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   createStructuredSessionAdapter,
   type StructuredPlanCandidate,
@@ -169,11 +169,9 @@ export const openCodeAdapter = createStructuredSessionAdapter({
   format: 'sqlite',
   getSearchPaths: () => [dataDir()],
   matches: (filePath) => {
-    const filename = basename(filePath).toLowerCase();
-    return (
-      ['opencode.db', 'opencode.db-wal', 'opencode.db-shm'].includes(filename) &&
-      resolve(filePath).startsWith(resolve(databasePath()))
-    );
+    const db = resolve(databasePath());
+    const resolved = resolve(filePath);
+    return resolved === db || resolved === `${db}-wal` || resolved === `${db}-shm`;
   },
   resolveSourcePath: databasePath,
   decode: decodeOpenCodeDatabase,

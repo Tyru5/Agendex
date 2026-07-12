@@ -44,14 +44,33 @@ function unique(paths: string[]): string[] {
   return Array.from(new Set(paths.map((path) => resolve(path))));
 }
 
+/**
+ * Match Markdown plans under declared roots, or under a project-local agent marker
+ * directory that discovery walks separately from getSearchPaths.
+ *
+ * Marker paths no longer short-circuit with a bare `true`: the marker segment is
+ * resolved to a concrete directory and the file must be `isWithin` that directory
+ * (same containment rule as declared roots). A path that only contains the marker
+ * as a loose substring cannot match.
+ */
 function markdownInConfiguredRoot(
   filePath: string,
   getRoots: () => string[],
   marker?: string,
 ): boolean {
   if (!filePath.toLowerCase().endsWith('.md')) return false;
-  if (marker && hasMarker(filePath, marker)) return true;
-  return getRoots().some((root) => isWithin(filePath, root));
+
+  const roots = [...getRoots()];
+  if (marker) {
+    const normalized = normalizePath(filePath);
+    const needle = `/${marker.replaceAll('\\', '/')}/`;
+    const index = normalized.toLowerCase().lastIndexOf(needle.toLowerCase());
+    if (index >= 0) {
+      // Treat the marker directory itself as the root (e.g. `/repo/.kilo/plans`).
+      roots.push(normalized.slice(0, index + needle.length - 1));
+    }
+  }
+  return roots.some((root) => isWithin(filePath, root));
 }
 
 function readJson(path: string): Record<string, unknown> | undefined {
