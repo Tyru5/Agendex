@@ -145,17 +145,24 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: bun run --cwd packages/desktop dist -- --mac --universal
 
-      # electron-builder staples the notarization ticket to the .app inside the
-      # DMG, but not to the DMG container itself. Without a stapled DMG,
-      # Gatekeeper can't assess the disk image offline and some download paths
-      # surface a bogus "Agendex is damaged" dialog. Staple the DMG so
-      # `spctl -a -t open --context context:primary-signature <dmg>` passes.
-      - name: Staple notarization ticket to DMG
+      # electron-builder notarizes the .app before creating the DMG, so Apple
+      # has no ticket for the final disk-image hash. Submit the completed DMG,
+      # wait for its ticket, then staple it for offline Gatekeeper assessment.
+      - name: Notarize and staple DMG
         shell: bash
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           set -euo pipefail
           shopt -s nullglob
           for dmg in packages/desktop/release/*.dmg; do
+            echo "Notarizing $dmg"
+            xcrun notarytool submit "$dmg" \
+              --key "$APPLE_API_KEY" \
+              --key-id "$APPLE_API_KEY_ID" \
+              --issuer "$APPLE_API_ISSUER" \
+              --wait
             echo "Stapling $dmg"
             xcrun stapler staple "$dmg"
             xcrun stapler validate "$dmg"
