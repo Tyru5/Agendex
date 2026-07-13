@@ -95,3 +95,31 @@ test('remove-dir --live authenticates with AGENDEX_TOKEN when config has another
     server.close();
   }
 });
+
+test('sync --help renders help without running sync', async () => {
+  tempRoot = await mkdtemp(join(tmpdir(), 'agendex-cli-help-'));
+  const configDir = join(tempRoot, '.agendex-test');
+
+  const proc = Bun.spawn({
+    cmd: ['bun', 'packages/cli/src/cli.ts', 'sync', '--help'],
+    env: {
+      ...process.env,
+      HOME: tempRoot,
+      AGENDEX_CONFIG_DIR: configDir,
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const [exitCode, stdout, stderr] = await Promise.all([
+    proc.exited,
+    Bun.readableStreamToText(proc.stdout),
+    Bun.readableStreamToText(proc.stderr),
+  ]);
+
+  expect(exitCode).toBe(0);
+  expect(stderr).toBe('');
+  expect(stdout).toContain('Usage: agendex [OPTIONS] [COMMAND]');
+  expect(stdout).not.toContain('[agendex] Scanning local plans...');
+  expect(await Bun.file(join(configDir, 'config.json')).exists()).toBe(false);
+});

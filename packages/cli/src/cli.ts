@@ -68,6 +68,11 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  if (command === 'help' || args.includes('--help') || args.includes('-h')) {
+    writeStdout(renderHelp({ cliVersion: CLI_VERSION }));
+    return 0;
+  }
+
   const isPassthrough = [
     'stop',
     'status',
@@ -402,13 +407,6 @@ async function main(): Promise<number> {
 
     case 'upgrade': {
       return runUpgrade({ force: args.includes('--force') });
-    }
-
-    case 'help':
-    case '--help':
-    case '-h': {
-      writeStdout(renderHelp({ cliVersion: CLI_VERSION }));
-      return 0;
     }
 
     default: {

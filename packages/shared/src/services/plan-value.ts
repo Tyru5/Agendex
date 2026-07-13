@@ -444,6 +444,13 @@ function looksLikeCommitMessage(lines: string[]): boolean {
   return true;
 }
 
+function hasStatusVerdict(normalized: string): boolean {
+  return (
+    /^[ \t]*\*{0,2}VERDICT\*{0,2}[ \t]*:[ \t]*(?:FAIL|PASS|FAILED|PASSED)\b/im.test(normalized) ||
+    /^[ \t]*\*{0,2}(?:FAIL|PASS|FAILED|PASSED)\*{0,2}[ \t]*[.!]?[ \t]*$/im.test(normalized)
+  );
+}
+
 function looksLikeReviewOutput(normalized: string, title: string | undefined): boolean {
   const cleanedTitle = normalizedTitle(title);
   const lower = normalized.toLowerCase();
@@ -458,7 +465,7 @@ function looksLikeReviewOutput(normalized: string, title: string | undefined): b
     /\bthe patch (?:currently )?(?:breaks|introduces|regresses)\b/i.test(normalized) ||
     /\bshould not be considered correct\b/i.test(lower) ||
     // Codex review/audit verdicts and finding lists (not implementation plans).
-    /^(?:\*{0,2}VERDICT\*{0,2}\s*:\s*)?(?:FAIL|PASS|FAILED|PASSED)\b/im.test(trimmed) ||
+    hasStatusVerdict(trimmed) ||
     /^(?:\*{0,2}Verdict\*{0,2}\s*:\s*)/im.test(trimmed) ||
     /^(?:INVESTIGATE|FINDINGS?)\b(?:\s*[—:-]|\s*$)/im.test(trimmed) ||
     /^- \*\*INVESTIGATE\b/im.test(trimmed) ||
@@ -534,8 +541,8 @@ function looksLikeExecutionReport(normalized: string): boolean {
     // or `digitize` ("git") don't read as shell commands.
     /`[^`]*\b(?:bun|npm|pnpm|yarn|git|tsc|oxfmt|oxlint|biome)\b[^`]*`/i.test(normalized) ||
     /\b(?:git\s+(?:stage|commit|push|status)|bunx?\s+|npm\s+|pnpm\s+|yarn\s+)\b/i.test(normalized);
-  const hasStatusVerdict =
-    /^(?:\*{0,2}VERDICT\*{0,2}\s*:\s*)?(?:FAIL|PASS|FAILED|PASSED)\b/im.test(normalized.trim()) ||
+  const statusVerdict =
+    hasStatusVerdict(normalized.trim()) ||
     /^(?:\*{0,2}Verdict\*{0,2}\s*:)/im.test(normalized.trim());
   const hasRemainingGaps =
     /\b(?:remaining (?:contract )?gaps?|remaining (?:issues?|work)|true first-bad)\b/i.test(
@@ -544,7 +551,7 @@ function looksLikeExecutionReport(normalized: string): boolean {
 
   return (
     (hasPastCompletion && (hasReportSection || hasCommandMarker || hasReviewReportMarker)) ||
-    (hasStatusVerdict && (hasPastCompletion || hasRemainingGaps || hasCommandMarker)) ||
+    (statusVerdict && (hasPastCompletion || hasRemainingGaps || hasCommandMarker)) ||
     (hasRemainingGaps && hasPastCompletion)
   );
 }

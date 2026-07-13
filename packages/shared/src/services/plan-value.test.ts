@@ -201,6 +201,30 @@ The immediate HIL first-boot regression is fixed, but the broader contract is no
   ).toBe(true);
 });
 
+test('keeps plans with imperative Fail steps as valuable', () => {
+  const assessment = assessPlanValue({
+    title: 'Bandwidth Governor HIL Coverage',
+    content: `# Bandwidth Governor HIL Coverage
+
+## Context
+The HIL test needs deterministic diagnostics around the real room state.
+
+## Implementation
+1. Add a renderer probe that uses the existing public LiveKit APIs.
+Fail with explicit diagnostics when the proxy, agent ID, resource, or track cannot be resolved.
+2. Add lifecycle recovery coverage for the selected camera.
+
+## Verification
+Run the focused Electron and HIL tests.`,
+    metadata: { sessionId: 'generic-beaming-dusk' },
+  });
+
+  expect(assessment.lowValue).toBe(false);
+  expect(assessment.reasons).toEqual([]);
+  expect(assessment.signals).not.toContain('negative:review-output');
+  expect(assessment.signals).not.toContain('negative:execution-report');
+});
+
 test('marks accessibility/review finding lists as low-value', () => {
   const assessment = assessPlanValue({
     content: `Three findings:
