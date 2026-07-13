@@ -145,6 +145,22 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: bun run --cwd packages/desktop dist -- --mac --universal
 
+      # electron-builder staples the notarization ticket to the .app inside the
+      # DMG, but not to the DMG container itself. Without a stapled DMG,
+      # Gatekeeper can't assess the disk image offline and some download paths
+      # surface a bogus "Agendex is damaged" dialog. Staple the DMG so
+      # `spctl -a -t open --context context:primary-signature <dmg>` passes.
+      - name: Staple notarization ticket to DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for dmg in packages/desktop/release/*.dmg; do
+            echo "Stapling $dmg"
+            xcrun stapler staple "$dmg"
+            xcrun stapler validate "$dmg"
+          done
+
       - name: Collect release assets
         shell: bash
         run: |
