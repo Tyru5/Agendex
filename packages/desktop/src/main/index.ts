@@ -1,7 +1,8 @@
 import { join } from 'node:path';
 import { startNodeServer, type RunningNodeServer } from '@agendex/app/server';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
-import { app, BrowserWindow, ipcMain, utilityProcess } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron';
+import electronUpdaterPkg from 'electron-updater';
 import {
   clearCloudCreds,
   type CloudCreds,
@@ -23,6 +24,7 @@ import { registerDesktopIpc } from './desktop-ipc.ts';
 import { buildMenu } from './desktop-menu.ts';
 import { createDesktopProtocolController } from './desktop-protocol.ts';
 import { writeQaBootstrapEvidence, writeQaStartupEvidence } from './desktop-qa-evidence.ts';
+import { createDesktopUpdater } from './desktop-updater.ts';
 import { createDesktopWindow } from './desktop-window.ts';
 import { redactDesktopAuthCallbackUrl } from '@agendex/shared/desktop-auth-callback';
 import { installDesktopProtocolLifecycle } from './desktop-protocol-lifecycle.ts';
@@ -162,6 +164,37 @@ const desktopDaemon = new DesktopDaemonManager({
     const revalidated = loadCloudCreds();
     if (revalidated) await syncDaemonSession(revalidated);
     else reloadMainWindow();
+  },
+  log: (message, error) => {
+    if (error === undefined) console.error(`[agendex-desktop] ${message}`);
+    else console.error(`[agendex-desktop] ${message}`, error);
+  },
+});
+
+const desktopUpdater = createDesktopUpdater({
+  // electron-updater is CJS-only; the default export carries autoUpdater.
+  updater: electronUpdaterPkg.autoUpdater,
+  isPackaged: app.isPackaged,
+  promptToRestart: async ({ version }) => {
+    const { response } = await dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Ready',
+      message: `Agendex ${version} has been downloaded.`,
+      detail: 'Restart now to apply the update, or it will install the next time you quit.',
+      buttons: ['Restart Now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    return { restartNow: response === 0 };
+  },
+  notifyUpToDate: ({ version }) => {
+    void dialog.showMessageBox({
+      type: 'info',
+      title: 'No Updates',
+      message: `You're up to date.`,
+      detail: `Agendex ${version} is the latest version.`,
+      buttons: ['OK'],
+    });
   },
   log: (message, error) => {
     if (error === undefined) console.error(`[agendex-desktop] ${message}`);
@@ -314,7 +347,12 @@ if (!gotLock) {
         console.error('[agendex-desktop] cloud login failed', error);
       },
     });
-    buildMenu();
+    buildMenu(
+      desktopUpdater.isSupported
+        ? { onCheckForUpdates: () => void desktopUpdater.checkForUpdatesInteractive() }
+        : {},
+    );
+    desktopUpdater.start();
 
     const bootstrapAuthGeneration = authSessionGeneration;
     void refreshCloudSession()

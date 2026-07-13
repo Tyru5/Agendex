@@ -31,6 +31,16 @@ npmRebuild: false
 
 asar: true
 
+# Auto-update feed for electron-updater. Release tags use the `desktop-v` prefix,
+# which electron-updater's `github` provider can't parse as a version, so we use
+# the generic provider pointed at GitHub's stable "latest release" download alias.
+# electron-builder derives `app-update.yml` (bundled into the app) and
+# `latest-mac.yml`/`latest.yml` (uploaded next to the artifacts by the
+# desktop-release workflow) from this config.
+publish:
+  provider: generic
+  url: https://github.com/Tyru5/Agendex/releases/latest/download
+
 mac:
   category: public.app-category.developer-tools
   hardenedRuntime: true
