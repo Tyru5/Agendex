@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 4.1.1
+
+### Patch Changes
+
+- aa76aef: intelligence updates around plan quality
+
 ## 4.1.0
 
 ### Minor Changes
