@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { startNodeServer, type RunningNodeServer } from '@agendex/app/server';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron';
-import electronUpdaterPkg from 'electron-updater';
+import { autoUpdater } from 'electron-updater';
 import {
   clearCloudCreds,
   type CloudCreds,
@@ -172,8 +172,9 @@ const desktopDaemon = new DesktopDaemonManager({
 });
 
 const desktopUpdater = createDesktopUpdater({
-  // electron-updater is CJS-only; the default export carries autoUpdater.
-  updater: electronUpdaterPkg.autoUpdater,
+  // electron-updater is CJS-only and ships no `default` export; import the
+  // named `autoUpdater` binding so bundler interop can't yield `undefined`.
+  updater: autoUpdater,
   isPackaged: app.isPackaged,
   promptToRestart: async ({ version }) => {
     const { response } = await dialog.showMessageBox({
