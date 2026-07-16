@@ -62,6 +62,7 @@ export function CloudPlanCreator({
         title: trimmedTitle,
         content: trimmedContent,
         format: 'md',
+        metadata: { userCreated: true, planValueOverride: 'manual' },
       });
       onCreated(makeCloudPlan(planId, agent, trimmedTitle, trimmedContent));
     } catch (e) {

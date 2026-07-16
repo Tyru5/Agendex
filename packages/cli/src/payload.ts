@@ -84,7 +84,7 @@ export function fileToSyncPayload(
   const now = Date.now();
 
   const localPlanId = hashPath(absolutePath);
-  const metadata = { uploaded: true, userCreated: true };
+  const metadata = { uploaded: true, userCreated: true, planValueOverride: 'manual' };
   const identity = computePlanSyncIdentity({
     agent,
     title,

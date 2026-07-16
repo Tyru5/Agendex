@@ -615,6 +615,17 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
   const signals = [...positiveSignals];
   const reasons: PlanLowValueReason[] = [];
 
+  // A person explicitly selecting or authoring a plan is authoritative. The
+  // classifier exists to remove unattended adapter/sync noise, not to reject a
+  // manual upload that the owner has already confirmed is valuable.
+  if (metadata?.planValueOverride === 'manual') {
+    return {
+      lowValue: false,
+      reasons: [],
+      signals: [...signals, 'metadata:manual-value-override'],
+    };
+  }
+
   if (!VISIBLE_TEXT_REGEX.test(visibleText(normalized))) {
     return lowValueAssessment(['empty-content'], ['negative:empty-content']);
   }
@@ -678,7 +689,11 @@ export function assessPlanValue(input: AssessPlanValueInput): PlanValueAssessmen
   // Softer wrappers (TASK:/LENS:/<task>) may still wrap a structured plan body.
   if (isHardWrapperTitle(input.title) && !explicitPlanBlock) reasons.push('wrapper-title');
   else if (wrapperTitle && !explicitPlanBlock && !planStructure) reasons.push('wrapper-title');
-  if (reviewOutput && !explicitPlanBlock) reasons.push('review-output');
+  // A review can itself be a forward-looking implementation/QA plan. Keep
+  // bare findings and verdicts filtered, but allow review-derived documents
+  // with explicit plan structure (checklists, plan sections, acceptance
+  // criteria, etc.) to remain visible.
+  if (reviewOutput && !explicitPlanBlock && !planStructure) reasons.push('review-output');
   if (promptTitle && !strongPositive && !explicitPlanBlock) reasons.push('prompt-like');
   if (codeOnly && !explicitPlanBlock && !strongPositive) reasons.push('code-only');
   if (codeDominated && !explicitPlanBlock && !strongPositive) reasons.push('code-dominated');

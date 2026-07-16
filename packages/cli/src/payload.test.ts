@@ -130,6 +130,7 @@ test('fileToSyncPayload records upload provenance metadata', () => {
   expect(payload.metadata).toEqual({
     uploaded: true,
     userCreated: true,
+    planValueOverride: 'manual',
     agendexSync: { deviceId: 'dev-1', hostname: 'box' },
   });
 });

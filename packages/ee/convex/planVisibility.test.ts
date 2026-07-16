@@ -270,4 +270,14 @@ test('metadataWithPlanValueAssessment annotates low-value and removes stale keys
     },
   );
   expect(valuable).toEqual({ source: 'custom-dir' });
+
+  const manualUpload = metadataWithPlanValueAssessment(
+    { uploaded: true, userCreated: true, planValueOverride: 'manual' },
+    { title: 'Review notes', content: 'Three findings:\n\n1. **[P1] Fix the migration**' },
+  );
+  expect(manualUpload).toEqual({
+    uploaded: true,
+    userCreated: true,
+    planValueOverride: 'manual',
+  });
 });

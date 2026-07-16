@@ -145,6 +145,7 @@ export function CloudPlanUploader({
           title: trimmedTitle,
           content: trimmedContent,
           format: 'md',
+          metadata: { uploaded: true, userCreated: true, planValueOverride: 'manual' },
         });
         if (i === 0) {
           firstPlan = makeCloudPlan(planId, agent, trimmedTitle, trimmedContent);

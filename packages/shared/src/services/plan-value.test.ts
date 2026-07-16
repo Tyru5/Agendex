@@ -240,6 +240,40 @@ Read-only review; no files modified.`,
   expect(assessment.reasons).toContain('review-output');
 });
 
+test('keeps review-derived QA plans with explicit plan structure', () => {
+  const assessment = assessPlanValue({
+    title: 'ENG-4052 Account-First Studio Bootstrap',
+    content: `# ENG-4052 Account-First Studio Bootstrap
+
+## Review Findings
+
+Three findings:
+
+1. **[P1] Migration omits a required column**
+2. **[P1] Link work can outlive the request deadline**
+
+## Test Strategy
+
+A valid qualification run must verify user-visible behavior and backend state.
+
+## Release Gates
+
+- [ ] Apply the checked-in migration to a pre-branch schema.
+- [ ] Run the real database concurrency suite.
+- [ ] Verify account switching while requests are pending.
+
+## Recommended Execution Order
+
+1. Validate schema rollout.
+2. Validate database concurrency.
+3. Run packaged Electron lifecycle tests.`,
+  });
+
+  expect(assessment.signals).toContain('negative:review-output');
+  expect(assessment.lowValue).toBe(false);
+  expect(assessment.reasons).toEqual([]);
+});
+
 test('marks JSON red-team finding payloads as low-value', () => {
   const assessment = assessPlanValue({
     content: `{"severity":"INFORMATIONAL","confidence":10,"path":"auto-link-controller.ts","line":730,"category":"maintainability","summary":"The unbounded promise disables recovery.","fix":"Model human waiting explicitly."}`,
@@ -491,6 +525,17 @@ test('Codex proposed-plan blocks are a strong positive signal', () => {
 
   expect(assessment.lowValue).toBe(false);
   expect(assessment.signals).toContain('metadata:proposed-plan-block');
+});
+
+test('manual value override bypasses low-value classification', () => {
+  const assessment = assessPlanValue({
+    content: 'Three findings:\n\n1. **[P1] Fix the migration**',
+    metadata: { planValueOverride: 'manual' },
+  });
+
+  expect(assessment.lowValue).toBe(false);
+  expect(assessment.reasons).toEqual([]);
+  expect(assessment.signals).toContain('metadata:manual-value-override');
 });
 
 test('annotation metadata is deterministic and removes stale low-value keys from valuable plans', () => {
