@@ -92,9 +92,12 @@ Expected macOS assets:
 
 The marketing download page is `/download` (`packages/web` `DownloadPage`). It links to
 GitHub Releases for assets and explains the macOS Keychain prompt first-run users see.
-When you ship a new desktop version, bump `DESKTOP_VERSION` in
-`packages/web/src/client/components/DownloadPage.tsx` so the direct `.dmg` / `.zip` links
-stay current.
+
+`scripts/prepare-desktop-release.mjs --write` automatically bumps `DESKTOP_VERSION` in
+`packages/web/src/client/components/DownloadPage.tsx` for **stable** releases (not
+prereleases). The GitHub release workflow then commits that change to `main` after a
+successful publish so the live site stays current. Local `bun run release:desktop:mac`
+keeps the same download-page update on disk (commit it with your next web deploy).
 
 ## Root commands
 
