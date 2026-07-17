@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 4.1.2
+
+### Patch Changes
+
+- 04a0e7a: bypass plan upload option and updates to plan integrity value proposition
+
 ## 4.1.1
 
 ### Patch Changes
