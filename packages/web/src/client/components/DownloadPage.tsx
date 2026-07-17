@@ -9,9 +9,10 @@ export interface DownloadPageProps {
 }
 
 /**
- * Bump this when a new desktop release ships so direct download links stay
- * current. Asset names follow `Agendex-<version>-universal.{dmg,zip}` from
- * electron-builder (`docs/desktop-release.md`).
+ * Latest stable desktop release advertised on /download.
+ * Updated automatically by `scripts/prepare-desktop-release.mjs --write` when
+ * shipping a stable release (see `docs/desktop-release.md`). Asset names follow
+ * `Agendex-<version>-universal.{dmg,zip}` from electron-builder.
  */
 const DESKTOP_VERSION = '1.4.1';
 const DESKTOP_TAG = `desktop-v${DESKTOP_VERSION}`;

@@ -28,6 +28,7 @@ Builds, signs/notarizes, and publishes a macOS-only Agendex Desktop release to G
 Options:
   --dry-run       Print the commands without running them.
   --keep-version  Leave packages/desktop/package.json at the release version.
+                  (Stable releases always leave DownloadPage.tsx updated.)
   --skip-clean    Do not remove packages/desktop/release before packaging.
   --skip-upload   Package the release without creating a GitHub release.
   --help          Show this help.
@@ -186,6 +187,9 @@ async function main() {
 
   try {
     await cleanReleaseDir();
+    // --write also bumps packages/web DownloadPage DESKTOP_VERSION for stable
+    // releases. That change is intentionally kept so /download stays current;
+    // only packages/desktop/package.json is restored below.
     await run('node', ['scripts/prepare-desktop-release.mjs', version, '--write']);
     await run('bun', ['run', 'desktop:build']);
     await run('bun', ['run', '--cwd', 'packages/desktop', 'dist', '--', '--mac', '--universal']);
