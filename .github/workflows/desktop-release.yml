@@ -233,4 +233,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add packages/web/src/client/components/DownloadPage.tsx
           git commit -m "chore(web): bump desktop download version to ${VERSION}"
-          git push origin HEAD:main
+
+          # Release jobs can run for up to 120m (notarization). Commits that land
+          # on main in that window would reject a plain fast-forward push and mark
+          # the job failed after the GitHub Release is already published.
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            git push origin HEAD:main && break
+            if [[ "$attempt" -eq 3 ]]; then
+              echo "::error::Failed to push download page version bump after 3 attempts"
+              exit 1
+            fi
+            sleep 15
+          done
