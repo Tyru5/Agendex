@@ -52,7 +52,7 @@ jobs:
         run: bun run check
 
       - name: Run desktop-related tests
-        run: bun test packages/desktop packages/shared/src/convex-url.test.ts packages/shared/src/desktop-auth-callback.test.ts packages/ee/src/lib/desktop.test.ts packages/ee/src/lib/desktop-auth-flow.test.ts packages/ee/src/lib/cli-auth-callback.test.ts packages/ee/src/lib/cloud-query-mode.test.ts
+        run: bun test packages/desktop packages/shared/src/convex-url.test.ts packages/shared/src/desktop-auth-callback.test.ts packages/ee/src/lib/desktop.test.ts packages/ee/src/lib/desktop-auth-flow.test.ts packages/ee/src/lib/cli-auth-callback.test.ts packages/ee/src/lib/cloud-query-mode.test.ts scripts/prepare-desktop-release.test.mjs
 
   release:
     name: Build and publish macOS
