@@ -1,7 +1,7 @@
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 
-export type PlanVersionSource = 'cli_sync' | 'editor' | 'restore';
+export type PlanVersionSource = 'cli_sync' | 'editor' | 'restore' | 'backfill';
 
 export type PlanVersionSnapshot = {
   title: string;
@@ -75,6 +75,7 @@ export async function ensureBaselinePlanVersion(
     planId: args.planId,
     version: args.version,
     snapshot: args.snapshot,
+    source: 'backfill',
     createdAt: args.createdAt,
   });
   return true;

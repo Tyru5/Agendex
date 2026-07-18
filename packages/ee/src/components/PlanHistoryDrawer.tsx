@@ -14,6 +14,8 @@ function sourceLabel(source?: string): string {
       return 'Edited';
     case 'restore':
       return 'Restored';
+    case 'backfill':
+      return 'Initial snapshot';
     default:
       return '';
   }

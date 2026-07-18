@@ -17,7 +17,7 @@ import {
   mergePlanMetadata,
   metadataWithPlanValueAssessment,
 } from './planVisibility';
-import { ensureBaselinePlanVersion, recordPlanVersion } from './planVersioning';
+import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { stripLocalIpFromMetadata } from './privacy';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
@@ -360,6 +360,37 @@ export const upsertPlan = internalMutation({
 
     if (args.existingId && args.existingVersion !== undefined) {
       const existing = await ctx.db.get(args.existingId);
+      const contentChanged = existing ? planContentChanged(existing, args) : true;
+
+      // Non-content field updates (format/path/workspace/identity) still patch the
+      // live row, but must not create empty "CLI sync" history entries.
+      if (!contentChanged) {
+        await ctx.db.patch(args.existingId, {
+          agent: args.agent,
+          title: args.title,
+          content: args.content,
+          format: args.format,
+          filePath: args.filePath,
+          workspace: args.workspace,
+          metadata: args.metadata,
+          ...(continuityKey ? { plannotatorContinuityKey: continuityKey } : {}),
+          syncIdentityKey: args.syncIdentityKey,
+          contentHash: args.contentHash,
+          identityVersion: args.identityVersion,
+          identityStrength: args.identityStrength,
+          updatedAt,
+        });
+        await markSupersededPlannotatorSessions(ctx, {
+          ownerId: args.ownerId,
+          canonicalPlanId: args.existingId,
+          canonicalLocalPlanId: args.localPlanId,
+          metadata: args.metadata,
+          filePath: args.filePath,
+          now,
+        });
+        return args.existingId;
+      }
+
       if (existing) {
         await ensureBaselinePlanVersion(ctx, {
           ownerId: args.ownerId,
