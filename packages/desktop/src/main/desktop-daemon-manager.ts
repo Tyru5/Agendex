@@ -4,6 +4,7 @@ import {
   acquireDaemonStartLock,
   isAgendexDaemonProcess,
   isDaemonPidInfoCurrent,
+  isDaemonPidInfoRunning,
   isRunning,
   readPidInfo,
   removePid,
@@ -164,7 +165,8 @@ export class DesktopDaemonManager {
     const orphanPid =
       observedIsCurrent &&
       observed?.launcher === 'desktop' &&
-      this.processIsDaemon(observed.pid) &&
+      this.processIsRunning(observed.pid) &&
+      this.processLooksLikeDaemon(observed) &&
       observed.parentPid !== undefined &&
       !this.processIsRunning(observed.parentPid)
         ? observed.pid
@@ -194,7 +196,7 @@ export class DesktopDaemonManager {
 
     try {
       const current = readPidInfo(pathOptions);
-      if (current && this.pidInfoIsCurrent(current) && this.processIsDaemon(current.pid)) {
+      if (current && this.pidInfoMatchesRunningDaemon(current)) {
         return 'already-running';
       }
       if (current) removePid(current.pid, pathOptions);
@@ -207,6 +209,8 @@ export class DesktopDaemonManager {
       if (this.options.isDev) env.AGENDEX_DEV = '1';
       else delete env.AGENDEX_DEV;
 
+      // Script args land on the worker's process.argv. Do not put the marker in execArgv —
+      // Node rejects unrecognized -- flags at startup ("bad option").
       const child = this.options.forkWorker(workerEntry, ['--agendex-daemon-worker'], {
         env,
         serviceName: 'Agendex Sync',
@@ -312,6 +316,27 @@ export class DesktopDaemonManager {
 
   private pidInfoIsCurrent(info: DaemonPidInfo): boolean {
     return (this.options.isPidInfoCurrent ?? isDaemonPidInfoCurrent)(info);
+  }
+
+  private pidInfoMatchesRunningDaemon(info: DaemonPidInfo): boolean {
+    if (!this.pidInfoIsCurrent(info)) return false;
+    if (this.options.isDaemonProcess) {
+      return this.processIsDaemon(info.pid);
+    }
+    // Honor injected liveness/freshness; force provenance checks already satisfied above.
+    return isDaemonPidInfoRunning(info, {
+      processRunning: this.processIsRunning(info.pid),
+      currentHostname: info.hostname,
+      currentBootId: info.bootId ?? null,
+    });
+  }
+
+  /** Orphan workers may still look like Electron utilities after the parent exits. */
+  private processLooksLikeDaemon(info: DaemonPidInfo): boolean {
+    if (this.options.isDaemonProcess) return this.processIsDaemon(info.pid);
+    if (this.processIsDaemon(info.pid)) return true;
+    // Force parent-alive so desktop utility ownership can match after Electron exits.
+    return isDaemonPidInfoRunning(info, { parentProcessRunning: true });
   }
 
   private postTo(child: UtilityProcess, message: DesktopDaemonParentMessage): boolean {

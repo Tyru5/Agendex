@@ -49,7 +49,7 @@ test('renders grouped status with daemon, cloud, and source summaries', () => {
   const output = renderStatus({
     config: config(),
     configPath: '/tmp/agendex/config.json',
-    pidInfo: { pid: 123, startedAtMs: NOW - 90_000, hostname: 'workstation' },
+    pidInfo: { pid: 123, startedAtMs: NOW - 90_000, hostname: 'workstation', launcher: 'cli' },
     running: true,
     cliVersion: '2.0.0',
     devices,
@@ -62,7 +62,7 @@ test('renders grouped status with daemon, cloud, and source summaries', () => {
   expect(output).toContain('Cloud:');
   expect(output).toContain('Plan sources:');
   expect(output).toContain('✓ running');
-  expect(output).toContain('PID 123 • up 1m 30s • host workstation');
+  expect(output).toContain('PID 123 • up 1m 30s • host workstation • via CLI');
   expect(output).toContain('✓ 2 devices');
   expect(output).toContain('1 alive • 1 stale');
   expect(output).toContain('workstation (this machine)');
@@ -72,6 +72,28 @@ test('renders grouped status with daemon, cloud, and source summaries', () => {
   expect(output).toContain('claude-code, codex');
   expect(output).toContain('/plans/team');
   expect(output).toContain('agendex cleanup --stale');
+});
+
+test('renders desktop spawn origin for Electron-launched daemons', () => {
+  const output = renderStatus({
+    config: config(),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: {
+      pid: 456,
+      startedAtMs: NOW - 30_000,
+      hostname: 'workstation',
+      launcher: 'desktop',
+      parentPid: 100,
+    },
+    running: true,
+    cliVersion: '2.0.0',
+    devices: [],
+    now: NOW,
+    color: false,
+  });
+
+  expect(output).toContain('✓ running');
+  expect(output).toContain('PID 456 • up 30s • host workstation • via desktop app');
 });
 
 test('renders actionable setup guidance when config is missing', () => {

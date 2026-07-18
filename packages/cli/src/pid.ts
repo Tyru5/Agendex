@@ -145,6 +145,8 @@ export interface DaemonPidFreshnessOptions {
   currentBootId?: string | null;
   processCommand?: string | null;
   processRunning?: boolean;
+  /** Override for desktop launcher parent liveness checks (tests). */
+  parentProcessRunning?: boolean;
 }
 
 /** Checks record provenance only; validate each live PID separately before signaling it. */
@@ -170,7 +172,13 @@ export function isDaemonPidInfoRunning(
   if (!running) return false;
   const command =
     options.processCommand !== undefined ? options.processCommand : readProcessCommand(info.pid);
-  return isAgendexDaemonCommand(command);
+  if (isAgendexDaemonCommand(command)) return true;
+
+  // Electron utilityProcess.fork Node args are process.argv inside the worker, but often
+  // do not appear in OS process listings (`ps` / WMI). Trust desktop pid-file provenance
+  // while the recorded Electron parent is still alive and the live process still looks
+  // like an Electron utility worker — avoids false "not running" in `agendex status`.
+  return isDesktopDaemonOwnership(info, command, options);
 }
 
 export function isAgendexDaemonProcess(pid: number): boolean {
@@ -275,6 +283,24 @@ function isAgendexDaemonCommand(command: string | null): boolean {
   }
   if (!normalized.includes('agendex')) return false;
   return normalized.includes('--daemon') || normalized.includes('--worker');
+}
+
+function isElectronUtilityCommand(command: string | null): boolean {
+  if (!command) return false;
+  // Node utilityProcess.fork workers only — not Chromium network/audio/GPU helpers.
+  return command.toLowerCase().includes('--utility-sub-type=node.mojom.nodeservice');
+}
+
+function isDesktopDaemonOwnership(
+  info: DaemonPidInfo,
+  command: string | null,
+  options: DaemonPidFreshnessOptions,
+): boolean {
+  if (info.launcher !== 'desktop') return false;
+  if (!Number.isInteger(info.parentPid) || (info.parentPid as number) <= 0) return false;
+  const parentRunning = options.parentProcessRunning ?? isRunning(info.parentPid as number);
+  if (!parentRunning) return false;
+  return isElectronUtilityCommand(command);
 }
 
 export function requestDaemonStop(pid: number, options: DaemonPathOptions = {}): void {
