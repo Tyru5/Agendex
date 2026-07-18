@@ -1,15 +1,11 @@
-import { useMemo } from 'react';
-import { focusPlanSearchField } from './PlanSearchField.tsx';
+import { focusPlanSearchField, useShortcutLabel } from './PlanSearchField.tsx';
 
 type SearchBarProps = {
   onFocusSearch?: () => void;
 };
 
 export function SearchBar({ onFocusSearch }: SearchBarProps) {
-  const shortcutLabel = useMemo(() => {
-    if (typeof navigator === 'undefined') return 'Mod K';
-    return /Mac|iPhone|iPad/i.test(navigator.platform) ? '⌘K' : 'Ctrl K';
-  }, []);
+  const shortcutLabel = useShortcutLabel();
 
   return (
     <button

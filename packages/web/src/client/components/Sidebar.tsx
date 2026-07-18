@@ -169,7 +169,7 @@ export function Sidebar({
           </div>
         ) : error ? (
           <div className="p-4 text-[13px] text-[var(--danger)]">Failed to load plans.</div>
-        ) : filteredPlans.length === 0 ? (
+        ) : (
           <PlanList
             plans={filteredPlans}
             selectedId={selectedPlanId}
@@ -187,16 +187,6 @@ export function Sidebar({
                   }
                 : undefined
             }
-          />
-        ) : (
-          <PlanList
-            plans={filteredPlans}
-            selectedId={selectedPlanId}
-            isPro={isPro}
-            splitPlanId={splitPlanId}
-            onSelect={(plan) => startViewTransition(() => onSelectPlan(plan))}
-            onOpenInSplitView={onOpenInSplitView}
-            folderState={folderState}
           />
         )}
       </div>

@@ -6,11 +6,12 @@ import {
   applyPlanFilters,
   hasToken,
   LandingPage,
+  normalizeFilterValues,
   OfflineView,
   type Plan,
+  PlanFilterMismatchBanner,
   PlanSourcesDialog,
   PlanViewer,
-  PlanFilterMismatchBanner,
   Sidebar,
   startViewTransition,
   ToolsUsedPage,
@@ -77,11 +78,11 @@ function Dashboard() {
   const legacyAgentFilter = legacyAgentFilterRaw ?? undefined;
   const workspaceFilter = workspaceFilterRaw ?? undefined;
   const selectedAgents = useMemo(() => {
-    if (agentsFilterRaw.length > 0) return normalizeAgentFilters(agentsFilterRaw);
-    return legacyAgentFilter ? normalizeAgentFilters([legacyAgentFilter]) : [];
+    if (agentsFilterRaw.length > 0) return normalizeFilterValues(agentsFilterRaw);
+    return legacyAgentFilter ? normalizeFilterValues([legacyAgentFilter]) : [];
   }, [agentsFilterRaw, legacyAgentFilter]);
   const setSelectedAgents = useCallback(
-    (agents: string[]) => setFilters({ agents: normalizeAgentFilters(agents), agent: null }),
+    (agents: string[]) => setFilters({ agents: normalizeFilterValues(agents), agent: null }),
     [setFilters],
   );
   const setWorkspaceFilter = useCallback(
@@ -184,10 +185,10 @@ function Dashboard() {
     return [
       selectedPlan.id,
       search.trim(),
-      selectedAgents.join('\u001f'),
+      selectedAgents.join(','),
       workspaceFilter ?? '',
       dateBucket,
-    ].join('\u001e');
+    ].join('|');
   }, [dateBucket, search, selectedAgents, selectedPlan, workspaceFilter]);
   const [dismissedFilterMismatchKey, setDismissedFilterMismatchKey] = useState<string | null>(null);
   const selectedPlanOutsideFilters = Boolean(selectedPlan && !filteredPlanIds.has(selectedPlan.id));
@@ -393,10 +394,6 @@ function Dashboard() {
       </div>
     </div>
   );
-}
-
-function normalizeAgentFilters(agents: readonly string[]): string[] {
-  return [...new Set(agents.map((agent) => agent.trim()).filter(Boolean))];
 }
 
 function SessionExpiredBanner() {

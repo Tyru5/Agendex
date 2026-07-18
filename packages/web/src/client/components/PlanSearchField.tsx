@@ -78,7 +78,7 @@ export function PlanSearchField({
   );
 }
 
-function useShortcutLabel() {
+export function useShortcutLabel(): string {
   return useMemo(() => {
     if (typeof navigator === 'undefined') return 'Mod K';
     return /Mac|iPhone|iPad/i.test(navigator.platform) ? '⌘K' : 'Ctrl K';

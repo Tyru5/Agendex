@@ -109,6 +109,7 @@ export type {
 export {
   applyPlanFilters,
   deriveFilterChips,
+  normalizeFilterValues,
   workspacesFromPlans,
 } from './client/lib/plan-filters.ts';
 export type { OutlineEntry } from './client/lib/extract-headings.ts';

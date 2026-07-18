@@ -18,7 +18,7 @@ export function AgentFilter({
   const totalPlans = agents.reduce((sum, agent) => sum + agent.planCount, 0);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 
-  const sortedAgents = useMemo(() => {
+  const visibleAgents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const sorted = agents
       .filter((agent) => agent.planCount > 0)
@@ -66,7 +66,7 @@ export function AgentFilter({
           active={selected.length === 0}
           onClick={() => onChange([])}
         />
-        {sortedAgents.map((agent) => (
+        {visibleAgents.map((agent) => (
           <AgentButton
             key={agent.agent}
             agent={agent.agent}
@@ -77,7 +77,7 @@ export function AgentFilter({
           />
         ))}
 
-        {sortedAgents.length === 0 && <div className="sidebar-muted-note">No agents match</div>}
+        {visibleAgents.length === 0 && <div className="sidebar-muted-note">No agents match</div>}
       </div>
     </div>
   );

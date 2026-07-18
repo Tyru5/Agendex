@@ -10,6 +10,7 @@ import {
   hasToken,
   LandingPage,
   MAX_FOLDERS,
+  normalizeFilterValues,
   OfflineView,
   type Plan,
   PlanList,
@@ -154,10 +155,6 @@ const dateOptions = ['all', 'today', '7d', '30d'] as const;
 
 type TagRecord = Doc<'tags'>;
 type CollectionRecord = Doc<'collections'>;
-
-function normalizeFilterList(values: readonly string[]): string[] {
-  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
-}
 
 function BootLoadingView({
   message = 'Loading your dashboard...',
@@ -1978,19 +1975,19 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const workspaceFilter = workspaceFilterRaw ?? undefined;
   const selectedCollection = selectedCollectionRaw ?? undefined;
-  const selectedTags = useMemo(() => normalizeFilterList(selectedTagsRaw), [selectedTagsRaw]);
+  const selectedTags = useMemo(() => normalizeFilterValues(selectedTagsRaw), [selectedTagsRaw]);
   const selectedAgents = useMemo(() => {
-    const agents = normalizeFilterList(selectedAgentsRaw);
+    const agents = normalizeFilterValues(selectedAgentsRaw);
     if (agents.length > 0) return agents;
     return legacyAgentFilterRaw ? [legacyAgentFilterRaw] : [];
   }, [legacyAgentFilterRaw, selectedAgentsRaw]);
   const setSelectedAgents = useCallback(
-    (agents: string[]) => setFilters({ agent: null, agents: normalizeFilterList(agents) }),
+    (agents: string[]) => setFilters({ agent: null, agents: normalizeFilterValues(agents) }),
     [setFilters],
   );
   useEffect(() => {
     const legacyAgent = legacyAgentFilterRaw?.trim();
-    if (!legacyAgent || normalizeFilterList(selectedAgentsRaw).length > 0) return;
+    if (!legacyAgent || normalizeFilterValues(selectedAgentsRaw).length > 0) return;
     void setFilters({ agent: null, agents: [legacyAgent] });
   }, [legacyAgentFilterRaw, selectedAgentsRaw, setFilters]);
   const setWorkspaceFilter = useCallback(
@@ -2029,7 +2026,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const mode = canSwitchMode ? (modeOverride ?? autoMode) : autoMode;
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const setSelectedTags = useCallback(
-    (tags: string[]) => setFilters({ tags: normalizeFilterList(tags) }),
+    (tags: string[]) => setFilters({ tags: normalizeFilterValues(tags) }),
     [setFilters],
   );
   const setSelectedCollection = useCallback(
@@ -2372,11 +2369,12 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     dsd({ type: 'TOGGLE_SIDEBAR' });
   }
 
+  const clearPeekTimer = peek.clear;
   const revealSidebarForSearch = useCallback(() => {
-    peek.clear();
+    clearPeekTimer();
     setSidebarPeek(false);
     setSidebarHidden(false);
-  }, [peek.clear, setSidebarPeek, setSidebarHidden]);
+  }, [clearPeekTimer, setSidebarPeek, setSidebarHidden]);
 
   function toggleOutline() {
     dsd({ type: 'TOGGLE_OUTLINE' });

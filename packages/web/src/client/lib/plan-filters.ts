@@ -159,17 +159,26 @@ export function workspacesFromPlans(plans: readonly Plan[]): string[] {
   );
 }
 
+/** Trims values, drops empties, and dedupes — the normalization both apps apply to list filters. */
+export function normalizeFilterValues(values: readonly string[]): string[] {
+  return [...new Set(nonEmptyValues(values))];
+}
+
+function lookup<T>(
+  source: ReadonlyMap<string, T> | Readonly<Record<string, T>>,
+  key: string,
+): T | undefined {
+  if (source instanceof Map) return source.get(key);
+  return (source as Readonly<Record<string, T>>)[key];
+}
+
 function getPlanTags(planTagsById: PlanTagsById, planId: string): readonly PlanTagMembership[] {
-  if (planTagsById instanceof Map) return planTagsById.get(planId) ?? [];
-  const planTagsRecord = planTagsById as Readonly<Record<string, readonly PlanTagMembership[]>>;
-  return planTagsRecord[planId] ?? [];
+  return lookup(planTagsById, planId) ?? [];
 }
 
 function labelFor(labels: LabelLookup | undefined, value: string): string {
   if (!labels) return value;
-  if (labels instanceof Map) return labels.get(value) ?? value;
-  const labelRecord = labels as LabelRecord;
-  return labelRecord[value] ?? value;
+  return lookup(labels, value) ?? value;
 }
 
 function nonEmptyValues(values: readonly string[] | undefined): string[] {
@@ -180,6 +189,6 @@ function normalizeValue(value: string | undefined): string {
   return value?.trim() ?? '';
 }
 
-function isNonEmpty(value: string): value is string {
+function isNonEmpty(value: string): boolean {
   return value.length > 0;
 }
