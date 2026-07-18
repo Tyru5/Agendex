@@ -18,6 +18,7 @@ This directory contains the Convex backend for Agendex Cloud / EE. It powers aut
 - `plans.ts` - EE plan retrieval helpers and shared plan access
 - `planVisibility.ts` - shared low-value plan classification on ingest, metadata merge, and visibility gates for reads
 - `planVersions.ts` - plan history listing, snapshot reads, and restore flow
+- `planVersioning.ts` - shared helpers that write `planVersions` snapshots on create, CLI sync, editor save, and restore
 - `planCleanup.ts` - internal dry-run audit and apply cleanup for existing low-value cloud rows and Codex subagent/title-family clones (maintainer-only)
 - `sharing.ts` - create and revoke share links
 - `comments.ts` - read, create, and delete plan comments

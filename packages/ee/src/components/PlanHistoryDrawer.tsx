@@ -106,7 +106,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
             <path d="M12 7v5l4 2" />
           </svg>
           <p className="font-medium text-secondary mb-1">No history yet</p>
-          <p>History will appear after your next edit.</p>
+          <p>Edits and CLI syncs will appear here as versions.</p>
         </div>
       ) : (
         <>

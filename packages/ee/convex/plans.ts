@@ -12,6 +12,7 @@ import {
   isVisiblePlan,
   metadataWithPlanValueAssessment,
 } from './planVisibility';
+import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
 
 export const publishPlan = mutation({
@@ -49,35 +50,52 @@ export const publishPlan = mutation({
       .first();
 
     if (existing) {
+      if (!planContentChanged(existing, args)) {
+        return existing._id;
+      }
+
+      await ensureBaselinePlanVersion(ctx, {
+        ownerId,
+        planId: existing._id,
+        version: existing.version,
+        snapshot: {
+          title: existing.title,
+          content: existing.content,
+          format: existing.format,
+          filePath: existing.filePath,
+          workspace: existing.workspace,
+          metadata: existing.metadata,
+        },
+        createdAt: existing.updatedAt,
+      });
+
       const newVersion = existing.version + 1;
-      await ctx.db.patch(existing._id, {
-        agent: args.agent,
+      const snapshot = {
         title: args.title,
         content: args.content,
         format: args.format,
         filePath: args.filePath,
         workspace: args.workspace,
         metadata,
+      };
+      await ctx.db.patch(existing._id, {
+        agent: args.agent,
+        ...snapshot,
         version: newVersion,
         updatedAt: now,
       });
-      await ctx.db.insert('planVersions', {
+      await recordPlanVersion(ctx, {
         ownerId,
         planId: existing._id,
         version: newVersion,
-        title: args.title,
-        content: args.content,
-        format: args.format,
-        filePath: args.filePath,
-        workspace: args.workspace,
-        metadata,
-        source: 'cli_sync',
+        snapshot,
+        source: 'editor',
         createdAt: now,
       });
       return existing._id;
     }
 
-    return await ctx.db.insert('plans', {
+    const planId = await ctx.db.insert('plans', {
       ownerId,
       localPlanId: args.localPlanId,
       agent: args.agent,
@@ -91,6 +109,24 @@ export const publishPlan = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    await recordPlanVersion(ctx, {
+      ownerId,
+      planId,
+      version: 1,
+      snapshot: {
+        title: args.title,
+        content: args.content,
+        format: args.format,
+        filePath: args.filePath,
+        workspace: args.workspace,
+        metadata,
+      },
+      source: 'editor',
+      createdAt: now,
+    });
+
+    return planId;
   },
 });
 
@@ -339,9 +375,24 @@ export const updatePlanContent = mutation({
       throw new ConvexError('Access denied');
     }
 
-    if (plan.title === args.title && plan.content === args.content) {
+    if (!planContentChanged(plan, args)) {
       return;
     }
+
+    await ensureBaselinePlanVersion(ctx, {
+      ownerId: user._id,
+      planId: args.planId,
+      version: plan.version,
+      snapshot: {
+        title: plan.title,
+        content: plan.content,
+        format: plan.format,
+        filePath: plan.filePath,
+        workspace: plan.workspace,
+        metadata: plan.metadata,
+      },
+      createdAt: plan.updatedAt,
+    });
 
     const newVersion = plan.version + 1;
     const now = Date.now();
@@ -349,6 +400,14 @@ export const updatePlanContent = mutation({
       title: args.title,
       content: args.content,
     });
+    const snapshot = {
+      title: args.title,
+      content: args.content,
+      format: plan.format,
+      filePath: plan.filePath,
+      workspace: plan.workspace,
+      metadata,
+    };
 
     await ctx.db.patch(args.planId, {
       title: args.title,
@@ -358,22 +417,16 @@ export const updatePlanContent = mutation({
       updatedAt: now,
     });
 
-    await ctx.db.insert('planVersions', {
+    await recordPlanVersion(ctx, {
       ownerId: user._id,
       planId: args.planId,
       version: newVersion,
-      title: args.title,
-      content: args.content,
-      format: plan.format,
-      filePath: plan.filePath,
-      workspace: plan.workspace,
-      metadata,
+      snapshot,
       source: 'editor',
       createdAt: now,
     });
   },
 });
-
 export const deletePlan = mutation({
   args: { planId: v.id('plans') },
   handler: async (ctx, args) => {
