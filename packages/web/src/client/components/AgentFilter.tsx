@@ -3,107 +3,81 @@ import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { AgentStats } from '../lib/api.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
-const VISIBLE_AGENT_COUNT = 5;
+const AGENT_SEARCH_THRESHOLD = 6;
 
 export function AgentFilter({
   agents,
   selected,
-  onSelect,
+  onChange,
 }: {
   agents: AgentStats[];
-  selected: string | undefined;
-  onSelect: (agent: string | undefined) => void;
+  selected: readonly string[];
+  onChange: (agents: string[]) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [query, setQuery] = useState('');
   const totalPlans = agents.reduce((sum, agent) => sum + agent.planCount, 0);
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
 
-  const { visibleAgents, overflowAgents } = useMemo(() => {
+  const sortedAgents = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
     const sorted = agents
       .filter((agent) => agent.planCount > 0)
       .sort((a, b) => {
         if (b.planCount !== a.planCount) return b.planCount - a.planCount;
         return getAgentLabel(a.agent).localeCompare(getAgentLabel(b.agent));
       });
+    if (!normalizedQuery) return sorted;
+    return sorted.filter(
+      (agent) =>
+        agent.agent.toLowerCase().includes(normalizedQuery) ||
+        getAgentLabel(agent.agent).toLowerCase().includes(normalizedQuery),
+    );
+  }, [agents, query]);
 
-    const topAgents = sorted.slice(0, VISIBLE_AGENT_COUNT);
-    const visibleIds = new Set(topAgents.map((agent) => agent.agent));
-    const selectedStat = selected ? agents.find((agent) => agent.agent === selected) : undefined;
-    const selectedHidden =
-      selectedStat && !visibleIds.has(selectedStat.agent) ? selectedStat : undefined;
-    const baseVisible = selectedHidden ? [...topAgents, selectedHidden] : topAgents;
-    const baseVisibleIds = new Set(baseVisible.map((agent) => agent.agent));
-
-    return {
-      visibleAgents: baseVisible,
-      overflowAgents: sorted.filter((agent) => !baseVisibleIds.has(agent.agent)),
-    };
-  }, [agents, selected]);
+  function toggleAgent(agent: string) {
+    if (selectedSet.has(agent)) {
+      onChange(selected.filter((selectedAgent) => selectedAgent !== agent));
+      return;
+    }
+    onChange([...selected, agent]);
+  }
 
   return (
     <div className="sidebar-control-block">
       <div className="sidebar-control-header">
         <span className="sidebar-control-label">Agents</span>
-        {overflowAgents.length > 0 && (
-          <span className="sidebar-count-pill">+{overflowAgents.length}</span>
-        )}
+        {selected.length > 0 && <span className="sidebar-count-pill">{selected.length}</span>}
       </div>
+      {agents.length >= AGENT_SEARCH_THRESHOLD && (
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="sidebar-inline-input"
+          placeholder="Find agent"
+          aria-label="Find agent"
+        />
+      )}
       <div className="sidebar-agent-tray">
         <AgentButton
           agent={undefined}
           label="All plans"
           count={totalPlans}
-          active={!selected}
-          onClick={() => onSelect(undefined)}
+          active={selected.length === 0}
+          onClick={() => onChange([])}
         />
-        {visibleAgents.map((agent) => (
+        {sortedAgents.map((agent) => (
           <AgentButton
             key={agent.agent}
             agent={agent.agent}
             label={getAgentLabel(agent.agent)}
             count={agent.planCount}
-            active={agent.agent === selected}
-            onClick={() => onSelect(agent.agent === selected ? undefined : agent.agent)}
+            active={selectedSet.has(agent.agent)}
+            onClick={() => toggleAgent(agent.agent)}
           />
         ))}
 
-        {expanded &&
-          overflowAgents.map((agent) => (
-            <AgentButton
-              key={agent.agent}
-              agent={agent.agent}
-              label={getAgentLabel(agent.agent)}
-              count={agent.planCount}
-              active={agent.agent === selected}
-              onClick={() => onSelect(agent.agent === selected ? undefined : agent.agent)}
-            />
-          ))}
-
-        {overflowAgents.length > 0 && (
-          <button
-            type="button"
-            className="sidebar-compact-row sidebar-compact-row--subtle"
-            aria-expanded={expanded}
-            onClick={() => setExpanded((current) => !current)}
-          >
-            <span className="sidebar-compact-label">
-              {expanded ? 'Show fewer agents' : `More agents · ${overflowAgents.length}`}
-            </span>
-            <svg
-              aria-hidden="true"
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ transform: expanded ? 'rotate(180deg)' : undefined }}
-            >
-              <path d="m4 6 4 4 4-4" />
-            </svg>
-          </button>
-        )}
+        {sortedAgents.length === 0 && <div className="sidebar-muted-note">No agents match</div>}
       </div>
     </div>
   );

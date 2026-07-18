@@ -35,6 +35,7 @@ interface TopbarProps {
   plans: Plan[];
   selectedPlan?: Plan;
   onSelectPlan: (plan: Plan | undefined) => void;
+  onFocusSearch?: () => void;
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
   totalPlans: number;
@@ -55,6 +56,7 @@ export function Topbar({
   plans,
   selectedPlan,
   onSelectPlan,
+  onFocusSearch,
   splitPlanId,
   onOpenInSplitView,
   totalPlans,
@@ -120,6 +122,7 @@ export function Topbar({
           plans={plans}
           selectedId={selectedPlan?.id}
           onSelectPlan={onSelectPlan}
+          onFocusSearch={onFocusSearch}
           splitPlanId={splitPlanId}
           onOpenInSplitView={onOpenInSplitView}
         />

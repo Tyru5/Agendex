@@ -3,13 +3,14 @@ import {
   DocsPage,
   DownloadPage,
   EmptyStateView,
-  filterPlans,
+  applyPlanFilters,
   hasToken,
   LandingPage,
   OfflineView,
   type Plan,
   PlanSourcesDialog,
   PlanViewer,
+  PlanFilterMismatchBanner,
   Sidebar,
   startViewTransition,
   ToolsUsedPage,
@@ -18,9 +19,17 @@ import {
   useBackendStatus,
   usePlans,
   useSidebarWidth,
+  workspacesFromPlans,
 } from '@agendex/web';
 import { useHotkey } from '@tanstack/react-hotkeys';
-import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
+import {
+  parseAsNativeArrayOf,
+  parseAsString,
+  parseAsStringLiteral,
+  throttle,
+  useQueryState,
+  useQueryStates,
+} from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
@@ -41,11 +50,22 @@ function Dashboard() {
       .withDefault('')
       .withOptions({ clearOnDefault: true, limitUrlUpdates: throttle(500) }),
   );
-  const [{ agent: agentFilterRaw, sort: sortBy, date: dateBucket }, setFilters] = useQueryStates(
+  const [
+    {
+      agent: legacyAgentFilterRaw,
+      agents: agentsFilterRaw,
+      sort: sortBy,
+      date: dateBucket,
+      workspace: workspaceFilterRaw,
+    },
+    setFilters,
+  ] = useQueryStates(
     {
       agent: parseAsString,
+      agents: parseAsNativeArrayOf(parseAsString).withDefault([]),
       sort: parseAsStringLiteral(sortOptions).withDefault('updatedAt'),
       date: parseAsStringLiteral(dateOptions).withDefault('all'),
+      workspace: parseAsString,
     },
     { clearOnDefault: true },
   );
@@ -54,9 +74,18 @@ function Dashboard() {
     parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
   );
 
-  const agentFilter = agentFilterRaw ?? undefined;
-  const setAgentFilter = useCallback(
-    (agent: string | undefined) => setFilters({ agent: agent ?? null }),
+  const legacyAgentFilter = legacyAgentFilterRaw ?? undefined;
+  const workspaceFilter = workspaceFilterRaw ?? undefined;
+  const selectedAgents = useMemo(() => {
+    if (agentsFilterRaw.length > 0) return normalizeAgentFilters(agentsFilterRaw);
+    return legacyAgentFilter ? normalizeAgentFilters([legacyAgentFilter]) : [];
+  }, [agentsFilterRaw, legacyAgentFilter]);
+  const setSelectedAgents = useCallback(
+    (agents: string[]) => setFilters({ agents: normalizeAgentFilters(agents), agent: null }),
+    [setFilters],
+  );
+  const setWorkspaceFilter = useCallback(
+    (workspace: string | undefined) => setFilters({ workspace: workspace ?? null }),
     [setFilters],
   );
   const setSortBy = useCallback(
@@ -67,6 +96,10 @@ function Dashboard() {
     (date: 'all' | 'today' | '7d' | '30d') => setFilters({ date }),
     [setFilters],
   );
+  const clearFilters = useCallback(() => {
+    setSearch('');
+    setFilters({ agents: [], agent: null, workspace: null, date: 'all', sort: 'updatedAt' });
+  }, [setFilters, setSearch]);
 
   const [sourcesOpen, setSourcesOpen] = useState(false);
 
@@ -79,24 +112,27 @@ function Dashboard() {
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
+  const filters = useMemo(() => ({ sort: sortBy }), [sortBy]);
 
   const localPlans = usePlans(filters, true, false);
   const agents = useAgents(true, false);
   const backendStatus = useBackendStatus();
 
   const { plans, loading, error, refresh } = localPlans;
+  const workspaces = useMemo(() => workspacesFromPlans(plans), [plans]);
 
   const filteredPlans = useMemo(() => {
-    let result = filterPlans(plans, search);
-    if (dateBucket !== 'all') {
-      const cutoffs = { today: 86400000, '7d': 604800000, '30d': 2592000000 };
-      const cutoff = Date.now() - cutoffs[dateBucket];
-      const field = sortBy === 'createdAt' ? 'createdAt' : 'updatedAt';
-      result = result.filter((p) => new Date(p[field]).getTime() >= cutoff);
-    }
-    return result;
-  }, [plans, search, dateBucket, sortBy]);
+    return applyPlanFilters(plans, {
+      q: search,
+      agents: selectedAgents,
+      workspace: workspaceFilter,
+      date: dateBucket,
+    });
+  }, [dateBucket, plans, search, selectedAgents, workspaceFilter]);
+  const filteredPlanIds = useMemo(
+    () => new Set(filteredPlans.map((plan) => plan.id)),
+    [filteredPlans],
+  );
 
   const prevBackendStatus = useRef(backendStatus);
   useEffect(() => {
@@ -143,6 +179,20 @@ function Dashboard() {
     if (!selectedPlanId) return undefined;
     return plansById.get(selectedPlanId);
   }, [plansById, selectedPlanId]);
+  const filterMismatchKey = useMemo(() => {
+    if (!selectedPlan) return '';
+    return [
+      selectedPlan.id,
+      search.trim(),
+      selectedAgents.join('\u001f'),
+      workspaceFilter ?? '',
+      dateBucket,
+    ].join('\u001e');
+  }, [dateBucket, search, selectedAgents, selectedPlan, workspaceFilter]);
+  const [dismissedFilterMismatchKey, setDismissedFilterMismatchKey] = useState<string | null>(null);
+  const selectedPlanOutsideFilters = Boolean(selectedPlan && !filteredPlanIds.has(selectedPlan.id));
+  const showFilterMismatchBanner =
+    selectedPlanOutsideFilters && dismissedFilterMismatchKey !== filterMismatchKey;
 
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
@@ -183,6 +233,12 @@ function Dashboard() {
     setSidebarHidden((current) => !current);
   }
 
+  function revealSidebarForSearch() {
+    clearHoverCloseTimer();
+    setSidebarPeek(false);
+    setSidebarHidden(false);
+  }
+
   function toggleOutline() {
     setOutlineHidden((current) => !current);
   }
@@ -209,6 +265,7 @@ function Dashboard() {
         plans={plans}
         selectedPlan={selectedPlan}
         onSelectPlan={setSelectedPlan}
+        onFocusSearch={revealSidebarForSearch}
         totalPlans={totalPlans}
         activeAgents={activeAgents}
         backendStatus={backendStatus}
@@ -270,13 +327,20 @@ function Dashboard() {
         sidebarPeekOpen={sidebarPeekOpen}
         onMouseEnter={revealSidebarOnHover}
         onMouseLeave={schedulePeekClose}
+        search={search}
+        onSearch={setSearch}
         sortBy={sortBy}
         onSortChange={setSortBy}
         dateBucket={dateBucket}
         onDateBucketChange={setDateBucket}
         agents={agents}
-        selectedAgent={agentFilter}
-        onAgentSelect={setAgentFilter}
+        selectedAgents={selectedAgents}
+        onAgentsChange={setSelectedAgents}
+        workspace={workspaceFilter}
+        onWorkspaceChange={setWorkspaceFilter}
+        workspaces={workspaces}
+        onClearFilters={clearFilters}
+        onSearchFocusRequest={revealSidebarForSearch}
         filteredPlans={filteredPlans}
         selectedPlanId={selectedPlan?.id}
         onSelectPlan={setSelectedPlan}
@@ -307,6 +371,14 @@ function Dashboard() {
               allPlans={plans}
               onSelectRelatedPlan={setSelectedPlan}
               outlineHidden={outlineHidden}
+              headerExtra={
+                showFilterMismatchBanner ? (
+                  <PlanFilterMismatchBanner
+                    onShowInFilters={clearFilters}
+                    onKeepViewing={() => setDismissedFilterMismatchKey(filterMismatchKey)}
+                  />
+                ) : undefined
+              }
             />
           </div>
         ) : (
@@ -325,6 +397,10 @@ function Dashboard() {
       </div>
     </div>
   );
+}
+
+function normalizeAgentFilters(agents: readonly string[]): string[] {
+  return [...new Set(agents.map((agent) => agent.trim()).filter(Boolean))];
 }
 
 function SessionExpiredBanner() {

@@ -5,6 +5,7 @@ import type { AgentStats, Plan } from '../lib/api.ts';
 import { MAX_FOLDERS } from '../lib/plan-folders.ts';
 import { startViewTransition } from '../lib/view-transition.ts';
 import { PlanList } from './PlanList.tsx';
+import type { SidebarSortBy } from './SidebarFilters.tsx';
 import { SidebarFilters } from './SidebarFilters.tsx';
 import { SidebarResizeHandle } from './SidebarResizeHandle.tsx';
 import { SkeletonBlock } from './Skeleton.tsx';
@@ -15,13 +16,20 @@ interface SidebarProps {
   sidebarPeekOpen: boolean;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
-  sortBy: 'updatedAt' | 'createdAt' | 'title';
-  onSortChange: (sort: 'updatedAt' | 'createdAt' | 'title') => void;
+  search: string;
+  onSearch: (value: string) => void;
+  sortBy: SidebarSortBy;
+  onSortChange: (sort: SidebarSortBy) => void;
   dateBucket: 'all' | 'today' | '7d' | '30d';
   onDateBucketChange: (date: 'all' | 'today' | '7d' | '30d') => void;
   agents: AgentStats[];
-  selectedAgent?: string;
-  onAgentSelect: (agent: string | undefined) => void;
+  selectedAgents: readonly string[];
+  onAgentsChange: (agents: string[]) => void;
+  workspace?: string;
+  onWorkspaceChange?: (workspace: string | undefined) => void;
+  workspaces?: readonly string[];
+  onClearFilters?: () => void;
+  onSearchFocusRequest?: () => void;
   filteredPlans: Plan[];
   selectedPlanId?: string;
   isPro?: boolean;
@@ -43,13 +51,20 @@ export function Sidebar({
   sidebarPeekOpen,
   onMouseEnter,
   onMouseLeave,
+  search,
+  onSearch,
   sortBy,
   onSortChange,
   dateBucket,
   onDateBucketChange,
   agents,
-  selectedAgent,
-  onAgentSelect,
+  selectedAgents,
+  onAgentsChange,
+  workspace,
+  onWorkspaceChange,
+  workspaces,
+  onClearFilters,
+  onSearchFocusRequest,
   filteredPlans,
   selectedPlanId,
   isPro,
@@ -65,6 +80,12 @@ export function Sidebar({
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const hasManyPlans = !loading && !error && filteredPlans.length > SCROLL_TOP_PLAN_THRESHOLD;
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    selectedAgents.length > 0 ||
+    Boolean(workspace) ||
+    dateBucket !== 'all' ||
+    sortBy !== 'updatedAt';
 
   const updateScrollTopVisibility = useCallback(
     (node: HTMLDivElement | null = scrollViewportRef.current) => {
@@ -120,13 +141,20 @@ export function Sidebar({
       {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
       <div className="sidebar-command-zone">
         <SidebarFilters
+          search={search}
+          onSearch={onSearch}
           sortBy={sortBy}
           onSortChange={onSortChange}
           dateBucket={dateBucket}
           onDateBucketChange={onDateBucketChange}
           agents={agents}
-          selectedAgent={selectedAgent}
-          onAgentSelect={onAgentSelect}
+          selectedAgents={selectedAgents}
+          onAgentsChange={onAgentsChange}
+          workspace={workspace}
+          onWorkspaceChange={onWorkspaceChange}
+          workspaces={workspaces}
+          onClearAll={onClearFilters}
+          onSearchFocusRequest={onSearchFocusRequest}
         />
       </div>
 
@@ -141,6 +169,25 @@ export function Sidebar({
           </div>
         ) : error ? (
           <div className="p-4 text-[13px] text-[var(--danger)]">Failed to load plans.</div>
+        ) : filteredPlans.length === 0 ? (
+          <PlanList
+            plans={filteredPlans}
+            selectedId={selectedPlanId}
+            isPro={isPro}
+            splitPlanId={splitPlanId}
+            onSelect={(plan) => startViewTransition(() => onSelectPlan(plan))}
+            onOpenInSplitView={onOpenInSplitView}
+            folderState={folderState}
+            emptyState={
+              onClearFilters && hasActiveFilters
+                ? {
+                    title: 'No plans match these filters',
+                    actionLabel: 'Clear all',
+                    onAction: onClearFilters,
+                  }
+                : undefined
+            }
+          />
         ) : (
           <PlanList
             plans={filteredPlans}

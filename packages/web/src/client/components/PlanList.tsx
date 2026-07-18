@@ -57,7 +57,7 @@ function PlanRow({
     const el = titleRef.current;
     if (!el) return;
     setOverflows(el.scrollWidth > el.clientWidth);
-  });
+  }, [isRenaming, plan.title]);
 
   useEffect(() => {
     if (isRenaming) renameInputRef.current?.focus();
@@ -179,6 +179,11 @@ type PlanListProps = {
   onRenamePlan?: (planId: string, newTitle: string) => void;
   onDeletePlan?: (planId: string) => void;
   folderState?: FolderState;
+  emptyState?: {
+    title: string;
+    actionLabel: string;
+    onAction: () => void;
+  };
 };
 
 export function PlanList(props: PlanListProps) {
@@ -193,6 +198,7 @@ export function PlanList(props: PlanListProps) {
     onRenamePlan,
     onDeletePlan,
     folderState,
+    emptyState,
   } = props;
   const localPlanState = usePlanState();
   const planState = planStateProp ?? localPlanState;
@@ -313,7 +319,16 @@ export function PlanList(props: PlanListProps) {
   }, [renamingPlanId, renameValue, onRenamePlan]);
 
   if (plans.length === 0) {
-    return <div className="sidebar-empty-state">No plans found</div>;
+    return (
+      <div className="sidebar-empty-state">
+        <div>{emptyState?.title ?? 'No plans found'}</div>
+        {emptyState && (
+          <button type="button" className="sidebar-empty-action" onClick={emptyState.onAction}>
+            {emptyState.actionLabel}
+          </button>
+        )}
+      </div>
+    );
   }
 
   const contextPlan = contextMenu?.plan;
