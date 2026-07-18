@@ -163,6 +163,45 @@ test('getRelatedPlans returns no related when nothing matches', () => {
   expect(lineage.items[0]?.relation).toBe('self');
 });
 
+test('getRelatedPlans ignores same sessionId from a different agent', () => {
+  const current = makePlan({ id: 'a', agent: 'cursor', metadata: { sessionId: 's1' } });
+  const peer = makePlan({ id: 'b', agent: 'cursor', metadata: { sessionId: 's1' } });
+  const otherAgent = makePlan({ id: 'e', agent: 'grok', metadata: { sessionId: 's1' } });
+
+  const lineage = getRelatedPlans(current, [current, peer, otherAgent]);
+  expect(lineage.peers.map((e) => e.plan.id)).toEqual(['b']);
+  expect(lineage.items.map((e) => e.plan.id)).toEqual(['a', 'b']);
+});
+
+test('getRelatedPlans caps session peers around the current plan', () => {
+  const plans = Array.from({ length: 12 }, (_, index) =>
+    makePlan({
+      id: `p${index}`,
+      createdAt: `2026-05-01T${String(index).padStart(2, '0')}:00:00.000Z`,
+      metadata: { sessionId: 'long' },
+    }),
+  );
+  const current = plans[6];
+  expect(current).toBeDefined();
+  if (!current) throw new Error('expected current plan');
+
+  const lineage = getRelatedPlans(current, plans);
+  expect(lineage.peers).toHaveLength(8);
+  expect(lineage.items).toHaveLength(9); // 8 peers + self
+  expect(lineage.items.map((e) => e.plan.id)).toEqual([
+    'p2',
+    'p3',
+    'p4',
+    'p5',
+    'p6',
+    'p7',
+    'p8',
+    'p9',
+    'p10',
+  ]);
+  expect(lineage.items.find((e) => e.relation === 'self')?.plan.id).toBe('p6');
+});
+
 test('plansWithSessionSiblings marks only plans that share a session', () => {
   const plans = [
     makePlan({ id: 'a', metadata: { sessionId: 's1' } }),

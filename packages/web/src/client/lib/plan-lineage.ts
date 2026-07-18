@@ -19,7 +19,8 @@ export type PlanLineage = {
   hasRelated: boolean;
 };
 
-const WORKSPACE_FALLBACK_LIMIT = 8;
+/** Cap related peers shown in the viewer (session + workspace-fallback). */
+const LINEAGE_PEER_LIMIT = 8;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -73,6 +74,21 @@ function sortByCreatedThenUpdated(a: Plan, b: Plan): number {
   const created = Date.parse(a.createdAt) - Date.parse(b.createdAt);
   if (created !== 0) return created;
   return Date.parse(a.updatedAt) - Date.parse(b.updatedAt);
+}
+
+/** Keep up to `limit` peers nearest to `current` in chronological order. */
+function limitPeersAroundCurrent(current: Plan, peers: Plan[], limit: number): Plan[] {
+  if (peers.length <= limit) return peers;
+  const currentTime = Date.parse(current.createdAt);
+  let insertAt = peers.findIndex((plan) => Date.parse(plan.createdAt) > currentTime);
+  if (insertAt === -1) insertAt = peers.length;
+  let start = Math.max(0, insertAt - Math.floor(limit / 2));
+  let end = start + limit;
+  if (end > peers.length) {
+    end = peers.length;
+    start = Math.max(0, end - limit);
+  }
+  return peers.slice(start, end);
 }
 
 function emptyLineage(current: Plan): PlanLineage {
@@ -130,17 +146,25 @@ export function getRelatedPlans(current: Plan, allPlans: readonly Plan[]): PlanL
   });
 
   if (keys.sessionId) {
+    const sessionPeers: Plan[] = [];
     for (const plan of allPlans) {
       if (plan.id === current.id) continue;
+      // Match list badge scoping: `${agent}\0${sessionId}`.
+      if (plan.agent !== current.agent) continue;
       const other = extractLineageKeys(plan);
       if (other.sessionId === keys.sessionId) {
-        remember({ plan, relation: 'peer', confidence: 'session' });
+        sessionPeers.push(plan);
       }
+    }
+    sessionPeers.sort(sortByCreatedThenUpdated);
+    for (const plan of limitPeersAroundCurrent(current, sessionPeers, LINEAGE_PEER_LIMIT)) {
+      remember({ plan, relation: 'peer', confidence: 'session' });
     }
 
     if (keys.parentThreadId && keys.parentThreadId !== keys.sessionId) {
       for (const plan of allPlans) {
         if (plan.id === current.id) continue;
+        if (plan.agent !== current.agent) continue;
         const other = extractLineageKeys(plan);
         if (other.sessionId === keys.parentThreadId) {
           remember({ plan, relation: 'parent', confidence: 'thread' });
@@ -150,6 +174,7 @@ export function getRelatedPlans(current: Plan, allPlans: readonly Plan[]): PlanL
 
     for (const plan of allPlans) {
       if (plan.id === current.id) continue;
+      if (plan.agent !== current.agent) continue;
       const other = extractLineageKeys(plan);
       if (other.parentThreadId && other.parentThreadId === keys.sessionId) {
         remember({ plan, relation: 'child', confidence: 'thread' });
@@ -172,7 +197,7 @@ export function getRelatedPlans(current: Plan, allPlans: readonly Plan[]): PlanL
         }
       }
       fallbacks.sort(sortByCreatedThenUpdated);
-      for (const plan of fallbacks.slice(0, WORKSPACE_FALLBACK_LIMIT)) {
+      for (const plan of limitPeersAroundCurrent(current, fallbacks, LINEAGE_PEER_LIMIT)) {
         remember({ plan, relation: 'peer', confidence: 'workspace-fallback' });
       }
     }
