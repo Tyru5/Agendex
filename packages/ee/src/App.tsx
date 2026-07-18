@@ -854,6 +854,8 @@ function CloudPlanReviewWorkspace({
   actionToolbarExtra,
   outlineHidden,
   chartHidden,
+  allPlans,
+  onSelectRelatedPlan,
   onEdit,
   onHistory,
   onShare,
@@ -872,6 +874,8 @@ function CloudPlanReviewWorkspace({
   actionToolbarExtra?: ReactNode;
   outlineHidden?: boolean;
   chartHidden?: boolean;
+  allPlans?: readonly Plan[];
+  onSelectRelatedPlan?: (plan: Plan) => void;
   onEdit: () => void;
   onHistory: () => void;
   onShare: () => void;
@@ -985,6 +989,8 @@ function CloudPlanReviewWorkspace({
         <div className="plannotator-review-document">
           <PlanViewer
             plan={plan}
+            allPlans={allPlans}
+            onSelectRelatedPlan={onSelectRelatedPlan}
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
             onToggleChart={onToggleChart}
@@ -1131,6 +1137,8 @@ function DashboardMain({
   agents,
   totalPlans,
   selectedPlan,
+  allPlans,
+  onSelectRelatedPlan,
   onClose,
   onSaved,
   onCreated,
@@ -1160,6 +1168,8 @@ function DashboardMain({
   agents: AgentStats[];
   totalPlans: number;
   selectedPlan: Plan | undefined;
+  allPlans: readonly Plan[];
+  onSelectRelatedPlan: (plan: Plan) => void;
   onClose: () => void;
   onSaved: () => void;
   onCreated: (plan: Plan) => void;
@@ -1295,6 +1305,8 @@ function DashboardMain({
         <div className="main-scroll overflow-auto" style={{ minWidth: 0 }}>
           <PlanViewer
             plan={selectedPlan}
+            allPlans={allPlans}
+            onSelectRelatedPlan={onSelectRelatedPlan}
             mode="split"
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
@@ -1327,6 +1339,8 @@ function DashboardMain({
         <div className="overflow-auto border-l border-border" style={{ minWidth: 0 }}>
           <PlanViewer
             plan={splitPlan}
+            allPlans={allPlans}
+            onSelectRelatedPlan={onSelectRelatedPlan}
             mode="split"
             onChartWideChange={onChartWideChange}
             onToggleChart={onToggleChart}
@@ -1447,6 +1461,8 @@ function DashboardMain({
                 actionToolbarExtra={actionToolbarExtra}
                 outlineHidden={outlineHidden}
                 chartHidden={chartHidden}
+                allPlans={allPlans}
+                onSelectRelatedPlan={onSelectRelatedPlan}
                 onEdit={onEdit}
                 onHistory={onHistory}
                 onShare={onShare}
@@ -1456,6 +1472,8 @@ function DashboardMain({
             ) : (
               <PlanViewer
                 plan={selectedPlan}
+                allPlans={allPlans}
+                onSelectRelatedPlan={onSelectRelatedPlan}
                 onEdit={onEdit}
                 onChartWideChange={onChartWideChange}
                 onToggleChart={onToggleChart}
@@ -2411,6 +2429,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         agents={agents}
         totalPlans={totalPlans}
         selectedPlan={selectedPlan}
+        allPlans={plans}
+        onSelectRelatedPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
         onClose={() => startViewTransition(() => setActivePanel(null))}
         onSaved={handleSaved}
         onCreated={(plan) => {

@@ -723,6 +723,12 @@
   white-space: nowrap;
 }
 
+.sidebar-plan-session {
+  color: var(--secondary);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
 .sidebar-unread-dot {
   position: absolute;
   left: 1px;
@@ -1852,6 +1858,118 @@ body {
   justify-content: flex-start;
   gap: 10px 12px;
   padding-top: 2px;
+}
+
+.plan-lineage {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.plan-lineage-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.plan-lineage-title {
+  color: var(--secondary);
+  font-size: 11px;
+  font-weight: 560;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.plan-lineage-hint {
+  color: var(--tertiary);
+  font-size: 11px;
+  font-weight: 450;
+}
+
+.plan-lineage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+}
+
+.plan-lineage-item {
+  min-width: 0;
+}
+
+.plan-lineage-item-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  min-width: 0;
+  width: 100%;
+  padding: 4px 0;
+  color: var(--secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.plan-lineage-item-button {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  margin-left: -6px;
+  padding-left: 6px;
+  padding-right: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.plan-lineage-item-button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.plan-lineage-item-button:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 1px;
+}
+
+.plan-lineage-item--current .plan-lineage-item-body {
+  color: var(--text);
+}
+
+.plan-lineage-item-title {
+  min-width: 0;
+  flex: 1 1 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.plan-lineage-item--current .plan-lineage-item-title {
+  font-weight: 600;
+}
+
+.plan-lineage-item-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--tertiary);
+  white-space: nowrap;
+}
+
+.plan-lineage-item-relation {
+  color: var(--secondary);
+  font-weight: 520;
 }
 
 .plan-header-extra {

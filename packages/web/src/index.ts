@@ -95,6 +95,17 @@ export type { OutlineEntry } from './client/lib/extract-headings.ts';
 export { buildPlanOutline } from './client/lib/extract-headings.ts';
 export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-markdown.ts';
 export { filterPlans } from './client/lib/plan-search.ts';
+export type {
+  LineageConfidence,
+  LineageRelation,
+  PlanLineage,
+  RelatedPlanEntry,
+} from './client/lib/plan-lineage.ts';
+export {
+  extractLineageKeys,
+  getRelatedPlans,
+  plansWithSessionSiblings,
+} from './client/lib/plan-lineage.ts';
 export type { PlanState, PlanStatePlan } from './client/lib/plan-state.ts';
 export { sanitizeSchema } from './client/lib/sanitize-schema.ts';
 export type { PlanSyncOrigin } from './client/lib/sync-origin.ts';

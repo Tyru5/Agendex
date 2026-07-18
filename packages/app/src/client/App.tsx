@@ -302,7 +302,12 @@ function Dashboard() {
           <OfflineView />
         ) : selectedPlan ? (
           <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
-            <PlanViewer plan={selectedPlan} outlineHidden={outlineHidden} />
+            <PlanViewer
+              plan={selectedPlan}
+              allPlans={plans}
+              onSelectRelatedPlan={setSelectedPlan}
+              outlineHidden={outlineHidden}
+            />
           </div>
         ) : (
           <div className="overflow-auto main-scroll" style={{ height: '100%' }}>

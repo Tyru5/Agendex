@@ -5,6 +5,7 @@ import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import { isCustomDirPlan } from '../lib/custom-plan-tree.ts';
 import type { FolderState } from '../lib/plan-folders.ts';
+import { plansWithSessionSiblings } from '../lib/plan-lineage.ts';
 import type { PlanState } from '../lib/plan-state.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { CustomDirTree } from './CustomDirTree.tsx';
@@ -25,6 +26,7 @@ function PlanRow({
   plan,
   selected,
   unseen,
+  hasSessionSiblings,
   onClick,
   isSplit,
   onContextMenu,
@@ -37,6 +39,7 @@ function PlanRow({
   plan: Plan;
   selected: boolean;
   unseen: boolean;
+  hasSessionSiblings?: boolean;
   onClick: () => void;
   isSplit?: boolean;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -103,6 +106,14 @@ function PlanRow({
         <span className="sidebar-plan-meta-label">{getAgentLabel(plan.agent)}</span>
         <span aria-hidden="true">·</span>
         <span>{timeAgo(plan.updatedAt)}</span>
+        {hasSessionSiblings && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span className="sidebar-plan-session" title="Shares a session with other plans">
+              session
+            </span>
+          </>
+        )}
       </div>
     </button>
   );
@@ -194,6 +205,7 @@ export function PlanList(props: PlanListProps) {
   const [renamingPlanId, setRenamingPlanId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const lastAutoSeenKeyRef = useRef<string | null>(null);
+  const sessionSiblingIds = useMemo(() => plansWithSessionSiblings(plans), [plans]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -323,6 +335,7 @@ export function PlanList(props: PlanListProps) {
                 plan={plan}
                 selected={plan.id === selectedId}
                 unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
+                hasSessionSiblings={sessionSiblingIds.has(plan.id)}
                 onClick={() => handleClick(plan)}
                 isSplit={isPro && plan.id === splitPlanId}
                 onContextMenu={(e) => handleContextMenu(e, plan)}
@@ -358,6 +371,7 @@ export function PlanList(props: PlanListProps) {
               plan={plan}
               selected={plan.id === selectedId}
               unseen={planState.isUnseen(plan.id, plan.updatedAt)}
+              hasSessionSiblings={sessionSiblingIds.has(plan.id)}
               onClick={() => handleClick(plan)}
               isSplit={plan.id === splitPlanId}
               onContextMenu={(e) => handleContextMenu(e, plan)}
@@ -394,6 +408,7 @@ export function PlanList(props: PlanListProps) {
               plan={plan}
               selected={plan.id === selectedId}
               unseen
+              hasSessionSiblings={sessionSiblingIds.has(plan.id)}
               onClick={() => handleClick(plan)}
               isSplit={plan.id === splitPlanId}
               onContextMenu={(e) => handleContextMenu(e, plan)}
@@ -417,6 +432,7 @@ export function PlanList(props: PlanListProps) {
               plan={plan}
               selected={plan.id === selectedId}
               unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
+              hasSessionSiblings={sessionSiblingIds.has(plan.id)}
               onClick={() => handleClick(plan)}
               isSplit={isPro && plan.id === splitPlanId}
               onContextMenu={(e) => handleContextMenu(e, plan)}
@@ -435,6 +451,7 @@ export function PlanList(props: PlanListProps) {
             plan={plan}
             selected={plan.id === selectedId}
             unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
+            hasSessionSiblings={sessionSiblingIds.has(plan.id)}
             onClick={() => handleClick(plan)}
             isSplit={isPro && plan.id === splitPlanId}
             onContextMenu={isPro || folderState ? (e) => handleContextMenu(e, plan) : undefined}

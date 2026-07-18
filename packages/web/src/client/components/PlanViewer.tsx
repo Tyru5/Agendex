@@ -20,6 +20,12 @@ import {
 } from '../lib/annotations.ts';
 import type { Plan } from '../lib/api.ts';
 import { buildPlanOutline } from '../lib/extract-headings.ts';
+import {
+  getRelatedPlans,
+  type LineageConfidence,
+  type LineageRelation,
+  type RelatedPlanEntry,
+} from '../lib/plan-lineage.ts';
 import { extractSyncOrigin, formatSyncOriginLabel } from '../lib/sync-origin.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { ExitFullscreenIcon, FullscreenIcon } from './FullscreenIcons.tsx';
@@ -154,8 +160,85 @@ function intersectsNestedBlockedSelection(root: HTMLElement, range: Range): bool
   return false;
 }
 
+function lineageSectionTitle(confidence: LineageConfidence | undefined): string {
+  if (confidence === 'workspace-fallback') return 'Nearby in workspace';
+  if (confidence === 'thread') return 'Session thread';
+  return 'Same session';
+}
+
+function lineageRelationLabel(relation: LineageRelation): string | undefined {
+  if (relation === 'parent') return 'Parent';
+  if (relation === 'child') return 'Child';
+  if (relation === 'self') return 'Current';
+  return undefined;
+}
+
+function PlanLineageSection({
+  entries,
+  confidence,
+  onSelectRelatedPlan,
+}: {
+  entries: RelatedPlanEntry[];
+  confidence: LineageConfidence | undefined;
+  onSelectRelatedPlan?: (plan: Plan) => void;
+}) {
+  return (
+    <section className="plan-lineage" aria-label={lineageSectionTitle(confidence)}>
+      <div className="plan-lineage-heading">
+        <span className="plan-lineage-title">{lineageSectionTitle(confidence)}</span>
+        {confidence === 'workspace-fallback' && (
+          <span className="plan-lineage-hint">Approximate match</span>
+        )}
+      </div>
+      <ol className="plan-lineage-list">
+        {entries.map((entry) => {
+          const relationLabel = lineageRelationLabel(entry.relation);
+          const isSelf = entry.relation === 'self';
+          const content = (
+            <>
+              <span className="plan-lineage-item-title">{entry.plan.title}</span>
+              <span className="plan-lineage-item-meta">
+                {relationLabel && (
+                  <span className="plan-lineage-item-relation">{relationLabel}</span>
+                )}
+                <span>{timeAgo(entry.plan.createdAt)}</span>
+              </span>
+            </>
+          );
+
+          return (
+            <li
+              key={entry.plan.id}
+              className={
+                isSelf ? 'plan-lineage-item plan-lineage-item--current' : 'plan-lineage-item'
+              }
+            >
+              {isSelf || !onSelectRelatedPlan ? (
+                <div className="plan-lineage-item-body" aria-current={isSelf ? 'true' : undefined}>
+                  {content}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="plan-lineage-item-body plan-lineage-item-button"
+                  onClick={() => onSelectRelatedPlan(entry.plan)}
+                >
+                  {content}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 type PlanViewerProps = {
   plan: Plan;
+  /** Full indexed plan list used to resolve session lineage. */
+  allPlans?: readonly Plan[];
+  onSelectRelatedPlan?: (plan: Plan) => void;
   headerExtra?: ReactNode;
   actionToolbarExtra?: ReactNode;
   onEdit?: () => void;
@@ -180,6 +263,8 @@ type PlanViewerProps = {
 
 export function PlanViewer({
   plan,
+  allPlans,
+  onSelectRelatedPlan,
   headerExtra,
   actionToolbarExtra,
   onEdit,
@@ -250,6 +335,17 @@ export function PlanViewer({
   };
   const workspace = extractWorkspace(plan);
   const syncOrigin = extractSyncOrigin(plan);
+  const lineage = useMemo(
+    () => (allPlans ? getRelatedPlans(plan, allPlans) : null),
+    [allPlans, plan],
+  );
+  const lineageConfidence = useMemo((): LineageConfidence | undefined => {
+    if (!lineage?.hasRelated) return undefined;
+    const related = lineage.items.filter((entry) => entry.relation !== 'self');
+    if (related.some((entry) => entry.confidence === 'session')) return 'session';
+    if (related.some((entry) => entry.confidence === 'thread')) return 'thread';
+    return related[0]?.confidence ?? 'workspace-fallback';
+  }, [lineage]);
 
   const outline = useMemo(
     () =>
@@ -741,6 +837,14 @@ export function PlanViewer({
                 actionToolbar
               )}
             </div>
+
+            {lineage?.hasRelated && (
+              <PlanLineageSection
+                entries={lineage.items}
+                confidence={lineageConfidence}
+                onSelectRelatedPlan={onSelectRelatedPlan}
+              />
+            )}
           </header>
 
           {onChartWideChange && !chartHidden && (
