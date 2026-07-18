@@ -287,7 +287,8 @@ function isAgendexDaemonCommand(command: string | null): boolean {
 
 function isElectronUtilityCommand(command: string | null): boolean {
   if (!command) return false;
-  return command.toLowerCase().includes('--type=utility');
+  // Node utilityProcess.fork workers only — not Chromium network/audio/GPU helpers.
+  return command.toLowerCase().includes('--utility-sub-type=node.mojom.nodeservice');
 }
 
 function isDesktopDaemonOwnership(

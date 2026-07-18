@@ -159,7 +159,13 @@ test('desktop launcher ownership accepts Electron utility processes without visi
       ...runtime,
       processCommand: 'RenamedDesktop.exe --type=utility --utility-sub-type=network',
     }),
-  ).toBe(true);
+  ).toBe(false);
+  expect(
+    isDaemonPidInfoRunning(info, {
+      ...runtime,
+      processCommand: 'Agendex.exe --type=utility',
+    }),
+  ).toBe(false);
   expect(
     isDaemonPidInfoRunning(info, {
       ...runtime,

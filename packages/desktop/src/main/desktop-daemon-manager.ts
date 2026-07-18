@@ -209,11 +209,10 @@ export class DesktopDaemonManager {
       if (this.options.isDev) env.AGENDEX_DEV = '1';
       else delete env.AGENDEX_DEV;
 
-      // Pass the marker via both Node args (process.argv) and execArgv (OS command line)
-      // so CLI ownership checks can see `--agendex-daemon-worker` in `ps` / WMI listings.
+      // Script args land on the worker's process.argv. Do not put the marker in execArgv —
+      // Node rejects unrecognized -- flags at startup ("bad option").
       const child = this.options.forkWorker(workerEntry, ['--agendex-daemon-worker'], {
         env,
-        execArgv: ['--agendex-daemon-worker'],
         serviceName: 'Agendex Sync',
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -320,10 +319,16 @@ export class DesktopDaemonManager {
   }
 
   private pidInfoMatchesRunningDaemon(info: DaemonPidInfo): boolean {
+    if (!this.pidInfoIsCurrent(info)) return false;
     if (this.options.isDaemonProcess) {
-      return this.pidInfoIsCurrent(info) && this.processIsDaemon(info.pid);
+      return this.processIsDaemon(info.pid);
     }
-    return isDaemonPidInfoRunning(info);
+    // Honor injected liveness/freshness; force provenance checks already satisfied above.
+    return isDaemonPidInfoRunning(info, {
+      processRunning: this.processIsRunning(info.pid),
+      currentHostname: info.hostname,
+      currentBootId: info.bootId ?? null,
+    });
   }
 
   /** Orphan workers may still look like Electron utilities after the parent exits. */

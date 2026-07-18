@@ -96,12 +96,20 @@ afterEach(() => {
 test('starts one utility worker without putting credentials in its environment', async () => {
   useTempConfigDir('agendex daemon path with spaces ');
   const child = new FakeUtilityProcess();
-  const forkCalls: Array<{ path: string; options: { env?: NodeJS.ProcessEnv } }> = [];
+  const forkCalls: Array<{
+    path: string;
+    args: string[];
+    options: { env?: NodeJS.ProcessEnv; execArgv?: string[] };
+  }> = [];
   const manager = new DesktopDaemonManager({
     isDev: true,
     workerEntry: join(tempRoot, 'worker path with spaces', 'daemon-worker.js'),
-    forkWorker: ((path: string, _args: string[], options: { env?: NodeJS.ProcessEnv }) => {
-      forkCalls.push({ path, options });
+    forkWorker: ((
+      path: string,
+      args: string[],
+      options: { env?: NodeJS.ProcessEnv; execArgv?: string[] },
+    ) => {
+      forkCalls.push({ path, args, options });
       queueMicrotask(() => child.emit('spawn'));
       return child;
     }) as never,
@@ -120,11 +128,10 @@ test('starts one utility worker without putting credentials in its environment',
   expect(second).toBe('started');
   expect(forkCalls).toHaveLength(1);
   expect(forkCalls[0]?.path).toContain('worker path with spaces');
+  expect(forkCalls[0]?.args).toEqual(['--agendex-daemon-worker']);
   expect(forkCalls[0]?.options.env?.AGENDEX_DEV).toBe('1');
   expect(forkCalls[0]?.options.env?.AGENDEX_CLOUD_TOKEN).toBeUndefined();
-  expect((forkCalls[0]?.options as { execArgv?: string[] }).execArgv).toEqual([
-    '--agendex-daemon-worker',
-  ]);
+  expect(forkCalls[0]?.options.execArgv).toBeUndefined();
   expect(
     child.messages.some(
       (message) =>
