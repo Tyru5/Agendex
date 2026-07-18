@@ -4,6 +4,7 @@ import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { assessPlanForVisibility, metadataWithPlanValueAssessment } from './planVisibility';
+import { recordPlanVersion } from './planVersioning';
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
@@ -124,27 +125,26 @@ export const restore = mutation({
       content: snapshot.content,
     });
 
-    await ctx.db.patch(args.planId, {
+    const restoredSnapshot = {
       title: snapshot.title,
       content: snapshot.content,
       format: snapshot.format,
       filePath: snapshot.filePath,
       workspace: snapshot.workspace,
       metadata,
+    };
+
+    await ctx.db.patch(args.planId, {
+      ...restoredSnapshot,
       version: newVersion,
       updatedAt: now,
     });
 
-    await ctx.db.insert('planVersions', {
+    await recordPlanVersion(ctx, {
       ownerId: user._id,
       planId: args.planId,
       version: newVersion,
-      title: snapshot.title,
-      content: snapshot.content,
-      format: snapshot.format,
-      filePath: snapshot.filePath,
-      workspace: snapshot.workspace,
-      metadata,
+      snapshot: restoredSnapshot,
       source: 'restore',
       createdAt: now,
     });

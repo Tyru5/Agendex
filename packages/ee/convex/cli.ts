@@ -17,6 +17,7 @@ import {
   mergePlanMetadata,
   metadataWithPlanValueAssessment,
 } from './planVisibility';
+import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { stripLocalIpFromMetadata } from './privacy';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
@@ -355,23 +356,85 @@ export const upsertPlan = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const continuityKey = plannotatorContinuityKey(args.metadata, args.filePath);
+    const updatedAt = args.updatedAt ?? now;
 
     if (args.existingId && args.existingVersion !== undefined) {
-      await ctx.db.patch(args.existingId, {
-        agent: args.agent,
+      const existing = await ctx.db.get(args.existingId);
+      const contentChanged = existing ? planContentChanged(existing, args) : true;
+
+      // Non-content field updates (format/path/workspace/identity) still patch the
+      // live row, but must not create empty "CLI sync" history entries.
+      if (!contentChanged) {
+        await ctx.db.patch(args.existingId, {
+          agent: args.agent,
+          title: args.title,
+          content: args.content,
+          format: args.format,
+          filePath: args.filePath,
+          workspace: args.workspace,
+          metadata: args.metadata,
+          ...(continuityKey ? { plannotatorContinuityKey: continuityKey } : {}),
+          syncIdentityKey: args.syncIdentityKey,
+          contentHash: args.contentHash,
+          identityVersion: args.identityVersion,
+          identityStrength: args.identityStrength,
+          updatedAt,
+        });
+        await markSupersededPlannotatorSessions(ctx, {
+          ownerId: args.ownerId,
+          canonicalPlanId: args.existingId,
+          canonicalLocalPlanId: args.localPlanId,
+          metadata: args.metadata,
+          filePath: args.filePath,
+          now,
+        });
+        return args.existingId;
+      }
+
+      if (existing) {
+        await ensureBaselinePlanVersion(ctx, {
+          ownerId: args.ownerId,
+          planId: args.existingId,
+          version: args.existingVersion,
+          snapshot: {
+            title: existing.title,
+            content: existing.content,
+            format: existing.format,
+            filePath: existing.filePath,
+            workspace: existing.workspace,
+            metadata: existing.metadata,
+          },
+          createdAt: existing.updatedAt,
+        });
+      }
+
+      const newVersion = args.existingVersion + 1;
+      const snapshot = {
         title: args.title,
         content: args.content,
         format: args.format,
         filePath: args.filePath,
         workspace: args.workspace,
         metadata: args.metadata,
+      };
+      await ctx.db.patch(args.existingId, {
+        agent: args.agent,
+        ...snapshot,
         ...(continuityKey ? { plannotatorContinuityKey: continuityKey } : {}),
         syncIdentityKey: args.syncIdentityKey,
         contentHash: args.contentHash,
         identityVersion: args.identityVersion,
         identityStrength: args.identityStrength,
-        version: args.existingVersion + 1,
-        updatedAt: args.updatedAt ?? now,
+        version: newVersion,
+        updatedAt,
+      });
+      await recordPlanVersion(ctx, {
+        ownerId: args.ownerId,
+        planId: args.existingId,
+        version: newVersion,
+        snapshot,
+        source: 'cli_sync',
+        createdAt: updatedAt,
       });
       await markSupersededPlannotatorSessions(ctx, {
         ownerId: args.ownerId,
@@ -384,6 +447,7 @@ export const upsertPlan = internalMutation({
       return args.existingId;
     }
 
+    const createdAt = args.createdAt ?? now;
     const planId = await ctx.db.insert('plans', {
       ownerId: args.ownerId,
       localPlanId: args.localPlanId,
@@ -400,8 +464,24 @@ export const upsertPlan = internalMutation({
       identityVersion: args.identityVersion,
       identityStrength: args.identityStrength,
       version: 1,
-      createdAt: args.createdAt ?? now,
-      updatedAt: args.updatedAt ?? now,
+      createdAt,
+      updatedAt,
+    });
+
+    await recordPlanVersion(ctx, {
+      ownerId: args.ownerId,
+      planId,
+      version: 1,
+      snapshot: {
+        title: args.title,
+        content: args.content,
+        format: args.format,
+        filePath: args.filePath,
+        workspace: args.workspace,
+        metadata: args.metadata,
+      },
+      source: 'cli_sync',
+      createdAt,
     });
 
     await markSupersededPlannotatorSessions(ctx, {

@@ -241,7 +241,14 @@ export default defineSchema({
     filePath: v.optional(v.string()),
     workspace: v.optional(v.string()),
     metadata: v.optional(v.any()),
-    source: v.optional(v.union(v.literal('cli_sync'), v.literal('editor'), v.literal('restore'))),
+    source: v.optional(
+      v.union(
+        v.literal('cli_sync'),
+        v.literal('editor'),
+        v.literal('restore'),
+        v.literal('backfill'),
+      ),
+    ),
     createdAt: v.number(),
   })
     .index('by_plan', ['planId'])
