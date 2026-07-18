@@ -7,6 +7,7 @@ import {
   EmptyStateView,
   ToolsUsedPage,
   applyPlanFilters,
+  focusPlanSearchField,
   hasToken,
   LandingPage,
   MAX_FOLDERS,
@@ -2625,9 +2626,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onChartWideChange={handleChartWideChange}
         onToggleChart={isPro ? toggleChart : undefined}
         onSearch={() => {
-          window.dispatchEvent(
-            new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }),
-          );
+          revealSidebarForSearch();
+          focusPlanSearchField();
         }}
         isSplitView={isSplitView}
         splitPlan={splitPlan}

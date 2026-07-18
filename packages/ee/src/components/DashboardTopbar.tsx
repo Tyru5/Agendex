@@ -101,7 +101,6 @@ export function DashboardTopbar({
       <div className="hidden md:flex flex-1 min-w-0 justify-center">
         <CommandPalette
           hideTrigger
-          shortcutEnabled={false}
           search={search}
           onSearch={onSetSearch}
           plans={plans}

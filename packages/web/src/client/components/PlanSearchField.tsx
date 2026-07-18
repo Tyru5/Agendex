@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 export const FOCUS_PLAN_SEARCH_EVENT = 'agendex:focus-plan-search';
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
 
 export function focusPlanSearchField() {
   window.dispatchEvent(new Event(FOCUS_PLAN_SEARCH_EVENT));
@@ -27,11 +34,12 @@ export function PlanSearchField({
       });
     }
 
+    // "/" focuses the plan search (Cmd/Ctrl+K is reserved for the command palette).
     function onKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        focusInput();
-      }
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      focusInput();
     }
 
     window.addEventListener(FOCUS_PLAN_SEARCH_EVENT, focusInput);
@@ -79,10 +87,7 @@ export function PlanSearchField({
 }
 
 export function useShortcutLabel(): string {
-  return useMemo(() => {
-    if (typeof navigator === 'undefined') return 'Mod K';
-    return /Mac|iPhone|iPad/i.test(navigator.platform) ? '⌘K' : 'Ctrl K';
-  }, []);
+  return '/';
 }
 
 function SearchIcon() {

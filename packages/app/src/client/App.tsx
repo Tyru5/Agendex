@@ -4,6 +4,7 @@ import {
   DownloadPage,
   EmptyStateView,
   applyPlanFilters,
+  focusPlanSearchField,
   hasToken,
   LandingPage,
   normalizeFilterValues,
@@ -382,9 +383,8 @@ function Dashboard() {
           <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
             <EmptyStateView
               onSearch={() => {
-                window.dispatchEvent(
-                  new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }),
-                );
+                revealSidebarForSearch();
+                focusPlanSearchField();
               }}
               planCount={totalPlans}
               agents={agents}
