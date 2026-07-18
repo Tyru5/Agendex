@@ -207,11 +207,11 @@ function Dashboard() {
     }
   }, [selectedPlanId, plansById, setSelectedPlanId]);
 
-  function clearHoverCloseTimer() {
+  const clearHoverCloseTimer = useCallback(() => {
     if (!hoverCloseTimer.current) return;
     clearTimeout(hoverCloseTimer.current);
     hoverCloseTimer.current = undefined;
-  }
+  }, []);
 
   function schedulePeekClose() {
     if (!sidebarHidden) return;
@@ -233,11 +233,11 @@ function Dashboard() {
     setSidebarHidden((current) => !current);
   }
 
-  function revealSidebarForSearch() {
+  const revealSidebarForSearch = useCallback(() => {
     clearHoverCloseTimer();
     setSidebarPeek(false);
     setSidebarHidden(false);
-  }
+  }, [clearHoverCloseTimer]);
 
   function toggleOutline() {
     setOutlineHidden((current) => !current);
@@ -260,10 +260,6 @@ function Dashboard() {
         sidebarHidden={sidebarHidden}
         sidebarPinnedOpen={sidebarPinnedOpen}
         onToggleSidebar={toggleSidebar}
-        search={search}
-        onSearch={setSearch}
-        plans={plans}
-        selectedPlan={selectedPlan}
         onSelectPlan={setSelectedPlan}
         onFocusSearch={revealSidebarForSearch}
         totalPlans={totalPlans}

@@ -2050,8 +2050,14 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   }, [setFilters, setSearch]);
   const setActivePanel = useCallback((v: Panel) => dsd({ type: 'SET_PANEL', value: v }), []);
   const setShowPricingModal = (v: boolean) => dsd({ type: 'SET_PRICING_MODAL', value: v });
-  const setSidebarHidden = (v: boolean) => dsd({ type: 'SET_SIDEBAR_HIDDEN', value: v });
-  const setSidebarPeek = (v: boolean) => dsd({ type: 'SET_SIDEBAR_PEEK', value: v });
+  const setSidebarHidden = useCallback(
+    (v: boolean) => dsd({ type: 'SET_SIDEBAR_HIDDEN', value: v }),
+    [],
+  );
+  const setSidebarPeek = useCallback(
+    (v: boolean) => dsd({ type: 'SET_SIDEBAR_PEEK', value: v }),
+    [],
+  );
 
   const editing = activePanel === 'editing';
   const creating = activePanel === 'creating';
@@ -2366,11 +2372,11 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     dsd({ type: 'TOGGLE_SIDEBAR' });
   }
 
-  function revealSidebarForSearch() {
+  const revealSidebarForSearch = useCallback(() => {
     peek.clear();
     setSidebarPeek(false);
     setSidebarHidden(false);
-  }
+  }, [peek.clear, setSidebarPeek, setSidebarHidden]);
 
   function toggleOutline() {
     dsd({ type: 'TOGGLE_OUTLINE' });

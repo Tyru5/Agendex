@@ -214,7 +214,7 @@ export function SidebarFilters({
         >
           <option value="">All workspaces</option>
           {workspace && !workspaces.includes(workspace) && (
-            <option value={workspace}>Selected workspace</option>
+            <option value={workspace}>{workspace}</option>
           )}
           {workspaces.map((workspaceOption) => (
             <option key={workspaceOption} value={workspaceOption}>

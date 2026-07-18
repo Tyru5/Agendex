@@ -1,19 +1,8 @@
 import { useMemo } from 'react';
-import type { Plan } from '../lib/api.ts';
-import type { PlanState } from '../lib/plan-state.ts';
 import { focusPlanSearchField } from './PlanSearchField.tsx';
 
 type SearchBarProps = {
   onFocusSearch?: () => void;
-  search?: string;
-  onSearch?: (q: string) => void;
-  plans?: Plan[];
-  selectedId?: string;
-  onSelectPlan?: (plan: Plan) => void;
-  splitPlanId?: string;
-  onOpenInSplitView?: (plan: Plan) => void;
-  isPro?: boolean;
-  planState?: PlanState;
 };
 
 export function SearchBar({ onFocusSearch }: SearchBarProps) {
