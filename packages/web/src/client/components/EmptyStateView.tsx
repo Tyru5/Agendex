@@ -713,7 +713,7 @@ export function EmptyStateView({
   const agentCount = activeAgents.length;
   const hasPlans = planCount > 0;
   const showLedger = hasPlans && !triviaActive && agentCount > 0;
-  const searchShortcut = formatForDisplay('Mod+K');
+  const searchShortcut = '/';
   const sidebarShortcut = formatForDisplay('Mod+B');
 
   const heading = hasPlans ? 'Choose a plan to review' : 'No plans indexed yet';

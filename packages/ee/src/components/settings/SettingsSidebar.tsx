@@ -35,7 +35,8 @@ function Kbd({ children }: { children: React.ReactNode }) {
 }
 
 const shortcuts = [
-  { label: 'Search', keys: ['⌘', 'K'] },
+  { label: 'Command Palette', keys: ['⌘', 'K'] },
+  { label: 'Search Plans', keys: ['/'] },
   { label: 'Toggle Sidebar', keys: ['⌘', 'B'] },
   { label: 'Toggle Outline', keys: ['⇧', '⌘', 'O'] },
   { label: 'Toggle Tech Chart', keys: ['⇧', '⌘', 'G'] },
