@@ -68,3 +68,5 @@ goals/
 
 # local release-status helper (contains personal App Store Connect defaults)
 scripts/release-status.sh
+
+.commandcode
