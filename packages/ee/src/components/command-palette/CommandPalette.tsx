@@ -43,6 +43,7 @@ export function CommandPalette({
   onToggleChart,
   onDeletePlan,
   onShowChangelog,
+  shortcutEnabled = true,
 }: {
   search: string;
   onSearch: (q: string) => void;
@@ -65,6 +66,7 @@ export function CommandPalette({
   onToggleChart?: () => void;
   onDeletePlan?: (planId: string) => void;
   onShowChangelog?: () => void;
+  shortcutEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -123,6 +125,7 @@ export function CommandPalette({
   }, [clearCloseTimer]);
 
   useEffect(() => {
+    if (!shortcutEnabled) return;
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -141,7 +144,7 @@ export function CommandPalette({
     window.addEventListener('keydown', onKeyDown);
 
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [closeModal, openModal, mounted, view]);
+  }, [closeModal, openModal, mounted, shortcutEnabled, view]);
 
   useEffect(() => {
     if (!open) return;

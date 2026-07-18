@@ -6,10 +6,11 @@ import {
   DownloadPage,
   EmptyStateView,
   ToolsUsedPage,
-  filterPlans,
+  applyPlanFilters,
   hasToken,
   LandingPage,
   MAX_FOLDERS,
+  normalizeFilterValues,
   OfflineView,
   type Plan,
   PlanList,
@@ -27,6 +28,7 @@ import {
   usePlanState,
   usePlans,
   useSidebarWidth,
+  workspacesFromPlans,
 } from '@agendex/web';
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { api } from '@convex/_generated/api';
@@ -34,7 +36,14 @@ import type { Doc, Id } from '@convex/_generated/dataModel';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { ConvexProviderWithAuth, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react';
-import { parseAsString, parseAsStringLiteral, throttle, useQueryState, useQueryStates } from 'nuqs';
+import {
+  parseAsNativeArrayOf,
+  parseAsString,
+  parseAsStringLiteral,
+  throttle,
+  useQueryState,
+  useQueryStates,
+} from 'nuqs';
 import {
   lazy,
   Suspense,
@@ -304,9 +313,10 @@ function useAuthSessionSettled({
 
 function useDashboardData(
   mode: DashboardMode,
-  agentFilter: string | undefined,
-  sortBy: string,
-  dateBucket: string,
+  selectedAgents: readonly string[],
+  workspaceFilter: string | undefined,
+  sortBy: 'updatedAt' | 'createdAt' | 'title',
+  dateBucket: 'all' | 'today' | '7d' | '30d',
   search: string,
   selectedTags: string[],
   selectedCollection: string | undefined,
@@ -316,7 +326,7 @@ function useDashboardData(
 ) {
   const localEnabled = mode === 'local';
   const cloudPlanMetadataEnabled = canUseCloudPlanMetadata(mode, isPro);
-  const filters = useMemo(() => ({ agent: agentFilter, sort: sortBy }), [agentFilter, sortBy]);
+  const filters = useMemo(() => ({ sort: sortBy }), [sortBy]);
   const localPlans = usePlans(filters, localEnabled);
   const cloudPlans = useCloudPlans();
   const localAgents = useAgents(localEnabled);
@@ -335,10 +345,13 @@ function useDashboardData(
     api.collections.listMyCollections,
     cloudPlanMetadataEnabled ? {} : 'skip',
   );
+  const selectedCollectionId = allCollections?.find(
+    (collection) => collection._id === selectedCollection,
+  )?._id;
   const collectionPlanIds = useQuery(
     api.collections.getPlansInCollection,
-    cloudPlanMetadataEnabled && selectedCollection
-      ? { collectionId: selectedCollection as Id<'collections'> }
+    cloudPlanMetadataEnabled && selectedCollectionId
+      ? { collectionId: selectedCollectionId }
       : 'skip',
   );
 
@@ -385,32 +398,21 @@ function useDashboardData(
   );
 
   // Cloud list items ship without `content`, so content matching runs
-  // server-side; the returned ids union into filterPlans' metadata matches.
+  // server-side; the returned ids union into applyPlanFilters' metadata matches.
   const cloudContentMatchIds = useCloudPlanSearch(mode === 'cloud' ? search : '');
 
   const filteredPlans = useMemo(() => {
-    let result = filterPlans(plans, search, mode === 'cloud' ? cloudContentMatchIds : undefined);
-    if (mode === 'cloud' && agentFilter) {
-      result = result.filter((p) => p.agent === agentFilter);
-    }
-    if (dateBucket !== 'all') {
-      const cutoffs = { today: 86400000, '7d': 604800000, '30d': 2592000000 } as Record<
-        string,
-        number
-      >;
-      const cutoff = Date.now() - (cutoffs[dateBucket] ?? 0);
-      const field = sortBy === 'createdAt' ? 'createdAt' : 'updatedAt';
-      result = result.filter((p) => new Date(p[field]).getTime() >= cutoff);
-    }
-    if (collectionPlanIdSet) {
-      result = result.filter((p) => collectionPlanIdSet.has(p.id as Id<'plans'>));
-    }
-    if (selectedTags.length > 0 && planTagsMap) {
-      result = result.filter((p) => {
-        const pTags = planTagsMap[p.id] ?? [];
-        return selectedTags.some((tagId) => pTags.some((tag: TagRecord) => tag._id === tagId));
-      });
-    }
+    let result = applyPlanFilters(plans, {
+      q: search,
+      agents: selectedAgents,
+      workspace: workspaceFilter,
+      date: dateBucket,
+      tagIds: selectedTags,
+      collectionId: selectedCollection,
+      contentMatchIds: mode === 'cloud' ? cloudContentMatchIds : undefined,
+      planTagsById: planTagsMap,
+      collectionMemberIds: collectionPlanIdSet ?? undefined,
+    });
     if (mode === 'cloud') {
       result = [...result].sort((a, b) => {
         if (sortBy === 'title') return a.title.localeCompare(b.title);
@@ -423,10 +425,12 @@ function useDashboardData(
     plans,
     search,
     mode,
-    agentFilter,
+    selectedAgents,
+    workspaceFilter,
     dateBucket,
     sortBy,
     collectionPlanIdSet,
+    selectedCollection,
     selectedTags,
     planTagsMap,
     cloudContentMatchIds,
@@ -476,6 +480,7 @@ function useDashboardData(
     allTags,
     allCollections,
     filteredPlans,
+    workspaces: workspacesFromPlans(plans),
     planState: mode === 'cloud' ? cloudPlanState : localPlanState,
     totalPlans,
     activeAgents,
@@ -1154,6 +1159,9 @@ function DashboardMain({
   onCloseSplit,
   outlineHidden,
   chartHidden,
+  selectedPlanOutsideFilters,
+  selectionFilterNoticeKey,
+  onShowSelectedInFilters,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -1185,6 +1193,9 @@ function DashboardMain({
   onCloseSplit?: () => void;
   outlineHidden?: boolean;
   chartHidden?: boolean;
+  selectedPlanOutsideFilters?: boolean;
+  selectionFilterNoticeKey?: string;
+  onShowSelectedInFilters?: () => void;
 }) {
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -1224,6 +1235,13 @@ function DashboardMain({
       onToggleComments={() => setShowComments((current) => !current)}
     />
   );
+  const selectionFilterNotice =
+    selectedPlan && selectedPlanOutsideFilters && onShowSelectedInFilters ? (
+      <SelectionOutsideFiltersNotice
+        key={selectionFilterNoticeKey}
+        onShowInFilters={onShowSelectedInFilters}
+      />
+    ) : null;
 
   useEffect(() => {
     if (selectedAnnotationState.selectedAnnotationId || splitAnnotationState.selectedAnnotationId) {
@@ -1303,6 +1321,7 @@ function DashboardMain({
           </button>
         </div>
         <div className="main-scroll overflow-auto" style={{ minWidth: 0 }}>
+          {selectionFilterNotice}
           <PlanViewer
             plan={selectedPlan}
             allPlans={allPlans}
@@ -1384,6 +1403,7 @@ function DashboardMain({
       {mode === 'cloud' && cloudSyncPaused && backendStatus !== 'offline' && (
         <CloudSyncPausedNotice />
       )}
+      {selectionFilterNotice}
       {mode === 'cloud' && !isPro ? (
         <CloudUpgrade />
       ) : mode === 'cloud' && backendStatus === 'checking' ? (
@@ -1505,6 +1525,34 @@ function DashboardMain({
   );
 }
 
+function SelectionOutsideFiltersNotice({ onShowInFilters }: { onShowInFilters: () => void }) {
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed) return null;
+
+  return (
+    <div className="mx-4 mt-3 mb-0 flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 text-[12px] text-secondary">
+      <span>Not in current filters</span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onShowInFilters}
+          className="rounded-md border border-border bg-transparent px-2 py-1 text-[11px] font-medium text-secondary hover:border-[var(--tertiary)] hover:text-primary"
+        >
+          Show in filters
+        </button>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="rounded-md border border-transparent bg-transparent px-2 py-1 text-[11px] font-medium text-tertiary hover:text-secondary"
+        >
+          Keep viewing
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function DashboardSidebar({
   sidebarHidden,
   sidebarVisible,
@@ -1515,10 +1563,14 @@ function DashboardSidebar({
   isPro,
   loading,
   error,
+  search,
+  onSearch,
   sortBy,
   dateBucket,
   agents,
-  agentFilter,
+  selectedAgents,
+  workspace,
+  workspaces,
   allTags,
   selectedTags,
   allCollections,
@@ -1527,11 +1579,14 @@ function DashboardSidebar({
   selectedPlan,
   onRevealHover,
   onScheduleClose,
+  onRevealSearch,
   onSortChange,
   onDateBucketChange,
-  onAgentSelect,
+  onAgentsChange,
+  onWorkspaceChange,
   onTagSelect,
   onCollectionSelect,
+  onClearFilters,
   onSelectPlan,
   onNewPlan,
   onUpload,
@@ -1552,10 +1607,14 @@ function DashboardSidebar({
   isPro: boolean;
   loading: boolean;
   error: string | null | undefined;
+  search: string;
+  onSearch: (v: string) => void;
   sortBy: 'updatedAt' | 'createdAt' | 'title';
   dateBucket: 'all' | 'today' | '7d' | '30d';
   agents: AgentStats[];
-  agentFilter: string | undefined;
+  selectedAgents: readonly string[];
+  workspace: string | undefined;
+  workspaces: readonly string[];
   allTags: TagRecord[] | undefined;
   selectedTags: string[];
   allCollections: CollectionRecord[] | undefined;
@@ -1564,11 +1623,14 @@ function DashboardSidebar({
   selectedPlan: Plan | undefined;
   onRevealHover: () => void;
   onScheduleClose: () => void;
+  onRevealSearch: () => void;
   onSortChange: (v: 'updatedAt' | 'createdAt' | 'title') => void;
   onDateBucketChange: (v: 'all' | 'today' | '7d' | '30d') => void;
-  onAgentSelect: (v: string | undefined) => void;
+  onAgentsChange: (v: string[]) => void;
+  onWorkspaceChange: (v: string | undefined) => void;
   onTagSelect: (v: string[]) => void;
   onCollectionSelect: (v: string | undefined) => void;
+  onClearFilters: () => void;
   onSelectPlan: (plan: Plan | undefined) => void;
   onNewPlan: () => void;
   onUpload: () => void;
@@ -1584,6 +1646,14 @@ function DashboardSidebar({
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const hasManyPlans = !loading && !error && filteredPlans.length > 12;
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    selectedAgents.length > 0 ||
+    Boolean(workspace) ||
+    dateBucket !== 'all' ||
+    sortBy !== 'updatedAt' ||
+    selectedTags.length > 0 ||
+    Boolean(selectedCollection);
 
   const updateScrollTopVisibility = useCallback(
     (node: HTMLDivElement | null = scrollViewportRef.current) => {
@@ -1690,19 +1760,26 @@ function DashboardSidebar({
           </div>
         )}
         <SidebarFilters
+          search={search}
+          onSearch={onSearch}
           sortBy={sortBy}
           onSortChange={onSortChange}
           dateBucket={dateBucket}
           onDateBucketChange={onDateBucketChange}
           agents={agents}
-          selectedAgent={agentFilter}
-          onAgentSelect={onAgentSelect}
+          selectedAgents={selectedAgents}
+          onAgentsChange={onAgentsChange}
+          workspace={workspace}
+          onWorkspaceChange={onWorkspaceChange}
+          workspaces={workspaces}
           tags={allTags}
           selectedTags={selectedTags}
           onTagSelect={onTagSelect}
           collections={allCollections}
           selectedCollection={selectedCollection}
           onCollectionSelect={onCollectionSelect}
+          onClearAll={onClearFilters}
+          onSearchFocusRequest={onRevealSearch}
         />
       </div>
 
@@ -1727,7 +1804,7 @@ function DashboardSidebar({
           </div>
         ) : error ? (
           <div className="p-4 text-[13px] text-red-500">Failed to load plans.</div>
-        ) : mode === 'cloud' && filteredPlans.length === 0 ? (
+        ) : mode === 'cloud' && filteredPlans.length === 0 && !hasActiveFilters ? (
           <div className="p-4 text-[12.5px] text-tertiary text-center">
             {cloudSyncPaused
               ? 'No synced cloud plans yet. Start the CLI daemon to sync local plans.'
@@ -1745,6 +1822,15 @@ function DashboardSidebar({
             onRenamePlan={onRenamePlan}
             onDeletePlan={onDeletePlan}
             folderState={folderState}
+            emptyState={
+              hasActiveFilters
+                ? {
+                    title: 'No plans match these filters',
+                    actionLabel: 'Clear all',
+                    onAction: onClearFilters,
+                  }
+                : undefined
+            }
           />
         )}
       </div>
@@ -1811,8 +1897,6 @@ function DashboardSidebar({
 type Panel = 'editing' | 'creating' | 'uploading' | 'history' | 'sharing' | null;
 
 type DashState = {
-  selectedTags: string[];
-  selectedCollection: string | undefined;
   activePanel: Panel;
   showPricingModal: boolean;
   sidebarHidden: boolean;
@@ -1822,8 +1906,6 @@ type DashState = {
 };
 
 type DashAction =
-  | { type: 'SET_TAGS'; value: string[] }
-  | { type: 'SET_COLLECTION'; value: string | undefined }
   | { type: 'SET_PANEL'; value: Panel }
   | { type: 'SET_PRICING_MODAL'; value: boolean }
   | { type: 'SET_SIDEBAR_HIDDEN'; value: boolean }
@@ -1834,10 +1916,6 @@ type DashAction =
 
 function dashReducer(s: DashState, a: DashAction): DashState {
   switch (a.type) {
-    case 'SET_TAGS':
-      return { ...s, selectedTags: a.value };
-    case 'SET_COLLECTION':
-      return { ...s, selectedCollection: a.value };
     case 'SET_PANEL':
       return { ...s, activePanel: a.value };
     case 'SET_PRICING_MODAL':
@@ -1863,11 +1941,26 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       .withDefault('')
       .withOptions({ clearOnDefault: true, limitUrlUpdates: throttle(500) }),
   );
-  const [{ agent: agentFilterRaw, sort: sortBy, date: dateBucket }, setFilters] = useQueryStates(
+  const [
+    {
+      agent: legacyAgentFilterRaw,
+      agents: selectedAgentsRaw,
+      sort: sortBy,
+      date: dateBucket,
+      workspace: workspaceFilterRaw,
+      tags: selectedTagsRaw,
+      collection: selectedCollectionRaw,
+    },
+    setFilters,
+  ] = useQueryStates(
     {
       agent: parseAsString,
+      agents: parseAsNativeArrayOf(parseAsString).withDefault([]),
       sort: parseAsStringLiteral(sortOptions).withDefault('updatedAt'),
       date: parseAsStringLiteral(dateOptions).withDefault('all'),
+      workspace: parseAsString,
+      tags: parseAsNativeArrayOf(parseAsString).withDefault([]),
+      collection: parseAsString,
     },
     { clearOnDefault: true },
   );
@@ -1880,9 +1973,25 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
   );
 
-  const agentFilter = agentFilterRaw ?? undefined;
-  const setAgentFilter = useCallback(
-    (agent: string | undefined) => setFilters({ agent: agent ?? null }),
+  const workspaceFilter = workspaceFilterRaw ?? undefined;
+  const selectedCollection = selectedCollectionRaw ?? undefined;
+  const selectedTags = useMemo(() => normalizeFilterValues(selectedTagsRaw), [selectedTagsRaw]);
+  const selectedAgents = useMemo(() => {
+    const agents = normalizeFilterValues(selectedAgentsRaw);
+    if (agents.length > 0) return agents;
+    return legacyAgentFilterRaw ? [legacyAgentFilterRaw] : [];
+  }, [legacyAgentFilterRaw, selectedAgentsRaw]);
+  const setSelectedAgents = useCallback(
+    (agents: string[]) => setFilters({ agent: null, agents: normalizeFilterValues(agents) }),
+    [setFilters],
+  );
+  useEffect(() => {
+    const legacyAgent = legacyAgentFilterRaw?.trim();
+    if (!legacyAgent || normalizeFilterValues(selectedAgentsRaw).length > 0) return;
+    void setFilters({ agent: null, agents: [legacyAgent] });
+  }, [legacyAgentFilterRaw, selectedAgentsRaw, setFilters]);
+  const setWorkspaceFilter = useCallback(
+    (workspace: string | undefined) => setFilters({ workspace: workspace ?? null }),
     [setFilters],
   );
   const setSortBy = useCallback(
@@ -1895,8 +2004,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   );
 
   const [ds, dsd] = useReducer(dashReducer, {
-    selectedTags: [],
-    selectedCollection: undefined,
     activePanel: null,
     showPricingModal: false,
     sidebarHidden: localStorage.getItem(SIDEBAR_PREF_KEY) === 'true',
@@ -1905,16 +2012,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     chartHidden: localStorage.getItem(CHART_PREF_STORAGE_KEY) === 'true',
   });
 
-  const {
-    selectedTags,
-    selectedCollection,
-    activePanel,
-    showPricingModal,
-    sidebarHidden,
-    sidebarPeek,
-    outlineHidden,
-    chartHidden,
-  } = ds;
+  const { activePanel, showPricingModal, sidebarHidden, sidebarPeek, outlineHidden, chartHidden } =
+    ds;
   // Desktop signed-in users can switch between cloud and the bundled local
   // daemon. Elsewhere (web) the mode stays whatever the route resolved to.
   const canSwitchMode =
@@ -1926,13 +2025,36 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   });
   const mode = canSwitchMode ? (modeOverride ?? autoMode) : autoMode;
   const [sourcesOpen, setSourcesOpen] = useState(false);
-  const setSelectedTags = (v: string[]) => dsd({ type: 'SET_TAGS', value: v });
-  const setSelectedCollection = (v: string | undefined) =>
-    dsd({ type: 'SET_COLLECTION', value: v });
+  const setSelectedTags = useCallback(
+    (tags: string[]) => setFilters({ tags: normalizeFilterValues(tags) }),
+    [setFilters],
+  );
+  const setSelectedCollection = useCallback(
+    (collection: string | undefined) => setFilters({ collection: collection ?? null }),
+    [setFilters],
+  );
+  const clearFilters = useCallback(() => {
+    setSearch('');
+    setFilters({
+      agent: null,
+      agents: [],
+      workspace: null,
+      date: 'all',
+      sort: 'updatedAt',
+      tags: [],
+      collection: null,
+    });
+  }, [setFilters, setSearch]);
   const setActivePanel = useCallback((v: Panel) => dsd({ type: 'SET_PANEL', value: v }), []);
   const setShowPricingModal = (v: boolean) => dsd({ type: 'SET_PRICING_MODAL', value: v });
-  const setSidebarHidden = (v: boolean) => dsd({ type: 'SET_SIDEBAR_HIDDEN', value: v });
-  const setSidebarPeek = (v: boolean) => dsd({ type: 'SET_SIDEBAR_PEEK', value: v });
+  const setSidebarHidden = useCallback(
+    (v: boolean) => dsd({ type: 'SET_SIDEBAR_HIDDEN', value: v }),
+    [],
+  );
+  const setSidebarPeek = useCallback(
+    (v: boolean) => dsd({ type: 'SET_SIDEBAR_PEEK', value: v }),
+    [],
+  );
 
   const editing = activePanel === 'editing';
   const creating = activePanel === 'creating';
@@ -1958,6 +2080,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     allTags,
     allCollections,
     filteredPlans,
+    workspaces,
     planState,
     totalPlans,
     activeAgents,
@@ -1967,7 +2090,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     cloudSyncPaused,
   } = useDashboardData(
     mode,
-    agentFilter,
+    selectedAgents,
+    workspaceFilter,
     sortBy,
     dateBucket,
     search,
@@ -2003,6 +2127,13 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   useEffect(() => {
     localStorage.setItem(CHART_PREF_STORAGE_KEY, chartHidden ? 'true' : 'false');
   }, [chartHidden]);
+
+  useEffect(() => {
+    if (mode !== 'local' || loading || selectedPlanId || localAutoSelectSuppressed) return;
+    const initialPlan = filteredPlans[0];
+    if (!initialPlan) return;
+    void setSelectedPlanId(initialPlan.id);
+  }, [filteredPlans, loading, localAutoSelectSuppressed, mode, selectedPlanId, setSelectedPlanId]);
 
   const selectedPlanBase = useMemo(() => {
     const localFallback =
@@ -2075,6 +2206,32 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const splitPlan = useHydratedCloudPlan(mode, splitPlanBase);
 
   const isSplitView = !!selectedPlan && !!splitPlan && selectedPlan.id !== splitPlan.id;
+  const selectedPlanOutsideFilters = Boolean(
+    selectedPlan &&
+    plansById.has(selectedPlan.id) &&
+    !filteredPlans.some((plan) => plan.id === selectedPlan.id),
+  );
+  const selectionFilterNoticeKey = useMemo(
+    () =>
+      [
+        selectedPlan?.id ?? '',
+        search.trim(),
+        selectedAgents.join(','),
+        workspaceFilter ?? '',
+        dateBucket,
+        selectedTags.join(','),
+        selectedCollection ?? '',
+      ].join('|'),
+    [
+      dateBucket,
+      search,
+      selectedAgents,
+      selectedCollection,
+      selectedPlan?.id,
+      selectedTags,
+      workspaceFilter,
+    ],
+  );
   const effectiveChartHidden = !isPro && !isWorkspaceAccessLoading ? false : chartHidden;
 
   const setSelectedPlan = useCallback(
@@ -2108,9 +2265,15 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       if (next === effective) return;
 
       void setSearch(null);
-      void setFilters({ agent: null, date: 'all', sort: 'updatedAt' });
-      setSelectedTags([]);
-      setSelectedCollection(undefined);
+      void setFilters({
+        agent: null,
+        agents: [],
+        workspace: null,
+        date: 'all',
+        sort: 'updatedAt',
+        tags: [],
+        collection: null,
+      });
       setActivePanel(null);
       setOptimisticSelectedPlan(undefined);
       setLocalAutoSelectSuppressed(false);
@@ -2206,6 +2369,13 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     dsd({ type: 'TOGGLE_SIDEBAR' });
   }
 
+  const clearPeekTimer = peek.clear;
+  const revealSidebarForSearch = useCallback(() => {
+    clearPeekTimer();
+    setSidebarPeek(false);
+    setSidebarHidden(false);
+  }, [clearPeekTimer, setSidebarPeek, setSidebarHidden]);
+
   function toggleOutline() {
     dsd({ type: 'TOGGLE_OUTLINE' });
   }
@@ -2297,6 +2467,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onToggleSidebar={toggleSidebar}
         onSetSearch={setSearch}
         onSelectPlan={setSelectedPlan}
+        onFocusSearch={revealSidebarForSearch}
         onNewPlan={handleNewPlan}
         onUpload={handleUpload}
         onHistory={() => startViewTransition(() => setActivePanel('history'))}
@@ -2386,10 +2557,14 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         isPro={isPro}
         loading={loading}
         error={error}
+        search={search}
+        onSearch={setSearch}
         sortBy={sortBy}
         dateBucket={dateBucket}
         agents={agents}
-        agentFilter={agentFilter}
+        selectedAgents={selectedAgents}
+        workspace={workspaceFilter}
+        workspaces={workspaces}
         allTags={allTags ?? undefined}
         selectedTags={selectedTags}
         allCollections={allCollections ?? undefined}
@@ -2398,11 +2573,14 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         selectedPlan={selectedPlan}
         onRevealHover={peek.reveal}
         onScheduleClose={peek.scheduleClose}
+        onRevealSearch={revealSidebarForSearch}
         onSortChange={setSortBy}
         onDateBucketChange={setDateBucket}
-        onAgentSelect={setAgentFilter}
+        onAgentsChange={setSelectedAgents}
+        onWorkspaceChange={setWorkspaceFilter}
         onTagSelect={setSelectedTags}
         onCollectionSelect={setSelectedCollection}
+        onClearFilters={clearFilters}
         onSelectPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
         onNewPlan={handleNewPlan}
         onUpload={handleUpload}
@@ -2456,6 +2634,9 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onCloseSplit={closeSplitView}
         outlineHidden={outlineHidden}
         chartHidden={effectiveChartHidden}
+        selectedPlanOutsideFilters={selectedPlanOutsideFilters}
+        selectionFilterNoticeKey={selectionFilterNoticeKey}
+        onShowSelectedInFilters={clearFilters}
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}

@@ -1,4 +1,4 @@
-import { type Plan, type PlanState, ThemeToggle } from '@agendex/web';
+import { type Plan, type PlanState, SearchBar, ThemeToggle } from '@agendex/web';
 import type { ReactNode } from 'react';
 import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
 import { AuthButton } from './AuthButton';
@@ -24,6 +24,7 @@ export function DashboardTopbar({
   onToggleSidebar,
   onSetSearch,
   onSelectPlan,
+  onFocusSearch,
   onNewPlan,
   onUpload,
   onHistory,
@@ -58,6 +59,7 @@ export function DashboardTopbar({
   onToggleSidebar: () => void;
   onSetSearch: (v: string) => void;
   onSelectPlan: (p: Plan | undefined) => void;
+  onFocusSearch?: () => void;
   onNewPlan: () => void;
   onUpload: () => void;
   onHistory: () => void;
@@ -98,6 +100,8 @@ export function DashboardTopbar({
 
       <div className="hidden md:flex flex-1 min-w-0 justify-center">
         <CommandPalette
+          hideTrigger
+          shortcutEnabled={false}
           search={search}
           onSearch={onSetSearch}
           plans={plans}
@@ -119,6 +123,7 @@ export function DashboardTopbar({
           onDeletePlan={onDeletePlan}
           onShowChangelog={onShowChangelog}
         />
+        <SearchBar onFocusSearch={onFocusSearch} />
       </div>
 
       <div className="flex items-center justify-end gap-2.5 min-w-0 shrink-0 pr-4">

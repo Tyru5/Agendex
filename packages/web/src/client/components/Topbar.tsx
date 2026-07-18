@@ -30,13 +30,8 @@ interface TopbarProps {
   sidebarHidden: boolean;
   sidebarPinnedOpen: boolean;
   onToggleSidebar: () => void;
-  search: string;
-  onSearch: (q: string) => void;
-  plans: Plan[];
-  selectedPlan?: Plan;
   onSelectPlan: (plan: Plan | undefined) => void;
-  splitPlanId?: string;
-  onOpenInSplitView?: (plan: Plan) => void;
+  onFocusSearch?: () => void;
   totalPlans: number;
   activeAgents: number;
   backendStatus: 'online' | 'offline' | 'checking';
@@ -50,13 +45,8 @@ export function Topbar({
   sidebarHidden,
   sidebarPinnedOpen,
   onToggleSidebar,
-  search,
-  onSearch,
-  plans,
-  selectedPlan,
   onSelectPlan,
-  splitPlanId,
-  onOpenInSplitView,
+  onFocusSearch,
   totalPlans,
   activeAgents,
   backendStatus,
@@ -114,15 +104,7 @@ export function Topbar({
       </div>
 
       <div className="hidden md:flex min-w-0 justify-center">
-        <SearchBar
-          search={search}
-          onSearch={onSearch}
-          plans={plans}
-          selectedId={selectedPlan?.id}
-          onSelectPlan={onSelectPlan}
-          splitPlanId={splitPlanId}
-          onOpenInSplitView={onOpenInSplitView}
-        />
+        <SearchBar onFocusSearch={onFocusSearch} />
       </div>
 
       <div className="flex items-center justify-end gap-3 min-w-0 justify-self-end pr-4">

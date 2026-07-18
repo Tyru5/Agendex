@@ -33,13 +33,20 @@ export { PlanCreator } from './client/components/PlanCreator.tsx';
 export { PlanEditor } from './client/components/PlanEditor.tsx';
 export { FolderTree, MoveToFolderMenu } from './client/components/FolderTree.tsx';
 export { PlanList } from './client/components/PlanList.tsx';
+export { PlanFilterMismatchBanner } from './client/components/PlanFilterMismatchBanner.tsx';
 export { PlanOutline } from './client/components/PlanOutline.tsx';
 export { PlanSourcesDialog } from './client/components/PlanSourcesDialog.tsx';
+export {
+  FOCUS_PLAN_SEARCH_EVENT,
+  focusPlanSearchField,
+  PlanSearchField,
+} from './client/components/PlanSearchField.tsx';
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export type { PlanAnnotationCreateDraft } from './client/components/PlanViewer.tsx';
 export { PlanActionButton, PlanViewer } from './client/components/PlanViewer.tsx';
 export { SearchBar } from './client/components/SearchBar.tsx';
 export { Sidebar } from './client/components/Sidebar.tsx';
+export type { SidebarFiltersProps, SidebarSortBy } from './client/components/SidebarFilters.tsx';
 export { SidebarFilters } from './client/components/SidebarFilters.tsx';
 export { SidebarResizeHandle } from './client/components/SidebarResizeHandle.tsx';
 export { Skeleton, SkeletonBlock, SkeletonLine } from './client/components/Skeleton.tsx';
@@ -91,6 +98,20 @@ export { api, clearToken, hasToken, setToken } from './client/lib/api.ts';
 export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
 export type { FolderState, PlanFolder, PlanFolderStore } from './client/lib/plan-folders.ts';
 export { MAX_FOLDERS } from './client/lib/plan-folders.ts';
+export type {
+  PlanDateBucket,
+  PlanFilterChip,
+  PlanFilterChipKind,
+  PlanFilterChipLabels,
+  PlanFilterState,
+  PlanTagMembership,
+} from './client/lib/plan-filters.ts';
+export {
+  applyPlanFilters,
+  deriveFilterChips,
+  normalizeFilterValues,
+  workspacesFromPlans,
+} from './client/lib/plan-filters.ts';
 export type { OutlineEntry } from './client/lib/extract-headings.ts';
 export { buildPlanOutline } from './client/lib/extract-headings.ts';
 export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-markdown.ts';
