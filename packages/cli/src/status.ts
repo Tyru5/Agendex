@@ -121,6 +121,12 @@ export function formatDuration(ms: number): string {
   return `${days}d ${remainingHours}h`;
 }
 
+function formatLauncherOrigin(launcher: DaemonPidInfo['launcher']): string | null {
+  if (launcher === 'desktop') return 'via desktop app';
+  if (launcher === 'cli') return 'via CLI';
+  return null;
+}
+
 function localDaemonDetail(options: RenderStatusOptions, now: number): string {
   if (!options.running) return 'run `agendex start` to begin background sync';
 
@@ -133,6 +139,8 @@ function localDaemonDetail(options: RenderStatusOptions, now: number): string {
   }
   if (options.pidInfo?.hostname) parts.push(`host ${options.pidInfo.hostname}`);
   else parts.push('host unknown');
+  const origin = formatLauncherOrigin(options.pidInfo?.launcher);
+  if (origin) parts.push(origin);
   return parts.join(' • ');
 }
 

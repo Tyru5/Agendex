@@ -122,6 +122,9 @@ test('starts one utility worker without putting credentials in its environment',
   expect(forkCalls[0]?.path).toContain('worker path with spaces');
   expect(forkCalls[0]?.options.env?.AGENDEX_DEV).toBe('1');
   expect(forkCalls[0]?.options.env?.AGENDEX_CLOUD_TOKEN).toBeUndefined();
+  expect((forkCalls[0]?.options as { execArgv?: string[] }).execArgv).toEqual([
+    '--agendex-daemon-worker',
+  ]);
   expect(
     child.messages.some(
       (message) =>

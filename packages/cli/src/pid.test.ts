@@ -131,6 +131,61 @@ test('daemon PID ownership accepts only CLI or marked desktop daemon commands', 
   ).toBe(false);
 });
 
+test('desktop launcher ownership accepts Electron utility processes without visible Node args', () => {
+  const info = {
+    pid: process.pid,
+    hostname: 'current-host',
+    bootId: 'boot-current',
+    launcher: 'desktop' as const,
+    parentPid: process.pid,
+  };
+  const runtime = {
+    currentHostname: 'current-host',
+    currentBootId: 'boot-current',
+    processRunning: true,
+    parentProcessRunning: true,
+  };
+
+  // Real Electron utilityProcess listings often omit fork() Node args from `ps`/WMI.
+  expect(
+    isDaemonPidInfoRunning(info, {
+      ...runtime,
+      processCommand:
+        'Agendex Helper (Plugin) --type=utility --utility-sub-type=node.mojom.NodeService',
+    }),
+  ).toBe(true);
+  expect(
+    isDaemonPidInfoRunning(info, {
+      ...runtime,
+      processCommand: 'RenamedDesktop.exe --type=utility --utility-sub-type=network',
+    }),
+  ).toBe(true);
+  expect(
+    isDaemonPidInfoRunning(info, {
+      ...runtime,
+      parentProcessRunning: false,
+      processCommand:
+        'Agendex Helper (Plugin) --type=utility --utility-sub-type=node.mojom.NodeService',
+    }),
+  ).toBe(false);
+  expect(
+    isDaemonPidInfoRunning(info, {
+      ...runtime,
+      processCommand: 'unrelated-process --serve',
+    }),
+  ).toBe(false);
+  expect(
+    isDaemonPidInfoRunning(
+      { ...info, launcher: 'cli' },
+      {
+        ...runtime,
+        processCommand:
+          'Agendex Helper (Plugin) --type=utility --utility-sub-type=node.mojom.NodeService',
+      },
+    ),
+  ).toBe(false);
+});
+
 test('legacy PID files retain metadata and require daemon process ownership', () => {
   useTempConfigDir();
   const configDir = process.env.AGENDEX_CONFIG_DIR as string;
