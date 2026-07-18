@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+command -v bun >/dev/null 2>&1 || {
+  echo "Bun is missing; rerun .agents/setup" >&2
+  exit 1
+}
+
+command -v node >/dev/null 2>&1 || {
+  echo "Node.js is missing; rerun .agents/setup" >&2
+  exit 1
+}
+
+[[ -d node_modules ]] || {
+  echo "Workspace dependencies are missing; rerun .agents/setup" >&2
+  exit 1
+}
+
+echo "Orb dependencies are ready; no local services need repair."

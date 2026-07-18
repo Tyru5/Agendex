@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+export DEBIAN_FRONTEND=noninteractive
+export CI=1
+
+missing_packages=()
+command -v curl >/dev/null 2>&1 || missing_packages+=(curl)
+command -v unzip >/dev/null 2>&1 || missing_packages+=(unzip)
+command -v g++ >/dev/null 2>&1 || missing_packages+=(build-essential)
+command -v python3 >/dev/null 2>&1 || missing_packages+=(python3)
+
+if ((${#missing_packages[@]})); then
+  echo "==> Installing system packages: ${missing_packages[*]}"
+  sudo apt-get update
+  sudo apt-get install -y --no-install-recommends "${missing_packages[@]}"
+fi
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "==> Installing Bun"
+  curl -fsSL https://bun.sh/install | bash
+  export PATH="$HOME/.bun/bin:$PATH"
+fi
+
+node_major=0
+if command -v node >/dev/null 2>&1; then
+  node_major="$(node --version | sed -E 's/^v([0-9]+).*/\1/')"
+fi
+
+if ((node_major < 20)); then
+  echo "==> Installing Node.js 22"
+  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+  sudo apt-get install -y --no-install-recommends nodejs
+fi
+
+echo "==> Installing workspace dependencies"
+bun install --frozen-lockfile
+
+echo "==> Orb setup complete (Bun $(bun --version), Node $(node --version))"
