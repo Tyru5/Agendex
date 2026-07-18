@@ -210,7 +210,14 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
             fromSnapshot === undefined || toSnapshot === undefined ? (
               <SkeletonBlock lines={6} />
             ) : (
-              <PlanDiffViewer oldContent={fromSnapshot.content} newContent={toSnapshot.content} />
+              <PlanDiffViewer
+                oldContent={fromSnapshot.content}
+                newContent={toSnapshot.content}
+                oldLabel={`v${compareFrom}`}
+                newLabel={`v${compareTo}`}
+                oldTitle={fromSnapshot.title}
+                newTitle={toSnapshot.title}
+              />
             )
           ) : compareTo != null && versions.length === 1 ? (
             toSnapshot === undefined ? (
