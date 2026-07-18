@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 4.1.3
+
+### Patch Changes
+
+- bc8272f: Updates to how we render daemon registry info
+
 ## 4.1.2
 
 ### Patch Changes
