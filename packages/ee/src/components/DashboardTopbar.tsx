@@ -10,6 +10,7 @@ import { StatusPopover } from './topbar/StatusPopover';
 
 export function DashboardTopbar({
   sidebarPinnedOpen,
+  sidebarVisible,
   sidebarHidden,
   isPro,
   mode,
@@ -45,6 +46,7 @@ export function DashboardTopbar({
   actions,
 }: {
   sidebarPinnedOpen: boolean;
+  sidebarVisible: boolean;
   sidebarHidden: boolean;
   isPro: boolean;
   mode: 'local' | 'cloud';
@@ -87,6 +89,7 @@ export function DashboardTopbar({
     >
       <BrandSection
         sidebarPinnedOpen={sidebarPinnedOpen}
+        sidebarVisible={sidebarVisible}
         sidebarHidden={sidebarHidden}
         sidebarWidth={sidebarWidthProp ?? 260}
         isPro={isPro}

@@ -2,6 +2,7 @@ import { SidebarToggleIcon, UploadIcon } from './TopbarIcons';
 
 export function BrandSection({
   sidebarPinnedOpen,
+  sidebarVisible,
   sidebarHidden,
   sidebarWidth,
   isPro,
@@ -13,6 +14,7 @@ export function BrandSection({
   onLogoClick,
 }: {
   sidebarPinnedOpen: boolean;
+  sidebarVisible: boolean;
   sidebarHidden: boolean;
   sidebarWidth: number;
   isPro: boolean;
@@ -23,6 +25,7 @@ export function BrandSection({
   onUpload: () => void;
   onLogoClick: () => void;
 }) {
+  const showTopbarActions = !sidebarVisible;
   return (
     <div
       className="flex items-center gap-2.5 min-w-0 h-full shrink-0 pl-4"
@@ -56,14 +59,13 @@ export function BrandSection({
         Agendex<span className="agendex-brand-mark">.</span>
       </button>
 
-      {(mode === 'local' || (mode === 'cloud' && isPro)) && (
+      {(mode === 'local' || (mode === 'cloud' && isPro)) && showTopbarActions && (
         <div
           className="flex items-center gap-1 ml-1.5 transition-[opacity,transform,filter] duration-200 ease-in-out"
           style={{
-            opacity: sidebarPinnedOpen ? 0 : backendStatus === 'offline' ? 0.35 : 1,
-            transform: sidebarPinnedOpen ? 'scale(0.95)' : 'scale(1)',
+            opacity: backendStatus === 'offline' ? 0.35 : 1,
             filter: backendStatus === 'offline' ? 'blur(1.5px)' : undefined,
-            pointerEvents: sidebarPinnedOpen || backendStatus === 'offline' ? 'none' : 'auto',
+            pointerEvents: backendStatus === 'offline' ? 'none' : 'auto',
           }}
         >
           <button

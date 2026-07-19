@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type SelectHTMLAttributes } from 'react';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { AgentStats } from '../lib/api.ts';
 import {
@@ -205,10 +205,9 @@ export function SidebarFilters({
         <div className="sidebar-control-header">
           <span className="sidebar-control-label">Workspace</span>
         </div>
-        <select
+        <SidebarSelect
           value={workspace ?? ''}
           onChange={(event) => onWorkspaceChange?.(event.target.value || undefined)}
-          className="sidebar-select"
           aria-label="Workspace"
           disabled={!onWorkspaceChange}
         >
@@ -221,7 +220,7 @@ export function SidebarFilters({
               {workspaceOption}
             </option>
           ))}
-        </select>
+        </SidebarSelect>
       </div>
 
       <div className="sidebar-control-block">
@@ -247,10 +246,9 @@ export function SidebarFilters({
         <div className="sidebar-control-header">
           <span className="sidebar-control-label">Sort</span>
         </div>
-        <select
+        <SidebarSelect
           value={sortBy}
           onChange={(event) => onSortChange(event.target.value as SidebarSortBy)}
-          className="sidebar-select"
           aria-label="Sort plans"
         >
           {SORT_OPTIONS.map((option) => (
@@ -258,7 +256,7 @@ export function SidebarFilters({
               {option.label}
             </option>
           ))}
-        </select>
+        </SidebarSelect>
       </div>
 
       {showMoreFilters && (
@@ -325,10 +323,9 @@ export function SidebarFilters({
                 <div className="sidebar-control-header">
                   <span className="sidebar-control-label">Collection</span>
                 </div>
-                <select
+                <SidebarSelect
                   value={selectedCollection ?? ''}
                   onChange={(event) => onCollectionSelect(event.target.value || undefined)}
-                  className="sidebar-select"
                   aria-label="Collection"
                 >
                   <option value="">All plans</option>
@@ -340,12 +337,24 @@ export function SidebarFilters({
                       {collection.name}
                     </option>
                   ))}
-                </select>
+                </SidebarSelect>
               </div>
             )}
           </div>
         </details>
       )}
+    </div>
+  );
+}
+
+function SidebarSelect({ className, disabled, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className={`sidebar-select-shell${disabled ? ' sidebar-select-shell--disabled' : ''}`}>
+      <select
+        {...props}
+        disabled={disabled}
+        className={`sidebar-select${className ? ` ${className}` : ''}`}
+      />
     </div>
   );
 }

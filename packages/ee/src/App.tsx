@@ -2454,6 +2454,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     >
       <DashboardTopbar
         sidebarPinnedOpen={sidebarPinnedOpen}
+        sidebarVisible={sidebarVisible}
         sidebarHidden={sidebarHidden}
         isPro={isPro}
         mode={mode}
