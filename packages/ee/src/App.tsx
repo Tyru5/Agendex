@@ -2469,7 +2469,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onToggleSidebar={toggleSidebar}
         onSetSearch={setSearch}
         onSelectPlan={setSelectedPlan}
-        onFocusSearch={revealSidebarForSearch}
         onNewPlan={handleNewPlan}
         onUpload={handleUpload}
         onHistory={() => startViewTransition(() => setActivePanel('history'))}
