@@ -762,11 +762,28 @@
 }
 
 .sidebar-more-filters summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--secondary);
   cursor: pointer;
   font-size: 12px;
   font-weight: 620;
-  list-style-position: outside;
+  list-style: none;
+}
+
+.sidebar-more-filters summary::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-more-filters-chevron {
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+
+.sidebar-more-filters[open] .sidebar-more-filters-chevron {
+  transform: rotate(90deg);
 }
 
 .sidebar-more-filter-body {

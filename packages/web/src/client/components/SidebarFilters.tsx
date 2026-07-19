@@ -261,7 +261,17 @@ export function SidebarFilters({
 
       {showMoreFilters && (
         <details className="sidebar-more-filters">
-          <summary>More filters</summary>
+          <summary>
+            <svg
+              className="sidebar-more-filters-chevron"
+              viewBox="0 0 10 10"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path d="M3.5 2 6.5 5 3.5 8" stroke="currentColor" strokeLinecap="round" />
+            </svg>
+            <span>More filters</span>
+          </summary>
           <div className="sidebar-more-filter-body">
             {showTags && onTagSelect && tags && (
               <div className="sidebar-control-block">
