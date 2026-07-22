@@ -14,6 +14,7 @@ import { AccountTab } from './settings/AccountTab';
 import { SettingsSidebar } from './settings/SettingsSidebar';
 import { SettingsTabs } from './settings/SettingsTabs';
 import { TeamTab } from './settings/TeamTab';
+import { UpdateTab } from './settings/UpdateTab';
 import type { SettingsTabId } from './settings/constants';
 
 const DASHBOARD_PATH = '/dashboard';
@@ -165,6 +166,8 @@ export function SettingsPage() {
               )}
 
               {activeTab === 'team' && <TeamTab isActive={isActive} />}
+
+              {activeTab === 'updates' && <UpdateTab />}
             </div>
           </section>
         </div>

@@ -7,6 +7,7 @@ import { SubscriptionBadge } from './SubscriptionBadge';
 import { BrandSection } from './topbar/BrandSection';
 import { MachinesIndicator } from './topbar/MachinesIndicator';
 import { StatusPopover } from './topbar/StatusPopover';
+import { UpdateIndicator } from './topbar/UpdateIndicator';
 
 export function DashboardTopbar({
   sidebarPinnedOpen,
@@ -154,6 +155,7 @@ export function DashboardTopbar({
         )}
         {actions}
         <MachinesIndicator devices={daemonDevices} aggregateStatus={daemonAggregateStatus} />
+        <UpdateIndicator />
         <div className="w-px h-4 bg-border" />
         <ThemeToggle />
         <SubscriptionBadge />

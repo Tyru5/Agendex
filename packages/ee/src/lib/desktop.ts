@@ -15,6 +15,15 @@ export type DesktopAuthFetchResult = {
   readonly statusText: string;
 };
 
+export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'ready' | 'no-update' | 'error';
+
+export interface UpdateState {
+  status: UpdateStatus;
+  version?: string;
+  progress?: number;
+  error?: string;
+}
+
 /**
  * Desktop (Electron) integration bridge.
  *
@@ -36,6 +45,9 @@ export interface AgendexDesktopBridge {
   refreshCloudSession: () => Promise<{ token: string; convexSiteUrl: string } | null>;
   getConvexAuthToken: () => Promise<string | null>;
   authFetch: (url: string, init: DesktopAuthFetchInit) => Promise<DesktopAuthFetchResult>;
+  checkForUpdates: () => Promise<void>;
+  installUpdate: () => Promise<void>;
+  getAppVersion: () => Promise<string>;
 }
 
 function getBridge(): AgendexDesktopBridge | undefined {
