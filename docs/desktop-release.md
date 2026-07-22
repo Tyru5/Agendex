@@ -16,9 +16,17 @@ This mirrors the release model used in [streamer.share](https://github.com/Tyru5
 Desktop releases use a `desktop-v` prefix so they do not collide with CLI tags (`v*` from the npm publish workflow):
 
 ```bash
+node scripts/prepare-desktop-release.mjs 1.0.0 --write
+git checkout -- packages/desktop/package.json
+git add packages/web/src/client/components/DownloadPage.tsx
+git commit -m "chore(web): bump desktop download version to 1.0.0"
 git tag desktop-v1.0.0
 git push origin desktop-v1.0.0
 ```
+
+For stable releases, push the download-page commit before pushing the tag. Release
+preflight verifies that `/download` already targets the requested version, avoiding a
+post-release write that would violate `main` branch protection.
 
 ### Manual release
 
@@ -95,9 +103,10 @@ GitHub Releases for assets and explains the macOS Keychain prompt first-run user
 
 `scripts/prepare-desktop-release.mjs --write` automatically bumps `DESKTOP_VERSION` in
 `packages/web/src/client/components/DownloadPage.tsx` for **stable** releases (not
-prereleases). The GitHub release workflow then commits that change to `main` after a
-successful publish so the live site stays current. Local `bun run release:desktop:mac`
-keeps the same download-page update on disk (commit it with your next web deploy).
+prereleases). Commit that change before creating the release tag; release preflight
+rejects a stable release whose download page is stale. Local
+`bun run release:desktop:mac` keeps the same download-page update on disk (commit it
+with your next web deploy).
 
 ## Root commands
 

@@ -10,11 +10,11 @@ export interface DownloadPageProps {
 
 /**
  * Latest stable desktop release advertised on /download.
- * Updated automatically by `scripts/prepare-desktop-release.mjs --write` when
- * shipping a stable release (see `docs/desktop-release.md`). Asset names follow
+ * Update with `scripts/prepare-desktop-release.mjs --write` before tagging a
+ * stable release (see `docs/desktop-release.md`). Asset names follow
  * `Agendex-<version>-universal.{dmg,zip}` from electron-builder.
  */
-const DESKTOP_VERSION = '1.4.1';
+const DESKTOP_VERSION = '1.4.3';
 const DESKTOP_TAG = `desktop-v${DESKTOP_VERSION}`;
 const GITHUB_RELEASES_URL = 'https://github.com/Tyru5/Agendex/releases';
 const GITHUB_RELEASE_URL = `${GITHUB_RELEASES_URL}/tag/${DESKTOP_TAG}`;

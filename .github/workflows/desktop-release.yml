@@ -48,6 +48,18 @@ jobs:
           RAW_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: node scripts/prepare-desktop-release.mjs "$RAW_VERSION" --github-output
 
+      - name: Verify stable download page version
+        if: steps.release_meta.outputs.make_latest == 'true'
+        env:
+          VERSION: ${{ steps.release_meta.outputs.version }}
+        run: |
+          node scripts/prepare-desktop-release.mjs "$VERSION" --write
+          git checkout -- packages/desktop/package.json
+          if ! git diff --quiet -- packages/web/src/client/components/DownloadPage.tsx; then
+            echo "::error::Update the download page to v${VERSION} and commit it before creating the release tag."
+            exit 1
+          fi
+
       - name: Check formatting and lint
         run: bun run check
 
@@ -212,44 +224,3 @@ jobs:
             codesign --verify --deep --strict --verbose=2 "/Applications/Agendex.app"
             spctl -a -vv "/Applications/Agendex.app"
             ```
-
-      # Keep /download pointing at the just-published stable assets. Applied on
-      # top of origin/main so a release from an older tag still lands a clean
-      # version-only commit (package.json stays at the 0.0.0 dev baseline).
-      - name: Bump download page on main
-        if: needs.preflight.outputs.make_latest == 'true'
-        shell: bash
-        env:
-          VERSION: ${{ needs.preflight.outputs.version }}
-        run: |
-          set -euo pipefail
-
-          git fetch origin main
-          git checkout -B desktop-download-version origin/main
-
-          node scripts/prepare-desktop-release.mjs "$VERSION" --write
-          # Packaging version is ephemeral; only the marketing constant is committed.
-          git checkout -- packages/desktop/package.json
-
-          if git diff --quiet -- packages/web/src/client/components/DownloadPage.tsx; then
-            echo "Download page already at v${VERSION}"
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/web/src/client/components/DownloadPage.tsx
-          git commit -m "chore(web): bump desktop download version to ${VERSION}"
-
-          # Release jobs can run for up to 120m (notarization). Commits that land
-          # on main in that window would reject a plain fast-forward push and mark
-          # the job failed after the GitHub Release is already published.
-          for attempt in 1 2 3; do
-            git pull --rebase origin main
-            git push origin HEAD:main && break
-            if [[ "$attempt" -eq 3 ]]; then
-              echo "::error::Failed to push download page version bump after 3 attempts"
-              exit 1
-            fi
-            sleep 15
-          done
