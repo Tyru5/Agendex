@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isDesktop, type UpdateState } from '../../lib/desktop.ts';
-import { useDesktopUpdate } from '../hooks/useDesktopUpdate.ts';
+import { useDesktopUpdate } from '../../hooks/useDesktopUpdate.ts';
 
 function StatusDot({ status }: { status: UpdateState['status'] }) {
   const color =
