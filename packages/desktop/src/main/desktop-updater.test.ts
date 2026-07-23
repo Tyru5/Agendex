@@ -1,9 +1,5 @@
 import { expect, test } from 'bun:test';
-import {
-  createDesktopUpdater,
-  type UpdateState,
-  type UpdaterLike,
-} from './desktop-updater.ts';
+import { createDesktopUpdater, type UpdateState, type UpdaterLike } from './desktop-updater.ts';
 
 interface FakeUpdater extends UpdaterLike {
   listeners: Map<string, ((...args: never[]) => void)[]>;
@@ -367,10 +363,7 @@ test('checkForUpdates triggers a check and dedupes concurrent calls', async () =
     setIntervalFn: () => noopTimer(),
   });
 
-  await Promise.all([
-    desktopUpdater.checkForUpdates(),
-    desktopUpdater.checkForUpdates(),
-  ]);
+  await Promise.all([desktopUpdater.checkForUpdates(), desktopUpdater.checkForUpdates()]);
 
   expect(updater.checkCalls).toBe(1);
 });

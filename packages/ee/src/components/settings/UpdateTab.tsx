@@ -58,16 +58,12 @@ export function UpdateTab() {
         <h3 className="text-[14px] font-semibold text-text mb-4">Application</h3>
         <div className="flex items-center justify-between text-[13px]">
           <span className="text-tertiary">Current version</span>
-          <code className="font-mono text-[12px] bg-hover px-2 py-0.5 rounded">
-            {appVersion}
-          </code>
+          <code className="font-mono text-[12px] bg-hover px-2 py-0.5 rounded">{appVersion}</code>
         </div>
         {version && status !== 'no-update' && (
           <div className="flex items-center justify-between text-[13px] mt-2">
             <span className="text-tertiary">Available version</span>
-            <code className="font-mono text-[12px] bg-hover px-2 py-0.5 rounded">
-              {version}
-            </code>
+            <code className="font-mono text-[12px] bg-hover px-2 py-0.5 rounded">{version}</code>
           </div>
         )}
       </div>
@@ -98,9 +94,7 @@ export function UpdateTab() {
         )}
 
         {error && (
-          <div className="text-[12px] text-[var(--danger,#ff4757)] break-words mb-4">
-            {error}
-          </div>
+          <div className="text-[12px] text-[var(--danger,#ff4757)] break-words mb-4">{error}</div>
         )}
 
         <div className="flex gap-3">

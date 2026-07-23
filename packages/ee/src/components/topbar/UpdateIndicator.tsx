@@ -106,11 +106,7 @@ export function UpdateIndicator() {
           className="size-3.5"
         >
           {status === 'checking' ? (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 16V4m0 0l4 4m-4-4l-4 4"
-            />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0l4 4m-4-4l-4 4" />
           ) : (
             <path
               strokeLinecap="round"
@@ -163,9 +159,7 @@ export function UpdateIndicator() {
           )}
 
           {error && (
-            <div className="text-[11px] text-[var(--danger,#ff4757)] break-words">
-              {error}
-            </div>
+            <div className="text-[11px] text-[var(--danger,#ff4757)] break-words">{error}</div>
           )}
 
           <div className="flex gap-2">
