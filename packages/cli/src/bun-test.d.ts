@@ -1,5 +1,6 @@
 declare module 'bun:test' {
   export function test(name: string, fn: () => unknown | Promise<unknown>): void;
+  export function test(name: string, fn: () => unknown | Promise<unknown>, timeout: number): void;
   export function test(name: string, options: unknown, fn: () => unknown | Promise<unknown>): void;
   export function afterEach(fn: () => unknown | Promise<unknown>): void;
   export function beforeEach(fn: () => unknown | Promise<unknown>): void;
