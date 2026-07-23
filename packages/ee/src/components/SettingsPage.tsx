@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Redirect, useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
 import { isDesktop } from '../lib/desktop.ts';
+import { isUpdateUiDemo } from '../lib/update-ui-demo.ts';
 import { useDaemonStatus } from '../hooks/useDaemonStatus';
 import { useSubscription } from '../hooks/useSubscription';
 import { useSubscriptionView } from '../hooks/useSubscriptionView';
@@ -18,6 +19,11 @@ import { UpdateTab } from './settings/UpdateTab';
 import type { SettingsTabId } from './settings/constants';
 
 const DASHBOARD_PATH = '/dashboard';
+const UPDATE_UI_DEMO_USER = {
+  name: 'Desktop Demo',
+  email: 'demo@agendex.local',
+  image: null as string | null,
+};
 
 function BackArrow() {
   return (
@@ -39,13 +45,16 @@ function BackArrow() {
 
 export function SettingsPage() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
-  const { subscription, isActive, isTrialing, trialDaysLeft, createPortal } = useSubscription();
+  const updateUiDemo = isUpdateUiDemo();
+  const { subscription, isActive, isTrialing, trialDaysLeft, createPortal } = useSubscription({
+    enabled: !updateUiDemo,
+  });
   const { devices } = useDaemonStatus();
   const [, navigate] = useLocation();
   const [showPricing, setShowPricing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [provider, setProvider] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<SettingsTabId>('account');
+  const [activeTab, setActiveTab] = useState<SettingsTabId>(updateUiDemo ? 'updates' : 'account');
 
   // Convex component API not in generated types
   // oxlint-disable-next-line typescript/no-explicit-any
@@ -53,22 +62,27 @@ export function SettingsPage() {
   const removeDaemonMutation = useMutation(api.cli.removeDaemon);
 
   const subView = useSubscriptionView(subscription, isActive, isTrialing, trialDaysLeft);
+  const settingsUser = user ?? (updateUiDemo ? UPDATE_UI_DEMO_USER : null);
 
   useEffect(() => {
+    if (updateUiDemo) return;
     authClient.listAccounts().then(({ data }) => {
       if (data && data.length > 0) {
         setProvider(data[0]?.providerId ?? null);
       }
     });
-  }, []);
+  }, [updateUiDemo]);
 
-  if (isLoading) return null;
+  if (!updateUiDemo && isLoading) return null;
   // Desktop can be `isAuthenticated` (stored cloud token) while `user` is null
   // if the bearer-backed session fetch failed or the session was revoked. Its
   // signed-out UX lives in DashboardRoute's sign-in gate, and the web /login
   // form can't complete OAuth inside the embedded window, so bail to the
   // dashboard there instead.
-  if (!isAuthenticated || !user) {
+  if (!updateUiDemo && (!isAuthenticated || !user)) {
+    return <Redirect to={isDesktop() ? DASHBOARD_PATH : '/login'} />;
+  }
+  if (!settingsUser) {
     return <Redirect to={isDesktop() ? DASHBOARD_PATH : '/login'} />;
   }
 
@@ -132,7 +146,7 @@ export function SettingsPage() {
         <div className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)]">
           {/* Left Sidebar */}
           <SettingsSidebar
-            user={user}
+            user={settingsUser}
             provider={provider}
             statusLabel={subView.statusLabel}
             isActive={isActive}
@@ -147,7 +161,7 @@ export function SettingsPage() {
             <SettingsTabs activeTab={activeTab} onChange={setActiveTab} />
 
             <div key={activeTab} className="settings-tab-content">
-              {activeTab === 'account' && (
+              {activeTab === 'account' && user && (
                 <AccountTab
                   user={user}
                   subscription={subscription}

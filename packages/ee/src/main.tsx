@@ -11,6 +11,11 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { PlanToaster } from './components/PlanToaster.tsx';
 import { isDesktop } from './lib/desktop.ts';
+import { installUpdateUiDemoBridge } from './lib/update-ui-demo.ts';
+
+// DEV-only: mock the Electron preload bridge before React mounts so the real
+// dashboard/settings chrome can show UpdateIndicator / UpdateTab for demos.
+installUpdateUiDemoBridge();
 
 const desktop = isDesktop();
 

@@ -116,6 +116,7 @@ import {
   isDesktop,
   setDesktopModePref,
 } from './lib/desktop.ts';
+import { isUpdateUiDemo } from './lib/update-ui-demo.ts';
 import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
 const PlanEditor = lazy(() =>
@@ -2806,6 +2807,12 @@ function DashboardRoute() {
   // Desktop: a valid cloud session is required to render any plan/agent info.
   // Without one we show a dedicated sign-in view. Local mode remains available
   // via the in-app local/cloud toggle once signed in.
+  // DEV update-UI demo: keep the real dashboard chrome (local mode) even though
+  // the mock desktop bridge is installed — otherwise we'd only show the sign-in gate.
+  if (desktop && isUpdateUiDemo()) {
+    return renderDashboard('local');
+  }
+
   if (desktop) {
     if (routeAuthenticated) {
       if (!onboardingResolved) return <BootLoadingView />;
