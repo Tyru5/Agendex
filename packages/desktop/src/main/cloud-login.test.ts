@@ -16,6 +16,11 @@ mock.module('electron', () => ({
   app: {
     getPath: () => userDataPath,
   },
+  safeStorage: {
+    decryptString: () => '',
+    encryptString: () => Buffer.from(''),
+    isEncryptionAvailable: () => true,
+  },
   shell: {
     openExternal: (url: string) => openExternalImpl(url),
   },
