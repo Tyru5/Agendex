@@ -171,6 +171,11 @@ const desktopDaemon = new DesktopDaemonManager({
   },
 });
 
+ipcMain.handle('agendex:update:check', () => desktopUpdater.checkForUpdates());
+ipcMain.handle('agendex:update:install', () => desktopUpdater.quitAndInstall());
+ipcMain.handle('agendex:update:get-state', () => desktopUpdater.getState());
+ipcMain.handle('agendex:get-app-version', () => app.getVersion());
+
 const desktopUpdater = createDesktopUpdater({
   // electron-updater is CJS-only and ships no `default` export; import the
   // named `autoUpdater` binding so bundler interop can't yield `undefined`.
@@ -196,6 +201,9 @@ const desktopUpdater = createDesktopUpdater({
       detail: `Agendex ${version} is the latest version.`,
       buttons: ['OK'],
     });
+  },
+  onStateChange: (state) => {
+    mainWindow?.webContents.send('agendex:update:state', state);
   },
   log: (message, error) => {
     if (error === undefined) console.error(`[agendex-desktop] ${message}`);

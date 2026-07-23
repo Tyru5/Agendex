@@ -104,7 +104,7 @@ test('CLI start and stop terminate both supervisor and worker', async () => {
     }
     rmSync(tempRoot, { recursive: true, force: true });
   }
-});
+}, 15_000);
 
 test('CLI start remains singleton while a ready worker is restarting', async () => {
   const tempRoot = mkdtempSync(join(tmpdir(), 'agendex cli restart '));

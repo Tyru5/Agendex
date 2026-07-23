@@ -15,6 +15,15 @@ type DesktopAuthFetchResult = {
   readonly statusText: string;
 };
 
+type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'ready' | 'no-update' | 'error';
+
+interface UpdateState {
+  status: UpdateStatus;
+  version?: string;
+  progress?: number;
+  error?: string;
+}
+
 interface AgendexDesktopBridge {
   readonly isDesktop: true;
   readonly cloudToken: string | null;
@@ -25,6 +34,10 @@ interface AgendexDesktopBridge {
   refreshCloudSession: () => Promise<{ token: string; convexSiteUrl: string } | null>;
   getConvexAuthToken: () => Promise<string | null>;
   authFetch: (url: string, init: DesktopAuthFetchInit) => Promise<DesktopAuthFetchResult>;
+  checkForUpdates: () => Promise<void>;
+  installUpdate: () => Promise<void>;
+  getUpdateState: () => Promise<UpdateState>;
+  getAppVersion: () => Promise<string>;
 }
 
 declare global {

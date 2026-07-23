@@ -27,6 +27,23 @@ type DesktopAuthFetchResult = {
   readonly statusText: string;
 };
 
+type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'ready' | 'no-update' | 'error';
+
+interface UpdateState {
+  status: UpdateStatus;
+  version?: string;
+  progress?: number;
+  error?: string;
+}
+
+// Forward update state from the main process to the renderer as a DOM event.
+// contextIsolation prevents passing callbacks through contextBridge, so we
+// dispatch a CustomEvent on the shared window object that the renderer can
+// listen for with window.addEventListener.
+ipcRenderer.on('agendex:update:state', (_event, state: UpdateState) => {
+  window.dispatchEvent(new CustomEvent('agendex:update:state', { detail: state }));
+});
+
 const MODE_PREF_KEY = 'agendex_dashboard_mode';
 
 function readBootstrap(): Bootstrap {
@@ -140,6 +157,10 @@ const agendexDesktop = {
   },
   authFetch: (url: string, init: DesktopAuthFetchInit): Promise<DesktopAuthFetchResult> =>
     ipcRenderer.invoke('agendex:auth-fetch', url, init),
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke('agendex:update:check'),
+  installUpdate: (): Promise<void> => ipcRenderer.invoke('agendex:update:install'),
+  getUpdateState: (): Promise<UpdateState> => ipcRenderer.invoke('agendex:update:get-state'),
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('agendex:get-app-version'),
 };
 
 if (process.contextIsolated) {

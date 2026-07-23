@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createDesktopUpdater, type UpdaterLike } from './desktop-updater.ts';
+import { createDesktopUpdater, type UpdateState, type UpdaterLike } from './desktop-updater.ts';
 
 interface FakeUpdater extends UpdaterLike {
   listeners: Map<string, ((...args: never[]) => void)[]>;
@@ -259,4 +259,185 @@ test('interactive check stays silent when an update is available', async () => {
   await desktopUpdater.checkForUpdatesInteractive();
 
   expect(notified).toBe(false);
+});
+
+test('onStateChange fires for each update event with correct state', async () => {
+  const updater = createFakeUpdater();
+  const states: UpdateState[] = [];
+
+  createDesktopUpdater({
+    updater,
+    isPackaged: true,
+    promptToRestart: async () => ({ restartNow: false }),
+    log: () => undefined,
+    onStateChange: (state) => states.push(state),
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  updater.emit('checking-for-update');
+  updater.emit('update-available', { version: '2.0.0' });
+  updater.emit('download-progress', { percent: 50 });
+  updater.emit('update-downloaded', { version: '2.0.0' });
+
+  expect(states).toEqual([
+    { status: 'checking' },
+    { status: 'downloading', version: '2.0.0' },
+    { status: 'downloading', version: '2.0.0', progress: 50 },
+    { status: 'ready', version: '2.0.0' },
+  ]);
+});
+
+test('onStateChange fires no-update when update-not-available', () => {
+  const updater = createFakeUpdater();
+  const states: UpdateState[] = [];
+
+  createDesktopUpdater({
+    updater,
+    isPackaged: true,
+    promptToRestart: async () => ({ restartNow: false }),
+    log: () => undefined,
+    onStateChange: (state) => states.push(state),
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  updater.emit('update-not-available');
+
+  expect(states).toEqual([{ status: 'no-update' }]);
+});
+
+test('onStateChange fires error state with message', () => {
+  const updater = createFakeUpdater();
+  const states: UpdateState[] = [];
+
+  createDesktopUpdater({
+    updater,
+    isPackaged: true,
+    promptToRestart: async () => ({ restartNow: false }),
+    log: () => undefined,
+    onStateChange: (state) => states.push(state),
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  updater.emit('error', new Error('feed unreachable'));
+
+  expect(states).toEqual([{ status: 'error', error: 'feed unreachable' }]);
+});
+
+test('getState returns the current state', () => {
+  const updater = createFakeUpdater();
+
+  const desktopUpdater = createDesktopUpdater({
+    updater,
+    isPackaged: true,
+    promptToRestart: async () => ({ restartNow: false }),
+    log: () => undefined,
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  expect(desktopUpdater.getState()).toEqual({ status: 'idle' });
+
+  updater.emit('checking-for-update');
+  expect(desktopUpdater.getState()).toEqual({ status: 'checking' });
+
+  updater.emit('update-available', { version: '2.0.0' });
+  expect(desktopUpdater.getState()).toEqual({ status: 'downloading', version: '2.0.0' });
+
+  updater.emit('update-downloaded', { version: '2.0.0' });
+  expect(desktopUpdater.getState()).toEqual({ status: 'ready', version: '2.0.0' });
+});
+
+test('checkForUpdates triggers a check and dedupes concurrent calls', async () => {
+  const updater = createFakeUpdater();
+  updater.checkResult = { isUpdateAvailable: false, updateInfo: { version: '1.0.0' } };
+
+  const desktopUpdater = createDesktopUpdater({
+    updater,
+    isPackaged: true,
+    promptToRestart: async () => ({ restartNow: false }),
+    log: () => undefined,
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  await Promise.all([desktopUpdater.checkForUpdates(), desktopUpdater.checkForUpdates()]);
+
+  expect(updater.checkCalls).toBe(1);
+});
+
+test('checkForUpdates does not call notifyUpToDate', async () => {
+  const updater = createFakeUpdater();
+  updater.checkResult = { isUpdateAvailable: false, updateInfo: { version: '1.0.0' } };
+  let notified = false;
+
+  const desktopUpdater = createDesktopUpdater({
+    updater,
+    isPackaged: true,
+    promptToRestart: async () => ({ restartNow: false }),
+    notifyUpToDate: () => {
+      notified = true;
+    },
+    log: () => undefined,
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  await desktopUpdater.checkForUpdates();
+
+  expect(notified).toBe(false);
+});
+
+test('quitAndInstall delegates to the updater when an update is ready', () => {
+  const updater = createFakeUpdater();
+
+  const desktopUpdater = createDesktopUpdater({
+    updater,
+    isPackaged: true,
+    promptToRestart: async () => ({ restartNow: false }),
+    log: () => undefined,
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  updater.emit('update-downloaded', { version: '2.0.0' });
+  desktopUpdater.quitAndInstall();
+
+  expect(updater.quitAndInstallCalls).toBe(1);
+});
+
+test('quitAndInstall does nothing before an update is ready', () => {
+  const updater = createFakeUpdater();
+
+  const desktopUpdater = createDesktopUpdater({
+    updater,
+    isPackaged: true,
+    promptToRestart: async () => ({ restartNow: false }),
+    log: () => undefined,
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  desktopUpdater.quitAndInstall();
+
+  expect(updater.quitAndInstallCalls).toBe(0);
+});
+
+test('quitAndInstall does nothing when the app is not packaged', () => {
+  const updater = createFakeUpdater();
+
+  const desktopUpdater = createDesktopUpdater({
+    updater,
+    isPackaged: false,
+    promptToRestart: async () => ({ restartNow: false }),
+    log: () => undefined,
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  desktopUpdater.quitAndInstall();
+
+  expect(updater.quitAndInstallCalls).toBe(0);
 });

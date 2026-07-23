@@ -28,6 +28,15 @@ export interface UpdatePromptResult {
 /** Narrow scheduling shape so tests can inject fakes without matching Node's full setTimeout/setInterval types. */
 export type ScheduleFn = (callback: () => void, ms: number) => { unref?: () => unknown };
 
+export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'ready' | 'no-update' | 'error';
+
+export interface UpdateState {
+  status: UpdateStatus;
+  version?: string;
+  progress?: number;
+  error?: string;
+}
+
 export interface DesktopUpdaterOptions {
   updater: UpdaterLike;
   /** Auto-update only works for packaged, signed builds. */
@@ -36,6 +45,8 @@ export interface DesktopUpdaterOptions {
   promptToRestart: (info: { version: string }) => Promise<UpdatePromptResult>;
   /** Notify the user after an explicit (menu-triggered) check found nothing. */
   notifyUpToDate?: (info: { version: string }) => void;
+  /** Called whenever the update state transitions. */
+  onStateChange?: (state: UpdateState) => void;
   log: (message: string, error?: unknown) => void;
   checkIntervalMs?: number;
   initialDelayMs?: number;
@@ -48,6 +59,12 @@ export interface DesktopUpdater {
   start: () => void;
   /** User-initiated check (e.g. from the app menu). Reports "up to date" via notifyUpToDate. */
   checkForUpdatesInteractive: () => Promise<void>;
+  /** User-initiated check without the "up to date" dialog (e.g. from the renderer). */
+  checkForUpdates: () => Promise<void>;
+  /** Install a downloaded update and restart. */
+  quitAndInstall: () => void;
+  /** Current update state. */
+  getState: () => UpdateState;
   /** True when the app cannot self-update (dev/unpackaged build). */
   isSupported: boolean;
 }
@@ -56,12 +73,21 @@ interface UpdateDownloadedEvent {
   version?: string;
 }
 
+interface UpdateInfoEvent {
+  version?: string;
+}
+
+interface ProgressInfoEvent {
+  percent?: number;
+}
+
 export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpdater {
   const {
     updater,
     isPackaged,
     promptToRestart,
     notifyUpToDate,
+    onStateChange,
     log,
     checkIntervalMs = DEFAULT_CHECK_INTERVAL_MS,
     initialDelayMs = DEFAULT_INITIAL_DELAY_MS,
@@ -72,6 +98,12 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
   let started = false;
   let interactiveCheckPending = false;
   let restartPromptShown = false;
+  let state: UpdateState = { status: 'idle' };
+
+  function setState(next: UpdateState) {
+    state = next;
+    onStateChange?.(next);
+  }
 
   if (isPackaged) {
     updater.autoDownload = true;
@@ -81,9 +113,31 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
     updater.on('error', ((error: unknown) => {
       // Update failures must never take the app down; log and retry next cycle.
       log('auto-update error', error);
+      setState({ status: 'error', error: error instanceof Error ? error.message : String(error) });
+    }) as never);
+
+    updater.on('checking-for-update', (() => {
+      setState({ status: 'checking' });
+    }) as never);
+
+    updater.on('update-available', ((info: UpdateInfoEvent) => {
+      setState({ status: 'downloading', version: info?.version });
+    }) as never);
+
+    updater.on('update-not-available', (() => {
+      setState({ status: 'no-update' });
+    }) as never);
+
+    updater.on('download-progress', ((info: ProgressInfoEvent) => {
+      setState({
+        status: 'downloading',
+        version: state.version,
+        progress: info?.percent,
+      });
     }) as never);
 
     updater.on('update-downloaded', ((event: UpdateDownloadedEvent) => {
+      setState({ status: 'ready', version: event?.version ?? 'unknown' });
       if (restartPromptShown) return;
       restartPromptShown = true;
       const version = event?.version ?? 'unknown';
@@ -104,6 +158,7 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
       return await updater.checkForUpdates();
     } catch (error) {
       log('auto-update check failed', error);
+      setState({ status: 'error', error: error instanceof Error ? error.message : String(error) });
       return null;
     }
   }
@@ -143,6 +198,25 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
       } finally {
         interactiveCheckPending = false;
       }
+    },
+
+    async checkForUpdates() {
+      if (!isPackaged || interactiveCheckPending) return;
+      interactiveCheckPending = true;
+      try {
+        await checkSafely();
+      } finally {
+        interactiveCheckPending = false;
+      }
+    },
+
+    quitAndInstall() {
+      if (!isPackaged || state.status !== 'ready') return;
+      updater.quitAndInstall();
+    },
+
+    getState() {
+      return state;
     },
   };
 }
