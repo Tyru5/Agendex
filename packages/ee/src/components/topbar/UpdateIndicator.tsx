@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { isDesktop, type UpdateState } from '../../lib/desktop.ts';
-import { useDesktopUpdate } from '../hooks/useDesktopUpdate.ts';
+import { useDesktopUpdate } from '../../hooks/useDesktopUpdate.ts';
 
 const UPDATE_STATE_EVENT = 'agendex:update:state';
 
