@@ -47,6 +47,7 @@ export interface AgendexDesktopBridge {
   authFetch: (url: string, init: DesktopAuthFetchInit) => Promise<DesktopAuthFetchResult>;
   checkForUpdates: () => Promise<void>;
   installUpdate: () => Promise<void>;
+  getUpdateState: () => Promise<UpdateState>;
   getAppVersion: () => Promise<string>;
 }
 

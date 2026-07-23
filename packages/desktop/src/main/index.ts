@@ -169,13 +169,11 @@ const desktopDaemon = new DesktopDaemonManager({
     if (error === undefined) console.error(`[agendex-desktop] ${message}`);
     else console.error(`[agendex-desktop] ${message}`, error);
   },
-  onStateChange: (state) => {
-    mainWindow?.webContents.send('agendex:update:state', state);
-  },
 });
 
 ipcMain.handle('agendex:update:check', () => desktopUpdater.checkForUpdates());
 ipcMain.handle('agendex:update:install', () => desktopUpdater.quitAndInstall());
+ipcMain.handle('agendex:update:get-state', () => desktopUpdater.getState());
 ipcMain.handle('agendex:get-app-version', () => app.getVersion());
 
 const desktopUpdater = createDesktopUpdater({
@@ -203,6 +201,9 @@ const desktopUpdater = createDesktopUpdater({
       detail: `Agendex ${version} is the latest version.`,
       buttons: ['OK'],
     });
+  },
+  onStateChange: (state) => {
+    mainWindow?.webContents.send('agendex:update:state', state);
   },
   log: (message, error) => {
     if (error === undefined) console.error(`[agendex-desktop] ${message}`);

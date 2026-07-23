@@ -390,7 +390,25 @@ test('checkForUpdates does not call notifyUpToDate', async () => {
   expect(notified).toBe(false);
 });
 
-test('quitAndInstall delegates to the updater', () => {
+test('quitAndInstall delegates to the updater when an update is ready', () => {
+  const updater = createFakeUpdater();
+
+  const desktopUpdater = createDesktopUpdater({
+    updater,
+    isPackaged: true,
+    promptToRestart: async () => ({ restartNow: false }),
+    log: () => undefined,
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  updater.emit('update-downloaded', { version: '2.0.0' });
+  desktopUpdater.quitAndInstall();
+
+  expect(updater.quitAndInstallCalls).toBe(1);
+});
+
+test('quitAndInstall does nothing before an update is ready', () => {
   const updater = createFakeUpdater();
 
   const desktopUpdater = createDesktopUpdater({
@@ -404,5 +422,22 @@ test('quitAndInstall delegates to the updater', () => {
 
   desktopUpdater.quitAndInstall();
 
-  expect(updater.quitAndInstallCalls).toBe(1);
+  expect(updater.quitAndInstallCalls).toBe(0);
+});
+
+test('quitAndInstall does nothing when the app is not packaged', () => {
+  const updater = createFakeUpdater();
+
+  const desktopUpdater = createDesktopUpdater({
+    updater,
+    isPackaged: false,
+    promptToRestart: async () => ({ restartNow: false }),
+    log: () => undefined,
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  desktopUpdater.quitAndInstall();
+
+  expect(updater.quitAndInstallCalls).toBe(0);
 });

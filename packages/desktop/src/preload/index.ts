@@ -159,6 +159,7 @@ const agendexDesktop = {
     ipcRenderer.invoke('agendex:auth-fetch', url, init),
   checkForUpdates: (): Promise<void> => ipcRenderer.invoke('agendex:update:check'),
   installUpdate: (): Promise<void> => ipcRenderer.invoke('agendex:update:install'),
+  getUpdateState: (): Promise<UpdateState> => ipcRenderer.invoke('agendex:update:get-state'),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('agendex:get-app-version'),
 };
 

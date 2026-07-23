@@ -211,6 +211,7 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
     },
 
     quitAndInstall() {
+      if (!isPackaged || state.status !== 'ready') return;
       updater.quitAndInstall();
     },
 
