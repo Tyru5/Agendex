@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 4.1.4
+
+### Patch Changes
+
+- e6fd096: desktop udpate controls to renderer process
+
 ## 4.1.3
 
 ### Patch Changes
