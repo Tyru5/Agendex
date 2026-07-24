@@ -14,7 +14,7 @@ export interface DownloadPageProps {
  * stable release (see `docs/desktop-release.md`). Asset names follow
  * `Agendex-<version>-universal.{dmg,zip}` from electron-builder.
  */
-const DESKTOP_VERSION = '1.4.4';
+const DESKTOP_VERSION = '1.4.5';
 const DESKTOP_TAG = `desktop-v${DESKTOP_VERSION}`;
 const GITHUB_RELEASES_URL = 'https://github.com/Tyru5/Agendex/releases';
 const GITHUB_RELEASE_URL = `${GITHUB_RELEASES_URL}/tag/${DESKTOP_TAG}`;
