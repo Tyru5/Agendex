@@ -103,15 +103,19 @@ export function UpdateIndicator() {
           viewBox="0 0 24 24"
           strokeWidth={1.8}
           stroke="currentColor"
-          className="size-3.5"
+          className={`size-3.5${status === 'checking' ? ' animate-spin' : ''}`}
         >
-          {status === 'checking' ? (
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0l4 4m-4-4l-4 4" />
+          {status === 'downloading' || status === 'ready' ? (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 12 12 16.5m0 0 4.5-4.5M12 16.5V3"
+            />
           ) : (
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              d="M16 16v-2.5a4 4 0 00-3-3.9V4a2 2 0 10-4 0v3.6a4 4 0 003 3.9V16m0 0h4m-4 0v2a2 2 0 104 0v-2m-4 0H9"
+              d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
             />
           )}
         </svg>
