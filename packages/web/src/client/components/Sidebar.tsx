@@ -36,6 +36,7 @@ interface SidebarProps {
   splitPlanId?: string;
   onSelectPlan: (plan: Plan | undefined) => void;
   onOpenInSplitView?: (plan: Plan) => void;
+  onRemoveCustomDir?: (dir: string) => void | Promise<void>;
   loading: boolean;
   error: string | null;
   width?: number;
@@ -71,6 +72,7 @@ export function Sidebar({
   splitPlanId,
   onSelectPlan,
   onOpenInSplitView,
+  onRemoveCustomDir,
   loading,
   error,
   width,
@@ -177,6 +179,7 @@ export function Sidebar({
             splitPlanId={splitPlanId}
             onSelect={(plan) => startViewTransition(() => onSelectPlan(plan))}
             onOpenInSplitView={onOpenInSplitView}
+            onRemoveCustomDir={onRemoveCustomDir}
             folderState={folderState}
             emptyState={
               onClearFilters && hasActiveFilters

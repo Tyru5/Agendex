@@ -953,6 +953,72 @@
   white-space: nowrap;
 }
 
+.sidebar-source-row {
+  position: relative;
+}
+
+.sidebar-source-action {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  /* Hidden rows must not swallow clicks aimed at the row behind them. */
+  pointer-events: none;
+  transition:
+    opacity 130ms ease,
+    background 130ms ease,
+    border-color 130ms ease,
+    color 130ms ease;
+}
+
+.sidebar-source-row:hover .sidebar-source-action,
+.sidebar-source-action:focus-visible,
+.sidebar-source-action:disabled {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Touch devices never hover — keep the action permanently reachable. */
+@media (hover: none) {
+  .sidebar-source-action {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.sidebar-source-action:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--border);
+  color: var(--danger);
+}
+
+.sidebar-source-action:disabled {
+  cursor: progress;
+  color: var(--secondary);
+}
+
+.sidebar-source-error {
+  margin: 0 8px 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
 .sidebar-folder-button {
   width: 100%;
   min-height: 32px;

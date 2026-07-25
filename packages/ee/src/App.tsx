@@ -1,6 +1,7 @@
 import {
   AgentAvatarProvider,
   type AgentStats,
+  api as localApi,
   ChangelogPage,
   DocsPage,
   DownloadPage,
@@ -1596,6 +1597,7 @@ function DashboardSidebar({
   planState,
   onRenamePlan,
   onDeletePlan,
+  onRemoveCustomDir,
   width,
   onResize,
 }: {
@@ -1640,6 +1642,7 @@ function DashboardSidebar({
   planState: PlanState;
   onRenamePlan?: (planId: string, newTitle: string) => void;
   onDeletePlan?: (planId: string) => void;
+  onRemoveCustomDir?: (dir: string) => void | Promise<void>;
   width?: number;
   onResize?: (width: number) => void;
 }) {
@@ -1822,6 +1825,7 @@ function DashboardSidebar({
             planState={planState}
             onRenamePlan={onRenamePlan}
             onDeletePlan={onDeletePlan}
+            onRemoveCustomDir={onRemoveCustomDir}
             folderState={folderState}
             emptyState={
               hasActiveFilters
@@ -2104,6 +2108,14 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   );
 
   const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
+
+  const removeCustomDir = useCallback(
+    async (dir: string) => {
+      await localApi.removePlanSource(dir);
+      refresh();
+    },
+    [refresh],
+  );
 
   const [expandedWidth, setExpandedWidth] = useSidebarWidth();
 
@@ -2590,6 +2602,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         planState={planState}
         onRenamePlan={mode === 'cloud' && isPro ? handleRenamePlan : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
+        onRemoveCustomDir={canManageLocalPlanSources ? removeCustomDir : undefined}
         width={expandedWidth}
         onResize={setExpandedWidth}
       />
