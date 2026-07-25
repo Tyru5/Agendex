@@ -263,6 +263,10 @@ jobs:
     if: needs.preflight.outputs.build_windows == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
+    outputs:
+      # What the packaging step actually did, so the release notes describe the
+      # artifacts rather than assuming.
+      signed: ${{ steps.package.outputs.signed }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -294,6 +298,7 @@ jobs:
       # then treats "" as a cert path (resolves to the project dir) and fails
       # with: "Env WIN_CSC_LINK is not correct, cannot resolve: ... not a file".
       - name: Package Windows desktop artifacts
+        id: package
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
@@ -303,14 +308,17 @@ jobs:
           if [[ -n "${WIN_CSC_LINK:-}" && -n "${WIN_CSC_KEY_PASSWORD:-}" ]]; then
             export CSC_LINK="$WIN_CSC_LINK"
             export CSC_KEY_PASSWORD="$WIN_CSC_KEY_PASSWORD"
+            signed=true
             echo "Windows signing credentials found; packaging a signed installer."
           elif [[ -n "${WIN_CSC_LINK:-}" || -n "${WIN_CSC_KEY_PASSWORD:-}" ]]; then
             echo "::error::Partial Windows signing credentials: set both WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD."
             exit 1
           else
             unset CSC_LINK CSC_KEY_PASSWORD WIN_CSC_LINK WIN_CSC_KEY_PASSWORD || true
+            signed=false
             echo "::warning::No Windows signing credentials; packaging an unsigned installer (SmartScreen will warn)."
           fi
+          echo "signed=${signed}" >>"$GITHUB_OUTPUT"
           bun run --cwd packages/desktop dist -- --win --x64
 
       - name: Verify distinct Windows artifacts
@@ -405,6 +413,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.preflight.outputs.tag }}
           VERSION: ${{ needs.preflight.outputs.version }}
+          # 'true'/'false' from this run's packaging step; empty when Windows was
+          # not rebuilt (platform=mac) and the .exe assets predate this run.
+          WIN_SIGNED: ${{ needs.build-windows.outputs.signed }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -444,12 +455,26 @@ jobs:
             fi
 
             if [[ "$has_win" == "true" ]]; then
-              cat <<'EOF'
+              printf '\n## Windows\n\n'
 
-          ## Windows
-
+              # Only claim a signing status this run can vouch for. When Windows
+              # was not rebuilt, say nothing rather than guess.
+              case "${WIN_SIGNED:-}" in
+                false)
+                  cat <<'EOF'
           **This build is not code-signed.** Windows SmartScreen will show "Windows protected your PC" — choose **More info → Run anyway** to continue. A signing certificate is planned.
 
+          EOF
+                  ;;
+                true)
+                  cat <<'EOF'
+          Signed with an Authenticode certificate.
+
+          EOF
+                  ;;
+              esac
+
+              cat <<'EOF'
           - `*-x64-Setup.exe` — installer. Creates shortcuts, registers the `agendex://` sign-in link, and updates itself in place.
           - `*-x64-Portable.exe` — single-file build that needs no install. It cannot self-update; re-download to upgrade.
           EOF
