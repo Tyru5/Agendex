@@ -2112,7 +2112,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const removeCustomDir = useCallback(
     async (dir: string) => {
       await localApi.removePlanSource(dir);
-      refresh();
+      await refresh();
     },
     [refresh],
   );

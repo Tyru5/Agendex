@@ -127,7 +127,7 @@ function Dashboard() {
   const removeCustomDir = useCallback(
     async (dir: string) => {
       await api.removePlanSource(dir);
-      refresh();
+      await refresh();
     },
     [refresh],
   );
