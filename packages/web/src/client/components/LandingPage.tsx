@@ -74,9 +74,7 @@ export interface LandingPageProps {
 const HERO_AGENT_CHIPS = [
   { agent: 'antigravity', label: 'Antigravity' },
   { agent: 'claude-code', label: 'Claude Code' },
-  { agent: 'codebuddy', label: 'CodeBuddy' },
   { agent: 'codex-cli', label: 'Codex' },
-  { agent: 'continue-ide', label: 'Continue' },
   { agent: 'cursor', label: 'Cursor' },
   { agent: 'droid', label: 'Factory Droid' },
   { agent: 'gemini-cli', label: 'Gemini CLI' },
