@@ -1,5 +1,10 @@
 import { expect, test } from 'bun:test';
-import { createDesktopUpdater, type UpdateState, type UpdaterLike } from './desktop-updater.ts';
+import {
+  createDesktopUpdater,
+  isPortableWindowsBuild,
+  type UpdateState,
+  type UpdaterLike,
+} from './desktop-updater.ts';
 
 interface FakeUpdater extends UpdaterLike {
   listeners: Map<string, ((...args: never[]) => void)[]>;
@@ -60,8 +65,50 @@ test('does nothing when the app is not packaged', () => {
   desktopUpdater.start();
 
   expect(desktopUpdater.isSupported).toBe(false);
+  expect(desktopUpdater.getState()).toEqual({ status: 'unsupported' });
   expect(updater.checkCalls).toBe(0);
   expect(updater.listeners.size).toBe(0);
+});
+
+test('detects electron-builder portable launches from the process env', () => {
+  expect(isPortableWindowsBuild({})).toBe(false);
+  expect(isPortableWindowsBuild({ PORTABLE_EXECUTABLE_FILE: '' })).toBe(false);
+  expect(isPortableWindowsBuild({ PORTABLE_EXECUTABLE_FILE: 'C:\\Users\\a\\Agendex.exe' })).toBe(
+    true,
+  );
+});
+
+test('portable builds never self-update, even when packaged', async () => {
+  const updater = createFakeUpdater();
+  let prompts = 0;
+
+  const desktopUpdater = createDesktopUpdater({
+    updater,
+    isPackaged: true,
+    isPortable: true,
+    promptToRestart: async () => {
+      prompts += 1;
+      return { restartNow: true };
+    },
+    log: () => undefined,
+    setTimeoutFn: () => noopTimer(),
+    setIntervalFn: () => noopTimer(),
+  });
+
+  desktopUpdater.start();
+  await desktopUpdater.checkForUpdates();
+  await desktopUpdater.checkForUpdatesInteractive();
+  desktopUpdater.quitAndInstall();
+
+  // No listeners are registered, so electron-updater can never download an
+  // installer that would install a second copy alongside the portable exe.
+  expect(desktopUpdater.isSupported).toBe(false);
+  expect(desktopUpdater.getState()).toEqual({ status: 'unsupported' });
+  expect(updater.listeners.size).toBe(0);
+  expect(updater.checkCalls).toBe(0);
+  expect(updater.quitAndInstallCalls).toBe(0);
+  expect(prompts).toBe(0);
+  expect(updater.autoDownload).toBe(false);
 });
 
 test('start schedules an initial delayed check and periodic re-checks', () => {

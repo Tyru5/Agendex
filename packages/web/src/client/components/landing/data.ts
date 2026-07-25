@@ -29,7 +29,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: 'Is there a desktop app?',
-    a: 'Yes. Agendex Desktop for macOS is available now to Cloud Pro accounts — it bundles the local server and cloud dashboard in one window with browser-based sign-in. Download it from GitHub Releases. A Windows build is coming soon.',
+    a: 'Yes. Agendex Desktop is available now to Cloud Pro accounts on macOS and Windows — it bundles the local server and cloud dashboard in one window with browser-based sign-in. Download it from /download. The macOS build is signed and notarized; the Windows build is not code-signed yet, so SmartScreen warns on first run.',
   },
 ];
 
@@ -109,7 +109,7 @@ agendex status       # daemon health + connected devices`,
 export const FEATURES = [
   {
     title: 'Desktop App',
-    desc: 'The native macOS app is out now for Cloud Pro accounts, bundling the local server and cloud dashboard in one window with browser-based sign-in. Windows is coming soon.',
+    desc: 'The native app is out now for Cloud Pro accounts on macOS and Windows, bundling the local server and cloud dashboard in one window with browser-based sign-in.',
   },
   {
     title: 'Instant Indexing',

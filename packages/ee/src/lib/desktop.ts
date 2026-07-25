@@ -15,13 +15,32 @@ export type DesktopAuthFetchResult = {
   readonly statusText: string;
 };
 
-export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'ready' | 'no-update' | 'error';
+export type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  | 'ready'
+  | 'no-update'
+  | 'error'
+  // Dev/unpackaged builds and the Windows portable exe cannot self-update.
+  | 'unsupported';
 
 export interface UpdateState {
   status: UpdateStatus;
   version?: string;
   progress?: number;
   error?: string;
+}
+
+/** Build identity of the running desktop app, used to surface unsigned builds. */
+export interface DesktopBuildInfo {
+  /** process.platform of the running app ('win32', 'darwin', ...). */
+  platform: string;
+  /**
+   * Whether the build carries a code-signing certificate. `null` when unknown:
+   * dev builds, and platforms that record no signing evidence in app-update.yml.
+   */
+  codeSigned: boolean | null;
 }
 
 /**
@@ -49,6 +68,7 @@ export interface AgendexDesktopBridge {
   installUpdate: () => Promise<void>;
   getUpdateState: () => Promise<UpdateState>;
   getAppVersion: () => Promise<string>;
+  getBuildInfo: () => Promise<DesktopBuildInfo>;
 }
 
 function getBridge(): AgendexDesktopBridge | undefined {

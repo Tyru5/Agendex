@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startNodeServer, type RunningNodeServer } from '@agendex/app/server';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
@@ -20,11 +21,12 @@ import {
   startDesktopAuthLogin,
 } from './cloud-login.ts';
 import { loadModePref, saveModePref } from './dashboard-mode.ts';
+import { resolveDesktopBuildInfo } from './desktop-build-info.ts';
 import { registerDesktopIpc } from './desktop-ipc.ts';
 import { buildMenu } from './desktop-menu.ts';
 import { createDesktopProtocolController } from './desktop-protocol.ts';
 import { writeQaBootstrapEvidence, writeQaStartupEvidence } from './desktop-qa-evidence.ts';
-import { createDesktopUpdater } from './desktop-updater.ts';
+import { createDesktopUpdater, isPortableWindowsBuild } from './desktop-updater.ts';
 import { createDesktopWindow } from './desktop-window.ts';
 import { redactDesktopAuthCallbackUrl } from '@agendex/shared/desktop-auth-callback';
 import { installDesktopProtocolLifecycle } from './desktop-protocol-lifecycle.ts';
@@ -171,16 +173,32 @@ const desktopDaemon = new DesktopDaemonManager({
   },
 });
 
+// Resolved once: app-update.yml is written at package time and cannot change
+// while the app runs.
+const desktopBuildInfo = resolveDesktopBuildInfo({
+  platform: process.platform,
+  isPackaged: app.isPackaged,
+  readAppUpdateConfig: () => {
+    try {
+      return readFileSync(join(process.resourcesPath, 'app-update.yml'), 'utf8');
+    } catch {
+      return null;
+    }
+  },
+});
+
 ipcMain.handle('agendex:update:check', () => desktopUpdater.checkForUpdates());
 ipcMain.handle('agendex:update:install', () => desktopUpdater.quitAndInstall());
 ipcMain.handle('agendex:update:get-state', () => desktopUpdater.getState());
 ipcMain.handle('agendex:get-app-version', () => app.getVersion());
+ipcMain.handle('agendex:get-build-info', () => desktopBuildInfo);
 
 const desktopUpdater = createDesktopUpdater({
   // electron-updater is CJS-only and ships no `default` export; import the
   // named `autoUpdater` binding so bundler interop can't yield `undefined`.
   updater: autoUpdater,
   isPackaged: app.isPackaged,
+  isPortable: isPortableWindowsBuild(),
   promptToRestart: async ({ version }) => {
     const { response } = await dialog.showMessageBox({
       type: 'info',
