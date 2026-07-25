@@ -184,6 +184,28 @@ run the NSIS installer instead, leaving a second installed copy alongside a stal
 `createDesktopUpdater` disables itself when `PORTABLE_EXECUTABLE_FILE` is set and the app reports
 "Updates unavailable". Portable users re-download from `/download`.
 
+### The DMG entry in `latest-mac.yml` is stale, by design
+
+electron-builder writes `latest-mac.yml` while packaging, and the release workflow notarizes and
+staples the DMG **after** that. Stapling appends the notarization ticket, so the published DMG is a
+couple of KB larger than the feed records and its listed `sha512` no longer matches. On
+`desktop-v1.4.5`: the zip matched byte for byte (219,485,293) while the DMG was 2,311 bytes over
+the recorded 222,168,020.
+
+This does not affect updates. `MacUpdater` resolves its download with
+`findFile(files, "zip", ["pkg", "dmg"])` — it requires the zip and blocklists the DMG, for
+differential downloads too. Nothing reads the DMG entry or `*.dmg.blockmap`; both are dead weight
+in the feed.
+
+It is left alone on purpose. Correcting it means rewriting `latest-mac.yml` on the publish path,
+where a bug corrupts the **zip** entry and breaks auto-update for every Mac user, to fix a field
+nothing consumes. Moving notarization into an `afterSign` hook would avoid the mutation but give up
+DMG stapling, which this workflow adopted deliberately (`847c972`, `9199a19`).
+
+The practical rule: do not publish DMG hashes as authoritative, and do not point users at
+`latest-mac.yml` to verify a download. The Windows `latest.yml` has no such caveat — nothing
+mutates those artifacts after packaging — which is why `/download` cites it for the installer.
+
 ## Download page
 
 The marketing download page is `/download` (`packages/web` `DownloadPage`). It links to
