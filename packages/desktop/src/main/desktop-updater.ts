@@ -11,6 +11,21 @@
 const DEFAULT_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 const DEFAULT_INITIAL_DELAY_MS = 10_000;
 
+/**
+ * True when the app was launched from electron-builder's Windows `portable`
+ * target, which sets PORTABLE_EXECUTABLE_FILE in the app process env.
+ *
+ * electron-updater has no in-place update path for portable builds: it
+ * downloads the NSIS installer and runs it, which would leave the user with a
+ * second, *installed* copy while the portable exe they launched stays stale.
+ * Self-update is disabled there; portable users re-download from /download.
+ */
+export function isPortableWindowsBuild(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return typeof env.PORTABLE_EXECUTABLE_FILE === 'string' && env.PORTABLE_EXECUTABLE_FILE !== '';
+}
+
 export interface UpdaterLike {
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
@@ -28,7 +43,14 @@ export interface UpdatePromptResult {
 /** Narrow scheduling shape so tests can inject fakes without matching Node's full setTimeout/setInterval types. */
 export type ScheduleFn = (callback: () => void, ms: number) => { unref?: () => unknown };
 
-export type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'ready' | 'no-update' | 'error';
+export type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  | 'ready'
+  | 'no-update'
+  | 'error'
+  | 'unsupported';
 
 export interface UpdateState {
   status: UpdateStatus;
@@ -39,8 +61,10 @@ export interface UpdateState {
 
 export interface DesktopUpdaterOptions {
   updater: UpdaterLike;
-  /** Auto-update only works for packaged, signed builds. */
+  /** Auto-update only works for packaged builds. */
   isPackaged: boolean;
+  /** Windows portable builds cannot self-update; see isPortableWindowsBuild. */
+  isPortable?: boolean;
   /** Prompt the user after an update downloaded; resolve restartNow=true to install immediately. */
   promptToRestart: (info: { version: string }) => Promise<UpdatePromptResult>;
   /** Notify the user after an explicit (menu-triggered) check found nothing. */
@@ -65,7 +89,7 @@ export interface DesktopUpdater {
   quitAndInstall: () => void;
   /** Current update state. */
   getState: () => UpdateState;
-  /** True when the app cannot self-update (dev/unpackaged build). */
+  /** False when the app cannot self-update (dev/unpackaged or Windows portable build). */
   isSupported: boolean;
 }
 
@@ -85,6 +109,7 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
   const {
     updater,
     isPackaged,
+    isPortable = false,
     promptToRestart,
     notifyUpToDate,
     onStateChange,
@@ -95,17 +120,21 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
     setTimeoutFn = setTimeout,
   } = options;
 
+  const canAutoUpdate = isPackaged && !isPortable;
+
   let started = false;
   let interactiveCheckPending = false;
   let restartPromptShown = false;
-  let state: UpdateState = { status: 'idle' };
+  // Builds that cannot self-update report it up front so the renderer can
+  // disable its update controls instead of leaving them inert.
+  let state: UpdateState = canAutoUpdate ? { status: 'idle' } : { status: 'unsupported' };
 
   function setState(next: UpdateState) {
     state = next;
     onStateChange?.(next);
   }
 
-  if (isPackaged) {
+  if (canAutoUpdate) {
     updater.autoDownload = true;
     // Even if the user picks "Later", the downloaded update installs on quit.
     updater.autoInstallOnAppQuit = true;
@@ -164,10 +193,10 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
   }
 
   return {
-    isSupported: isPackaged,
+    isSupported: canAutoUpdate,
 
     start() {
-      if (!isPackaged || started) return;
+      if (!canAutoUpdate || started) return;
       started = true;
 
       const timer = setTimeoutFn(() => {
@@ -182,7 +211,7 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
     },
 
     async checkForUpdatesInteractive() {
-      if (!isPackaged || interactiveCheckPending) return;
+      if (!canAutoUpdate || interactiveCheckPending) return;
       interactiveCheckPending = true;
       try {
         const result = (await checkSafely()) as {
@@ -201,7 +230,7 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
     },
 
     async checkForUpdates() {
-      if (!isPackaged || interactiveCheckPending) return;
+      if (!canAutoUpdate || interactiveCheckPending) return;
       interactiveCheckPending = true;
       try {
         await checkSafely();
@@ -211,7 +240,7 @@ export function createDesktopUpdater(options: DesktopUpdaterOptions): DesktopUpd
     },
 
     quitAndInstall() {
-      if (!isPackaged || state.status !== 'ready') return;
+      if (!canAutoUpdate || state.status !== 'ready') return;
       updater.quitAndInstall();
     },
 

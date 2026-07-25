@@ -27,13 +27,26 @@ type DesktopAuthFetchResult = {
   readonly statusText: string;
 };
 
-type UpdateStatus = 'idle' | 'checking' | 'downloading' | 'ready' | 'no-update' | 'error';
+type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  | 'ready'
+  | 'no-update'
+  | 'error'
+  | 'unsupported';
 
 interface UpdateState {
   status: UpdateStatus;
   version?: string;
   progress?: number;
   error?: string;
+}
+
+interface DesktopBuildInfo {
+  platform: string;
+  /** null when unknown: dev builds, and platforms that record no signing evidence. */
+  codeSigned: boolean | null;
 }
 
 // Forward update state from the main process to the renderer as a DOM event.
@@ -161,6 +174,7 @@ const agendexDesktop = {
   installUpdate: (): Promise<void> => ipcRenderer.invoke('agendex:update:install'),
   getUpdateState: (): Promise<UpdateState> => ipcRenderer.invoke('agendex:update:get-state'),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('agendex:get-app-version'),
+  getBuildInfo: (): Promise<DesktopBuildInfo> => ipcRenderer.invoke('agendex:get-build-info'),
 };
 
 if (process.contextIsolated) {

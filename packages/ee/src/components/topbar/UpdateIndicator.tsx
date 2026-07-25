@@ -17,6 +17,8 @@ function getStatusLabel(status: UpdateState['status']): string {
       return 'Up to date';
     case 'error':
       return 'Update error';
+    case 'unsupported':
+      return 'Updates unavailable';
     default:
       return 'Updates';
   }
@@ -166,6 +168,13 @@ export function UpdateIndicator() {
             <div className="text-[11px] text-[var(--danger,#ff4757)] break-words">{error}</div>
           )}
 
+          {status === 'unsupported' && (
+            <div className="text-[11px] text-tertiary break-words">
+              This build cannot update itself. Download the latest version from
+              agendex.dev/download.
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
               type="button"
@@ -173,7 +182,8 @@ export function UpdateIndicator() {
                 checkForUpdates();
                 setOpen(false);
               }}
-              className="flex-1 agendex-topbar-button text-[12px] py-1.5 rounded-lg border border-border cursor-pointer font-medium hover:bg-hover"
+              disabled={status === 'unsupported'}
+              className="flex-1 agendex-topbar-button text-[12px] py-1.5 rounded-lg border border-border cursor-pointer font-medium hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Check
             </button>

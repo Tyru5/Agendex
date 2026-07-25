@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { isDesktop, type UpdateState } from '../../lib/desktop.ts';
+import {
+  type DesktopBuildInfo,
+  getDesktopBridgeIdentity,
+  type UpdateState,
+} from '../../lib/desktop.ts';
 import { useDesktopUpdate } from '../../hooks/useDesktopUpdate.ts';
 
 function StatusDot({ status }: { status: UpdateState['status'] }) {
@@ -33,6 +37,8 @@ function StatusLabel({ status }: { status: UpdateState['status'] }) {
       return 'You are up to date';
     case 'error':
       return 'Update error';
+    case 'unsupported':
+      return 'Automatic updates unavailable';
     default:
       return 'Not checked yet';
   }
@@ -41,15 +47,32 @@ function StatusLabel({ status }: { status: UpdateState['status'] }) {
 export function UpdateTab() {
   const { state, checkForUpdates, installUpdate } = useDesktopUpdate();
   const [appVersion, setAppVersion] = useState<string>('—');
+  const [buildInfo, setBuildInfo] = useState<DesktopBuildInfo | null>(null);
 
   useEffect(() => {
-    if (!isDesktop()) return;
-    void window.agendexDesktop.getAppVersion().then((v) => setAppVersion(v));
+    const bridge = getDesktopBridgeIdentity();
+    if (!bridge) return;
+    let mounted = true;
+
+    void bridge.getAppVersion().then((v) => {
+      if (mounted) setAppVersion(v);
+    });
+    void bridge.getBuildInfo().then((info) => {
+      if (mounted) setBuildInfo(info);
+    });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const { status, version, progress, error } = state;
   const isReady = status === 'ready';
   const isDownloading = status === 'downloading';
+  const isUnsupported = status === 'unsupported';
+  // Only ever true on a packaged Windows build with no certificate; every other
+  // case resolves to null (unknown) and shows nothing.
+  const isUnsignedBuild = buildInfo?.codeSigned === false;
 
   return (
     <div className="space-y-6">
@@ -65,6 +88,20 @@ export function UpdateTab() {
             <span className="text-tertiary">Available version</span>
             <code className="font-mono text-[12px] bg-hover px-2 py-0.5 rounded">{version}</code>
           </div>
+        )}
+        {isUnsignedBuild && (
+          <>
+            <div className="flex items-center justify-between text-[13px] mt-2">
+              <span className="text-tertiary">Code signing</span>
+              <span className="font-medium text-text">Not signed yet</span>
+            </div>
+            <p className="mt-3 mb-0 text-[12px] leading-[1.6] text-tertiary">
+              This Windows build carries no code-signing certificate, so Windows SmartScreen flags
+              the publisher as unknown when you first run the installer. A signing certificate is
+              planned; this notice disappears on its own once signed builds ship. Everything else,
+              including updates, works normally.
+            </p>
+          </>
         )}
       </div>
 
@@ -97,11 +134,18 @@ export function UpdateTab() {
           <div className="text-[12px] text-[var(--danger,#ff4757)] break-words mb-4">{error}</div>
         )}
 
+        {isUnsupported && (
+          <div className="text-[12px] text-tertiary break-words mb-4">
+            This build cannot update itself. Download the latest version from{' '}
+            <span className="font-mono">agendex.dev/download</span>.
+          </div>
+        )}
+
         <div className="flex gap-3">
           <button
             type="button"
             onClick={checkForUpdates}
-            disabled={status === 'checking'}
+            disabled={status === 'checking' || isUnsupported}
             className="agendex-topbar-button text-[13px] px-4 py-2 rounded-lg border border-border cursor-pointer font-medium hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {status === 'checking' ? 'Checking…' : 'Check for Updates'}
