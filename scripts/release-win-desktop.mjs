@@ -21,25 +21,33 @@ const flags = new Set(args.filter((arg) => arg.startsWith('--')));
 const version = args.find((arg) => !arg.startsWith('--')) ?? process.env.RELEASE_VERSION ?? '';
 
 function printUsage() {
-  console.log(`Usage: bun run release:desktop:mac -- <version> [options]
+  console.log(`Usage: bun run release:desktop:win -- <version> [options]
 
-Builds, signs/notarizes, and publishes a macOS-only Agendex Desktop release to GitHub Releases.
+Builds and publishes a Windows x64-only Agendex Desktop release to GitHub Releases.
+
+Signing is optional. Without WIN_CSC_* / CSC_* credentials, electron-builder ships
+an unsigned installer (SmartScreen will warn; users can Run anyway).
+
+Assets are attached to the existing desktop-v<version> release when there is one,
+so a Windows build can join a release that already shipped macOS artifacts.
 
 Options:
   --dry-run       Print the commands without running them.
   --keep-version  Leave packages/desktop/package.json at the release version.
                   (Stable releases always leave DownloadPage.tsx updated.)
   --skip-clean    Do not remove packages/desktop/release before packaging.
-  --skip-upload   Package the release without creating a GitHub release.
+  --skip-upload   Package the release without touching GitHub Releases.
   --help          Show this help.
 
 Required environment (unless --skip-upload):
   GH_TOKEN or a logged-in \`gh\` CLI session for GitHub release upload.
 
-Required environment for signed/notarized builds:
-  CSC_LINK and CSC_KEY_PASSWORD, plus either:
-    APPLE_API_KEY (path to .p8), APPLE_API_KEY_ID, APPLE_API_ISSUER
-    or APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD
+Optional signing environment (either pair works):
+  WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD
+    or CSC_LINK, CSC_KEY_PASSWORD
+
+Must be run on Windows. From Linux/macOS, use GitHub Actions instead:
+  gh workflow run "Release Desktop" -f version=<version> -f platform=win
 `);
 }
 
@@ -63,13 +71,6 @@ function requireVersion() {
   }
 }
 
-function requireEnv(keys, label) {
-  const missing = keys.filter((key) => !process.env[key]);
-  if (missing.length > 0) {
-    throw new Error(`Missing ${label} environment: ${missing.join(', ')}`);
-  }
-}
-
 async function requirePath(path, label) {
   try {
     await access(path);
@@ -78,18 +79,47 @@ async function requirePath(path, label) {
   }
 }
 
+/**
+ * Resolve Windows signing credentials into electron-builder's CSC_* vars.
+ * Prefer WIN_CSC_* (matches the GitHub secret names) then fall back to CSC_*.
+ * Returns the env overrides to merge into the packaging step (may be empty).
+ */
+async function resolveSigningEnv() {
+  const link = process.env.WIN_CSC_LINK || process.env.CSC_LINK || '';
+  const password = process.env.WIN_CSC_KEY_PASSWORD || process.env.CSC_KEY_PASSWORD || '';
+
+  if (!link && !password) {
+    return { signed: false, env: {} };
+  }
+
+  if (!link || !password) {
+    throw new Error(
+      'Partial Windows signing credentials: set both WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD (or both CSC_LINK and CSC_KEY_PASSWORD).',
+    );
+  }
+
+  // File-path certificates must exist. Base64 / data: / https: values are
+  // passed through to electron-builder unchanged.
+  const looksLikePath =
+    link.startsWith('.') ||
+    link.startsWith('/') ||
+    link.includes('\\') ||
+    /^[A-Za-z]:[\\/]/.test(link);
+  if (looksLikePath) {
+    await requirePath(link, 'Windows code-signing certificate');
+  }
+
+  return { signed: true, env: { CSC_LINK: link, CSC_KEY_PASSWORD: password } };
+}
+
 async function requireReleaseEnv() {
   if (flags.has('--dry-run')) return;
 
-  if (process.platform !== 'darwin') {
-    throw new Error('macOS desktop releases must be run from macOS.');
-  }
-
-  if (process.env.APPLE_API_KEY) {
-    requireEnv(['APPLE_API_KEY', 'APPLE_API_KEY_ID', 'APPLE_API_ISSUER'], 'notarization');
-    await requirePath(process.env.APPLE_API_KEY, 'APPLE_API_KEY');
-  } else {
-    requireEnv(['APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD'], 'notarization');
+  if (process.platform !== 'win32') {
+    throw new Error(
+      'Windows desktop releases must be run from Windows. Use GitHub Actions instead:\n' +
+        '  gh workflow run "Release Desktop" -f version=<version> -f platform=win',
+    );
   }
 
   if (!flags.has('--skip-upload') && !process.env.GH_TOKEN) {
@@ -101,15 +131,17 @@ function quoteForDisplay(value) {
   return /^[A-Za-z0-9_./:=@+-]+$/.test(value) ? value : JSON.stringify(value);
 }
 
-async function run(command, commandArgs) {
+async function run(command, commandArgs, env = process.env) {
   console.log(`$ ${[command, ...commandArgs].map(quoteForDisplay).join(' ')}`);
   if (flags.has('--dry-run')) return;
 
   await new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(command, commandArgs, {
       cwd: repoRoot,
-      env: process.env,
+      env,
       stdio: 'inherit',
+      // Windows resolves `bun`/`gh` through shims that need a shell.
+      shell: process.platform === 'win32',
     });
 
     child.on('error', rejectPromise);
@@ -131,6 +163,7 @@ function capture(command, commandArgs) {
       cwd: repoRoot,
       env: process.env,
       stdio: ['ignore', 'pipe', 'inherit'],
+      shell: process.platform === 'win32',
     });
 
     let stdout = '';
@@ -155,7 +188,7 @@ async function cleanReleaseDir() {
 }
 
 async function collectReleaseAssets() {
-  const allowed = new Set(['.dmg', '.zip', '.blockmap', '.yml']);
+  const allowed = new Set(['.exe', '.blockmap', '.yml']);
   const files = await readdir(desktopReleaseDir);
   return files
     .filter((file) => {
@@ -187,11 +220,10 @@ async function publishToGitHub(tag, releaseName, isPrerelease) {
     throw new Error(`No release assets found in ${desktopReleaseDir}`);
   }
 
-  // The tag may already carry the Windows artifacts (release workflow with
-  // platform=win), so attach to the existing release instead of failing on
-  // `create` after a full sign + notarize cycle.
+  // Windows often ships onto a tag that already carries the macOS artifacts,
+  // so attach to the existing release instead of failing on `create`.
   if (await releaseExists(tag)) {
-    console.log(`Release ${tag} already exists; attaching macOS assets.`);
+    console.log(`Release ${tag} already exists; attaching Windows assets.`);
     await run('gh', ['release', 'upload', tag, ...assets, '--clobber']);
     return;
   }
@@ -204,7 +236,7 @@ async function publishToGitHub(tag, releaseName, isPrerelease) {
     '--title',
     releaseName,
     '--notes',
-    'Agendex Desktop for macOS (universal), signed and notarized.',
+    'Agendex Desktop for Windows (x64). This build is not code-signed: SmartScreen will warn, choose More info then Run anyway.',
   ];
 
   if (isPrerelease) {
@@ -212,6 +244,20 @@ async function publishToGitHub(tag, releaseName, isPrerelease) {
   }
 
   await run('gh', ghArgs);
+}
+
+async function readReleaseMeta() {
+  const output = await capture('node', ['scripts/prepare-desktop-release.mjs', version]);
+  return Object.fromEntries(
+    output
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const index = line.indexOf('=');
+        return [line.slice(0, index), line.slice(index + 1)];
+      }),
+  );
 }
 
 async function main() {
@@ -224,10 +270,21 @@ async function main() {
   requireVersion();
   await requireReleaseEnv();
 
+  const signing = flags.has('--dry-run')
+    ? { signed: Boolean(process.env.WIN_CSC_LINK || process.env.CSC_LINK), env: {} }
+    : await resolveSigningEnv();
+
+  if (signing.signed) {
+    console.log('Windows signing credentials found; packaging a signed installer.');
+  } else {
+    console.log(
+      'No Windows signing credentials; packaging an unsigned installer (SmartScreen will warn).',
+    );
+  }
+
   const originalDesktopPackage = await readFile(desktopPackagePath, 'utf8');
   const restoreVersion = !flags.has('--keep-version') && !flags.has('--dry-run');
-
-  let releaseMeta = null;
+  const packageEnv = { ...process.env, ...signing.env };
 
   try {
     await cleanReleaseDir();
@@ -236,22 +293,14 @@ async function main() {
     // only packages/desktop/package.json is restored below.
     await run('node', ['scripts/prepare-desktop-release.mjs', version, '--write']);
     await run('bun', ['run', 'desktop:build']);
-    await run('bun', ['run', '--cwd', 'packages/desktop', 'dist', '--', '--mac', '--universal']);
+    await run(
+      'bun',
+      ['run', '--cwd', 'packages/desktop', 'dist', '--', '--win', '--x64'],
+      packageEnv,
+    );
 
     if (!flags.has('--skip-upload')) {
-      const metaOutput = await capture('node', ['scripts/prepare-desktop-release.mjs', version]);
-
-      releaseMeta = Object.fromEntries(
-        metaOutput
-          .trim()
-          .split('\n')
-          .filter(Boolean)
-          .map((line) => {
-            const index = line.indexOf('=');
-            return [line.slice(0, index), line.slice(index + 1)];
-          }),
-      );
-
+      const releaseMeta = await readReleaseMeta();
       await publishToGitHub(
         releaseMeta.tag,
         releaseMeta.release_name,
@@ -265,7 +314,7 @@ async function main() {
     }
   }
 
-  console.log('macOS desktop release complete.');
+  console.log('Windows desktop release complete.');
 }
 
 main().catch((error) => {
@@ -274,5 +323,5 @@ main().catch((error) => {
     return;
   }
 
-  fail('macOS desktop release failed.');
+  fail('Windows desktop release failed.');
 });

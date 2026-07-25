@@ -7,6 +7,15 @@ on:
         description: 'Release version (for example 1.0.0 or desktop-v1.0.0)'
         required: true
         type: string
+      platform:
+        description: 'Platforms to build and publish'
+        required: true
+        type: choice
+        options:
+          - all
+          - mac
+          - win
+        default: all
   push:
     tags:
       - 'desktop-v*.*.*'
@@ -30,6 +39,9 @@ jobs:
       is_prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
       make_latest: ${{ steps.release_meta.outputs.make_latest }}
       ref: ${{ github.sha }}
+      platform: ${{ steps.platform.outputs.platform }}
+      build_macos: ${{ steps.platform.outputs.build_macos }}
+      build_windows: ${{ steps.platform.outputs.build_windows }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,6 +59,41 @@ jobs:
         env:
           RAW_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: node scripts/prepare-desktop-release.mjs "$RAW_VERSION" --github-output
+
+      # Tag pushes always release every platform. Manual dispatch may target one
+      # (e.g. attach an unsigned Windows build to a tag that already shipped macOS,
+      # without paying for another notarization round trip).
+      - id: platform
+        name: Resolve target platforms
+        env:
+          RAW_PLATFORM: ${{ github.event.inputs.platform || 'all' }}
+        run: |
+          set -euo pipefail
+          platform="${RAW_PLATFORM:-all}"
+          case "$platform" in
+            all|mac|win) ;;
+            *)
+              echo "::error::Invalid platform '${platform}'. Expected all, mac, or win."
+              exit 1
+              ;;
+          esac
+
+          build_macos=false
+          build_windows=false
+          if [[ "$platform" == "all" || "$platform" == "mac" ]]; then
+            build_macos=true
+          fi
+          if [[ "$platform" == "all" || "$platform" == "win" ]]; then
+            build_windows=true
+          fi
+
+          {
+            echo "platform=${platform}"
+            echo "build_macos=${build_macos}"
+            echo "build_windows=${build_windows}"
+          } >>"$GITHUB_OUTPUT"
+
+          echo "Release platform selection: ${platform} (macOS=${build_macos}, Windows=${build_windows})"
 
       - name: Verify stable download page version
         if: steps.release_meta.outputs.make_latest == 'true'
@@ -66,9 +113,10 @@ jobs:
       - name: Run desktop-related tests
         run: bun test packages/desktop packages/shared/src/convex-url.test.ts packages/shared/src/desktop-auth-callback.test.ts packages/ee/src/lib/desktop.test.ts packages/ee/src/lib/desktop-auth-flow.test.ts packages/ee/src/lib/cli-auth-callback.test.ts packages/ee/src/lib/cloud-query-mode.test.ts scripts/prepare-desktop-release.test.mjs
 
-  release:
-    name: Build and publish macOS
+  build-macos:
+    name: Build macOS (signed)
     needs: preflight
+    if: needs.preflight.outputs.build_macos == 'true'
     runs-on: macos-latest
     # Generous limit: Apple notarization can stall for an hour+ during queue backlogs.
     timeout-minutes: 120
@@ -202,6 +250,214 @@ jobs:
 
           ls -lah release-publish
 
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos
+          path: release-publish/*
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows x64
+    needs: preflight
+    if: needs.preflight.outputs.build_windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Daemon lifecycle and PID handling diverge most on Windows, so re-run
+      # those suites on the real OS before shipping the installer.
+      - name: Run Windows daemon process tests
+        run: bun test packages/desktop/src/main/desktop-daemon-manager.test.ts packages/desktop/src/main/desktop-daemon-protocol.test.ts packages/cli/src/pid.test.ts packages/cli/src/cli-daemon-lifecycle.test.ts packages/shared/src/config.test.ts
+
+      - name: Align desktop package version
+        run: node scripts/prepare-desktop-release.mjs "${{ needs.preflight.outputs.version }}" --write
+
+      - name: Build desktop app
+        run: bun run desktop:build
+
+      # Signing is optional. Without WIN_CSC_* secrets, electron-builder ships an
+      # unsigned installer (SmartScreen will warn; users can Run anyway).
+      #
+      # Important: do NOT pass empty CSC_LINK into the env block. GitHub Actions
+      # still injects empty strings for missing secrets, and electron-builder
+      # then treats "" as a cert path (resolves to the project dir) and fails
+      # with: "Env WIN_CSC_LINK is not correct, cannot resolve: ... not a file".
+      - name: Package Windows desktop artifacts
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${WIN_CSC_LINK:-}" && -n "${WIN_CSC_KEY_PASSWORD:-}" ]]; then
+            export CSC_LINK="$WIN_CSC_LINK"
+            export CSC_KEY_PASSWORD="$WIN_CSC_KEY_PASSWORD"
+            echo "Windows signing credentials found; packaging a signed installer."
+          elif [[ -n "${WIN_CSC_LINK:-}" || -n "${WIN_CSC_KEY_PASSWORD:-}" ]]; then
+            echo "::error::Partial Windows signing credentials: set both WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD."
+            exit 1
+          else
+            unset CSC_LINK CSC_KEY_PASSWORD WIN_CSC_LINK WIN_CSC_KEY_PASSWORD || true
+            echo "::warning::No Windows signing credentials; packaging an unsigned installer (SmartScreen will warn)."
+          fi
+          bun run --cwd packages/desktop dist -- --win --x64
+
+      - name: Verify distinct Windows artifacts
+        shell: pwsh
+        run: |
+          $setup = @(Get-ChildItem packages/desktop/release -Filter 'Agendex-*-x64-Setup.exe')
+          $portable = @(Get-ChildItem packages/desktop/release -Filter 'Agendex-*-x64-Portable.exe')
+          if ($setup.Count -ne 1) {
+            throw "Expected one NSIS setup executable, found $($setup.Count)"
+          }
+          if ($portable.Count -ne 1) {
+            throw "Expected one portable executable, found $($portable.Count)"
+          }
+
+      # latest.yml is the electron-updater feed for Windows. Without it the
+      # generic provider 404s and installed clients silently stop updating.
+      - name: Verify Windows update feed
+        shell: pwsh
+        run: |
+          $feed = 'packages/desktop/release/latest.yml'
+          if (-not (Test-Path $feed)) {
+            throw "electron-builder did not emit $feed"
+          }
+          Get-Content $feed
+
+      - name: Smoke packaged Electron daemon lifecycle
+        shell: pwsh
+        run: |
+          $app = (Get-Item 'packages/desktop/release/win-unpacked/Agendex.exe').FullName
+          bun packages/desktop/scripts/smoke-daemon-worker.mjs --app $app
+
+      - name: Collect release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-publish
+          shopt -s nullglob
+
+          for pattern in \
+            "packages/desktop/release/*.exe" \
+            "packages/desktop/release/*.blockmap" \
+            "packages/desktop/release/*.yml"; do
+            for file in $pattern; do
+              case "$(basename "$file")" in
+                builder-debug.yml) continue ;;
+              esac
+              cp "$file" release-publish/
+            done
+          done
+
+          ls -lah release-publish
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows-x64
+          path: release-publish/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: [preflight, build-macos, build-windows]
+    # Publish when every selected platform succeeded. Skipped platforms (via
+    # platform=mac or platform=win) are allowed; a failed selected build still
+    # blocks publish so a release never ships half its artifacts.
+    if: >-
+      always() &&
+      !cancelled() &&
+      (needs.build-macos.result == 'success' || needs.build-macos.result == 'skipped') &&
+      (needs.build-windows.result == 'success' || needs.build-windows.result == 'skipped') &&
+      (needs.build-macos.result == 'success' || needs.build-windows.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: release-publish
+
+      - name: List release assets
+        run: ls -lah release-publish
+
+      # A single-platform run leaves the other platform's existing assets in
+      # place, so the notes describe what the release *ends up* holding, not
+      # just what this run built.
+      - name: Compose release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.preflight.outputs.tag }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          has_mac=false
+          has_win=false
+          [[ -n "$(echo release-publish/*.dmg)" ]] && has_mac=true
+          [[ -n "$(echo release-publish/*.exe)" ]] && has_win=true
+
+          existing="$(gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null || true)"
+          grep -q '\.dmg$' <<<"$existing" && has_mac=true
+          grep -q '\.exe$' <<<"$existing" && has_win=true
+
+          {
+            if [[ "$has_mac" == "true" && "$has_win" == "true" ]]; then
+              echo "Agendex Desktop v${VERSION} for macOS (universal) and Windows (x64)."
+            elif [[ "$has_mac" == "true" ]]; then
+              echo "Agendex Desktop v${VERSION} for macOS (universal)."
+            else
+              echo "Agendex Desktop v${VERSION} for Windows (x64)."
+            fi
+
+            if [[ "$has_mac" == "true" ]]; then
+              cat <<'EOF'
+
+          ## macOS
+
+          Signed and notarized. Download the `.dmg` for the standard install flow, or the `.zip` if you prefer to drag the app into Applications yourself.
+
+          Verify (optional):
+
+          ```bash
+          codesign --verify --deep --strict --verbose=2 "/Applications/Agendex.app"
+          spctl -a -vv "/Applications/Agendex.app"
+          ```
+          EOF
+            fi
+
+            if [[ "$has_win" == "true" ]]; then
+              cat <<'EOF'
+
+          ## Windows
+
+          **This build is not code-signed.** Windows SmartScreen will show "Windows protected your PC" — choose **More info → Run anyway** to continue. A signing certificate is planned.
+
+          - `*-x64-Setup.exe` — installer. Creates shortcuts, registers the `agendex://` sign-in link, and updates itself in place.
+          - `*-x64-Portable.exe` — single-file build that needs no install. It cannot self-update; re-download to upgrade.
+          EOF
+            fi
+          } >release-notes.md
+
+          cat release-notes.md
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -212,15 +468,4 @@ jobs:
           prerelease: ${{ needs.preflight.outputs.is_prerelease == 'true' }}
           make_latest: ${{ needs.preflight.outputs.make_latest == 'true' }}
           generate_release_notes: true
-          body: |
-            Agendex Desktop for macOS (universal). Windows builds will follow in a later release.
-
-            ## Install
-            Download the `.dmg` for the standard install flow, or the `.zip` if you prefer to drag the app into Applications yourself.
-
-            ## Verify (optional)
-            After opening the app:
-            ```bash
-            codesign --verify --deep --strict --verbose=2 "/Applications/Agendex.app"
-            spctl -a -vv "/Applications/Agendex.app"
-            ```
+          body_path: release-notes.md
