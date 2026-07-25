@@ -1,12 +1,13 @@
 # Code Signing and Notarization Guide
 
-Agendex Desktop ships a macOS Electron app with `electron-builder`. Signing and notarization are required for Gatekeeper acceptance on other Macs.
+Agendex Desktop ships macOS and Windows Electron apps with `electron-builder`.
+
+- **macOS signing and notarization are required.** Gatekeeper rejects unsigned builds on other Macs, so the release job fails fast when the secrets are missing.
+- **Windows Authenticode signing is optional and currently not configured.** Without a certificate, electron-builder publishes an unsigned installer: SmartScreen shows "Windows protected your PC" and users continue through **More info → Run anyway**. Adding the secrets below turns signing on with no other change.
 
 The signed production path is the **Release Desktop** GitHub Actions workflow (`.github/workflows/desktop-release.yml`). The separate **Build Desktop (CI)** workflow packages unsigned artifacts for validation and does not receive signing secrets.
 
 Release publishing uses the built-in `GITHUB_TOKEN`; you do not need a separate GitHub PAT for uploading release assets.
-
-Windows Authenticode signing is documented here for a future release but is **not** part of the current macOS-only workflow.
 
 ## Secret Layout
 
@@ -20,8 +21,10 @@ Windows Authenticode signing is documented here for a future release but is **no
 | `APPLE_ID`                    | macOS release job (optional fallback) | Apple ID email                             |
 | `APPLE_APP_SPECIFIC_PASSWORD` | macOS release job (optional fallback) | App-specific password                      |
 | `APPLE_TEAM_ID`               | macOS release job (optional)          | Apple Developer team ID                    |
+| `WIN_CSC_LINK`                | Windows release job (optional)        | Base64 of the Authenticode `.pfx`/`.p12`   |
+| `WIN_CSC_KEY_PASSWORD`        | Windows release job (optional)        | Password for that certificate              |
 
-When Windows signing is added later, keep Windows certificate secrets separate (for example `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD`) and map them to `CSC_LINK` / `CSC_KEY_PASSWORD` only inside the Windows packaging job.
+Windows certificate secrets stay under their own `WIN_CSC_*` names and are mapped to `CSC_LINK` / `CSC_KEY_PASSWORD` only inside the Windows packaging step. Never point `CSC_LINK` at the Apple Developer ID `.p12` for Windows — the two are different certificate types issued by different authorities.
 
 ## macOS: Developer ID and Notarization
 
@@ -93,12 +96,19 @@ git tag desktop-v1.0.0
 git push origin desktop-v1.0.0
 ```
 
-The release workflow checks for signing secrets before packaging. Expected macOS artifacts:
+The release workflow checks for macOS signing secrets before packaging. Expected macOS artifacts:
 
 - `.dmg`
 - `.zip`
 - `.blockmap`
 - `latest-mac.yml`
+
+Expected Windows artifacts:
+
+- `Agendex-<version>-x64-Setup.exe`
+- `Agendex-<version>-x64-Portable.exe`
+- `.blockmap`
+- `latest.yml`
 
 ## Local builds
 
@@ -152,6 +162,36 @@ xcrun stapler validate "/Applications/Agendex.app"
 - Assuming a successful `codesign` check means notarization passed — Gatekeeper acceptance requires notarization too.
 - Using CLI release tags (`v1.2.3`) for desktop — desktop releases use `desktop-v1.2.3` to avoid colliding with npm CLI tags.
 
-## Future: Windows signing
+## Windows: shipping unsigned, and turning signing on later
 
-When Windows support ships, add a Windows release job with separate `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` secrets. Do not reuse the Apple Developer ID `.p12` for Windows Authenticode signing.
+### What unsigned means today
+
+`Agendex-<version>-x64-Setup.exe` carries no Authenticode signature, so Windows cannot name a publisher. On first run SmartScreen shows "Windows protected your PC — Microsoft Defender SmartScreen prevented an unrecognized app from starting"; **More info → Run anyway** proceeds. `/download` documents this, the release notes repeat it, and the app itself shows a **Code signing: Not signed yet** row under **Settings → Updates**.
+
+That in-app row is derived, not hardcoded. `resolveDesktopBuildInfo` (`packages/desktop/src/main/desktop-build-info.ts`) reads the packaged `app-update.yml` and looks for `publisherName`, which electron-builder writes only when a certificate was configured at package time. So the notice clears itself on the first signed release — there is no copy to remember to delete. It is only ever shown for packaged Windows builds; every other case resolves to "unknown" and renders nothing.
+
+Auto-update is unaffected. electron-builder only writes `publisherName` into `app-update.yml` when a certificate is present, and electron-updater skips its Authenticode verification when that field is absent — so unsigned installs still update themselves in place.
+
+The portable exe never self-updates regardless of signing; see the auto-update notes in [`docs/desktop-release.md`](./desktop-release.md).
+
+### Turning signing on
+
+No workflow change is needed — the Windows packaging step already branches on the secrets:
+
+1. Buy an **OV or EV code-signing certificate** from a Microsoft-approved CA. EV certificates (hardware token or cloud HSM) clear SmartScreen reputation immediately; OV certificates build reputation over time and downloads may still be flagged at first.
+2. Export it as a password-protected `.pfx`, then encode it without line breaks:
+
+   ```bash
+   base64 -i /path/to/codesign.pfx | tr -d '\n'
+   ```
+
+3. Set repository secrets `WIN_CSC_LINK` (the base64 output) and `WIN_CSC_KEY_PASSWORD` (the export password). Set **both** — the job fails deliberately on a partial pair rather than silently shipping unsigned.
+4. Re-run **Release Desktop**. The step logs "Windows signing credentials found; packaging a signed installer," and the in-app "Not signed yet" row stops appearing for that build.
+
+EV certificates held on a hardware token cannot be exported as a `.pfx` and do not work with `WIN_CSC_LINK`. Those need a cloud signing service (for example Azure Trusted Signing, which electron-builder supports through `win.azureSignOptions`) or a self-hosted runner with the token attached.
+
+Once signed builds ship, keep them signed: `publisherName` lands in `app-update.yml`, and reverting to unsigned would fail electron-updater's signature check on already-installed clients.
+
+### Empty-secret pitfall
+
+Do not pass `CSC_LINK: ${{ secrets.WIN_CSC_LINK }}` directly through a job `env:` block. GitHub Actions injects an empty string for a missing secret, and electron-builder then treats `""` as a certificate path, resolves it against the project directory, and fails with `Env WIN_CSC_LINK is not correct, cannot resolve: ... not a file`. The workflow instead exports the variables inside the step only when both are non-empty, and unsets them otherwise.

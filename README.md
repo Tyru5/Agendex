@@ -181,6 +181,7 @@ bun run build               # build OSS client bundle
 bun run build:cloud         # build EE client bundle
 bun run desktop:dev         # run Electron with renderer HMR
 bun run desktop:build       # build the EE client and Electron bundles
+bun run desktop:dist:mac    # build an unsigned macOS package
 bun run desktop:dist:win    # build an unsigned Windows package
 
 bun run cli:start           # start cloud sync daemon
