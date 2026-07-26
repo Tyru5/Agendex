@@ -342,7 +342,10 @@ function writeConfigUnlocked(config: AgendexConfig): void {
     });
     renameSync(candidatePath, path);
   } finally {
-    if (existsSync(candidatePath)) unlinkSync(candidatePath);
+    // Best-effort cleanup: never let unlink errors mask the original write/rename failure.
+    try {
+      unlinkSync(candidatePath);
+    } catch {}
   }
 }
 

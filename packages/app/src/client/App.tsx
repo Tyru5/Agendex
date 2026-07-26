@@ -124,13 +124,18 @@ function Dashboard() {
   const { plans, loading, error, refresh } = localPlans;
   const workspaces = useMemo(() => workspacesFromPlans(plans), [plans]);
   const [customPlanDirs, setCustomPlanDirs] = useState<string[]>([]);
+  // Bumped on mutation so a slower initial getPlanSources cannot overwrite newer state.
+  const customPlanDirsEpochRef = useRef(0);
 
   useEffect(() => {
     let active = true;
+    const epoch = customPlanDirsEpochRef.current;
     api
       .getPlanSources()
       .then((res) => {
-        if (active) setCustomPlanDirs(res.customPlanDirs);
+        if (active && epoch === customPlanDirsEpochRef.current) {
+          setCustomPlanDirs(res.customPlanDirs);
+        }
       })
       .catch((error: unknown) => {
         console.error(
@@ -143,8 +148,15 @@ function Dashboard() {
     };
   }, []);
 
+  const applyCustomPlanDirs = useCallback((dirs: readonly string[]) => {
+    customPlanDirsEpochRef.current += 1;
+    setCustomPlanDirs([...dirs]);
+  }, []);
+
   const removeCustomDir = useCallback(
     async (dir: string) => {
+      // Invalidate any in-flight initial fetch before the mutation returns.
+      customPlanDirsEpochRef.current += 1;
       const res = await api.removePlanSource(dir);
       setCustomPlanDirs(res.customPlanDirs);
       await refresh();
@@ -153,10 +165,10 @@ function Dashboard() {
   );
   const handleSourcesChanged = useCallback(
     (dirs: readonly string[]) => {
-      setCustomPlanDirs([...dirs]);
+      applyCustomPlanDirs(dirs);
       void refresh();
     },
-    [refresh],
+    [applyCustomPlanDirs, refresh],
   );
 
   const filteredPlans = useMemo(() => {
