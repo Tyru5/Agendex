@@ -839,7 +839,7 @@ export function AboutMePage() {
 
             <div className="about-actions" aria-label="About Ti links">
               <a
-                href="https://github.com/tiru5/agendex"
+                href="https://github.com/tyru5/agendex"
                 target="_blank"
                 rel="noreferrer"
                 className="about-link about-link-primary"
