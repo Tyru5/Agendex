@@ -155,9 +155,10 @@ function Dashboard() {
 
   const removeCustomDir = useCallback(
     async (dir: string) => {
-      // Invalidate any in-flight initial fetch before the mutation returns.
-      customPlanDirsEpochRef.current += 1;
+      const epoch = ++customPlanDirsEpochRef.current;
       const res = await api.removePlanSource(dir);
+      // Drop superseded responses so overlapping removals cannot revive a source.
+      if (epoch !== customPlanDirsEpochRef.current) return;
       setCustomPlanDirs(res.customPlanDirs);
       await refresh();
     },
