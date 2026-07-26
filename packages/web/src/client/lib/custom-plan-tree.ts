@@ -1,8 +1,20 @@
 import type { Plan } from './api.ts';
 
-export type FsTreeNode =
-  | { type: 'dir'; key: string; name: string; children: FsTreeNode[] }
-  | { type: 'file'; key: string; name: string; plan: Plan };
+type FsDirectoryNode = {
+  readonly type: 'dir';
+  readonly key: string;
+  readonly name: string;
+  readonly children: FsTreeNode[];
+};
+
+type FsFileNode = {
+  readonly type: 'file';
+  readonly key: string;
+  readonly name: string;
+  readonly plan: Plan;
+};
+
+export type FsTreeNode = FsDirectoryNode | FsFileNode;
 
 export function isCustomDirPlan(plan: Plan): boolean {
   return plan.metadata.source === 'custom-dir' || typeof plan.metadata.customDir === 'string';
@@ -17,7 +29,15 @@ function basename(p: string): string {
   return normalized.split('/').pop() ?? normalized;
 }
 
-export function buildCustomDirTree(plans: Plan[]): FsTreeNode[] {
+/**
+ * Build a filesystem tree of custom-dir plans grouped by their source root.
+ * When `extraSources` is provided, roots with no plans are still included
+ * so the UI can render (and allow removal of) empty or file-path sources.
+ */
+export function buildCustomDirTree(
+  plans: readonly Plan[],
+  extraSources?: readonly string[],
+): FsTreeNode[] {
   const customPlans = plans.filter(
     (p) => p.metadata.source === 'custom-dir' && typeof p.metadata.customDir === 'string',
   );
@@ -33,18 +53,26 @@ export function buildCustomDirTree(plans: Plan[]): FsTreeNode[] {
     }
   }
 
+  // Ensure every configured source appears in the tree even if it has no plans
+  // (e.g. the path points to a file, the directory is empty, or it was deleted).
+  if (extraSources) {
+    for (const src of extraSources) {
+      const key = normalizePath(src);
+      if (!byRoot.has(key)) byRoot.set(key, []);
+    }
+  }
+
   const roots: FsTreeNode[] = [];
 
   for (const [root, rootPlans] of byRoot) {
-    const dirNode: FsTreeNode = {
+    const dirNode: FsDirectoryNode = {
       type: 'dir',
       key: root,
       name: basename(root),
       children: [],
     };
 
-    const dirMap = new Map<string, FsTreeNode & { type: 'dir' }>();
-    dirMap.set('', dirNode as FsTreeNode & { type: 'dir' });
+    const dirMap = new Map<string, FsDirectoryNode>([['', dirNode]]);
 
     for (const plan of rootPlans) {
       const fullPath = normalizePath(plan.filePath);
@@ -53,9 +81,7 @@ export function buildCustomDirTree(plans: Plan[]): FsTreeNode[] {
       const segments = relative.split('/');
       const fileName = segments.pop() ?? relative;
 
-      // root dir always exists in map
-      // oxlint-disable-next-line typescript/no-non-null-assertion
-      let currentDir = dirMap.get('')!;
+      let currentDir = dirNode;
       let currentPath = '';
 
       for (const segment of segments) {
@@ -82,14 +108,14 @@ export function buildCustomDirTree(plans: Plan[]): FsTreeNode[] {
       });
     }
 
-    sortChildren(dirNode as FsTreeNode & { type: 'dir' });
+    sortChildren(dirNode);
     roots.push(dirNode);
   }
 
   return roots.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function sortChildren(node: FsTreeNode & { type: 'dir' }): void {
+function sortChildren(node: FsDirectoryNode): void {
   node.children.sort((a, b) => {
     if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
     return a.name.localeCompare(b.name);

@@ -229,14 +229,19 @@ function canonicalizeCustomPlanDir(path: string): string {
  * Removes the custom plan dir matching `target` from `dirs`. Matches by exact
  * normalized path first, then falls back to symlink-resolved (realpath) equality
  * so a dir can be removed even if supplied via a symlink or different-cwd relative
- * path. Returns the updated list, or `null` if nothing matched.
+ * path. Works for any path type (directory or file).
+ * Returns the updated list, or `null` if nothing matched.
  */
 export function removeCustomPlanDir(dirs: string[], target: string): string[] | null {
   const resolved = resolveCustomPlanDirPath(target);
   const canonicalTarget = canonicalizeCustomPlanDir(resolved);
-  const updated = dirs.filter((d) => {
-    const normalized = resolveCustomPlanDirPath(d);
-    return normalized !== resolved && canonicalizeCustomPlanDir(normalized) !== canonicalTarget;
+  const updated = dirs.filter((dir) => {
+    try {
+      const normalized = resolveCustomPlanDirPath(dir);
+      return normalized !== resolved && canonicalizeCustomPlanDir(normalized) !== canonicalTarget;
+    } catch {
+      return true;
+    }
   });
   if (updated.length !== dirs.length) return updated;
 
@@ -337,6 +342,7 @@ function writeConfigUnlocked(config: AgendexConfig): void {
     });
     renameSync(candidatePath, path);
   } finally {
+    // Best-effort cleanup: never let unlink errors mask the original write/rename failure.
     try {
       unlinkSync(candidatePath);
     } catch {}

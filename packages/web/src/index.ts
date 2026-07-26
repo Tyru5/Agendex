@@ -63,6 +63,7 @@ export { WipMarquee } from './client/components/WipMarquee.tsx';
 
 export type { BackendStatus } from './client/hooks/useBackendStatus.ts';
 export { useBackendStatus } from './client/hooks/useBackendStatus.ts';
+export { useCustomPlanSources } from './client/hooks/useCustomPlanSources.ts';
 export { useFullscreen } from './client/hooks/useFullscreen.ts';
 export { usePinnedPlans } from './client/hooks/usePinnedPlans.ts';
 export { usePlanState } from './client/hooks/usePlanState.ts';

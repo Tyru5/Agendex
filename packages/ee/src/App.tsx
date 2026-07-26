@@ -26,6 +26,7 @@ import {
   startViewTransition,
   useAgents,
   useBackendStatus,
+  useCustomPlanSources,
   usePlanFolders,
   usePlanState,
   usePlans,
@@ -1598,6 +1599,7 @@ function DashboardSidebar({
   onRenamePlan,
   onDeletePlan,
   onRemoveCustomDir,
+  customPlanDirs,
   width,
   onResize,
 }: {
@@ -1643,6 +1645,7 @@ function DashboardSidebar({
   onRenamePlan?: (planId: string, newTitle: string) => void;
   onDeletePlan?: (planId: string) => void;
   onRemoveCustomDir?: (dir: string) => void | Promise<void>;
+  customPlanDirs?: readonly string[];
   width?: number;
   onResize?: (width: number) => void;
 }) {
@@ -1826,6 +1829,7 @@ function DashboardSidebar({
             onRenamePlan={onRenamePlan}
             onDeletePlan={onDeletePlan}
             onRemoveCustomDir={onRemoveCustomDir}
+            customPlanDirs={customPlanDirs}
             folderState={folderState}
             emptyState={
               hasActiveFilters
@@ -2109,13 +2113,22 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
 
-  const removeCustomDir = useCallback(
+  const { customPlanDirs, removeCustomDir, refreshCustomPlanDirs } = useCustomPlanSources(
+    canManageLocalPlanSources,
+    localApi,
+  );
+
+  const handleRemoveCustomDir = useCallback(
     async (dir: string) => {
-      await localApi.removePlanSource(dir);
+      await removeCustomDir(dir);
       await refresh();
     },
-    [refresh],
+    [refresh, removeCustomDir],
   );
+  const handleSourcesChanged = useCallback(() => {
+    refreshCustomPlanDirs();
+    void refresh();
+  }, [refresh, refreshCustomPlanDirs]);
 
   const [expandedWidth, setExpandedWidth] = useSidebarWidth();
 
@@ -2533,7 +2546,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         <PlanSourcesDialog
           open={sourcesOpen}
           onClose={() => setSourcesOpen(false)}
-          onSourcesChanged={() => refresh()}
+          onSourcesChanged={handleSourcesChanged}
         />
       )}
 
@@ -2602,7 +2615,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         planState={planState}
         onRenamePlan={mode === 'cloud' && isPro ? handleRenamePlan : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
-        onRemoveCustomDir={canManageLocalPlanSources ? removeCustomDir : undefined}
+        onRemoveCustomDir={canManageLocalPlanSources ? handleRemoveCustomDir : undefined}
+        customPlanDirs={canManageLocalPlanSources ? customPlanDirs : undefined}
         width={expandedWidth}
         onResize={setExpandedWidth}
       />

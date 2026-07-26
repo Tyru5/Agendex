@@ -1,5 +1,4 @@
 import {
-  api,
   ChangelogPage,
   DocsPage,
   DownloadPage,
@@ -20,6 +19,7 @@ import {
   Topbar,
   useAgents,
   useBackendStatus,
+  useCustomPlanSources,
   usePlans,
   useSidebarWidth,
   workspacesFromPlans,
@@ -123,14 +123,20 @@ function Dashboard() {
 
   const { plans, loading, error, refresh } = localPlans;
   const workspaces = useMemo(() => workspacesFromPlans(plans), [plans]);
+  const { customPlanDirs, removeCustomDir, refreshCustomPlanDirs } =
+    useCustomPlanSources(IS_LOCAL_WORKSPACE_SHELL);
 
-  const removeCustomDir = useCallback(
+  const handleRemoveCustomDir = useCallback(
     async (dir: string) => {
-      await api.removePlanSource(dir);
+      await removeCustomDir(dir);
       await refresh();
     },
-    [refresh],
+    [refresh, removeCustomDir],
   );
+  const handleSourcesChanged = useCallback(() => {
+    refreshCustomPlanDirs();
+    void refresh();
+  }, [refresh, refreshCustomPlanDirs]);
 
   const filteredPlans = useMemo(() => {
     return applyPlanFilters(plans, {
@@ -308,7 +314,7 @@ function Dashboard() {
         <PlanSourcesDialog
           open={sourcesOpen}
           onClose={() => setSourcesOpen(false)}
-          onSourcesChanged={() => localPlans.refresh()}
+          onSourcesChanged={handleSourcesChanged}
         />
       )}
 
@@ -351,7 +357,8 @@ function Dashboard() {
         filteredPlans={filteredPlans}
         selectedPlanId={selectedPlan?.id}
         onSelectPlan={setSelectedPlan}
-        onRemoveCustomDir={IS_LOCAL_WORKSPACE_SHELL ? removeCustomDir : undefined}
+        onRemoveCustomDir={IS_LOCAL_WORKSPACE_SHELL ? handleRemoveCustomDir : undefined}
+        customPlanDirs={IS_LOCAL_WORKSPACE_SHELL ? customPlanDirs : undefined}
         loading={loading}
         error={error}
         width={expandedWidth}

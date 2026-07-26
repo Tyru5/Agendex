@@ -272,13 +272,16 @@ export function CustomDirTree({
   plans,
   renderPlan,
   onRemoveSource,
+  customPlanDirs,
 }: {
   plans: Plan[];
   renderPlan: (plan: Plan) => React.ReactNode;
   /** When provided, root source rows expose a remove action (hover button + right click). */
   onRemoveSource?: (dir: string) => void | Promise<void>;
+  /** All configured source paths — ensures empty / file-path sources are shown and removable. */
+  customPlanDirs?: readonly string[];
 }): React.ReactNode {
-  const tree = useMemo(() => buildCustomDirTree(plans), [plans]);
+  const tree = useMemo(() => buildCustomDirTree(plans, customPlanDirs), [plans, customPlanDirs]);
   const rootDirKeys = useMemo(() => {
     const keys: string[] = [];
 

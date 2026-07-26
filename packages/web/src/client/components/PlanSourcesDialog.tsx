@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api.ts';
 
-interface PlanSourcesDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onSourcesChanged?: () => void;
-}
+type PlanSourcesDialogProps = {
+  readonly open: boolean;
+  readonly onClose: () => void;
+  readonly onSourcesChanged?: (dirs: readonly string[]) => void;
+};
 
 export function PlanSourcesDialog({ open, onClose, onSourcesChanged }: PlanSourcesDialogProps) {
   const [dirs, setDirs] = useState<string[]>([]);
@@ -43,7 +43,7 @@ export function PlanSourcesDialog({ open, onClose, onSourcesChanged }: PlanSourc
       const res = await api.addPlanSource(trimmed);
       setDirs(res.customPlanDirs);
       setNewPath('');
-      onSourcesChanged?.();
+      onSourcesChanged?.(res.customPlanDirs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add directory');
     } finally {
@@ -57,7 +57,7 @@ export function PlanSourcesDialog({ open, onClose, onSourcesChanged }: PlanSourc
     try {
       const res = await api.removePlanSource(path);
       setDirs(res.customPlanDirs);
-      onSourcesChanged?.();
+      onSourcesChanged?.(res.customPlanDirs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove directory');
     } finally {

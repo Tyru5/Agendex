@@ -233,7 +233,7 @@ plans.delete('/plan-sources', async (c) => {
     };
   });
   if (updated === null) {
-    return c.json({ error: `directory not in custom plan dirs: ${resolved}` }, 404);
+    return c.json({ error: `path not in custom plan sources: ${resolved}` }, 404);
   }
   await scan();
   startWatching(watcherOnChange);

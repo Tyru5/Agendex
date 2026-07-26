@@ -37,6 +37,8 @@ interface SidebarProps {
   onSelectPlan: (plan: Plan | undefined) => void;
   onOpenInSplitView?: (plan: Plan) => void;
   onRemoveCustomDir?: (dir: string) => void | Promise<void>;
+  /** All configured custom plan source paths — ensures empty / file-path sources are visible. */
+  customPlanDirs?: readonly string[];
   loading: boolean;
   error: string | null;
   width?: number;
@@ -73,6 +75,7 @@ export function Sidebar({
   onSelectPlan,
   onOpenInSplitView,
   onRemoveCustomDir,
+  customPlanDirs,
   loading,
   error,
   width,
@@ -180,6 +183,7 @@ export function Sidebar({
             onSelect={(plan) => startViewTransition(() => onSelectPlan(plan))}
             onOpenInSplitView={onOpenInSplitView}
             onRemoveCustomDir={onRemoveCustomDir}
+            customPlanDirs={customPlanDirs}
             folderState={folderState}
             emptyState={
               onClearFilters && hasActiveFilters
