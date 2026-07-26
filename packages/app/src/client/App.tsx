@@ -1,5 +1,4 @@
 import {
-  api,
   ChangelogPage,
   DocsPage,
   DownloadPage,
@@ -20,6 +19,7 @@ import {
   Topbar,
   useAgents,
   useBackendStatus,
+  useCustomPlanSources,
   usePlans,
   useSidebarWidth,
   workspacesFromPlans,
@@ -123,54 +123,20 @@ function Dashboard() {
 
   const { plans, loading, error, refresh } = localPlans;
   const workspaces = useMemo(() => workspacesFromPlans(plans), [plans]);
-  const [customPlanDirs, setCustomPlanDirs] = useState<string[]>([]);
-  // Bumped on mutation so a slower initial getPlanSources cannot overwrite newer state.
-  const customPlanDirsEpochRef = useRef(0);
+  const { customPlanDirs, removeCustomDir, refreshCustomPlanDirs } =
+    useCustomPlanSources(IS_LOCAL_WORKSPACE_SHELL);
 
-  useEffect(() => {
-    let active = true;
-    const epoch = customPlanDirsEpochRef.current;
-    api
-      .getPlanSources()
-      .then((res) => {
-        if (active && epoch === customPlanDirsEpochRef.current) {
-          setCustomPlanDirs(res.customPlanDirs);
-        }
-      })
-      .catch((error: unknown) => {
-        console.error(
-          'failed to fetch plan sources',
-          error instanceof Error ? error : new Error(String(error)),
-        );
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const applyCustomPlanDirs = useCallback((dirs: readonly string[]) => {
-    customPlanDirsEpochRef.current += 1;
-    setCustomPlanDirs([...dirs]);
-  }, []);
-
-  const removeCustomDir = useCallback(
+  const handleRemoveCustomDir = useCallback(
     async (dir: string) => {
-      const epoch = ++customPlanDirsEpochRef.current;
-      const res = await api.removePlanSource(dir);
-      // Drop superseded responses so overlapping removals cannot revive a source.
-      if (epoch !== customPlanDirsEpochRef.current) return;
-      setCustomPlanDirs(res.customPlanDirs);
+      await removeCustomDir(dir);
       await refresh();
     },
-    [refresh],
+    [refresh, removeCustomDir],
   );
-  const handleSourcesChanged = useCallback(
-    (dirs: readonly string[]) => {
-      applyCustomPlanDirs(dirs);
-      void refresh();
-    },
-    [applyCustomPlanDirs, refresh],
-  );
+  const handleSourcesChanged = useCallback(() => {
+    refreshCustomPlanDirs();
+    void refresh();
+  }, [refresh, refreshCustomPlanDirs]);
 
   const filteredPlans = useMemo(() => {
     return applyPlanFilters(plans, {
@@ -391,7 +357,7 @@ function Dashboard() {
         filteredPlans={filteredPlans}
         selectedPlanId={selectedPlan?.id}
         onSelectPlan={setSelectedPlan}
-        onRemoveCustomDir={IS_LOCAL_WORKSPACE_SHELL ? removeCustomDir : undefined}
+        onRemoveCustomDir={IS_LOCAL_WORKSPACE_SHELL ? handleRemoveCustomDir : undefined}
         customPlanDirs={IS_LOCAL_WORKSPACE_SHELL ? customPlanDirs : undefined}
         loading={loading}
         error={error}

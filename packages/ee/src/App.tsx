@@ -26,6 +26,7 @@ import {
   startViewTransition,
   useAgents,
   useBackendStatus,
+  useCustomPlanSources,
   usePlanFolders,
   usePlanState,
   usePlans,
@@ -2112,59 +2113,22 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
 
-  const [customPlanDirs, setCustomPlanDirs] = useState<string[]>([]);
-  // Bumped on mutation so a slower initial getPlanSources cannot overwrite newer state.
-  const customPlanDirsEpochRef = useRef(0);
-  useEffect(() => {
-    if (!canManageLocalPlanSources) {
-      customPlanDirsEpochRef.current += 1;
-      setCustomPlanDirs([]);
-      return;
-    }
+  const { customPlanDirs, removeCustomDir, refreshCustomPlanDirs } = useCustomPlanSources(
+    canManageLocalPlanSources,
+    localApi,
+  );
 
-    let active = true;
-    const epoch = customPlanDirsEpochRef.current;
-    localApi
-      .getPlanSources()
-      .then((res) => {
-        if (active && epoch === customPlanDirsEpochRef.current) {
-          setCustomPlanDirs(res.customPlanDirs);
-        }
-      })
-      .catch((error: unknown) => {
-        console.error(
-          'failed to fetch plan sources',
-          error instanceof Error ? error : new Error(String(error)),
-        );
-      });
-    return () => {
-      active = false;
-    };
-  }, [canManageLocalPlanSources]);
-
-  const applyCustomPlanDirs = useCallback((dirs: readonly string[]) => {
-    customPlanDirsEpochRef.current += 1;
-    setCustomPlanDirs([...dirs]);
-  }, []);
-
-  const removeCustomDir = useCallback(
+  const handleRemoveCustomDir = useCallback(
     async (dir: string) => {
-      const epoch = ++customPlanDirsEpochRef.current;
-      const res = await localApi.removePlanSource(dir);
-      // Drop superseded responses so overlapping removals cannot revive a source.
-      if (epoch !== customPlanDirsEpochRef.current) return;
-      setCustomPlanDirs(res.customPlanDirs);
+      await removeCustomDir(dir);
       await refresh();
     },
-    [refresh],
+    [refresh, removeCustomDir],
   );
-  const handleSourcesChanged = useCallback(
-    (dirs: readonly string[]) => {
-      applyCustomPlanDirs(dirs);
-      void refresh();
-    },
-    [applyCustomPlanDirs, refresh],
-  );
+  const handleSourcesChanged = useCallback(() => {
+    refreshCustomPlanDirs();
+    void refresh();
+  }, [refresh, refreshCustomPlanDirs]);
 
   const [expandedWidth, setExpandedWidth] = useSidebarWidth();
 
@@ -2651,7 +2615,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         planState={planState}
         onRenamePlan={mode === 'cloud' && isPro ? handleRenamePlan : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
-        onRemoveCustomDir={canManageLocalPlanSources ? removeCustomDir : undefined}
+        onRemoveCustomDir={canManageLocalPlanSources ? handleRemoveCustomDir : undefined}
         customPlanDirs={canManageLocalPlanSources ? customPlanDirs : undefined}
         width={expandedWidth}
         onResize={setExpandedWidth}
