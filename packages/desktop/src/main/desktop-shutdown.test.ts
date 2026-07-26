@@ -34,3 +34,15 @@ test('does not hang when local server shutdown never settles', async () => {
 
   expect(Date.now() - startedAt < 500).toBe(true);
 });
+
+test('does not prevent app quit when daemon shutdown never settles', async () => {
+  const startedAt = Date.now();
+
+  await stopDesktopServices({
+    window: null,
+    stopDaemon: () => new Promise(() => {}),
+    daemonStopTimeoutMs: 10,
+  });
+
+  expect(Date.now() - startedAt < 500).toBe(true);
+});
