@@ -1,4 +1,5 @@
 import {
+  api,
   ChangelogPage,
   DocsPage,
   DownloadPage,
@@ -122,6 +123,14 @@ function Dashboard() {
 
   const { plans, loading, error, refresh } = localPlans;
   const workspaces = useMemo(() => workspacesFromPlans(plans), [plans]);
+
+  const removeCustomDir = useCallback(
+    async (dir: string) => {
+      await api.removePlanSource(dir);
+      await refresh();
+    },
+    [refresh],
+  );
 
   const filteredPlans = useMemo(() => {
     return applyPlanFilters(plans, {
@@ -342,6 +351,7 @@ function Dashboard() {
         filteredPlans={filteredPlans}
         selectedPlanId={selectedPlan?.id}
         onSelectPlan={setSelectedPlan}
+        onRemoveCustomDir={IS_LOCAL_WORKSPACE_SHELL ? removeCustomDir : undefined}
         loading={loading}
         error={error}
         width={expandedWidth}

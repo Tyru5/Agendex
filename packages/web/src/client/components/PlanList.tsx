@@ -178,6 +178,7 @@ type PlanListProps = {
   planState?: PlanState;
   onRenamePlan?: (planId: string, newTitle: string) => void;
   onDeletePlan?: (planId: string) => void;
+  onRemoveCustomDir?: (dir: string) => void | Promise<void>;
   folderState?: FolderState;
   emptyState?: {
     title: string;
@@ -197,6 +198,7 @@ export function PlanList(props: PlanListProps) {
     planState: planStateProp,
     onRenamePlan,
     onDeletePlan,
+    onRemoveCustomDir,
     folderState,
     emptyState,
   } = props;
@@ -344,6 +346,7 @@ export function PlanList(props: PlanListProps) {
         <>
           <CustomDirTree
             plans={customDirPlans}
+            onRemoveSource={onRemoveCustomDir}
             renderPlan={(plan) => (
               <PlanRow
                 key={plan.id}
