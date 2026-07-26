@@ -121,6 +121,10 @@ export class DesktopDaemonManager {
     let releaseStartLock: (() => void) | null = null;
 
     try {
+      // A worker can spend up to startTimeoutMs scanning before it reports
+      // ready. Cancel that owned process instead of making app quit wait for
+      // the startup deadline.
+      if (this.startPromise && this.child && !this.childReady) this.child.kill();
       if (this.startPromise) await this.startPromise.catch(() => undefined);
 
       const pathOptions = { configDir: this.daemonConfigDir };

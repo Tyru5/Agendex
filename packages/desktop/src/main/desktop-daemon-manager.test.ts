@@ -313,6 +313,31 @@ test('stop during orphan grace cancels startup before forking', async () => {
   expect(forks).toBe(0);
 });
 
+test('stop cancels an owned worker that has not reported ready', async () => {
+  useTempConfigDir();
+  const child = new FakeUtilityProcess({ readyOnStart: false });
+  const manager = new DesktopDaemonManager({
+    isDev: false,
+    forkWorker: (() => {
+      queueMicrotask(() => child.emit('spawn'));
+      return child;
+    }) as never,
+    timings: { ...testTimings(), startTimeoutMs: 5_000 },
+    rotateCloudToken: () => null,
+    onAuthExpired: () => undefined,
+    log: () => undefined,
+  });
+
+  const starting = manager.ensureRunning(credentials());
+  await Promise.resolve();
+  const startedAt = Date.now();
+  await manager.stop();
+
+  expect(child.killed).toBe(true);
+  expect(Date.now() - startedAt < 500).toBe(true);
+  await expect(starting).rejects.toThrow('exited before startup');
+});
+
 test('rejects when a worker exits before reporting ready', async () => {
   useTempConfigDir();
   const child = new FakeUtilityProcess({ readyOnStart: false });
