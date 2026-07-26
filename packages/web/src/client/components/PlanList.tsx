@@ -179,6 +179,8 @@ type PlanListProps = {
   onRenamePlan?: (planId: string, newTitle: string) => void;
   onDeletePlan?: (planId: string) => void;
   onRemoveCustomDir?: (dir: string) => void | Promise<void>;
+  /** All configured custom plan source paths — ensures empty / file-path sources are visible. */
+  customPlanDirs?: readonly string[];
   folderState?: FolderState;
   emptyState?: {
     title: string;
@@ -199,6 +201,7 @@ export function PlanList(props: PlanListProps) {
     onRenamePlan,
     onDeletePlan,
     onRemoveCustomDir,
+    customPlanDirs,
     folderState,
     emptyState,
   } = props;
@@ -320,7 +323,8 @@ export function PlanList(props: PlanListProps) {
     setRenameValue('');
   }, [renamingPlanId, renameValue, onRenamePlan]);
 
-  if (plans.length === 0) {
+  const hasConfiguredSources = Boolean(customPlanDirs?.length);
+  if (plans.length === 0 && (emptyState || !hasConfiguredSources)) {
     return (
       <div className="sidebar-empty-state">
         <div>{emptyState?.title ?? 'No plans found'}</div>
@@ -342,11 +346,12 @@ export function PlanList(props: PlanListProps) {
 
   return (
     <div className="w-full">
-      {customDirPlans.length > 0 && (
+      {(customDirPlans.length > 0 || (customPlanDirs && customPlanDirs.length > 0)) && (
         <>
           <CustomDirTree
             plans={customDirPlans}
             onRemoveSource={onRemoveCustomDir}
+            customPlanDirs={customPlanDirs}
             renderPlan={(plan) => (
               <PlanRow
                 key={plan.id}

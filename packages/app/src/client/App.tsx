@@ -123,11 +123,38 @@ function Dashboard() {
 
   const { plans, loading, error, refresh } = localPlans;
   const workspaces = useMemo(() => workspacesFromPlans(plans), [plans]);
+  const [customPlanDirs, setCustomPlanDirs] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getPlanSources()
+      .then((res) => {
+        if (active) setCustomPlanDirs(res.customPlanDirs);
+      })
+      .catch((error: unknown) => {
+        console.error(
+          'failed to fetch plan sources',
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const removeCustomDir = useCallback(
     async (dir: string) => {
-      await api.removePlanSource(dir);
+      const res = await api.removePlanSource(dir);
+      setCustomPlanDirs(res.customPlanDirs);
       await refresh();
+    },
+    [refresh],
+  );
+  const handleSourcesChanged = useCallback(
+    (dirs: readonly string[]) => {
+      setCustomPlanDirs([...dirs]);
+      void refresh();
     },
     [refresh],
   );
@@ -308,7 +335,7 @@ function Dashboard() {
         <PlanSourcesDialog
           open={sourcesOpen}
           onClose={() => setSourcesOpen(false)}
-          onSourcesChanged={() => localPlans.refresh()}
+          onSourcesChanged={handleSourcesChanged}
         />
       )}
 
@@ -352,6 +379,7 @@ function Dashboard() {
         selectedPlanId={selectedPlan?.id}
         onSelectPlan={setSelectedPlan}
         onRemoveCustomDir={IS_LOCAL_WORKSPACE_SHELL ? removeCustomDir : undefined}
+        customPlanDirs={IS_LOCAL_WORKSPACE_SHELL ? customPlanDirs : undefined}
         loading={loading}
         error={error}
         width={expandedWidth}

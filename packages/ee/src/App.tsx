@@ -1598,6 +1598,7 @@ function DashboardSidebar({
   onRenamePlan,
   onDeletePlan,
   onRemoveCustomDir,
+  customPlanDirs,
   width,
   onResize,
 }: {
@@ -1643,6 +1644,7 @@ function DashboardSidebar({
   onRenamePlan?: (planId: string, newTitle: string) => void;
   onDeletePlan?: (planId: string) => void;
   onRemoveCustomDir?: (dir: string) => void | Promise<void>;
+  customPlanDirs?: readonly string[];
   width?: number;
   onResize?: (width: number) => void;
 }) {
@@ -1826,6 +1828,7 @@ function DashboardSidebar({
             onRenamePlan={onRenamePlan}
             onDeletePlan={onDeletePlan}
             onRemoveCustomDir={onRemoveCustomDir}
+            customPlanDirs={customPlanDirs}
             folderState={folderState}
             emptyState={
               hasActiveFilters
@@ -2109,10 +2112,42 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
 
   const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
 
+  const [customPlanDirs, setCustomPlanDirs] = useState<string[]>([]);
+  useEffect(() => {
+    if (!canManageLocalPlanSources) {
+      setCustomPlanDirs([]);
+      return;
+    }
+
+    let active = true;
+    localApi
+      .getPlanSources()
+      .then((res) => {
+        if (active) setCustomPlanDirs(res.customPlanDirs);
+      })
+      .catch((error: unknown) => {
+        console.error(
+          'failed to fetch plan sources',
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [canManageLocalPlanSources]);
+
   const removeCustomDir = useCallback(
     async (dir: string) => {
-      await localApi.removePlanSource(dir);
+      const res = await localApi.removePlanSource(dir);
+      setCustomPlanDirs(res.customPlanDirs);
       await refresh();
+    },
+    [refresh],
+  );
+  const handleSourcesChanged = useCallback(
+    (dirs: readonly string[]) => {
+      setCustomPlanDirs([...dirs]);
+      void refresh();
     },
     [refresh],
   );
@@ -2533,7 +2568,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         <PlanSourcesDialog
           open={sourcesOpen}
           onClose={() => setSourcesOpen(false)}
-          onSourcesChanged={() => refresh()}
+          onSourcesChanged={handleSourcesChanged}
         />
       )}
 
@@ -2603,6 +2638,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onRenamePlan={mode === 'cloud' && isPro ? handleRenamePlan : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
         onRemoveCustomDir={canManageLocalPlanSources ? removeCustomDir : undefined}
+        customPlanDirs={canManageLocalPlanSources ? customPlanDirs : undefined}
         width={expandedWidth}
         onResize={setExpandedWidth}
       />

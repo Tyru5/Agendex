@@ -209,6 +209,12 @@ test('removeCustomPlanDir returns null when nothing matches', () => {
   expect(removeCustomPlanDir(dirs, '/tmp/nope')).toBeNull();
 });
 
+test('Given a malformed stored entry When removing another source Then the malformed entry is preserved', () => {
+  const dirs = ['', '/tmp/a', '/tmp/b'];
+
+  expect(removeCustomPlanDir(dirs, '/tmp/a')).toEqual(['', '/tmp/b']);
+});
+
 test('removeCustomPlanDir matches via realpath when given a symlink to a stored dir', async () => {
   const root = await mkdtemp(join(tmpdir(), 'agendex-remove-'));
   try {

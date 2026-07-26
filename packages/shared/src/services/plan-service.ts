@@ -298,6 +298,15 @@ async function scanCustomPlanDirs(coveredPaths: Set<string>, into: Map<string, P
       console.log(`[agendex] skipping custom dir (not found): ${dir}`);
       continue;
     }
+    try {
+      if (!statSync(dir).isDirectory()) {
+        console.log(`[agendex] skipping custom dir (not a directory): ${dir}`);
+        continue;
+      }
+    } catch {
+      console.log(`[agendex] skipping custom dir (inaccessible): ${dir}`);
+      continue;
+    }
     const files = await walkDir(dir);
     const dirBasename =
       dir
