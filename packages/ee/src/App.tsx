@@ -105,11 +105,7 @@ import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { authClient, normalizeLocalDevUrl } from './lib/auth-client.ts';
 import { parseCliAuthCallback } from './lib/cli-auth-callback.ts';
-import {
-  deletePlansInBatches,
-  findCloudCustomPlanSource,
-  isConfiguredPlanSourcePath,
-} from './lib/cloud-plan-sources.ts';
+import { findCloudCustomPlanSource, isConfiguredPlanSourcePath } from './lib/cloud-plan-sources.ts';
 import {
   canManageCustomPlanSources,
   canUseCloudPlanMetadata,
@@ -2456,29 +2452,62 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     [mode, isPro, deletePlanMutation, setSelectedPlan, setSplitPlanId, selectedPlan],
   );
 
+  const deletePlansBySourceMutation = useMutation(api.plans.deleteMyPlansBySource);
   const handleRemoveCustomDir = useCallback(
     async (dir: string) => {
-      // In cloud mode a sidebar source can exist purely as synced cloud rows —
-      // e.g. the dir was already removed from this machine's daemon config, or
-      // the plans were synced from another device. Those rows must be deleted
-      // in the cloud or the source never disappears from the dashboard.
-      const cloudSource = mode === 'cloud' ? findCloudCustomPlanSource(plans, dir) : undefined;
-      if (cloudSource) {
-        await deletePlansInBatches(
-          cloudSource.plans.map((plan) => plan.id),
-          handleDeletePlan,
-        );
-        // Only ask the daemon to stop watching dirs it actually has configured;
-        // deleting an unknown path fails with "path not in custom plan sources".
-        if (isConfiguredPlanSourcePath(customPlanDirs, dir)) {
-          await removeCustomDir(dir);
-        }
-      } else {
+      if (mode !== 'cloud') {
+        await removeCustomDir(dir);
+        await refresh();
+        return;
+      }
+
+      // Stop the daemon from watching the dir *before* deleting cloud rows so
+      // a still-running sync cannot re-upload them mid-removal. Only dirs the
+      // daemon actually has configured are removable — a sidebar source can
+      // exist purely as synced cloud rows (dir already removed locally, or
+      // synced from another device), and asking the daemon to delete those
+      // fails with "path not in custom plan sources".
+      if (isConfiguredPlanSourcePath(customPlanDirs, dir)) {
         await removeCustomDir(dir);
       }
+
+      if (isPro) {
+        // Deletion is matched server-side in bounded batches: it covers every
+        // synced row for the source — including pages the dashboard has not
+        // loaded yet — while keeping each mutation inside transaction limits.
+        // A mid-batch failure surfaces in the sidebar and a retry deletes the
+        // remaining rows; the dir is already unwatched, so nothing re-syncs.
+        const removedSource = findCloudCustomPlanSource(plans, dir);
+        let done = false;
+        while (!done) {
+          const result = await deletePlansBySourceMutation({ customDir: dir });
+          done = result.done;
+        }
+        if (removedSource) {
+          const removedIds = new Set(removedSource.plans.map((plan) => plan.id));
+          startViewTransition(() =>
+            setSelectedPlan(
+              selectedPlan && removedIds.has(selectedPlan.id) ? undefined : selectedPlan,
+            ),
+          );
+          setSplitPlanId((prev) => (prev && removedIds.has(prev) ? null : prev));
+        }
+      }
+
       await refresh();
     },
-    [mode, plans, customPlanDirs, handleDeletePlan, refresh, removeCustomDir],
+    [
+      mode,
+      isPro,
+      plans,
+      customPlanDirs,
+      deletePlansBySourceMutation,
+      refresh,
+      removeCustomDir,
+      selectedPlan,
+      setSelectedPlan,
+      setSplitPlanId,
+    ],
   );
 
   function handleChartWideChange(wide: boolean) {

@@ -1,10 +1,12 @@
 import { ProFeature } from '@agendex/shared/types';
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
+import type { Id } from './_generated/dataModel';
 import { type QueryCtx, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
+import { normalizePlanSourcePath, planMatchesSource } from './planSourcePath';
 import {
   dedupeVisiblePlans,
   dedupeSearchPlans,
@@ -449,5 +451,54 @@ export const deletePlan = mutation({
     await deletePlanRelatedData(ctx, { planId: args.planId, ownerId: user._id });
 
     await ctx.db.delete(args.planId);
+  },
+});
+
+/**
+ * Related-data cleanup fans out several deletes per plan, so keep each
+ * transaction well within Convex write limits.
+ */
+const DELETE_SOURCE_BATCH_SIZE = 25;
+
+/**
+ * Deletes a bounded batch of the caller's plans synced from one custom source
+ * dir. Callers repeat until `done` is true: matching server-side covers rows
+ * beyond whatever page of plans the client has loaded, and the batch bound
+ * keeps each call inside transaction limits for large sources.
+ */
+export const deleteMyPlansBySource = mutation({
+  args: { customDir: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) {
+      throw new ConvexError('Unauthenticated');
+    }
+
+    await requireFeature(ctx, ProFeature.CLOUD_SYNC);
+
+    const target = normalizePlanSourcePath(args.customDir);
+    if (!target) {
+      throw new ConvexError('customDir is required');
+    }
+
+    const matches: Array<Id<'plans'>> = [];
+    let scanComplete = true;
+    for await (const plan of ctx.db
+      .query('plans')
+      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))) {
+      if (!planMatchesSource(plan.metadata, target)) continue;
+      matches.push(plan._id);
+      if (matches.length >= DELETE_SOURCE_BATCH_SIZE) {
+        scanComplete = false;
+        break;
+      }
+    }
+
+    for (const planId of matches) {
+      await deletePlanRelatedData(ctx, { planId, ownerId: user._id });
+      await ctx.db.delete(planId);
+    }
+
+    return { deleted: matches.length, done: scanComplete };
   },
 });
