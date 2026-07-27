@@ -1,6 +1,7 @@
 import type { Plan } from '@agendex/web';
 import { useMemo, useState } from 'react';
 import {
+  deletePlansInBatches,
   getCloudCustomPlanSources,
   type CloudCustomPlanSource,
 } from '../lib/cloud-plan-sources.ts';
@@ -16,27 +17,9 @@ interface CloudPlanSourcesDialogProps {
   readonly onDeletePlan: (planId: string) => Promise<void>;
 }
 
-const DELETE_BATCH_SIZE = 5;
-
 interface DeleteJobRequest {
   readonly path: string;
   readonly planIds: readonly string[];
-}
-
-async function deletePlansInBatches(
-  planIds: readonly string[],
-  onDeletePlan: (planId: string) => Promise<void>,
-  onProgress: () => void,
-): Promise<void> {
-  for (let start = 0; start < planIds.length; start += DELETE_BATCH_SIZE) {
-    const batch = planIds.slice(start, start + DELETE_BATCH_SIZE);
-    await Promise.all(
-      batch.map(async (planId) => {
-        await onDeletePlan(planId);
-        onProgress();
-      }),
-    );
-  }
 }
 
 export function CloudPlanSourcesDialog({
