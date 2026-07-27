@@ -106,6 +106,11 @@ import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { authClient, normalizeLocalDevUrl } from './lib/auth-client.ts';
 import { parseCliAuthCallback } from './lib/cli-auth-callback.ts';
 import {
+  deletePlansInBatches,
+  findCloudCustomPlanSource,
+  isConfiguredPlanSourcePath,
+} from './lib/cloud-plan-sources.ts';
+import {
   canManageCustomPlanSources,
   canUseCloudPlanMetadata,
   shouldQueryCloudPlanTags,
@@ -2118,13 +2123,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
     localApi,
   );
 
-  const handleRemoveCustomDir = useCallback(
-    async (dir: string) => {
-      await removeCustomDir(dir);
-      await refresh();
-    },
-    [refresh, removeCustomDir],
-  );
   const handleSourcesChanged = useCallback(() => {
     refreshCustomPlanDirs();
     void refresh();
@@ -2456,6 +2454,31 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       setSplitPlanId((prev) => (prev === planId ? null : prev));
     },
     [mode, isPro, deletePlanMutation, setSelectedPlan, setSplitPlanId, selectedPlan],
+  );
+
+  const handleRemoveCustomDir = useCallback(
+    async (dir: string) => {
+      // In cloud mode a sidebar source can exist purely as synced cloud rows —
+      // e.g. the dir was already removed from this machine's daemon config, or
+      // the plans were synced from another device. Those rows must be deleted
+      // in the cloud or the source never disappears from the dashboard.
+      const cloudSource = mode === 'cloud' ? findCloudCustomPlanSource(plans, dir) : undefined;
+      if (cloudSource) {
+        await deletePlansInBatches(
+          cloudSource.plans.map((plan) => plan.id),
+          handleDeletePlan,
+        );
+        // Only ask the daemon to stop watching dirs it actually has configured;
+        // deleting an unknown path fails with "path not in custom plan sources".
+        if (isConfiguredPlanSourcePath(customPlanDirs, dir)) {
+          await removeCustomDir(dir);
+        }
+      } else {
+        await removeCustomDir(dir);
+      }
+      await refresh();
+    },
+    [mode, plans, customPlanDirs, handleDeletePlan, refresh, removeCustomDir],
   );
 
   function handleChartWideChange(wide: boolean) {
