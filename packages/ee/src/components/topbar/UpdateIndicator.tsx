@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { isDesktop, type UpdateState } from '../../lib/desktop.ts';
+import { getDesktopBridgeIdentity, isDesktop, type UpdateState } from '../../lib/desktop.ts';
 import { useDesktopUpdate } from '../../hooks/useDesktopUpdate.ts';
 
 const UPDATE_STATE_EVENT = 'agendex:update:state';
@@ -42,7 +42,22 @@ function getStateColor(status: UpdateState['status']): string {
 export function UpdateIndicator() {
   const { state, checkForUpdates, installUpdate } = useDesktopUpdate();
   const [open, setOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isDesktop()) return;
+
+    const bridge = getDesktopBridgeIdentity();
+    if (!bridge) return;
+    let mounted = true;
+    void bridge.getAppVersion().then((v) => {
+      if (mounted) setAppVersion(v);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isDesktop()) return;
@@ -140,9 +155,18 @@ export function UpdateIndicator() {
             <span className="text-[12px] font-semibold text-text">{getStatusLabel(status)}</span>
           </div>
 
-          {version && (
+          {appVersion && (
             <div className="flex items-center justify-between text-[13px]">
-              <span className="text-tertiary">Version</span>
+              <span className="text-tertiary">Current version</span>
+              <code className="text-[11px] font-mono bg-hover px-1.5 py-0.5 rounded">
+                {appVersion}
+              </code>
+            </div>
+          )}
+
+          {version && status !== 'no-update' && (
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="text-tertiary">Available version</span>
               <code className="text-[11px] font-mono bg-hover px-1.5 py-0.5 rounded">
                 {version}
               </code>
