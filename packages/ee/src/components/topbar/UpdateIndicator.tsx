@@ -202,11 +202,8 @@ export function UpdateIndicator() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => {
-                checkForUpdates();
-                setOpen(false);
-              }}
-              disabled={status === 'unsupported'}
+              onClick={() => checkForUpdates()}
+              disabled={status === 'unsupported' || status === 'checking'}
               className="flex-1 agendex-topbar-button text-[12px] py-1.5 rounded-lg border border-border cursor-pointer font-medium hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Check
