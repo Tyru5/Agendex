@@ -17,6 +17,7 @@ interface AccountTabProps {
   user: { name: string; email: string; image?: string | null };
   subscription: Subscription | null | undefined;
   isActive: boolean;
+  canManageBilling: boolean;
   isTrialing: boolean;
   trialDaysLeft: number;
   devices: DaemonDeviceInfo[];
@@ -423,6 +424,7 @@ export function AccountTab({
   user,
   subscription,
   isActive,
+  canManageBilling,
   isTrialing,
   trialDaysLeft,
   devices,
@@ -492,7 +494,7 @@ export function AccountTab({
       <section>
         <SectionHeading>Billing Preferences</SectionHeading>
         <div className="rounded-2xl border border-border bg-surface p-5">
-          {isActive && !isFreePlan ? (
+          {canManageBilling && !isFreePlan ? (
             <>
               <div className="flex items-center justify-between gap-4">
                 <div>

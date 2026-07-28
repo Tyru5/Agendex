@@ -57,8 +57,15 @@ function MenuItem({ children, onClick }: { children: ReactNode; onClick: () => v
 export function AuthButton() {
   const { user, isLoading, isAuthenticated, signIn, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
-  const { subscription, isActive, isTrialing, trialDaysLeft, createPortal, reactivate } =
-    useSubscription({ enabled: isAuthenticated });
+  const {
+    subscription,
+    isActive,
+    canManageBilling,
+    isTrialing,
+    trialDaysLeft,
+    createPortal,
+    reactivate,
+  } = useSubscription({ enabled: isAuthenticated });
   const [open, setOpen] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -222,7 +229,7 @@ export function AuthButton() {
               Settings
             </MenuItem>
 
-            {isActive && !isTrialing && subscription && (
+            {canManageBilling && !isTrialing && (
               <MenuItem
                 onClick={() => {
                   setOpen(false);
@@ -244,7 +251,7 @@ export function AuthButton() {
               </MenuItem>
             )}
 
-            {(!isActive || isTrialing) && (
+            {(!isActive || isTrialing) && !canManageBilling && (
               <MenuItem
                 onClick={() => {
                   setOpen(false);

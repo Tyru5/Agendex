@@ -105,7 +105,7 @@ export function SystemStatusMenu({
   }, [open]);
 
   const aliveCount = devices.filter((d) => d.status === 'alive').length;
-  const machinesAttention = aggregateStatus !== 'alive';
+  const machinesAttention = devices.length > 0 && aggregateStatus !== 'alive';
   const updateAttention =
     desktop &&
     (updateState.status === 'ready' ||

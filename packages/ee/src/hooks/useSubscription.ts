@@ -72,6 +72,9 @@ export function useSubscription(options: UseSubscriptionOptions = {}) {
   const sub = subscription as Subscription | null | undefined;
   const isTrialing = sub?.status === 'trialing' && (sub?.currentPeriodEnd ?? 0) > Date.now();
   const isActive = isProUser === true || sub?.status === 'active' || isTrialing;
+  const canManageBilling =
+    Boolean(sub?.stripeSubscriptionId) &&
+    (sub?.status === 'active' || sub?.status === 'past_due' || sub?.status === 'unpaid');
   const subscriptionLoading = enabled && (subscription === undefined || isProUser === undefined);
   const onboardingLoading = enabled && onboardingDone === undefined;
   const onboardingResolved = !enabled || (!subscriptionLoading && !onboardingLoading);
@@ -83,6 +86,7 @@ export function useSubscription(options: UseSubscriptionOptions = {}) {
   return {
     subscription: sub,
     isActive,
+    canManageBilling,
     isTrialing,
     trialDaysLeft,
     isLoading: subscriptionLoading,
