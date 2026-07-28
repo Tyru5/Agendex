@@ -1,11 +1,55 @@
 import { type Plan, type PlanState } from '@agendex/web';
 import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
+import {
+  getDesktopPageZoomFactor,
+  isDesktop,
+  resetDesktopPageZoom,
+  subscribeDesktopPageZoom,
+} from '../lib/desktop';
 import { AuthButton } from './AuthButton';
 import { CommandPalette } from './command-palette/CommandPalette';
 import { SubscriptionBadge } from './SubscriptionBadge';
 import { BrandSection } from './topbar/BrandSection';
 import { SystemStatusMenu } from './topbar/SystemStatusMenu';
+
+function DesktopPageZoomIndicator() {
+  const desktop = isDesktop();
+  const [zoomPercent, setZoomPercent] = useState(() =>
+    Math.round(getDesktopPageZoomFactor() * 100),
+  );
+
+  useEffect(() => {
+    if (!desktop) return;
+    const updateZoom = (factor = getDesktopPageZoomFactor()) =>
+      setZoomPercent(Math.round(factor * 100));
+    const onResize = () => updateZoom();
+    // Keep resize as a fallback; menu/shortcut zoom is forwarded via preload.
+    window.addEventListener('resize', onResize);
+    const unsubscribe = subscribeDesktopPageZoom(updateZoom);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      unsubscribe();
+    };
+  }, [desktop]);
+
+  if (!desktop || zoomPercent === 100) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        resetDesktopPageZoom();
+      }}
+      aria-label={`Page zoom: ${zoomPercent}%. Reset to 100%`}
+      title="Reset page zoom to 100%"
+      className="agendex-topbar-button agendex-topbar-control h-[30px] shrink-0 rounded-lg border border-border bg-transparent px-2 text-[11px] font-medium tabular-nums cursor-pointer"
+    >
+      {zoomPercent}%
+    </button>
+  );
+}
 
 export function DashboardTopbar({
   sidebarPinnedOpen,
@@ -150,6 +194,8 @@ export function DashboardTopbar({
         )}
 
         {actions}
+
+        <DesktopPageZoomIndicator />
 
         <SystemStatusMenu
           backendIndicator={backendIndicator}

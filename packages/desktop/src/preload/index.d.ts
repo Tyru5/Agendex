@@ -38,6 +38,8 @@ interface AgendexDesktopBridge {
   installUpdate: () => Promise<void>;
   getUpdateState: () => Promise<UpdateState>;
   getAppVersion: () => Promise<string>;
+  getPageZoomFactor: () => number;
+  resetPageZoom: () => void;
 }
 
 declare global {

@@ -2,10 +2,14 @@ import { expect, test } from 'bun:test';
 import {
   type AgendexDesktopBridge,
   type DesktopAuthProvider,
+  DESKTOP_PAGE_ZOOM_EVENT,
   desktopLogout,
   desktopLogin,
   getDesktopConvexAuthToken,
+  getDesktopPageZoomFactor,
   normalizeDesktopAuthProvider,
+  resetDesktopPageZoom,
+  subscribeDesktopPageZoom,
 } from './desktop.ts';
 
 type TestLocation = {
@@ -18,6 +22,9 @@ type TestLocation = {
 type TestDesktopWindow = {
   readonly agendexDesktop: AgendexDesktopBridge;
   readonly location: TestLocation;
+  addEventListener: EventTarget['addEventListener'];
+  removeEventListener: EventTarget['removeEventListener'];
+  dispatchEvent: EventTarget['dispatchEvent'];
 };
 
 function installDesktopWindow(
@@ -53,8 +60,18 @@ function installDesktopWindow(
         status: 204,
         statusText: 'No Content',
       })),
+    checkForUpdates: bridgeOverrides.checkForUpdates ?? (async () => undefined),
+    installUpdate: bridgeOverrides.installUpdate ?? (async () => undefined),
+    getUpdateState:
+      bridgeOverrides.getUpdateState ?? (async () => ({ status: 'unsupported' as const })),
+    getAppVersion: bridgeOverrides.getAppVersion ?? (async () => '0.0.0-test'),
+    getBuildInfo:
+      bridgeOverrides.getBuildInfo ?? (async () => ({ platform: 'linux', codeSigned: null })),
+    getPageZoomFactor: bridgeOverrides.getPageZoomFactor ?? (() => 1),
+    resetPageZoom: bridgeOverrides.resetPageZoom ?? (() => undefined),
   };
 
+  const events = new EventTarget();
   const desktopWindow: TestDesktopWindow = {
     agendexDesktop: bridge,
     location: {
@@ -65,6 +82,9 @@ function installDesktopWindow(
         reloadCount += 1;
       },
     },
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+    dispatchEvent: events.dispatchEvent.bind(events),
   };
 
   Object.defineProperty(globalThis, 'window', {
@@ -163,6 +183,52 @@ test('desktop Convex auth token is requested through the preload bridge', async 
 
     // Then
     expect(token).toBe('convex-jwt');
+  } finally {
+    uninstallDesktopWindow();
+  }
+});
+
+test('desktop page zoom reads and resets through the preload bridge', () => {
+  // Given
+  let resetCount = 0;
+  installDesktopWindow(async () => true, {
+    getPageZoomFactor: () => 1.25,
+    resetPageZoom: () => {
+      resetCount += 1;
+    },
+  });
+
+  try {
+    // When
+    const factor = getDesktopPageZoomFactor();
+    resetDesktopPageZoom();
+
+    // Then
+    expect(factor).toBe(1.25);
+    expect(resetCount).toBe(1);
+  } finally {
+    uninstallDesktopWindow();
+  }
+});
+
+test('subscribeDesktopPageZoom listens for preload page-zoom events', () => {
+  // Given
+  installDesktopWindow(async () => true, {
+    getPageZoomFactor: () => 1.1,
+  });
+  const seen: number[] = [];
+
+  try {
+    // When
+    const unsubscribe = subscribeDesktopPageZoom((factor) => {
+      seen.push(factor);
+    });
+    window.dispatchEvent(new CustomEvent(DESKTOP_PAGE_ZOOM_EVENT, { detail: 1.5 }));
+    unsubscribe();
+    window.dispatchEvent(new CustomEvent(DESKTOP_PAGE_ZOOM_EVENT, { detail: 2 }));
+
+    // Then
+    expect(seen).toEqual([1.5]);
   } finally {
     uninstallDesktopWindow();
   }
