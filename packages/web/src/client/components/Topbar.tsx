@@ -5,6 +5,7 @@ import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
 import type { Plan } from '../lib/api.ts';
 import { SearchBar } from './SearchBar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
+import { WorkspaceStatus } from './WorkspaceStatus.tsx';
 
 function SidebarToggleIcon({ hidden }: { hidden: boolean }) {
   return (
@@ -37,7 +38,7 @@ interface TopbarProps {
   backendStatus: 'online' | 'offline' | 'checking';
   height: number;
   sidebarWidth?: number;
-  /** Extra controls rendered in the right cluster, before the theme toggle. */
+  /** Extra controls rendered in the right cluster, before theme and status. */
   actions?: ReactNode;
 }
 
@@ -107,28 +108,15 @@ export function Topbar({
         <SearchBar onFocusSearch={onFocusSearch} />
       </div>
 
-      <div className="flex items-center justify-end gap-3 min-w-0 justify-self-end pr-4">
+      <div className="flex items-center justify-end gap-1.5 min-w-0 justify-self-end pr-4">
         {actions}
         <ThemeToggle />
-        <div className="hidden lg:block w-px h-[18px] bg-border" />
-        <span className="hidden lg:inline text-xs text-tertiary">
-          <strong className="text-secondary font-[550]">{totalPlans}</strong> plans
-        </span>
-        <div className="hidden lg:block w-px h-[18px] bg-border" />
-        <span className="hidden lg:inline text-xs text-tertiary">
-          <strong className="text-secondary font-[550]">{activeAgents}</strong> agents
-        </span>
-        <div className="hidden lg:block w-px h-[18px] bg-border" />
-        <div className="hidden lg:flex items-center gap-1.5">
-          <div
-            className="rounded-full status-pulse w-1.5 h-1.5"
-            style={{
-              background: backendIndicator.color,
-              boxShadow: '0 0 0 2px var(--surface)',
-            }}
-          />
-          <span className="text-xs text-tertiary">{backendIndicator.label}</span>
-        </div>
+        <div className="w-px h-4 bg-border mx-0.5" />
+        <WorkspaceStatus
+          totalPlans={totalPlans}
+          activeAgents={activeAgents}
+          backendIndicator={backendIndicator}
+        />
       </div>
     </div>
   );
