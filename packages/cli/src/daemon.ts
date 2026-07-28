@@ -18,7 +18,7 @@ import {
   setActiveAdapters,
   setOnPlansChanged,
   startWatching,
-  stopWatching,
+  stopWatchingForShutdown,
 } from '@agendex/shared';
 import { resolveCliAdapterIds, shouldEnablePlannotatorSync } from './adapters.ts';
 import {
@@ -559,7 +559,7 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
   async function gracefulShutdown() {
     if (shuttingDown) return;
     shuttingDown = true;
-    stopWatching();
+    stopWatchingForShutdown();
     if (!skipRemoteShutdown) await sendShutdown();
     process.exit(0);
   }

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, normalize, sep } from 'node:path';
-import { stopWatching } from '@agendex/shared';
+import { stopWatchingForShutdown } from '@agendex/shared';
 import { serve, type ServerType } from '@hono/node-server';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { Hono } from 'hono';
@@ -144,7 +144,7 @@ export function startNodeServer(options: StartNodeServerOptions): Promise<Runnin
               token,
               close: () =>
                 new Promise<void>((res) => {
-                  stopWatching();
+                  stopWatchingForShutdown();
                   server.close(() => res());
                 }),
             });
