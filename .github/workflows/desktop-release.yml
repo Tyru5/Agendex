@@ -95,17 +95,50 @@ jobs:
 
           echo "Release platform selection: ${platform} (macOS=${build_macos}, Windows=${build_windows})"
 
-      - name: Verify stable download page version
+      # Stable releases: bump /download on main before platform builds start so
+      # the marketing page points at this tag's asset URLs. Prereleases skip
+      # (prepare-desktop-release only rewrites DESKTOP_VERSION when make_latest).
+      - name: Update download page on main
         if: steps.release_meta.outputs.make_latest == 'true'
         env:
           VERSION: ${{ steps.release_meta.outputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
+          WORKDIR="$(mktemp -d)"
+          cleanup() { rm -rf "$WORKDIR"; }
+          trap cleanup EXIT
+
+          # Clone main separately so the release checkout (tag SHA) stays intact
+          # for lint/tests and for the platform build jobs that depend on preflight.
+          git clone --depth 1 --branch main \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "$WORKDIR"
+
+          cd "$WORKDIR"
           node scripts/prepare-desktop-release.mjs "$VERSION" --write
+          # Packaging version is aligned ephemerally on runners; never commit it.
           git checkout -- packages/desktop/package.json
-          if ! git diff --quiet -- packages/web/src/client/components/DownloadPage.tsx; then
-            echo "::error::Update the download page to v${VERSION} and commit it before creating the release tag."
-            exit 1
+
+          PAGE='packages/web/src/client/components/DownloadPage.tsx'
+          if git diff --quiet -- "$PAGE"; then
+            echo "Download page on main already targets v${VERSION}"
+            exit 0
           fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$PAGE"
+          git commit -m "chore(web): bump desktop download version to ${VERSION}"
+
+          # Retry once on a racing main push.
+          if ! git push origin HEAD:main; then
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+
+          echo "Pushed download page update to main for v${VERSION}"
 
       - name: Check formatting and lint
         run: bun run check

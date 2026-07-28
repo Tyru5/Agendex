@@ -10,8 +10,9 @@ export interface DownloadPageProps {
 
 /**
  * Latest stable desktop release advertised on /download.
- * Update with `scripts/prepare-desktop-release.mjs --write` before tagging a
- * stable release (see `docs/desktop-release.md`). Asset names follow
+ * Bumped automatically by Release Desktop preflight on stable `desktop-v*` tags
+ * (see `docs/desktop-release.md`), or locally via
+ * `scripts/prepare-desktop-release.mjs --write`. Asset names follow
  * `Agendex-<version>-universal.{dmg,zip}` and `Agendex-<version>-x64-{Setup,Portable}.exe`
  * from electron-builder.
  */
