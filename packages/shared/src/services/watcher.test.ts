@@ -158,6 +158,17 @@ test('refreshing closes only watchers whose source went away', async () => {
   expect(createdWatchers).toHaveLength(2);
 });
 
+test('a watcher that errors is dropped and replaced on the next refresh', async () => {
+  const { startWatching } = await import('./watcher.ts');
+  activeAdapters = [fakeAdapter('claude-code', [makeDir('plans')])];
+
+  startWatching(() => undefined);
+  expect(() => createdWatchers[0]?.emit('error', new Error('watch failed'))).not.toThrow();
+  startWatching(() => undefined);
+
+  expect(createdWatchers).toHaveLength(2);
+});
+
 test('refreshing attaches watchers for newly added sources', async () => {
   const { startWatching } = await import('./watcher.ts');
   const existing = makeDir('existing');

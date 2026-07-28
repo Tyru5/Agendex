@@ -98,6 +98,14 @@ function startWatcher(target: WatchTarget) {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(flushPendingRescan, 300);
     });
+    // An FSWatcher with no 'error' listener throws, and an errored watcher
+    // never recovers. Forget it so the next refresh can attach a fresh one.
+    watcher.on('error', () => {
+      if (activeWatchers.get(target.key) !== watcher) return;
+      activeWatchers.delete(target.key);
+      activeTargets.delete(target.key);
+      closeWatcher(watcher);
+    });
     activeWatchers.set(target.key, watcher);
     activeTargets.set(target.key, target);
     console.log(`[agendex] watching ${target.dir}`);
