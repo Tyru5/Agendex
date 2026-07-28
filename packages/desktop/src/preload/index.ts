@@ -57,6 +57,16 @@ ipcRenderer.on('agendex:update:state', (_event, state: UpdateState) => {
   window.dispatchEvent(new CustomEvent('agendex:update:state', { detail: state }));
 });
 
+function emitPageZoom(factor = webFrame.getZoomFactor()) {
+  window.dispatchEvent(new CustomEvent('agendex:page-zoom', { detail: factor }));
+}
+
+ipcRenderer.on('agendex:page-zoom', (_event, factor: number) => {
+  emitPageZoom(
+    typeof factor === 'number' && Number.isFinite(factor) ? factor : webFrame.getZoomFactor(),
+  );
+});
+
 const MODE_PREF_KEY = 'agendex_dashboard_mode';
 
 function readBootstrap(): Bootstrap {
@@ -176,7 +186,10 @@ const agendexDesktop = {
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('agendex:get-app-version'),
   getBuildInfo: (): Promise<DesktopBuildInfo> => ipcRenderer.invoke('agendex:get-build-info'),
   getPageZoomFactor: (): number => webFrame.getZoomFactor(),
-  resetPageZoom: (): void => webFrame.setZoomFactor(1),
+  resetPageZoom: (): void => {
+    webFrame.setZoomFactor(1);
+    emitPageZoom(1);
+  },
 };
 
 if (process.contextIsolated) {

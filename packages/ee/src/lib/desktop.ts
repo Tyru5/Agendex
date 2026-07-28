@@ -82,12 +82,30 @@ export function isDesktop(): boolean {
   return getBridge()?.isDesktop === true;
 }
 
+/** Dispatched by the desktop preload when Electron page zoom changes. */
+export const DESKTOP_PAGE_ZOOM_EVENT = 'agendex:page-zoom';
+
 export function getDesktopPageZoomFactor(): number {
   return getBridge()?.getPageZoomFactor?.() ?? 1;
 }
 
 export function resetDesktopPageZoom(): void {
   getBridge()?.resetPageZoom?.();
+}
+
+/** Subscribe to desktop page-zoom changes. No-op outside the desktop bridge. */
+export function subscribeDesktopPageZoom(listener: (factor: number) => void): () => void {
+  if (typeof window === 'undefined' || !isDesktop()) return () => {};
+
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent<number>).detail;
+    listener(
+      typeof detail === 'number' && Number.isFinite(detail) ? detail : getDesktopPageZoomFactor(),
+    );
+  };
+
+  window.addEventListener(DESKTOP_PAGE_ZOOM_EVENT, handler);
+  return () => window.removeEventListener(DESKTOP_PAGE_ZOOM_EVENT, handler);
 }
 
 export function normalizeDesktopAuthProvider(provider: unknown): DesktopAuthProvider | undefined {

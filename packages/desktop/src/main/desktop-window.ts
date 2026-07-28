@@ -46,6 +46,12 @@ export function createDesktopWindow(targetUrl: string, onClosed: () => void): Br
     void shell.openExternal(url);
   });
 
+  // View-menu / shortcut zoom does not reliably fire DOM `resize`; forward the
+  // factor so the renderer can keep the page-zoom indicator in sync.
+  window.webContents.on('zoom-changed', () => {
+    window.webContents.send('agendex:page-zoom', window.webContents.getZoomFactor());
+  });
+
   window.on('closed', onClosed);
   loadWithRetry(window, targetUrl);
 

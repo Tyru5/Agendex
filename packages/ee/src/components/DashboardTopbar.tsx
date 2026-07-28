@@ -2,7 +2,12 @@ import { type Plan, type PlanState } from '@agendex/web';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
-import { getDesktopPageZoomFactor, isDesktop, resetDesktopPageZoom } from '../lib/desktop';
+import {
+  getDesktopPageZoomFactor,
+  isDesktop,
+  resetDesktopPageZoom,
+  subscribeDesktopPageZoom,
+} from '../lib/desktop';
 import { AuthButton } from './AuthButton';
 import { CommandPalette } from './command-palette/CommandPalette';
 import { SubscriptionBadge } from './SubscriptionBadge';
@@ -17,9 +22,16 @@ function DesktopPageZoomIndicator() {
 
   useEffect(() => {
     if (!desktop) return;
-    const updateZoom = () => setZoomPercent(Math.round(getDesktopPageZoomFactor() * 100));
-    window.addEventListener('resize', updateZoom);
-    return () => window.removeEventListener('resize', updateZoom);
+    const updateZoom = (factor = getDesktopPageZoomFactor()) =>
+      setZoomPercent(Math.round(factor * 100));
+    const onResize = () => updateZoom();
+    // Keep resize as a fallback; menu/shortcut zoom is forwarded via preload.
+    window.addEventListener('resize', onResize);
+    const unsubscribe = subscribeDesktopPageZoom(updateZoom);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      unsubscribe();
+    };
   }, [desktop]);
 
   if (!desktop || zoomPercent === 100) return null;
@@ -29,7 +41,6 @@ function DesktopPageZoomIndicator() {
       type="button"
       onClick={() => {
         resetDesktopPageZoom();
-        setZoomPercent(100);
       }}
       aria-label={`Page zoom: ${zoomPercent}%. Reset to 100%`}
       title="Reset page zoom to 100%"
