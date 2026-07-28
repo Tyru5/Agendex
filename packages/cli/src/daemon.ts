@@ -18,7 +18,7 @@ import {
   setActiveAdapters,
   setOnPlansChanged,
   startWatching,
-  stopWatching,
+  stopWatchingForShutdown,
 } from '@agendex/shared';
 import { resolveCliAdapterIds, shouldEnablePlannotatorSync } from './adapters.ts';
 import {
@@ -83,6 +83,10 @@ const WATCHER_REFRESH_INTERVAL_MS = parseEnvMs(
   DEFAULT_WATCHER_REFRESH_INTERVAL_MS,
 );
 const RETRY_TICK_INTERVAL_MS = 1_000;
+// Deregistering the device on the way out is best-effort. `sendShutdown` can
+// otherwise burn a full HTTP timeout (plus a token refresh) against an
+// unreachable cloud while the launcher waits for the worker to exit.
+const REMOTE_SHUTDOWN_TIMEOUT_MS = 2_000;
 
 export interface RunWorkerOptions {
   onReady?: () => void;
@@ -97,6 +101,17 @@ export async function requestWorkerShutdown(options: { skipRemote?: boolean } = 
   if (options.skipRemote) skipRemoteShutdown = true;
   shutdownRequested = true;
   await activeShutdown?.();
+}
+
+function withDeadline(work: Promise<unknown>, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    const finish = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    void work.then(finish, finish);
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -559,13 +574,23 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
   async function gracefulShutdown() {
     if (shuttingDown) return;
     shuttingDown = true;
-    stopWatching();
-    if (!skipRemoteShutdown) await sendShutdown();
+    stopWatchingForShutdown();
+    if (!skipRemoteShutdown) await withDeadline(sendShutdown(), REMOTE_SHUTDOWN_TIMEOUT_MS);
     process.exit(0);
   }
+
+  // Installing signal handlers replaces the default terminate behaviour, so a
+  // signal that arrives while the graceful path is still running has to exit on
+  // its own. Otherwise the launcher's `kill()` looks like a no-op to it and it
+  // gives up, leaving an orphaned worker behind.
+  function terminate() {
+    if (shuttingDown) process.exit(0);
+    void gracefulShutdown();
+  }
+
   activeShutdown = gracefulShutdown;
-  process.on('SIGTERM', () => void gracefulShutdown());
-  process.on('SIGINT', () => void gracefulShutdown());
+  process.on('SIGTERM', terminate);
+  process.on('SIGINT', terminate);
   if (shutdownRequested) await gracefulShutdown();
 
   console.log(`[agendex] initial scan...`);

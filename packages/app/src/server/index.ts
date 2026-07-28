@@ -1,4 +1,4 @@
-import { stopWatching } from '@agendex/shared';
+import { stopWatchingForShutdown } from '@agendex/shared';
 import { createBunWebSocket, serveStatic } from 'hono/bun';
 import { buildAgendexApp } from './app.ts';
 
@@ -29,7 +29,7 @@ ready.catch((err) => {
 const PORT = parseInt(process.env.PORT ?? '4890', 10);
 
 function shutdown() {
-  stopWatching();
+  stopWatchingForShutdown();
   process.exit(0);
 }
 process.once('SIGINT', shutdown);

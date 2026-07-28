@@ -94,7 +94,7 @@ export {
   PLAN_SYNC_IDENTITY_VERSION,
   relativeSyncPath,
 } from './services/plan-sync-identity.ts';
-export { collectWatchPaths, startWatching, stopWatching } from './services/watcher.ts';
+export { collectWatchPaths, startWatching, stopWatchingForShutdown } from './services/watcher.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 export type {
   AgentAdapter,
