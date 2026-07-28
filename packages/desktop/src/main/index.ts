@@ -25,6 +25,7 @@ import { resolveDesktopBuildInfo } from './desktop-build-info.ts';
 import { registerDesktopIpc } from './desktop-ipc.ts';
 import { buildMenu } from './desktop-menu.ts';
 import { createDesktopProtocolController } from './desktop-protocol.ts';
+import { installDesktopQuitLifecycle } from './desktop-quit.ts';
 import { writeQaBootstrapEvidence, writeQaStartupEvidence } from './desktop-qa-evidence.ts';
 import { createDesktopUpdater, isPortableWindowsBuild } from './desktop-updater.ts';
 import { createDesktopWindow } from './desktop-window.ts';
@@ -50,7 +51,6 @@ let server: RunningNodeServer | null = null;
 let localApiToken = '';
 let rendererTargetUrl = '';
 let backendBoot: Promise<void> | null = null;
-let quitAfterShutdown = false;
 let shutdownPromise: Promise<void> | null = null;
 let authSessionGeneration = 0;
 
@@ -408,12 +408,12 @@ if (!gotLock) {
     if (process.platform !== 'darwin') app.quit();
   });
 
-  app.on('before-quit', (event) => {
-    if (quitAfterShutdown) return;
-    event.preventDefault();
-    void shutdownDesktopServices().finally(() => {
-      quitAfterShutdown = true;
-      app.quit();
-    });
+  installDesktopQuitLifecycle({
+    app,
+    shutdownServices: shutdownDesktopServices,
+    log: (message, error) => {
+      if (error === undefined) console.error(`[agendex-desktop] ${message}`);
+      else console.error(`[agendex-desktop] ${message}`, error);
+    },
   });
 }
