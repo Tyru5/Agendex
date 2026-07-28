@@ -5,7 +5,9 @@ import {
   desktopLogout,
   desktopLogin,
   getDesktopConvexAuthToken,
+  getDesktopPageZoomFactor,
   normalizeDesktopAuthProvider,
+  resetDesktopPageZoom,
 } from './desktop.ts';
 
 type TestLocation = {
@@ -53,6 +55,15 @@ function installDesktopWindow(
         status: 204,
         statusText: 'No Content',
       })),
+    checkForUpdates: bridgeOverrides.checkForUpdates ?? (async () => undefined),
+    installUpdate: bridgeOverrides.installUpdate ?? (async () => undefined),
+    getUpdateState:
+      bridgeOverrides.getUpdateState ?? (async () => ({ status: 'unsupported' as const })),
+    getAppVersion: bridgeOverrides.getAppVersion ?? (async () => '0.0.0-test'),
+    getBuildInfo:
+      bridgeOverrides.getBuildInfo ?? (async () => ({ platform: 'linux', codeSigned: null })),
+    getPageZoomFactor: bridgeOverrides.getPageZoomFactor ?? (() => 1),
+    resetPageZoom: bridgeOverrides.resetPageZoom ?? (() => undefined),
   };
 
   const desktopWindow: TestDesktopWindow = {
@@ -163,6 +174,29 @@ test('desktop Convex auth token is requested through the preload bridge', async 
 
     // Then
     expect(token).toBe('convex-jwt');
+  } finally {
+    uninstallDesktopWindow();
+  }
+});
+
+test('desktop page zoom reads and resets through the preload bridge', () => {
+  // Given
+  let resetCount = 0;
+  installDesktopWindow(async () => true, {
+    getPageZoomFactor: () => 1.25,
+    resetPageZoom: () => {
+      resetCount += 1;
+    },
+  });
+
+  try {
+    // When
+    const factor = getDesktopPageZoomFactor();
+    resetDesktopPageZoom();
+
+    // Then
+    expect(factor).toBe(1.25);
+    expect(resetCount).toBe(1);
   } finally {
     uninstallDesktopWindow();
   }

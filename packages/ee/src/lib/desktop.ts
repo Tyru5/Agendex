@@ -69,6 +69,8 @@ export interface AgendexDesktopBridge {
   getUpdateState: () => Promise<UpdateState>;
   getAppVersion: () => Promise<string>;
   getBuildInfo: () => Promise<DesktopBuildInfo>;
+  getPageZoomFactor?: () => number;
+  resetPageZoom?: () => void;
 }
 
 function getBridge(): AgendexDesktopBridge | undefined {
@@ -78,6 +80,14 @@ function getBridge(): AgendexDesktopBridge | undefined {
 
 export function isDesktop(): boolean {
   return getBridge()?.isDesktop === true;
+}
+
+export function getDesktopPageZoomFactor(): number {
+  return getBridge()?.getPageZoomFactor?.() ?? 1;
+}
+
+export function resetDesktopPageZoom(): void {
+  getBridge()?.resetPageZoom?.();
 }
 
 export function normalizeDesktopAuthProvider(provider: unknown): DesktopAuthProvider | undefined {

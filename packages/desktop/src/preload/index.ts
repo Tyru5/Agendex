@@ -1,5 +1,5 @@
 import { electronAPI } from '@electron-toolkit/preload';
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webFrame } from 'electron';
 
 interface Bootstrap {
   localToken: string | null;
@@ -175,6 +175,8 @@ const agendexDesktop = {
   getUpdateState: (): Promise<UpdateState> => ipcRenderer.invoke('agendex:update:get-state'),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('agendex:get-app-version'),
   getBuildInfo: (): Promise<DesktopBuildInfo> => ipcRenderer.invoke('agendex:get-build-info'),
+  getPageZoomFactor: (): number => webFrame.getZoomFactor(),
+  resetPageZoom: (): void => webFrame.setZoomFactor(1),
 };
 
 if (process.contextIsolated) {
