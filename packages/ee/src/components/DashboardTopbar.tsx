@@ -1,13 +1,11 @@
-import { type Plan, type PlanState, ThemeToggle } from '@agendex/web';
+import { type Plan, type PlanState } from '@agendex/web';
 import type { ReactNode } from 'react';
 import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
 import { AuthButton } from './AuthButton';
 import { CommandPalette } from './command-palette/CommandPalette';
 import { SubscriptionBadge } from './SubscriptionBadge';
 import { BrandSection } from './topbar/BrandSection';
-import { MachinesIndicator } from './topbar/MachinesIndicator';
-import { StatusPopover } from './topbar/StatusPopover';
-import { UpdateIndicator } from './topbar/UpdateIndicator';
+import { SystemStatusMenu } from './topbar/SystemStatusMenu';
 
 export function DashboardTopbar({
   sidebarPinnedOpen,
@@ -78,7 +76,7 @@ export function DashboardTopbar({
   onShowChangelog?: () => void;
   onSwitchMode?: (mode: 'local' | 'cloud') => void;
   sidebarWidth?: number;
-  /** Extra controls rendered at the start of the right cluster. */
+  /** Extra controls rendered before the system status control. */
   actions?: ReactNode;
 }) {
   return (
@@ -126,47 +124,45 @@ export function DashboardTopbar({
         />
       </div>
 
-      <div className="flex items-center justify-end gap-2.5 min-w-0 shrink-0 pr-4">
+      <div className="flex items-center justify-end gap-1.5 min-w-0 shrink-0 pr-4">
         {onSwitchMode && (
-          <>
-            <div
-              role="group"
-              aria-label="Plan source"
-              className="flex items-center rounded-lg border border-border p-0.5"
-            >
-              {(['cloud', 'local'] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={mode === value}
-                  onClick={() => onSwitchMode(value)}
-                  className={`rounded-[6px] px-2.5 py-1 text-[12px] font-medium capitalize transition-colors duration-150 ${
-                    mode === value
-                      ? 'bg-hover text-text'
-                      : 'bg-transparent text-tertiary hover:text-text'
-                  }`}
-                >
-                  {value}
-                </button>
-              ))}
-            </div>
-            <div className="w-px h-4 bg-border" />
-          </>
+          <div
+            role="group"
+            aria-label="Plan source"
+            className="flex items-center rounded-lg border border-border p-0.5 mr-0.5"
+          >
+            {(['cloud', 'local'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={mode === value}
+                onClick={() => onSwitchMode(value)}
+                className={`rounded-[6px] px-2 py-1 text-[12px] font-medium capitalize transition-colors duration-150 ${
+                  mode === value
+                    ? 'bg-hover text-text'
+                    : 'bg-transparent text-tertiary hover:text-text'
+                }`}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
         )}
+
         {actions}
-        <MachinesIndicator devices={daemonDevices} aggregateStatus={daemonAggregateStatus} />
-        <UpdateIndicator />
-        <div className="w-px h-4 bg-border" />
-        <ThemeToggle />
-        <SubscriptionBadge />
-        <AuthButton />
-        <div className="w-px h-4 bg-border" />
-        <StatusPopover
-          mode={mode}
+
+        <SystemStatusMenu
           backendIndicator={backendIndicator}
           totalPlans={totalPlans}
           activeAgents={activeAgents}
+          devices={daemonDevices}
+          aggregateStatus={daemonAggregateStatus}
         />
+
+        <div className="w-px h-4 bg-border mx-0.5" />
+
+        <SubscriptionBadge />
+        <AuthButton />
       </div>
     </div>
   );

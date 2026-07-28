@@ -39,7 +39,8 @@ function BackArrow() {
 
 export function SettingsPage() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
-  const { subscription, isActive, isTrialing, trialDaysLeft, createPortal } = useSubscription();
+  const { subscription, isActive, canManageBilling, isTrialing, trialDaysLeft, createPortal } =
+    useSubscription();
   const { devices } = useDaemonStatus();
   const [, navigate] = useLocation();
   const [showPricing, setShowPricing] = useState(false);
@@ -152,6 +153,7 @@ export function SettingsPage() {
                   user={user}
                   subscription={subscription}
                   isActive={isActive}
+                  canManageBilling={canManageBilling}
                   isTrialing={isTrialing}
                   trialDaysLeft={trialDaysLeft}
                   devices={devices}
