@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 4.1.5
+
+### Patch Changes
+
+- 3fccec6: Better handling of quitting the application
+
 ## 4.1.4
 
 ### Patch Changes
