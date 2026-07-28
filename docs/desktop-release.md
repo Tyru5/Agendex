@@ -14,7 +14,7 @@ This mirrors the release model used in [streamer.share](https://github.com/Tyru5
 
 ## Workflow shape
 
-1. **Preflight** resolves release metadata and target platforms, bumps the marketing download page on `main` for stable releases, and runs checks + desktop tests.
+1. **Preflight** resolves release metadata and target platforms, verifies the download page version for stable releases, and runs checks + desktop tests.
 2. **Build macOS (signed)** packages, notarizes, and staples the universal artifacts, then uploads them as a workflow artifact.
 3. **Build Windows x64** re-runs the daemon/PID suites on real Windows, packages the installer + portable exe, verifies `latest.yml` exists, smoke-tests the packaged Electron daemon, then uploads the artifacts.
 4. **Publish GitHub release** downloads whatever the selected platforms produced and attaches everything to the `desktop-v<version>` release.
@@ -30,23 +30,20 @@ Single-platform runs attach to the existing release rather than replacing it, so
 Desktop releases use a `desktop-v` prefix so they do not collide with CLI tags (`v*` from the npm publish workflow):
 
 ```bash
+node scripts/prepare-desktop-release.mjs 1.0.0 --write
+git checkout -- packages/desktop/package.json
+git add packages/web/src/client/components/DownloadPage.tsx
+git commit -m "chore(web): bump desktop download version to 1.0.0"
 git tag desktop-v1.0.0
 git push origin desktop-v1.0.0
 ```
 
-For **stable** releases, preflight automatically bumps `DESKTOP_VERSION` in
-`packages/web/src/client/components/DownloadPage.tsx` on `main` and pushes that commit
-before any platform build starts. You no longer need to update the download page by
-hand before tagging. Prerelease tags (`desktop-v1.0.0-beta.1`, etc.) leave `/download`
-unchanged.
+For stable releases, land the download-page commit on `main` before pushing the tag.
+Release preflight verifies that `/download` already targets the requested version,
+avoiding a workflow push that would violate `main` branch protection (PR-only).
+Prerelease tags (`desktop-v1.0.0-beta.1`, etc.) leave `/download` unchanged.
 
 Tag pushes always build and publish **both** platforms.
-
-> **Branch protection:** `main` is currently unprotected, so the workflow's
-> `GITHUB_TOKEN` can push the download-page commit. If you later protect `main`, either
-> allow the `github-actions` app to bypass required checks / push restrictions, or add a
-> PAT/App token with permission to push and wire it into the "Update download page on
-> main" step.
 
 ### Manual release (all or single platform)
 
@@ -196,12 +193,10 @@ Keychain password request and the Windows SmartScreen warning.
 
 `scripts/prepare-desktop-release.mjs --write` rewrites `DESKTOP_VERSION` in
 `packages/web/src/client/components/DownloadPage.tsx` for **stable** releases (not
-prereleases); every asset URL on the page derives from that constant.
-
-On tag push / stable release dispatch, the Release Desktop preflight job runs that
-script against a fresh `main` checkout and pushes the download-page commit before
-builds start. Local `bun run release:desktop:mac` / `:win` leave the same on-disk
-update; commit it yourself only when shipping without the GitHub Actions release path.
+prereleases); every asset URL on the page derives from that constant. Commit that
+change before creating the release tag; release preflight rejects a stable release
+whose download page is stale. Local `bun run release:desktop:mac` / `:win` keep the
+same download-page update on disk (commit it with your next web deploy).
 
 ## Root commands
 
