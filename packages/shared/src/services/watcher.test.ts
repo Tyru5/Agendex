@@ -160,10 +160,19 @@ test('refreshing closes only watchers whose source went away', async () => {
 
 test('a watcher that errors is dropped and replaced on the next refresh', async () => {
   const { startWatching } = await import('./watcher.ts');
+  watchStallMsForNewWatchers = 100;
   activeAdapters = [fakeAdapter('claude-code', [makeDir('plans')])];
 
   startWatching(() => undefined);
-  expect(() => createdWatchers[0]?.emit('error', new Error('watch failed'))).not.toThrow();
+  const failed = createdWatchers[0];
+  expect(failed).toBeDefined();
+
+  const startedAt = Date.now();
+  expect(() => failed?.emit('error', new Error('watch failed'))).not.toThrow();
+  expect(Date.now() - startedAt < 50).toBe(true);
+  expect(failed?.closed).toBe(false);
+  expect(failed?.unrefed).toBe(true);
+
   startWatching(() => undefined);
 
   expect(createdWatchers).toHaveLength(2);

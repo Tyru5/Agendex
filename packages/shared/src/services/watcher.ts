@@ -100,11 +100,13 @@ function startWatcher(target: WatchTarget) {
     });
     // An FSWatcher with no 'error' listener throws, and an errored watcher
     // never recovers. Forget it so the next refresh can attach a fresh one.
+    // Abandon rather than close: the handle is already dead, and close() would
+    // block the Electron main thread on macOS the same way shutdown used to.
     watcher.on('error', () => {
       if (activeWatchers.get(target.key) !== watcher) return;
       activeWatchers.delete(target.key);
       activeTargets.delete(target.key);
-      closeWatcher(watcher);
+      abandonWatcher(watcher);
     });
     activeWatchers.set(target.key, watcher);
     activeTargets.set(target.key, target);
