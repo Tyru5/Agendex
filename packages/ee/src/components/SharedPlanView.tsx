@@ -31,8 +31,8 @@ import { useLocation } from 'wouter';
 const DASHBOARD_PATH = '/dashboard';
 const MARKETING_PRICING_PATH = '/#pricing';
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+function timeAgo(date: string | number): string {
+  const diff = Date.now() - new Date(date).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`;
@@ -329,7 +329,7 @@ function SharedPlanViewInner({ token }: { token: string }) {
                 {plan.createdAt && (
                   <span className="flex items-center gap-1.5">
                     <ClockIcon />
-                    {timeAgo(String(plan.createdAt))}
+                    {timeAgo(plan.createdAt)}
                   </span>
                 )}
                 <span className="flex items-center gap-1.5">
