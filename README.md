@@ -29,6 +29,7 @@ Agendex is a Bun workspaces monorepo:
 
 - Convex-backed auth and cloud dashboard flows
 - Cloud sync via CLI or daemon, with hash-based skip for unchanged plans, real-time upload queue with retries, and automatic low-value pruning on the cloud side
+- Automatic Git repository, branch, and commit detection during CLI sync/upload, plus Pro-managed branch, commit, and pull-request links in dashboard and shared plan views
 - Shareable plan links, comment threads, tags, collections, and plan history
 - Workspace members, daemon status/cleanup, and collaboration features
 - Dashboard plan creation, uploads, and editing
@@ -197,6 +198,7 @@ bun run cli:hooks -- status            # show Claude Code, Codex, and Pi hook st
 bun run cli:hooks -- install <agent|all>   # install hook integration (claude-code requires --preview)
 bun run cli:hooks -- uninstall <agent|all> # remove managed Agendex hook entries
 bun run cli:review-plan --hook --agent <agent>  # hook-native plan review entrypoint
+bun run cli -- capture-plan --agent <agent> < hook-payload.json
 bun run cli:sync            # one-shot cloud sync
 bun run cli:sync --force    # re-sync all plans, ignoring cache
 bun run cli:upload ~/path/to/plan.md          # upload a single Markdown plan to the cloud
@@ -221,6 +223,7 @@ bun run lint
 bun run lint:fix
 bun run check
 bun run check:fix
+bun test                    # run Bun's built-in test runner
 ```
 
 The published CLI is Node-compatible and can be installed with `curl -fsSL https://agendex.dev/install.sh | bash` or directly with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://app.agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev ...` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
@@ -284,16 +287,22 @@ Common environment variables:
   - `AGENDEX_SYNC_RESCAN_INTERVAL_MS` - safety-net rescan interval (daemon; `0` disables)
   - `AGENDEX_WATCHER_REFRESH_INTERVAL_MS` - watch-path rediscovery interval (daemon; `0` disables)
   - `AGENDEX_DISABLE_LOCAL_IP=1` - omit local IP from sync provenance metadata
+  - `AGENDEX_DISABLE_GIT_CONTEXT=1` - omit Git repository, branch, and commit context from sync/upload metadata
 - EE client:
   - `VITE_CONVEX_URL`
   - `VITE_CONVEX_SITE_URL`
   - optional `VITE_APP_URL`
 - EE backend/auth:
   - `SITE_URL`
-  - `CONVEX_SITE_URL`
+  - `APP_URL`
+  - `BETTER_AUTH_SECRET`
   - `GITHUB_CLIENT_ID`
   - `GITHUB_CLIENT_SECRET`
-  - `BETTER_AUTH_SECRET`
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+
+`CONVEX_SITE_URL` is provided by Convex. Read it in backend code, but do not try to set it with `convex env set`.
+
 - EE billing:
   - `STRIPE_SECRET_KEY`
   - `STRIPE_WEBHOOK_SECRET`
@@ -302,26 +311,43 @@ Common environment variables:
 
 ## EE / Cloud Development
 
-The local EE stack uses three processes:
+The EE stack can run locally without a Convex account. Start an isolated local backend in anonymous agent mode and leave it running:
 
 ```bash
-# terminal 1 (from packages/ee)
-npx convex dev
+cd packages/ee
+CONVEX_AGENT_MODE=anonymous npx convex dev
+```
 
-# terminal 2 (from repo root)
+On first startup, Convex writes `packages/ee/.env.local` with local client and site URLs. In another shell, configure the local deployment:
+
+```bash
+cd packages/ee
+CONVEX_AGENT_MODE=anonymous npx convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
+CONVEX_AGENT_MODE=anonymous npx convex env set SITE_URL http://agendex.localhost:5174
+CONVEX_AGENT_MODE=anonymous npx convex env set APP_URL http://agendex.localhost:5174
+```
+
+Then start the OSS API and EE client in separate terminals from the repo root:
+
+```bash
 bun run dev
+```
 
-# terminal 3 (from repo root)
+```bash
 bun run dev:client:ee
 ```
 
 This gives you:
 
+- Local Convex API on `http://127.0.0.1:3210`
+- Local Convex HTTP/auth routes on `http://127.0.0.1:3211`
 - OSS API on `http://localhost:4890`
-- EE Vite client on `http://localhost:5174`
+- EE Vite client on `http://agendex.localhost:5174`
 - `/api` requests from the EE client proxied to the OSS API on `:4890`
 
-For self-hosting, auth setup, and maintainer-level EE billing notes, see [docs/self-hosting.md](./docs/self-hosting.md).
+The landing, dashboard, and sign-in pages work without OAuth credentials, but login is GitHub/Google OAuth only. To complete a local login, configure the matching client ID/secret as Convex deployment environment variables and use `http://127.0.0.1:3211/api/auth/callback/github` or `http://127.0.0.1:3211/api/auth/callback/google` as the OAuth callback. Stripe variables are only needed for billing flows.
+
+For self-hosting, production auth setup, and maintainer-level EE billing notes, see [docs/self-hosting.md](./docs/self-hosting.md).
 
 ## License
 
