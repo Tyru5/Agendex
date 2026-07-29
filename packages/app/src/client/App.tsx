@@ -5,6 +5,7 @@ import {
   EmptyStateView,
   applyPlanFilters,
   focusPlanSearchField,
+  getAppShortcuts,
   hasToken,
   LandingPage,
   normalizeFilterValues,
@@ -405,6 +406,9 @@ function Dashboard() {
               }}
               planCount={totalPlans}
               agents={agents}
+              plans={plans}
+              onSelectPlan={setSelectedPlan}
+              shortcuts={getAppShortcuts()}
             />
           </div>
         )}
