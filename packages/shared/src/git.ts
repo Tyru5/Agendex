@@ -44,7 +44,10 @@ export function findGitRoot(startDir: string): string | null {
  * directory, falling back to the directory containing the plan artifact
  * (covers custom plan dirs, which never set `workspace`).
  */
-export function resolvePlanRepoRoot(plan: { workspace?: string; filePath?: string }): string | null {
+export function resolvePlanRepoRoot(plan: {
+  workspace?: string;
+  filePath?: string;
+}): string | null {
   if (plan.workspace) {
     const workspace = resolve(plan.workspace);
     if (existsSync(workspace)) {

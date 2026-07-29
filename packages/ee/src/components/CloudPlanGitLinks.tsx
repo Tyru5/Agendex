@@ -69,13 +69,7 @@ export function buildDetectedGitChips(metadata: unknown): PlanGitChip[] {
  * Git/PR linkage for cloud plans (Pro): detected workspace context from
  * `metadata.git` plus manually linked branches/commits/PRs stored in Convex.
  */
-export function CloudPlanGitLinks({
-  planId,
-  metadata,
-}: {
-  planId: string;
-  metadata: unknown;
-}) {
+export function CloudPlanGitLinks({ planId, metadata }: { planId: string; metadata: unknown }) {
   const links = useQuery(api.planLinks.getLinks, { planId: planId as Id<'plans'> });
   const addLink = useMutation(api.planLinks.addLink);
   const deleteLink = useMutation(api.planLinks.deleteLink);

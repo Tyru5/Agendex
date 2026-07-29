@@ -102,9 +102,7 @@ describe('forge URL builders', () => {
     expect(branchUrl(githubRepo, 'feat/git-links')).toBe(
       'https://github.com/acme/widgets/tree/feat/git-links',
     );
-    expect(commitUrl(githubRepo, 'abc1234')).toBe(
-      'https://github.com/acme/widgets/commit/abc1234',
-    );
+    expect(commitUrl(githubRepo, 'abc1234')).toBe('https://github.com/acme/widgets/commit/abc1234');
     expect(prUrl(githubRepo, 42)).toBe('https://github.com/acme/widgets/pull/42');
   });
 
@@ -192,7 +190,11 @@ describe('normalizePlanGitLink', () => {
   test('classifies commit and branch URLs', () => {
     expect(normalizePlanGitLink('https://github.com/acme/widgets/commit/abc1234')).toEqual({
       ok: true,
-      link: { type: 'commit', value: 'abc1234', url: 'https://github.com/acme/widgets/commit/abc1234' },
+      link: {
+        type: 'commit',
+        value: 'abc1234',
+        url: 'https://github.com/acme/widgets/commit/abc1234',
+      },
     });
     expect(normalizePlanGitLink('https://github.com/acme/widgets/tree/feat/x')).toEqual({
       ok: true,

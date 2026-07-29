@@ -29,7 +29,13 @@ beforeAll(() => {
   git(repoDir, 'config', 'user.name', 'Test');
   // Use a host that no global `url.<base>.insteadOf` rewrite (e.g. CI token
   // injection for github.com) will touch, so `remote get-url` is stable.
-  git(repoDir, 'remote', 'add', 'origin', 'https://user:token@gitforge.example.test/acme/widgets.git');
+  git(
+    repoDir,
+    'remote',
+    'add',
+    'origin',
+    'https://user:token@gitforge.example.test/acme/widgets.git',
+  );
   writeFileSync(join(repoDir, 'README.md'), '# repo\n');
   git(repoDir, 'add', '.');
   git(repoDir, 'commit', '-m', 'init', '--no-gpg-sign');
@@ -63,9 +69,9 @@ describe('resolvePlanRepoRoot', () => {
   });
 
   test('falls back to the plan file directory', () => {
-    expect(
-      resolvePlanRepoRoot({ filePath: join(repoDir, 'nested', 'deep', 'plan.md') }),
-    ).toBe(repoDir);
+    expect(resolvePlanRepoRoot({ filePath: join(repoDir, 'nested', 'deep', 'plan.md') })).toBe(
+      repoDir,
+    );
   });
 
   test('returns null when neither resolves to a repo', () => {

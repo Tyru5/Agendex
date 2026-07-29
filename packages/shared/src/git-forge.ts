@@ -63,7 +63,11 @@ function splitRepoPath(path: string): { owner: string; name: string } | null {
   return { owner: segments.slice(0, -1).join('/'), name };
 }
 
-function repoInfo(host: string, path: string, options: { httpRemote: boolean }): GitRepoInfo | null {
+function repoInfo(
+  host: string,
+  path: string,
+  options: { httpRemote: boolean },
+): GitRepoInfo | null {
   const normalizedHost = host.toLowerCase();
   const parts = splitRepoPath(path);
   if (!normalizedHost || !parts) return null;
@@ -94,7 +98,9 @@ export function parseRemoteUrl(url: string): GitRepoInfo | null {
   const trimmed = url.trim();
   if (!trimmed) return null;
 
-  const schemeMatch = trimmed.match(/^(https?|ssh|git):\/\/(?:([^/@]+)@)?([^/:]+)(?::\d+)?\/(.+)$/i);
+  const schemeMatch = trimmed.match(
+    /^(https?|ssh|git):\/\/(?:([^/@]+)@)?([^/:]+)(?::\d+)?\/(.+)$/i,
+  );
   if (schemeMatch) {
     const scheme = schemeMatch[1]?.toLowerCase();
     const host = schemeMatch[3];
