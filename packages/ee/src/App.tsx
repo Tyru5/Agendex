@@ -9,6 +9,7 @@ import {
   ToolsUsedPage,
   applyPlanFilters,
   focusPlanSearchField,
+  getAppShortcuts,
   hasToken,
   LandingPage,
   MAX_FOLDERS,
@@ -1525,7 +1526,14 @@ function DashboardMain({
           </>
         )
       ) : (
-        <EmptyStateView onSearch={onSearch} planCount={totalPlans} agents={agents} />
+        <EmptyStateView
+          onSearch={onSearch}
+          planCount={totalPlans}
+          agents={agents}
+          plans={allPlans}
+          onSelectPlan={onSelectRelatedPlan}
+          shortcuts={getAppShortcuts({ ee: true })}
+        />
       )}
     </div>
   );

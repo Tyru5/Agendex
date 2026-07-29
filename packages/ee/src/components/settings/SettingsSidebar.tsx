@@ -1,4 +1,4 @@
-import { GitHubIcon, GoogleIcon } from '@agendex/web';
+import { getAppShortcuts, GitHubIcon, GoogleIcon, shortcutDisplayKeys } from '@agendex/web';
 import { PRIMARY_RGB_FALLBACK } from './constants';
 
 interface SidebarProps {
@@ -34,15 +34,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
   );
 }
 
-const shortcuts = [
-  { label: 'Command Palette', keys: ['⌘', 'K'] },
-  { label: 'Search Plans', keys: ['/'] },
-  { label: 'Toggle Sidebar', keys: ['⌘', 'B'] },
-  { label: 'Toggle Outline', keys: ['⇧', '⌘', 'O'] },
-  { label: 'Toggle Tech Chart', keys: ['⇧', '⌘', 'G'] },
-  { label: 'Submit Comment', keys: ['⌘', '↵'] },
-  { label: 'Close / Cancel', keys: ['Esc'] },
-] as const;
+const shortcuts = getAppShortcuts({ ee: true });
 
 export function SettingsSidebar({
   user,
@@ -168,16 +160,19 @@ export function SettingsSidebar({
       <div className="rounded-2xl border border-border bg-surface p-5">
         <h3 className="text-[14px] font-semibold text-text mb-4">Keyboard Shortcuts</h3>
         <div className="flex flex-col gap-3">
-          {shortcuts.map((s) => (
-            <div key={s.label} className="flex items-center justify-between">
-              <span className="text-[13px] font-medium text-text">{s.label}</span>
-              <div className="flex items-center gap-1.5">
-                {s.keys.map((k) => (
-                  <Kbd key={k}>{k}</Kbd>
-                ))}
+          {shortcuts.map((s) => {
+            const keys = shortcutDisplayKeys(s);
+            return (
+              <div key={s.id} className="flex items-center justify-between">
+                <span className="text-[13px] font-medium text-text">{s.label}</span>
+                <div className="flex items-center gap-1.5">
+                  {keys.map((k) => (
+                    <Kbd key={`${s.id}-${k}`}>{k}</Kbd>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </aside>

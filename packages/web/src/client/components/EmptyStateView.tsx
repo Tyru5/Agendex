@@ -1,8 +1,8 @@
-import { formatForDisplay } from '@tanstack/react-hotkeys';
 import confetti from 'canvas-confetti';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getAgentLabel } from '../lib/agent-colors.ts';
-import type { AgentStats } from '../lib/api.ts';
+import type { AgentStats, Plan } from '../lib/api.ts';
+import { getAppShortcuts, shortcutDisplayKeys, type ShortcutHint } from '../lib/shortcuts.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 
 declare global {
@@ -12,11 +12,19 @@ declare global {
   }
 }
 
-interface EmptyStateViewProps {
+export interface EmptyStateViewProps {
   onSearch?: () => void;
   planCount?: number;
   agents?: AgentStats[];
+  plans?: readonly Plan[];
+  onSelectPlan?: (plan: Plan) => void;
+  shortcuts?: ShortcutHint[];
 }
+
+type PlanViewMode = 'list' | 'card';
+
+const PLAN_VIEW_PREF_KEY = 'agendex.empty-state.plan-view';
+const EMPTY_PLANS: Plan[] = [];
 
 const EMPTY_AGENTS: AgentStats[] = [];
 const KONAMI_CODE = [
@@ -310,17 +318,82 @@ function WatchCommand() {
   );
 }
 
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
+}
+
+function readPlanViewMode(): PlanViewMode {
+  try {
+    const stored = localStorage.getItem(PLAN_VIEW_PREF_KEY);
+    if (stored === 'list' || stored === 'card') return stored;
+  } catch {
+    // ignore
+  }
+  return 'list';
+}
+
+function ListViewIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CardViewIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M15 18l-6-6 6-6"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function AgentLedger({
   agents,
   planCount,
   maxCount,
+  selectedAgent,
+  onSelectAgent,
 }: {
   agents: AgentStats[];
   planCount: number;
   maxCount: number;
+  selectedAgent: string | null;
+  onSelectAgent: (agent: string) => void;
 }) {
-  const visible = agents.slice(0, LEDGER_MAX_ROWS);
-  const hiddenCount = agents.length - visible.length;
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? agents : agents.slice(0, LEDGER_MAX_ROWS);
+  const hiddenCount = agents.length - LEDGER_MAX_ROWS;
 
   return (
     <section className="empty-state-ledger" aria-label="Plans by agent">
@@ -331,36 +404,148 @@ function AgentLedger({
       <ul className="empty-state-ledger-rows">
         {visible.map((agent) => {
           const share = maxCount > 0 ? agent.planCount / maxCount : 0;
+          const selected = selectedAgent === agent.agent;
 
           return (
-            <li key={agent.agent} className="empty-state-ledger-row">
-              <span className="empty-state-ledger-icon" aria-hidden="true">
-                <AgentIcon agent={agent.agent} size={14} />
-              </span>
-              <span className="empty-state-ledger-name">{getAgentLabel(agent.agent)}</span>
-              <span className="empty-state-ledger-bar" aria-hidden="true">
-                <span
-                  className="empty-state-ledger-bar-fill"
-                  style={
-                    {
-                      '--empty-ledger-share': `${Math.max(share * 100, 6)}%`,
-                    } as React.CSSProperties
-                  }
-                />
-              </span>
-              <span className="empty-state-ledger-count">{agent.planCount.toLocaleString()}</span>
+            <li key={agent.agent}>
+              <button
+                type="button"
+                className={`empty-state-ledger-row empty-state-ledger-row--button${selected ? ' empty-state-ledger-row--selected' : ''}`}
+                onClick={() => onSelectAgent(agent.agent)}
+                aria-pressed={selected}
+              >
+                <span className="empty-state-ledger-icon" aria-hidden="true">
+                  <AgentIcon agent={agent.agent} size={14} />
+                </span>
+                <span className="empty-state-ledger-name">{getAgentLabel(agent.agent)}</span>
+                <span className="empty-state-ledger-bar" aria-hidden="true">
+                  <span
+                    className="empty-state-ledger-bar-fill"
+                    style={
+                      {
+                        '--empty-ledger-share': `${Math.max(share * 100, 6)}%`,
+                      } as React.CSSProperties
+                    }
+                  />
+                </span>
+                <span className="empty-state-ledger-count">{agent.planCount.toLocaleString()}</span>
+              </button>
             </li>
           );
         })}
-        {hiddenCount > 0 && (
-          <li className="empty-state-ledger-row empty-state-ledger-row--more">
-            <span className="empty-state-ledger-name">
-              {hiddenCount} more {hiddenCount === 1 ? 'agent' : 'agents'}
-            </span>
+        {!expanded && hiddenCount > 0 && (
+          <li>
+            <button
+              type="button"
+              className="empty-state-ledger-row empty-state-ledger-row--button empty-state-ledger-row--more"
+              onClick={() => setExpanded(true)}
+            >
+              <span className="empty-state-ledger-name">
+                {hiddenCount} more {hiddenCount === 1 ? 'agent' : 'agents'}
+              </span>
+            </button>
           </li>
         )}
       </ul>
     </section>
+  );
+}
+
+function AgentPlansBrowser({
+  agent,
+  plans,
+  viewMode,
+  onViewModeChange,
+  onBack,
+  onSelectPlan,
+}: {
+  agent: string;
+  plans: Plan[];
+  viewMode: PlanViewMode;
+  onViewModeChange: (mode: PlanViewMode) => void;
+  onBack: () => void;
+  onSelectPlan?: (plan: Plan) => void;
+}) {
+  const label = getAgentLabel(agent);
+
+  return (
+    <div className="empty-state-agent-browser">
+      <div className="empty-state-agent-browser-head">
+        <button type="button" className="empty-state-agent-back" onClick={onBack}>
+          <BackIcon />
+          All agents
+        </button>
+        <div className="empty-state-agent-browser-title">
+          <span className="empty-state-agent-browser-icon" aria-hidden="true">
+            <AgentIcon agent={agent} size={16} />
+          </span>
+          <div className="empty-state-agent-browser-copy">
+            <h2 className="empty-state-agent-browser-name">{label}</h2>
+            <p className="empty-state-agent-browser-meta">
+              {plans.length.toLocaleString()} {plans.length === 1 ? 'plan' : 'plans'}
+            </p>
+          </div>
+        </div>
+        <div className="empty-state-view-toggle" role="group" aria-label="Plan view">
+          <button
+            type="button"
+            className="empty-state-view-toggle-btn"
+            aria-pressed={viewMode === 'list'}
+            onClick={() => onViewModeChange('list')}
+            title="List view"
+          >
+            <ListViewIcon />
+            List
+          </button>
+          <button
+            type="button"
+            className="empty-state-view-toggle-btn"
+            aria-pressed={viewMode === 'card'}
+            onClick={() => onViewModeChange('card')}
+            title="Card view"
+          >
+            <CardViewIcon />
+            Cards
+          </button>
+        </div>
+      </div>
+
+      {plans.length === 0 ? (
+        <p className="empty-state-agent-empty">No plans for this agent yet.</p>
+      ) : viewMode === 'list' ? (
+        <ul className="empty-state-plan-list">
+          {plans.map((plan) => (
+            <li key={plan.id}>
+              <button
+                type="button"
+                className="empty-state-plan-row"
+                onClick={() => onSelectPlan?.(plan)}
+              >
+                <span className="empty-state-plan-row-title">{plan.title}</span>
+                <span className="empty-state-plan-row-meta">{timeAgo(plan.updatedAt)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="empty-state-plan-grid">
+          {plans.map((plan) => (
+            <li key={plan.id}>
+              <button
+                type="button"
+                className="empty-state-plan-card"
+                onClick={() => onSelectPlan?.(plan)}
+              >
+                <span className="empty-state-plan-card-title">{plan.title}</span>
+                <span className="empty-state-plan-card-meta">
+                  Updated {timeAgo(plan.updatedAt)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -696,8 +881,14 @@ export function EmptyStateView({
   onSearch,
   planCount = 0,
   agents = EMPTY_AGENTS,
+  plans = EMPTY_PLANS,
+  onSelectPlan,
+  shortcuts = getAppShortcuts(),
 }: EmptyStateViewProps) {
   const [triviaActive, setTriviaActive] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<PlanViewMode>(readPlanViewMode);
+
   const unlockTrivia = useCallback(() => {
     setTriviaActive(true);
     fireTriviaConfetti('unlock');
@@ -709,12 +900,28 @@ export function EmptyStateView({
     [agents],
   );
 
+  const agentPlans = useMemo(() => {
+    if (!selectedAgent) return EMPTY_PLANS;
+    return plans
+      .filter((plan) => plan.agent === selectedAgent)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }, [plans, selectedAgent]);
+
+  const handleViewModeChange = useCallback((mode: PlanViewMode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem(PLAN_VIEW_PREF_KEY, mode);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const maxAgentCount = activeAgents[0]?.planCount ?? 0;
   const agentCount = activeAgents.length;
   const hasPlans = planCount > 0;
-  const showLedger = hasPlans && !triviaActive && agentCount > 0;
+  const browsingAgent = selectedAgent !== null && !triviaActive;
+  const showLedger = hasPlans && !triviaActive && agentCount > 0 && !browsingAgent;
   const searchShortcut = '/';
-  const sidebarShortcut = formatForDisplay('Mod+B');
 
   const heading = hasPlans ? 'Choose a plan to review' : 'No plans indexed yet';
   const description = hasPlans
@@ -752,11 +959,20 @@ export function EmptyStateView({
 
         <FrameRule />
 
-        <div className="empty-state-main">
+        <div className={`empty-state-main${browsingAgent ? ' empty-state-main--browser' : ''}`}>
           {triviaActive ? (
             <div className="empty-state-panel empty-state-panel--trivia">
               <TriviaGame onExit={() => setTriviaActive(false)} />
             </div>
+          ) : browsingAgent && selectedAgent ? (
+            <AgentPlansBrowser
+              agent={selectedAgent}
+              plans={agentPlans}
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              onBack={() => setSelectedAgent(null)}
+              onSelectPlan={onSelectPlan}
+            />
           ) : (
             <>
               <h2 className="empty-state-title">{heading}</h2>
@@ -780,14 +996,29 @@ export function EmptyStateView({
         <FrameRule ticks />
 
         {showLedger && (
-          <AgentLedger agents={activeAgents} planCount={planCount} maxCount={maxAgentCount} />
+          <AgentLedger
+            agents={activeAgents}
+            planCount={planCount}
+            maxCount={maxAgentCount}
+            selectedAgent={selectedAgent}
+            onSelectAgent={setSelectedAgent}
+          />
         )}
 
-        <footer className={`empty-state-foot${showLedger ? ' empty-state-foot--divided' : ''}`}>
-          <span className="empty-state-hint">
-            <kbd>{sidebarShortcut}</kbd>
-            Toggle sidebar
-          </span>
+        <footer
+          className={`empty-state-foot${showLedger || browsingAgent ? ' empty-state-foot--divided' : ''}`}
+        >
+          {shortcuts.map((shortcut) => {
+            const keys = shortcutDisplayKeys(shortcut);
+            return (
+              <span key={shortcut.id} className="empty-state-hint">
+                {keys.map((key) => (
+                  <kbd key={`${shortcut.id}-${key}`}>{key}</kbd>
+                ))}
+                {shortcut.label}
+              </span>
+            );
+          })}
         </footer>
       </div>
     </div>
