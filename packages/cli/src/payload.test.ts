@@ -1,6 +1,49 @@
-import { expect, test } from 'bun:test';
-import { hashPath, type Plan } from '@agendex/shared';
+import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { clearGitContextCache, computeContentHash, hashPath, type Plan } from '@agendex/shared';
 import { fileToSyncPayload, parseUploadFile, planToSyncPayload } from './payload.ts';
+
+let gitRepoDir = '';
+
+function git(cwd: string, ...args: string[]): void {
+  execFileSync('git', args, { cwd, stdio: 'ignore' });
+}
+
+beforeAll(() => {
+  gitRepoDir = mkdtempSync(join(tmpdir(), 'agendex-payload-git-'));
+  git(gitRepoDir, 'init', '--initial-branch=feat/linked');
+  git(gitRepoDir, 'config', 'user.email', 'test@example.com');
+  git(gitRepoDir, 'config', 'user.name', 'Test');
+  // Host chosen so global insteadOf rewrites (e.g. CI github.com token injection) never apply.
+  git(gitRepoDir, 'remote', 'add', 'origin', 'https://gitforge.example.test/acme/widgets.git');
+  writeFileSync(join(gitRepoDir, 'README.md'), 'hi\n');
+  git(gitRepoDir, 'add', '.');
+  git(gitRepoDir, 'commit', '-m', 'init', '--no-gpg-sign');
+  mkdirSync(join(gitRepoDir, 'plans'), { recursive: true });
+  clearGitContextCache();
+});
+
+afterAll(() => {
+  if (gitRepoDir) rmSync(gitRepoDir, { recursive: true, force: true });
+});
+
+function planInGitRepo(): Plan {
+  return {
+    id: 'local-git',
+    agent: 'codex',
+    title: 'Plan',
+    content: '# Plan',
+    filePath: join(gitRepoDir, 'plans', 'plan.md'),
+    format: 'md',
+    createdAt: new Date(1000),
+    updatedAt: new Date(2000),
+    workspace: gitRepoDir,
+    metadata: {},
+  };
+}
 
 test('planToSyncPayload preserves metadata and records the syncing daemon device', () => {
   const plan: Plan = {
@@ -133,4 +176,45 @@ test('fileToSyncPayload records upload provenance metadata', () => {
     planValueOverride: 'manual',
     agendexSync: { deviceId: 'dev-1', hostname: 'box' },
   });
+});
+
+test('planToSyncPayload enriches metadata.git from the plan workspace', () => {
+  const payload = planToSyncPayload(planInGitRepo());
+
+  const git = payload.metadata?.git as Record<string, unknown>;
+  expect(git.branch).toBe('feat/linked');
+  expect(git.commit).toMatch(/^[0-9a-f]{40}$/);
+  expect(git.remoteUrl).toBe('https://gitforge.example.test/acme/widgets.git');
+  expect(git.repo).toEqual({
+    host: 'gitforge.example.test',
+    owner: 'acme',
+    name: 'widgets',
+    webUrl: 'https://gitforge.example.test/acme/widgets',
+  });
+});
+
+test('planToSyncPayload leaves plans outside a repo and sync identity untouched', () => {
+  const outside: Plan = { ...planInGitRepo(), workspace: undefined, filePath: '/tmp/plan.md' };
+  expect(planToSyncPayload(outside).metadata?.git).toBeUndefined();
+
+  const enriched = planToSyncPayload(planInGitRepo());
+  expect(enriched.contentHash).toBe(
+    computeContentHash({ title: 'Plan', content: '# Plan', format: 'md' }),
+  );
+});
+
+test('planToSyncPayload skips git enrichment when AGENDEX_DISABLE_GIT_CONTEXT=1', () => {
+  process.env.AGENDEX_DISABLE_GIT_CONTEXT = '1';
+  try {
+    expect(planToSyncPayload(planInGitRepo()).metadata?.git).toBeUndefined();
+  } finally {
+    delete process.env.AGENDEX_DISABLE_GIT_CONTEXT;
+  }
+});
+
+test('fileToSyncPayload enriches metadata.git for uploads inside a repo', () => {
+  const filePath = join(gitRepoDir, 'plans', 'uploaded.md');
+  const payload = fileToSyncPayload(filePath, '# Uploaded');
+  const git = payload.metadata?.git as Record<string, unknown>;
+  expect(git.branch).toBe('feat/linked');
 });

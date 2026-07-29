@@ -1,11 +1,42 @@
 import { basename, resolve } from 'node:path';
-import { computePlanSyncIdentity, hashPath, type Plan } from '@agendex/shared';
+import {
+  computePlanSyncIdentity,
+  getPlanGitContext,
+  hashPath,
+  type Plan,
+  type PlanGitContext,
+} from '@agendex/shared';
 import type { SyncPlanPayload } from './api.ts';
 
 const SYNC_METADATA_KEY = 'agendexSync';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function gitContextSyncDisabled(): boolean {
+  return process.env.AGENDEX_DISABLE_GIT_CONTEXT === '1';
+}
+
+/**
+ * Sync-time git enrichment: capture the workspace's repo/branch/commit into
+ * `metadata.git` so the cloud can link plans to the code that implemented
+ * them. Adapter-provided `metadata.git` (none today) is never overwritten.
+ * Disable with `AGENDEX_DISABLE_GIT_CONTEXT=1`.
+ */
+function withGitMetadata(
+  metadata: Record<string, unknown>,
+  plan: { workspace?: string; filePath?: string },
+): Record<string, unknown> {
+  if (gitContextSyncDisabled() || isRecord(metadata.git)) return metadata;
+  let git: PlanGitContext | null;
+  try {
+    git = getPlanGitContext(plan);
+  } catch {
+    return metadata;
+  }
+  if (!git) return metadata;
+  return { ...metadata, git };
 }
 
 function withSyncDeviceMetadata(
@@ -102,7 +133,7 @@ export function fileToSyncPayload(
     format: 'md',
     filePath: absolutePath,
     metadata: withSyncDeviceMetadata(
-      metadata,
+      withGitMetadata(metadata, { filePath: absolutePath }),
       options.deviceId,
       options.hostname,
       options.ipAddress,
@@ -137,7 +168,14 @@ export function planToSyncPayload(
     format: plan.format,
     filePath: plan.filePath,
     workspace: plan.workspace,
-    metadata: withSyncDeviceMetadata(plan.metadata, deviceId, hostname, ipAddress),
+    // Git enrichment is added after identity computation so the sync identity
+    // stays stable regardless of the repo state at sync time.
+    metadata: withSyncDeviceMetadata(
+      withGitMetadata(plan.metadata, plan),
+      deviceId,
+      hostname,
+      ipAddress,
+    ),
     createdAt: plan.createdAt.getTime(),
     updatedAt: plan.updatedAt.getTime(),
     ...identity,

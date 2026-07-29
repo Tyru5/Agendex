@@ -58,6 +58,23 @@ export function saveSyncCache(
   writeFileSync(cachePath, JSON.stringify(file));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Reduce `metadata.git` to its stable fields (repo/remote) for hashing.
+ * Branch and HEAD move every time the user switches branches or commits; if
+ * they participated in the hash, every plan in a workspace would re-sync
+ * after each commit. The freshest branch/commit still upload whenever a plan
+ * re-syncs for content or other metadata changes.
+ */
+function hashableMetadata(metadata: SyncPlanPayload['metadata']): unknown {
+  if (!isRecord(metadata) || !isRecord(metadata.git)) return metadata ?? null;
+  const { branch: _branch, commit: _commit, ...stableGit } = metadata.git;
+  return { ...metadata, git: stableGit };
+}
+
 export function computePayloadHash(payload: SyncPlanPayload): string {
   const canonical = JSON.stringify([
     payload.localPlanId,
@@ -67,7 +84,7 @@ export function computePayloadHash(payload: SyncPlanPayload): string {
     payload.format,
     payload.filePath ?? null,
     payload.workspace ?? null,
-    payload.metadata ?? null,
+    hashableMetadata(payload.metadata),
     payload.createdAt ?? null,
     payload.updatedAt ?? null,
     payload.syncIdentityKey ?? null,
