@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 4.2.0
+
+### Minor Changes
+
+- 57109b5: Git/PR plan linkage
+
 ## 4.1.5
 
 ### Patch Changes
