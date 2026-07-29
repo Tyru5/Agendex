@@ -2,14 +2,76 @@ import { execFileSync } from 'node:child_process';
 import { writeSync } from 'node:fs';
 
 let windowsUtf8ConsoleReady = false;
+let previousWindowsCodePage: string | null = null;
+let windowsCodePageRestoreRegistered = false;
 
 export type WindowsUtf8ConsoleRunner = () => void;
 
-const defaultWindowsUtf8ConsoleRunner: WindowsUtf8ConsoleRunner = () => {
-  execFileSync('chcp.com', ['65001'], {
+export type WindowsUtf8CodePageCommands = {
+  readActive: () => string | null;
+  set: (codePage: string) => void;
+  onExit: (listener: () => void) => void;
+};
+
+/** Parse `chcp.com` stdout for the active code page number. */
+export function parseActiveCodePage(output: string): string | null {
+  const match = /:\s*(\d+)\s*$/m.exec(output.trim()) ?? /\b(\d{2,5})\b/.exec(output);
+  return match?.[1] ?? null;
+}
+
+function readActiveCodePage(): string | null {
+  const output = execFileSync('chcp.com', [], {
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  return parseActiveCodePage(output);
+}
+
+function setConsoleCodePage(codePage: string): void {
+  execFileSync('chcp.com', [codePage], {
     stdio: 'ignore',
     windowsHide: true,
   });
+}
+
+/**
+ * Switch the Windows console to UTF-8 for this process, restoring the prior
+ * code page when the process exits so the parent shell is left unchanged.
+ */
+export function applyWindowsUtf8ConsoleCodePage(
+  commands?: Partial<WindowsUtf8CodePageCommands>,
+): void {
+  const readActive = commands?.readActive ?? readActiveCodePage;
+  const set = commands?.set ?? setConsoleCodePage;
+  const onExit =
+    commands?.onExit ??
+    ((listener: () => void) => {
+      process.on('exit', listener);
+    });
+
+  const previous = readActive();
+  set('65001');
+  if (previous == null || previous === '65001') return;
+
+  previousWindowsCodePage = previous;
+  if (!windowsCodePageRestoreRegistered) {
+    windowsCodePageRestoreRegistered = true;
+    const codePageToRestore = previous;
+    onExit(() => {
+      try {
+        set(codePageToRestore);
+      } catch {
+        // Best-effort: leaving UTF-8 is preferable to crashing on exit.
+      }
+      if (previousWindowsCodePage === codePageToRestore) {
+        previousWindowsCodePage = null;
+      }
+    });
+  }
+}
+
+const defaultWindowsUtf8ConsoleRunner: WindowsUtf8ConsoleRunner = () => {
+  applyWindowsUtf8ConsoleCodePage();
 };
 
 /**
@@ -52,6 +114,8 @@ export function ensureWindowsUtf8Console(options?: {
 /** Test helper — resets the one-shot UTF-8 console guard. */
 export function resetWindowsUtf8ConsoleForTests(): void {
   windowsUtf8ConsoleReady = false;
+  previousWindowsCodePage = null;
+  windowsCodePageRestoreRegistered = false;
 }
 
 export function writeStdout(message: string): void {

@@ -1,6 +1,8 @@
 import { afterEach, expect, test } from 'bun:test';
 import {
+  applyWindowsUtf8ConsoleCodePage,
   ensureWindowsUtf8Console,
+  parseActiveCodePage,
   resetWindowsUtf8ConsoleForTests,
   shouldUseUnicodeConsoleWrite,
 } from './stdio.ts';
@@ -62,4 +64,49 @@ test('swallows UTF-8 console setup failures', () => {
       },
     }),
   ).not.toThrow();
+});
+
+test('parses active code page from chcp output', () => {
+  expect(parseActiveCodePage('Active code page: 437')).toBe('437');
+  expect(parseActiveCodePage('Active code page: 65001\r\n')).toBe('65001');
+  expect(parseActiveCodePage('no code page here')).toBeNull();
+});
+
+test('restores previous Windows console code page on process exit', () => {
+  const sets: string[] = [];
+  let exitListener: (() => void) | undefined;
+
+  applyWindowsUtf8ConsoleCodePage({
+    readActive: () => '437',
+    set: (codePage) => {
+      sets.push(codePage);
+    },
+    onExit: (listener) => {
+      exitListener = listener;
+    },
+  });
+
+  expect(sets).toEqual(['65001']);
+  expect(exitListener).toBeDefined();
+
+  exitListener?.();
+  expect(sets).toEqual(['65001', '437']);
+});
+
+test('skips restore when console was already UTF-8', () => {
+  const sets: string[] = [];
+  let exitRegistered = false;
+
+  applyWindowsUtf8ConsoleCodePage({
+    readActive: () => '65001',
+    set: (codePage) => {
+      sets.push(codePage);
+    },
+    onExit: () => {
+      exitRegistered = true;
+    },
+  });
+
+  expect(sets).toEqual(['65001']);
+  expect(exitRegistered).toBe(false);
 });
