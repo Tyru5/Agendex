@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 4.2.1
+
+### Patch Changes
+
+- 5fd9cb1: handle character encodings on windows
+
 ## 4.2.0
 
 ### Minor Changes
