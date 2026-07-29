@@ -19,6 +19,10 @@ import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import Markdown from 'react-markdown';
+import { extractPlanGitContext, planGitLinkUrl, shortCommit } from '@agendex/shared/git-forge';
+import { PlanGitSection } from '@agendex/web';
+import type { Id } from '@convex/_generated/dataModel';
+import { buildDetectedGitChips } from './CloudPlanGitLinks.tsx';
 import { CommentThread } from './CommentThread.tsx';
 import { OUTLINE_PREF_STORAGE_KEY } from '../outlinePref.ts';
 import { CommandPalette } from './command-palette/CommandPalette.tsx';
@@ -46,7 +50,40 @@ type UnlockedPlan = {
   format: string;
   filePath?: string;
   createdAt: number;
+  metadata?: unknown;
 };
+
+/** Read-only git chips on the public shared view: detected workspace context plus stored links. */
+function SharedPlanGitLinks({
+  planId,
+  metadata,
+  token,
+}: {
+  planId: string;
+  metadata: unknown;
+  token: string;
+}) {
+  const links = useQuery(api.planLinks.getLinks, { planId: planId as Id<'plans'>, token });
+  const repo = extractPlanGitContext(metadata)?.repo;
+
+  const chips = [
+    ...buildDetectedGitChips(metadata),
+    ...(links ?? []).map((link) => ({
+      key: link._id,
+      kind: link.type,
+      label: link.type === 'commit' ? shortCommit(link.value) : link.value,
+      url: planGitLinkUrl(link, repo),
+      title: link.type === 'commit' ? link.value : undefined,
+    })),
+  ];
+
+  if (chips.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <PlanGitSection chips={chips} />
+    </div>
+  );
+}
 
 function PasswordGate({
   token,
@@ -303,6 +340,8 @@ function SharedPlanViewInner({ token }: { token: string }) {
                   Shared
                 </span>
               </div>
+
+              <SharedPlanGitLinks planId={plan._id} metadata={plan.metadata} token={token} />
 
               <div className="flex items-center gap-2 mt-4">
                 <button

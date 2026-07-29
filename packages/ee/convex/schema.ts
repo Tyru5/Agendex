@@ -149,6 +149,17 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
   }).index('by_plan', ['planId']),
 
+  planLinks: defineTable({
+    ownerId: v.string(),
+    planId: v.id('plans'),
+    type: v.union(v.literal('branch'), v.literal('commit'), v.literal('pr')),
+    value: v.string(),
+    url: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index('by_plan', ['planId'])
+    .index('by_owner_plan', ['ownerId', 'planId']),
+
   commentAttachmentClaims: defineTable({
     storageId: v.id('_storage'),
     commentId: v.id('comments'),
