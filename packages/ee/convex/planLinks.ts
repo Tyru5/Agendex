@@ -8,7 +8,7 @@ import { ConvexError, v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
-import { requireFeature } from './entitlements';
+import { requireFeature, requireFeatureForUserId } from './entitlements';
 
 const MAX_LINKS_PER_PLAN = 20;
 
@@ -37,8 +37,10 @@ async function validateShareToken(ctx: QueryCtx, planId: string, token: string):
 }
 
 /**
- * Owners get access via the Git links Pro entitlement; non-owners need a
- * valid share token for the plan (read-only paths). Mirrors comments access.
+ * Read access for git links:
+ * - plan owner with GIT_LINKS entitlement
+ * - workspace member of an owner with an active subscription (dashboard)
+ * - valid share token (public shared plan view)
  */
 async function validatePlanLinkReadAccess(
   ctx: QueryCtx,
@@ -49,14 +51,26 @@ async function validatePlanLinkReadAccess(
   if (!plan) throw new ConvexError('Plan not found');
 
   const user = await authComponent.safeGetAuthUser(ctx);
-  const isOwner = user && plan.ownerId === user._id;
-
-  if (isOwner) {
+  if (user && plan.ownerId === user._id) {
     await requireFeature(ctx, ProFeature.GIT_LINKS);
-  } else {
-    if (!token) throw new ConvexError('Share token required');
-    await validateShareToken(ctx, planId, token);
+    return;
   }
+
+  if (user) {
+    const membership = await ctx.db
+      .query('workspaceMembers')
+      .withIndex('by_workspace_member', (q) =>
+        q.eq('workspaceOwnerId', plan.ownerId).eq('memberId', user._id),
+      )
+      .first();
+    if (membership) {
+      await requireFeatureForUserId(ctx, plan.ownerId, ProFeature.GIT_LINKS);
+      return;
+    }
+  }
+
+  if (!token) throw new ConvexError('Share token required');
+  await validateShareToken(ctx, planId, token);
 }
 
 /** Only the plan owner (with an active subscription) may add or remove links. */
