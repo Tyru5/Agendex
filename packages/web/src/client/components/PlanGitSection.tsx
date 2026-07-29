@@ -82,12 +82,25 @@ function chipIcon(kind: PlanGitChipKind) {
   }
 }
 
+/** Defense-in-depth: only http(s) chip hrefs, matching markdown link policy. */
+function safeChipHref(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url.trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+    return parsed.href;
+  } catch {
+    return undefined;
+  }
+}
+
 function GitChip({ chip }: { chip: PlanGitChip }) {
+  const href = safeChipHref(chip.url);
   const body = (
     <>
       {chipIcon(chip.kind)}
       <span className="plan-git-chip-label">{chip.label}</span>
-      {chip.url && <ExternalLinkHint />}
+      {href && <ExternalLinkHint />}
     </>
   );
 
@@ -96,8 +109,8 @@ function GitChip({ chip }: { chip: PlanGitChip }) {
       className={`plan-git-chip${chip.detected ? ' plan-git-chip--detected' : ''}`}
       title={chip.title}
     >
-      {chip.url ? (
-        <a href={chip.url} target="_blank" rel="noopener noreferrer" className="plan-git-chip-link">
+      {href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="plan-git-chip-link">
           {body}
         </a>
       ) : (

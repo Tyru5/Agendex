@@ -182,6 +182,46 @@ export function shortCommit(sha: string): string {
   return sha.slice(0, 7);
 }
 
+/**
+ * Allowlist http(s) URLs for use in chip `href`s and stored link fields.
+ * Rejects `javascript:`, `data:`, and other non-http schemes that would
+ * otherwise execute when a share-link viewer clicks a chip. Optionally
+ * requires the URL host to match an expected forge host (blocks open
+ * redirects disguised as a repo chip).
+ */
+export function safeHttpUrl(
+  url: string | undefined,
+  options?: { expectedHost?: string },
+): string | undefined {
+  if (!url) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+  if (
+    options?.expectedHost &&
+    parsed.hostname.toLowerCase() !== options.expectedHost.toLowerCase()
+  ) {
+    return undefined;
+  }
+  // Strip embedded credentials so they never appear in rendered hrefs.
+  if (parsed.username || parsed.password) {
+    parsed.username = '';
+    parsed.password = '';
+  }
+  return parsed.href;
+}
+
+function rebuildRepoWebUrl(host: string, owner: string, name: string): string | undefined {
+  // Only invent a browsable URL for recognized forges; unknown ssh hosts may
+  // not serve a web UI. Matches the heuristic used by `parseRemoteUrl`.
+  if (!forgeKind(host)) return undefined;
+  return `https://${host}/${owner}/${name}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -197,6 +237,9 @@ function stringField(record: Record<string, unknown>, key: string): string | und
  * Read the git context stored at `metadata.git` (written by CLI sync
  * enrichment), falling back to legacy adapter-level `metadata.branch` /
  * `metadata.commit` fields (e.g. the Grok adapter).
+ *
+ * `repo.webUrl` is re-validated as http(s) (and host-matched) so crafted
+ * client-synced metadata cannot put `javascript:` / `data:` into chip hrefs.
  */
 export function extractPlanGitContext(metadata: unknown): PlanGitContext | null {
   if (!isRecord(metadata)) return null;
@@ -216,8 +259,10 @@ export function extractPlanGitContext(metadata: unknown): PlanGitContext | null 
       const host = stringField(git.repo, 'host');
       const owner = stringField(git.repo, 'owner');
       const name = stringField(git.repo, 'name');
-      const webUrl = stringField(git.repo, 'webUrl');
       if (host && owner && name) {
+        const webUrl =
+          safeHttpUrl(stringField(git.repo, 'webUrl'), { expectedHost: host }) ??
+          rebuildRepoWebUrl(host, owner, name);
         context.repo = { host, owner, name, ...(webUrl && { webUrl }) };
       }
     }
@@ -266,10 +311,14 @@ export function normalizePlanGitLink(
     return { ok: true, link: { type: 'pr', value: `#${prNumber}`, ...(url && { url }) } };
   }
 
-  if (/^https?:\/\//i.test(raw)) {
+  if (/^https?:\/\//i.test(raw) || /^[a-z][a-z0-9+.-]*:/i.test(raw)) {
+    const safeUrl = safeHttpUrl(raw);
+    if (!safeUrl) {
+      return { ok: false, error: 'Only http(s) URLs are allowed' };
+    }
     let parsedUrl: URL;
     try {
-      parsedUrl = new URL(raw);
+      parsedUrl = new URL(safeUrl);
     } catch {
       return { ok: false, error: 'Invalid URL' };
     }
@@ -278,7 +327,7 @@ export function normalizePlanGitLink(
     for (const pattern of PR_URL_PATTERNS) {
       const match = pathname.match(pattern);
       if (match?.[1]) {
-        return { ok: true, link: { type: 'pr', value: `#${match[1]}`, url: raw } };
+        return { ok: true, link: { type: 'pr', value: `#${match[1]}`, url: safeUrl } };
       }
     }
 
@@ -286,7 +335,7 @@ export function normalizePlanGitLink(
     if (commitMatch?.[1]) {
       return {
         ok: true,
-        link: { type: 'commit', value: commitMatch[1].toLowerCase(), url: raw },
+        link: { type: 'commit', value: commitMatch[1].toLowerCase(), url: safeUrl },
       };
     }
 
@@ -298,7 +347,7 @@ export function normalizePlanGitLink(
       } catch {
         // keep the raw path segment when it is not valid percent-encoding
       }
-      return { ok: true, link: { type: 'branch', value: branch, url: raw } };
+      return { ok: true, link: { type: 'branch', value: branch, url: safeUrl } };
     }
 
     return {
@@ -326,7 +375,10 @@ export function planGitLinkUrl(
   link: { type: PlanGitLinkType; value: string; url?: string },
   repo?: GitRepoInfo,
 ): string | undefined {
-  if (link.url) return link.url;
+  // Stored URLs are re-validated so older/crafted non-http(s) values never
+  // reach chip hrefs; fall through to repo-derived builders when rejected.
+  const stored = safeHttpUrl(link.url);
+  if (stored) return stored;
   switch (link.type) {
     case 'branch':
       return branchUrl(repo, link.value);

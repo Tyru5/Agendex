@@ -9,6 +9,7 @@ import {
   parseRemoteUrl,
   planGitLinkUrl,
   prUrl,
+  safeHttpUrl,
   sanitizeRemoteUrl,
 } from './git-forge.ts';
 
@@ -228,6 +229,33 @@ describe('normalizePlanGitLink', () => {
   });
 });
 
+describe('safeHttpUrl', () => {
+  test('allows http(s) and strips credentials', () => {
+    expect(safeHttpUrl('https://github.com/acme/widgets')).toBe('https://github.com/acme/widgets');
+    expect(safeHttpUrl('http://example.com/path')).toBe('http://example.com/path');
+    expect(safeHttpUrl('https://user:token@github.com/acme/widgets')).toBe(
+      'https://github.com/acme/widgets',
+    );
+  });
+
+  test('rejects non-http schemes and malformed URLs', () => {
+    expect(safeHttpUrl('javascript:alert(1)')).toBeUndefined();
+    expect(safeHttpUrl('data:text/html,<script>alert(1)</script>')).toBeUndefined();
+    expect(safeHttpUrl('vbscript:msgbox(1)')).toBeUndefined();
+    expect(safeHttpUrl('not a url')).toBeUndefined();
+    expect(safeHttpUrl(undefined)).toBeUndefined();
+  });
+
+  test('optionally requires the URL host to match', () => {
+    expect(safeHttpUrl('https://github.com/acme/widgets', { expectedHost: 'github.com' })).toBe(
+      'https://github.com/acme/widgets',
+    );
+    expect(
+      safeHttpUrl('https://evil.example/acme/widgets', { expectedHost: 'github.com' }),
+    ).toBeUndefined();
+  });
+});
+
 describe('extractPlanGitContext', () => {
   test('reads sync-enriched metadata.git with repo info', () => {
     const context = extractPlanGitContext({
@@ -265,6 +293,41 @@ describe('extractPlanGitContext', () => {
     expect(extractPlanGitContext(undefined)).toBeNull();
     expect(extractPlanGitContext({ git: {} })).toBeNull();
   });
+
+  test('rejects crafted javascript/data webUrl and rebuilds a safe forge URL', () => {
+    const context = extractPlanGitContext({
+      git: {
+        repo: {
+          host: 'github.com',
+          owner: 'acme',
+          name: 'widgets',
+          webUrl: 'javascript:alert(document.cookie)',
+        },
+      },
+    });
+    expect(context?.repo?.webUrl).toBe('https://github.com/acme/widgets');
+  });
+
+  test('rejects webUrl whose host does not match repo.host', () => {
+    const context = extractPlanGitContext({
+      git: {
+        repo: {
+          host: 'github.com',
+          owner: 'acme',
+          name: 'widgets',
+          webUrl: 'https://evil.example/phishing',
+        },
+      },
+    });
+    expect(context?.repo?.webUrl).toBe('https://github.com/acme/widgets');
+  });
+});
+
+describe('normalizePlanGitLink rejects non-http schemes', () => {
+  test('rejects javascript and data URLs', () => {
+    expect(normalizePlanGitLink('javascript:alert(1)').ok).toBe(false);
+    expect(normalizePlanGitLink('data:text/html,hi').ok).toBe(false);
+  });
 });
 
 describe('planGitLinkUrl', () => {
@@ -279,5 +342,14 @@ describe('planGitLinkUrl', () => {
       'https://github.com/acme/widgets/tree/main',
     );
     expect(planGitLinkUrl({ type: 'commit', value: 'abc1234' })).toBeUndefined();
+  });
+
+  test('ignores stored non-http urls and falls back to repo builders', () => {
+    expect(
+      planGitLinkUrl({ type: 'pr', value: '#42', url: 'javascript:alert(1)' }, githubRepo),
+    ).toBe('https://github.com/acme/widgets/pull/42');
+    expect(
+      planGitLinkUrl({ type: 'commit', value: 'abc1234', url: 'data:text/html,x' }),
+    ).toBeUndefined();
   });
 });

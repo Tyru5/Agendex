@@ -64,6 +64,7 @@ export {
   parseRemoteUrl,
   planGitLinkUrl,
   prUrl,
+  safeHttpUrl,
   sanitizeRemoteUrl,
   shortCommit,
 } from './git-forge.ts';
