@@ -48,6 +48,34 @@ export {
 } from './desktop-auth-callback.ts';
 export { hashPath } from './hash.ts';
 export type {
+  ForgeKind,
+  GitRepoInfo,
+  NormalizedPlanGitLink,
+  PlanGitContext,
+  PlanGitLinkNormalization,
+  PlanGitLinkType,
+} from './git-forge.ts';
+export {
+  branchUrl,
+  commitUrl,
+  extractPlanGitContext,
+  forgeKind,
+  normalizePlanGitLink,
+  parseRemoteUrl,
+  planGitLinkUrl,
+  prUrl,
+  safeHttpUrl,
+  sanitizeRemoteUrl,
+  shortCommit,
+} from './git-forge.ts';
+export {
+  captureGitContext,
+  clearGitContextCache,
+  findGitRoot,
+  getPlanGitContext,
+  resolvePlanRepoRoot,
+} from './git.ts';
+export type {
   CreatePlanAnnotationInput,
   PlanAnnotationKind,
   PlanAnnotationRecord,

@@ -2,7 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
-import { loadSyncCache, saveSyncCache } from './sync-cache.ts';
+import type { SyncPlanPayload } from './api.ts';
+import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
 
 const originalConfigDir = process.env.AGENDEX_CONFIG_DIR;
 let tempRoot = '';
@@ -39,4 +40,31 @@ test('ignores legacy account-agnostic cache files', () => {
   writeFileSync(join(configDir, 'sync-cache.json'), JSON.stringify({ 'plan-1': 'legacy-hash' }));
 
   expect(loadSyncCache('account-a')).toEqual({});
+});
+
+function payloadWithGit(git: Record<string, unknown>): SyncPlanPayload {
+  return {
+    localPlanId: 'plan-1',
+    agent: 'codex',
+    title: 'Plan',
+    content: 'body',
+    format: 'md',
+    metadata: { git },
+  };
+}
+
+test('payload hash ignores volatile git branch/commit but tracks repo changes', () => {
+  const repo = { host: 'github.com', owner: 'acme', name: 'widgets' };
+  const onMain = payloadWithGit({ branch: 'main', commit: 'aaa111', repo });
+  const onFeature = payloadWithGit({ branch: 'feat/x', commit: 'bbb222', repo });
+  const otherRepo = payloadWithGit({
+    branch: 'main',
+    commit: 'aaa111',
+    repo: { ...repo, name: 'gadgets' },
+  });
+  const withoutGit: SyncPlanPayload = { ...onMain, metadata: {} };
+
+  expect(computePayloadHash(onFeature)).toBe(computePayloadHash(onMain));
+  expect(computePayloadHash(otherRepo)).not.toBe(computePayloadHash(onMain));
+  expect(computePayloadHash(withoutGit)).not.toBe(computePayloadHash(onMain));
 });

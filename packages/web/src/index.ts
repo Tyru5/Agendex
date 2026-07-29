@@ -34,6 +34,12 @@ export { PlanEditor } from './client/components/PlanEditor.tsx';
 export { FolderTree, MoveToFolderMenu } from './client/components/FolderTree.tsx';
 export { PlanList } from './client/components/PlanList.tsx';
 export { PlanFilterMismatchBanner } from './client/components/PlanFilterMismatchBanner.tsx';
+export type {
+  PlanGitChip,
+  PlanGitChipKind,
+  PlanGitSectionProps,
+} from './client/components/PlanGitSection.tsx';
+export { PlanGitSection } from './client/components/PlanGitSection.tsx';
 export { PlanOutline } from './client/components/PlanOutline.tsx';
 export { PlanSourcesDialog } from './client/components/PlanSourcesDialog.tsx';
 export {

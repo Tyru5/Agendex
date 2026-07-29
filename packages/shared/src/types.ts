@@ -9,6 +9,7 @@ export enum ProFeature {
   PLAN_HISTORY = 'plan_history',
   TAGS_COLLECTIONS = 'tags_collections',
   PLANNOTATOR_INTEGRATION = 'plannotator_integration',
+  GIT_LINKS = 'git_links',
 }
 
 export interface PlannotatorPlanAnnotation {

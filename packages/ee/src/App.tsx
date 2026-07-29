@@ -87,6 +87,7 @@ import { EEHeroCta, EENavbarAuth, EEPricingCta } from './components/LandingAuthS
 import { LocalIpDisclosureNotice } from './components/LocalIpDisclosureNotice.tsx';
 import { OnboardingRoute } from './components/OnboardingRoute.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
+import { CloudPlanGitLinks } from './components/CloudPlanGitLinks.tsx';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
 import { SettingsPage } from './components/SettingsPage.tsx';
@@ -657,6 +658,7 @@ function PlanHeaderExtra({
   return (
     <>
       <PlanTagsBar planId={plan.id} />
+      <CloudPlanGitLinks planId={plan.id} metadata={plan.metadata} />
       <CloudPlannotatorBadge plan={plan} />
     </>
   );

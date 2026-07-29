@@ -66,6 +66,12 @@ export async function deletePlanRelatedData(
     .collect();
   for (const row of planTags) await ctx.db.delete(row._id);
 
+  const planLinks = await ctx.db
+    .query('planLinks')
+    .withIndex('by_plan', (q) => q.eq('planId', planId))
+    .collect();
+  for (const row of planLinks) await ctx.db.delete(row._id);
+
   const collectionPlans = await ctx.db
     .query('collectionPlans')
     .withIndex('by_plan', (q) => q.eq('planId', planId))
