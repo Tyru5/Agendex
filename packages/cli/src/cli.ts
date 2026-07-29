@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { type ChildProcess, spawn } from 'node:child_process';
-import { existsSync, statSync, writeSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -23,6 +23,7 @@ import { runCapturePlanCommand } from './capture-plan.ts';
 import { renderHelp } from './help.ts';
 import { requestWorkerShutdown, runWorker, startSupervisor } from './daemon.ts';
 import { runHookReviewCommand, runHooksCommand } from './hooks.ts';
+import { writeStderr, writeStdout } from './stdio.ts';
 import {
   acquireDaemonStartLock,
   isAgendexDaemonProcess,
@@ -755,12 +756,4 @@ function flushStream(stream: NodeJS.WriteStream): Promise<void> {
       resolve();
     });
   });
-}
-
-function writeStdout(message: string): void {
-  writeSync(process.stdout.fd, `${message}\n`);
-}
-
-function writeStderr(message: string): void {
-  writeSync(process.stderr.fd, `${message}\n`);
 }
