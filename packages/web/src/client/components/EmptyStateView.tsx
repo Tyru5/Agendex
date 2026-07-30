@@ -512,38 +512,42 @@ function AgentPlansBrowser({
 
       {plans.length === 0 ? (
         <p className="empty-state-agent-empty">No plans for this agent yet.</p>
-      ) : viewMode === 'list' ? (
-        <ul className="empty-state-plan-list">
-          {plans.map((plan) => (
-            <li key={plan.id}>
-              <button
-                type="button"
-                className="empty-state-plan-row"
-                onClick={() => onSelectPlan?.(plan)}
-              >
-                <span className="empty-state-plan-row-title">{plan.title}</span>
-                <span className="empty-state-plan-row-meta">{timeAgo(plan.updatedAt)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
       ) : (
-        <ul className="empty-state-plan-grid">
-          {plans.map((plan) => (
-            <li key={plan.id}>
-              <button
-                type="button"
-                className="empty-state-plan-card"
-                onClick={() => onSelectPlan?.(plan)}
-              >
-                <span className="empty-state-plan-card-title">{plan.title}</span>
-                <span className="empty-state-plan-card-meta">
-                  Updated {timeAgo(plan.updatedAt)}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="empty-state-plan-scroll" role="region" aria-label={`${label} plans`}>
+          {viewMode === 'list' ? (
+            <ul className="empty-state-plan-list">
+              {plans.map((plan) => (
+                <li key={plan.id}>
+                  <button
+                    type="button"
+                    className="empty-state-plan-row"
+                    onClick={() => onSelectPlan?.(plan)}
+                  >
+                    <span className="empty-state-plan-row-title">{plan.title}</span>
+                    <span className="empty-state-plan-row-meta">{timeAgo(plan.updatedAt)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <ul className="empty-state-plan-grid">
+              {plans.map((plan) => (
+                <li key={plan.id}>
+                  <button
+                    type="button"
+                    className="empty-state-plan-card"
+                    onClick={() => onSelectPlan?.(plan)}
+                  >
+                    <span className="empty-state-plan-card-title">{plan.title}</span>
+                    <span className="empty-state-plan-card-meta">
+                      Updated {timeAgo(plan.updatedAt)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );
@@ -937,8 +941,10 @@ export function EmptyStateView({
     : 'waiting for the first plan';
 
   return (
-    <div className="h-full empty-state-shell">
-      <div className="empty-state-frame">
+    <div
+      className={`h-full empty-state-shell${browsingAgent ? ' empty-state-shell--browser' : ''}`}
+    >
+      <div className={`empty-state-frame${browsingAgent ? ' empty-state-frame--browser' : ''}`}>
         <FrameRule ticks />
 
         <header className="empty-state-status" role="status">
