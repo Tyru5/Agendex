@@ -40,7 +40,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .dmux/
 
 .claude/
-.amp/
+.amp/*
+!.amp/plugins/
+!.amp/plugins/*.ts
 .cursor/
 .pi/
 
