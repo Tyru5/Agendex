@@ -2259,9 +2259,14 @@ body {
   justify-content: flex-end;
 }
 
-.plan-header-extra > .plan-plannotator-badge {
+.plan-header-extra > .plan-git-section {
   flex-basis: 100%;
   order: 3;
+}
+
+.plan-header-extra > .plan-plannotator-badge {
+  flex-basis: 100%;
+  order: 4;
 }
 
 .plan-filter-mismatch-banner {
