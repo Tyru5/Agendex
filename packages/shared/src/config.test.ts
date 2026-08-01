@@ -2,12 +2,13 @@ import { afterEach, expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   applyAdapterEnableMigrations,
   CURRENT_CONFIG_VERSION,
   getConfigPath,
+  isHomeRelativePath,
   loadConfig,
   loadOrCreateToken,
   loadOrInitConfig,
@@ -196,6 +197,19 @@ test('loadConfig migrates v3 on-disk config and loadOrInitConfig persists it', a
   };
   expect(onDisk.configVersion).toBe(CURRENT_CONFIG_VERSION);
   expect(onDisk.enabledAdapters).toContain('grok');
+});
+
+test('isHomeRelativePath recognizes the tilde forms a user can actually type', () => {
+  expect(isHomeRelativePath('~')).toBe(true);
+  expect(isHomeRelativePath('~/plans')).toBe(true);
+  expect(isHomeRelativePath('plans')).toBe(false);
+  expect(isHomeRelativePath('~plans')).toBe(false);
+  expect(isHomeRelativePath('/tmp/~/plans')).toBe(false);
+
+  // Neither cmd nor PowerShell expands `~` in arguments, so Windows users type
+  // the backslash form. On POSIX a backslash is a legal filename character, so
+  // `~\plans` there is a relative path named "~\plans", not a home path.
+  expect(isHomeRelativePath('~\\plans')).toBe(sep === '\\');
 });
 
 test('removeCustomPlanDir removes an exactly matching normalized path', () => {

@@ -1,0 +1,153 @@
+name: Release Desktop UI
+
+# Publishes a signed UI bundle that installed desktop apps download and serve in
+# place of the client they shipped with. No Electron rebuild, no code signing,
+# no reinstall — users get it on the next check (or immediately via Settings →
+# Updates → Check for Interface Updates).
+#
+# Shell-level changes (main process, preload, IPC) still require a full
+# desktop-release run. When the UI starts depending on new shell capabilities,
+# bump minShellVersion in packages/ee/ui-bundle.config.json in the same PR.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pin_to_shipped:
+        description: 'Kill switch: tell every desktop to revert to the UI it shipped with'
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'ui-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ui-release
+  cancel-in-progress: false
+
+env:
+  UI_CHANNEL_TAG: desktop-ui-channel
+
+jobs:
+  publish:
+    name: Publish UI bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The bundle revision is the HEAD commit timestamp, so the full
+          # history must be present.
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check formatting and lint
+        run: bun run check
+
+      - name: Run UI bundle tests
+        run: bun test packages/desktop/src/main/ui-bundle packages/desktop/src/main/ui-updater.test.ts
+
+      - name: Verify signing key is present
+        env:
+          UI_BUNDLE_SIGNING_KEY: ${{ secrets.UI_BUNDLE_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${UI_BUNDLE_SIGNING_KEY:-}" ]]; then
+            echo "::error::UI_BUNDLE_SIGNING_KEY is not set. Every shell rejects unsigned manifests, so publishing would be a no-op."
+            exit 1
+          fi
+
+      - name: Ensure the UI channel release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view "$UI_CHANNEL_TAG" >/dev/null 2>&1; then
+            echo "Channel release already exists."
+            exit 0
+          fi
+          # --latest=false is load-bearing: the app updater feed points at
+          # releases/latest/download, and letting this rolling release become
+          # "latest" would break desktop auto-update.
+          gh release create "$UI_CHANNEL_TAG" \
+            --title "Desktop UI channel" \
+            --notes "Rolling channel for remote UI bundles consumed by the Agendex desktop app. Assets here are replaced in place; this is not a versioned app release." \
+            --latest=false
+
+      # The kill switch publishes a manifest with no bundle attached. Shells
+      # honour it on their next check by discarding any downloaded bundle and
+      # reloading onto the UI they shipped with.
+      - name: Build and package the UI bundle
+        if: ${{ inputs.pin_to_shipped != true }}
+        env:
+          UI_BUNDLE_SIGNING_KEY: ${{ secrets.UI_BUNDLE_SIGNING_KEY }}
+        run: bun run release:ui:bundle
+
+      - name: Compose the pin-to-shipped manifest
+        if: ${{ inputs.pin_to_shipped == true }}
+        env:
+          UI_BUNDLE_SIGNING_KEY: ${{ secrets.UI_BUNDLE_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p packages/ee/ui-release
+          revision="$(git log -1 --format=%ct)"
+          min_shell="$(node -p "require('./packages/ee/ui-bundle.config.json').minShellVersion")"
+          node -e "
+            const fs = require('node:fs');
+            const manifest = {
+              revision: Number(process.argv[1]),
+              label: 'pinned to shipped UI',
+              minShellVersion: process.argv[2],
+              pinToShipped: true,
+            };
+            fs.writeFileSync('packages/ee/ui-release/ui-manifest.json', JSON.stringify(manifest, null, 2) + '\n');
+          " "$revision" "$min_shell"
+          node -e "
+            const { createPrivateKey, sign } = require('node:crypto');
+            const fs = require('node:fs');
+            const key = createPrivateKey(process.env.UI_BUNDLE_SIGNING_KEY);
+            const path = 'packages/ee/ui-release/ui-manifest.json';
+            fs.writeFileSync(path + '.sig', sign(null, fs.readFileSync(path), key));
+          "
+          cat packages/ee/ui-release/ui-manifest.json
+
+      # Catches a mangled secret (stray whitespace, wrong key type) before the
+      # assets go live, rather than leaving every client silently rejecting them.
+      - name: Verify the signature
+        env:
+          UI_BUNDLE_SIGNING_KEY: ${{ secrets.UI_BUNDLE_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          node -e "
+            const { createPrivateKey, createPublicKey, verify } = require('node:crypto');
+            const fs = require('node:fs');
+            const pub = createPublicKey(createPrivateKey(process.env.UI_BUNDLE_SIGNING_KEY));
+            const manifest = fs.readFileSync('packages/ee/ui-release/ui-manifest.json');
+            const signature = fs.readFileSync('packages/ee/ui-release/ui-manifest.json.sig');
+            if (!verify(null, manifest, pub, signature)) {
+              console.error('::error::manifest signature did not verify against the signing key');
+              process.exit(1);
+            }
+            console.log('Signature verifies. Public key in use:');
+            console.log(pub.export({ type: 'spki', format: 'pem' }));
+            console.log('This must match BAKED_PUBLIC_KEY_PEM in packages/desktop/src/main/ui-bundle/keys.ts.');
+          "
+
+      - name: List assets
+        run: ls -lah packages/ee/ui-release
+
+      - name: Upload to the UI channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$UI_CHANNEL_TAG" packages/ee/ui-release/* --clobber

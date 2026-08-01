@@ -6,6 +6,7 @@ out
 dist
 packages/cli/.release
 packages/desktop/release
+packages/ee/ui-release
 *.tgz
 
 # code coverage

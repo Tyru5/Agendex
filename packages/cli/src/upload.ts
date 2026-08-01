@@ -2,7 +2,12 @@ import { readFile, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { hostname as osHostname } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
-import { loadConfig, loadOrCreateDeviceId, resolveCustomPlanDirPath } from '@agendex/shared';
+import {
+  isHomeRelativePath,
+  loadConfig,
+  loadOrCreateDeviceId,
+  resolveCustomPlanDirPath,
+} from '@agendex/shared';
 import { getSiteUrl, launchBrowser } from './auth.ts';
 import { type SyncPlanResult, syncPlan as defaultSyncPlan } from './api.ts';
 import { getLocalIpAddress } from './network.ts';
@@ -52,7 +57,7 @@ function resolveLaunchCwd(): string {
 
 function resolveUploadFilePath(pathArg: string): string {
   const trimmed = pathArg.trim();
-  if (isAbsolute(trimmed) || trimmed === '~' || trimmed.startsWith('~/')) {
+  if (isAbsolute(trimmed) || isHomeRelativePath(trimmed)) {
     return resolveCustomPlanDirPath(trimmed);
   }
   return resolve(resolveLaunchCwd(), trimmed);

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { lstat, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
 import { getConfigDir, loadConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
@@ -220,8 +220,11 @@ async function parseGenericMarkdownPlan(
 
     const bodyContent = fmMatch ? content.slice(fmMatch[0].length) : content;
     const titleMatch = bodyContent.match(/^#\s+(.+)/m);
-    const title =
-      titleMatch?.[1]?.trim() || filePath.split('/').pop()?.replace('.md', '') || 'Untitled';
+    // basename, not split('/'): on Windows filePath is backslash-separated, so
+    // splitting on '/' yields the whole path and every heading-less plan was
+    // titled with its full absolute path. It also strips `.md` as a suffix
+    // rather than replacing the first occurrence anywhere in the name.
+    const title = titleMatch?.[1]?.trim() || basename(filePath, '.md') || 'Untitled';
 
     return {
       id: hashPath(filePath),

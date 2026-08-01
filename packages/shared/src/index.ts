@@ -21,6 +21,7 @@ export {
   loadOrInitConfig,
   normalizeCustomPlanDirs,
   removeCustomPlanDir,
+  isHomeRelativePath,
   resolveCustomPlanDirPath,
   saveConfig,
   setDevMode,

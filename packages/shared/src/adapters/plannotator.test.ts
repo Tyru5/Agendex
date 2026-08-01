@@ -23,6 +23,15 @@ const originalEnv: Record<string, string | undefined> = {
 let tempHome: string | undefined;
 let server: Server | undefined;
 
+/**
+ * Plans carry native filesystem paths (they get opened and written back), so
+ * suffix assertions written with `/` must normalize before comparing or they
+ * only hold on POSIX.
+ */
+function posix(path: string | undefined): string {
+  return (path ?? '').replaceAll('\\', '/');
+}
+
 function restoreEnv(name: keyof typeof originalEnv) {
   const value = originalEnv[name];
   if (value === undefined) delete process.env[name];
@@ -155,12 +164,12 @@ test('parses project-level Plannotator @plans directories', async () => {
   if (!plan) throw new Error('Expected a parsed project-level Plannotator plan');
   expect(plan.agent).toBe('plannotator');
   expect(plan.title).toBe('Checkout Refactor');
-  expect(plan.filePath.endsWith('/@plans/checkout-refactor.md')).toBe(true);
-  expect(plan.workspace?.endsWith('/workspace/demo-project')).toBe(true);
+  expect(posix(plan.filePath).endsWith('/@plans/checkout-refactor.md')).toBe(true);
+  expect(posix(plan.workspace).endsWith('/workspace/demo-project')).toBe(true);
   expect(plan.metadata.sourceAdapter).toBe('plannotator');
   expect((plan.metadata.plannotator as { kind?: string }).kind).toBe('project-plan');
   expect(
-    (plan.metadata.plannotator as { annotationsPath?: string }).annotationsPath?.endsWith(
+    posix((plan.metadata.plannotator as { annotationsPath?: string }).annotationsPath).endsWith(
       '/@plans/checkout-refactor.annotations.md',
     ),
   ).toBe(true);

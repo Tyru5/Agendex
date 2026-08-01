@@ -1,7 +1,7 @@
 // @amp-plugin from https://ampcode.com/@amp/plugins/kimi-k3-mode.ts
 // @amp-agent-mode {"key":"kimi-k3","label":"Kimi K3"}
 
-import type { PluginAPI } from '@ampcode/plugin'
+import type { PluginAPI } from '@ampcode/plugin';
 
 const KIMI_K3_AGENT_PROMPT = `
 You are Amp, an autonomous coding agent working directly in the user's workspace. Deliver the requested outcome with senior engineering judgment: understand the relevant code, make the smallest complete change, and verify it before reporting success.
@@ -40,42 +40,42 @@ You are Amp, an autonomous coding agent working directly in the user's workspace
 - If verification fails, diagnose the error and make a relevant correction before rerunning. Never claim a check passed when it did not run or failed.
 - Keep progress updates to decisions, changed direction, and blockers. Do not expose hidden reasoning or narrate routine tool calls.
 - Finish with the outcome, important decisions, verification performed, and anything unresolved. Keep the response concise and link local files with readable Markdown links.
-`
+`;
 
 const TOOL_NAMES = [
-	'Read',
-	'finder',
-	'shell_command',
-	'shell_command_status',
-	'create_file',
-	'edit_file',
-	'web_search',
-	'read_web_page',
-	'read_thread',
-	'find_thread',
-	'skill',
-	'oracle',
-	'Task',
-	'librarian',
-	'view_media',
-	'mcp__*'
-] as const
+  'Read',
+  'finder',
+  'shell_command',
+  'shell_command_status',
+  'create_file',
+  'edit_file',
+  'web_search',
+  'read_web_page',
+  'read_thread',
+  'find_thread',
+  'skill',
+  'oracle',
+  'Task',
+  'librarian',
+  'view_media',
+  'mcp__*',
+] as const;
 
 export default function (amp: PluginAPI) {
-	const agent = amp.createAgent({
-		name: 'kimi-k3',
-		model: 'fireworks/accounts/fireworks/models/kimi-k3',
-		instructions: KIMI_K3_AGENT_PROMPT,
-		tools: TOOL_NAMES,
-		reasoningEffort: 'max',
-		display: { label: 'Kimi K3', color: '#3b82f6' },
-	})
+  const agent = amp.createAgent({
+    name: 'kimi-k3',
+    model: 'fireworks/accounts/fireworks/models/kimi-k3',
+    instructions: KIMI_K3_AGENT_PROMPT,
+    tools: TOOL_NAMES,
+    reasoningEffort: 'max',
+    display: { label: 'Kimi K3', color: '#3b82f6' },
+  });
 
-	amp.registerAgentMode({
-		key: 'kimi-k3',
-		label: 'Kimi K3',
-		description: 'Kimi K3 on Fireworks',
-		color: '#3b82f6',
-		agent: agent.definition,
-	})
+  amp.registerAgentMode({
+    key: 'kimi-k3',
+    label: 'Kimi K3',
+    description: 'Kimi K3 on Fireworks',
+    color: '#3b82f6',
+    agent: agent.definition,
+  });
 }

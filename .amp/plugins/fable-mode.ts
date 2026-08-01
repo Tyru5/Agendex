@@ -5,7 +5,7 @@
 // @amp-agent-mode {"key":"claude-fable-xhi","label":"Claude Fable xhi"}
 // @amp-agent-mode {"key":"claude-fable-max","label":"Claude Fable max"}
 
-import type { PluginAPI } from '@ampcode/plugin'
+import type { PluginAPI } from '@ampcode/plugin';
 
 const FABLE_AGENT_PROMPT = `
 You are pair programming with a user to solve their coding task. Your main goal is to follow the user's instructions and verify that the result works.
@@ -129,84 +129,83 @@ When referencing files in your response, prefer "fluent" linking style. Do not s
 When linking a file, the URL should use \`file\` as the scheme, the absolute path to the file as the path, and an optional fragment with the line range. Always URL-encode special characters in file paths (spaces become \`%20\`, parentheses become \`%28\` and \`%29\`, etc.).
 
 For example, if the user asks for a link to \`~/src/app/routes/(app)/threads/+page.svelte\`, respond with [~/src/app/routes/(app)/threads/+page.svelte](file:///Users/bob/src/app/routes/%28app%29/threads/+page.svelte). You can also reference specific lines within a file like "The [auth logic](file:///Users/alice/project/config/auth.js#L15-L23) calls [validateToken](file:///Users/alice/project/config/validate.js#L45)".
-`
+`;
 
 const SMART_TOOL_NAMES = [
-	'finder',
-	'shell_command',
-	'shell_command_status',
-	'create_file',
-	'edit_file',
-	'web_search',
-	'read_web_page',
-	'read_thread',
-	'find_thread',
-	'skill',
-	'oracle',
-	'librarian',
-	'Task',
-	'view_media',
-	'painter',
-	'read_mcp_resource',
-	'archive_current_thread',
-	'send_message_to_agg',
-	'mcp__*',
-] as const
-
+  'finder',
+  'shell_command',
+  'shell_command_status',
+  'create_file',
+  'edit_file',
+  'web_search',
+  'read_web_page',
+  'read_thread',
+  'find_thread',
+  'skill',
+  'oracle',
+  'librarian',
+  'Task',
+  'view_media',
+  'painter',
+  'read_mcp_resource',
+  'archive_current_thread',
+  'send_message_to_agg',
+  'mcp__*',
+] as const;
 
 export default function (amp: PluginAPI) {
-	if (!amp.experimental) {
-		amp.logger.log('Experimental plugin API is not available.')
-		return
-	}
+  if (!amp.experimental) {
+    amp.logger.log('Experimental plugin API is not available.');
+    return;
+  }
 
-	const agent = amp.experimental.createAgent({
-		name: 'claude-fable-5',
-		model: 'anthropic/claude-fable-5',
-		instructions: FABLE_AGENT_PROMPT,
-		tools: SMART_TOOL_NAMES,
-		reasoningEffort: 'high',
-		display: { label: 'Claude Fable 5', color: '#8b5cf6' },
-	})
+  const agent = amp.experimental.createAgent({
+    name: 'claude-fable-5',
+    model: 'anthropic/claude-fable-5',
+    instructions: FABLE_AGENT_PROMPT,
+    tools: SMART_TOOL_NAMES,
+    reasoningEffort: 'high',
+    display: { label: 'Claude Fable 5', color: '#8b5cf6' },
+  });
 
-	amp.experimental.registerAgentMode({
-		key: 'claude-fable-5',
-		label: 'Claude Fable 5',
-		description: 'Claude Fable 5 at high',
-		color: '#8b5cf6',
-		agent: agent.definition,
-	})
+  amp.experimental.registerAgentMode({
+    key: 'claude-fable-5',
+    label: 'Claude Fable 5',
+    description: 'Claude Fable 5 at high',
+    color: '#8b5cf6',
+    agent: agent.definition,
+  });
 
-	// Variants at the other reasoning levels fable supports. 'none'/'minimal' are
-	// omitted: the Anthropic adaptive-thinking path coerces anything outside
-	// ['low','medium','high','xhigh','max'] to 'medium'. 'xhigh'/'max' are beyond
-	// the plugin API's declared type, but nothing validates them at runtime and
-	// the API accepts them (output_config.effort).
-	// Keys and labels must be <= 16 characters (enforced by the plugin runtime),
-	// so the levels are abbreviated to three letters: "Claude Fable " + 3 = 16.
-	const extraEffortLevels = [
-		['low', 'low'],
-		['medium', 'med'],
-		['xhigh', 'xhi'],
-		['max', 'max'],
-	] as const
+  // Variants at the other reasoning levels fable supports. 'none'/'minimal' are
+  // omitted: the Anthropic adaptive-thinking path coerces anything outside
+  // ['low','medium','high','xhigh','max'] to 'medium'. 'xhigh'/'max' are beyond
+  // the plugin API's declared type, but nothing validates them at runtime and
+  // the API accepts them (output_config.effort).
+  // Keys and labels must be <= 16 characters (enforced by the plugin runtime),
+  // so the levels are abbreviated to three letters: "Claude Fable " + 3 = 16.
+  const extraEffortLevels = [
+    ['low', 'low'],
+    ['medium', 'med'],
+    ['xhigh', 'xhi'],
+    ['max', 'max'],
+  ] as const;
 
-	for (const [level, short] of extraEffortLevels) {
-		const levelAgent = amp.experimental.createAgent({
-			name: `claude-fable-5-${level}`,
-			model: 'anthropic/claude-fable-5',
-			instructions: FABLE_AGENT_PROMPT,
-			tools: SMART_TOOL_NAMES,
-			reasoningEffort: level as unknown as 'high',
-			display: { label: `Claude Fable ${short}`, color: '#c4b5fd' },
-		})
+  for (const [level, short] of extraEffortLevels) {
+    const levelAgent = amp.experimental.createAgent({
+      name: `claude-fable-5-${level}`,
+      model: 'anthropic/claude-fable-5',
+      instructions: FABLE_AGENT_PROMPT,
+      tools: SMART_TOOL_NAMES,
+      reasoningEffort: level as unknown as 'high',
+      display: { label: `Claude Fable ${short}`, color: '#c4b5fd' },
+    });
 
-		amp.experimental.registerAgentMode({
-			key: `claude-fable-${short}`,
-			label: `Claude Fable ${short}`,
-			description: `Claude Fable 5 at ${level}`,
-			color: '#c4b5fd',
-			agent: levelAgent.definition,
-		})
-	}
+    amp.experimental.registerAgentMode({
+      key: `claude-fable-${short}`,
+      label: `Claude Fable ${short}`,
+      description: `Claude Fable 5 at ${level}`,
+      color: '#c4b5fd',
+      agent: levelAgent.definition,
+    });
+  }
 }

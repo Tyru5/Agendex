@@ -1,0 +1,4 @@
+{
+  "$comment": "Minimum desktop shell version this UI can run against. Bump it in the same PR that makes the UI depend on a new IPC method, preload bridge field, or /api/v1 route. Shells older than this ignore published bundles and keep serving the UI they shipped with.",
+  "minShellVersion": "1.4.15"
+}

@@ -9,8 +9,13 @@ import { buildAgendexApp } from './app.ts';
 export interface StartNodeServerOptions {
   /** Port to listen on. Use `0` for an ephemeral free port. Defaults to `0`. */
   port?: number;
-  /** Absolute path to the built client directory (`packages/app/src/client/dist`). */
-  clientDistDir: string;
+  /**
+   * Absolute path to the built client directory (`packages/app/src/client/dist`),
+   * or a resolver invoked per request. The desktop app passes a resolver so a
+   * downloaded UI bundle can be swapped in and picked up on the next page load
+   * without restarting the server.
+   */
+  clientDistDir: string | (() => string);
   /** Hostname to bind. Defaults to `127.0.0.1`. */
   hostname?: string;
 }
@@ -86,20 +91,42 @@ function looksLikeAssetPath(pathname: string): boolean {
 }
 
 /**
- * Serves the built client from an absolute directory with an SPA fallback to
- * `index.html`. Avoids serveStatic `root` resolution quirks so packaged
- * Electron apps (unpredictable cwd) work cross-platform.
+ * Cache policy for served client files.
+ *
+ * Vite emits content-hashed filenames under `/assets/`, so those are safe to
+ * cache indefinitely. Everything else — above all `index.html`, which names the
+ * current asset hashes — must not be cached: when the desktop app swaps in a
+ * downloaded UI bundle, a stale document would reference asset hashes that no
+ * longer exist in the new bundle.
  */
-function mountStaticFromDir(app: Hono, clientDistDir: string) {
-  const indexPath = join(clientDistDir, 'index.html');
+function cacheControlFor(pathname: string): string {
+  if (pathname.startsWith('/assets/')) return 'public, max-age=31536000, immutable';
+  if (pathname.endsWith('.html')) return 'no-store';
+  return 'no-cache';
+}
 
+/**
+ * Serves the built client with an SPA fallback to `index.html`. Avoids
+ * serveStatic `root` resolution quirks so packaged Electron apps (unpredictable
+ * cwd) work cross-platform.
+ *
+ * The root is resolved per request rather than captured once, so the desktop
+ * shell can activate a different UI bundle directory and have it take effect on
+ * the next reload with no server restart. Each request already touches the
+ * filesystem, so this costs nothing extra.
+ */
+function mountStaticFromDir(app: Hono, resolveClientDistDir: () => string) {
   app.get('/*', (c) => {
     const pathname = new URL(c.req.url).pathname;
+    const clientDistDir = resolveClientDistDir();
     const file = resolveStaticFile(clientDistDir, pathname);
 
     if (file) {
       const body = readFileSync(file);
-      return c.body(body, 200, { 'Content-Type': contentTypeFor(file) });
+      return c.body(body, 200, {
+        'Content-Type': contentTypeFor(file),
+        'Cache-Control': cacheControlFor(pathname),
+      });
     }
 
     // Missing asset paths must not SPA-fallback: that turns 404s into HTML
@@ -108,9 +135,13 @@ function mountStaticFromDir(app: Hono, clientDistDir: string) {
       return c.text('Not found', 404);
     }
 
+    const indexPath = join(clientDistDir, 'index.html');
     if (existsSync(indexPath)) {
       const html = readFileSync(indexPath);
-      return c.body(html, 200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return c.body(html, 200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
     }
 
     return c.text('Not found', 404);
@@ -123,6 +154,8 @@ function mountStaticFromDir(app: Hono, clientDistDir: string) {
  */
 export function startNodeServer(options: StartNodeServerOptions): Promise<RunningNodeServer> {
   const { port = 0, clientDistDir, hostname = '127.0.0.1' } = options;
+  const resolveClientDistDir =
+    typeof clientDistDir === 'function' ? clientDistDir : () => clientDistDir;
 
   const app = new Hono();
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
@@ -130,7 +163,7 @@ export function startNodeServer(options: StartNodeServerOptions): Promise<Runnin
   const { token, ready } = buildAgendexApp({
     app,
     upgradeWebSocket,
-    mountStatic: (a) => mountStaticFromDir(a, clientDistDir),
+    mountStatic: (a) => mountStaticFromDir(a, resolveClientDistDir),
   });
 
   return new Promise<RunningNodeServer>((resolve, reject) => {

@@ -32,6 +32,19 @@ export interface UpdateState {
   error?: string;
 }
 
+/**
+ * State of the UI-only updater, which swaps the client bundle the desktop's
+ * local server serves without replacing the Electron app.
+ */
+export interface UiUpdateState {
+  status: UpdateStatus;
+  /** Git commit timestamp of the staged bundle. */
+  revision?: number;
+  label?: string;
+  progress?: number;
+  error?: string;
+}
+
 /** Build identity of the running desktop app, used to surface unsigned builds. */
 export interface DesktopBuildInfo {
   /** process.platform of the running app ('win32', 'darwin', ...). */
@@ -71,6 +84,13 @@ export interface AgendexDesktopBridge {
   getBuildInfo: () => Promise<DesktopBuildInfo>;
   getPageZoomFactor?: () => number;
   resetPageZoom?: () => void;
+  // UI-bundle updates. Optional: a shell older than this feature has no such
+  // methods, and the UI must keep working there.
+  checkForUiUpdates?: () => Promise<void>;
+  applyUiUpdate?: () => Promise<void>;
+  getUiUpdateState?: () => Promise<UiUpdateState>;
+  getUiRevision?: () => Promise<number>;
+  signalUiReady?: () => void;
 }
 
 function getBridge(): AgendexDesktopBridge | undefined {
@@ -208,4 +228,22 @@ export async function desktopBridgeAuthFetch(
 
 export function getDesktopBridgeIdentity(): AgendexDesktopBridge | undefined {
   return getBridge();
+}
+
+/** Dispatched by the desktop preload when the UI-bundle updater changes state. */
+export const DESKTOP_UI_UPDATE_STATE_EVENT = 'agendex:ui-update:state';
+
+/**
+ * Tells the desktop shell this bundle rendered successfully.
+ *
+ * The shell reverts to the UI it shipped with if a freshly activated bundle
+ * never signals within its boot window, so this is what stops a working update
+ * from being rolled back. Safe to call outside the desktop app (no-op).
+ */
+export function signalDesktopUiReady(): void {
+  try {
+    getBridge()?.signalUiReady?.();
+  } catch (err) {
+    console.error('[agendex-desktop] failed to signal UI ready', err);
+  }
 }
