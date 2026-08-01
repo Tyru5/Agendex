@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.0.0
+
+### Major Changes
+
+- 25ea538: Add remote UI updates to desktop application
+
 ## 4.2.1
 
 ### Patch Changes
