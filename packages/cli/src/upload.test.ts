@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { saveConfig } from '@agendex/shared';
 import type { SyncPlanResult, SyncPlanPayload } from './api.ts';
 import { runUpload } from './upload.ts';
@@ -220,7 +220,10 @@ test('expands tilde in upload path', async () => {
   writeFileSync(f, '# Tilde Plan');
   const cap = newCapture();
   try {
-    const tildePath = `~${homePlanDir.slice(homedir().length)}/plan.md`;
+    // Build the tilde path from the directory name rather than slicing the
+    // home prefix: on Windows that slice starts with a backslash, producing
+    // `~\dir/plan.md`, which is neither a tilde path nor an absolute one.
+    const tildePath = `~/${basename(homePlanDir)}/plan.md`;
     const code = await runUpload(['upload', tildePath], makeDeps({ ok: true }, cap));
     expect(code).toBe(0);
     expect(cap.lastPayload?.filePath).toBe(f);

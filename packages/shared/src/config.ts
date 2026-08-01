@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import lockfile from 'proper-lockfile';
 import type { AdapterId } from './adapters/catalog.ts';
 import { getDefaultAdapterIds, sanitizeEnabledAdapterIds } from './adapters/registry.ts';
@@ -202,8 +202,21 @@ export function applyAdapterEnableMigrations(
   };
 }
 
+/**
+ * True for `~`, `~/…`, and on Windows also `~\…`.
+ *
+ * `~` is a POSIX shell convention, but neither cmd nor PowerShell expands it in
+ * arguments passed to an executable — so a Windows user who types
+ * `agendex upload ~\plans\x.md` hands us the tilde verbatim and expects it to
+ * work. A bare backslash is a legal character in POSIX filenames, so the
+ * backslash form is only recognised on Windows.
+ */
+export function isHomeRelativePath(p: string): boolean {
+  return p === '~' || p.startsWith('~/') || (sep === '\\' && p.startsWith('~\\'));
+}
+
 function expandHomePath(p: string): string {
-  if (p.startsWith('~/') || p === '~') return join(getHomeDir(), p.slice(1));
+  if (isHomeRelativePath(p)) return join(getHomeDir(), p.slice(1));
   return p;
 }
 

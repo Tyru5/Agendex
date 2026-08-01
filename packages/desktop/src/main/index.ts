@@ -34,6 +34,10 @@ import { installDesktopProtocolLifecycle } from './desktop-protocol-lifecycle.ts
 import { stopDesktopServices } from './desktop-shutdown.ts';
 import { loadWithRetry } from './window-loader.ts';
 import { DesktopDaemonManager } from './desktop-daemon-manager.ts';
+import { getUiFeedUrl, isUiUpdateDisabled } from './ui-bundle/config.ts';
+import { getUiBundlePublicKey, hasUiBundlePublicKey } from './ui-bundle/keys.ts';
+import { createUiBundleStore } from './ui-bundle/store.ts';
+import { createUiUpdater } from './ui-updater.ts';
 
 // Package name is `@agendex/desktop`; without this, Electron labels the
 // macOS Keychain item for safeStorage as "@agendex/desktop Safe Storage".
@@ -62,7 +66,17 @@ function isAuthSessionGenerationCurrent(generation: number): boolean {
   return generation === authSessionGeneration;
 }
 
-function resolveClientDistDir(): string {
+function logDesktop(message: string, error?: unknown): void {
+  if (error === undefined) console.error(`[agendex-desktop] ${message}`);
+  else console.error(`[agendex-desktop] ${message}`, error);
+}
+
+/**
+ * The UI the app shipped with. Immutable: on macOS it lives inside the signed,
+ * notarized .app, so it is the offline floor rather than an update target.
+ * Downloaded bundles live under userData — see ui-bundle/store.ts.
+ */
+function resolveShippedClientDistDir(): string {
   if (app.isPackaged) {
     // electron-builder copies the built EE client to resources/client (see electron-builder.yml).
     return join(process.resourcesPath, 'client');
@@ -71,9 +85,27 @@ function resolveClientDistDir(): string {
   return join(__dirname, '../../../ee/dist');
 }
 
+const uiBundleRootDir = join(app.getPath('userData'), 'ui');
+
+const uiBundleStore = createUiBundleStore({
+  rootDir: uiBundleRootDir,
+  shippedDir: resolveShippedClientDistDir(),
+  shellVersion: app.getVersion(),
+  log: logDesktop,
+});
+
 function createWindow(targetUrl: string): void {
   mainWindow = createDesktopWindow(targetUrl, () => {
     mainWindow = null;
+  });
+  // Secondary net under the boot sentinel in ui-updater: this catches a bundle
+  // that fails to load outright. A bundle whose JS throws after loading still
+  // fires did-finish-load, which is why the sentinel timer exists as well.
+  mainWindow.webContents.on('did-fail-load', (_event, _code, _description, _url, isMainFrame) => {
+    if (isMainFrame) uiUpdater.notifyLoadFailure();
+  });
+  mainWindow.webContents.on('render-process-gone', () => {
+    uiUpdater.notifyLoadFailure();
   });
 }
 
@@ -85,18 +117,28 @@ async function ensureBackend() {
   }
 
   backendBoot = (async () => {
-    const clientDistDir = resolveClientDistDir();
-
     if (is.dev) {
       // Renderer HMR: API on the fixed port the EE client's dev proxy + WS expect,
-      // window points at the EE Vite dev server.
-      server = await startNodeServer({ port: DEV_SERVER_PORT, clientDistDir });
+      // window points at the EE Vite dev server. Dev never serves a downloaded
+      // bundle — the Vite dev server is the renderer.
+      server = await startNodeServer({
+        port: DEV_SERVER_PORT,
+        clientDistDir: resolveShippedClientDistDir(),
+      });
       localApiToken = server.token;
       rendererTargetUrl = process.env.AGENDEX_RENDERER_URL ?? DEV_RENDERER_URL;
     } else {
       // Prod: ephemeral port on `localhost` (a cloud-trusted origin so better-auth
       // CORS accepts the desktop), client + local API served from the same origin.
-      server = await startNodeServer({ port: 0, clientDistDir, hostname: 'localhost' });
+      //
+      // The client directory is resolved per request, so activating a downloaded
+      // UI bundle takes effect on the next page load without restarting the
+      // server or changing the origin.
+      server = await startNodeServer({
+        port: 0,
+        clientDistDir: () => uiBundleStore.resolveActiveDir(),
+        hostname: 'localhost',
+      });
       localApiToken = server.token;
       rendererTargetUrl = `http://localhost:${server.port}/dashboard`;
     }
@@ -228,6 +270,50 @@ const desktopUpdater = createDesktopUpdater({
     else console.error(`[agendex-desktop] ${message}`, error);
   },
 });
+
+// UI-only updates. Independent of desktopUpdater above: this swaps the served
+// client bundle without replacing the app, so a UI change ships without a new
+// signed Electron build. Unlike the app updater it stays enabled for Windows
+// portable builds, which cannot self-replace but can still write to userData.
+const uiUpdater = createUiUpdater({
+  store: uiBundleStore,
+  rootDir: uiBundleRootDir,
+  feedUrl: getUiFeedUrl(),
+  publicKeyPem: getUiBundlePublicKey(),
+  shellVersion: app.getVersion(),
+  fetchImpl: (input, init) => fetch(input, init),
+  isPackaged: app.isPackaged,
+  // No baked signing key means nothing can be trusted, so stay on the shipped UI.
+  enabled: !isUiUpdateDisabled() && hasUiBundlePublicKey(),
+  promptToReload: async ({ label }) => {
+    const { response } = await dialog.showMessageBox({
+      type: 'info',
+      title: 'Interface Update Ready',
+      message: 'A new version of the Agendex interface is ready.',
+      detail: `Reload to start using it (${label}), or it will be applied the next time you open Agendex.`,
+      buttons: ['Reload Now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    return { reloadNow: response === 0 };
+  },
+  applyReload: () => reloadMainWindow(),
+  onStateChange: (state) => {
+    mainWindow?.webContents.send('agendex:ui-update:state', state);
+  },
+  log: logDesktop,
+});
+
+ipcMain.handle('agendex:ui-update:check', () => uiUpdater.checkForUpdates());
+ipcMain.handle('agendex:ui-update:apply', () => uiUpdater.applyStaged());
+ipcMain.handle('agendex:ui-update:get-state', () => uiUpdater.getState());
+ipcMain.handle(
+  'agendex:get-ui-revision',
+  () => uiBundleStore.activeRevision() ?? uiBundleStore.shippedStamp().revision,
+);
+// Sent by the renderer once React mounts. This is what proves the *bundle's*
+// JavaScript ran: the preload firing only proves the shell loaded.
+ipcMain.on('agendex:ui-ready', () => uiUpdater.notifyRendererReady());
 
 async function syncDaemonSession(creds: CloudCreds): Promise<void> {
   try {
@@ -380,6 +466,11 @@ if (!gotLock) {
         : {},
     );
     desktopUpdater.start();
+
+    // Before anything is served: a bundle still marked pending from the last run
+    // never reported a successful boot, so treat it as broken and fall back.
+    uiUpdater.reconcilePendingVerify();
+    uiUpdater.start();
 
     const bootstrapAuthGeneration = authSessionGeneration;
     void refreshCloudSession()

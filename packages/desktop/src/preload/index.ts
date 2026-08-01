@@ -43,6 +43,14 @@ interface UpdateState {
   error?: string;
 }
 
+interface UiUpdateState {
+  status: UpdateStatus;
+  revision?: number;
+  label?: string;
+  progress?: number;
+  error?: string;
+}
+
 interface DesktopBuildInfo {
   platform: string;
   /** null when unknown: dev builds, and platforms that record no signing evidence. */
@@ -55,6 +63,10 @@ interface DesktopBuildInfo {
 // listen for with window.addEventListener.
 ipcRenderer.on('agendex:update:state', (_event, state: UpdateState) => {
   window.dispatchEvent(new CustomEvent('agendex:update:state', { detail: state }));
+});
+
+ipcRenderer.on('agendex:ui-update:state', (_event, state: UiUpdateState) => {
+  window.dispatchEvent(new CustomEvent('agendex:ui-update:state', { detail: state }));
 });
 
 function emitPageZoom(factor = webFrame.getZoomFactor()) {
@@ -183,6 +195,18 @@ const agendexDesktop = {
   checkForUpdates: (): Promise<void> => ipcRenderer.invoke('agendex:update:check'),
   installUpdate: (): Promise<void> => ipcRenderer.invoke('agendex:update:install'),
   getUpdateState: (): Promise<UpdateState> => ipcRenderer.invoke('agendex:update:get-state'),
+  checkForUiUpdates: (): Promise<void> => ipcRenderer.invoke('agendex:ui-update:check'),
+  applyUiUpdate: (): Promise<void> => ipcRenderer.invoke('agendex:ui-update:apply'),
+  getUiUpdateState: (): Promise<UiUpdateState> => ipcRenderer.invoke('agendex:ui-update:get-state'),
+  getUiRevision: (): Promise<number> => ipcRenderer.invoke('agendex:get-ui-revision'),
+  /**
+   * Confirms the served UI bundle actually rendered. The main process treats a
+   * bundle that never signals this as broken and reverts to the shipped UI, so
+   * this must stay wired up in the renderer.
+   */
+  signalUiReady: (): void => {
+    ipcRenderer.send('agendex:ui-ready');
+  },
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('agendex:get-app-version'),
   getBuildInfo: (): Promise<DesktopBuildInfo> => ipcRenderer.invoke('agendex:get-build-info'),
   getPageZoomFactor: (): number => webFrame.getZoomFactor(),

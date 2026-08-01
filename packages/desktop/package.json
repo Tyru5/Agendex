@@ -6,7 +6,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "concurrently -k -n vite,electron -c green,cyan \"bun run --cwd ../ee dev:client\" \"cross-env AGENDEX_RENDERER_URL=http://app.agendex.localhost:5174/dashboard electron-vite dev --watch\"",
-    "build": "bun run --cwd ../ee build && electron-vite build",
+    "build": "bun run --cwd ../ee build && node ../../scripts/build-ui-bundle.mjs --stamp-only && electron-vite build",
     "dist": "electron-builder --publish never",
     "dist:mac": "bun run build && electron-builder --mac --publish never",
     "dist:win": "bun run build && electron-builder --win --publish never"
@@ -17,7 +17,8 @@
     "@agendex/shared": "workspace:*",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.9",
+    "tar": "^7.5.7"
   },
   "devDependencies": {
     "concurrently": "^9.0.3",

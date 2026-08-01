@@ -5,6 +5,21 @@ import {
   type UpdateState,
 } from '../../lib/desktop.ts';
 import { useDesktopUpdate } from '../../hooks/useDesktopUpdate.ts';
+import { useDesktopUiUpdate } from '../../hooks/useDesktopUiUpdate.ts';
+
+/**
+ * UI bundle revisions are the git commit timestamp they were built from, which
+ * is meaningless to read as a number — show the date instead.
+ */
+function formatUiRevision(revision: number | null): string {
+  if (revision === null) return '—';
+  if (revision === 0) return 'Shipped with app';
+  return new Date(revision * 1000).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
 function StatusDot({ status }: { status: UpdateState['status'] }) {
   const color =
@@ -46,6 +61,12 @@ function StatusLabel({ status }: { status: UpdateState['status'] }) {
 
 export function UpdateTab() {
   const { state, checkForUpdates, installUpdate } = useDesktopUpdate();
+  const {
+    state: uiState,
+    revision: uiRevision,
+    checkForUiUpdates,
+    applyUiUpdate,
+  } = useDesktopUiUpdate();
   const [appVersion, setAppVersion] = useState<string>('—');
   const [buildInfo, setBuildInfo] = useState<DesktopBuildInfo | null>(null);
 
@@ -161,6 +182,78 @@ export function UpdateTab() {
           )}
         </div>
       </div>
+
+      {/* Interface updates: shipped independently of the app, so they apply with
+          a reload instead of a reinstall. */}
+      {uiState.status !== 'unsupported' && (
+        <div className="rounded-2xl border border-border bg-surface p-6">
+          <h3 className="text-[14px] font-semibold text-text mb-4">Interface</h3>
+          <div className="flex items-center justify-between text-[13px]">
+            <span className="text-tertiary">Current interface</span>
+            <code className="font-mono text-[12px] bg-hover px-2 py-0.5 rounded">
+              {formatUiRevision(uiRevision)}
+            </code>
+          </div>
+
+          <div className="flex items-center gap-3 mt-4 mb-4">
+            <StatusDot status={uiState.status} />
+            <span className="text-[13px] text-text font-medium">
+              {uiState.status === 'ready'
+                ? 'Interface update ready — reload to apply'
+                : uiState.status === 'downloading'
+                  ? 'Downloading interface update…'
+                  : uiState.status === 'checking'
+                    ? 'Checking for interface updates…'
+                    : uiState.status === 'no-update'
+                      ? 'Interface is up to date'
+                      : uiState.status === 'error'
+                        ? 'Interface update error'
+                        : 'Not checked yet'}
+            </span>
+          </div>
+
+          {uiState.status === 'downloading' && uiState.progress !== undefined && (
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-[12px] text-tertiary mb-1">
+                <span>Downloading…</span>
+                <span>{Math.round(uiState.progress)}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-border overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${uiState.progress}%`, background: 'var(--accent)' }}
+                />
+              </div>
+            </div>
+          )}
+
+          {uiState.error && (
+            <div className="text-[12px] text-[var(--danger,#ff4757)] break-words mb-4">
+              {uiState.error}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={checkForUiUpdates}
+              disabled={uiState.status === 'checking' || uiState.status === 'downloading'}
+              className="agendex-topbar-button text-[13px] px-4 py-2 rounded-lg border border-border cursor-pointer font-medium hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {uiState.status === 'checking' ? 'Checking…' : 'Check for Interface Updates'}
+            </button>
+            {uiState.status === 'ready' && (
+              <button
+                type="button"
+                onClick={applyUiUpdate}
+                className="agendex-topbar-primary text-[13px] px-4 py-2 rounded-lg cursor-pointer font-semibold"
+              >
+                Reload Now
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

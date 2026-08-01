@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { clearGitContextCache, computeContentHash, hashPath, type Plan } from '@agendex/shared';
 import { fileToSyncPayload, parseUploadFile, planToSyncPayload } from './payload.ts';
 
@@ -152,17 +152,21 @@ test("parseUploadFile defaults agent to 'uploaded'", () => {
 });
 
 test('fileToSyncPayload derives localPlanId from absolute path hash', () => {
-  const payload = fileToSyncPayload('/tmp/abs/plan.md', '# Plan\n\nbody', {
+  // fileToSyncPayload resolves its input, so the expectations must resolve too:
+  // on Windows '/tmp/abs/plan.md' resolves to 'C:\tmp\abs\plan.md'.
+  const inputPath = '/tmp/abs/plan.md';
+  const absolutePath = resolve(inputPath);
+  const payload = fileToSyncPayload(inputPath, '# Plan\n\nbody', {
     createdAt: 100,
     updatedAt: 200,
   });
-  expect(payload.localPlanId).toBe(hashPath('/tmp/abs/plan.md'));
+  expect(payload.localPlanId).toBe(hashPath(absolutePath));
   expect(payload.format).toBe('md');
   expect(payload.title).toBe('Plan');
   expect(payload.content).toBe('# Plan\n\nbody');
   expect(payload.createdAt).toBe(100);
   expect(payload.updatedAt).toBe(200);
-  expect(payload.filePath).toBe('/tmp/abs/plan.md');
+  expect(payload.filePath).toBe(absolutePath);
 });
 
 test('fileToSyncPayload records upload provenance metadata', () => {

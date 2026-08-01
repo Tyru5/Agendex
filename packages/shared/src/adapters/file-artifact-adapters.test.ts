@@ -202,7 +202,9 @@ test('Kiro combines requirements, design, and tasks into one plan', async () => 
   expect(fromTasks?.content).toContain('## Tasks');
   expect(fromTasks?.filePath).toBe(tasks);
   expect(fromTasks?.metadata.sourcePaths).toEqual([requirements, design, tasks]);
-  expect(fromTasks?.workspace).toBe(join(tempRoot, 'repo'));
+  // Adapters report workspaces with POSIX separators (see normalizePath in
+  // file-artifact-adapters.ts) so identity keys match across platforms.
+  expect(fromTasks?.workspace).toBe(join(tempRoot, 'repo').replaceAll('\\', '/'));
 });
 
 test('writable artifact adapters persist edits', async () => {

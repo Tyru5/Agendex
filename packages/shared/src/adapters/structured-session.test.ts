@@ -15,7 +15,10 @@ afterEach(async () => {
   else process.env.HOME = originalHome;
   if (originalXdgDataHome === undefined) delete process.env.XDG_DATA_HOME;
   else process.env.XDG_DATA_HOME = originalXdgDataHome;
-  if (tempRoot) await rm(tempRoot, { recursive: true, force: true });
+  // Retries because recursive rm on Windows can transiently fail while the OS
+  // finishes releasing handles. Anything holding a file open for longer is a
+  // real leak and should still surface here rather than be retried away.
+  if (tempRoot) await rm(tempRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   tempRoot = undefined;
 });
 
@@ -98,9 +101,8 @@ test('OpenCode indexes the latest assistant text emitted by the Plan agent', asy
       data TEXT NOT NULL
     );
   `);
-  database
-    .prepare('INSERT INTO session VALUES (?, ?, ?, ?, ?)')
-    .run('session-1', 'OAuth rollout', '/workspace/project', 1000, 5000);
+  const insertSession = database.prepare('INSERT INTO session VALUES (?, ?, ?, ?, ?)');
+  insertSession.run('session-1', 'OAuth rollout', '/workspace/project', 1000, 5000);
   const insertMessage = database.prepare('INSERT INTO message VALUES (?, ?, ?, ?)');
   const insertPart = database.prepare('INSERT INTO part VALUES (?, ?, ?)');
   insertMessage.run('m1', 'session-1', 2000, JSON.stringify({ role: 'assistant', agent: 'plan' }));
@@ -112,7 +114,14 @@ test('OpenCode indexes the latest assistant text emitted by the Plan agent', asy
   insertPart.run('p4', 'm3', JSON.stringify({ type: 'text', text: '# Plan v2\n\n- [ ] Ship' }));
   insertMessage.run('m4', 'session-1', 4500, JSON.stringify({ role: 'assistant', agent: 'build' }));
   insertPart.run('p5', 'm4', JSON.stringify({ type: 'text', text: 'Implementation finished' }));
-  database.close();
+  // Finalize before closing: Bun's `close()` does not finalize outstanding
+  // prepared statements, so the connection stays open and Windows keeps the
+  // database file locked, breaking the temp-directory cleanup in afterEach.
+  // (`close(true)` surfaces this as "database is locked" rather than hiding it.)
+  insertSession.finalize();
+  insertMessage.finalize();
+  insertPart.finalize();
+  database.close(true);
 
   expect(openCodeAdapter.matches(databasePath)).toBe(true);
   expect(openCodeAdapter.matches(`${databasePath}-wal`)).toBe(true);
