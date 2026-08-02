@@ -185,6 +185,70 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[20px] font-semibold text-text mb-4">{children}</h2>;
 }
 
+function PlanViewerSettingsSection() {
+  const planView = useQuery(api.account.getMyPlanViewPreference, {});
+  const updatePlanView = useMutation(api.account.updatePlanViewPreference);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const selectedView = planView ?? 'list';
+
+  async function selectView(view: 'list' | 'card') {
+    if (saving || view === selectedView) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updatePlanView({ emptyStatePlanView: view });
+    } catch {
+      setError('Unable to update the plan view. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section>
+      <SectionHeading>Plan Viewer</SectionHeading>
+      <div className="rounded-2xl border border-border bg-surface p-5">
+        <div className="text-[14px] font-medium text-text">Empty-state plan layout</div>
+        <p className="mt-1 max-w-[640px] text-[13px] leading-relaxed text-secondary">
+          Choose how plans are displayed when no plan is open. List view is used by default.
+        </p>
+        <fieldset className="mt-4 inline-flex rounded-default border border-border p-1">
+          <legend className="sr-only">Empty-state plan layout</legend>
+          {(['list', 'card'] as const).map((view) => (
+            <label
+              key={view}
+              className={[
+                'cursor-pointer rounded-default px-3 py-1.5 text-[13px] font-medium capitalize transition-colors duration-150 focus-within:outline focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-[var(--primary)]',
+                planView === undefined || saving ? 'cursor-default opacity-50' : '',
+                selectedView === view
+                  ? 'bg-hover text-text'
+                  : 'bg-transparent text-secondary hover:text-text',
+              ].join(' ')}
+            >
+              <input
+                type="radio"
+                name="empty-state-plan-layout"
+                value={view}
+                checked={selectedView === view}
+                disabled={planView === undefined || saving}
+                onChange={() => void selectView(view)}
+                className="sr-only"
+              />
+              {view === 'card' ? 'Cards' : 'List'}
+            </label>
+          ))}
+        </fieldset>
+        {error && (
+          <div className="mt-2 text-[12px] text-red-400" role="alert">
+            {error}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function PrivacySettingsSection() {
   const prefs = useQuery(api.account.getMyPrivacyPreferences, {});
   const updatePrivacyPreferences = useMutation(api.account.updatePrivacyPreferences);
@@ -538,6 +602,9 @@ export function AccountTab({
 
       {/* Sync Privacy */}
       <PrivacySettingsSection />
+
+      {/* Plan Viewer */}
+      <PlanViewerSettingsSection />
 
       {/* Agent Avatars */}
       <AgentAvatarsSection />

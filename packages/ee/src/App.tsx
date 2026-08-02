@@ -16,6 +16,7 @@ import {
   normalizeFilterValues,
   OfflineView,
   type Plan,
+  type PlanViewMode,
   PlanList,
   PlanActionButton,
   PlanSourcesDialog,
@@ -1169,6 +1170,8 @@ function DashboardMain({
   selectedPlanOutsideFilters,
   selectionFilterNoticeKey,
   onShowSelectedInFilters,
+  planViewMode,
+  onPlanViewModeChange,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -1203,6 +1206,8 @@ function DashboardMain({
   selectedPlanOutsideFilters?: boolean;
   selectionFilterNoticeKey?: string;
   onShowSelectedInFilters?: () => void;
+  planViewMode: PlanViewMode;
+  onPlanViewModeChange: (mode: PlanViewMode) => void;
 }) {
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -1533,6 +1538,8 @@ function DashboardMain({
           plans={allPlans}
           onSelectPlan={onSelectRelatedPlan}
           shortcuts={getAppShortcuts({ ee: true })}
+          planViewMode={planViewMode}
+          onPlanViewModeChange={onPlanViewModeChange}
         />
       )}
     </div>
@@ -1955,6 +1962,20 @@ function dashReducer(s: DashState, a: DashAction): DashState {
 
 function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
   const [, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
+  const planViewPreference = useQuery(
+    api.account.getMyPlanViewPreference,
+    isAuthenticated ? {} : 'skip',
+  );
+  const updatePlanViewPreference = useMutation(api.account.updatePlanViewPreference);
+  const planViewMode = planViewPreference ?? 'list';
+  const handlePlanViewModeChange = useCallback(
+    (emptyStatePlanView: PlanViewMode) => {
+      if (!isAuthenticated) return;
+      void updatePlanViewPreference({ emptyStatePlanView });
+    },
+    [isAuthenticated, updatePlanViewPreference],
+  );
   const [search, setSearch] = useQueryState(
     'q',
     parseAsString
@@ -2726,6 +2747,8 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         selectedPlanOutsideFilters={selectedPlanOutsideFilters}
         selectionFilterNoticeKey={selectionFilterNoticeKey}
         onShowSelectedInFilters={clearFilters}
+        planViewMode={planViewMode}
+        onPlanViewModeChange={handlePlanViewModeChange}
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
