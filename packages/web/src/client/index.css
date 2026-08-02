@@ -6342,10 +6342,9 @@ a.plan-git-chip-link:focus-visible {
 
 .empty-state-agent-browser-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    'back back'
-    'title toggle';
+    'back'
+    'title';
   align-items: end;
   gap: 12px;
   width: 100%;
@@ -6423,46 +6422,6 @@ a.plan-git-chip-link:focus-visible {
   color: var(--tertiary);
   font-family: var(--font-mono);
   font-size: 12px;
-}
-
-.empty-state-view-toggle {
-  grid-area: toggle;
-  justify-self: end;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--text) 3%, transparent);
-  width: fit-content;
-}
-
-.empty-state-view-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 0;
-  padding: 5px 9px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--secondary);
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.empty-state-view-toggle-btn[aria-pressed='true'] {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 0 0 1px color-mix(in oklch, var(--border) 80%, transparent);
-}
-
-.empty-state-view-toggle-btn:focus-visible {
-  outline: 2px solid color-mix(in oklch, var(--accent) 44%, transparent);
-  outline-offset: 1px;
 }
 
 .empty-state-agent-empty {
@@ -7040,18 +6999,6 @@ a.plan-git-chip-link:focus-visible {
 
   .empty-state-ledger-bar {
     display: none;
-  }
-
-  .empty-state-agent-browser-head {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'back'
-      'title'
-      'toggle';
-  }
-
-  .empty-state-view-toggle {
-    justify-self: start;
   }
 }
 

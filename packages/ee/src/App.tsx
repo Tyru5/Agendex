@@ -265,7 +265,10 @@ function useAuthSessionSettled({
   const [settled, setSettled] = useState(false);
   const didVerifyUnauthRef = useRef(false);
   const refreshSessionRef = useRef(refreshSession);
-  refreshSessionRef.current = refreshSession;
+
+  useEffect(() => {
+    refreshSessionRef.current = refreshSession;
+  }, [refreshSession]);
 
   useEffect(() => {
     if (skip) {
@@ -421,7 +424,7 @@ function useDashboardData(
       collectionMemberIds: collectionPlanIdSet ?? undefined,
     });
     if (mode === 'cloud') {
-      result = [...result].sort((a, b) => {
+      result = result.toSorted((a, b) => {
         if (sortBy === 'title') return a.title.localeCompare(b.title);
         const field = sortBy === 'createdAt' ? 'createdAt' : 'updatedAt';
         return new Date(b[field]).getTime() - new Date(a[field]).getTime();
@@ -708,20 +711,6 @@ const TOOLBAR_OPTION_RIGHT_RAIL_WIDTH = 304;
 const TOOLBAR_OPTION_RAIL_GAP = 30;
 const TOOLBAR_OPTION_RAIL_MARGIN = 16;
 
-function useToolbarOptionLayoutVisibility(active: boolean): [boolean, () => void] {
-  const [present, setPresent] = useState(active);
-
-  useEffect(() => {
-    if (active) setPresent(true);
-  }, [active]);
-
-  const handleExitComplete = useCallback(() => {
-    if (!active) setPresent(false);
-  }, [active]);
-
-  return [active || present, handleExitComplete];
-}
-
 function getToolbarOptionHiddenState(placement: ToolbarOptionPlacement) {
   if (placement === 'left') return { opacity: 0, x: -14, y: 0, scale: 0.985 };
   if (placement === 'right') return { opacity: 0, x: 14, y: 0, scale: 0.985 };
@@ -780,13 +769,12 @@ function ToolbarOptionRail({
 }: {
   side: 'left' | 'right';
   active: boolean;
-  onExitComplete: () => void;
   children: ReactNode;
 }) {
   const motion = useToolbarOptionMotion(side);
 
   return (
-    <AnimatePresence initial={false} onExitComplete={onExitComplete}>
+    <AnimatePresence initial={false}>
       {active && (
         <m.aside
           key={`${side}-rail`}
@@ -816,14 +804,13 @@ function CloudToolbarOptionStack({
   showComments: boolean;
 }) {
   const active = showPlannotatorTools || showComments;
-  const [stackVisible, handleStackExitComplete] = useToolbarOptionLayoutVisibility(active);
 
-  if (!stackVisible) return null;
+  if (!active) return null;
 
   return (
     <LazyMotion features={domAnimation}>
       <div className="plannotator-review-stack mx-auto px-6 pb-16">
-        <AnimatePresence initial={false} onExitComplete={handleStackExitComplete}>
+        <AnimatePresence initial={false}>
           {showPlannotatorTools && (
             <ToolbarOptionSurface key="plannotator-tools" placement="stack">
               <CloudPlanAnnotationsPanel
@@ -856,14 +843,10 @@ function CloudToolbarOptionStack({
 
 function CloudPlanReviewWorkspace({
   plan,
-  mode,
-  isPro,
+  planContext,
   annotationState,
-  canWriteAnnotations,
-  annotationUpgradeMessage,
-  daemonAvailable,
-  showPlannotatorTools,
-  showComments,
+  annotationAccess,
+  toolbarState,
   actionToolbarExtra,
   outlineHidden,
   chartHidden,
@@ -876,14 +859,10 @@ function CloudPlanReviewWorkspace({
   onToggleChart,
 }: {
   plan: Plan;
-  mode: DashboardMode;
-  isPro: boolean;
+  planContext: { mode: DashboardMode; isPro: boolean };
   annotationState: CloudAnnotationState;
-  canWriteAnnotations: boolean;
-  annotationUpgradeMessage?: string;
-  daemonAvailable: boolean;
-  showPlannotatorTools: boolean;
-  showComments: boolean;
+  annotationAccess: { canWrite: boolean; unavailableMessage?: string; daemonAvailable: boolean };
+  toolbarState: { showPlannotatorTools: boolean; showComments: boolean };
   actionToolbarExtra?: ReactNode;
   outlineHidden?: boolean;
   chartHidden?: boolean;
@@ -895,11 +874,16 @@ function CloudPlanReviewWorkspace({
   onChartWideChange: (wide: boolean) => void;
   onToggleChart?: () => void;
 }) {
+  const { mode, isPro } = planContext;
+  const {
+    canWrite: canWriteAnnotations,
+    unavailableMessage: annotationUpgradeMessage,
+    daemonAvailable,
+  } = annotationAccess;
+  const { showPlannotatorTools, showComments } = toolbarState;
   const hasRightRail = showPlannotatorTools || showComments;
-  const [leftRailVisible, handleLeftRailExitComplete] =
-    useToolbarOptionLayoutVisibility(showPlannotatorTools);
-  const [rightRailVisible, handleRightRailExitComplete] =
-    useToolbarOptionLayoutVisibility(hasRightRail);
+  const leftRailVisible = showPlannotatorTools;
+  const rightRailVisible = hasRightRail;
   const reduceMotion = useReducedMotion();
   const shellRef = useRef<HTMLDivElement | null>(null);
   const [railLayoutStyle, setRailLayoutStyle] = useState<ReviewRailLayoutStyle>({});
@@ -983,11 +967,7 @@ function CloudPlanReviewWorkspace({
         data-overlay-rails={overlayRails ? 'true' : undefined}
         style={railLayoutStyle}
       >
-        <ToolbarOptionRail
-          side="left"
-          active={showPlannotatorTools}
-          onExitComplete={handleLeftRailExitComplete}
-        >
+        <ToolbarOptionRail side="left" active={showPlannotatorTools}>
           <CloudPlanAnnotationsPanel
             plan={plan}
             annotations={annotationState.annotations}
@@ -1024,11 +1004,7 @@ function CloudPlanReviewWorkspace({
           />
         </div>
 
-        <ToolbarOptionRail
-          side="right"
-          active={hasRightRail}
-          onExitComplete={handleRightRailExitComplete}
-        >
+        <ToolbarOptionRail side="right" active={hasRightRail}>
           <AnimatePresence initial={false}>
             {showPlannotatorTools && (
               <ToolbarOptionSurface key="writeback" placement="right">
@@ -1136,7 +1112,7 @@ function CommentPanelIcon() {
   );
 }
 
-function DashboardMain({
+function useDashboardMain({
   mode,
   isPro,
   isWorkspaceAccessLoading,
@@ -1171,7 +1147,6 @@ function DashboardMain({
   selectionFilterNoticeKey,
   onShowSelectedInFilters,
   planViewMode,
-  onPlanViewModeChange,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -1207,7 +1182,6 @@ function DashboardMain({
   selectionFilterNoticeKey?: string;
   onShowSelectedInFilters?: () => void;
   planViewMode: PlanViewMode;
-  onPlanViewModeChange: (mode: PlanViewMode) => void;
 }) {
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -1238,9 +1212,14 @@ function DashboardMain({
         : 'Inline plan annotations are available on Cloud Pro.'
       : undefined;
   const isCloudReview = canUseCloudPlanMetadata(mode, isPro);
+  const plannotatorToolsVisible =
+    showPlannotatorTools ||
+    Boolean(
+      selectedAnnotationState.selectedAnnotationId || splitAnnotationState.selectedAnnotationId,
+    );
   const actionToolbarExtra = (
     <CloudPlanActionExtras
-      showPlannotatorTools={showPlannotatorTools}
+      showPlannotatorTools={plannotatorToolsVisible}
       showComments={showComments}
       isCloudReview={isCloudReview}
       onTogglePlannotatorTools={() => setShowPlannotatorTools((current) => !current)}
@@ -1254,12 +1233,6 @@ function DashboardMain({
         onShowInFilters={onShowSelectedInFilters}
       />
     ) : null;
-
-  useEffect(() => {
-    if (selectedAnnotationState.selectedAnnotationId || splitAnnotationState.selectedAnnotationId) {
-      setShowPlannotatorTools(true);
-    }
-  }, [selectedAnnotationState.selectedAnnotationId, splitAnnotationState.selectedAnnotationId]);
 
   // Entitlements resolve after auth/session rehydration; don't show the paywall during that gap.
   if (mode === 'cloud' && isWorkspaceAccessLoading) {
@@ -1362,7 +1335,7 @@ function DashboardMain({
               annotationState={selectedAnnotationState}
               canWriteAnnotations={canWriteSelectedAnnotations}
               daemonAvailable={!cloudSyncPaused}
-              showPlannotatorTools={showPlannotatorTools}
+              showPlannotatorTools={plannotatorToolsVisible}
               showComments={showComments}
             />
           )}
@@ -1395,7 +1368,7 @@ function DashboardMain({
               annotationState={splitAnnotationState}
               canWriteAnnotations={canWriteSplitAnnotations}
               daemonAvailable={!cloudSyncPaused}
-              showPlannotatorTools={showPlannotatorTools}
+              showPlannotatorTools={plannotatorToolsVisible}
               showComments={showComments}
             />
           )}
@@ -1482,14 +1455,14 @@ function DashboardMain({
             {isPro && mode === 'cloud' ? (
               <CloudPlanReviewWorkspace
                 plan={selectedPlan}
-                mode={mode}
-                isPro={isPro}
+                planContext={{ mode, isPro }}
                 annotationState={selectedAnnotationState}
-                canWriteAnnotations={canWriteSelectedAnnotations}
-                annotationUpgradeMessage={selectedAnnotationUnavailableMessage}
-                daemonAvailable={!cloudSyncPaused}
-                showPlannotatorTools={showPlannotatorTools}
-                showComments={showComments}
+                annotationAccess={{
+                  canWrite: canWriteSelectedAnnotations,
+                  unavailableMessage: selectedAnnotationUnavailableMessage,
+                  daemonAvailable: !cloudSyncPaused,
+                }}
+                toolbarState={{ showPlannotatorTools: plannotatorToolsVisible, showComments }}
                 actionToolbarExtra={actionToolbarExtra}
                 outlineHidden={outlineHidden}
                 chartHidden={chartHidden}
@@ -1546,6 +1519,14 @@ function DashboardMain({
   );
 }
 
+function DashboardMainView(props: Parameters<typeof renderDashboardMain>[0]) {
+  return useDashboardMain(props);
+}
+
+function DashboardSidebarView(props: Parameters<typeof renderDashboardSidebar>[0]) {
+  return useDashboardSidebar(props);
+}
+
 function SelectionOutsideFiltersNotice({ onShowInFilters }: { onShowInFilters: () => void }) {
   const [dismissed, setDismissed] = useState(false);
 
@@ -1574,7 +1555,7 @@ function SelectionOutsideFiltersNotice({ onShowInFilters }: { onShowInFilters: (
   );
 }
 
-function DashboardSidebar({
+function useDashboardSidebar({
   sidebarHidden,
   sidebarVisible,
   sidebarPeekOpen,
@@ -1960,22 +1941,14 @@ function dashReducer(s: DashState, a: DashAction): DashState {
   }
 }
 
-function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
+function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
   const planViewPreference = useQuery(
     api.account.getMyPlanViewPreference,
     isAuthenticated ? {} : 'skip',
   );
-  const updatePlanViewPreference = useMutation(api.account.updatePlanViewPreference);
   const planViewMode = planViewPreference ?? 'list';
-  const handlePlanViewModeChange = useCallback(
-    (emptyStatePlanView: PlanViewMode) => {
-      if (!isAuthenticated) return;
-      void updatePlanViewPreference({ emptyStatePlanView });
-    },
-    [isAuthenticated, updatePlanViewPreference],
-  );
   const [search, setSearch] = useQueryState(
     'q',
     parseAsString
@@ -2193,7 +2166,10 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       return (
         filteredPlans.find((p) => p.id === selectedPlanId) ??
         plans.find((p) => p.id === selectedPlanId) ??
-        (optimisticSelectedPlan?.id === selectedPlanId ? optimisticSelectedPlan : undefined) ??
+        (optimisticSelectedPlan?.id === selectedPlanId &&
+        !plans.some((plan) => plan.id === selectedPlanId)
+          ? optimisticSelectedPlan
+          : undefined) ??
         localFallback
       );
     }
@@ -2354,18 +2330,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
       setFilters,
     ],
   );
-
-  useEffect(() => {
-    if (!selectedPlanId) {
-      setOptimisticSelectedPlan(undefined);
-      return;
-    }
-    if (plans.some((plan) => plan.id === selectedPlanId)) {
-      setOptimisticSelectedPlan((current) =>
-        current?.id === selectedPlanId ? undefined : current,
-      );
-    }
-  }, [plans, selectedPlanId]);
 
   useEffect(() => {
     if (!selectedPlanId || loading) return;
@@ -2656,7 +2620,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         />
       )}
 
-      <DashboardSidebar
+      <DashboardSidebarView
         sidebarHidden={sidebarHidden}
         sidebarVisible={sidebarVisible}
         sidebarPeekOpen={sidebarPeekOpen}
@@ -2704,7 +2668,7 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         onResize={setExpandedWidth}
       />
 
-      <DashboardMain
+      <DashboardMainView
         mode={mode}
         isPro={isPro}
         isWorkspaceAccessLoading={isWorkspaceAccessLoading}
@@ -2748,7 +2712,6 @@ function Dashboard({ autoMode }: { autoMode: DashboardMode }) {
         selectionFilterNoticeKey={selectionFilterNoticeKey}
         onShowSelectedInFilters={clearFilters}
         planViewMode={planViewMode}
-        onPlanViewModeChange={handlePlanViewModeChange}
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
@@ -2861,6 +2824,10 @@ function LandingRoute() {
   );
 }
 
+function DashboardView({ autoMode }: { autoMode: DashboardMode }) {
+  return useDashboard({ autoMode });
+}
+
 function DashboardRoute() {
   const { isAuthenticated, isLoading, refreshSession } = useAuth();
   const convexAuth = useConvexAuth();
@@ -2908,7 +2875,7 @@ function DashboardRoute() {
 
   const renderDashboard = (autoMode: DashboardMode) => (
     <AgentAvatarProvider avatars={avatars ?? {}}>
-      <Dashboard autoMode={autoMode} />
+      <DashboardView autoMode={autoMode} />
     </AgentAvatarProvider>
   );
 

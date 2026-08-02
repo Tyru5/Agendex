@@ -1,5 +1,13 @@
 import confetti from 'canvas-confetti';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { AgentStats, Plan } from '../lib/api.ts';
 import { getAppShortcuts, shortcutDisplayKeys, type ShortcutHint } from '../lib/shortcuts.ts';
@@ -20,12 +28,9 @@ export interface EmptyStateViewProps {
   onSelectPlan?: (plan: Plan) => void;
   shortcuts?: ShortcutHint[];
   planViewMode?: PlanViewMode;
-  onPlanViewModeChange?: (mode: PlanViewMode) => void;
 }
 
 export type PlanViewMode = 'list' | 'card';
-
-const PLAN_VIEW_PREF_KEY = 'agendex.empty-state.plan-view';
 const EMPTY_PLANS: Plan[] = [];
 
 const EMPTY_AGENTS: AgentStats[] = [];
@@ -331,41 +336,6 @@ function timeAgo(dateStr: string): string {
   return `${days}d`;
 }
 
-function readPlanViewMode(): PlanViewMode {
-  try {
-    const stored = localStorage.getItem(PLAN_VIEW_PREF_KEY);
-    if (stored === 'list' || stored === 'card') return stored;
-  } catch {
-    // ignore
-  }
-  return 'list';
-}
-
-function ListViewIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function CardViewIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="2" />
-    </svg>
-  );
-}
-
 function BackIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -457,14 +427,12 @@ function AgentPlansBrowser({
   agent,
   plans,
   viewMode,
-  onViewModeChange,
   onBack,
   onSelectPlan,
 }: {
   agent: string;
   plans: Plan[];
   viewMode: PlanViewMode;
-  onViewModeChange: (mode: PlanViewMode) => void;
   onBack: () => void;
   onSelectPlan?: (plan: Plan) => void;
 }) {
@@ -487,28 +455,6 @@ function AgentPlansBrowser({
               {plans.length.toLocaleString()} {plans.length === 1 ? 'plan' : 'plans'}
             </p>
           </div>
-        </div>
-        <div className="empty-state-view-toggle" role="group" aria-label="Plan view">
-          <button
-            type="button"
-            className="empty-state-view-toggle-btn"
-            aria-pressed={viewMode === 'list'}
-            onClick={() => onViewModeChange('list')}
-            title="List view"
-          >
-            <ListViewIcon />
-            List
-          </button>
-          <button
-            type="button"
-            className="empty-state-view-toggle-btn"
-            aria-pressed={viewMode === 'card'}
-            onClick={() => onViewModeChange('card')}
-            title="Card view"
-          >
-            <CardViewIcon />
-            Cards
-          </button>
         </div>
       </div>
 
@@ -555,20 +501,98 @@ function AgentPlansBrowser({
   );
 }
 
-function TriviaGame({ onExit }: { onExit: () => void }) {
+type TriviaGameState = {
+  round: number[];
+  questionNumber: number;
+  selectedChoice: number | null;
+  timedOut: boolean;
+  score: number;
+  streak: number;
+  bestStreak: number;
+  secondsLeft: number;
+  liveMessage: string;
+};
+
+type TriviaGameAction =
+  | { type: 'SET_SECONDS_LEFT'; value: number | ((current: number) => number) }
+  | { type: 'TIMEOUT'; message: string }
+  | { type: 'ANSWER'; choiceIndex: number; correct: boolean; explanation: string; answer: string }
+  | { type: 'NEXT'; message: string }
+  | { type: 'COMPLETE'; message: string }
+  | { type: 'RESTART' };
+
+function createTriviaGameState(): TriviaGameState {
+  return {
+    round: buildTriviaRound(),
+    questionNumber: 0,
+    selectedChoice: null,
+    timedOut: false,
+    score: 0,
+    streak: 0,
+    bestStreak: 0,
+    secondsLeft: TRIVIA_SECONDS_PER_QUESTION,
+    liveMessage: 'AI milestone trivia unlocked.',
+  };
+}
+
+function triviaReducer(state: TriviaGameState, action: TriviaGameAction): TriviaGameState {
+  switch (action.type) {
+    case 'SET_SECONDS_LEFT':
+      return {
+        ...state,
+        secondsLeft:
+          typeof action.value === 'function' ? action.value(state.secondsLeft) : action.value,
+      };
+    case 'TIMEOUT':
+      return { ...state, timedOut: true, streak: 0, liveMessage: action.message };
+    case 'ANSWER': {
+      const streak = action.correct ? state.streak + 1 : 0;
+      return {
+        ...state,
+        selectedChoice: action.choiceIndex,
+        score: state.score + (action.correct ? 1 : 0),
+        streak,
+        bestStreak: Math.max(state.bestStreak, streak),
+        liveMessage: action.correct
+          ? `Correct. ${action.explanation}`
+          : `Incorrect. Correct answer: ${action.answer}. ${action.explanation}`,
+      };
+    }
+    case 'NEXT':
+      return {
+        ...state,
+        questionNumber: state.questionNumber + 1,
+        selectedChoice: null,
+        timedOut: false,
+        secondsLeft: TRIVIA_SECONDS_PER_QUESTION,
+        liveMessage: action.message,
+      };
+    case 'COMPLETE':
+      return { ...state, questionNumber: state.round.length, liveMessage: action.message };
+    case 'RESTART':
+      return { ...createTriviaGameState(), liveMessage: 'New AI milestone round ready.' };
+  }
+}
+
+function useTriviaGame({ onExit }: { onExit: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const debugStateRef = useRef<Record<string, unknown>>({});
   const timerStateRef = useRef({ answered: false, complete: false });
   const roundCompleteRef = useRef(false);
-  const [round, setRound] = useState(() => buildTriviaRound());
-  const [questionNumber, setQuestionNumber] = useState(0);
-  const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
-  const [timedOut, setTimedOut] = useState(false);
-  const [score, setScore] = useState(0);
-  const [streak, setStreak] = useState(0);
-  const [bestStreak, setBestStreak] = useState(0);
-  const [secondsLeft, setSecondsLeft] = useState(TRIVIA_SECONDS_PER_QUESTION);
-  const [liveMessage, setLiveMessage] = useState('AI milestone trivia unlocked.');
+  const [game, dispatch] = useReducer(triviaReducer, undefined, createTriviaGameState);
+  const {
+    round,
+    questionNumber,
+    selectedChoice,
+    timedOut,
+    score,
+    streak,
+    bestStreak,
+    secondsLeft,
+    liveMessage,
+  } = game;
+  const setSecondsLeft = (value: number | ((current: number) => number)) =>
+    dispatch({ type: 'SET_SECONDS_LEFT', value });
 
   const complete = questionNumber >= round.length;
   const currentQuestion = complete
@@ -580,28 +604,42 @@ function TriviaGame({ onExit }: { onExit: () => void }) {
     selectedChoice !== null &&
     selectedChoice === currentQuestion.answerIndex;
 
-  timerStateRef.current = { answered, complete };
-  debugStateRef.current = {
-    mode: complete ? 'complete' : answered ? 'answered' : 'question',
-    coordinateSystem: 'DOM trivia panel; no canvas coordinates.',
-    question: currentQuestion
-      ? {
-          number: questionNumber + 1,
-          total: round.length,
-          prompt: currentQuestion.prompt,
-          choices: currentQuestion.choices,
-          correctChoice: currentQuestion.choices[currentQuestion.answerIndex],
-          tag: currentQuestion.tag,
-        }
-      : null,
-    selectedChoice:
-      selectedChoice !== null && currentQuestion ? currentQuestion.choices[selectedChoice] : null,
-    timedOut,
-    secondsLeft,
-    score,
-    streak,
+  useEffect(() => {
+    timerStateRef.current = { answered, complete };
+    debugStateRef.current = {
+      mode: complete ? 'complete' : answered ? 'answered' : 'question',
+      coordinateSystem: 'DOM trivia panel; no canvas coordinates.',
+      question: currentQuestion
+        ? {
+            number: questionNumber + 1,
+            total: round.length,
+            prompt: currentQuestion.prompt,
+            choices: currentQuestion.choices,
+            correctChoice: currentQuestion.choices[currentQuestion.answerIndex],
+            tag: currentQuestion.tag,
+          }
+        : null,
+      selectedChoice:
+        selectedChoice !== null && currentQuestion ? currentQuestion.choices[selectedChoice] : null,
+      timedOut,
+      secondsLeft,
+      score,
+      streak,
+      bestStreak,
+    };
+  }, [
+    answered,
     bestStreak,
-  };
+    complete,
+    currentQuestion,
+    questionNumber,
+    round.length,
+    score,
+    secondsLeft,
+    selectedChoice,
+    streak,
+    timedOut,
+  ]);
 
   useEffect(() => {
     panelRef.current?.focus();
@@ -657,23 +695,15 @@ function TriviaGame({ onExit }: { onExit: () => void }) {
     (choiceIndex: number) => {
       if (!currentQuestion || complete || answered) return;
 
-      setSelectedChoice(choiceIndex);
-
-      if (choiceIndex === currentQuestion.answerIndex) {
-        const nextStreak = streak + 1;
-        setScore((value) => value + 1);
-        setStreak(nextStreak);
-        setBestStreak((value) => Math.max(value, nextStreak));
-        setLiveMessage(`Correct. ${currentQuestion.explanation}`);
-        return;
-      }
-
-      setStreak(0);
-      setLiveMessage(
-        `Incorrect. Correct answer: ${currentQuestion.choices[currentQuestion.answerIndex]}. ${currentQuestion.explanation}`,
-      );
+      dispatch({
+        type: 'ANSWER',
+        choiceIndex,
+        correct: choiceIndex === currentQuestion.answerIndex,
+        explanation: currentQuestion.explanation,
+        answer: currentQuestion.choices[currentQuestion.answerIndex],
+      });
     },
-    [answered, complete, currentQuestion, streak],
+    [answered, complete, currentQuestion],
   );
 
   const handleNext = useCallback(() => {
@@ -682,66 +712,54 @@ function TriviaGame({ onExit }: { onExit: () => void }) {
     if (questionNumber >= round.length - 1) {
       if (roundCompleteRef.current) return;
       roundCompleteRef.current = true;
-      setQuestionNumber(round.length);
-      setLiveMessage(
-        `Round complete. Score ${score} of ${round.length}. Best streak ${bestStreak}.`,
-      );
+      dispatch({
+        type: 'COMPLETE',
+        message: `Round complete. Score ${score} of ${round.length}. Best streak ${bestStreak}.`,
+      });
       fireTriviaConfetti('complete');
       return;
     }
 
-    setQuestionNumber((value) => value + 1);
-    setSelectedChoice(null);
-    setTimedOut(false);
-    setSecondsLeft(TRIVIA_SECONDS_PER_QUESTION);
-    setLiveMessage(`Question ${questionNumber + 2} of ${round.length}.`);
+    dispatch({ type: 'NEXT', message: `Question ${questionNumber + 2} of ${round.length}.` });
   }, [answered, bestStreak, questionNumber, round.length, score]);
 
   const handleRestart = useCallback(() => {
     roundCompleteRef.current = false;
-    setRound(buildTriviaRound());
-    setQuestionNumber(0);
-    setSelectedChoice(null);
-    setTimedOut(false);
-    setScore(0);
-    setStreak(0);
-    setBestStreak(0);
-    setSecondsLeft(TRIVIA_SECONDS_PER_QUESTION);
-    setLiveMessage('New AI milestone round ready.');
+    dispatch({ type: 'RESTART' });
     window.setTimeout(() => panelRef.current?.focus(), 0);
   }, []);
 
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onExit();
-        return;
-      }
-
-      if (complete) {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          handleRestart();
-        }
-        return;
-      }
-
-      if (/^[1-4]$/.test(event.key) && !answered) {
-        event.preventDefault();
-        handleAnswer(Number(event.key) - 1);
-        return;
-      }
-
-      if (event.key === 'Enter' && answered) {
-        event.preventDefault();
-        handleNext();
-      }
+  const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onExit();
+      return;
     }
 
+    if (complete) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        handleRestart();
+      }
+      return;
+    }
+
+    if (/^[1-4]$/.test(event.key) && !answered) {
+      event.preventDefault();
+      handleAnswer(Number(event.key) - 1);
+      return;
+    }
+
+    if (event.key === 'Enter' && answered) {
+      event.preventDefault();
+      handleNext();
+    }
+  });
+
+  useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [answered, complete, handleAnswer, handleNext, handleRestart, onExit]);
+  }, []);
 
   return (
     <section
@@ -883,6 +901,10 @@ function TriviaGame({ onExit }: { onExit: () => void }) {
   );
 }
 
+function TriviaGame({ onExit }: { onExit: () => void }) {
+  return useTriviaGame({ onExit });
+}
+
 export function EmptyStateView({
   onSearch,
   planCount = 0,
@@ -891,12 +913,10 @@ export function EmptyStateView({
   onSelectPlan,
   shortcuts = getAppShortcuts(),
   planViewMode,
-  onPlanViewModeChange,
 }: EmptyStateViewProps) {
   const [triviaActive, setTriviaActive] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const [localViewMode, setLocalViewMode] = useState<PlanViewMode>(readPlanViewMode);
-  const viewMode = planViewMode ?? localViewMode;
+  const viewMode = planViewMode ?? 'list';
 
   const unlockTrivia = useCallback(() => {
     setTriviaActive(true);
@@ -915,21 +935,6 @@ export function EmptyStateView({
       .filter((plan) => plan.agent === selectedAgent)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [plans, selectedAgent]);
-
-  const handleViewModeChange = useCallback(
-    (mode: PlanViewMode) => {
-      if (planViewMode === undefined) {
-        setLocalViewMode(mode);
-        try {
-          localStorage.setItem(PLAN_VIEW_PREF_KEY, mode);
-        } catch {
-          // ignore
-        }
-      }
-      onPlanViewModeChange?.(mode);
-    },
-    [onPlanViewModeChange, planViewMode],
-  );
 
   const maxAgentCount = activeAgents[0]?.planCount ?? 0;
   const agentCount = activeAgents.length;
@@ -986,7 +991,6 @@ export function EmptyStateView({
               agent={selectedAgent}
               plans={agentPlans}
               viewMode={viewMode}
-              onViewModeChange={handleViewModeChange}
               onBack={() => setSelectedAgent(null)}
               onSelectPlan={onSelectPlan}
             />
