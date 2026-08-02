@@ -19,9 +19,11 @@ export interface EmptyStateViewProps {
   plans?: readonly Plan[];
   onSelectPlan?: (plan: Plan) => void;
   shortcuts?: ShortcutHint[];
+  planViewMode?: PlanViewMode;
+  onPlanViewModeChange?: (mode: PlanViewMode) => void;
 }
 
-type PlanViewMode = 'list' | 'card';
+export type PlanViewMode = 'list' | 'card';
 
 const PLAN_VIEW_PREF_KEY = 'agendex.empty-state.plan-view';
 const EMPTY_PLANS: Plan[] = [];
@@ -888,10 +890,13 @@ export function EmptyStateView({
   plans = EMPTY_PLANS,
   onSelectPlan,
   shortcuts = getAppShortcuts(),
+  planViewMode,
+  onPlanViewModeChange,
 }: EmptyStateViewProps) {
   const [triviaActive, setTriviaActive] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<PlanViewMode>(readPlanViewMode);
+  const [localViewMode, setLocalViewMode] = useState<PlanViewMode>(readPlanViewMode);
+  const viewMode = planViewMode ?? localViewMode;
 
   const unlockTrivia = useCallback(() => {
     setTriviaActive(true);
@@ -911,14 +916,20 @@ export function EmptyStateView({
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [plans, selectedAgent]);
 
-  const handleViewModeChange = useCallback((mode: PlanViewMode) => {
-    setViewMode(mode);
-    try {
-      localStorage.setItem(PLAN_VIEW_PREF_KEY, mode);
-    } catch {
-      // ignore
-    }
-  }, []);
+  const handleViewModeChange = useCallback(
+    (mode: PlanViewMode) => {
+      if (planViewMode === undefined) {
+        setLocalViewMode(mode);
+        try {
+          localStorage.setItem(PLAN_VIEW_PREF_KEY, mode);
+        } catch {
+          // ignore
+        }
+      }
+      onPlanViewModeChange?.(mode);
+    },
+    [onPlanViewModeChange, planViewMode],
+  );
 
   const maxAgentCount = activeAgents[0]?.planCount ?? 0;
   const agentCount = activeAgents.length;

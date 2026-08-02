@@ -15,7 +15,7 @@ export { DownloadPage } from './client/components/DownloadPage.tsx';
 export type { ToolsUsedPageProps } from './client/components/ToolsUsedPage.tsx';
 export { ToolsUsedPage } from './client/components/ToolsUsedPage.tsx';
 export { EmptyStateView } from './client/components/EmptyStateView.tsx';
-export type { EmptyStateViewProps } from './client/components/EmptyStateView.tsx';
+export type { EmptyStateViewProps, PlanViewMode } from './client/components/EmptyStateView.tsx';
 export type { ShortcutHint } from './client/lib/shortcuts.ts';
 export { APP_SHORTCUTS, getAppShortcuts, shortcutDisplayKeys } from './client/lib/shortcuts.ts';
 export { ExitFullscreenIcon, FullscreenIcon } from './client/components/FullscreenIcons.tsx';

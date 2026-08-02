@@ -334,6 +334,7 @@ export default defineSchema({
   accountPreferences: defineTable({
     ownerId: v.string(),
     collectLocalIpAddress: v.boolean(),
+    emptyStatePlanView: v.optional(v.union(v.literal('list'), v.literal('card'))),
     localIpDisclosureAcknowledgedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),

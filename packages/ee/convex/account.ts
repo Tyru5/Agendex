@@ -12,6 +12,7 @@ import { deletePlanRelatedData } from './planDeletion';
 import { stripLocalIpFromMetadata } from './privacy';
 
 const DEFAULT_COLLECT_LOCAL_IP_ADDRESS = true;
+const DEFAULT_EMPTY_STATE_PLAN_VIEW = 'list' as const;
 const LOCAL_IP_SCRUB_BATCH_SIZE = 250;
 
 type LocalIpScrubPhase = 'plans' | 'planVersions' | 'daemonHeartbeats';
@@ -62,6 +63,45 @@ export const getMyPrivacyPreferences = query({
       collectLocalIpAddress: prefs?.collectLocalIpAddress ?? DEFAULT_COLLECT_LOCAL_IP_ADDRESS,
       localIpDisclosureAcknowledgedAt: prefs?.localIpDisclosureAcknowledgedAt ?? null,
     };
+  },
+});
+
+export const getMyPlanViewPreference = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return null;
+
+    const prefs = await findAccountPreferences(ctx, String(user._id));
+    return prefs?.emptyStatePlanView ?? DEFAULT_EMPTY_STATE_PLAN_VIEW;
+  },
+});
+
+export const updatePlanViewPreference = mutation({
+  args: {
+    emptyStatePlanView: v.union(v.literal('list'), v.literal('card')),
+  },
+  handler: async (ctx, { emptyStatePlanView }) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) throw new ConvexError('Not authenticated');
+
+    const ownerId = String(user._id);
+    const existing = await findAccountPreferences(ctx, ownerId);
+    const now = Date.now();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { emptyStatePlanView, updatedAt: now });
+    } else {
+      await ctx.db.insert('accountPreferences', {
+        ownerId,
+        collectLocalIpAddress: DEFAULT_COLLECT_LOCAL_IP_ADDRESS,
+        emptyStatePlanView,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return emptyStatePlanView;
   },
 });
 
