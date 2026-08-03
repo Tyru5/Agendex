@@ -259,6 +259,27 @@ test('ignores a feed revision the shipped UI already outranks', async () => {
   expect(existsSync(store.bundleDir(SHIPPED_REVISION - 100))).toBe(false);
 });
 
+test('keeps a valid activation when the feed drops to or below shipped', async () => {
+  promptAnswer = true;
+  const updater = makeUpdater();
+  await updater.checkForUpdates();
+  updater.notifyRendererReady();
+  const active = SHIPPED_REVISION + 100;
+  expect(store.resolveActiveDir()).toBe(store.bundleDir(active));
+
+  // A rolling feed at/below the floor is not a kill switch; pinToShipped is.
+  // The active bundle still beats the floor, so keep serving it.
+  publish(SHIPPED_REVISION);
+  await updater.checkForUpdates();
+
+  expect(updater.getState().status).toBe('no-update');
+  expect(prompts).toBe(1);
+  expect(reloads).toBe(1);
+  expect(store.readState().revision).toBe(active);
+  expect(store.resolveActiveDir()).toBe(store.bundleDir(active));
+  expect(store.servedRevision()).toBe(active);
+});
+
 test('an app update that outranks the active bundle ends the prompt', async () => {
   promptAnswer = true;
   const updater = makeUpdater();

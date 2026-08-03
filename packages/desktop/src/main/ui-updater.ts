@@ -170,10 +170,12 @@ export function createUiUpdater(options: UiUpdaterOptions): UiUpdater {
       log(
         `ui-update: feed revision ${manifest.revision} does not beat the shipped UI (${shipped}); staying on shipped`,
       );
-      // An activation left over from before the app update can never pass the
-      // floor gate again. Clear it so the persisted state matches what is on
-      // screen; no reload, because the window is already serving the floor.
-      store.revertToShipped();
+      // Clear only activations the floor gate already rejects (stale leftovers
+      // after an app update). A still-valid newer activation must survive a
+      // rolling feed that drops to/below shipped — that is not a kill switch.
+      if (store.servedRevision() === shipped) {
+        store.revertToShipped();
+      }
       staged = null;
       setState({ status: 'no-update' });
       return;
