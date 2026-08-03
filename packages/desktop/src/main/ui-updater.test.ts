@@ -249,6 +249,77 @@ test('reports no update when the feed matches what is already served', async () 
   expect(prompts).toBe(0);
 });
 
+test('ignores a feed revision the shipped UI already outranks', async () => {
+  publish(SHIPPED_REVISION - 100);
+  const updater = makeUpdater();
+  await updater.checkForUpdates();
+
+  expect(updater.getState().status).toBe('no-update');
+  expect(prompts).toBe(0);
+  expect(existsSync(store.bundleDir(SHIPPED_REVISION - 100))).toBe(false);
+});
+
+test('keeps a valid activation when the feed drops to or below shipped', async () => {
+  promptAnswer = true;
+  const updater = makeUpdater();
+  await updater.checkForUpdates();
+  updater.notifyRendererReady();
+  const active = SHIPPED_REVISION + 100;
+  expect(store.resolveActiveDir()).toBe(store.bundleDir(active));
+
+  // A rolling feed at/below the floor is not a kill switch; pinToShipped is.
+  // The active bundle still beats the floor, so keep serving it.
+  publish(SHIPPED_REVISION);
+  await updater.checkForUpdates();
+
+  expect(updater.getState().status).toBe('no-update');
+  expect(prompts).toBe(1);
+  expect(reloads).toBe(1);
+  expect(store.readState().revision).toBe(active);
+  expect(store.resolveActiveDir()).toBe(store.bundleDir(active));
+  expect(store.servedRevision()).toBe(active);
+});
+
+test('an app update that outranks the active bundle ends the prompt', async () => {
+  promptAnswer = true;
+  const updater = makeUpdater();
+  await updater.checkForUpdates();
+  updater.notifyRendererReady();
+  expect(store.resolveActiveDir()).toBe(store.bundleDir(SHIPPED_REVISION + 100));
+
+  // Installing a newer app build raises the shipped floor above the bundle the
+  // feed is serving, so that bundle can never be served again. Same userData.
+  writeFileSync(
+    join(shippedDir, 'ui-bundle.json'),
+    JSON.stringify({
+      revision: SHIPPED_REVISION + 200,
+      label: 'shipped',
+      minShellVersion: '1.0.0',
+    }),
+    'utf8',
+  );
+  store = createUiBundleStore({
+    rootDir,
+    shippedDir,
+    shellVersion: '1.4.15',
+    log: () => undefined,
+  });
+  const promptsBefore = prompts;
+  const upgraded = makeUpdater();
+
+  await upgraded.checkForUpdates();
+  await upgraded.checkForUpdates();
+
+  expect(upgraded.getState().status).toBe('no-update');
+  expect(prompts).toBe(promptsBefore);
+  expect(reloads).toBe(1);
+  expect(store.resolveActiveDir()).toBe(shippedDir);
+  // The dead activation is cleared, so Settings stops naming a revision that is
+  // not on screen.
+  expect(store.readState().revision).toBeNull();
+  expect(store.servedRevision()).toBe(SHIPPED_REVISION + 200);
+});
+
 test('skips bundles that need a newer shell without downloading them', async () => {
   publish(SHIPPED_REVISION + 200, '9.0.0');
   const updater = makeUpdater();

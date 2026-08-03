@@ -307,10 +307,7 @@ const uiUpdater = createUiUpdater({
 ipcMain.handle('agendex:ui-update:check', () => uiUpdater.checkForUpdates());
 ipcMain.handle('agendex:ui-update:apply', () => uiUpdater.applyStaged());
 ipcMain.handle('agendex:ui-update:get-state', () => uiUpdater.getState());
-ipcMain.handle(
-  'agendex:get-ui-revision',
-  () => uiBundleStore.activeRevision() ?? uiBundleStore.shippedStamp().revision,
-);
+ipcMain.handle('agendex:get-ui-revision', () => uiBundleStore.servedRevision());
 // Sent by the renderer once React mounts. This is what proves the *bundle's*
 // JavaScript ran: the preload firing only proves the shell loaded.
 ipcMain.on('agendex:ui-ready', () => uiUpdater.notifyRendererReady());
