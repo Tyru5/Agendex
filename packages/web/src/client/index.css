@@ -3023,37 +3023,39 @@ a.plan-git-chip-link:focus-visible {
 }
 
 /* Scrollbar styling */
-.sidebar-scroll::-webkit-scrollbar {
-  width: 0;
-}
-
-.main-scroll::-webkit-scrollbar,
-.empty-state-plan-scroll::-webkit-scrollbar {
+*::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-.main-scroll::-webkit-scrollbar-track,
-.empty-state-plan-scroll::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.main-scroll::-webkit-scrollbar-thumb,
-.empty-state-plan-scroll::-webkit-scrollbar-thumb {
+*::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 999px;
 }
 
-.main-scroll::-webkit-scrollbar-button,
-.empty-state-plan-scroll::-webkit-scrollbar-button {
+*::-webkit-scrollbar-button {
   display: none;
   width: 0;
   height: 0;
 }
 
-.main-scroll::-webkit-scrollbar-corner,
-.empty-state-plan-scroll::-webkit-scrollbar-corner {
+*::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+.sidebar-scroll,
+.plan-outline-panel {
+  scrollbar-width: none;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* ─── Landing page ─── */
