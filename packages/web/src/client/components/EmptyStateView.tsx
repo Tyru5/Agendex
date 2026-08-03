@@ -684,11 +684,10 @@ function useTriviaGame({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     if (!currentQuestion || complete || answered || secondsLeft > 0) return;
 
-    setTimedOut(true);
-    setStreak(0);
-    setLiveMessage(
-      `Time expired. Correct answer: ${currentQuestion.choices[currentQuestion.answerIndex]}. ${currentQuestion.explanation}`,
-    );
+    dispatch({
+      type: 'TIMEOUT',
+      message: `Time expired. Correct answer: ${currentQuestion.choices[currentQuestion.answerIndex]}. ${currentQuestion.explanation}`,
+    });
   }, [answered, complete, currentQuestion, secondsLeft]);
 
   const handleAnswer = useCallback(

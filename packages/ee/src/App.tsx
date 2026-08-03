@@ -1512,7 +1512,6 @@ function useDashboardMain({
           onSelectPlan={onSelectRelatedPlan}
           shortcuts={getAppShortcuts({ ee: true })}
           planViewMode={planViewMode}
-          onPlanViewModeChange={onPlanViewModeChange}
         />
       )}
     </div>
