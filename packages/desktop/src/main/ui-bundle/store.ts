@@ -39,7 +39,12 @@ export interface UiBundleStoreOptions {
 export interface UiBundleStore {
   /** Cheap enough to call per HTTP request; the result is memoised. */
   resolveActiveDir: () => string;
-  activeRevision: () => number | null;
+  /**
+   * The revision actually on screen, after every gate in `computeActiveDir`.
+   * Not the same as the activated revision: an activation the gates reject
+   * reads back as the shipped floor, because that is what is being served.
+   */
+  servedRevision: () => number;
   shippedStamp: () => UiBundleStamp;
   readState: () => UiStoreState;
   bundleDir: (revision: number) => string;
@@ -154,15 +159,20 @@ export function createUiBundleStore(options: UiBundleStoreOptions): UiBundleStor
     return dir;
   }
 
-  return {
-    resolveActiveDir() {
-      if (cachedActiveDir === null) cachedActiveDir = computeActiveDir();
-      return cachedActiveDir;
-    },
+  function resolveActiveDir(): string {
+    if (cachedActiveDir === null) cachedActiveDir = computeActiveDir();
+    return cachedActiveDir;
+  }
 
-    activeRevision() {
-      const state = readState();
-      return state.revision;
+  return {
+    resolveActiveDir,
+
+    servedRevision() {
+      const { revision } = readState();
+      if (revision === null) return shippedStamp().revision;
+      // Every rejection path in computeActiveDir lands on the shipped floor, so
+      // landing there means the activation is not what we are serving.
+      return resolveActiveDir() === bundleDir(revision) ? revision : shippedStamp().revision;
     },
 
     shippedStamp,

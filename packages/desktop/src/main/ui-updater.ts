@@ -113,18 +113,6 @@ export function createUiUpdater(options: UiUpdaterOptions): UiUpdater {
     onStateChange?.(next);
   }
 
-  /** The revision this shell is actually serving right now. */
-  function currentFloor(): number {
-    const { revision } = store.readState();
-    const shipped = store.shippedStamp().revision;
-    if (revision === null) return shipped;
-    // resolveActiveDir applies the quarantine / minShellVersion / floor gates,
-    // so if it landed on the shipped directory that is what we are serving
-    // regardless of what the state file points at.
-    const servingBundle = store.resolveActiveDir() === store.bundleDir(revision);
-    return servingBundle ? revision : shipped;
-  }
-
   function shouldInstall(manifest: UiManifest): boolean {
     if (store.readState().quarantined.includes(manifest.revision)) {
       log(`ui-update: bundle ${manifest.revision} is quarantined; ignoring`);
@@ -138,7 +126,7 @@ export function createUiUpdater(options: UiUpdaterOptions): UiUpdater {
     }
     // The manifest is desired state, not "newer only": republishing an older
     // revision is the rollback path. Only skip when it matches what we serve.
-    return manifest.revision !== currentFloor();
+    return manifest.revision !== store.servedRevision();
   }
 
   async function runCheck(): Promise<void> {
@@ -169,6 +157,25 @@ export function createUiUpdater(options: UiUpdaterOptions): UiUpdater {
       staged = null;
       setState({ status: 'no-update' });
       if (wasOverridden) applyReload();
+      return;
+    }
+
+    // The shipped UI already outranks the feed — the normal state right after an
+    // app update, whose bundled client is newer than the last UI publish. The
+    // store refuses to serve a bundle that does not beat the shipped floor (see
+    // computeActiveDir), so treating this as an update would download it, prompt,
+    // activate it, and reload onto the very same UI — on every check, forever.
+    const shipped = store.shippedStamp().revision;
+    if (manifest.revision <= shipped) {
+      log(
+        `ui-update: feed revision ${manifest.revision} does not beat the shipped UI (${shipped}); staying on shipped`,
+      );
+      // An activation left over from before the app update can never pass the
+      // floor gate again. Clear it so the persisted state matches what is on
+      // screen; no reload, because the window is already serving the floor.
+      store.revertToShipped();
+      staged = null;
+      setState({ status: 'no-update' });
       return;
     }
 
