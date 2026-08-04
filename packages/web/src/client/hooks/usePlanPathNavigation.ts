@@ -118,12 +118,9 @@ export function usePlanPathNavigation({
       if (focused < 0 || !nodes[focused]) return;
 
       if (key === 'o' || event.key === 'Enter') {
-        // Don't steal Enter from buttons/links the user just activated.
-        if (event.key === 'Enter' && isInteractiveTarget(event.target)) {
-          const pathNode =
-            event.target instanceof Element ? event.target.closest('[data-agendex-path]') : null;
-          if (!pathNode || pathNode !== nodes[focused]) return;
-        }
+        // Don't steal Enter from nested controls (e.g. Open with…); their own
+        // activation should run alone without also firing the primary open.
+        if (event.key === 'Enter' && isInteractiveTarget(event.target)) return;
         nodes[focused].dispatchEvent(new CustomEvent(PLAN_PATH_OPEN_EVENT));
         event.preventDefault();
         return;

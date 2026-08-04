@@ -2,7 +2,7 @@
  * Launch a local application on a pre-resolved file path. Argv-only spawn,
  * detached so the server never blocks on the launched process.
  */
-import { spawn } from 'node:child_process';
+import { spawn, type SpawnOptions } from 'node:child_process';
 import { buildLaunchCommand } from '@agendex/shared';
 
 export interface OpenInLaunchResult {
@@ -12,6 +12,37 @@ export interface OpenInLaunchResult {
 
 /** Brief window to catch immediate spawn failures (ENOENT/EACCES) before OK. */
 const SPAWN_ERROR_GRACE_MS = 40;
+
+/**
+ * Windows editor CLIs are often `.cmd`/`.bat` shims. Shell-disabled `spawn`
+ * cannot execute those directly, so rewrite through `cmd.exe /d /s /c`.
+ * Exported for unit tests.
+ */
+export function resolveSpawnInvocation(argv: string[]): {
+  command: string;
+  args: string[];
+  options: SpawnOptions;
+} {
+  const command = argv[0]!;
+  const args = argv.slice(1);
+  const baseOptions: SpawnOptions = { detached: true, stdio: 'ignore' };
+
+  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(command)) {
+    const comspec = process.env.ComSpec || 'cmd.exe';
+    // cmd.exe quoting: wrap when whitespace/metacharacters are present; double
+    // embedded quotes per the Windows command-line conventions.
+    const quote = (value: string) =>
+      /[\s&<>|^()"]/u.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+    const cmdline = [command, ...args].map(quote).join(' ');
+    return {
+      command: comspec,
+      args: ['/d', '/s', '/c', cmdline],
+      options: { ...baseOptions, windowsVerbatimArguments: true },
+    };
+  }
+
+  return { command, args, options: baseOptions };
+}
 
 export async function launchOpenIn(
   appId: string,
@@ -32,7 +63,8 @@ export async function launchOpenIn(
     };
 
     try {
-      const child = spawn(argv[0]!, argv.slice(1), { detached: true, stdio: 'ignore' });
+      const { command, args, options } = resolveSpawnInvocation(argv);
+      const child = spawn(command, args, options);
       child.once('error', (err) => {
         finish({
           ok: false,
