@@ -13,9 +13,17 @@ export interface OpenInLaunchResult {
 /** Brief window to catch immediate spawn failures (ENOENT/EACCES) before OK. */
 const SPAWN_ERROR_GRACE_MS = 40;
 
+const OPEN_ARGV_ENV_PREFIX = 'AGENDEX_OPEN_ARGV_';
+
 /**
  * Windows editor CLIs are often `.cmd`/`.bat` shims. Shell-disabled `spawn`
  * cannot execute those directly, so rewrite through `cmd.exe /d /s /c`.
+ *
+ * Argv tokens are handed off via env vars (`AGENDEX_OPEN_ARGV_*`) and referenced
+ * as `%AGENDEX_OPEN_ARGV_N%` on the cmdline. That keeps literal `%` segments
+ * (e.g. a folder named `%USERNAME%`) out of cmd's parser — env expansion is
+ * not recursive, so the shim receives the original path bytes.
+ *
  * Exported for unit tests.
  */
 export function resolveSpawnInvocation(argv: string[]): {
@@ -29,18 +37,24 @@ export function resolveSpawnInvocation(argv: string[]): {
 
   if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(command)) {
     const comspec = process.env.ComSpec || 'cmd.exe';
-    // cmd.exe quoting: wrap when whitespace/metacharacters are present; double
-    // embedded quotes; escape % so paired segments like %USERNAME% are not
-    // expanded before the shim sees the path.
-    const quote = (value: string) => {
-      const escaped = value.replace(/%/g, '%%').replace(/"/g, '""');
-      return /[\s&<>|^()"]/u.test(value) || value.includes('%') ? `"${escaped}"` : escaped;
-    };
-    const cmdline = [command, ...args].map(quote).join(' ');
+    const env: Record<string, string | undefined> = { ...process.env };
+    const tokens: string[] = [];
+
+    for (let i = 0; i < argv.length; i++) {
+      const key = `${OPEN_ARGV_ENV_PREFIX}${i}`;
+      env[key] = argv[i];
+      // Quote each expansion so spaces in the value stay one token for the shim.
+      tokens.push(`"%${key}%"`);
+    }
+
+    // cmd.exe strips the first and last quote of a /c string that starts with
+    // `"`, so wrap the whole command once more to preserve per-arg quotes.
+    const cmdline = `"${tokens.join(' ')}"`;
+
     return {
       command: comspec,
       args: ['/d', '/s', '/c', cmdline],
-      options: { ...baseOptions, windowsVerbatimArguments: true },
+      options: { ...baseOptions, env, windowsVerbatimArguments: true },
     };
   }
 

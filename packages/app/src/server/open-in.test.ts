@@ -11,39 +11,43 @@ afterEach(() => {
 });
 
 describe('resolveSpawnInvocation', () => {
-  test('rewrites Windows .cmd shims through cmd.exe', () => {
+  test('rewrites Windows .cmd shims through cmd.exe with env argv handoff', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     process.env.ComSpec = 'C:\\Windows\\System32\\cmd.exe';
 
-    const result = resolveSpawnInvocation([
-      'C:\\Users\\Test\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd',
-      '-g',
-      'C:\\Users\\Test User\\project\\file.ts:42',
-    ]);
+    const bin = 'C:\\Users\\Test\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd';
+    const target = 'C:\\Users\\Test User\\project\\file.ts:42';
+    const result = resolveSpawnInvocation([bin, '-g', target]);
 
     expect(result.command).toBe('C:\\Windows\\System32\\cmd.exe');
-    expect(result.args[0]).toBe('/d');
-    expect(result.args[1]).toBe('/s');
-    expect(result.args[2]).toBe('/c');
-    expect(result.args[3]).toBe(
-      'C:\\Users\\Test\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd -g "C:\\Users\\Test User\\project\\file.ts:42"',
-    );
+    expect(result.args).toEqual([
+      '/d',
+      '/s',
+      '/c',
+      '"%AGENDEX_OPEN_ARGV_0%" "%AGENDEX_OPEN_ARGV_1%" "%AGENDEX_OPEN_ARGV_2%"'.replace(
+        /^/,
+        '"',
+      ) + '"',
+    ]);
     expect(result.options.windowsVerbatimArguments).toBe(true);
+    expect(result.options.env?.AGENDEX_OPEN_ARGV_0).toBe(bin);
+    expect(result.options.env?.AGENDEX_OPEN_ARGV_1).toBe('-g');
+    expect(result.options.env?.AGENDEX_OPEN_ARGV_2).toBe(target);
   });
 
-  test('escapes percent signs so cmd.exe does not expand env vars', () => {
+  test('hands percent-containing paths via env so cmd.exe cannot expand them', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     process.env.ComSpec = 'C:\\Windows\\System32\\cmd.exe';
 
-    const result = resolveSpawnInvocation([
-      'C:\\Editors\\code.cmd',
-      '-g',
-      'C:\\Users\\%USERNAME%\\project\\file.ts:10',
-    ]);
+    const literalPath = 'C:\\Users\\%USERNAME%\\project\\file.ts:10';
+    const result = resolveSpawnInvocation(['C:\\Editors\\code.cmd', '-g', literalPath]);
 
-    expect(result.args[3]).toBe(
-      'C:\\Editors\\code.cmd -g "C:\\Users\\%%USERNAME%%\\project\\file.ts:10"',
-    );
+    // Cmdline must not embed the literal percent path — only an env reference.
+    expect(result.args[3]).not.toContain('%USERNAME%');
+    expect(result.args[3]).toContain('%AGENDEX_OPEN_ARGV_2%');
+    // Env holds the original bytes; cmd expands the var once (non-recursively),
+    // so the shim receives the literal `%USERNAME%` path segment.
+    expect(result.options.env?.AGENDEX_OPEN_ARGV_2).toBe(literalPath);
   });
 
   test('leaves non-script binaries unchanged on Windows', () => {
@@ -53,5 +57,6 @@ describe('resolveSpawnInvocation', () => {
     expect(result.command).toBe(argv[0]);
     expect(result.args).toEqual(argv.slice(1));
     expect(result.options.windowsVerbatimArguments).toBeUndefined();
+    expect(result.options.env).toBeUndefined();
   });
 });
