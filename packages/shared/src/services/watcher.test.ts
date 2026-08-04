@@ -3,8 +3,17 @@ import * as nodeFs from 'node:fs';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, expect, mock, test } from 'bun:test';
+import * as registryModule from '../adapters/registry.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
+import * as planServiceModule from './plan-service.ts';
+
+// Namespace imports are live views, so once mock.module below runs they
+// reflect the fakes. Copy the real exports now — module bodies execute
+// after imports and before the mock.module calls.
+const realRegistry = { ...registryModule };
+const realPlanService = { ...planServiceModule };
+const realNodeFs = { ...nodeFs, default: nodeFs };
 
 class FakeWatcher extends EventEmitter {
   closed = false;
@@ -55,6 +64,15 @@ mock.module('./plan-service.ts', () => ({
   pathsOverlapFilesystemTree: () => false,
   rescanFile: async () => [] as Plan[],
 }));
+
+// Bun module mocks persist for the rest of the process; without this
+// restore, every later test file sees the fakes above and plan-service /
+// registry dependent suites fail when the whole test suite runs together.
+afterAll(() => {
+  mock.module('node:fs', () => realNodeFs);
+  mock.module('../adapters/registry.ts', () => realRegistry);
+  mock.module('./plan-service.ts', () => realPlanService);
+});
 
 function watchedDirOf(watcher: FakeWatcher): string {
   return Reflect.get(watcher, 'watchedDir') as string;

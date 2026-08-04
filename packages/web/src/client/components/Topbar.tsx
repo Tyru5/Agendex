@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
 import type { Plan } from '../lib/api.ts';
-import { SearchBar } from './SearchBar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 import { WorkspaceStatus } from './WorkspaceStatus.tsx';
 
@@ -32,7 +31,6 @@ interface TopbarProps {
   sidebarPinnedOpen: boolean;
   onToggleSidebar: () => void;
   onSelectPlan: (plan: Plan | undefined) => void;
-  onFocusSearch?: () => void;
   totalPlans: number;
   activeAgents: number;
   backendStatus: 'online' | 'offline' | 'checking';
@@ -47,7 +45,6 @@ export function Topbar({
   sidebarPinnedOpen,
   onToggleSidebar,
   onSelectPlan,
-  onFocusSearch,
   totalPlans,
   activeAgents,
   backendStatus,
@@ -65,11 +62,10 @@ export function Topbar({
 
   return (
     <div
-      className="agendex-topbar grid items-center min-w-0 border-b border-border z-50 gap-x-3"
+      className="agendex-topbar flex items-center min-w-0 border-b border-border z-50"
       style={{
         gridColumn: '1 / -1',
         height: `${height}px`,
-        gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
       }}
     >
       <div
@@ -104,11 +100,9 @@ export function Topbar({
         </button>
       </div>
 
-      <div className="hidden md:flex min-w-0 justify-center">
-        <SearchBar onFocusSearch={onFocusSearch} />
-      </div>
+      <div className="flex-1 min-w-0" />
 
-      <div className="flex items-center justify-end gap-1.5 min-w-0 justify-self-end pr-4">
+      <div className="flex items-center justify-end gap-1.5 min-w-0 shrink-0 pr-4">
         {actions}
         <ThemeToggle />
         <div className="w-px h-4 bg-border mx-0.5" />

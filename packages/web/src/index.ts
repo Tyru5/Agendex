@@ -44,6 +44,16 @@ export type {
 } from './client/components/PlanGitSection.tsx';
 export { PlanGitSection } from './client/components/PlanGitSection.tsx';
 export { PlanOutline } from './client/components/PlanOutline.tsx';
+export type {
+  PlanPathContextValue,
+  PlanPathOpenResult,
+} from './client/components/PlanPathContext.tsx';
+export { PlanPathContext, usePlanPathContext } from './client/components/PlanPathContext.tsx';
+export {
+  PLAN_PATH_COPY_EVENT,
+  PLAN_PATH_OPEN_EVENT,
+  PlanPathCode,
+} from './client/components/PlanPathLink.tsx';
 export { PlanSourcesDialog } from './client/components/PlanSourcesDialog.tsx';
 export {
   FOCUS_PLAN_SEARCH_EVENT,
@@ -53,7 +63,6 @@ export {
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export type { PlanAnnotationCreateDraft } from './client/components/PlanViewer.tsx';
 export { PlanActionButton, PlanViewer } from './client/components/PlanViewer.tsx';
-export { SearchBar } from './client/components/SearchBar.tsx';
 export { Sidebar } from './client/components/Sidebar.tsx';
 export type { SidebarFiltersProps, SidebarSortBy } from './client/components/SidebarFilters.tsx';
 export { SidebarFilters } from './client/components/SidebarFilters.tsx';
@@ -88,6 +97,12 @@ export {
 } from './client/hooks/useSidebarWidth.ts';
 export { useSocketEvent } from './client/hooks/useSocket.ts';
 export { useTheme } from './client/hooks/useTheme.ts';
+export { usePlanPathNavigation } from './client/hooks/usePlanPathNavigation.ts';
+export {
+  getPreferredOpenInApp,
+  setPreferredOpenInApp,
+  useValidatedPlanPaths,
+} from './client/hooks/useValidatedPlanPaths.ts';
 
 export {
   AGENT_IDS,
@@ -103,8 +118,23 @@ export type {
   PlanTextAnchor,
 } from './client/lib/annotations.ts';
 export { createPlanTextAnchor } from './client/lib/annotations.ts';
-export type { AgentStats, Plan, PlanAnnotationApiRecord, PlansResponse } from './client/lib/api.ts';
+export type {
+  AgentStats,
+  OpenInAppInfo,
+  PathExistsApiResult,
+  Plan,
+  PlanAnnotationApiRecord,
+  PlansResponse,
+} from './client/lib/api.ts';
 export { api, clearToken, hasToken, setToken } from './client/lib/api.ts';
+export type { ParsedCodePath } from './client/lib/plan-paths.ts';
+export {
+  candidatePathsForValidation,
+  extractCandidateCodePaths,
+  isCodeFilePath,
+  isCodeFilePathStrict,
+  parseCodePath,
+} from './client/lib/plan-paths.ts';
 export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
 export type { FolderState, PlanFolder, PlanFolderStore } from './client/lib/plan-folders.ts';
 export { MAX_FOLDERS } from './client/lib/plan-folders.ts';

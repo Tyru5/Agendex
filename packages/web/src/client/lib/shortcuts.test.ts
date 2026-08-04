@@ -4,7 +4,15 @@ import { getAppShortcuts, shortcutDisplayKeys } from './shortcuts.ts';
 describe('getAppShortcuts', () => {
   test('returns common shortcuts by default', () => {
     const ids = getAppShortcuts().map((s) => s.id);
-    expect(ids).toEqual(['search', 'sidebar', 'outline', 'escape']);
+    expect(ids).toEqual([
+      'search',
+      'sidebar',
+      'outline',
+      'paths',
+      'path-open',
+      'path-copy',
+      'escape',
+    ]);
   });
 
   test('includes ee shortcuts when requested', () => {

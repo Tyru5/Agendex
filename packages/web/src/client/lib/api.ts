@@ -113,6 +113,18 @@ export interface PlanAnnotationApiRecord {
   writebackId?: string;
 }
 
+export type PathExistsApiResult =
+  | { status: 'found'; resolved: string; relative: string }
+  | { status: 'ambiguous'; matches: string[] }
+  | { status: 'missing' }
+  | { status: 'unavailable' };
+
+export interface OpenInAppInfo {
+  id: string;
+  label: string;
+  kind: 'editor' | 'file-manager';
+}
+
 export const api = {
   getPlans: (params?: { agent?: string; q?: string; sort?: string }) => {
     const qs = new URLSearchParams();
@@ -173,6 +185,20 @@ export const api = {
 
   deletePlanAnnotation: (id: string, annotationId: string) =>
     request<{ ok: boolean }>(`/plans/${id}/annotations/${annotationId}`, { method: 'DELETE' }),
+
+  checkPlanPaths: (id: string, paths: string[]) =>
+    request<{ results: Record<string, PathExistsApiResult> }>(`/plans/${id}/paths/exists`, {
+      method: 'POST',
+      body: JSON.stringify({ paths }),
+    }),
+
+  getOpenInApps: () => request<{ available: boolean; apps: OpenInAppInfo[] }>('/open-in/apps'),
+
+  openPlanPath: (id: string, path: string, line?: number, appId?: string) =>
+    request<{ ok: boolean; error?: string }>(`/plans/${id}/open-in`, {
+      method: 'POST',
+      body: JSON.stringify({ path, line, appId }),
+    }),
 
   getPlanSources: () => request<{ customPlanDirs: string[] }>('/plan-sources'),
 

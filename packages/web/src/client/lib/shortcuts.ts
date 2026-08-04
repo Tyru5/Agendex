@@ -17,6 +17,15 @@ export const APP_SHORTCUTS: ShortcutHint[] = [
   { id: 'palette', label: 'Command Palette', hotkey: 'Mod+K', scope: 'ee' },
   { id: 'chart', label: 'Toggle Tech Chart', hotkey: 'Mod+Shift+G', scope: 'ee' },
   { id: 'comment', label: 'Submit Comment', hotkey: 'Mod+Enter', scope: 'ee' },
+  {
+    id: 'paths',
+    label: 'Next / Previous File Path',
+    hotkey: null,
+    keys: ['J', 'K'],
+    scope: 'common',
+  },
+  { id: 'path-open', label: 'Open Focused Path', hotkey: null, keys: ['O'], scope: 'common' },
+  { id: 'path-copy', label: 'Copy Focused Path', hotkey: null, keys: ['Y'], scope: 'common' },
   { id: 'escape', label: 'Close / Cancel', hotkey: null, keys: ['Esc'], scope: 'common' },
 ];
 
