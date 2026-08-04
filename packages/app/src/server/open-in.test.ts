@@ -15,7 +15,8 @@ describe('resolveSpawnInvocation', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     process.env.ComSpec = 'C:\\Windows\\System32\\cmd.exe';
 
-    const bin = 'C:\\Users\\Test\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd';
+    const bin =
+      'C:\\Users\\Test\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd';
     const target = 'C:\\Users\\Test User\\project\\file.ts:42';
     const result = resolveSpawnInvocation([bin, '-g', target]);
 
@@ -24,10 +25,8 @@ describe('resolveSpawnInvocation', () => {
       '/d',
       '/s',
       '/c',
-      '"%AGENDEX_OPEN_ARGV_0%" "%AGENDEX_OPEN_ARGV_1%" "%AGENDEX_OPEN_ARGV_2%"'.replace(
-        /^/,
-        '"',
-      ) + '"',
+      // Outer quotes survive cmd's strip-first-and-last-quote rule for /c.
+      '""%AGENDEX_OPEN_ARGV_0%" "%AGENDEX_OPEN_ARGV_1%" "%AGENDEX_OPEN_ARGV_2%""',
     ]);
     expect(result.options.windowsVerbatimArguments).toBe(true);
     expect(result.options.env?.AGENDEX_OPEN_ARGV_0).toBe(bin);
