@@ -134,7 +134,8 @@ function PlanPathLink({
       if (menuOpen) {
         const menuHeight = menuRef.current?.offsetHeight ?? 0;
         const fitsBelow = preferredTop + menuHeight <= window.innerHeight - 8;
-        const top = fitsBelow || menuHeight === 0 ? preferredTop : Math.max(8, rect.top - menuHeight - 4);
+        const top =
+          fitsBelow || menuHeight === 0 ? preferredTop : Math.max(8, rect.top - menuHeight - 4);
         setMenuPos({ top, left: Math.max(8, left) });
       }
 
@@ -176,75 +177,73 @@ function PlanPathLink({
   const preferredLabel =
     context.apps.find((app) => app.id === context.preferredAppId)?.label ?? 'default app';
 
-  const menu =
-    menuOpen
-      ? createPortal(
-          <span
-            ref={menuRef}
-            className="plan-path-menu plan-path-menu--portal"
-            role="menu"
-            style={{
-              top: menuPos?.top ?? 0,
-              left: menuPos?.left ?? 0,
-              visibility: menuPos ? 'visible' : 'hidden',
-            }}
-          >
-            {result.status === 'ambiguous' ? (
-              <>
-                <span className="plan-path-menu-heading">Matches in workspace</span>
-                {result.matches.map((match) => (
-                  <button
-                    key={match}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => void openWithApp(match)}
-                  >
-                    {match}
-                  </button>
-                ))}
-              </>
-            ) : (
-              <>
-                {context.apps.map((app) => (
-                  <button
-                    key={app.id}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => void openWithApp(openTarget, app.id)}
-                  >
-                    {app.label}
-                    {app.id === context.preferredAppId && (
-                      <span className="plan-path-menu-hint">last used</span>
-                    )}
-                  </button>
-                ))}
-              </>
-            )}
-            <button type="button" role="menuitem" onClick={() => void copyPath()}>
-              Copy path
-            </button>
-          </span>,
-          document.body,
-        )
-      : null;
+  const menu = menuOpen
+    ? createPortal(
+        <span
+          ref={menuRef}
+          className="plan-path-menu plan-path-menu--portal"
+          role="menu"
+          style={{
+            top: menuPos?.top ?? 0,
+            left: menuPos?.left ?? 0,
+            visibility: menuPos ? 'visible' : 'hidden',
+          }}
+        >
+          {result.status === 'ambiguous' ? (
+            <>
+              <span className="plan-path-menu-heading">Matches in workspace</span>
+              {result.matches.map((match) => (
+                <button
+                  key={match}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => void openWithApp(match)}
+                >
+                  {match}
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              {context.apps.map((app) => (
+                <button
+                  key={app.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => void openWithApp(openTarget, app.id)}
+                >
+                  {app.label}
+                  {app.id === context.preferredAppId && (
+                    <span className="plan-path-menu-hint">last used</span>
+                  )}
+                </button>
+              ))}
+            </>
+          )}
+          <button type="button" role="menuitem" onClick={() => void copyPath()}>
+            Copy path
+          </button>
+        </span>,
+        document.body,
+      )
+    : null;
 
-  const errorToast =
-    error
-      ? createPortal(
-          <span
-            className="plan-path-error plan-path-error--portal"
-            role="alert"
-            style={{
-              top: errorPos?.top ?? 0,
-              left: errorPos?.left ?? 0,
-              visibility: errorPos ? 'visible' : 'hidden',
-            }}
-          >
-            {error}
-          </span>,
-          document.body,
-        )
-      : null;
+  const errorToast = error
+    ? createPortal(
+        <span
+          className="plan-path-error plan-path-error--portal"
+          role="alert"
+          style={{
+            top: errorPos?.top ?? 0,
+            left: errorPos?.left ?? 0,
+            visibility: errorPos ? 'visible' : 'hidden',
+          }}
+        >
+          {error}
+        </span>,
+        document.body,
+      )
+    : null;
 
   return (
     <span

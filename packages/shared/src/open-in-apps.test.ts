@@ -23,14 +23,7 @@ describe('buildLaunchCommand', () => {
       const command = buildLaunchCommand('cursor', '/tmp/demo.ts', 42);
       // Only assert when Cursor.app is installed on this host.
       if (command?.[0] === 'open') {
-        expect(command).toEqual([
-          'open',
-          '-a',
-          command[2]!,
-          '--args',
-          '-g',
-          '/tmp/demo.ts:42',
-        ]);
+        expect(command).toEqual(['open', '-a', command[2]!, '--args', '-g', '/tmp/demo.ts:42']);
       }
     } finally {
       process.env.PATH = originalPath;

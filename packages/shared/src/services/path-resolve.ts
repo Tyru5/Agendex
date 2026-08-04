@@ -160,10 +160,7 @@ function existingRelativeMatches(realWorkspace: string, matches: string[]): stri
   });
 }
 
-function resolveExistingMatches(
-  realWorkspace: string,
-  matches: string[],
-): PathExistsResult {
+function resolveExistingMatches(realWorkspace: string, matches: string[]): PathExistsResult {
   const existing = existingRelativeMatches(realWorkspace, matches);
   if (existing.length === 1) {
     return foundFromRelativeMatch(realWorkspace, existing[0]!) ?? { status: 'missing' };
