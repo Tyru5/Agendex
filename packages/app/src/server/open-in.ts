@@ -30,9 +30,12 @@ export function resolveSpawnInvocation(argv: string[]): {
   if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(command)) {
     const comspec = process.env.ComSpec || 'cmd.exe';
     // cmd.exe quoting: wrap when whitespace/metacharacters are present; double
-    // embedded quotes per the Windows command-line conventions.
-    const quote = (value: string) =>
-      /[\s&<>|^()"]/u.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+    // embedded quotes; escape % so paired segments like %USERNAME% are not
+    // expanded before the shim sees the path.
+    const quote = (value: string) => {
+      const escaped = value.replace(/%/g, '%%').replace(/"/g, '""');
+      return /[\s&<>|^()"]/u.test(value) || value.includes('%') ? `"${escaped}"` : escaped;
+    };
     const cmdline = [command, ...args].map(quote).join(' ');
     return {
       command: comspec,

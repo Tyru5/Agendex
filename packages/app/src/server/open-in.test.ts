@@ -31,6 +31,21 @@ describe('resolveSpawnInvocation', () => {
     expect(result.options.windowsVerbatimArguments).toBe(true);
   });
 
+  test('escapes percent signs so cmd.exe does not expand env vars', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    process.env.ComSpec = 'C:\\Windows\\System32\\cmd.exe';
+
+    const result = resolveSpawnInvocation([
+      'C:\\Editors\\code.cmd',
+      '-g',
+      'C:\\Users\\%USERNAME%\\project\\file.ts:10',
+    ]);
+
+    expect(result.args[3]).toBe(
+      'C:\\Editors\\code.cmd -g "C:\\Users\\%%USERNAME%%\\project\\file.ts:10"',
+    );
+  });
+
   test('leaves non-script binaries unchanged on Windows', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     const argv = ['C:\\Editors\\code.exe', '-g', 'C:\\file.ts:1'];
