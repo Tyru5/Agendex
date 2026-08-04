@@ -9,6 +9,7 @@ import { plans } from './plans.ts';
 let workspace: string;
 let outside: string;
 let planId: string;
+let planFilePath: string;
 
 const PLAN_CONTENT = `# Improve startup flow
 
@@ -53,6 +54,7 @@ beforeAll(async () => {
   if (!plan) throw new Error('Expected the fixture plan to be indexed');
   if (!plan.workspace) throw new Error('Expected the fixture plan to carry a workspace');
   planId = plan.id;
+  planFilePath = plan.filePath;
 });
 
 afterAll(async () => {
@@ -70,6 +72,7 @@ async function postJson(path: string, body: unknown) {
 }
 
 describe('POST /plans/:id/paths/exists', () => {
+  // User story: a local plan can validate exact, ambiguous, missing, and unsafe paths.
   test('reports found, ambiguous, and missing statuses', async () => {
     const res = await postJson(`/plans/${planId}/paths/exists`, {
       paths: ['src/main.ts', 'App.tsx', 'does/not/exist.ts', join(outside, 'secret.ts')],
@@ -82,18 +85,41 @@ describe('POST /plans/:id/paths/exists', () => {
     expect(body.results[join(outside, 'secret.ts')]?.status).toBe('missing');
   });
 
+  // User story: malformed browser requests fail without touching the filesystem.
   test('rejects non-array payloads', async () => {
     const res = await postJson(`/plans/${planId}/paths/exists`, { paths: 'src/main.ts' });
     expect(res.status).toBe(400);
   });
 
+  // User story: an unknown plan cannot nominate a local workspace by id alone.
   test('404s for unknown plans', async () => {
     const res = await postJson('/plans/nope/paths/exists', { paths: ['a.ts'] });
+    expect(res.status).toBe(404);
+  });
+
+  // User story: a cloud Convex id resolves to its already-indexed local source plan.
+  test('bridges a cloud plan id through its indexed source file', async () => {
+    const res = await postJson('/plans/cloud-plan-id/paths/exists', {
+      paths: ['src/main.ts'],
+      sourceFilePath: planFilePath,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { results: Record<string, { status: string }> };
+    expect(body.results['src/main.ts']?.status).toBe('found');
+  });
+
+  // User story: a cloud plan cannot use an arbitrary file as a local workspace identity.
+  test('rejects source files that are not in the local plan index', async () => {
+    const res = await postJson('/plans/cloud-plan-id/paths/exists', {
+      paths: ['secret.ts'],
+      sourceFilePath: join(outside, 'secret.ts'),
+    });
     expect(res.status).toBe(404);
   });
 });
 
 describe('GET /open-in/apps', () => {
+  // User story: the open-with menu always offers the host file manager.
   test('returns a host catalog that always includes reveal', async () => {
     const res = await plans.request('/open-in/apps');
     expect(res.status).toBe(200);
@@ -104,6 +130,7 @@ describe('GET /open-in/apps', () => {
 });
 
 describe('POST /plans/:id/open-in', () => {
+  // User story: source actions cannot open files outside the plan workspace.
   test('denies paths outside the workspace', async () => {
     const res = await postJson(`/plans/${planId}/open-in`, {
       path: join(outside, 'secret.ts'),
@@ -112,6 +139,7 @@ describe('POST /plans/:id/open-in', () => {
     expect(res.status).toBe(404);
   });
 
+  // User story: traversal syntax cannot escape the plan workspace.
   test('denies traversal escapes', async () => {
     const res = await postJson(`/plans/${planId}/open-in`, {
       path: '../../etc/hosts',
@@ -120,6 +148,7 @@ describe('POST /plans/:id/open-in', () => {
     expect(res.status).toBe(404);
   });
 
+  // User story: duplicate basenames prompt for a specific match instead of guessing.
   test('reports ambiguous paths instead of guessing', async () => {
     const res = await postJson(`/plans/${planId}/open-in`, { path: 'App.tsx', appId: 'reveal' });
     expect(res.status).toBe(409);
@@ -127,6 +156,7 @@ describe('POST /plans/:id/open-in', () => {
     expect(body.matches).toHaveLength(2);
   });
 
+  // User story: unavailable editors return a useful failure without crashing the server.
   test('fails cleanly for unavailable applications', async () => {
     const res = await postJson(`/plans/${planId}/open-in`, {
       path: 'src/main.ts',
@@ -138,8 +168,19 @@ describe('POST /plans/:id/open-in', () => {
     expect(body.error).toBeTruthy();
   });
 
+  // User story: an open request must identify the source path to act on.
   test('requires a path', async () => {
     const res = await postJson(`/plans/${planId}/open-in`, { appId: 'reveal' });
     expect(res.status).toBe(400);
+  });
+
+  // User story: opening from a cloud plan uses the matching indexed local source safely.
+  test('bridges a cloud plan id before opening a source file', async () => {
+    const res = await postJson('/plans/cloud-plan-id/open-in', {
+      path: 'src/main.ts',
+      appId: 'no-such-app',
+      sourceFilePath: planFilePath,
+    });
+    expect(res.status).toBe(502);
   });
 });

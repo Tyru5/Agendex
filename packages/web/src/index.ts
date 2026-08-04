@@ -29,7 +29,7 @@ export {
   planMarkdownComponents,
   planMarkdownRehypePlugins,
   planMarkdownRemarkPlugins,
-} from './client/components/markdownRenderConfig.tsx';
+} from './client/components/markdownRenderConfig.ts';
 export { GitHubIcon, GoogleIcon } from './client/components/OAuthIcons.tsx';
 export { OfflineView } from './client/components/OfflineView.tsx';
 export { PlanCreator } from './client/components/PlanCreator.tsx';
@@ -47,6 +47,7 @@ export { PlanOutline } from './client/components/PlanOutline.tsx';
 export type {
   PlanPathContextValue,
   PlanPathOpenResult,
+  PlanPathValidationStatus,
 } from './client/components/PlanPathContext.tsx';
 export { PlanPathContext, usePlanPathContext } from './client/components/PlanPathContext.tsx';
 export {
@@ -63,6 +64,7 @@ export {
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export type { PlanAnnotationCreateDraft } from './client/components/PlanViewer.tsx';
 export { PlanActionButton, PlanViewer } from './client/components/PlanViewer.tsx';
+export { SearchBar } from './client/components/SearchBar.tsx';
 export { Sidebar } from './client/components/Sidebar.tsx';
 export type { SidebarFiltersProps, SidebarSortBy } from './client/components/SidebarFilters.tsx';
 export { SidebarFilters } from './client/components/SidebarFilters.tsx';

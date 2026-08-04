@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import type { PlanPathContextValue, PlanPathOpenResult } from '../components/PlanPathContext.tsx';
 import {
   api,
@@ -14,6 +14,41 @@ const OPEN_IN_APP_STORAGE_KEY = 'agendex_open_in_app';
 const PATH_VALIDATION_REFRESH_MS = 30_000;
 /** Must match PATH_EXISTS_BATCH_LIMIT in @agendex/shared. */
 const PATH_EXISTS_BATCH_LIMIT = 500;
+const EMPTY_PATH_RESULTS: Record<string, PathExistsApiResult> = {};
+
+interface ValidationState {
+  planId: string;
+  results: Record<string, PathExistsApiResult>;
+  status: PlanPathContextValue['status'];
+  statusMessage?: string;
+}
+
+type ValidationAction =
+  | { type: 'loading'; planId: string }
+  | { type: 'ready'; planId: string; results: Record<string, PathExistsApiResult> }
+  | { type: 'unavailable'; planId: string; message: string };
+
+function validationReducer(state: ValidationState, action: ValidationAction): ValidationState {
+  if (action.type === 'loading') {
+    return { planId: action.planId, results: EMPTY_PATH_RESULTS, status: 'loading' };
+  }
+  if (action.type === 'unavailable') {
+    return {
+      planId: action.planId,
+      results: EMPTY_PATH_RESULTS,
+      status: 'unavailable',
+      statusMessage: action.message,
+    };
+  }
+  if (
+    state.planId === action.planId &&
+    state.status === 'ready' &&
+    pathResultsEqual(state.results, action.results)
+  ) {
+    return state;
+  }
+  return { planId: action.planId, results: action.results, status: 'ready' };
+}
 
 export function getPreferredOpenInApp(apps: readonly OpenInAppInfo[]): string {
   const stored = localStorage.getItem(OPEN_IN_APP_STORAGE_KEY);
@@ -67,12 +102,17 @@ function pathResultsEqual(
 
 async function checkPlanPathsBatched(
   planId: string,
+  sourceFilePath: string,
   paths: readonly string[],
 ): Promise<Record<string, PathExistsApiResult>> {
-  const merged: Record<string, PathExistsApiResult> = {};
+  const requests: Array<Promise<{ results: Record<string, PathExistsApiResult> }>> = [];
   for (let offset = 0; offset < paths.length; offset += PATH_EXISTS_BATCH_LIMIT) {
     const chunk = paths.slice(offset, offset + PATH_EXISTS_BATCH_LIMIT);
-    const response = await api.checkPlanPaths(planId, chunk);
+    requests.push(api.checkPlanPaths(planId, chunk, sourceFilePath));
+  }
+
+  const merged: Record<string, PathExistsApiResult> = {};
+  for (const response of await Promise.all(requests)) {
     Object.assign(merged, response.results);
   }
   return merged;
@@ -84,13 +124,14 @@ async function checkPlanPathsBatched(
  * workspace, or no candidates) so paths stay plain inline code.
  */
 export function useValidatedPlanPaths(
-  plan: Pick<Plan, 'id' | 'workspace'>,
+  plan: Pick<Plan, 'id' | 'workspace' | 'filePath'>,
   content: string,
 ): PlanPathContextValue | null {
-  const [resultsState, setResultsState] = useState<{
-    planId: string;
-    results: Record<string, PathExistsApiResult>;
-  }>({ planId: plan.id, results: {} });
+  const [resultsState, dispatchValidation] = useReducer(validationReducer, {
+    planId: plan.id,
+    results: EMPTY_PATH_RESULTS,
+    status: 'loading',
+  });
   const [apps, setApps] = useState<OpenInAppInfo[]>([]);
   const [preferredAppId, setPreferredAppId] = useState('reveal');
 
@@ -101,13 +142,26 @@ export function useValidatedPlanPaths(
 
   // Drop prior-plan results immediately on switch so overlapping path strings
   // cannot briefly render/open with the previous workspace resolution.
-  const results = resultsState.planId === plan.id ? resultsState.results : {};
+  const currentState: typeof resultsState =
+    resultsState.planId === plan.id
+      ? resultsState
+      : { planId: plan.id, results: EMPTY_PATH_RESULTS, status: 'loading' };
+  const results = currentState.results;
 
-  const enabled = Boolean(plan.workspace) && paths.length > 0 && hasToken();
+  const hasCandidates = Boolean(plan.workspace) && paths.length > 0;
+  const enabled = hasCandidates && hasToken();
 
   useEffect(() => {
+    if (!hasCandidates) {
+      dispatchValidation({ type: 'loading', planId: plan.id });
+      return;
+    }
     if (!enabled) {
-      setResultsState({ planId: plan.id, results: {} });
+      dispatchValidation({
+        type: 'unavailable',
+        planId: plan.id,
+        message: 'Connect the local Agendex server to open source files.',
+      });
       return;
     }
 
@@ -117,22 +171,25 @@ export function useValidatedPlanPaths(
 
     const validate = (clearFirst: boolean) => {
       const id = ++requestId;
-      if (clearFirst) setResultsState({ planId: plan.id, results: {} });
-      void checkPlanPathsBatched(plan.id, paths)
+      if (clearFirst) {
+        dispatchValidation({ type: 'loading', planId: plan.id });
+      }
+      void checkPlanPathsBatched(plan.id, plan.filePath, paths)
         .then((nextResults) => {
           if (cancelled || id !== requestId) return;
           hasLoaded = true;
-          setResultsState((current) => {
-            if (current.planId === plan.id && pathResultsEqual(current.results, nextResults)) {
-              return current;
-            }
-            return { planId: plan.id, results: nextResults };
-          });
+          dispatchValidation({ type: 'ready', planId: plan.id, results: nextResults });
         })
-        .catch(() => {
-          // Cloud/shared viewers or offline: leave paths as plain code.
+        .catch((error: unknown) => {
           if (cancelled || id !== requestId) return;
-          if (clearFirst) setResultsState({ planId: plan.id, results: {} });
+          dispatchValidation({
+            type: 'unavailable',
+            planId: plan.id,
+            message:
+              error instanceof Error && error.message === 'local plan source not found'
+                ? 'This cloud plan is not indexed by the local Agendex server.'
+                : 'The local Agendex server could not validate source files.',
+          });
         });
     };
 
@@ -157,7 +214,7 @@ export function useValidatedPlanPaths(
       document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(intervalId);
     };
-  }, [enabled, plan.id, paths]);
+  }, [enabled, hasCandidates, plan.filePath, plan.id, paths]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -176,7 +233,7 @@ export function useValidatedPlanPaths(
     async (path: string, line?: number, appId?: string): Promise<PlanPathOpenResult> => {
       const targetApp = appId ?? getPreferredOpenInApp(apps);
       try {
-        const response = await api.openPlanPath(plan.id, path, line, targetApp);
+        const response = await api.openPlanPath(plan.id, path, line, targetApp, plan.filePath);
         if (response.ok) {
           setPreferredOpenInApp(targetApp);
           setPreferredAppId(targetApp);
@@ -186,11 +243,28 @@ export function useValidatedPlanPaths(
         return { ok: false, error: err instanceof Error ? err.message : 'Failed to open path' };
       }
     },
-    [apps, plan.id],
+    [apps, plan.filePath, plan.id],
   );
 
   return useMemo(() => {
-    if (!enabled) return null;
-    return { planId: plan.id, results, apps, preferredAppId, openPath };
-  }, [enabled, plan.id, results, apps, preferredAppId, openPath]);
+    if (!hasCandidates) return null;
+    return {
+      planId: plan.id,
+      results,
+      apps,
+      preferredAppId,
+      openPath,
+      status: currentState.status,
+      statusMessage: currentState.statusMessage,
+    };
+  }, [
+    apps,
+    currentState.status,
+    currentState.statusMessage,
+    hasCandidates,
+    openPath,
+    plan.id,
+    preferredAppId,
+    results,
+  ]);
 }

@@ -128,7 +128,7 @@ const SPECIAL_DOTFILES = new Set([
 ]);
 
 /** Characters that make a token implausible as a single file path. */
-const IMPLAUSIBLE_CHARS = /[{}*?<>|"`\s\\]/;
+const IMPLAUSIBLE_CHARS = /[{}*?<>|"`\s]/;
 
 function basenameOf(path: string): string {
   const idx = path.lastIndexOf('/');
@@ -183,6 +183,11 @@ export function parseCodePath(raw: string): ParsedCodePath | null {
   // Trailing punctuation from prose ("see foo/bar.ts.", "(foo/bar.ts)").
   value = value.replace(/[.,;)\]]+$/, '');
 
+  // Normalize Windows separators before validation and before sending the
+  // path to the local API. Node's path resolver accepts this portable form
+  // on Windows and it also gives validation results a stable lookup key.
+  value = value.replace(/\\/g, '/');
+
   if (!value || IMPLAUSIBLE_CHARS.test(value)) return null;
   if (!hasCodeExtension(basenameOf(value))) return null;
 
@@ -212,7 +217,36 @@ function stripFencedBlocksAndComments(markdown: string): string {
 const INLINE_CODE_RE = /`([^`\n]+)`/g;
 // Bare-prose tokens: path-ish runs containing at least one slash, optionally
 // followed by :line/:range or a #anchor. Leading ./ and ../ allowed.
-const BARE_PATH_RE = /(?:\.{1,2}\/)?[\w@~][\w.@+-]*(?:\/[\w.@+-]+)+(?::\d+(?:-\d+)?|#[\w.-]+)?/g;
+const BARE_PATH_PATTERN = String.raw`(?:[A-Za-z]:[\\/]|\.{1,2}[\\/])?[\w@~][\w.@+-]*(?:[\\/][\w.@+-]+)+(?::\d+(?:-\d+)?|#[\w.-]+)?`;
+
+export interface CodePathTextPart {
+  value: string;
+  isPath: boolean;
+}
+
+/** Split prose into plain text and strict path mentions for Markdown rendering. */
+export function splitBareCodePathText(value: string): CodePathTextPart[] {
+  const parts: CodePathTextPart[] = [];
+  let lastIndex = 0;
+
+  for (const match of value.matchAll(new RegExp(BARE_PATH_PATTERN, 'g'))) {
+    const token = match[0];
+    const index = match.index;
+    if (!isCodeFilePathStrict(token)) continue;
+    if (index > lastIndex) parts.push({ value: value.slice(lastIndex, index), isPath: false });
+    parts.push({ value: token, isPath: true });
+    lastIndex = index + token.length;
+  }
+
+  if (lastIndex < value.length) parts.push({ value: value.slice(lastIndex), isPath: false });
+  return parts.length > 0 ? parts : [{ value, isPath: false }];
+}
+
+function stripMarkdownLinkDestinations(markdown: string): string {
+  return markdown
+    .replace(/(!?\[[^\]\n]*\])\((?:\\.|[^)\n])*\)/g, '$1')
+    .replace(/^\s*\[[^\]\n]+\]:\s+\S+.*$/gm, '');
+}
 
 /**
  * Extract deduped code-path candidates from plan markdown.
@@ -242,7 +276,9 @@ export function extractCandidateCodePaths(markdown: string): ParsedCodePath[] {
   }
   withoutInline += source.slice(lastIndex);
 
-  for (const match of withoutInline.matchAll(BARE_PATH_RE)) {
+  withoutInline = stripMarkdownLinkDestinations(withoutInline);
+
+  for (const match of withoutInline.matchAll(new RegExp(BARE_PATH_PATTERN, 'g'))) {
     const token = match[0];
     // Skip tokens inside URLs (scheme precedes the matched token).
     const before = withoutInline.slice(Math.max(0, match.index - 8), match.index);

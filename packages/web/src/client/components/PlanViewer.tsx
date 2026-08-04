@@ -35,7 +35,7 @@ import {
   planMarkdownComponents,
   planMarkdownRehypePlugins,
   planMarkdownRemarkPlugins,
-} from './markdownRenderConfig.tsx';
+} from './markdownRenderConfig.ts';
 import { PlanActionButton } from './PlanActionButton.tsx';
 import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
@@ -390,7 +390,7 @@ export function PlanViewer({
 
   usePlanPathNavigation({
     rootRef: bodyRef,
-    enabled: planPaths !== null,
+    enabled: planPaths?.status === 'ready',
     // Reset focus when the plan, markdown, or validated path set changes.
     contentKey: `${plan.id}\0${renderContent}\0${pathValidationKey}`,
   });
@@ -976,6 +976,11 @@ export function PlanViewer({
           )}
 
           {/* Body */}
+          {planPaths?.status === 'unavailable' && (
+            <div className="plan-path-status" role="status">
+              {planPaths.statusMessage}
+            </div>
+          )}
           {renderMode === 'markdown' ? (
             <article
               ref={(node) => {

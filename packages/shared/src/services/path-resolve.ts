@@ -81,7 +81,9 @@ async function walkWorkspace(workspace: string): Promise<string[]> {
   const queue: Array<{ dir: string; depth: number }> = [{ dir: workspace, depth: 0 }];
 
   while (queue.length > 0 && files.length < FILE_LIST_MAX_FILES) {
-    const { dir, depth } = queue.shift()!;
+    const next = queue.shift();
+    if (!next) break;
+    const { dir, depth } = next;
     let entries;
     try {
       entries = await readdir(dir, { withFileTypes: true });
@@ -162,8 +164,9 @@ function existingRelativeMatches(realWorkspace: string, matches: string[]): stri
 
 function resolveExistingMatches(realWorkspace: string, matches: string[]): PathExistsResult {
   const existing = existingRelativeMatches(realWorkspace, matches);
-  if (existing.length === 1) {
-    return foundFromRelativeMatch(realWorkspace, existing[0]!) ?? { status: 'missing' };
+  const [onlyMatch] = existing;
+  if (onlyMatch && existing.length === 1) {
+    return foundFromRelativeMatch(realWorkspace, onlyMatch) ?? { status: 'missing' };
   }
   if (existing.length > 1) {
     return {

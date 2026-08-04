@@ -279,6 +279,7 @@ function Dashboard() {
         sidebarPinnedOpen={sidebarPinnedOpen}
         onToggleSidebar={toggleSidebar}
         onSelectPlan={setSelectedPlan}
+        onFocusSearch={revealSidebarForSearch}
         totalPlans={totalPlans}
         activeAgents={activeAgents}
         backendStatus={backendStatus}

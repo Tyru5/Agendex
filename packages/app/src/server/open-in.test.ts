@@ -11,6 +11,7 @@ afterEach(() => {
 });
 
 describe('resolveSpawnInvocation', () => {
+  // User story: Windows users can launch source paths through editor command shims.
   test('rewrites Windows .cmd shims through cmd.exe with env argv handoff', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     process.env.ComSpec = 'C:\\Windows\\System32\\cmd.exe';
@@ -34,6 +35,7 @@ describe('resolveSpawnInvocation', () => {
     expect(result.options.env?.AGENDEX_OPEN_ARGV_2).toBe(target);
   });
 
+  // User story: literal percent characters in Windows paths are not expanded by cmd.exe.
   test('hands percent-containing paths via env so cmd.exe cannot expand them', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     process.env.ComSpec = 'C:\\Windows\\System32\\cmd.exe';
@@ -49,6 +51,7 @@ describe('resolveSpawnInvocation', () => {
     expect(result.options.env?.AGENDEX_OPEN_ARGV_2).toBe(literalPath);
   });
 
+  // User story: native Windows editor executables launch without an unnecessary shell.
   test('leaves non-script binaries unchanged on Windows', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     const argv = ['C:\\Editors\\code.exe', '-g', 'C:\\file.ts:1'];
