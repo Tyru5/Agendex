@@ -79,6 +79,7 @@ export {
   safeHttpUrl,
   sanitizeRemoteUrl,
   shortCommit,
+  sourceFileUrl,
 } from './git-forge.ts';
 export {
   captureGitContext,

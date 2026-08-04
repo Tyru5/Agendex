@@ -136,6 +136,17 @@ function encodeBranchPath(branch: string): string {
   return branch.split('/').map(encodeURIComponent).join('/');
 }
 
+function encodeSourcePath(path: string): string | undefined {
+  const segments = path.split('/');
+  if (
+    segments.length === 0 ||
+    segments.some((segment) => !segment || segment === '.' || segment === '..')
+  ) {
+    return undefined;
+  }
+  return segments.map(encodeURIComponent).join('/');
+}
+
 export function branchUrl(repo: GitRepoInfo | undefined, branch: string): string | undefined {
   if (!repo?.webUrl) return undefined;
   switch (forgeKind(repo.host)) {
@@ -173,6 +184,46 @@ export function prUrl(repo: GitRepoInfo | undefined, prNumber: number): string |
       return `${repo.webUrl}/-/merge_requests/${prNumber}`;
     case 'bitbucket':
       return `${repo.webUrl}/pull-requests/${prNumber}`;
+    default:
+      return undefined;
+  }
+}
+
+/** Build a forge URL for a repo-relative source file, optionally at a line range. */
+export function sourceFileUrl(
+  repo: GitRepoInfo | undefined,
+  ref: string,
+  path: string,
+  line?: number,
+  lineEnd?: number,
+): string | undefined {
+  if (!repo?.webUrl || !ref.trim()) return undefined;
+  const encodedPath = encodeSourcePath(path);
+  if (!encodedPath) return undefined;
+
+  const encodedRef = encodeBranchPath(ref);
+  const startLine = line && line > 0 ? Math.floor(line) : undefined;
+  const endLine = lineEnd && lineEnd > 0 ? Math.floor(lineEnd) : undefined;
+
+  switch (forgeKind(repo.host)) {
+    case 'github': {
+      const anchor = startLine
+        ? `#L${startLine}${endLine && endLine !== startLine ? `-L${endLine}` : ''}`
+        : '';
+      return `${repo.webUrl}/blob/${encodedRef}/${encodedPath}${anchor}`;
+    }
+    case 'gitlab': {
+      const anchor = startLine
+        ? `#L${startLine}${endLine && endLine !== startLine ? `-${endLine}` : ''}`
+        : '';
+      return `${repo.webUrl}/-/blob/${encodedRef}/${encodedPath}${anchor}`;
+    }
+    case 'bitbucket': {
+      const anchor = startLine
+        ? `#lines-${startLine}${endLine && endLine !== startLine ? `:${endLine}` : ''}`
+        : '';
+      return `${repo.webUrl}/src/${encodedRef}/${encodedPath}${anchor}`;
+    }
     default:
       return undefined;
   }

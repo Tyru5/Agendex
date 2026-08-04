@@ -8,12 +8,14 @@ import {
   type Plan,
 } from '../lib/api.ts';
 import { candidatePathsForValidation, extractCandidateCodePaths } from '../lib/plan-paths.ts';
+import { remoteTargetsForPlanPaths } from '../lib/plan-path-targets.ts';
 
 const OPEN_IN_APP_STORAGE_KEY = 'agendex_open_in_app';
 /** Soft re-check while a plan stays open so newly created files can link up. */
 const PATH_VALIDATION_REFRESH_MS = 30_000;
 /** Must match PATH_EXISTS_BATCH_LIMIT in @agendex/shared. */
 const PATH_EXISTS_BATCH_LIMIT = 500;
+const EMPTY_PATH_RESULTS: Record<string, PathExistsApiResult> = {};
 
 export function getPreferredOpenInApp(apps: readonly OpenInAppInfo[]): string {
   const stored = localStorage.getItem(OPEN_IN_APP_STORAGE_KEY);
@@ -79,12 +81,11 @@ async function checkPlanPathsBatched(
 }
 
 /**
- * Validate code-path candidates in a plan against its workspace via the
- * local API. Returns null when validation is unavailable (no token, no
- * workspace, or no candidates) so paths stay plain inline code.
+ * Resolve code-path candidates against both available surfaces: the local API
+ * for same-machine editor opening, and synced git metadata for Cloud links.
  */
 export function useValidatedPlanPaths(
-  plan: Pick<Plan, 'id' | 'workspace'>,
+  plan: Pick<Plan, 'id' | 'localPlanId' | 'workspace' | 'metadata'>,
   content: string,
 ): PlanPathContextValue | null {
   const [resultsState, setResultsState] = useState<{
@@ -94,19 +95,24 @@ export function useValidatedPlanPaths(
   const [apps, setApps] = useState<OpenInAppInfo[]>([]);
   const [preferredAppId, setPreferredAppId] = useState('reveal');
 
-  const paths = useMemo(
-    () => candidatePathsForValidation(extractCandidateCodePaths(content)),
-    [content],
+  const candidates = useMemo(() => extractCandidateCodePaths(content), [content]);
+  const paths = useMemo(() => candidatePathsForValidation(candidates), [candidates]);
+  const remoteTargets = useMemo(
+    () =>
+      remoteTargetsForPlanPaths({ workspace: plan.workspace, metadata: plan.metadata }, candidates),
+    [candidates, plan.metadata, plan.workspace],
   );
+  const localPlanId = plan.localPlanId ?? plan.id;
 
   // Drop prior-plan results immediately on switch so overlapping path strings
   // cannot briefly render/open with the previous workspace resolution.
-  const results = resultsState.planId === plan.id ? resultsState.results : {};
+  const results = resultsState.planId === plan.id ? resultsState.results : EMPTY_PATH_RESULTS;
 
-  const enabled = Boolean(plan.workspace) && paths.length > 0 && hasToken();
+  const localEnabled = Boolean(plan.workspace) && paths.length > 0 && hasToken();
+  const enabled = localEnabled || Object.keys(remoteTargets).length > 0;
 
   useEffect(() => {
-    if (!enabled) {
+    if (!localEnabled) {
       setResultsState({ planId: plan.id, results: {} });
       return;
     }
@@ -118,7 +124,7 @@ export function useValidatedPlanPaths(
     const validate = (clearFirst: boolean) => {
       const id = ++requestId;
       if (clearFirst) setResultsState({ planId: plan.id, results: {} });
-      void checkPlanPathsBatched(plan.id, paths)
+      void checkPlanPathsBatched(localPlanId, paths)
         .then((nextResults) => {
           if (cancelled || id !== requestId) return;
           hasLoaded = true;
@@ -130,7 +136,7 @@ export function useValidatedPlanPaths(
           });
         })
         .catch(() => {
-          // Cloud/shared viewers or offline: leave paths as plain code.
+          // Local API unavailable: Git-forge targets can still render.
           if (cancelled || id !== requestId) return;
           if (clearFirst) setResultsState({ planId: plan.id, results: {} });
         });
@@ -157,10 +163,10 @@ export function useValidatedPlanPaths(
       document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(intervalId);
     };
-  }, [enabled, plan.id, paths]);
+  }, [localEnabled, localPlanId, plan.id, paths]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!localEnabled) return;
     let cancelled = false;
     void fetchOpenInApps().then((detected) => {
       if (cancelled) return;
@@ -170,13 +176,13 @@ export function useValidatedPlanPaths(
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [localEnabled]);
 
   const openPath = useCallback(
     async (path: string, line?: number, appId?: string): Promise<PlanPathOpenResult> => {
       const targetApp = appId ?? getPreferredOpenInApp(apps);
       try {
-        const response = await api.openPlanPath(plan.id, path, line, targetApp);
+        const response = await api.openPlanPath(localPlanId, path, line, targetApp);
         if (response.ok) {
           setPreferredOpenInApp(targetApp);
           setPreferredAppId(targetApp);
@@ -186,11 +192,11 @@ export function useValidatedPlanPaths(
         return { ok: false, error: err instanceof Error ? err.message : 'Failed to open path' };
       }
     },
-    [apps, plan.id],
+    [apps, localPlanId],
   );
 
   return useMemo(() => {
     if (!enabled) return null;
-    return { planId: plan.id, results, apps, preferredAppId, openPath };
-  }, [enabled, plan.id, results, apps, preferredAppId, openPath]);
+    return { planId: plan.id, results, remoteTargets, apps, preferredAppId, openPath };
+  }, [enabled, plan.id, results, remoteTargets, apps, preferredAppId, openPath]);
 }

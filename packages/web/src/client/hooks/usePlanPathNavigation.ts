@@ -1,5 +1,9 @@
 import { type RefObject, useEffect, useRef } from 'react';
-import { PLAN_PATH_COPY_EVENT, PLAN_PATH_OPEN_EVENT } from '../components/PlanPathLink.tsx';
+import {
+  PLAN_PATH_COPY_EVENT,
+  PLAN_PATH_OPEN_EVENT,
+  PLAN_PATH_REMOTE_EVENT,
+} from '../components/PlanPathLink.tsx';
 
 const FOCUSED_ATTR = 'data-path-focused';
 
@@ -21,7 +25,7 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
 
 /**
  * Keyboard walk over validated path nodes in the rendered plan:
- * j/k move, o/Enter open, y copy, Escape clears focus.
+ * j/k move, o/Enter open, g opens the git-forge target, y copies, Escape clears focus.
  */
 export function usePlanPathNavigation({
   rootRef,
@@ -127,6 +131,11 @@ export function usePlanPathNavigation({
       }
       if (key === 'y') {
         nodes[focused].dispatchEvent(new CustomEvent(PLAN_PATH_COPY_EVENT));
+        event.preventDefault();
+        return;
+      }
+      if (key === 'g') {
+        nodes[focused].dispatchEvent(new CustomEvent(PLAN_PATH_REMOTE_EVENT));
         event.preventDefault();
         return;
       }

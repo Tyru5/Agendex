@@ -62,6 +62,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface Plan {
   id: string;
+  /** Stable ID assigned by the local scanner before this plan was synced. */
+  localPlanId?: string;
   ownerId?: string;
   agent: string;
   title: string;

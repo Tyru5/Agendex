@@ -2,10 +2,12 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { createPortal } from 'react-dom';
 import type { PathExistsApiResult } from '../lib/api.ts';
 import { parseCodePath, type ParsedCodePath } from '../lib/plan-paths.ts';
+import { planPathTargetKey, type PlanPathRemoteTarget } from '../lib/plan-path-targets.ts';
 import { type PlanPathContextValue, usePlanPathContext } from './PlanPathContext.tsx';
 
 export const PLAN_PATH_OPEN_EVENT = 'agendex-path-open';
 export const PLAN_PATH_COPY_EVENT = 'agendex-path-copy';
+export const PLAN_PATH_REMOTE_EVENT = 'agendex-path-remote';
 
 type AnchorPos = { top: number; left: number };
 
@@ -24,18 +26,15 @@ export function PlanPathCode({
   const text = String(children);
   const parsed = context ? parseCodePath(text) : null;
   const result = context && parsed ? context.results[parsed.path] : undefined;
+  const remote = context && parsed ? context.remoteTargets[planPathTargetKey(parsed)] : undefined;
 
-  if (
-    !context ||
-    !parsed ||
-    !result ||
-    (result.status !== 'found' && result.status !== 'ambiguous')
-  ) {
+  const hasLocalTarget = result?.status === 'found' || result?.status === 'ambiguous';
+  if (!context || !parsed || (!hasLocalTarget && !remote)) {
     return <code className={className}>{children}</code>;
   }
 
   return (
-    <PlanPathLink context={context} parsed={parsed} result={result} display={text}>
+    <PlanPathLink context={context} parsed={parsed} result={result} remote={remote} display={text}>
       {children}
     </PlanPathLink>
   );
@@ -45,12 +44,14 @@ function PlanPathLink({
   context,
   parsed,
   result,
+  remote,
   display,
   children,
 }: {
   context: PlanPathContextValue;
   parsed: ParsedCodePath;
-  result: PathExistsApiResult;
+  result?: PathExistsApiResult;
+  remote?: PlanPathRemoteTarget;
   display: string;
   children?: ReactNode;
 }) {
@@ -62,8 +63,9 @@ function PlanPathLink({
   const [errorPos, setErrorPos] = useState<AnchorPos | null>(null);
   const errorTimeoutRef = useRef<number | null>(null);
 
-  const isFound = result.status === 'found';
-  const openTarget = isFound ? result.relative : parsed.path;
+  const isFound = result?.status === 'found';
+  const isAmbiguous = result?.status === 'ambiguous';
+  const openTarget = result?.status === 'found' ? result.relative : parsed.path;
 
   const showError = useCallback((message: string) => {
     setError(message);
@@ -89,17 +91,27 @@ function PlanPathLink({
     [context, parsed.line, showError],
   );
 
+  const openRemote = useCallback(() => {
+    if (!remote) return;
+    setMenuOpen(false);
+    window.open(remote.url, '_blank', 'noopener,noreferrer');
+  }, [remote]);
+
   const handlePrimary = useCallback(() => {
     if (isFound) {
       void openWithApp(openTarget);
       return;
     }
-    setMenuOpen((open) => !open);
-  }, [isFound, openTarget, openWithApp]);
+    if (isAmbiguous) {
+      setMenuOpen((open) => !open);
+      return;
+    }
+    openRemote();
+  }, [isAmbiguous, isFound, openRemote, openTarget, openWithApp]);
 
   const copyPath = useCallback(async () => {
     setMenuOpen(false);
-    const value = result.status === 'found' ? result.resolved : parsed.path;
+    const value = result?.status === 'found' ? result.resolved : parsed.path;
     await navigator.clipboard.writeText(value);
   }, [parsed.path, result]);
 
@@ -109,13 +121,16 @@ function PlanPathLink({
     if (!root) return;
     const onOpen = () => handlePrimary();
     const onCopy = () => void copyPath();
+    const onRemote = () => openRemote();
     root.addEventListener(PLAN_PATH_OPEN_EVENT, onOpen);
     root.addEventListener(PLAN_PATH_COPY_EVENT, onCopy);
+    root.addEventListener(PLAN_PATH_REMOTE_EVENT, onRemote);
     return () => {
       root.removeEventListener(PLAN_PATH_OPEN_EVENT, onOpen);
       root.removeEventListener(PLAN_PATH_COPY_EVENT, onCopy);
+      root.removeEventListener(PLAN_PATH_REMOTE_EVENT, onRemote);
     };
-  }, [copyPath, handlePrimary]);
+  }, [copyPath, handlePrimary, openRemote]);
 
   useLayoutEffect(() => {
     if (!menuOpen && !error) {
@@ -189,7 +204,7 @@ function PlanPathLink({
             visibility: menuPos ? 'visible' : 'hidden',
           }}
         >
-          {result.status === 'ambiguous' ? (
+          {result?.status === 'ambiguous' ? (
             <>
               <span className="plan-path-menu-heading">Matches in workspace</span>
               {result.matches.map((match) => (
@@ -203,7 +218,7 @@ function PlanPathLink({
                 </button>
               ))}
             </>
-          ) : (
+          ) : result?.status === 'found' ? (
             <>
               {context.apps.map((app) => (
                 <button
@@ -219,6 +234,11 @@ function PlanPathLink({
                 </button>
               ))}
             </>
+          ) : null}
+          {remote && (
+            <button type="button" role="menuitem" onClick={openRemote}>
+              {remote.label}
+            </button>
           )}
           <button type="button" role="menuitem" onClick={() => void copyPath()}>
             Copy path
@@ -250,7 +270,7 @@ function PlanPathLink({
       ref={rootRef}
       className="plan-path"
       data-agendex-path={parsed.path}
-      data-path-status={result.status}
+      data-path-status={result?.status ?? 'remote'}
     >
       <button
         type="button"
@@ -259,17 +279,19 @@ function PlanPathLink({
         title={
           isFound
             ? `Open in ${preferredLabel}${parsed.line ? ` at line ${parsed.line}` : ''}`
-            : `${result.status === 'ambiguous' ? result.matches.length : 0} matches in workspace`
+            : result?.status === 'ambiguous'
+              ? `${result.matches.length} matches in workspace`
+              : remote?.label
         }
       >
         <code>{children ?? display}</code>
-        {result.status === 'ambiguous' && (
+        {result?.status === 'ambiguous' && (
           <span className="plan-path-badge" aria-label="Multiple matches">
             {result.matches.length}
           </span>
         )}
       </button>
-      {isFound && (
+      {(isFound || (remote && !isAmbiguous)) && (
         <button
           type="button"
           className="plan-path-more"

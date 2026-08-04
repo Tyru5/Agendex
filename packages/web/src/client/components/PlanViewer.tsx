@@ -376,7 +376,7 @@ export function PlanViewer({
 
   const pathValidationKey = useMemo(() => {
     if (!planPaths) return '';
-    return Object.keys(planPaths.results)
+    const local = Object.keys(planPaths.results)
       .sort()
       .map((path) => {
         const result = planPaths.results[path];
@@ -386,6 +386,11 @@ export function PlanViewer({
         return `${path}:${result.status}`;
       })
       .join('|');
+    const remote = Object.entries(planPaths.remoteTargets)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([path, target]) => `${path}:remote:${target.url}`)
+      .join('|');
+    return `${local}|${remote}`;
   }, [planPaths]);
 
   usePlanPathNavigation({
