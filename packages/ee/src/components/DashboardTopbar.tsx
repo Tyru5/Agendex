@@ -85,6 +85,7 @@ export function DashboardTopbar({
   onShowChangelog,
   onSwitchMode,
   sidebarWidth: sidebarWidthProp,
+  hasUnseenPlans,
   actions,
 }: {
   sidebarPinnedOpen: boolean;
@@ -120,6 +121,7 @@ export function DashboardTopbar({
   onShowChangelog?: () => void;
   onSwitchMode?: (mode: 'local' | 'cloud') => void;
   sidebarWidth?: number;
+  hasUnseenPlans: boolean;
   /** Extra controls rendered before the system status control. */
   actions?: ReactNode;
 }) {
@@ -134,6 +136,7 @@ export function DashboardTopbar({
         sidebarHidden={sidebarHidden}
         sidebarWidth={sidebarWidthProp ?? 260}
         isPro={isPro}
+        hasUnseenPlans={hasUnseenPlans}
         mode={mode}
         backendStatus={backendStatus}
         onToggleSidebar={onToggleSidebar}

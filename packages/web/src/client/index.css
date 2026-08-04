@@ -1761,6 +1761,16 @@ body {
 }
 
 /* Jump-to-source: validated path mentions inside plan markdown */
+.plan-path-status {
+  margin: 0 0 14px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--hover);
+  color: var(--secondary);
+  font-size: 11.5px;
+}
+
 .plan-path {
   position: relative;
   display: inline-flex;
@@ -1776,6 +1786,7 @@ body {
   border: none;
   background: transparent;
   cursor: pointer;
+  touch-action: manipulation;
   font: inherit;
 }
 
@@ -1787,8 +1798,16 @@ body {
 }
 
 .plan-path-open:hover code,
+.plan-path-open:focus-visible code,
 .plan-path[data-path-focused] .plan-path-open code {
   text-decoration-color: var(--secondary);
+}
+
+.plan-path-open:focus-visible,
+.plan-path-more:focus-visible,
+.plan-path-menu button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .plan-path[data-path-focused] {
@@ -1821,12 +1840,14 @@ body {
   background: transparent;
   color: var(--secondary);
   cursor: pointer;
+  touch-action: manipulation;
   opacity: 0;
   transition: opacity 120ms ease;
 }
 
 .plan-path:hover .plan-path-more,
 .plan-path[data-path-focused] .plan-path-more,
+.plan-path-more:focus-visible,
 .plan-path-more[aria-expanded='true'] {
   opacity: 0.7;
 }
@@ -1877,11 +1898,26 @@ body {
   font-size: 12px;
   text-align: left;
   cursor: pointer;
+  touch-action: manipulation;
   word-break: break-all;
 }
 
-.plan-path-menu button:hover {
+.plan-path-menu button:hover,
+.plan-path-menu button:focus-visible {
   background: var(--hover);
+}
+
+@media (hover: none) {
+  .plan-path-more {
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-path-open code,
+  .plan-path-more {
+    transition: none;
+  }
 }
 
 .plan-path-menu-hint {

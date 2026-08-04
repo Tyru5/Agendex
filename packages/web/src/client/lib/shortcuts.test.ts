@@ -36,7 +36,8 @@ describe('shortcutDisplayKeys', () => {
   test('formats mod hotkeys into key tokens', () => {
     const sidebar = getAppShortcuts().find((s) => s.id === 'sidebar');
     expect(sidebar).toBeDefined();
-    const keys = shortcutDisplayKeys(sidebar!);
+    if (!sidebar) throw new Error('Expected the sidebar shortcut');
+    const keys = shortcutDisplayKeys(sidebar);
     expect(keys.length).toBeGreaterThanOrEqual(2);
     expect(keys.at(-1)).toBe('B');
   });

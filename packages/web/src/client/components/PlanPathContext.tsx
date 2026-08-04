@@ -7,8 +7,12 @@ export interface PlanPathOpenResult {
   error?: string;
 }
 
+export type PlanPathValidationStatus = 'loading' | 'ready' | 'unavailable';
+
 export interface PlanPathContextValue {
   planId: string;
+  status: PlanPathValidationStatus;
+  statusMessage?: string;
   /** Validation results keyed by cleaned candidate path. */
   results: Record<string, PathExistsApiResult>;
   /** Git-forge targets keyed by path + line range. */

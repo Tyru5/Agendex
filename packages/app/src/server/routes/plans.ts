@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import {
   CURRENT_CONFIG_VERSION,
@@ -73,18 +73,45 @@ function planBaseDir(plan: { filePath: string; workspace?: string }): string | u
   return isWithinWorkspace(parent, plan.workspace) ? parent : undefined;
 }
 
-plans.post('/plans/:id/paths/exists', async (c) => {
-  const plan = getIndexableById(c.req.param('id'));
-  if (!plan) return c.json({ error: 'not found' }, 404);
+/**
+ * Cloud plans have Convex ids, while the local index derives ids from source
+ * paths. Fall back through the source path, but only to an already-indexed
+ * local plan so the browser can never nominate an arbitrary workspace root.
+ */
+function localPlanForPathAction(planId: string, sourceFilePath: unknown) {
+  const direct = getIndexableById(planId);
+  if (direct) return direct;
+  if (typeof sourceFilePath !== 'string' || !sourceFilePath.trim()) return undefined;
 
-  const body = await c.req.json<{ paths?: unknown }>();
+  let requestedRealPath: string;
+  try {
+    requestedRealPath = realpathSync(sourceFilePath.trim());
+  } catch {
+    return undefined;
+  }
+
+  return getIndexablePlans().find((plan) => {
+    try {
+      return realpathSync(plan.filePath) === requestedRealPath;
+    } catch {
+      return false;
+    }
+  });
+}
+
+plans.post('/plans/:id/paths/exists', async (c) => {
+  const body = await c.req.json<{ paths?: unknown; sourceFilePath?: unknown }>();
   if (!Array.isArray(body.paths)) {
     return c.json({ error: 'paths must be an array' }, 400);
   }
-  const paths = body.paths
-    .filter((path): path is string => typeof path === 'string' && path.length > 0)
-    .filter((path) => path.length <= 1024)
-    .slice(0, PATH_EXISTS_BATCH_LIMIT);
+  const plan = localPlanForPathAction(c.req.param('id'), body.sourceFilePath);
+  if (!plan) return c.json({ error: 'local plan source not found' }, 404);
+
+  const paths: string[] = [];
+  for (const path of body.paths) {
+    if (paths.length >= PATH_EXISTS_BATCH_LIMIT) break;
+    if (typeof path === 'string' && path.length > 0 && path.length <= 1024) paths.push(path);
+  }
 
   const results = await resolveCodeFileBatch(paths, plan.workspace, planBaseDir(plan));
   return c.json({ results });
@@ -95,13 +122,18 @@ plans.get('/open-in/apps', (c) => {
 });
 
 plans.post('/plans/:id/open-in', async (c) => {
-  const plan = getIndexableById(c.req.param('id'));
-  if (!plan) return c.json({ error: 'not found' }, 404);
+  const body = await c.req.json<{
+    path?: unknown;
+    line?: unknown;
+    appId?: unknown;
+    sourceFilePath?: unknown;
+  }>();
+  const plan = localPlanForPathAction(c.req.param('id'), body.sourceFilePath);
+  if (!plan) return c.json({ error: 'local plan source not found' }, 404);
   if (!plan.workspace) {
     return c.json({ error: 'This plan has no workspace, so paths cannot be opened.' }, 400);
   }
 
-  const body = await c.req.json<{ path?: unknown; line?: unknown; appId?: unknown }>();
   if (typeof body.path !== 'string' || !body.path.trim()) {
     return c.json({ error: 'path is required' }, 400);
   }

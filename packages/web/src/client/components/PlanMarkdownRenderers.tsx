@@ -1,16 +1,10 @@
 import { createContext, type ReactNode, useContext } from 'react';
-import type { Components } from 'react-markdown';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
-import rehypeSlug from 'rehype-slug';
-import remarkGfm from 'remark-gfm';
-import { sanitizeSchema } from '../lib/sanitize-schema.ts';
 import { MarkdownCodeBlock } from './MarkdownCodeBlock.tsx';
 import { PlanPathCode } from './PlanPathLink.tsx';
 
 const FencedCodeContext = createContext(false);
 
-function PlanMarkdownPre({
+export function PlanMarkdownPre({
   children,
   node: _node,
   ...props
@@ -27,7 +21,7 @@ function PlanMarkdownPre({
   );
 }
 
-function PlanMarkdownCode({
+export function PlanMarkdownCode({
   className,
   children,
   node: _node,
@@ -54,13 +48,3 @@ function PlanMarkdownCode({
 
   return <MarkdownCodeBlock className={className} code={code} language={language} />;
 }
-
-/** Stable react-markdown component map — must not be recreated per render. */
-export const planMarkdownComponents: Components = {
-  pre: PlanMarkdownPre,
-  code: PlanMarkdownCode,
-};
-
-export const planMarkdownRemarkPlugins = [remarkGfm];
-
-export const planMarkdownRehypePlugins = [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug];

@@ -2,9 +2,10 @@ import { useCallback, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import { type AgentStats, api, type Plan } from '../lib/api.ts';
-import { planMarkdownComponents, planMarkdownRemarkPlugins } from './markdownRenderConfig.tsx';
+import { planMarkdownComponents, planMarkdownRemarkPlugins } from './markdownRenderConfig.ts';
 
 interface UploadFile {
+  id: string;
   name: string;
   title: string;
   content: string;
@@ -27,7 +28,12 @@ function readFile(file: File): Promise<UploadFile> {
     const reader = new FileReader();
     reader.onload = () => {
       const text = reader.result as string;
-      resolve({ name: file.name, title: extractTitle(text, file.name), content: text });
+      resolve({
+        id: crypto.randomUUID(),
+        name: file.name,
+        title: extractTitle(text, file.name),
+        content: text,
+      });
     };
     reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
     reader.readAsText(file);
@@ -99,14 +105,15 @@ export function PlanUploader({
     setUploadProgress(0);
     setError(undefined);
 
-    let firstPlan: Plan | undefined;
     try {
-      for (let i = 0; i < valid.length; i++) {
-        const f = valid[i]!;
-        const plan = await api.createPlan(agent, f.title.trim(), f.content.trim());
-        if (i === 0) firstPlan = plan;
-        setUploadProgress(() => i + 1);
-      }
+      const createdPlans = await Promise.all(
+        valid.map(async (f) => {
+          const plan = await api.createPlan(agent, f.title.trim(), f.content.trim());
+          setUploadProgress((count) => count + 1);
+          return plan;
+        }),
+      );
+      const firstPlan = createdPlans[0];
       if (firstPlan) onCreated(firstPlan);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed');
@@ -250,7 +257,7 @@ export function PlanUploader({
             className="upload-btn-primary"
           >
             {uploading
-              ? `Uploading ${uploadProgress}/${files.length}...`
+              ? `Uploading ${uploadProgress}/${files.length}…`
               : files.length === 1
                 ? 'Upload'
                 : `Upload ${files.length} files`}
@@ -269,7 +276,7 @@ export function PlanUploader({
                 role="option"
                 aria-selected={i === previewIdx}
                 tabIndex={0}
-                key={`${f.name}-${i}`}
+                key={f.id}
                 className={`upload-file-row${i === previewIdx ? ' upload-file-row-active' : ''}`}
                 onClick={() => setPreviewIdx(i)}
                 onKeyDown={(e) => {

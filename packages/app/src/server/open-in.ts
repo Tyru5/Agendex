@@ -31,8 +31,8 @@ export function resolveSpawnInvocation(argv: string[]): {
   args: string[];
   options: SpawnOptions;
 } {
-  const command = argv[0]!;
-  const args = argv.slice(1);
+  const [command, ...args] = argv;
+  if (!command) throw new Error('Cannot launch an empty command');
   const baseOptions: SpawnOptions = { detached: true, stdio: 'ignore' };
 
   if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(command)) {

@@ -1,4 +1,15 @@
-import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import type { PathExistsApiResult } from '../lib/api.ts';
 import { parseCodePath, type ParsedCodePath } from '../lib/plan-paths.ts';
@@ -10,6 +21,10 @@ export const PLAN_PATH_COPY_EVENT = 'agendex-path-copy';
 export const PLAN_PATH_REMOTE_EVENT = 'agendex-path-remote';
 
 type AnchorPos = { top: number; left: number };
+type OpenablePathResult = Extract<
+  PathExistsApiResult,
+  { status: 'found' } | { status: 'ambiguous' }
+>;
 
 /**
  * Inline-code renderer gate: validated paths become openable links,
@@ -50,13 +65,17 @@ function PlanPathLink({
 }: {
   context: PlanPathContextValue;
   parsed: ParsedCodePath;
-  result?: PathExistsApiResult;
+  result?: OpenablePathResult;
   remote?: PlanPathRemoteTarget;
   display: string;
   children?: ReactNode;
 }) {
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const menuRef = useRef<HTMLSpanElement | null>(null);
+  const primaryRef = useRef<HTMLButtonElement | null>(null);
+  const moreRef = useRef<HTMLButtonElement | null>(null);
+  const returnFocusRef = useRef<HTMLButtonElement | null>(null);
+  const menuId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<AnchorPos | null>(null);
@@ -76,6 +95,18 @@ function PlanPathLink({
     }, 2500);
   }, []);
 
+  const closeMenu = useCallback((restoreFocus = false) => {
+    setMenuOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => returnFocusRef.current?.focus());
+    }
+  }, []);
+
+  const toggleMenuFrom = useCallback((trigger: HTMLButtonElement | null) => {
+    returnFocusRef.current = trigger;
+    setMenuOpen((open) => !open);
+  }, []);
+
   useEffect(() => {
     return () => {
       if (errorTimeoutRef.current !== null) window.clearTimeout(errorTimeoutRef.current);
@@ -84,11 +115,11 @@ function PlanPathLink({
 
   const openWithApp = useCallback(
     async (path: string, appId?: string) => {
-      setMenuOpen(false);
+      closeMenu(true);
       const outcome = await context.openPath(path, parsed.line, appId);
       if (!outcome.ok) showError(outcome.error ?? 'Failed to open path');
     },
-    [context, parsed.line, showError],
+    [closeMenu, context, parsed.line, showError],
   );
 
   const openRemote = useCallback(() => {
@@ -103,25 +134,41 @@ function PlanPathLink({
       return;
     }
     if (isAmbiguous) {
-      setMenuOpen((open) => !open);
+      toggleMenuFrom(primaryRef.current);
       return;
     }
     openRemote();
-  }, [isAmbiguous, isFound, openRemote, openTarget, openWithApp]);
+  }, [isAmbiguous, isFound, openRemote, openTarget, openWithApp, toggleMenuFrom]);
 
   const copyPath = useCallback(async () => {
-    setMenuOpen(false);
+    closeMenu(true);
     const value = result?.status === 'found' ? result.resolved : parsed.path;
-    await navigator.clipboard.writeText(value);
-  }, [parsed.path, result]);
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      showError('Could not copy the path. Check browser clipboard permissions.');
+    }
+  }, [closeMenu, parsed.path, result, showError]);
+
+  const openFromPathEvent = useEffectEvent(handlePrimary);
+  const copyFromPathEvent = useEffectEvent(() => void copyPath());
+  const remoteFromPathEvent = useEffectEvent(openRemote);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [menuOpen]);
 
   // Keyboard navigation dispatches events on the focused path node.
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const onOpen = () => handlePrimary();
-    const onCopy = () => void copyPath();
-    const onRemote = () => openRemote();
+    const onOpen = () => openFromPathEvent();
+    const onCopy = () => copyFromPathEvent();
+    const onRemote = () => remoteFromPathEvent();
     root.addEventListener(PLAN_PATH_OPEN_EVENT, onOpen);
     root.addEventListener(PLAN_PATH_COPY_EVENT, onCopy);
     root.addEventListener(PLAN_PATH_REMOTE_EVENT, onRemote);
@@ -130,7 +177,7 @@ function PlanPathLink({
       root.removeEventListener(PLAN_PATH_COPY_EVENT, onCopy);
       root.removeEventListener(PLAN_PATH_REMOTE_EVENT, onRemote);
     };
-  }, [copyPath, handlePrimary, openRemote]);
+  }, []);
 
   useLayoutEffect(() => {
     if (!menuOpen && !error) {
@@ -171,12 +218,12 @@ function PlanPathLink({
       if (!(event.target instanceof Node)) return;
       if (rootRef.current?.contains(event.target)) return;
       if (menuRef.current?.contains(event.target)) return;
-      setMenuOpen(false);
+      closeMenu(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key === 'Escape') closeMenu(true);
     };
-    const onDismiss = () => setMenuOpen(false);
+    const onDismiss = () => closeMenu(false);
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
     window.addEventListener('scroll', onDismiss, true);
@@ -187,83 +234,29 @@ function PlanPathLink({
       window.removeEventListener('scroll', onDismiss, true);
       window.removeEventListener('resize', onDismiss);
     };
-  }, [menuOpen]);
+  }, [closeMenu, menuOpen]);
+
+  const handleMenuKeyDown = useCallback((event: ReactKeyboardEvent<HTMLSpanElement>) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [],
+    );
+    if (items.length === 0) return;
+    event.preventDefault();
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const nextIndex =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? items.length - 1
+          : event.key === 'ArrowUp'
+            ? (current - 1 + items.length) % items.length
+            : (current + 1) % items.length;
+    items[nextIndex]?.focus();
+  }, []);
 
   const preferredLabel =
     context.apps.find((app) => app.id === context.preferredAppId)?.label ?? 'default app';
-
-  const menu = menuOpen
-    ? createPortal(
-        <span
-          ref={menuRef}
-          className="plan-path-menu plan-path-menu--portal"
-          role="menu"
-          style={{
-            top: menuPos?.top ?? 0,
-            left: menuPos?.left ?? 0,
-            visibility: menuPos ? 'visible' : 'hidden',
-          }}
-        >
-          {result?.status === 'ambiguous' ? (
-            <>
-              <span className="plan-path-menu-heading">Matches in workspace</span>
-              {result.matches.map((match) => (
-                <button
-                  key={match}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => void openWithApp(match)}
-                >
-                  {match}
-                </button>
-              ))}
-            </>
-          ) : result?.status === 'found' ? (
-            <>
-              {context.apps.map((app) => (
-                <button
-                  key={app.id}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => void openWithApp(openTarget, app.id)}
-                >
-                  {app.label}
-                  {app.id === context.preferredAppId && (
-                    <span className="plan-path-menu-hint">last used</span>
-                  )}
-                </button>
-              ))}
-            </>
-          ) : null}
-          {remote && (
-            <button type="button" role="menuitem" onClick={openRemote}>
-              {remote.label}
-            </button>
-          )}
-          <button type="button" role="menuitem" onClick={() => void copyPath()}>
-            Copy path
-          </button>
-        </span>,
-        document.body,
-      )
-    : null;
-
-  const errorToast = error
-    ? createPortal(
-        <span
-          className="plan-path-error plan-path-error--portal"
-          role="alert"
-          style={{
-            top: errorPos?.top ?? 0,
-            left: errorPos?.left ?? 0,
-            visibility: errorPos ? 'visible' : 'hidden',
-          }}
-        >
-          {error}
-        </span>,
-        document.body,
-      )
-    : null;
 
   return (
     <span
@@ -273,9 +266,13 @@ function PlanPathLink({
       data-path-status={result?.status ?? 'remote'}
     >
       <button
+        ref={primaryRef}
         type="button"
         className="plan-path-open"
         onClick={handlePrimary}
+        aria-haspopup={isAmbiguous ? 'menu' : undefined}
+        aria-controls={isAmbiguous && menuOpen ? menuId : undefined}
+        aria-expanded={isAmbiguous ? menuOpen : undefined}
         title={
           isFound
             ? `Open in ${preferredLabel}${parsed.line ? ` at line ${parsed.line}` : ''}`
@@ -293,18 +290,130 @@ function PlanPathLink({
       </button>
       {(isFound || (remote && !isAmbiguous)) && (
         <button
+          ref={moreRef}
           type="button"
           className="plan-path-more"
           aria-label="Open with…"
+          aria-haspopup="menu"
+          aria-controls={menuOpen ? menuId : undefined}
           aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
+          onClick={() => toggleMenuFrom(moreRef.current)}
         >
           <ChevronIcon />
         </button>
       )}
-      {menu}
-      {errorToast}
+      {menuOpen && (
+        <PlanPathMenu
+          menuRef={menuRef}
+          menuId={menuId}
+          position={menuPos}
+          result={result}
+          context={context}
+          openTarget={openTarget}
+          onKeyDown={handleMenuKeyDown}
+          onOpen={openWithApp}
+          remote={remote}
+          onOpenRemote={openRemote}
+          onCopy={copyPath}
+        />
+      )}
+      {error && <PlanPathError message={error} position={errorPos} />}
     </span>
+  );
+}
+
+function PlanPathMenu({
+  menuRef,
+  menuId,
+  position,
+  result,
+  context,
+  openTarget,
+  onKeyDown,
+  onOpen,
+  remote,
+  onOpenRemote,
+  onCopy,
+}: {
+  menuRef: RefObject<HTMLSpanElement | null>;
+  menuId: string;
+  position: AnchorPos | null;
+  result?: OpenablePathResult;
+  context: PlanPathContextValue;
+  openTarget: string;
+  onKeyDown: (event: ReactKeyboardEvent<HTMLSpanElement>) => void;
+  onOpen: (path: string, appId?: string) => Promise<void>;
+  remote?: PlanPathRemoteTarget;
+  onOpenRemote: () => void;
+  onCopy: () => Promise<void>;
+}) {
+  return createPortal(
+    <span
+      ref={menuRef}
+      id={menuId}
+      className="plan-path-menu plan-path-menu--portal"
+      role="menu"
+      tabIndex={-1}
+      aria-label="Open source path"
+      onKeyDown={onKeyDown}
+      style={{
+        top: position?.top ?? 0,
+        left: position?.left ?? 0,
+        visibility: position ? 'visible' : 'hidden',
+      }}
+    >
+      {result?.status === 'ambiguous' ? (
+        <>
+          <span className="plan-path-menu-heading">Matches in workspace</span>
+          {result.matches.map((match) => (
+            <button key={match} type="button" role="menuitem" onClick={() => void onOpen(match)}>
+              {match}
+            </button>
+          ))}
+        </>
+      ) : result?.status === 'found' ? (
+        context.apps.map((app) => (
+          <button
+            key={app.id}
+            type="button"
+            role="menuitem"
+            onClick={() => void onOpen(openTarget, app.id)}
+          >
+            {app.label}
+            {app.id === context.preferredAppId && (
+              <span className="plan-path-menu-hint">last used</span>
+            )}
+          </button>
+        ))
+      ) : null}
+      {remote && (
+        <button type="button" role="menuitem" onClick={onOpenRemote}>
+          {remote.label}
+        </button>
+      )}
+      <button type="button" role="menuitem" onClick={() => void onCopy()}>
+        Copy path
+      </button>
+    </span>,
+    document.body,
+  );
+}
+
+function PlanPathError({ message, position }: { message: string; position: AnchorPos | null }) {
+  return createPortal(
+    <span
+      className="plan-path-error plan-path-error--portal"
+      role="status"
+      aria-live="polite"
+      style={{
+        top: position?.top ?? 0,
+        left: position?.left ?? 0,
+        visibility: position ? 'visible' : 'hidden',
+      }}
+    >
+      {message}
+    </span>,
+    document.body,
   );
 }
 

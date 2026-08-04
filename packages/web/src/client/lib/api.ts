@@ -188,18 +188,24 @@ export const api = {
   deletePlanAnnotation: (id: string, annotationId: string) =>
     request<{ ok: boolean }>(`/plans/${id}/annotations/${annotationId}`, { method: 'DELETE' }),
 
-  checkPlanPaths: (id: string, paths: string[]) =>
+  checkPlanPaths: (id: string, paths: string[], sourceFilePath?: string) =>
     request<{ results: Record<string, PathExistsApiResult> }>(`/plans/${id}/paths/exists`, {
       method: 'POST',
-      body: JSON.stringify({ paths }),
+      body: JSON.stringify({ paths, sourceFilePath }),
     }),
 
   getOpenInApps: () => request<{ available: boolean; apps: OpenInAppInfo[] }>('/open-in/apps'),
 
-  openPlanPath: (id: string, path: string, line?: number, appId?: string) =>
+  openPlanPath: (
+    id: string,
+    path: string,
+    line?: number,
+    appId?: string,
+    sourceFilePath?: string,
+  ) =>
     request<{ ok: boolean; error?: string }>(`/plans/${id}/open-in`, {
       method: 'POST',
-      body: JSON.stringify({ path, line, appId }),
+      body: JSON.stringify({ path, line, appId, sourceFilePath }),
     }),
 
   getPlanSources: () => request<{ customPlanDirs: string[] }>('/plan-sources'),
