@@ -64,10 +64,29 @@ test('captures iFlow plan before its transient source disappears', async () => {
 test('capture-plan command accepts explicit inline plan fields', async () => {
   await useTempRoot();
   const result = await runCapturePlanCommand(
-    ['capture-plan', '--agent', 'command-code'],
+    ['capture-plan', '--agent', 'commandcode'],
     JSON.stringify({ conversationId: 'session-1', plan: '# Plan\n\n- [ ] Ship' }),
   );
   expect(result).toBe(0);
+});
+
+test('capture-plan command accepts legacy command-code agent alias', async () => {
+  const root = await useTempRoot();
+  const result = await runCapturePlanCommand(
+    ['capture-plan', '--agent', 'command-code'],
+    JSON.stringify({ conversationId: 'legacy-session', plan: '# Legacy Plan\n\n- [ ] Capture' }),
+  );
+  expect(result).toBe(0);
+  const capturedPath = join(
+    root,
+    '.agendex',
+    'plans',
+    'hooks',
+    'commandcode',
+    'legacy-session',
+    'plan.md',
+  );
+  expect(await Bun.file(capturedPath).text()).toContain('agent: commandcode');
 });
 
 test('capture-plan command rejects unsupported agents', async () => {

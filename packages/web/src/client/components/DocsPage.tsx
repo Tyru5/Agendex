@@ -82,6 +82,7 @@ const IMPLEMENTED_ADAPTERS = [
   'Claude Code',
   'CodeBuddy',
   'Codex CLI',
+  'Command Code',
   'Continue (experimental)',
   'Cursor',
   'Factory Droid',
@@ -487,7 +488,7 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
           <DocSection id="plan-sources" title="Plan sources">
             <Body>
               Adapters teach Agendex where each agent keeps its plans and how to parse them. Agendex
-              has 19 automatic integrations backed by durable artifacts or explicit plan-session
+              has 20 automatic integrations backed by durable artifacts or explicit plan-session
               evidence, plus the experimental Continue adapter:
             </Body>
             <ul className="m-0 flex max-w-[68ch] list-none flex-wrap gap-2 p-0">
@@ -699,8 +700,10 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
                   {agent}
                 </span>
               ))}
-              . Augment, Command Code, and iFlow CLI are capture-only integrations rather than
-              selectable automatic adapters.
+              . Augment and iFlow CLI are capture-only integrations rather than selectable automatic
+              adapters. Command Code also has a durable{' '}
+              <InlineCode>~/.commandcode/plans</InlineCode> adapter; capture-plan remains available
+              for hook payloads.
             </Body>
             <div className="max-w-[560px]">
               <CodeBlock>

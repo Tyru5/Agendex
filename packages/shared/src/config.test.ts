@@ -134,6 +134,17 @@ test('v5 migration adds file adapters without re-enabling grok', () => {
   );
 });
 
+test('v6 migration enables Command Code without re-enabling earlier adapters', () => {
+  const migrated = applyAdapterEnableMigrations(5, ['claude-code', 'cursor'] as never);
+  expect(migrated.version).toBe(CURRENT_CONFIG_VERSION);
+  expect(migrated.adapters).toContain('commandcode');
+  expect(migrated.adapters).not.toContain('grok');
+  expect(migrated.adapters).not.toContain('antigravity');
+  expect(migrated.adapters).toEqual(
+    expect.arrayContaining(['claude-code', 'cursor', 'commandcode']),
+  );
+});
+
 test('v4 migration leaves empty adapter lists empty so defaults can apply', () => {
   // Login and other writers may persist [] with an older configVersion.
   // Freezing that to ['grok'] would skip catalog defaults and break indexing.

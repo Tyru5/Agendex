@@ -8,6 +8,7 @@ import { cursorAdapter } from './cursor.ts';
 import {
   antigravityAdapter,
   codeBuddyAdapter,
+  commandCodeAdapter,
   droidAdapter,
   geminiCliAdapter,
   githubCopilotAdapter,
@@ -36,7 +37,7 @@ export type SkillsAdapterId =
   | 'cline'
   | 'codebuddy'
   | 'codex'
-  | 'command-code'
+  | 'commandcode'
   | 'continue'
   | 'crush'
   | 'cursor'
@@ -93,7 +94,7 @@ export const ADAPTER_AGENT_ALIASES: Record<AdapterId, string> = {
   cline: 'cline',
   codebuddy: 'codebuddy',
   codex: 'codex-cli',
-  'command-code': 'command-code',
+  commandcode: 'commandcode',
   continue: 'continue-ide',
   crush: 'crush',
   cursor: 'cursor',
@@ -211,12 +212,12 @@ const CATALOG: AdapterCatalogEntry[] = [
     createAdapter: () => codexCliAdapter,
   },
   {
-    id: 'command-code',
+    id: 'commandcode',
     displayName: 'Command Code',
     group: 'other',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () => createStubAdapter('command-code', [join(home, '.commandcode')], '.md'),
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => commandCodeAdapter,
   },
   {
     id: 'continue',
@@ -503,12 +504,13 @@ export function isAdapterId(value: string): value is AdapterId {
   return CATALOG.some((entry) => entry.id === value);
 }
 
-const LEGACY_TO_ADAPTER_ID = new Map<string, AdapterId>(
-  Object.entries(ADAPTER_AGENT_ALIASES).map(([adapterId, agent]) => [
-    agent,
-    adapterId as AdapterId,
-  ]),
-);
+const LEGACY_TO_ADAPTER_ID = new Map<string, AdapterId>([
+  ...Object.entries(ADAPTER_AGENT_ALIASES).map(
+    ([adapterId, agent]) => [agent, adapterId as AdapterId] as const,
+  ),
+  // Renamed from command-code → commandcode; keep old config/plan ids working.
+  ['command-code', 'commandcode'],
+]);
 
 export function resolveAdapterId(value: string): AdapterId | undefined {
   if (isAdapterId(value)) return value;
