@@ -343,8 +343,8 @@ test('only one process can reclaim and acquire the same stale startup lock', asy
       results = readSettledResults();
     }
 
-    expect(results).not.toBeNull();
-    expect(results!.toSorted()).toEqual(['acquired', 'blocked']);
+    if (results === null) throw new Error('contenders did not publish settled lock results');
+    expect(results.toSorted()).toEqual(['acquired', 'blocked']);
 
     writeFileSync(releasePath, 'release');
     expect(await Promise.all(contenders.map((process) => process.exited))).toEqual([0, 0]);
