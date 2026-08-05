@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.2.0
+
+### Minor Changes
+
+- 19cca5e: Add Command Code as a durable plan adapter for `~/.commandcode/plans`
+
 ## 5.1.0
 
 ### Minor Changes
