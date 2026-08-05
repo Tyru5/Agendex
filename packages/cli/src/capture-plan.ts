@@ -187,7 +187,9 @@ async function readStdin(): Promise<string> {
 
 export async function runCapturePlanCommand(args: string[], input?: string): Promise<number> {
   const agentIndex = args.indexOf('--agent');
-  const agent = agentIndex >= 0 ? args[agentIndex + 1] : undefined;
+  const rawAgent = agentIndex >= 0 ? args[agentIndex + 1] : undefined;
+  // Renamed command-code → commandcode; keep existing hook commands working.
+  const agent = rawAgent === 'command-code' ? 'commandcode' : rawAgent;
   if (!agent || !CAPTURE_AGENTS.has(agent as CapturePlanAgent)) {
     console.error(
       '[agendex] usage: agendex capture-plan --agent <antigravity|augment|commandcode|gemini-cli|iflow-cli>',
