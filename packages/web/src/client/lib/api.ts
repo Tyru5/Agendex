@@ -62,6 +62,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface Plan {
   id: string;
+  /** Stable ID assigned by the local scanner before this plan was synced. */
+  localPlanId?: string;
   ownerId?: string;
   agent: string;
   title: string;
@@ -111,6 +113,18 @@ export interface PlanAnnotationApiRecord {
   submittedAt?: number;
   resolvedAt?: number;
   writebackId?: string;
+}
+
+export type PathExistsApiResult =
+  | { status: 'found'; resolved: string; relative: string }
+  | { status: 'ambiguous'; matches: string[] }
+  | { status: 'missing' }
+  | { status: 'unavailable' };
+
+export interface OpenInAppInfo {
+  id: string;
+  label: string;
+  kind: 'editor' | 'file-manager';
 }
 
 export const api = {
@@ -173,6 +187,26 @@ export const api = {
 
   deletePlanAnnotation: (id: string, annotationId: string) =>
     request<{ ok: boolean }>(`/plans/${id}/annotations/${annotationId}`, { method: 'DELETE' }),
+
+  checkPlanPaths: (id: string, paths: string[], sourceFilePath?: string) =>
+    request<{ results: Record<string, PathExistsApiResult> }>(`/plans/${id}/paths/exists`, {
+      method: 'POST',
+      body: JSON.stringify({ paths, sourceFilePath }),
+    }),
+
+  getOpenInApps: () => request<{ available: boolean; apps: OpenInAppInfo[] }>('/open-in/apps'),
+
+  openPlanPath: (
+    id: string,
+    path: string,
+    line?: number,
+    appId?: string,
+    sourceFilePath?: string,
+  ) =>
+    request<{ ok: boolean; error?: string }>(`/plans/${id}/open-in`, {
+      method: 'POST',
+      body: JSON.stringify({ path, line, appId, sourceFilePath }),
+    }),
 
   getPlanSources: () => request<{ customPlanDirs: string[] }>('/plan-sources'),
 

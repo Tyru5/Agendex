@@ -390,6 +390,14 @@ function useDashboardData(
   // fresh arrivals.
   const plansComplete = mode === 'cloud' ? cloudPlans.complete : !loading;
 
+  const hasUnseenPlans = useMemo(
+    () =>
+      plans.some((plan) =>
+        (mode === 'cloud' ? cloudPlanState : localPlanState).isUnseen(plan.id, plan.updatedAt),
+      ),
+    [plans, mode, cloudPlanState, localPlanState],
+  );
+
   const planTagsMap = useQuery(
     api.planTags.getTagsForPlans,
     shouldQueryCloudPlanTags({
@@ -492,6 +500,7 @@ function useDashboardData(
     filteredPlans,
     workspaces: workspacesFromPlans(plans),
     planState: mode === 'cloud' ? cloudPlanState : localPlanState,
+    hasUnseenPlans,
     totalPlans,
     activeAgents,
     backendIndicator,
@@ -2095,6 +2104,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     filteredPlans,
     workspaces,
     planState,
+    hasUnseenPlans,
     totalPlans,
     activeAgents,
     backendIndicator,
@@ -2562,6 +2572,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
         onSwitchMode={canSwitchMode ? switchMode : undefined}
         sidebarWidth={expandedWidth}
+        hasUnseenPlans={hasUnseenPlans}
         actions={
           canShowPlanSourcesAction ? (
             <button

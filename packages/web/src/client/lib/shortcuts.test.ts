@@ -4,7 +4,15 @@ import { getAppShortcuts, shortcutDisplayKeys } from './shortcuts.ts';
 describe('getAppShortcuts', () => {
   test('returns common shortcuts by default', () => {
     const ids = getAppShortcuts().map((s) => s.id);
-    expect(ids).toEqual(['search', 'sidebar', 'outline', 'escape']);
+    expect(ids).toEqual([
+      'search',
+      'sidebar',
+      'outline',
+      'paths',
+      'path-open',
+      'path-copy',
+      'escape',
+    ]);
   });
 
   test('includes ee shortcuts when requested', () => {
@@ -28,7 +36,8 @@ describe('shortcutDisplayKeys', () => {
   test('formats mod hotkeys into key tokens', () => {
     const sidebar = getAppShortcuts().find((s) => s.id === 'sidebar');
     expect(sidebar).toBeDefined();
-    const keys = shortcutDisplayKeys(sidebar!);
+    if (!sidebar) throw new Error('Expected the sidebar shortcut');
+    const keys = shortcutDisplayKeys(sidebar);
     expect(keys.length).toBeGreaterThanOrEqual(2);
     expect(keys.at(-1)).toBe('B');
   });

@@ -1,15 +1,21 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
+import { dirname } from 'node:path';
 import {
   CURRENT_CONFIG_VERSION,
   getAgentStats,
   createPlanAnnotation,
   deletePlanAnnotation,
+  detectOpenInApps,
   getIndexableById,
   getIndexablePlans,
+  isWithinWorkspace,
   listPlanAnnotations,
   loadConfig,
   normalizeCustomPlanDirs,
+  PATH_EXISTS_BATCH_LIMIT,
   removeCustomPlanDir,
+  resolveCodeFile,
+  resolveCodeFileBatch,
   resolveCustomPlanDirPath,
   scan,
   startWatching,
@@ -18,6 +24,7 @@ import {
   validatePlanAnnotationInput,
 } from '@agendex/shared';
 import { Hono } from 'hono';
+import { launchOpenIn } from '../open-in.ts';
 import { search } from '../services/search.ts';
 
 const plans = new Hono();
@@ -57,6 +64,96 @@ plans.get('/plans/:id/raw', (c) => {
   const plan = getIndexableById(c.req.param('id'));
   if (!plan) return c.json({ error: 'not found' }, 404);
   return c.text(plan.content);
+});
+
+/** baseDir for ./ siblings: the plan file's parent, when inside the workspace. */
+function planBaseDir(plan: { filePath: string; workspace?: string }): string | undefined {
+  if (!plan.workspace || !plan.filePath) return undefined;
+  const parent = dirname(plan.filePath);
+  return isWithinWorkspace(parent, plan.workspace) ? parent : undefined;
+}
+
+/**
+ * Cloud plans have Convex ids, while the local index derives ids from source
+ * paths. Fall back through the source path, but only to an already-indexed
+ * local plan so the browser can never nominate an arbitrary workspace root.
+ */
+function localPlanForPathAction(planId: string, sourceFilePath: unknown) {
+  const direct = getIndexableById(planId);
+  if (direct) return direct;
+  if (typeof sourceFilePath !== 'string' || !sourceFilePath.trim()) return undefined;
+
+  let requestedRealPath: string;
+  try {
+    requestedRealPath = realpathSync(sourceFilePath.trim());
+  } catch {
+    return undefined;
+  }
+
+  return getIndexablePlans().find((plan) => {
+    try {
+      return realpathSync(plan.filePath) === requestedRealPath;
+    } catch {
+      return false;
+    }
+  });
+}
+
+plans.post('/plans/:id/paths/exists', async (c) => {
+  const body = await c.req.json<{ paths?: unknown; sourceFilePath?: unknown }>();
+  if (!Array.isArray(body.paths)) {
+    return c.json({ error: 'paths must be an array' }, 400);
+  }
+  const plan = localPlanForPathAction(c.req.param('id'), body.sourceFilePath);
+  if (!plan) return c.json({ error: 'local plan source not found' }, 404);
+
+  const paths: string[] = [];
+  for (const path of body.paths) {
+    if (paths.length >= PATH_EXISTS_BATCH_LIMIT) break;
+    if (typeof path === 'string' && path.length > 0 && path.length <= 1024) paths.push(path);
+  }
+
+  const results = await resolveCodeFileBatch(paths, plan.workspace, planBaseDir(plan));
+  return c.json({ results });
+});
+
+plans.get('/open-in/apps', (c) => {
+  return c.json({ available: true, apps: detectOpenInApps() });
+});
+
+plans.post('/plans/:id/open-in', async (c) => {
+  const body = await c.req.json<{
+    path?: unknown;
+    line?: unknown;
+    appId?: unknown;
+    sourceFilePath?: unknown;
+  }>();
+  const plan = localPlanForPathAction(c.req.param('id'), body.sourceFilePath);
+  if (!plan) return c.json({ error: 'local plan source not found' }, 404);
+  if (!plan.workspace) {
+    return c.json({ error: 'This plan has no workspace, so paths cannot be opened.' }, 400);
+  }
+
+  if (typeof body.path !== 'string' || !body.path.trim()) {
+    return c.json({ error: 'path is required' }, 400);
+  }
+  const line =
+    typeof body.line === 'number' && Number.isInteger(body.line) && body.line > 0
+      ? body.line
+      : undefined;
+  const appId = typeof body.appId === 'string' && body.appId.trim() ? body.appId : 'reveal';
+
+  const resolved = await resolveCodeFile(body.path, plan.workspace, planBaseDir(plan));
+  if (resolved.status === 'ambiguous') {
+    return c.json({ error: 'path is ambiguous in this workspace', matches: resolved.matches }, 409);
+  }
+  if (resolved.status !== 'found') {
+    return c.json({ error: 'path not found in this workspace' }, 404);
+  }
+
+  const result = await launchOpenIn(appId, resolved.resolved, line);
+  if (!result.ok) return c.json({ ok: false, error: result.error }, 502);
+  return c.json({ ok: true });
 });
 
 plans.get('/plans/:id/annotations', async (c) => {

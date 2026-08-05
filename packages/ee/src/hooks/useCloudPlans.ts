@@ -45,6 +45,7 @@ export function useCloudPlans(): {
     // oxlint-disable-next-line typescript/no-explicit-any
     const plans: Plan[] = results.map((p: any) => ({
       id: p._id,
+      localPlanId: p.localPlanId,
       ownerId: p.ownerId,
       agent: p.agent,
       title: p.title,

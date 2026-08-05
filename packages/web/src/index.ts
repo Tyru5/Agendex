@@ -29,7 +29,7 @@ export {
   planMarkdownComponents,
   planMarkdownRehypePlugins,
   planMarkdownRemarkPlugins,
-} from './client/components/markdownRenderConfig.tsx';
+} from './client/components/markdownRenderConfig.ts';
 export { GitHubIcon, GoogleIcon } from './client/components/OAuthIcons.tsx';
 export { OfflineView } from './client/components/OfflineView.tsx';
 export { PlanCreator } from './client/components/PlanCreator.tsx';
@@ -44,6 +44,17 @@ export type {
 } from './client/components/PlanGitSection.tsx';
 export { PlanGitSection } from './client/components/PlanGitSection.tsx';
 export { PlanOutline } from './client/components/PlanOutline.tsx';
+export type {
+  PlanPathContextValue,
+  PlanPathOpenResult,
+  PlanPathValidationStatus,
+} from './client/components/PlanPathContext.tsx';
+export { PlanPathContext, usePlanPathContext } from './client/components/PlanPathContext.tsx';
+export {
+  PLAN_PATH_COPY_EVENT,
+  PLAN_PATH_OPEN_EVENT,
+  PlanPathCode,
+} from './client/components/PlanPathLink.tsx';
 export { PlanSourcesDialog } from './client/components/PlanSourcesDialog.tsx';
 export {
   FOCUS_PLAN_SEARCH_EVENT,
@@ -88,6 +99,12 @@ export {
 } from './client/hooks/useSidebarWidth.ts';
 export { useSocketEvent } from './client/hooks/useSocket.ts';
 export { useTheme } from './client/hooks/useTheme.ts';
+export { usePlanPathNavigation } from './client/hooks/usePlanPathNavigation.ts';
+export {
+  getPreferredOpenInApp,
+  setPreferredOpenInApp,
+  useValidatedPlanPaths,
+} from './client/hooks/useValidatedPlanPaths.ts';
 
 export {
   AGENT_IDS,
@@ -103,8 +120,23 @@ export type {
   PlanTextAnchor,
 } from './client/lib/annotations.ts';
 export { createPlanTextAnchor } from './client/lib/annotations.ts';
-export type { AgentStats, Plan, PlanAnnotationApiRecord, PlansResponse } from './client/lib/api.ts';
+export type {
+  AgentStats,
+  OpenInAppInfo,
+  PathExistsApiResult,
+  Plan,
+  PlanAnnotationApiRecord,
+  PlansResponse,
+} from './client/lib/api.ts';
 export { api, clearToken, hasToken, setToken } from './client/lib/api.ts';
+export type { ParsedCodePath } from './client/lib/plan-paths.ts';
+export {
+  candidatePathsForValidation,
+  extractCandidateCodePaths,
+  isCodeFilePath,
+  isCodeFilePathStrict,
+  parseCodePath,
+} from './client/lib/plan-paths.ts';
 export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
 export type { FolderState, PlanFolder, PlanFolderStore } from './client/lib/plan-folders.ts';
 export { MAX_FOLDERS } from './client/lib/plan-folders.ts';

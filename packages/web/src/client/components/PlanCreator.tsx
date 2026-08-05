@@ -8,7 +8,7 @@ import Markdown from 'react-markdown';
 import { useTheme } from '../hooks/useTheme.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import { type AgentStats, api, type Plan } from '../lib/api.ts';
-import { planMarkdownComponents, planMarkdownRemarkPlugins } from './markdownRenderConfig.tsx';
+import { planMarkdownComponents, planMarkdownRemarkPlugins } from './markdownRenderConfig.ts';
 
 export function PlanCreator({
   agents,

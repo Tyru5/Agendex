@@ -3,6 +3,7 @@ import {
   computePlanSyncIdentity,
   getPlanGitContext,
   hashPath,
+  resolvePlanRepoRoot,
   type Plan,
   type PlanGitContext,
 } from '@agendex/shared';
@@ -115,6 +116,7 @@ export function fileToSyncPayload(
   const now = Date.now();
 
   const localPlanId = hashPath(absolutePath);
+  const workspace = resolvePlanRepoRoot({ filePath: absolutePath }) ?? undefined;
   const metadata = { uploaded: true, userCreated: true, planValueOverride: 'manual' };
   const identity = computePlanSyncIdentity({
     agent,
@@ -122,6 +124,7 @@ export function fileToSyncPayload(
     content: body,
     format: 'md',
     filePath: absolutePath,
+    workspace,
     metadata,
   });
 
@@ -132,8 +135,9 @@ export function fileToSyncPayload(
     content: body,
     format: 'md',
     filePath: absolutePath,
+    workspace,
     metadata: withSyncDeviceMetadata(
-      withGitMetadata(metadata, { filePath: absolutePath }),
+      withGitMetadata(metadata, { filePath: absolutePath, workspace }),
       options.deviceId,
       options.hostname,
       options.ipAddress,

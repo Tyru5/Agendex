@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve, sep } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
 import { getConfigDir, loadConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
+import { resolvePlanRepoRoot } from '../git.ts';
 import type { AgentAdapter, Plan, PlannotatorWritebackPayload } from '../types.ts';
 import { annotatePlanValueMetadata, isIndexablePlan } from './plan-value.ts';
 
@@ -199,7 +200,8 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
 }
 
 function preparePlanForIndex(plan: Plan): Plan {
-  return annotatePlanValueMetadata(plan);
+  const workspace = plan.workspace ?? resolvePlanRepoRoot(plan) ?? undefined;
+  return annotatePlanValueMetadata(workspace ? { ...plan, workspace } : plan);
 }
 
 async function parseGenericMarkdownPlan(

@@ -11,6 +11,7 @@ import {
   prUrl,
   safeHttpUrl,
   sanitizeRemoteUrl,
+  sourceFileUrl,
 } from './git-forge.ts';
 
 const githubRepo: GitRepoInfo = {
@@ -146,6 +147,56 @@ describe('forge URL builders', () => {
     expect(branchUrl(githubRepo, 'feat/hash#name')).toBe(
       'https://github.com/acme/widgets/tree/feat/hash%23name',
     );
+  });
+
+  test('builds source-file URLs with forge-specific line anchors', () => {
+    expect(sourceFileUrl(githubRepo, 'abc1234', 'src/my file.ts', 12, 18)).toBe(
+      'https://github.com/acme/widgets/blob/abc1234/src/my%20file.ts#L12-L18',
+    );
+    expect(
+      sourceFileUrl(
+        {
+          host: 'gitlab.com',
+          owner: 'group',
+          name: 'tool',
+          webUrl: 'https://gitlab.com/group/tool',
+        },
+        'feat/source-links',
+        'src/main.ts',
+        9,
+      ),
+    ).toBe('https://gitlab.com/group/tool/-/blob/feat/source-links/src/main.ts#L9');
+    expect(
+      sourceFileUrl(
+        {
+          host: 'bitbucket.org',
+          owner: 'team',
+          name: 'app',
+          webUrl: 'https://bitbucket.org/team/app',
+        },
+        'main',
+        'src/main.ts',
+        4,
+        7,
+      ),
+    ).toBe('https://bitbucket.org/team/app/src/main/src/main.ts#lines-4:7');
+  });
+
+  test('rejects unsafe source paths and unknown forges', () => {
+    expect(sourceFileUrl(githubRepo, 'main', '../secrets.env')).toBeUndefined();
+    expect(sourceFileUrl(githubRepo, '', 'src/main.ts')).toBeUndefined();
+    expect(
+      sourceFileUrl(
+        {
+          host: 'git.example.com',
+          owner: 'team',
+          name: 'app',
+          webUrl: 'https://git.example.com/team/app',
+        },
+        'main',
+        'src/main.ts',
+      ),
+    ).toBeUndefined();
   });
 });
 

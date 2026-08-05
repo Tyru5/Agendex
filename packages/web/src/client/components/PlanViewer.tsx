@@ -11,6 +11,8 @@ import {
 import Markdown from 'react-markdown';
 import { useFullscreen } from '../hooks/useFullscreen.ts';
 import { usePlanAnnotationHighlights } from '../hooks/usePlanAnnotationHighlights.ts';
+import { usePlanPathNavigation } from '../hooks/usePlanPathNavigation.ts';
+import { useValidatedPlanPaths } from '../hooks/useValidatedPlanPaths.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import {
   createPlanTextAnchor,
@@ -33,10 +35,11 @@ import {
   planMarkdownComponents,
   planMarkdownRehypePlugins,
   planMarkdownRemarkPlugins,
-} from './markdownRenderConfig.tsx';
+} from './markdownRenderConfig.ts';
 import { PlanActionButton } from './PlanActionButton.tsx';
 import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
+import { PlanPathContext } from './PlanPathContext.tsx';
 import { TechDependencyChart } from './TechDependencyChart.tsx';
 
 export { PlanActionButton } from './PlanActionButton.tsx';
@@ -367,6 +370,34 @@ export function PlanViewer({
     selectedAnnotationId,
     onSelectAnnotation,
     contentKey: renderContent,
+  });
+
+  const planPaths = useValidatedPlanPaths(plan, renderMode === 'markdown' ? renderContent : '');
+
+  const pathValidationKey = useMemo(() => {
+    if (!planPaths) return '';
+    const local = Object.keys(planPaths.results)
+      .sort()
+      .map((path) => {
+        const result = planPaths.results[path];
+        if (!result) return `${path}:missing`;
+        if (result.status === 'found') return `${path}:found:${result.relative}`;
+        if (result.status === 'ambiguous') return `${path}:ambiguous:${result.matches.join(',')}`;
+        return `${path}:${result.status}`;
+      })
+      .join('|');
+    const remote = Object.entries(planPaths.remoteTargets)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([path, target]) => `${path}:remote:${target.url}`)
+      .join('|');
+    return `${local}|${remote}`;
+  }, [planPaths]);
+
+  usePlanPathNavigation({
+    rootRef: bodyRef,
+    enabled: planPaths?.status === 'ready',
+    // Reset focus when the plan, markdown, or validated path set changes.
+    contentKey: `${plan.id}\0${renderContent}\0${pathValidationKey}`,
   });
 
   const annotationComposerType = annotationComposer?.type;
@@ -950,6 +981,11 @@ export function PlanViewer({
           )}
 
           {/* Body */}
+          {planPaths?.status === 'unavailable' && (
+            <div className="plan-path-status" role="status">
+              {planPaths.statusMessage}
+            </div>
+          )}
           {renderMode === 'markdown' ? (
             <article
               ref={(node) => {
@@ -960,13 +996,15 @@ export function PlanViewer({
               onKeyUp={updateSelectionToolbar}
             >
               <div id="plan-top" aria-hidden="true" />
-              <Markdown
-                remarkPlugins={planMarkdownRemarkPlugins}
-                rehypePlugins={planMarkdownRehypePlugins}
-                components={planMarkdownComponents}
-              >
-                {renderContent}
-              </Markdown>
+              <PlanPathContext.Provider value={planPaths}>
+                <Markdown
+                  remarkPlugins={planMarkdownRemarkPlugins}
+                  rehypePlugins={planMarkdownRehypePlugins}
+                  components={planMarkdownComponents}
+                >
+                  {renderContent}
+                </Markdown>
+              </PlanPathContext.Provider>
             </article>
           ) : (
             <>

@@ -221,4 +221,5 @@ test('fileToSyncPayload enriches metadata.git for uploads inside a repo', () => 
   const payload = fileToSyncPayload(filePath, '# Uploaded');
   const git = payload.metadata?.git as Record<string, unknown>;
   expect(git.branch).toBe('feat/linked');
+  expect(payload.workspace).toBe(gitRepoDir);
 });
