@@ -407,7 +407,7 @@ function isCommandCodeLivePlan(filePath: string): boolean {
 }
 
 export const commandCodeAdapter = createMarkdownArtifactAdapter({
-  agent: 'command-code',
+  agent: 'commandcode',
   writable: true,
   getSearchPaths: commandCodeRoots,
   matches: (filePath) => isCommandCodeLivePlan(filePath),

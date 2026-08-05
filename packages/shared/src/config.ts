@@ -76,7 +76,7 @@ const ADAPTER_ENABLE_MIGRATIONS: Array<{ toVersion: number; enable: AdapterId[] 
     ],
   },
   // v6: Command Code plans under ~/.commandcode/plans become a real adapter.
-  { toVersion: 6, enable: ['command-code'] },
+  { toVersion: 6, enable: ['commandcode'] },
 ];
 
 export interface AgendexConfig {

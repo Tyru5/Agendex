@@ -75,7 +75,7 @@ const HERO_AGENT_CHIPS = [
   { agent: 'antigravity', label: 'Antigravity' },
   { agent: 'claude-code', label: 'Claude Code' },
   { agent: 'codex-cli', label: 'Codex' },
-  { agent: 'command-code', label: 'Command Code' },
+  { agent: 'commandcode', label: 'Command Code' },
   { agent: 'cursor', label: 'Cursor' },
   { agent: 'droid', label: 'Factory Droid' },
   { agent: 'gemini-cli', label: 'Gemini CLI' },

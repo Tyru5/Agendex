@@ -50,7 +50,7 @@ explicit Plan-mode session state; Continue is retained as an experimental sessio
 - `claude-code`
 - `codebuddy`
 - `codex`
-- `command-code`
+- `commandcode`
 - `cursor`
 - `droid`
 - `gemini-cli`
@@ -87,7 +87,7 @@ Agents with transient or hook-only plans can send their hook JSON payload to the
 agendex capture-plan --agent antigravity < hook-payload.json
 ```
 
-The capture command accepts `antigravity`, `augment`, `command-code`, `gemini-cli`, and `iflow-cli`.
+The capture command accepts `antigravity`, `augment`, `commandcode`, `gemini-cli`, and `iflow-cli`.
 It copies only explicit plan fields or known plan paths into `~/.agendex/plans/hooks/`; it never imports
 the transcript path from a hook payload. Command Code also has a durable file adapter for
 `~/.commandcode/plans/*.md`; capture-plan remains available for hook-based workflows.

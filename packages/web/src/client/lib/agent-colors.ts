@@ -254,7 +254,7 @@ const AGENT_BRANDING: Record<string, AgentBranding> = {
     color: '#8b5cf6',
     icon: CLAUDE_ICON,
   },
-  'command-code': {
+  commandcode: {
     label: 'Command Code',
     color: '#0f766e',
     fallbackGlyph: 'CC',
@@ -414,6 +414,8 @@ function normalizeAgent(agent: string): string {
   const normalized = agent.trim().toLowerCase();
   // Catalog adapter id is `codex`; plan records use `codex-cli`.
   if (normalized === 'codex') return 'codex-cli';
+  // Renamed from command-code → commandcode; keep old plan agent ids branded.
+  if (normalized === 'command-code') return 'commandcode';
   return normalized;
 }
 

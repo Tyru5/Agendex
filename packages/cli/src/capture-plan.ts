@@ -6,14 +6,14 @@ import { getConfigDir } from '@agendex/shared';
 export type CapturePlanAgent =
   | 'antigravity'
   | 'augment'
-  | 'command-code'
+  | 'commandcode'
   | 'gemini-cli'
   | 'iflow-cli';
 
 const CAPTURE_AGENTS = new Set<CapturePlanAgent>([
   'antigravity',
   'augment',
-  'command-code',
+  'commandcode',
   'gemini-cli',
   'iflow-cli',
 ]);
@@ -190,7 +190,7 @@ export async function runCapturePlanCommand(args: string[], input?: string): Pro
   const agent = agentIndex >= 0 ? args[agentIndex + 1] : undefined;
   if (!agent || !CAPTURE_AGENTS.has(agent as CapturePlanAgent)) {
     console.error(
-      '[agendex] usage: agendex capture-plan --agent <antigravity|augment|command-code|gemini-cli|iflow-cli>',
+      '[agendex] usage: agendex capture-plan --agent <antigravity|augment|commandcode|gemini-cli|iflow-cli>',
     );
     return 1;
   }

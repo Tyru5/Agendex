@@ -9,7 +9,7 @@ import {
 const FILE_ADAPTER_IDS = [
   'antigravity',
   'codebuddy',
-  'command-code',
+  'commandcode',
   'droid',
   'gemini-cli',
   'github-copilot',
@@ -42,6 +42,13 @@ test('unsupported catalog entries cannot be enabled or resolved', () => {
   expect(getDefaultAdapterIds()).not.toContain('cline');
   expect(getDefaultAdapterIds()).not.toContain('iflow-cli');
   expect(getDefaultAdapterIds()).not.toContain('aider');
+});
+
+test('legacy command-code adapter id resolves to commandcode', () => {
+  expect(sanitizeEnabledAdapterIds(['command-code'])).toEqual(['commandcode']);
+  expect(resolveAdapters(['command-code']).map((adapter) => adapter.agent)).toEqual([
+    'commandcode',
+  ]);
 });
 
 test('stock OpenCode and Oh My OpenCode are distinct supported adapters', () => {
