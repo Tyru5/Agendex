@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.1.0
+
+### Minor Changes
+
+- 232e555: Jump-to-source for validated plan path mentions, with forge source-file links when local validation is unavailable
+
 ## 5.0.0
 
 ### Major Changes
