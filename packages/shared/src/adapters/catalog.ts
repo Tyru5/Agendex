@@ -8,6 +8,7 @@ import { cursorAdapter } from './cursor.ts';
 import {
   antigravityAdapter,
   codeBuddyAdapter,
+  commandCodeAdapter,
   droidAdapter,
   geminiCliAdapter,
   githubCopilotAdapter,
@@ -214,9 +215,9 @@ const CATALOG: AdapterCatalogEntry[] = [
     id: 'command-code',
     displayName: 'Command Code',
     group: 'other',
-    implemented: false,
-    defaultEnabled: false,
-    createAdapter: () => createStubAdapter('command-code', [join(home, '.commandcode')], '.md'),
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => commandCodeAdapter,
   },
   {
     id: 'continue',

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   antigravityAdapter,
   codeBuddyAdapter,
+  commandCodeAdapter,
   droidAdapter,
   geminiCliAdapter,
   githubCopilotAdapter,
@@ -22,6 +23,7 @@ const ENV_NAMES = [
   'HOME',
   'AGENDEX_ANTIGRAVITY_PLAN_DIRS',
   'AGENDEX_CODEBUDDY_PLAN_DIRS',
+  'AGENDEX_COMMAND_CODE_PLAN_DIRS',
   'AGENDEX_DROID_PLAN_DIRS',
   'AGENDEX_GEMINI_CLI_PLAN_DIRS',
   'AGENDEX_GITHUB_COPILOT_PLAN_DIRS',
@@ -59,11 +61,13 @@ test('documented Markdown artifact adapters parse only their plan locations', as
   const kimiRoot = join(tempRoot, 'kimi', 'plans');
   const muxRoot = join(tempRoot, 'mux-plans');
   const windsurfRoot = join(tempRoot, 'windsurf-plans');
+  const commandCodeRoot = join(tempRoot, 'commandcode-plans');
   process.env.AGENDEX_ANTIGRAVITY_PLAN_DIRS = antigravityRoot;
   process.env.AGENDEX_GITHUB_COPILOT_PLAN_DIRS = copilotRoot;
   process.env.AGENDEX_KIMI_CODE_PLAN_DIRS = kimiRoot;
   process.env.AGENDEX_MUX_PLAN_DIRS = muxRoot;
   process.env.AGENDEX_WINDSURF_PLAN_DIRS = windsurfRoot;
+  process.env.AGENDEX_COMMAND_CODE_PLAN_DIRS = commandCodeRoot;
 
   const cases = [
     [
@@ -105,6 +109,7 @@ test('documented Markdown artifact adapters parse only their plan locations', as
       join(tempRoot, 'repo', '.qwen', 'plans'),
     ],
     [windsurfAdapter, join(windsurfRoot, 'auth.md'), windsurfRoot],
+    [commandCodeAdapter, join(commandCodeRoot, 'auth.md'), commandCodeRoot],
   ] as const;
 
   for (const [adapter, path, scanRoot] of cases) {
@@ -118,6 +123,28 @@ test('documented Markdown artifact adapters parse only their plan locations', as
     expect(plans[0]?.metadata.revision).toMatch(/^[a-f0-9]{64}$/);
     expect(plans[0]?.metadata.sourcePaths).toEqual([path]);
   }
+});
+
+test('Command Code indexes live plans and ignores review-round snapshots', async () => {
+  tempRoot = await mkdtemp(join(tmpdir(), 'agendex-command-code-'));
+  const plansRoot = join(tempRoot, '.commandcode', 'plans');
+  process.env.HOME = tempRoot;
+  delete process.env.AGENDEX_COMMAND_CODE_PLAN_DIRS;
+
+  const livePlan = join(plansRoot, 'rate-limiter.md');
+  const versionSnapshot = join(plansRoot, 'versions', 'rate-limiter-v1.md');
+  await createPlan(livePlan);
+  await createPlan(versionSnapshot);
+
+  expect(commandCodeAdapter.getSearchPaths()).toEqual([plansRoot]);
+  expect(commandCodeAdapter.matches(livePlan)).toBe(true);
+  expect(commandCodeAdapter.matches(versionSnapshot)).toBe(false);
+
+  const plans = await commandCodeAdapter.parse(livePlan);
+  expect(plans).toHaveLength(1);
+  expect(plans[0]?.agent).toBe('command-code');
+  expect(plans[0]?.metadata.product).toBe('Command Code');
+  expect(await commandCodeAdapter.parse(versionSnapshot)).toEqual([]);
 });
 
 test('Antigravity rejects marker-shaped paths outside its declared roots', () => {

@@ -379,3 +379,40 @@ export const windsurfAdapter = createMarkdownArtifactAdapter({
   matches: (filePath) => markdownInConfiguredRoot(filePath, windsurfRoots),
   metadata: () => ({ product: 'Devin Desktop / Windsurf' }),
 });
+
+/**
+ * Command Code writes live plans to `~/.commandcode/plans/*.md`, keeps review
+ * metadata in `plans-index.json`, and stores prior rounds under `versions/`.
+ * @see https://commandcode.ai/docs/plan-mode#where-plans-live
+ */
+function commandCodeRoots(): string[] {
+  return unique([
+    join(runtimeHomeDir(), '.commandcode', 'plans'),
+    ...envPlanDirs('AGENDEX_COMMAND_CODE_PLAN_DIRS'),
+  ]);
+}
+
+function isCommandCodeLivePlan(filePath: string): boolean {
+  if (!filePath.toLowerCase().endsWith('.md')) return false;
+  const normalized = normalizePath(filePath);
+  if (normalized.toLowerCase().includes('/versions/')) return false;
+
+  return commandCodeRoots().some((root) => {
+    const rootNorm = normalizePath(root);
+    if (!(normalized === rootNorm || normalized.startsWith(`${rootNorm}/`))) return false;
+    const relative = normalized.slice(rootNorm.length + 1);
+    // Live plans are direct children of the plans root; version snapshots nest under versions/.
+    return relative.length > 0 && !relative.includes('/');
+  });
+}
+
+export const commandCodeAdapter = createMarkdownArtifactAdapter({
+  agent: 'command-code',
+  writable: true,
+  getSearchPaths: commandCodeRoots,
+  matches: (filePath) => isCommandCodeLivePlan(filePath),
+  metadata: ({ filePath }) => ({
+    product: 'Command Code',
+    artifactRoot: commandCodeRoots().find((root) => isWithin(filePath, root)),
+  }),
+});

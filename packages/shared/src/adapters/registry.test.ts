@@ -9,6 +9,7 @@ import {
 const FILE_ADAPTER_IDS = [
   'antigravity',
   'codebuddy',
+  'command-code',
   'droid',
   'gemini-cli',
   'github-copilot',

@@ -254,6 +254,11 @@ const AGENT_BRANDING: Record<string, AgentBranding> = {
     color: '#8b5cf6',
     icon: CLAUDE_ICON,
   },
+  'command-code': {
+    label: 'Command Code',
+    color: '#0f766e',
+    fallbackGlyph: 'CC',
+  },
   'codex-cli': {
     label: 'Codex CLI',
     color: '#463fff',

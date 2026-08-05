@@ -43,7 +43,7 @@ export function getConfigDir(): string {
 }
 
 /** Current on-disk config schema version. Bump when applying one-shot migrations. */
-export const CURRENT_CONFIG_VERSION = 5;
+export const CURRENT_CONFIG_VERSION = 6;
 
 /**
  * One-shot adapter enable migrations.
@@ -75,6 +75,8 @@ const ADAPTER_ENABLE_MIGRATIONS: Array<{ toVersion: number; enable: AdapterId[] 
       'windsurf',
     ],
   },
+  // v6: Command Code plans under ~/.commandcode/plans become a real adapter.
+  { toVersion: 6, enable: ['command-code'] },
 ];
 
 export interface AgendexConfig {
