@@ -43,13 +43,14 @@ independently owned and are never stopped by desktop logout or shutdown.
 
 ## Adapter Status
 
-Agendex currently has **20 implemented adapters**. Nineteen use durable plan artifacts or
+Agendex currently has **21 implemented adapters**. Twenty use durable plan artifacts or
 explicit Plan-mode session state; Continue is retained as an experimental session adapter:
 
 - `antigravity`
 - `claude-code`
 - `codebuddy`
 - `codex`
+- `commandcode`
 - `cursor`
 - `droid`
 - `gemini-cli`
@@ -75,7 +76,7 @@ adapters.
 
 File adapters honor the agents' documented roots and these optional path-list overrides (use the
 platform path delimiter): `AGENDEX_ANTIGRAVITY_PLAN_DIRS`, `AGENDEX_CODEBUDDY_PLAN_DIRS`,
-`AGENDEX_DROID_PLAN_DIRS`, `AGENDEX_GEMINI_CLI_PLAN_DIRS`,
+`AGENDEX_COMMAND_CODE_PLAN_DIRS`, `AGENDEX_DROID_PLAN_DIRS`, `AGENDEX_GEMINI_CLI_PLAN_DIRS`,
 `AGENDEX_GITHUB_COPILOT_PLAN_DIRS`, `AGENDEX_JUNIE_PLAN_DIRS`, `AGENDEX_KILO_PLAN_DIRS`,
 `AGENDEX_KIMI_CODE_PLAN_DIRS`, `AGENDEX_KIRO_PLAN_DIRS`, `AGENDEX_MUX_PLAN_DIRS`,
 `AGENDEX_QWEN_CODE_PLAN_DIRS`, and `AGENDEX_WINDSURF_PLAN_DIRS`.
@@ -86,9 +87,10 @@ Agents with transient or hook-only plans can send their hook JSON payload to the
 agendex capture-plan --agent antigravity < hook-payload.json
 ```
 
-The capture command accepts `antigravity`, `augment`, `command-code`, `gemini-cli`, and `iflow-cli`.
+The capture command accepts `antigravity`, `augment`, `commandcode`, `gemini-cli`, and `iflow-cli`.
 It copies only explicit plan fields or known plan paths into `~/.agendex/plans/hooks/`; it never imports
-the transcript path from a hook payload.
+the transcript path from a hook payload. Command Code also has a durable file adapter for
+`~/.commandcode/plans/*.md`; capture-plan remains available for hook-based workflows.
 
 ## Quick Start (Cloud CLI)
 

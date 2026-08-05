@@ -6,14 +6,14 @@ import { getConfigDir } from '@agendex/shared';
 export type CapturePlanAgent =
   | 'antigravity'
   | 'augment'
-  | 'command-code'
+  | 'commandcode'
   | 'gemini-cli'
   | 'iflow-cli';
 
 const CAPTURE_AGENTS = new Set<CapturePlanAgent>([
   'antigravity',
   'augment',
-  'command-code',
+  'commandcode',
   'gemini-cli',
   'iflow-cli',
 ]);
@@ -187,10 +187,12 @@ async function readStdin(): Promise<string> {
 
 export async function runCapturePlanCommand(args: string[], input?: string): Promise<number> {
   const agentIndex = args.indexOf('--agent');
-  const agent = agentIndex >= 0 ? args[agentIndex + 1] : undefined;
+  const rawAgent = agentIndex >= 0 ? args[agentIndex + 1] : undefined;
+  // Renamed command-code → commandcode; keep existing hook commands working.
+  const agent = rawAgent === 'command-code' ? 'commandcode' : rawAgent;
   if (!agent || !CAPTURE_AGENTS.has(agent as CapturePlanAgent)) {
     console.error(
-      '[agendex] usage: agendex capture-plan --agent <antigravity|augment|command-code|gemini-cli|iflow-cli>',
+      '[agendex] usage: agendex capture-plan --agent <antigravity|augment|commandcode|gemini-cli|iflow-cli>',
     );
     return 1;
   }
