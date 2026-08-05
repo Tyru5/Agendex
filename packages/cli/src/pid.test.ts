@@ -323,14 +323,28 @@ test('only one process can reclaim and acquire the same stale startup lock', asy
   try {
     writeFileSync(goPath, 'go');
 
+    const readSettledResults = (): string[] | null => {
+      const results: string[] = [];
+      for (const path of resultPaths) {
+        if (!existsSync(path)) return null;
+        const value = readFileSync(path, 'utf8');
+        // Contenders publish via temp+rename, but still require a known value so a
+        // torn/partial observation can never satisfy the barrier.
+        if (value !== 'acquired' && value !== 'blocked') return null;
+        results.push(value);
+      }
+      return results;
+    };
+
     const deadline = Date.now() + 5_000;
-    while (resultPaths.some((path) => !existsSync(path)) && Date.now() < deadline) {
+    let results = readSettledResults();
+    while (results === null && Date.now() < deadline) {
       await Bun.sleep(10);
+      results = readSettledResults();
     }
 
-    expect(resultPaths.every((path) => existsSync(path))).toBe(true);
-    const results = resultPaths.map((path) => readFileSync(path, 'utf8')).sort();
-    expect(results).toEqual(['acquired', 'blocked']);
+    if (results === null) throw new Error('contenders did not publish settled lock results');
+    expect(results.toSorted()).toEqual(['acquired', 'blocked']);
 
     writeFileSync(releasePath, 'release');
     expect(await Promise.all(contenders.map((process) => process.exited))).toEqual([0, 0]);
