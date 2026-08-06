@@ -123,13 +123,54 @@ function countNullsAt(buffer: Buffer, offset: number): number {
 }
 
 /**
- * Parse `wsl.exe -l` / `wsl.exe -l -q` output into distro names.
- * The default distribution (marked with `*` or `(Default)`) is returned first
- * so callers using `[0]` always get the same distro that bare `wsl.exe -e`
- * would target.
- *
- * Distro names may contain spaces. Verbose `wsl -l -v` rows (NAME STATE VERSION)
- * are ignored so localized multi-word STATE columns cannot corrupt names.
+ * Parse `wsl.exe -l -q` output: one distribution name per line.
+ * Quiet mode is the source of truth for names (spaces and trailing digits allowed).
+ */
+export function parseWslQuietNames(stdout: Buffer): string[] {
+  const names: string[] = [];
+  for (const raw of decodeWslText(stdout).split(/\r?\n/)) {
+    const name = raw.replace(/^\uFEFF/, '').trim();
+    if (!name) continue;
+    if (!names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+/**
+ * From non-verbose `wsl.exe -l` output, pick the default among known quiet names.
+ * Falls back to the first quiet name when no `*` / `(Default)` marker is found.
+ */
+export function resolveDefaultWslDistro(
+  listStdout: Buffer,
+  quietNames: readonly string[],
+): string | null {
+  if (quietNames.length === 0) return null;
+
+  // Longest-first so "Ubuntu" does not steal a match from "Ubuntu 22".
+  const byLength = [...quietNames].sort((a, b) => b.length - a.length);
+
+  for (const raw of decodeWslText(listStdout).split(/\r?\n/)) {
+    const line = raw.replace(/^\uFEFF/, '').trim();
+    if (!line || /^Windows Subsystem for Linux/i.test(line)) continue;
+
+    const isDefault = /^\*/.test(line) || /\(Default\)\s*$/i.test(line);
+    if (!isDefault) continue;
+
+    const haystack = line
+      .replace(/^\*\s*/, '')
+      .replace(/\s*\(Default\)\s*$/i, '')
+      .trim();
+    const match = byLength.find((name) => haystack === name);
+    if (match) return match;
+  }
+
+  return quietNames[0] ?? null;
+}
+
+/**
+ * Parse marked `wsl.exe -l` / quiet lists into distro names with default first.
+ * Prefer `parseWslQuietNames` + `resolveDefaultWslDistro` for detection; this
+ * helper remains for simple marked/quiet buffers in tests.
  */
 export function parseWslDistroList(stdout: Buffer): string[] {
   const names: string[] = [];
@@ -138,7 +179,6 @@ export function parseWslDistroList(stdout: Buffer): string[] {
   for (const raw of decodeWslText(stdout).split(/\r?\n/)) {
     const line = raw.replace(/^\uFEFF/, '').trim();
     if (!line) continue;
-    // Skip the non-quiet banner / verbose header rows.
     if (/^Windows Subsystem for Linux/i.test(line)) continue;
     if (/^NAME\b/i.test(line)) continue;
 
@@ -148,9 +188,6 @@ export function parseWslDistroList(stdout: Buffer): string[] {
       .replace(/\s*\(Default\)\s*$/i, '')
       .trim();
     if (!name) continue;
-    // Verbose rows end with `STATE VERSION` where VERSION is numeric. Skip them
-    // rather than guessing how many STATE words to strip (locales vary).
-    if (/\s+\S+\s+\d+\s*$/.test(name)) continue;
     if (!names.includes(name)) names.push(name);
     if (isDefault) defaultName = name;
   }
@@ -211,10 +248,10 @@ export async function detectWsl(
     return { available: false, distroName: null, homePath: null, error: 'Not Windows' };
   }
 
-  // Prefer non-verbose `-l` so default is marked with `*` / `(Default)` without
-  // localized STATE/VERSION columns that can corrupt distro names.
-  const list = await runCommand('wsl.exe', ['-l']);
-  if (list.code !== 0) {
+  // Quiet list is the source of truth for names (spaces / trailing digits OK).
+  // Non-quiet `-l` is only used to locate the `*` / `(Default)` marker.
+  const quiet = await runCommand('wsl.exe', ['-l', '-q']);
+  if (quiet.code !== 0) {
     return {
       available: false,
       distroName: null,
@@ -223,8 +260,21 @@ export async function detectWsl(
     };
   }
 
-  const distros = parseWslDistroList(list.stdout);
-  const distroName = distros[0] ?? null;
+  const quietNames = parseWslQuietNames(quiet.stdout);
+  if (quietNames.length === 0) {
+    return {
+      available: false,
+      distroName: null,
+      homePath: null,
+      error: 'No WSL distro installed',
+    };
+  }
+
+  const listed = await runCommand('wsl.exe', ['-l']);
+  const distroName =
+    listed.code === 0
+      ? resolveDefaultWslDistro(listed.stdout, quietNames)
+      : (quietNames[0] ?? null);
   if (!distroName) {
     return {
       available: false,
