@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from 'bun:test';
 import {
   applyRuntimeEnvVars,
+  detectWsl,
   mergeWorkerEnv,
   parseWslDistroList,
   parseWindowsAgentEnv,
@@ -30,7 +31,6 @@ test('parseWindowsAgentEnv accepts only native and wsl', () => {
 });
 
 test('parseWslDistroList decodes UTF-16LE wsl -l output and strips default marker', () => {
-  const text = '* Ubuntu\0\r\nDebian\0\r\n';
   // Build a realistic UTF-16LE buffer for "Ubuntu\r\nDebian\r\n"
   const utf16 = Buffer.from('Ubuntu\r\nDebian\r\n', 'utf16le');
   expect(parseWslDistroList(utf16)).toEqual(['Ubuntu', 'Debian']);
@@ -40,7 +40,56 @@ test('parseWslDistroList decodes UTF-16LE wsl -l output and strips default marke
 
   // UTF-8 fallback
   expect(parseWslDistroList(Buffer.from('Ubuntu\nDebian\n', 'utf8'))).toEqual(['Ubuntu', 'Debian']);
-  void text;
+});
+
+test('parseWslDistroList prefers the default distro even when it is not first', () => {
+  const verbose = Buffer.from(
+    '  NAME            STATE           VERSION\r\n' +
+      '  Debian          Stopped         2\r\n' +
+      '* Ubuntu          Running         2\r\n',
+    'utf16le',
+  );
+  expect(parseWslDistroList(verbose)).toEqual(['Ubuntu', 'Debian']);
+
+  const legacy = Buffer.from(
+    'Windows Subsystem for Linux Distributions:\r\nDebian\r\nUbuntu (Default)\r\n',
+    'utf8',
+  );
+  expect(parseWslDistroList(legacy)).toEqual(['Ubuntu', 'Debian']);
+});
+
+test('detectWsl pins -d to the default distro for home resolution', async () => {
+  const calls: Array<{ command: string; args: readonly string[] }> = [];
+  const runCommand = async (command: string, args: readonly string[]) => {
+    calls.push({ command, args });
+    if (args[0] === '-l') {
+      return {
+        code: 0,
+        stdout: Buffer.from(
+          '  NAME            STATE           VERSION\r\n' +
+            '  Debian          Stopped         2\r\n' +
+            '* Ubuntu          Running         2\r\n',
+          'utf16le',
+        ),
+        stderr: Buffer.alloc(0),
+      };
+    }
+    if (args.some((arg) => arg.includes('printf'))) {
+      return { code: 0, stdout: Buffer.from('/home/ty', 'utf8'), stderr: Buffer.alloc(0) };
+    }
+    // Force the \\\\wsl$ fallback so distroName is exercised in the path.
+    return { code: 1, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
+  };
+
+  const detection = await detectWsl(runCommand, { platform: 'win32' });
+  expect(detection).toEqual({
+    available: true,
+    distroName: 'Ubuntu',
+    homePath: '\\\\wsl$\\Ubuntu\\home\\ty',
+  });
+  expect(calls[0]?.args).toEqual(['-l', '-v']);
+  expect(calls[1]?.args.slice(0, 2)).toEqual(['-d', 'Ubuntu']);
+  expect(calls[2]?.args.slice(0, 2)).toEqual(['-d', 'Ubuntu']);
 });
 
 test('toWindowsWslHomePath maps linux home into \\\\wsl$ path', () => {

@@ -122,16 +122,37 @@ function countNullsAt(buffer: Buffer, offset: number): number {
   return count;
 }
 
+/**
+ * Parse `wsl.exe -l` / `wsl.exe -l -v` output into distro names.
+ * The default distribution (marked with `*` or `(Default)`) is returned first
+ * so callers using `[0]` always get the same distro that bare `wsl.exe -e`
+ * would target.
+ */
 export function parseWslDistroList(stdout: Buffer): string[] {
-  return decodeWslText(stdout)
-    .split(/\r?\n/)
-    .map((line) =>
-      line
-        .replace(/^\uFEFF/, '')
-        .replace(/^\*\s*/, '')
-        .trim(),
-    )
-    .filter(Boolean);
+  const names: string[] = [];
+  let defaultName: string | null = null;
+
+  for (const raw of decodeWslText(stdout).split(/\r?\n/)) {
+    const line = raw.replace(/^\uFEFF/, '').trim();
+    if (!line) continue;
+    // Skip list headers from `wsl -l` / `wsl -l -v`.
+    if (/^Windows Subsystem for Linux/i.test(line)) continue;
+    if (/^NAME\s+STATE\s+VERSION/i.test(line)) continue;
+
+    const isDefault = /^\*/.test(line) || /\(Default\)\s*$/i.test(line);
+    const name = line
+      .replace(/^\*\s*/, '')
+      .replace(/\s*\(Default\)\s*$/i, '')
+      // `-l -v` appends STATE/VERSION columns after the distro name.
+      .replace(/\s+(Running|Stopped|Installing|Uninstalling)\s+\d+\s*$/i, '')
+      .trim();
+    if (!name) continue;
+    if (!names.includes(name)) names.push(name);
+    if (isDefault) defaultName = name;
+  }
+
+  if (!defaultName || names[0] === defaultName) return names;
+  return [defaultName, ...names.filter((n) => n !== defaultName)];
 }
 
 export function toWindowsWslHomePath(distroName: string, linuxHome: string): string {
@@ -177,12 +198,17 @@ async function defaultRunCommand(
   });
 }
 
-export async function detectWsl(runCommand: RunCommand = defaultRunCommand): Promise<WslDetection> {
-  if (process.platform !== 'win32') {
+export async function detectWsl(
+  runCommand: RunCommand = defaultRunCommand,
+  options?: { platform?: NodeJS.Platform },
+): Promise<WslDetection> {
+  const platform = options?.platform ?? process.platform;
+  if (platform !== 'win32') {
     return { available: false, distroName: null, homePath: null, error: 'Not Windows' };
   }
 
-  const list = await runCommand('wsl.exe', ['-l', '-q']);
+  // Prefer `-l -v` so the default distro is marked with `*` (unlike quiet `-l -q`).
+  const list = await runCommand('wsl.exe', ['-l', '-v']);
   if (list.code !== 0) {
     return {
       available: false,
@@ -203,7 +229,15 @@ export async function detectWsl(runCommand: RunCommand = defaultRunCommand): Pro
     };
   }
 
-  const homeResult = await runCommand('wsl.exe', ['-e', 'sh', '-lc', 'printf %s "$HOME"']);
+  // Pin `-d` so home/wslpath resolve against the same distro we report.
+  const homeResult = await runCommand('wsl.exe', [
+    '-d',
+    distroName,
+    '-e',
+    'sh',
+    '-lc',
+    'printf %s "$HOME"',
+  ]);
   const linuxHome = decodeWslText(homeResult.stdout).trim();
   if (homeResult.code !== 0 || !linuxHome.startsWith('/')) {
     return {
@@ -214,7 +248,14 @@ export async function detectWsl(runCommand: RunCommand = defaultRunCommand): Pro
     };
   }
 
-  const wslpathResult = await runCommand('wsl.exe', ['-e', 'wslpath', '-w', linuxHome]);
+  const wslpathResult = await runCommand('wsl.exe', [
+    '-d',
+    distroName,
+    '-e',
+    'wslpath',
+    '-w',
+    linuxHome,
+  ]);
   const wslpathHome = decodeWslText(wslpathResult.stdout).trim();
   const homePath =
     wslpathResult.code === 0 && wslpathHome
