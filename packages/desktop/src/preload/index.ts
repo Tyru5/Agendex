@@ -57,6 +57,21 @@ interface DesktopBuildInfo {
   codeSigned: boolean | null;
 }
 
+type WindowsAgentEnv = 'native' | 'wsl';
+
+interface WindowsEnvStatus {
+  env: WindowsAgentEnv;
+  wslAvailable: boolean;
+  wslDistroName: string | null;
+  wslHomePath: string | null;
+  error?: string;
+}
+
+interface WindowsEnvSetResult extends WindowsEnvStatus {
+  ok: boolean;
+  willRelaunch: boolean;
+}
+
 // Forward update state from the main process to the renderer as a DOM event.
 // contextIsolation prevents passing callbacks through contextBridge, so we
 // dispatch a CustomEvent on the shared window object that the renderer can
@@ -209,6 +224,14 @@ const agendexDesktop = {
   },
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('agendex:get-app-version'),
   getBuildInfo: (): Promise<DesktopBuildInfo> => ipcRenderer.invoke('agendex:get-build-info'),
+  ...(process.platform === 'win32'
+    ? {
+        getWindowsEnv: (): Promise<WindowsEnvStatus | null> =>
+          ipcRenderer.invoke('agendex:get-windows-env'),
+        setWindowsEnv: (env: WindowsAgentEnv): Promise<WindowsEnvSetResult | null> =>
+          ipcRenderer.invoke('agendex:set-windows-env', env),
+      }
+    : {}),
   getPageZoomFactor: (): number => webFrame.getZoomFactor(),
   resetPageZoom: (): void => {
     webFrame.setZoomFactor(1);

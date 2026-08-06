@@ -8,6 +8,7 @@ import {
   applyAdapterEnableMigrations,
   CURRENT_CONFIG_VERSION,
   getConfigPath,
+  getHomeDir,
   isHomeRelativePath,
   loadConfig,
   loadOrCreateToken,
@@ -20,6 +21,9 @@ import {
 const originalEnv: Record<string, string | undefined> = {
   AGENDEX_CONFIG_DIR: process.env.AGENDEX_CONFIG_DIR,
   AGENDEX_DEV: process.env.AGENDEX_DEV,
+  AGENDEX_HOME: process.env.AGENDEX_HOME,
+  HOME: process.env.HOME,
+  USERPROFILE: process.env.USERPROFILE,
 };
 
 let tempRoot: string | undefined;
@@ -41,6 +45,9 @@ async function useTempConfigDir() {
 afterEach(async () => {
   restoreEnv('AGENDEX_CONFIG_DIR');
   restoreEnv('AGENDEX_DEV');
+  restoreEnv('AGENDEX_HOME');
+  restoreEnv('HOME');
+  restoreEnv('USERPROFILE');
 
   if (tempRoot) {
     await rm(tempRoot, { recursive: true, force: true });
@@ -52,6 +59,17 @@ test('AGENDEX_CONFIG_DIR overrides the user config path for tests and tooling', 
   const configDir = await useTempConfigDir();
 
   expect(getConfigPath()).toBe(join(configDir, 'config.json'));
+});
+
+test('AGENDEX_HOME overrides HOME and USERPROFILE for agent root resolution', () => {
+  process.env.HOME = 'C:\\Users\\native';
+  process.env.USERPROFILE = 'C:\\Users\\native';
+  process.env.AGENDEX_HOME = '\\\\wsl$\\Ubuntu\\home\\ty';
+
+  expect(getHomeDir()).toBe('\\\\wsl$\\Ubuntu\\home\\ty');
+
+  process.env.AGENDEX_HOME = '   ';
+  expect(getHomeDir()).toBe('C:\\Users\\native');
 });
 
 test('loadOrCreateToken preserves existing cloud session fields', async () => {

@@ -24,6 +24,21 @@ interface UpdateState {
   error?: string;
 }
 
+type WindowsAgentEnv = 'native' | 'wsl';
+
+interface WindowsEnvStatus {
+  env: WindowsAgentEnv;
+  wslAvailable: boolean;
+  wslDistroName: string | null;
+  wslHomePath: string | null;
+  error?: string;
+}
+
+interface WindowsEnvSetResult extends WindowsEnvStatus {
+  ok: boolean;
+  willRelaunch: boolean;
+}
+
 interface AgendexDesktopBridge {
   readonly isDesktop: true;
   readonly cloudToken: string | null;
@@ -38,6 +53,8 @@ interface AgendexDesktopBridge {
   installUpdate: () => Promise<void>;
   getUpdateState: () => Promise<UpdateState>;
   getAppVersion: () => Promise<string>;
+  getWindowsEnv?: () => Promise<WindowsEnvStatus | null>;
+  setWindowsEnv?: (env: WindowsAgentEnv) => Promise<WindowsEnvSetResult | null>;
   getPageZoomFactor: () => number;
   resetPageZoom: () => void;
 }

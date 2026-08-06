@@ -1,5 +1,5 @@
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { getHomeDir } from '../config.ts';
 import type { AgentAdapter } from '../types.ts';
 import { claudeCodeAdapter } from './claude-code.ts';
 import { codexCliAdapter } from './codex-cli.ts';
@@ -83,8 +83,6 @@ export interface AdapterCatalogEntry {
   createAdapter: () => AgentAdapter;
 }
 
-const home = homedir();
-
 export const ADAPTER_AGENT_ALIASES: Record<AdapterId, string> = {
   amp: 'amp',
   antigravity: 'antigravity',
@@ -137,7 +135,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'universal',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('amp', [join(home, '.amp')], '.json'),
+    createAdapter: () => createStubAdapter('amp', [join(getHomeDir(), '.amp')], '.json'),
   },
   {
     id: 'antigravity',
@@ -153,7 +151,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('augment', [join(home, '.augment')], '.json'),
+    createAdapter: () => createStubAdapter('augment', [join(getHomeDir(), '.augment')], '.json'),
   },
   {
     id: 'claude-code',
@@ -169,7 +167,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('openclaw', [join(home, '.openclaw')], '.md'),
+    createAdapter: () => createStubAdapter('openclaw', [join(getHomeDir(), '.openclaw')], '.md'),
   },
   {
     id: 'cline',
@@ -182,7 +180,7 @@ const CATALOG: AdapterCatalogEntry[] = [
         'cline',
         [
           join(
-            home,
+            getHomeDir(),
             'AppData',
             'Roaming',
             'Code',
@@ -190,7 +188,7 @@ const CATALOG: AdapterCatalogEntry[] = [
             'globalStorage',
             'saoudrizwan.claude-dev',
           ),
-          join(home, '.config', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev'),
+          join(getHomeDir(), '.config', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev'),
         ],
         '.json',
       ),
@@ -233,7 +231,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('crush', [join(home, '.config', 'crush')], '.json'),
+    createAdapter: () => createStubAdapter('crush', [join(getHomeDir(), '.config', 'crush')], '.json'),
   },
   {
     id: 'cursor',
@@ -273,7 +271,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('goose', [join(home, '.config', 'goose')], '.json'),
+    createAdapter: () => createStubAdapter('goose', [join(getHomeDir(), '.config', 'goose')], '.json'),
   },
   {
     id: 'grok',
@@ -297,7 +295,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('iflow-cli', [join(home, '.iflow')], '.json'),
+    createAdapter: () => createStubAdapter('iflow-cli', [join(getHomeDir(), '.iflow')], '.json'),
   },
   {
     id: 'kilo',
@@ -329,7 +327,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('kode', [join(home, '.kode')], '.json'),
+    createAdapter: () => createStubAdapter('kode', [join(getHomeDir(), '.kode')], '.json'),
   },
   {
     id: 'mistral-vibe',
@@ -337,7 +335,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('mistral-vibe', [join(home, '.vibe')], '.json'),
+    createAdapter: () => createStubAdapter('mistral-vibe', [join(getHomeDir(), '.vibe')], '.json'),
   },
   {
     id: 'mux',
@@ -369,7 +367,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('openhands', [join(home, '.openhands')], '.json'),
+    createAdapter: () => createStubAdapter('openhands', [join(getHomeDir(), '.openhands')], '.json'),
   },
   {
     id: 'pi',
@@ -377,7 +375,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('pi', [join(home, '.pi', 'agent')], '.md'),
+    createAdapter: () => createStubAdapter('pi', [join(getHomeDir(), '.pi', 'agent')], '.md'),
   },
   {
     id: 'plannotator',
@@ -393,7 +391,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('qoder', [join(home, '.qoder')], '.json'),
+    createAdapter: () => createStubAdapter('qoder', [join(getHomeDir(), '.qoder')], '.json'),
   },
   {
     id: 'qwen-code',
@@ -409,7 +407,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('replit', [join(home, '.replit')], '.md'),
+    createAdapter: () => createStubAdapter('replit', [join(getHomeDir(), '.replit')], '.md'),
   },
   {
     id: 'roo',
@@ -417,7 +415,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('roo', [join(home, '.roo')], '.md'),
+    createAdapter: () => createStubAdapter('roo', [join(getHomeDir(), '.roo')], '.md'),
   },
   {
     id: 'trae',
@@ -425,7 +423,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('trae', [join(home, '.trae')], '.md'),
+    createAdapter: () => createStubAdapter('trae', [join(getHomeDir(), '.trae')], '.md'),
   },
   {
     id: 'trae-cn',
@@ -433,7 +431,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('trae-cn', [join(home, '.trae-cn')], '.md'),
+    createAdapter: () => createStubAdapter('trae-cn', [join(getHomeDir(), '.trae-cn')], '.md'),
   },
   {
     id: 'windsurf',
@@ -449,7 +447,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('zencoder', [join(home, '.zencoder')], '.json'),
+    createAdapter: () => createStubAdapter('zencoder', [join(getHomeDir(), '.zencoder')], '.json'),
   },
   {
     id: 'neovate',
@@ -457,7 +455,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('neovate', [join(home, '.neovate')], '.json'),
+    createAdapter: () => createStubAdapter('neovate', [join(getHomeDir(), '.neovate')], '.json'),
   },
   {
     id: 'pochi',
@@ -465,7 +463,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('pochi', [join(home, '.pochi')], '.json'),
+    createAdapter: () => createStubAdapter('pochi', [join(getHomeDir(), '.pochi')], '.json'),
   },
   {
     id: 'adal',
@@ -473,7 +471,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('adal', [join(home, '.adal')], '.json'),
+    createAdapter: () => createStubAdapter('adal', [join(getHomeDir(), '.adal')], '.json'),
   },
   {
     id: 'aider',
@@ -482,7 +480,7 @@ const CATALOG: AdapterCatalogEntry[] = [
     implemented: false,
     defaultEnabled: false,
     createAdapter: () =>
-      createStubAdapter('aider', [join(home, '.aider')], '.aider.chat.history.md'),
+      createStubAdapter('aider', [join(getHomeDir(), '.aider')], '.aider.chat.history.md'),
   },
 ];
 

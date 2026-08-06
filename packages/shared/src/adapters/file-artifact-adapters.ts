@@ -1,12 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { basename, delimiter, dirname, isAbsolute, join, resolve, sep } from 'node:path';
+import { getHomeDir } from '../config.ts';
 import type { AgentAdapter } from '../types.ts';
 import { createMarkdownArtifactAdapter, createMarkdownBundleAdapter } from './markdown-artifact.ts';
-
-function runtimeHomeDir(): string {
-  return process.env.HOME || process.env.USERPROFILE || homedir();
-}
 
 function normalizePath(path: string): string {
   return resolve(path).replaceAll('\\', '/');
@@ -32,7 +28,7 @@ function envPlanDirs(name: string): string[] {
     .map((path) => path.trim())
     .filter(Boolean)
     .map((path) =>
-      resolve(path === '~' ? runtimeHomeDir() : path.replace(/^~(?=[/\\])/, runtimeHomeDir())),
+      resolve(path === '~' ? getHomeDir() : path.replace(/^~(?=[/\\])/, getHomeDir())),
     );
 }
 
@@ -94,12 +90,12 @@ function configuredProjectDirectory(
   settingKeys: string[],
 ): string | undefined {
   let directory = resolve(process.cwd());
-  const home = resolve(runtimeHomeDir());
+  const home = resolve(getHomeDir());
   while (true) {
     if (directory === home) return undefined;
     const settingsPath = join(directory, settingsRelativePath);
     const configured = nestedString(readJson(settingsPath), settingKeys);
-    if (configured) return resolve(directory, configured.replace(/^~(?=[/\\])/, runtimeHomeDir()));
+    if (configured) return resolve(directory, configured.replace(/^~(?=[/\\])/, getHomeDir()));
     const parent = dirname(directory);
     if (parent === directory) return undefined;
     directory = parent;
@@ -118,7 +114,7 @@ function currentProjectRoot(): string {
 
 function resolveProjectSetting(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  const expanded = value.replace(/^~(?=[/\\])/, runtimeHomeDir());
+  const expanded = value.replace(/^~(?=[/\\])/, getHomeDir());
   return resolve(isAbsolute(expanded) ? expanded : join(currentProjectRoot(), expanded));
 }
 
@@ -144,7 +140,7 @@ function simpleProjectAdapter(options: {
 }
 
 function antigravityRoots(): string[] {
-  const home = runtimeHomeDir();
+  const home = getHomeDir();
   return unique([
     join(home, '.gemini', 'antigravity', 'brain'),
     join(home, '.gemini', 'antigravity-cli', 'brain'),
@@ -183,12 +179,12 @@ export const droidAdapter = simpleProjectAdapter({
   agent: 'droid',
   marker: '.factory/docs',
   env: 'AGENDEX_DROID_PLAN_DIRS',
-  roots: () => [join(runtimeHomeDir(), '.factory', 'docs')],
+  roots: () => [join(getHomeDir(), '.factory', 'docs')],
   writable: true,
 });
 
 function geminiConfiguredRoots(): string[] {
-  const home = runtimeHomeDir();
+  const home = getHomeDir();
   const projectConfigured = configuredProjectDirectory('.gemini/settings.json', [
     'general',
     'plan',
@@ -209,7 +205,7 @@ function geminiConfiguredRoots(): string[] {
 }
 
 function geminiRoots(): string[] {
-  return unique([join(runtimeHomeDir(), '.gemini', 'tmp'), ...geminiConfiguredRoots()]);
+  return unique([join(getHomeDir(), '.gemini', 'tmp'), ...geminiConfiguredRoots()]);
 }
 
 export const geminiCliAdapter = createMarkdownArtifactAdapter({
@@ -220,7 +216,7 @@ export const geminiCliAdapter = createMarkdownArtifactAdapter({
     if (!filePath.toLowerCase().endsWith('.md')) return false;
     const configuredRoots = geminiConfiguredRoots();
     if (configuredRoots.some((root) => isWithin(filePath, root))) return true;
-    const tempRoot = join(runtimeHomeDir(), '.gemini', 'tmp');
+    const tempRoot = join(getHomeDir(), '.gemini', 'tmp');
     if (isWithin(filePath, tempRoot)) {
       return normalizePath(filePath).toLowerCase().includes('/plans/');
     }
@@ -233,7 +229,7 @@ export const geminiCliAdapter = createMarkdownArtifactAdapter({
 });
 
 function copilotRoots(): string[] {
-  const home = process.env.COPILOT_HOME?.trim() || join(runtimeHomeDir(), '.copilot');
+  const home = process.env.COPILOT_HOME?.trim() || join(getHomeDir(), '.copilot');
   return unique([join(home, 'session-state'), ...envPlanDirs('AGENDEX_GITHUB_COPILOT_PLAN_DIRS')]);
 }
 
@@ -264,8 +260,8 @@ export const kiloAdapter = simpleProjectAdapter({
 });
 
 function kimiRoots(): string[] {
-  const currentHome = process.env.KIMI_CODE_HOME?.trim() || join(runtimeHomeDir(), '.kimi-code');
-  const legacyHome = process.env.KIMI_SHARE_DIR?.trim() || join(runtimeHomeDir(), '.kimi');
+  const currentHome = process.env.KIMI_CODE_HOME?.trim() || join(getHomeDir(), '.kimi-code');
+  const legacyHome = process.env.KIMI_SHARE_DIR?.trim() || join(getHomeDir(), '.kimi');
   return unique([
     join(currentHome, 'sessions'),
     join(legacyHome, 'plans'),
@@ -327,7 +323,7 @@ export const kiroAdapter = createMarkdownBundleAdapter({
 });
 
 function muxRoots(): string[] {
-  return unique([join(runtimeHomeDir(), '.mux', 'plans'), ...envPlanDirs('AGENDEX_MUX_PLAN_DIRS')]);
+  return unique([join(getHomeDir(), '.mux', 'plans'), ...envPlanDirs('AGENDEX_MUX_PLAN_DIRS')]);
 }
 
 export const muxAdapter = createMarkdownArtifactAdapter({
@@ -344,7 +340,7 @@ export const muxAdapter = createMarkdownArtifactAdapter({
 });
 
 function qwenRoots(): string[] {
-  const home = runtimeHomeDir();
+  const home = getHomeDir();
   const projectConfigured = configuredProjectDirectory('.qwen/settings.json', ['plansDirectory']);
   const userSettings = readJson(join(home, '.qwen', 'settings.json'));
   const userConfigured = resolveProjectSetting(nestedString(userSettings, ['plansDirectory']));
@@ -367,7 +363,7 @@ export const qwenCodeAdapter = createMarkdownArtifactAdapter({
 
 function windsurfRoots(): string[] {
   return unique([
-    join(runtimeHomeDir(), '.windsurf', 'plans'),
+    join(getHomeDir(), '.windsurf', 'plans'),
     ...envPlanDirs('AGENDEX_WINDSURF_PLAN_DIRS'),
   ]);
 }
@@ -387,7 +383,7 @@ export const windsurfAdapter = createMarkdownArtifactAdapter({
  */
 function commandCodeRoots(): string[] {
   return unique([
-    join(runtimeHomeDir(), '.commandcode', 'plans'),
+    join(getHomeDir(), '.commandcode', 'plans'),
     ...envPlanDirs('AGENDEX_COMMAND_CODE_PLAN_DIRS'),
   ]);
 }

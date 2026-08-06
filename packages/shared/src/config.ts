@@ -18,6 +18,8 @@ import { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter
 let devModeOverride: boolean | undefined;
 
 export function getHomeDir(): string {
+  const agendexHome = process.env.AGENDEX_HOME?.trim();
+  if (agendexHome) return agendexHome;
   if (process.env.HOME) return process.env.HOME;
   if (process.env.USERPROFILE) return process.env.USERPROFILE;
   if (process.env.HOMEDRIVE && process.env.HOMEPATH) {

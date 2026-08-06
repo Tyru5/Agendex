@@ -1,9 +1,8 @@
 import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { lstat, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
-import { getConfigDir, loadConfig } from '../config.ts';
+import { getConfigDir, getHomeDir, loadConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
 import { resolvePlanRepoRoot } from '../git.ts';
 import type { AgentAdapter, Plan, PlannotatorWritebackPayload } from '../types.ts';
@@ -73,19 +72,8 @@ export interface DiscoveredPlanDir {
   agent: string;
 }
 
-function getRuntimeHomeDir(): string {
-  const homeFromEnv =
-    process.env.HOME ||
-    process.env.USERPROFILE ||
-    (process.env.HOMEDRIVE && process.env.HOMEPATH
-      ? `${process.env.HOMEDRIVE}${process.env.HOMEPATH}`
-      : undefined);
-
-  return resolve(homeFromEnv || homedir());
-}
-
 export function discoverProjectPlanDirs(): DiscoveredPlanDir[] {
-  const home = canonicalPath(getRuntimeHomeDir());
+  const home = canonicalPath(getHomeDir());
   const results: DiscoveredPlanDir[] = [];
   const seen = new Set<string>();
   let nearestAncestorMarkerRoot: string | undefined;

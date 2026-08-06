@@ -1,20 +1,11 @@
 import { readFile, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
+import { getHomeDir } from '../config.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
-function getRuntimeHomeDir(): string {
-  if (process.env.HOME) return process.env.HOME;
-  if (process.env.USERPROFILE) return process.env.USERPROFILE;
-  if (process.env.HOMEDRIVE && process.env.HOMEPATH) {
-    return `${process.env.HOMEDRIVE}${process.env.HOMEPATH}`;
-  }
-  return homedir();
-}
-
 function getSessionsDir(): string {
-  return join(getRuntimeHomeDir(), '.grok', 'sessions');
+  return join(getHomeDir(), '.grok', 'sessions');
 }
 
 interface GrokSummary {

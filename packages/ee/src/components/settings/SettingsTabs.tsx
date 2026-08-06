@@ -1,12 +1,17 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
-import { SETTINGS_TABS, type SettingsTabId } from './constants';
+import { SETTINGS_TABS, type SettingsTab, type SettingsTabId } from './constants';
 
 interface SettingsTabsProps {
   activeTab: SettingsTabId;
   onChange: (tab: SettingsTabId) => void;
+  tabs?: readonly SettingsTab[];
 }
 
-export function SettingsTabs({ activeTab, onChange }: SettingsTabsProps) {
+export function SettingsTabs({
+  activeTab,
+  onChange,
+  tabs = SETTINGS_TABS,
+}: SettingsTabsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
 
@@ -25,7 +30,7 @@ export function SettingsTabs({ activeTab, onChange }: SettingsTabsProps) {
 
   useLayoutEffect(() => {
     measure();
-  }, [activeTab, measure]);
+  }, [activeTab, tabs, measure]);
 
   return (
     <div
@@ -33,7 +38,7 @@ export function SettingsTabs({ activeTab, onChange }: SettingsTabsProps) {
       role="tablist"
     >
       <div ref={containerRef} className="flex gap-0 min-w-max">
-        {SETTINGS_TABS.map((tab) => {
+        {tabs.map((tab) => {
           const isActive = tab.id === activeTab;
           const isDisabled = !tab.enabled;
 
