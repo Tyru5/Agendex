@@ -1,13 +1,12 @@
 import { readFile, stat, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
+import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
 function plansDir(): string {
   const configDir = process.env.CLAUDE_CONFIG_DIR?.trim();
-  const home = process.env.HOME || process.env.USERPROFILE || homedir();
-  return join(configDir || join(home, '.claude'), 'plans');
+  return join(configDir || join(getHomeDir(), '.claude'), 'plans');
 }
 
 function extractTitle(content: string, filename: string): string {

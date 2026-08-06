@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
+import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import type {
   AgentAdapter,
@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 5_000;
 const PROJECT_PLANS_DIRNAME = '@plans';
 
 function getPlannotatorDir(): string {
-  return process.env.AGENDEX_PLANNOTATOR_DIR || join(homedir(), '.plannotator');
+  return process.env.AGENDEX_PLANNOTATOR_DIR || join(getHomeDir(), '.plannotator');
 }
 
 function getPlansDir(): string {

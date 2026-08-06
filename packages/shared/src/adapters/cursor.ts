@@ -1,26 +1,17 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
+import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import { normalizeSyncPath } from '../services/plan-sync-identity.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
-function getRuntimeHomeDir(): string {
-  if (process.env.HOME) return process.env.HOME;
-  if (process.env.USERPROFILE) return process.env.USERPROFILE;
-  if (process.env.HOMEDRIVE && process.env.HOMEPATH) {
-    return `${process.env.HOMEDRIVE}${process.env.HOMEPATH}`;
-  }
-  return homedir();
-}
-
 function getCursorProjectsDir(): string {
-  return join(getRuntimeHomeDir(), '.cursor', 'projects');
+  return join(getHomeDir(), '.cursor', 'projects');
 }
 
 function getGlobalCursorPlansDir(): string {
-  return join(getRuntimeHomeDir(), '.cursor', 'plans');
+  return join(getHomeDir(), '.cursor', 'plans');
 }
 
 function isGlobalCursorPlanPath(filePath: string): boolean {

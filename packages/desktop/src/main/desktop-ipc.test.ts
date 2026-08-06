@@ -47,6 +47,22 @@ function register(
     getAuthSessionGeneration: () => number;
     isAuthSessionGenerationCurrent: (generation: number) => boolean;
     invalidateAuthSession: () => void;
+    getWindowsEnvStatus: () => Promise<{
+      env: 'native' | 'wsl';
+      wslAvailable: boolean;
+      wslDistroName: string | null;
+      wslHomePath: string | null;
+      error?: string;
+    }>;
+    setWindowsEnv: (env: 'native' | 'wsl') => Promise<{
+      ok: boolean;
+      willRelaunch: boolean;
+      env: 'native' | 'wsl';
+      wslAvailable: boolean;
+      wslDistroName: string | null;
+      wslHomePath: string | null;
+      error?: string;
+    }>;
   }> = {},
 ) {
   const ipcMain = new FakeIpcMain();
@@ -56,6 +72,8 @@ function register(
     loadCloudCreds: overrides.loadCloudCreds ?? (() => cloudCreds),
     loadModePref: () => null,
     saveModePref: () => undefined,
+    getWindowsEnvStatus: overrides.getWindowsEnvStatus,
+    setWindowsEnv: overrides.setWindowsEnv,
     refreshCloudSession: overrides.refreshCloudSession ?? (async () => cloudCreds),
     getConvexAuthToken: overrides.getConvexAuthToken ?? (async () => null),
     writeQaBootstrapEvidence: () => undefined,
@@ -172,4 +190,48 @@ test('logout prevents an in-flight refresh from restarting the daemon', async ()
   stopped.resolve();
   expect(await logout).toBe(true);
   expect(starts).toBe(0);
+});
+
+test('windows env IPC is only registered when deps provide handlers', async () => {
+  const bare = register();
+  expect(bare.handlers.has('agendex:get-windows-env')).toBe(false);
+  expect(bare.handlers.has('agendex:set-windows-env')).toBe(false);
+
+  const calls: Array<'native' | 'wsl'> = [];
+  const ipc = register({
+    getWindowsEnvStatus: async () => ({
+      env: 'native',
+      wslAvailable: true,
+      wslDistroName: 'Ubuntu',
+      wslHomePath: '\\\\wsl$\\Ubuntu\\home\\ty',
+    }),
+    setWindowsEnv: async (env) => {
+      calls.push(env);
+      return {
+        ok: true,
+        willRelaunch: env === 'wsl',
+        env,
+        wslAvailable: true,
+        wslDistroName: 'Ubuntu',
+        wslHomePath: '\\\\wsl$\\Ubuntu\\home\\ty',
+      };
+    },
+  });
+
+  expect(await ipc.invoke('agendex:get-windows-env')).toEqual({
+    env: 'native',
+    wslAvailable: true,
+    wslDistroName: 'Ubuntu',
+    wslHomePath: '\\\\wsl$\\Ubuntu\\home\\ty',
+  });
+  expect(await ipc.invoke('agendex:set-windows-env', 'wsl')).toMatchObject({
+    ok: true,
+    willRelaunch: true,
+    env: 'wsl',
+  });
+  expect(calls).toEqual(['wsl']);
+  expect(await ipc.invoke('agendex:set-windows-env', 'nope')).toMatchObject({
+    ok: false,
+    willRelaunch: false,
+  });
 });

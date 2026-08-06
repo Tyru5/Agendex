@@ -8,12 +8,27 @@ type PendingDesktopLogin = {
   readonly expiresAtMs: number;
 };
 
+type WindowsEnvStatusLike = {
+  readonly env: 'native' | 'wsl';
+  readonly wslAvailable: boolean;
+  readonly wslDistroName: string | null;
+  readonly wslHomePath: string | null;
+  readonly error?: string;
+};
+
+type WindowsEnvSetResultLike = WindowsEnvStatusLike & {
+  readonly ok: boolean;
+  readonly willRelaunch: boolean;
+};
+
 type RegisterDesktopIpcDeps = {
   readonly ipcMain: IpcMain;
   readonly getLocalApiToken: () => string;
   readonly loadCloudCreds: () => CloudCreds | null;
   readonly loadModePref: () => 'local' | 'cloud' | null;
   readonly saveModePref: (mode: 'local' | 'cloud') => void;
+  readonly getWindowsEnvStatus?: () => Promise<WindowsEnvStatusLike>;
+  readonly setWindowsEnv?: (env: 'native' | 'wsl') => Promise<WindowsEnvSetResultLike>;
   readonly refreshCloudSession: () => Promise<CloudCreds | null>;
   readonly getConvexAuthToken: () => Promise<ConvexAuthTokenResult | null>;
   readonly writeQaBootstrapEvidence: (payload: unknown) => void;
@@ -96,6 +111,29 @@ export function registerDesktopIpc(deps: RegisterDesktopIpcDeps): void {
     deps.saveModePref(mode);
     return true;
   });
+
+  if (deps.getWindowsEnvStatus) {
+    deps.ipcMain.handle('agendex:get-windows-env', async () => {
+      return deps.getWindowsEnvStatus?.() ?? null;
+    });
+  }
+
+  if (deps.setWindowsEnv) {
+    deps.ipcMain.handle('agendex:set-windows-env', async (_event, env: unknown) => {
+      if (env !== 'native' && env !== 'wsl') {
+        return {
+          ok: false,
+          willRelaunch: false,
+          env: 'native' as const,
+          wslAvailable: false,
+          wslDistroName: null,
+          wslHomePath: null,
+          error: 'Invalid environment',
+        };
+      }
+      return deps.setWindowsEnv?.(env) ?? null;
+    });
+  }
 
   deps.ipcMain.handle('agendex:refresh-cloud-session', async () => {
     const authGeneration = deps.getAuthSessionGeneration();

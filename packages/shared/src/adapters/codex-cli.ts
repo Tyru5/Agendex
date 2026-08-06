@@ -1,11 +1,13 @@
 import { readFile, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
+import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import { assessPlanValue } from '../services/plan-value.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
-const sessionsDir = join(homedir(), '.codex', 'sessions');
+function sessionsDir(): string {
+  return join(getHomeDir(), '.codex', 'sessions');
+}
 const PROPOSED_PLAN_BLOCK_REGEX = /<proposed_plan>\s*([\s\S]*?)\s*<\/proposed_plan>/gi;
 const PROPOSED_PLAN_TAG_REGEX = /<\s*\/?\s*proposed_plan\s*>/gi;
 const ESCAPED_PROPOSED_PLAN_TAG_REGEX = /&lt;\s*\/?\s*proposed_plan\s*&gt;/gi;
@@ -386,11 +388,11 @@ export const codexCliAdapter: AgentAdapter = {
   writable: false,
 
   getSearchPaths() {
-    return [sessionsDir];
+    return [sessionsDir()];
   },
 
   getWatchPaths() {
-    return [sessionsDir];
+    return [sessionsDir()];
   },
 
   matches(filePath: string) {

@@ -4,7 +4,7 @@ import { useAction, useMutation } from 'convex/react';
 import { useEffect, useState } from 'react';
 import { Redirect, useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth';
-import { isDesktop } from '../lib/desktop.ts';
+import { getDesktopBridgeIdentity, isDesktop } from '../lib/desktop.ts';
 import { useDaemonStatus } from '../hooks/useDaemonStatus';
 import { useSubscription } from '../hooks/useSubscription';
 import { useSubscriptionView } from '../hooks/useSubscriptionView';
@@ -15,7 +15,8 @@ import { SettingsSidebar } from './settings/SettingsSidebar';
 import { SettingsTabs } from './settings/SettingsTabs';
 import { TeamTab } from './settings/TeamTab';
 import { UpdateTab } from './settings/UpdateTab';
-import type { SettingsTabId } from './settings/constants';
+import { WindowsEnvTab } from './settings/WindowsEnvTab';
+import { SETTINGS_TABS, type SettingsTabId } from './settings/constants';
 
 const DASHBOARD_PATH = '/dashboard';
 
@@ -47,6 +48,7 @@ export function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [provider, setProvider] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SettingsTabId>('account');
+  const [showRuntimeTab, setShowRuntimeTab] = useState(false);
 
   // Convex component API not in generated types
   // oxlint-disable-next-line typescript/no-explicit-any
@@ -55,6 +57,8 @@ export function SettingsPage() {
 
   const subView = useSubscriptionView(subscription, isActive, isTrialing, trialDaysLeft);
 
+  const settingsTabs = SETTINGS_TABS.filter((tab) => tab.id !== 'runtime' || showRuntimeTab);
+
   useEffect(() => {
     authClient.listAccounts().then(({ data }) => {
       if (data && data.length > 0) {
@@ -62,6 +66,26 @@ export function SettingsPage() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    const bridge = getDesktopBridgeIdentity();
+    if (!bridge?.getWindowsEnv || !bridge.getBuildInfo) {
+      setShowRuntimeTab(false);
+      return;
+    }
+    let mounted = true;
+    void bridge.getBuildInfo().then((info) => {
+      if (!mounted) return;
+      setShowRuntimeTab(info.platform === 'win32');
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showRuntimeTab && activeTab === 'runtime') setActiveTab('account');
+  }, [showRuntimeTab, activeTab]);
 
   if (isLoading) return null;
   // Desktop can be `isAuthenticated` (stored cloud token) while `user` is null
@@ -145,7 +169,7 @@ export function SettingsPage() {
 
           {/* Right Content */}
           <section className="min-w-0">
-            <SettingsTabs activeTab={activeTab} onChange={setActiveTab} />
+            <SettingsTabs activeTab={activeTab} onChange={setActiveTab} tabs={settingsTabs} />
 
             <div key={activeTab} className="settings-tab-content">
               {activeTab === 'account' && (
@@ -168,6 +192,8 @@ export function SettingsPage() {
               )}
 
               {activeTab === 'team' && <TeamTab isActive={isActive} />}
+
+              {activeTab === 'runtime' && showRuntimeTab && <WindowsEnvTab />}
 
               {activeTab === 'updates' && <UpdateTab />}
             </div>

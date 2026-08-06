@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
+import { getHomeDir } from '../home-dir.ts';
 import {
   createStructuredSessionAdapter,
   type StructuredPlanCandidate,
@@ -21,8 +21,7 @@ interface SessionFile {
 }
 
 function continueDir(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || homedir();
-  return join(home, '.continue', 'sessions');
+  return join(getHomeDir(), '.continue', 'sessions');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

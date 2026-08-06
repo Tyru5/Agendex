@@ -1,12 +1,14 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
+import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 
-const dataHome = process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
-const opencodeSessionDir = join(dataHome, 'opencode', 'storage', 'session');
+function opencodeSessionDir(): string {
+  const dataHome = process.env.XDG_DATA_HOME || join(getHomeDir(), '.local', 'share');
+  return join(dataHome, 'opencode', 'storage', 'session');
+}
 const cwdPlansDir = join(process.cwd(), '.sisyphus', 'plans');
 const PLAN_PATH_MARKER = '/.sisyphus/plans/';
 
@@ -39,7 +41,7 @@ function isPlanMarkdown(filePath: string, scanRoot?: string): boolean {
 
 function isSessionFile(filePath: string): boolean {
   const normalized = normalizePath(filePath);
-  const root = normalizePath(opencodeSessionDir);
+  const root = normalizePath(opencodeSessionDir());
   return normalized.startsWith(`${root}/`) && normalized.endsWith('.json');
 }
 
@@ -77,14 +79,15 @@ function parseSessionMeta(raw: string): SessionMeta | undefined {
 
 function discoverPlanDirectories(): string[] {
   const dirs = new Set<string>([cwdPlansDir]);
-  if (!existsSync(opencodeSessionDir)) return Array.from(dirs);
+  const sessionDir = opencodeSessionDir();
+  if (!existsSync(sessionDir)) return Array.from(dirs);
 
   try {
-    const projectDirs = readdirSync(opencodeSessionDir, { withFileTypes: true });
+    const projectDirs = readdirSync(sessionDir, { withFileTypes: true });
     for (const projectDir of projectDirs) {
       if (!projectDir.isDirectory()) continue;
 
-      const projectPath = join(opencodeSessionDir, projectDir.name);
+      const projectPath = join(sessionDir, projectDir.name);
       let sessionFiles: string[] = [];
       try {
         sessionFiles = readdirSync(projectPath);
@@ -172,11 +175,11 @@ export const ohMyOpencodeAdapter: AgentAdapter = {
   writable: true,
 
   getSearchPaths() {
-    return [opencodeSessionDir, ...discoverPlanDirectories()];
+    return [opencodeSessionDir(), ...discoverPlanDirectories()];
   },
 
   getWatchPaths() {
-    return [opencodeSessionDir, ...discoverPlanDirectories()];
+    return [opencodeSessionDir(), ...discoverPlanDirectories()];
   },
 
   matches(filePath: string, scanRoot?: string) {

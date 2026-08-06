@@ -56,6 +56,22 @@ export interface DesktopBuildInfo {
   codeSigned: boolean | null;
 }
 
+/** Windows desktop only: which OS environment supplies agent plan roots. */
+export type WindowsAgentEnv = 'native' | 'wsl';
+
+export interface WindowsEnvStatus {
+  env: WindowsAgentEnv;
+  wslAvailable: boolean;
+  wslDistroName: string | null;
+  wslHomePath: string | null;
+  error?: string;
+}
+
+export interface WindowsEnvSetResult extends WindowsEnvStatus {
+  ok: boolean;
+  willRelaunch: boolean;
+}
+
 /**
  * Desktop (Electron) integration bridge.
  *
@@ -91,6 +107,9 @@ export interface AgendexDesktopBridge {
   getUiUpdateState?: () => Promise<UiUpdateState>;
   getUiRevision?: () => Promise<number>;
   signalUiReady?: () => void;
+  // Windows desktop only: agent plan root environment (native vs WSL).
+  getWindowsEnv?: () => Promise<WindowsEnvStatus | null>;
+  setWindowsEnv?: (env: WindowsAgentEnv) => Promise<WindowsEnvSetResult | null>;
 }
 
 function getBridge(): AgendexDesktopBridge | undefined {
@@ -228,6 +247,30 @@ export async function desktopBridgeAuthFetch(
 
 export function getDesktopBridgeIdentity(): AgendexDesktopBridge | undefined {
   return getBridge();
+}
+
+export async function getDesktopWindowsEnv(): Promise<WindowsEnvStatus | null> {
+  const bridge = getBridge();
+  if (!bridge?.getWindowsEnv) return null;
+  try {
+    return await bridge.getWindowsEnv();
+  } catch (err) {
+    console.error('[agendex-desktop] failed to read windows env', err);
+    return null;
+  }
+}
+
+export async function setDesktopWindowsEnv(
+  env: WindowsAgentEnv,
+): Promise<WindowsEnvSetResult | null> {
+  const bridge = getBridge();
+  if (!bridge?.setWindowsEnv) return null;
+  try {
+    return await bridge.setWindowsEnv(env);
+  } catch (err) {
+    console.error('[agendex-desktop] failed to set windows env', err);
+    return null;
+  }
 }
 
 /** Dispatched by the desktop preload when the UI-bundle updater changes state. */

@@ -38,6 +38,19 @@ import { getUiFeedUrl, isUiUpdateDisabled } from './ui-bundle/config.ts';
 import { getUiBundlePublicKey, hasUiBundlePublicKey } from './ui-bundle/keys.ts';
 import { createUiBundleStore } from './ui-bundle/store.ts';
 import { createUiUpdater } from './ui-updater.ts';
+import {
+  applyWindowsEnvAtBoot,
+  createWindowsEnvRuntime,
+  detectWsl,
+  getWindowsEnvStatus,
+  loadWindowsEnvPref,
+  mergeWorkerEnv,
+  resolveRuntimeEnvVars,
+  saveWindowsEnvPref,
+  type WindowsAgentEnv,
+  type WindowsEnvSetResult,
+  type WindowsEnvStatus,
+} from './windows-env.ts';
 
 // Package name is `@agendex/desktop`; without this, Electron labels the
 // macOS Keychain item for safeStorage as "@agendex/desktop Safe Storage".
@@ -57,6 +70,12 @@ let rendererTargetUrl = '';
 let backendBoot: Promise<void> | null = null;
 let shutdownPromise: Promise<void> | null = null;
 let authSessionGeneration = 0;
+const windowsEnvRuntime = process.platform === 'win32' ? createWindowsEnvRuntime(is.dev) : null;
+/** Env patch applied at boot for local server + daemon worker (win32 only). */
+let windowsRuntimeEnvPatch: Record<string, string | undefined> = windowsEnvRuntime
+  ? { AGENDEX_CONFIG_DIR: windowsEnvRuntime.nativeConfigDir }
+  : {};
+let windowsEnvBootPromise: Promise<void> | null = null;
 
 function invalidateAuthSession(): void {
   authSessionGeneration += 1;
@@ -174,6 +193,7 @@ function reloadMainWindow() {
 const desktopDaemon = new DesktopDaemonManager({
   isDev: is.dev,
   forkWorker: utilityProcess.fork,
+  getWorkerEnv: () => mergeWorkerEnv(process.env, windowsRuntimeEnvPatch),
   rotateCloudToken: (previousToken, token, accountId) => {
     const current = loadCloudCreds();
     if (!current) return null;
@@ -312,6 +332,90 @@ ipcMain.handle('agendex:get-ui-revision', () => uiBundleStore.servedRevision());
 // JavaScript ran: the preload firing only proves the shell loaded.
 ipcMain.on('agendex:ui-ready', () => uiUpdater.notifyRendererReady());
 
+async function ensureWindowsEnvApplied(): Promise<void> {
+  if (process.platform !== 'win32' || !windowsEnvRuntime) return;
+  if (windowsEnvBootPromise) return windowsEnvBootPromise;
+
+  windowsEnvBootPromise = (async () => {
+    const detection = await detectWsl();
+    const applied = applyWindowsEnvAtBoot(windowsEnvRuntime, detection);
+    windowsRuntimeEnvPatch = applied.patch;
+    if (applied.error) {
+      logDesktop(`Windows agent env fell back to native: ${applied.error}`);
+    } else if (applied.env === 'wsl') {
+      logDesktop(`Windows agent env: WSL (${applied.patch.AGENDEX_HOME ?? 'unknown home'})`);
+    }
+  })();
+
+  return windowsEnvBootPromise;
+}
+
+async function readWindowsEnvStatus(): Promise<WindowsEnvStatus> {
+  if (!windowsEnvRuntime) {
+    return {
+      env: 'native',
+      wslAvailable: false,
+      wslDistroName: null,
+      wslHomePath: null,
+      error: 'Not Windows',
+    };
+  }
+  return getWindowsEnvStatus({ runtime: windowsEnvRuntime });
+}
+
+async function setWindowsAgentEnv(env: WindowsAgentEnv): Promise<WindowsEnvSetResult> {
+  if (!windowsEnvRuntime || process.platform !== 'win32') {
+    return {
+      ok: false,
+      willRelaunch: false,
+      env: 'native',
+      wslAvailable: false,
+      wslDistroName: null,
+      wslHomePath: null,
+      error: 'Not Windows',
+    };
+  }
+
+  const detection = await detectWsl();
+  const statusBase = {
+    wslAvailable: detection.available,
+    wslDistroName: detection.distroName,
+    wslHomePath: detection.homePath,
+  };
+
+  if (env === 'wsl' && !detection.available) {
+    return {
+      ok: false,
+      willRelaunch: false,
+      env: loadWindowsEnvPref(),
+      ...statusBase,
+      error: detection.error ?? 'WSL not available',
+    };
+  }
+
+  const current = loadWindowsEnvPref();
+  if (current === env) {
+    const resolved = resolveRuntimeEnvVars(env, windowsEnvRuntime, detection);
+    return {
+      ok: true,
+      willRelaunch: false,
+      env: resolved.env,
+      ...statusBase,
+      ...(resolved.error ? { error: resolved.error } : {}),
+    };
+  }
+
+  saveWindowsEnvPref(env);
+  app.relaunch();
+  app.quit();
+  return {
+    ok: true,
+    willRelaunch: true,
+    env,
+    ...statusBase,
+  };
+}
+
 async function syncDaemonSession(creds: CloudCreds): Promise<void> {
   try {
     await desktopDaemon.ensureRunning(creds);
@@ -440,6 +544,12 @@ if (!gotLock) {
       loadCloudCreds,
       loadModePref,
       saveModePref,
+      ...(process.platform === 'win32'
+        ? {
+            getWindowsEnvStatus: readWindowsEnvStatus,
+            setWindowsEnv: setWindowsAgentEnv,
+          }
+        : {}),
       refreshCloudSession,
       getConvexAuthToken,
       writeQaBootstrapEvidence,
@@ -470,7 +580,8 @@ if (!gotLock) {
     uiUpdater.start();
 
     const bootstrapAuthGeneration = authSessionGeneration;
-    void refreshCloudSession()
+    void ensureWindowsEnvApplied()
+      .then(() => refreshCloudSession())
       .then(async (creds) => {
         if (creds && isAuthSessionGenerationCurrent(bootstrapAuthGeneration)) {
           void syncDaemonSession(creds);
@@ -484,10 +595,12 @@ if (!gotLock) {
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        void startBackendWindowAndDrainProtocolCallbacks().catch((err) => {
-          console.error('[agendex-desktop] failed to reopen window', err);
-          app.quit();
-        });
+        void ensureWindowsEnvApplied()
+          .then(() => startBackendWindowAndDrainProtocolCallbacks())
+          .catch((err) => {
+            console.error('[agendex-desktop] failed to reopen window', err);
+            app.quit();
+          });
       }
     });
   });

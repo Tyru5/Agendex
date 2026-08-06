@@ -8,23 +8,16 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import lockfile from 'proper-lockfile';
 import type { AdapterId } from './adapters/catalog.ts';
 import { getDefaultAdapterIds, sanitizeEnabledAdapterIds } from './adapters/registry.ts';
+import { getHomeDir } from './home-dir.ts';
 import { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 
-let devModeOverride: boolean | undefined;
+export { getHomeDir } from './home-dir.ts';
 
-export function getHomeDir(): string {
-  if (process.env.HOME) return process.env.HOME;
-  if (process.env.USERPROFILE) return process.env.USERPROFILE;
-  if (process.env.HOMEDRIVE && process.env.HOMEPATH) {
-    return `${process.env.HOMEDRIVE}${process.env.HOMEPATH}`;
-  }
-  return homedir();
-}
+let devModeOverride: boolean | undefined;
 
 export function setDevMode(dev: boolean): void {
   devModeOverride = dev;

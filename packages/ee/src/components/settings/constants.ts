@@ -26,7 +26,14 @@ export const YEARLY_PRICE = 69;
 export const SETTINGS_TABS = [
   { id: 'account', label: 'Account', enabled: true },
   { id: 'team', label: 'Team', enabled: true },
+  { id: 'runtime', label: 'Runtime', enabled: true },
   { id: 'updates', label: 'Updates', enabled: true },
 ] as const;
 
 export type SettingsTabId = (typeof SETTINGS_TABS)[number]['id'];
+
+export type SettingsTab = {
+  id: SettingsTabId;
+  label: string;
+  enabled: boolean;
+};

@@ -40,6 +40,8 @@ export interface DesktopDaemonManagerOptions {
   log: (message: string, error?: unknown) => void;
   workerEntry?: string;
   forkWorker: typeof import('electron').utilityProcess.fork;
+  /** Extra/override env for the utility worker (e.g. AGENDEX_HOME / AGENDEX_CONFIG_DIR). */
+  getWorkerEnv?: () => NodeJS.ProcessEnv;
   isProcessRunning?: (pid: number) => boolean;
   isDaemonProcess?: (pid: number) => boolean;
   isPidInfoCurrent?: (info: DaemonPidInfo) => boolean;
@@ -209,7 +211,8 @@ export class DesktopDaemonManager {
       }
 
       const workerEntry = this.options.workerEntry ?? join(__dirname, 'daemon-worker.js');
-      const env = { ...process.env };
+      const baseEnv = this.options.getWorkerEnv ? this.options.getWorkerEnv() : { ...process.env };
+      const env = { ...baseEnv };
       if (this.options.isDev) env.AGENDEX_DEV = '1';
       else delete env.AGENDEX_DEV;
 
