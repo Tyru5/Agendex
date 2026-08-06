@@ -53,6 +53,17 @@ test('parseWslDistroList prefers the default distro even when it is not first', 
   expect(parseWslDistroList(legacy)).toEqual(['Ubuntu', 'Debian']);
 });
 
+test('parseWslDistroList keeps space-containing distro names from non-verbose lists', () => {
+  const spaced = Buffer.from(
+    'Windows Subsystem for Linux Distributions:\r\nDebian\r\nMy Distro (Default)\r\n',
+    'utf8',
+  );
+  expect(parseWslDistroList(spaced)).toEqual(['My Distro', 'Debian']);
+
+  const starred = Buffer.from('* My Distro\r\nUbuntu\r\n', 'utf16le');
+  expect(parseWslDistroList(starred)).toEqual(['My Distro', 'Ubuntu']);
+});
+
 test('parseWslDistroList ignores verbose STATE/VERSION rows', () => {
   const verbose = Buffer.from(
     '  NAME            STATE           VERSION\r\n' +

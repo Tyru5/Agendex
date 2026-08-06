@@ -128,8 +128,8 @@ function countNullsAt(buffer: Buffer, offset: number): number {
  * so callers using `[0]` always get the same distro that bare `wsl.exe -e`
  * would target.
  *
- * Intentionally does not parse `wsl -l -v`: verbose STATE columns are localized
- * and can be multi-word, which would corrupt names passed to `wsl -d`.
+ * Distro names may contain spaces. Verbose `wsl -l -v` rows (NAME STATE VERSION)
+ * are ignored so localized multi-word STATE columns cannot corrupt names.
  */
 export function parseWslDistroList(stdout: Buffer): string[] {
   const names: string[] = [];
@@ -138,7 +138,7 @@ export function parseWslDistroList(stdout: Buffer): string[] {
   for (const raw of decodeWslText(stdout).split(/\r?\n/)) {
     const line = raw.replace(/^\uFEFF/, '').trim();
     if (!line) continue;
-    // Skip the non-quiet banner / any leftover header-like rows.
+    // Skip the non-quiet banner / verbose header rows.
     if (/^Windows Subsystem for Linux/i.test(line)) continue;
     if (/^NAME\b/i.test(line)) continue;
 
@@ -147,9 +147,10 @@ export function parseWslDistroList(stdout: Buffer): string[] {
       .replace(/^\*\s*/, '')
       .replace(/\s*\(Default\)\s*$/i, '')
       .trim();
-    // Distro names from `-l` / `-l -q` are single tokens; skip anything else
-    // (e.g. accidental verbose rows if a caller passes `-l -v` output).
-    if (!name || /\s/.test(name)) continue;
+    if (!name) continue;
+    // Verbose rows end with `STATE VERSION` where VERSION is numeric. Skip them
+    // rather than guessing how many STATE words to strip (locales vary).
+    if (/\s+\S+\s+\d+\s*$/.test(name)) continue;
     if (!names.includes(name)) names.push(name);
     if (isDefault) defaultName = name;
   }
