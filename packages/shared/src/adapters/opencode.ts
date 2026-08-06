@@ -1,5 +1,5 @@
 import { join, resolve } from 'node:path';
-import { getHomeDir } from '../config.ts';
+import { getHomeDir } from '../home-dir.ts';
 import {
   createStructuredSessionAdapter,
   type StructuredPlanCandidate,
@@ -32,9 +32,7 @@ interface PartData {
 
 function dataDir(): string {
   const xdgData = process.env.XDG_DATA_HOME?.trim();
-  return xdgData
-    ? join(xdgData, 'opencode')
-    : join(getHomeDir(), '.local', 'share', 'opencode');
+  return xdgData ? join(xdgData, 'opencode') : join(getHomeDir(), '.local', 'share', 'opencode');
 }
 
 function databasePath(): string {

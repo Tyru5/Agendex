@@ -70,8 +70,7 @@ let rendererTargetUrl = '';
 let backendBoot: Promise<void> | null = null;
 let shutdownPromise: Promise<void> | null = null;
 let authSessionGeneration = 0;
-const windowsEnvRuntime =
-  process.platform === 'win32' ? createWindowsEnvRuntime(is.dev) : null;
+const windowsEnvRuntime = process.platform === 'win32' ? createWindowsEnvRuntime(is.dev) : null;
 /** Env patch applied at boot for local server + daemon worker (win32 only). */
 let windowsRuntimeEnvPatch: Record<string, string | undefined> = windowsEnvRuntime
   ? { AGENDEX_CONFIG_DIR: windowsEnvRuntime.nativeConfigDir }

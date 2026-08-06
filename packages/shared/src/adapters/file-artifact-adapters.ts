@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, delimiter, dirname, isAbsolute, join, resolve, sep } from 'node:path';
-import { getHomeDir } from '../config.ts';
+import { getHomeDir } from '../home-dir.ts';
 import type { AgentAdapter } from '../types.ts';
 import { createMarkdownArtifactAdapter, createMarkdownBundleAdapter } from './markdown-artifact.ts';
 

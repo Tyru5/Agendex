@@ -7,11 +7,7 @@ interface SettingsTabsProps {
   tabs?: readonly SettingsTab[];
 }
 
-export function SettingsTabs({
-  activeTab,
-  onChange,
-  tabs = SETTINGS_TABS,
-}: SettingsTabsProps) {
+export function SettingsTabs({ activeTab, onChange, tabs = SETTINGS_TABS }: SettingsTabsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
 

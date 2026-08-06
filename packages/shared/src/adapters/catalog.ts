@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { getHomeDir } from '../config.ts';
+import { getHomeDir } from '../home-dir.ts';
 import type { AgentAdapter } from '../types.ts';
 import { claudeCodeAdapter } from './claude-code.ts';
 import { codexCliAdapter } from './codex-cli.ts';
@@ -231,7 +231,8 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('crush', [join(getHomeDir(), '.config', 'crush')], '.json'),
+    createAdapter: () =>
+      createStubAdapter('crush', [join(getHomeDir(), '.config', 'crush')], '.json'),
   },
   {
     id: 'cursor',
@@ -271,7 +272,8 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('goose', [join(getHomeDir(), '.config', 'goose')], '.json'),
+    createAdapter: () =>
+      createStubAdapter('goose', [join(getHomeDir(), '.config', 'goose')], '.json'),
   },
   {
     id: 'grok',
@@ -367,7 +369,8 @@ const CATALOG: AdapterCatalogEntry[] = [
     group: 'other',
     implemented: false,
     defaultEnabled: false,
-    createAdapter: () => createStubAdapter('openhands', [join(getHomeDir(), '.openhands')], '.json'),
+    createAdapter: () =>
+      createStubAdapter('openhands', [join(getHomeDir(), '.openhands')], '.json'),
   },
   {
     id: 'pi',

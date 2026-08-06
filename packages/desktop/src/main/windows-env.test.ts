@@ -39,10 +39,7 @@ test('parseWslDistroList decodes UTF-16LE wsl -l output and strips default marke
   expect(parseWslDistroList(marked)).toEqual(['Ubuntu', 'Debian']);
 
   // UTF-8 fallback
-  expect(parseWslDistroList(Buffer.from('Ubuntu\nDebian\n', 'utf8'))).toEqual([
-    'Ubuntu',
-    'Debian',
-  ]);
+  expect(parseWslDistroList(Buffer.from('Ubuntu\nDebian\n', 'utf8'))).toEqual(['Ubuntu', 'Debian']);
   void text;
 });
 

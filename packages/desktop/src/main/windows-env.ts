@@ -84,7 +84,10 @@ export function resolveNativeHomeDir(): string {
   return homedir();
 }
 
-export function resolveNativeConfigDir(isDev: boolean, nativeHome = resolveNativeHomeDir()): string {
+export function resolveNativeConfigDir(
+  isDev: boolean,
+  nativeHome = resolveNativeHomeDir(),
+): string {
   const override = process.env.AGENDEX_CONFIG_DIR?.trim();
   if (override) return resolve(override);
   return join(nativeHome, isDev ? '.agendex-dev' : '.agendex');
@@ -122,7 +125,12 @@ function countNullsAt(buffer: Buffer, offset: number): number {
 export function parseWslDistroList(stdout: Buffer): string[] {
   return decodeWslText(stdout)
     .split(/\r?\n/)
-    .map((line) => line.replace(/^\uFEFF/, '').replace(/^\*\s*/, '').trim())
+    .map((line) =>
+      line
+        .replace(/^\uFEFF/, '')
+        .replace(/^\*\s*/, '')
+        .trim(),
+    )
     .filter(Boolean);
 }
 
@@ -169,9 +177,7 @@ async function defaultRunCommand(
   });
 }
 
-export async function detectWsl(
-  runCommand: RunCommand = defaultRunCommand,
-): Promise<WslDetection> {
+export async function detectWsl(runCommand: RunCommand = defaultRunCommand): Promise<WslDetection> {
   if (process.platform !== 'win32') {
     return { available: false, distroName: null, homePath: null, error: 'Not Windows' };
   }
@@ -208,12 +214,7 @@ export async function detectWsl(
     };
   }
 
-  const wslpathResult = await runCommand('wsl.exe', [
-    '-e',
-    'wslpath',
-    '-w',
-    linuxHome,
-  ]);
+  const wslpathResult = await runCommand('wsl.exe', ['-e', 'wslpath', '-w', linuxHome]);
   const wslpathHome = decodeWslText(wslpathResult.stdout).trim();
   const homePath =
     wslpathResult.code === 0 && wslpathHome
@@ -277,13 +278,11 @@ export function mergeWorkerEnv(
   return env;
 }
 
-export async function getWindowsEnvStatus(
-  options: {
-    runtime: WindowsEnvRuntime;
-    detect?: () => Promise<WslDetection>;
-    loadPref?: () => WindowsAgentEnv;
-  },
-): Promise<WindowsEnvStatus> {
+export async function getWindowsEnvStatus(options: {
+  runtime: WindowsEnvRuntime;
+  detect?: () => Promise<WslDetection>;
+  loadPref?: () => WindowsAgentEnv;
+}): Promise<WindowsEnvStatus> {
   const pref = (options.loadPref ?? loadWindowsEnvPref)();
   const detection = await (options.detect ?? detectWsl)();
   const resolved = resolveRuntimeEnvVars(pref, options.runtime, detection);
@@ -292,7 +291,11 @@ export async function getWindowsEnvStatus(
     wslAvailable: detection.available,
     wslDistroName: detection.distroName,
     wslHomePath: detection.homePath,
-    ...(resolved.error ? { error: resolved.error } : detection.error ? { error: detection.error } : {}),
+    ...(resolved.error
+      ? { error: resolved.error }
+      : detection.error
+        ? { error: detection.error }
+        : {}),
   };
 }
 

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { getHomeDir } from '../config.ts';
+import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import { normalizeSyncPath } from '../services/plan-sync-identity.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
