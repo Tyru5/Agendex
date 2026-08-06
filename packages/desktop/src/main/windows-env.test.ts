@@ -43,13 +43,8 @@ test('parseWslDistroList decodes UTF-16LE wsl -l output and strips default marke
 });
 
 test('parseWslDistroList prefers the default distro even when it is not first', () => {
-  const verbose = Buffer.from(
-    '  NAME            STATE           VERSION\r\n' +
-      '  Debian          Stopped         2\r\n' +
-      '* Ubuntu          Running         2\r\n',
-    'utf16le',
-  );
-  expect(parseWslDistroList(verbose)).toEqual(['Ubuntu', 'Debian']);
+  const starred = Buffer.from('Debian\r\n* Ubuntu\r\n', 'utf16le');
+  expect(parseWslDistroList(starred)).toEqual(['Ubuntu', 'Debian']);
 
   const legacy = Buffer.from(
     'Windows Subsystem for Linux Distributions:\r\nDebian\r\nUbuntu (Default)\r\n',
@@ -58,14 +53,15 @@ test('parseWslDistroList prefers the default distro even when it is not first', 
   expect(parseWslDistroList(legacy)).toEqual(['Ubuntu', 'Debian']);
 });
 
-test('parseWslDistroList strips localized verbose STATE columns', () => {
-  const localized = Buffer.from(
-    '  NOMBRE          ESTADO          VERSIÓN\r\n' +
+test('parseWslDistroList ignores verbose STATE/VERSION rows', () => {
+  const verbose = Buffer.from(
+    '  NAME            STATE           VERSION\r\n' +
       '  Debian          Detenido        2\r\n' +
-      '* Ubuntu-22.04    EnEjecución     2\r\n',
+      '* Ubuntu          En ejecución   2\r\n',
     'utf16le',
   );
-  expect(parseWslDistroList(localized)).toEqual(['Ubuntu-22.04', 'Debian']);
+  // Multi-word / localized verbose rows must not produce fake distro names.
+  expect(parseWslDistroList(verbose)).toEqual([]);
 });
 
 test('detectWsl pins -d to the default distro for home resolution', async () => {
@@ -76,9 +72,7 @@ test('detectWsl pins -d to the default distro for home resolution', async () => 
       return {
         code: 0,
         stdout: Buffer.from(
-          '  NAME            STATE           VERSION\r\n' +
-            '  Debian          Stopped         2\r\n' +
-            '* Ubuntu          Running         2\r\n',
+          'Windows Subsystem for Linux Distributions:\r\nDebian\r\n* Ubuntu\r\n',
           'utf16le',
         ),
         stderr: Buffer.alloc(0),
@@ -97,7 +91,7 @@ test('detectWsl pins -d to the default distro for home resolution', async () => 
     distroName: 'Ubuntu',
     homePath: '\\\\wsl$\\Ubuntu\\home\\ty',
   });
-  expect(calls[0]?.args).toEqual(['-l', '-v']);
+  expect(calls[0]?.args).toEqual(['-l']);
   expect(calls[1]?.args.slice(0, 2)).toEqual(['-d', 'Ubuntu']);
   expect(calls[2]?.args.slice(0, 2)).toEqual(['-d', 'Ubuntu']);
 });

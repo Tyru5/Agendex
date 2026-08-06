@@ -123,10 +123,13 @@ function countNullsAt(buffer: Buffer, offset: number): number {
 }
 
 /**
- * Parse `wsl.exe -l` / `wsl.exe -l -v` output into distro names.
+ * Parse `wsl.exe -l` / `wsl.exe -l -q` output into distro names.
  * The default distribution (marked with `*` or `(Default)`) is returned first
  * so callers using `[0]` always get the same distro that bare `wsl.exe -e`
  * would target.
+ *
+ * Intentionally does not parse `wsl -l -v`: verbose STATE columns are localized
+ * and can be multi-word, which would corrupt names passed to `wsl -d`.
  */
 export function parseWslDistroList(stdout: Buffer): string[] {
   const names: string[] = [];
@@ -135,30 +138,18 @@ export function parseWslDistroList(stdout: Buffer): string[] {
   for (const raw of decodeWslText(stdout).split(/\r?\n/)) {
     const line = raw.replace(/^\uFEFF/, '').trim();
     if (!line) continue;
-    // Skip the non-verbose banner; verbose headers are rejected below.
+    // Skip the non-quiet banner / any leftover header-like rows.
     if (/^Windows Subsystem for Linux/i.test(line)) continue;
+    if (/^NAME\b/i.test(line)) continue;
 
     const isDefault = /^\*/.test(line) || /\(Default\)\s*$/i.test(line);
-    const stripped = line
+    const name = line
       .replace(/^\*\s*/, '')
       .replace(/\s*\(Default\)\s*$/i, '')
       .trim();
-
-    // `-l -v` rows are `NAME STATE VERSION` with a numeric VERSION. Strip the
-    // last two columns without assuming an English STATE label (locales vary).
-    const verbose = stripped.match(/^(.*?)\s+\S+\s+(\d+)\s*$/);
-    let name: string;
-    if (verbose) {
-      name = verbose[1]!.trim();
-    } else if (!/\s/.test(stripped)) {
-      // Quiet `-l -q` / legacy single-token names.
-      name = stripped;
-    } else {
-      // Header rows like `NAME  STATE  VERSION` (any language).
-      continue;
-    }
-
-    if (!name) continue;
+    // Distro names from `-l` / `-l -q` are single tokens; skip anything else
+    // (e.g. accidental verbose rows if a caller passes `-l -v` output).
+    if (!name || /\s/.test(name)) continue;
     if (!names.includes(name)) names.push(name);
     if (isDefault) defaultName = name;
   }
@@ -219,8 +210,9 @@ export async function detectWsl(
     return { available: false, distroName: null, homePath: null, error: 'Not Windows' };
   }
 
-  // Prefer `-l -v` so the default distro is marked with `*` (unlike quiet `-l -q`).
-  const list = await runCommand('wsl.exe', ['-l', '-v']);
+  // Prefer non-verbose `-l` so default is marked with `*` / `(Default)` without
+  // localized STATE/VERSION columns that can corrupt distro names.
+  const list = await runCommand('wsl.exe', ['-l']);
   if (list.code !== 0) {
     return {
       available: false,
