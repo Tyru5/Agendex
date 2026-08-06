@@ -6,7 +6,7 @@
 //                  desktop build so `resources/client` carries a revision and
 //                  the shipped-floor comparison is meaningful.
 //   (default)      Stamp, tar+gzip, hash, and emit a manifest — optionally
-//                  signed. Run by .github/workflows/ui-release.yml.
+//                  signed. Run locally for release-readiness validation; publishing is manual.
 //
 // The bundle's revision is the git commit timestamp it was built from:
 // monotonic on a linear main, deterministic in CI, and no counter to maintain.
@@ -63,7 +63,13 @@ function resolveRevision() {
 }
 
 function readMinShellVersion() {
-  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  let config;
+  try {
+    config = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not read ${configPath}: ${message}`, { cause: error });
+  }
   const value = config.minShellVersion;
   if (typeof value !== 'string' || value.trim() === '') {
     throw new Error(`${configPath} is missing a minShellVersion string`);

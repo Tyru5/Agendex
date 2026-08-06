@@ -21,6 +21,8 @@
     "release:desktop:mac": "node ./scripts/release-mac-desktop.mjs",
     "release:desktop:win": "node ./scripts/release-win-desktop.mjs",
     "build-test:desktop": "bash ./scripts/build-test-desktop.sh",
+    "ci:local": "bash ./scripts/local-ci.sh",
+    "ci:local:quick": "bash ./scripts/local-ci.sh --quick",
     "build:cli:release": "node ./packages/cli/scripts/build-release.mjs",
     "cli": "bun run --cwd ./packages/cli src/cli.ts",
     "cli:start": "bun run --cwd ./packages/cli src/cli.ts start",

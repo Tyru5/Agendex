@@ -5,7 +5,7 @@ Agendex Desktop ships macOS and Windows Electron apps with `electron-builder`.
 - **macOS signing and notarization are required.** Gatekeeper rejects unsigned builds on other Macs, so the release job fails fast when the secrets are missing.
 - **Windows Authenticode signing is optional and currently not configured.** Without a certificate, electron-builder publishes an unsigned installer: SmartScreen shows "Windows protected your PC" and users continue through **More info → Run anyway**. Adding the secrets below turns signing on with no other change.
 
-The signed production path is the **Release Desktop** GitHub Actions workflow (`.github/workflows/desktop-release.yml`). The separate **Build Desktop (CI)** workflow packages unsigned artifacts for validation and does not receive signing secrets.
+The signed production path is the **Release Desktop** GitHub Actions workflow (`.github/workflows/desktop-release.yml`). Routine checks and unsigned release-readiness validation run locally with `bun run ci:local`; GitHub retains only the official desktop release workflow.
 
 Release publishing uses the built-in `GITHUB_TOKEN`; you do not need a separate GitHub PAT for uploading release assets.
 

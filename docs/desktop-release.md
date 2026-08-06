@@ -5,10 +5,11 @@ Agendex Desktop ships via **GitHub Releases** for two platforms:
 - **macOS** — universal (Apple Silicon + Intel), signed with a Developer ID certificate and notarized by Apple.
 - **Windows** — x64 NSIS installer plus a portable exe. **Not code-signed**: SmartScreen warns on first run until a certificate is purchased.
 
-There are two workflows:
+There is one GitHub Actions workflow:
 
-- `.github/workflows/desktop-build.yml`: CI on PRs and `main`. Runs checks/tests and produces **unsigned** macOS and Windows packages for validation.
-- `.github/workflows/desktop-release.yml`: Release workflow on `desktop-v*.*.*` tag pushes or manual dispatch. Builds each selected platform and publishes the artifacts to a GitHub Release.
+- `.github/workflows/desktop-release.yml`: the official release workflow on `desktop-v*.*.*` tag pushes or manual dispatch. It builds each selected platform and publishes the artifacts to a GitHub Release.
+
+Routine checks, tests, builds, and unsigned release dry runs run locally with `bun run ci:local`. Use `bun run ci:local -- --release <version>` before triggering an official desktop release.
 
 This mirrors the release model used in [streamer.share](https://github.com/Tyru5/screenstream.live), adapted for Agendex paths and GitHub Releases instead of a CDN bucket.
 
@@ -27,7 +28,7 @@ Single-platform runs attach to the existing release rather than replacing it, so
 
 ### Tag push (all platforms)
 
-Desktop releases use a `desktop-v` prefix so they do not collide with CLI tags (`v*` from the npm publish workflow):
+Desktop releases use a `desktop-v` prefix so they do not collide with CLI package tags (`v*`):
 
 ```bash
 node scripts/prepare-desktop-release.mjs 1.0.0 --write
