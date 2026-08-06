@@ -135,17 +135,29 @@ export function parseWslDistroList(stdout: Buffer): string[] {
   for (const raw of decodeWslText(stdout).split(/\r?\n/)) {
     const line = raw.replace(/^\uFEFF/, '').trim();
     if (!line) continue;
-    // Skip list headers from `wsl -l` / `wsl -l -v`.
+    // Skip the non-verbose banner; verbose headers are rejected below.
     if (/^Windows Subsystem for Linux/i.test(line)) continue;
-    if (/^NAME\s+STATE\s+VERSION/i.test(line)) continue;
 
     const isDefault = /^\*/.test(line) || /\(Default\)\s*$/i.test(line);
-    const name = line
+    const stripped = line
       .replace(/^\*\s*/, '')
       .replace(/\s*\(Default\)\s*$/i, '')
-      // `-l -v` appends STATE/VERSION columns after the distro name.
-      .replace(/\s+(Running|Stopped|Installing|Uninstalling)\s+\d+\s*$/i, '')
       .trim();
+
+    // `-l -v` rows are `NAME STATE VERSION` with a numeric VERSION. Strip the
+    // last two columns without assuming an English STATE label (locales vary).
+    const verbose = stripped.match(/^(.*?)\s+\S+\s+(\d+)\s*$/);
+    let name: string;
+    if (verbose) {
+      name = verbose[1]!.trim();
+    } else if (!/\s/.test(stripped)) {
+      // Quiet `-l -q` / legacy single-token names.
+      name = stripped;
+    } else {
+      // Header rows like `NAME  STATE  VERSION` (any language).
+      continue;
+    }
+
     if (!name) continue;
     if (!names.includes(name)) names.push(name);
     if (isDefault) defaultName = name;

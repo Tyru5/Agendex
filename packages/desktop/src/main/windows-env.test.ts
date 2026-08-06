@@ -58,6 +58,16 @@ test('parseWslDistroList prefers the default distro even when it is not first', 
   expect(parseWslDistroList(legacy)).toEqual(['Ubuntu', 'Debian']);
 });
 
+test('parseWslDistroList strips localized verbose STATE columns', () => {
+  const localized = Buffer.from(
+    '  NOMBRE          ESTADO          VERSIÓN\r\n' +
+      '  Debian          Detenido        2\r\n' +
+      '* Ubuntu-22.04    EnEjecución     2\r\n',
+    'utf16le',
+  );
+  expect(parseWslDistroList(localized)).toEqual(['Ubuntu-22.04', 'Debian']);
+});
+
 test('detectWsl pins -d to the default distro for home resolution', async () => {
   const calls: Array<{ command: string; args: readonly string[] }> = [];
   const runCommand = async (command: string, args: readonly string[]) => {
