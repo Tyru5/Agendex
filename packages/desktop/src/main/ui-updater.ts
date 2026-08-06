@@ -17,7 +17,7 @@ import type { UiBundleStore } from './ui-bundle/store.ts';
 import type { FetchLike, UiManifest, UiUpdateState } from './ui-bundle/types.ts';
 import { satisfiesMinShellVersion } from './ui-bundle/version.ts';
 
-const DEFAULT_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
+const DEFAULT_CHECK_INTERVAL_MS = 1 * 60 * 60 * 1000; // 1 hour
 const DEFAULT_INITIAL_DELAY_MS = 15_000;
 /**
  * How long a freshly activated bundle has to report that it rendered. Generous:
