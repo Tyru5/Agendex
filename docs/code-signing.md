@@ -16,18 +16,18 @@ Release publishing uses the built-in `GITHUB_TOKEN`; you do not need a separate 
 
 ## Secret Layout
 
-| Secret                        | Used by                               | Value                                      |
-| ----------------------------- | ------------------------------------- | ------------------------------------------ |
-| `CSC_LINK`                    | macOS release job                     | Base64 of the Apple Developer ID `.p12`    |
-| `CSC_KEY_PASSWORD`            | macOS release job                     | Password for the Apple Developer ID `.p12` |
-| `APPLE_API_KEY`               | macOS release job                     | Base64 of the App Store Connect `.p8` key  |
-| `APPLE_API_KEY_ID`            | macOS release job                     | App Store Connect API key ID               |
-| `APPLE_API_ISSUER`            | macOS release job                     | App Store Connect issuer ID                |
-| `APPLE_ID`                    | macOS release job (optional fallback) | Apple ID email                             |
-| `APPLE_APP_SPECIFIC_PASSWORD` | macOS release job (optional fallback) | App-specific password                      |
-| `APPLE_TEAM_ID`               | macOS release job (optional)          | Apple Developer team ID                    |
-| `WIN_CSC_LINK`                | Windows release job (optional)        | Base64 of the Authenticode `.pfx`/`.p12`   |
-| `WIN_CSC_KEY_PASSWORD`        | Windows release job (optional)        | Password for that certificate              |
+| Secret                        | Used by                               | Value                                                     |
+| ----------------------------- | ------------------------------------- | --------------------------------------------------------- |
+| `CSC_LINK`                    | macOS release job                     | Base64 of the Apple Developer ID `.p12`                   |
+| `CSC_KEY_PASSWORD`            | macOS release job                     | Password for the Apple Developer ID `.p12`                |
+| `APPLE_API_KEY`               | macOS release job                     | Base64 of the App Store Connect `.p8` key                 |
+| `APPLE_API_KEY_ID`            | macOS release job                     | App Store Connect API key ID                              |
+| `APPLE_API_ISSUER`            | macOS release job                     | App Store Connect issuer ID                               |
+| `APPLE_ID`                    | macOS release job (optional fallback) | Apple ID email                                            |
+| `APPLE_APP_SPECIFIC_PASSWORD` | macOS release job (optional fallback) | App-specific password                                     |
+| `APPLE_TEAM_ID`               | macOS release job (optional)          | Apple Developer team ID                                   |
+| `WIN_CSC_LINK`                | Windows release job (optional)        | Base64 of the Authenticode `.pfx`/`.p12`                  |
+| `WIN_CSC_KEY_PASSWORD`        | Windows release job (optional)        | Password for that certificate                             |
 | `UI_BUNDLE_SIGNING_KEY`       | UI release workflow                   | Ed25519 private key PEM used to sign UI channel manifests |
 
 Windows certificate secrets stay under their own `WIN_CSC_*` names and are mapped to `CSC_LINK` / `CSC_KEY_PASSWORD` only inside the Windows packaging step. Never point `CSC_LINK` at the Apple Developer ID `.p12` for Windows — the two are different certificate types issued by different authorities.
