@@ -5,7 +5,12 @@ Agendex Desktop ships macOS and Windows Electron apps with `electron-builder`.
 - **macOS signing and notarization are required.** Gatekeeper rejects unsigned builds on other Macs, so the release job fails fast when the secrets are missing.
 - **Windows Authenticode signing is optional and currently not configured.** Without a certificate, electron-builder publishes an unsigned installer: SmartScreen shows "Windows protected your PC" and users continue through **More info → Run anyway**. Adding the secrets below turns signing on with no other change.
 
-The signed production path is the **Release Desktop** GitHub Actions workflow (`.github/workflows/desktop-release.yml`). Routine checks and unsigned release-readiness validation run locally with `bun run ci:local`; GitHub retains only the official desktop release workflow.
+The signed production paths on GitHub are:
+
+- **Release Desktop** (`.github/workflows/desktop-release.yml`) for native installers
+- **Release Desktop UI** (`.github/workflows/ui-release.yml`) for signed remote UI channel manifests
+
+Routine checks and unsigned release-readiness validation run locally with `bun run ci:local`.
 
 Release publishing uses the built-in `GITHUB_TOKEN`; you do not need a separate GitHub PAT for uploading release assets.
 
@@ -23,6 +28,7 @@ Release publishing uses the built-in `GITHUB_TOKEN`; you do not need a separate 
 | `APPLE_TEAM_ID`               | macOS release job (optional)          | Apple Developer team ID                    |
 | `WIN_CSC_LINK`                | Windows release job (optional)        | Base64 of the Authenticode `.pfx`/`.p12`   |
 | `WIN_CSC_KEY_PASSWORD`        | Windows release job (optional)        | Password for that certificate              |
+| `UI_BUNDLE_SIGNING_KEY`       | UI release workflow                   | Ed25519 private key PEM used to sign UI channel manifests |
 
 Windows certificate secrets stay under their own `WIN_CSC_*` names and are mapped to `CSC_LINK` / `CSC_KEY_PASSWORD` only inside the Windows packaging step. Never point `CSC_LINK` at the Apple Developer ID `.p12` for Windows — the two are different certificate types issued by different authorities.
 

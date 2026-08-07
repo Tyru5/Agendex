@@ -279,10 +279,10 @@ It does not modify the version or trigger the release.
 
 ### GitHub Actions scope
 
-Only the official desktop release runs on GitHub. The former general CI, Changesets release-PR,
-CLI publishing, unsigned desktop-build, and remote UI-bundle workflows have moved out of GitHub
-Actions. CLI versioning and publishing are explicit local/manual operations; `bun run ci:local`
-validates their generated artifacts without publishing them.
+Official desktop packaging and remote UI-bundle publishing still run on GitHub. The former general
+CI, Changesets release-PR, CLI publishing, and unsigned desktop-build workflows have moved out of
+GitHub Actions. CLI versioning and publishing are explicit local/manual operations;
+`bun run ci:local` validates their generated artifacts without publishing them.
 
 GitHub remains responsible for the parts that require native hosted runners and protected release
 credentials:
@@ -290,6 +290,8 @@ credentials:
 - macOS universal packaging, Developer ID signing, notarization, and stapling
 - Windows x64 installer and portable packaging, with optional Authenticode signing
 - Uploading artifacts and publishing the official GitHub desktop release
+- Signing and uploading remote UI channel manifests (including the `pinToShipped` kill switch)
+  via `.github/workflows/ui-release.yml`
 
 Native macOS and Windows release steps cannot be fully validated from a Linux development machine.
 See [`docs/desktop-release.md`](./docs/desktop-release.md) for the release runbook and

@@ -5,9 +5,10 @@ Agendex Desktop ships via **GitHub Releases** for two platforms:
 - **macOS** — universal (Apple Silicon + Intel), signed with a Developer ID certificate and notarized by Apple.
 - **Windows** — x64 NSIS installer plus a portable exe. **Not code-signed**: SmartScreen warns on first run until a certificate is purchased.
 
-There is one GitHub Actions workflow:
+There are two GitHub Actions workflows for shipping updates to installed desktops:
 
 - `.github/workflows/desktop-release.yml`: the official release workflow on `desktop-v*.*.*` tag pushes or manual dispatch. It builds each selected platform and publishes the artifacts to a GitHub Release.
+- `.github/workflows/ui-release.yml`: publishes a signed remote UI bundle to the rolling `desktop-ui-channel` release (or a signed `pinToShipped` kill-switch manifest). Triggered by `ui-v*` tags or manual dispatch. Shell-level changes still require a full desktop release.
 
 Routine checks, tests, builds, and unsigned release dry runs run locally with `bun run ci:local`. Use `bun run ci:local -- --release <version>` before triggering an official desktop release.
 
@@ -185,6 +186,32 @@ The **portable** exe cannot self-update. electron-updater has no in-place path f
 run the NSIS installer instead, leaving a second installed copy alongside a stale portable file, so
 `createDesktopUpdater` disables itself when `PORTABLE_EXECUTABLE_FILE` is set and the app reports
 "Updates unavailable". Portable users re-download from `/download`.
+
+## Remote UI channel updates
+
+Installed desktops can download a signed UI bundle from the rolling `desktop-ui-channel`
+GitHub Release without a full Electron rebuild. Publish with:
+
+```bash
+# Tag push
+git tag ui-v1.2.3
+git push origin ui-v1.2.3
+
+# Or manual dispatch
+gh workflow run "Release Desktop UI"
+```
+
+Emergency rollback publishes a signed `pinToShipped` manifest (no bundle asset). On their
+next check, clients discard any downloaded bundle and reload the UI they shipped with:
+
+```bash
+gh workflow run "Release Desktop UI" -f pin_to_shipped=true
+```
+
+Requires the `UI_BUNDLE_SIGNING_KEY` repository secret. See
+[`docs/code-signing.md`](./code-signing.md) and the comments in
+`packages/desktop/src/main/ui-bundle/keys.ts`. Local `bun run ci:local` only dry-runs an
+unsigned bundle build; it does not publish to the channel.
 
 ## Download page
 
