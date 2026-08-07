@@ -12,6 +12,7 @@ import {
   PRIMARY_RGB_FALLBACK,
   PRO_FEATURES,
 } from './constants';
+import { DataExportSection } from './DataExportSection';
 
 interface AccountTabProps {
   user: { name: string; email: string; image?: string | null };
@@ -634,6 +635,8 @@ export function AccountTab({
           </div>
         )}
       </section>
+
+      <DataExportSection />
 
       {/* Danger Zone */}
       <section>

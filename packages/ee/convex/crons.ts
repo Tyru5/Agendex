@@ -9,4 +9,10 @@ crons.interval(
   internal.comments.cleanupStalePendingUploads,
 );
 
+crons.interval(
+  'cleanup expired data exports',
+  { hours: 24 },
+  internal.dataExport.deleteExpiredDataExports,
+);
+
 export default crons;
