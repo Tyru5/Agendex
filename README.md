@@ -234,12 +234,19 @@ bun run ci:local -- --release 1.2.3  # also validate desktop release readiness
 
 ## Local CI/CD
 
-Routine CI and release-readiness checks run locally through
+In addition to GitHub Actions, you can run the same release-readiness checks locally through
 [`scripts/local-ci.sh`](./scripts/local-ci.sh). The script validates the current worktree directly
 and then executes [`.act/workflows/local-ci.yml`](./.act/workflows/local-ci.yml) with
-[`act`](https://github.com/nektos/act) in an isolated Linux container. GitHub Actions is reserved
-for the official signed desktop release in
-[`.github/workflows/desktop-release.yml`](./.github/workflows/desktop-release.yml).
+[`act`](https://github.com/nektos/act) in an isolated Linux container.
+
+GitHub Actions continues to run the hosted pipelines:
+
+- [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) — PR/main CLI verification and Changeset checks
+- [`.github/workflows/changesets.yml`](./.github/workflows/changesets.yml) — Changesets release PR on `main`
+- [`.github/workflows/publish-cli.yml`](./.github/workflows/publish-cli.yml) — npm publish for `agendex-cli`
+- [`.github/workflows/desktop-build.yml`](./.github/workflows/desktop-build.yml) — unsigned desktop CI builds
+- [`.github/workflows/desktop-release.yml`](./.github/workflows/desktop-release.yml) — signed desktop release
+- [`.github/workflows/ui-release.yml`](./.github/workflows/ui-release.yml) — signed remote UI channel publish
 
 Install `act` and start a Docker-compatible container daemon before running local CI. On macOS, for
 example, install `act` with `brew install act` and start Docker Desktop. The first act run downloads
@@ -271,7 +278,7 @@ The full validation performs the following checks in order:
 
 1. Installs dependencies with `bun install --frozen-lockfile`.
 2. Requires a Changeset when CLI/shared changes differ from `origin/main`.
-3. Checks repository formatting/lint and the former CLI release surfaces.
+3. Checks repository formatting/lint and the CLI release surfaces.
 4. Runs the complete Bun test suite.
 5. Builds the OSS application.
 6. Builds the desktop application and packages an unsigned native artifact on macOS or Windows.
@@ -293,41 +300,13 @@ Pass `--release <version>` before creating an official desktop release. This val
 metadata and, for a stable release, confirms that the download page already advertises that version.
 It does not modify the version or trigger the release.
 
-### Migration parity
-
-The default full run preserves the validation from the removed general CI, CLI publish, and desktop
-build workflows: Changeset enforcement, CLI release-surface checks, all tests, CLI build/pack/smoke,
-desktop builds, and unsigned native desktop packaging. The full Bun suite is a superset of the old
-workflow-specific test selections, and act repeats the portable checks in Linux.
-
 Native packaging remains host-specific: macOS produces the unsigned universal DMG/ZIP, Windows
 produces and verifies the unsigned setup/portable executables and smoke-tests the packaged daemon,
-and Linux performs the desktop build without packaging. Matching the old two-runner desktop matrix
+and Linux performs the desktop build without packaging. Matching the full two-runner desktop matrix
 therefore requires running `bun run ci:local` on both macOS and Windows; act cannot emulate those
 native packaging toolchains. The official release workflow remains the final signed cross-platform
 check.
 
-The removed workflow's side effects are intentionally not reproduced: creating a Changesets release
-PR, publishing npm, pushing tags, uploading artifacts, and creating GitHub releases remain explicit
-release operations rather than validation.
-
-### GitHub Actions scope
-
-Official desktop packaging and remote UI-bundle publishing still run on GitHub. The former general
-CI, Changesets release-PR, CLI publishing, and unsigned desktop-build workflows have moved out of
-GitHub Actions. CLI versioning and publishing are explicit local/manual operations;
-`bun run ci:local` validates their generated artifacts without publishing them.
-
-GitHub remains responsible for the parts that require native hosted runners and protected release
-credentials:
-
-- macOS universal packaging, Developer ID signing, notarization, and stapling
-- Windows x64 installer and portable packaging, with optional Authenticode signing
-- Uploading artifacts and publishing the official GitHub desktop release
-- Signing and uploading remote UI channel manifests (including the `pinToShipped` kill switch)
-  via `.github/workflows/ui-release.yml`
-
-Native macOS and Windows release steps cannot be fully validated from a Linux development machine.
 See [`docs/desktop-release.md`](./docs/desktop-release.md) for the release runbook and
 [`docs/code-signing.md`](./docs/code-signing.md) for signing configuration.
 

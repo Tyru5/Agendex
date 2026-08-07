@@ -10,7 +10,9 @@ The signed production paths on GitHub are:
 - **Release Desktop** (`.github/workflows/desktop-release.yml`) for native installers
 - **Release Desktop UI** (`.github/workflows/ui-release.yml`) for signed remote UI channel manifests
 
-Routine checks and unsigned release-readiness validation run locally with `bun run ci:local`.
+The separate **Build Desktop (CI)** workflow (`.github/workflows/desktop-build.yml`) packages
+unsigned artifacts for validation and does not receive signing secrets. Optionally run the same
+unsigned release-readiness checks locally with `bun run ci:local`.
 
 Release publishing uses the built-in `GITHUB_TOKEN`; you do not need a separate GitHub PAT for uploading release assets.
 

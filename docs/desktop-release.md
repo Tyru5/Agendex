@@ -5,12 +5,14 @@ Agendex Desktop ships via **GitHub Releases** for two platforms:
 - **macOS** — universal (Apple Silicon + Intel), signed with a Developer ID certificate and notarized by Apple.
 - **Windows** — x64 NSIS installer plus a portable exe. **Not code-signed**: SmartScreen warns on first run until a certificate is purchased.
 
-There are two GitHub Actions workflows for shipping updates to installed desktops:
+There are three GitHub Actions workflows for desktop CI and shipping updates:
 
+- `.github/workflows/desktop-build.yml`: CI on PRs and `main`. Runs checks/tests and produces **unsigned** macOS and Windows packages for validation.
 - `.github/workflows/desktop-release.yml`: the official release workflow on `desktop-v*.*.*` tag pushes or manual dispatch. It builds each selected platform and publishes the artifacts to a GitHub Release.
 - `.github/workflows/ui-release.yml`: publishes a signed remote UI bundle to the rolling `desktop-ui-channel` release (or a signed `pinToShipped` kill-switch manifest). Triggered by `ui-v*` tags or manual dispatch. Shell-level changes still require a full desktop release.
 
-Routine checks, tests, builds, and unsigned release dry runs run locally with `bun run ci:local`. Use `bun run ci:local -- --release <version>` before triggering an official desktop release.
+Optionally run the same release-readiness checks locally with `bun run ci:local`. Use
+`bun run ci:local -- --release <version>` before triggering an official desktop release.
 
 This mirrors the release model used in [streamer.share](https://github.com/Tyru5/screenstream.live), adapted for Agendex paths and GitHub Releases instead of a CDN bucket.
 
