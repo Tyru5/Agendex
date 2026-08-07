@@ -11,6 +11,7 @@ CURRENT_STEP="startup"
 STARTED_AT=$SECONDS
 TEMP_DIR=""
 ACT_WORKSPACE=""
+ACT_DOCKER_CONFIG=""
 
 usage() {
 	cat <<'EOF'
@@ -78,6 +79,9 @@ cleanup() {
 	fi
 	if [[ -n "$ACT_WORKSPACE" && -d "$ACT_WORKSPACE" ]]; then
 		rm -rf "$ACT_WORKSPACE"
+	fi
+	if [[ -n "$ACT_DOCKER_CONFIG" && -d "$ACT_DOCKER_CONFIG" ]]; then
+		rm -rf "$ACT_DOCKER_CONFIG"
 	fi
 }
 
@@ -153,7 +157,14 @@ if [[ "$IS_ACT_CHILD" == false ]]; then
 	if [[ "$CURRENT_BRANCH" != changeset-release/* ]] &&
 		printf '%s\n' "$CHANGED_PATHS" | grep -qE '^packages/(cli|shared)/'; then
 		step "Require a changeset for CLI-relevant changes"
-		bunx changeset status --since="$BASE_REF"
+		if printf '%s\n' "$CHANGED_PATHS" | grep -E '^\.changeset/[^/]+\.md$' |
+			grep -qv '^\.changeset/README\.md$'; then
+			# `changeset status --since` ignores untracked changesets, even though this
+			# local validator intentionally includes untracked files in CHANGED_PATHS.
+			bunx changeset status
+		else
+			bunx changeset status --since="$BASE_REF"
+		fi
 	fi
 fi
 
@@ -254,6 +265,14 @@ if [[ "$RUN_ACT" == true ]]; then
 	*) ACT_CONTAINER_ARCH='linux/amd64' ;;
 	esac
 	ACT_RUNNER_IMAGE='node:22-bookworm@sha256:0557ac14e0d45d02ed563067b82856ca5e7aa3437fa28d98d4350ea9c3d9494a'
+	# Ensure the pinned runner exists using the developer's normal Docker config
+	# before isolating act with an empty DOCKER_CONFIG and --pull=false.
+	if ! docker image inspect "$ACT_RUNNER_IMAGE" >/dev/null 2>&1; then
+		step "Pull the pinned local act runner image"
+		docker pull "$ACT_RUNNER_IMAGE"
+	fi
+	ACT_DOCKER_CONFIG="$(mktemp -d "${TMPDIR:-/tmp}/agendex-docker-config.XXXXXX")"
+	printf '{"auths":{}}\n' >"$ACT_DOCKER_CONFIG/config.json"
 
 	step "Run the safe local CI/CD workflow with act"
 	ACT_ARGS=(
@@ -264,12 +283,13 @@ if [[ "$RUN_ACT" == true ]]; then
 		--bind
 		--container-architecture "$ACT_CONTAINER_ARCH"
 		--platform "ubuntu-latest=$ACT_RUNNER_IMAGE"
+		--pull=false
 		--input "mode=$MODE"
 	)
 	if [[ -n "$RELEASE_VERSION" ]]; then
 		ACT_ARGS+=(--input "release_version=$RELEASE_VERSION")
 	fi
-	act "${ACT_ARGS[@]}"
+	DOCKER_CONFIG="$ACT_DOCKER_CONFIG" act "${ACT_ARGS[@]}"
 fi
 
 CURRENT_STEP="complete"
