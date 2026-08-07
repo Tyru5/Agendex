@@ -226,7 +226,76 @@ bun run lint:fix
 bun run check
 bun run check:fix
 bun test                    # run Bun's built-in test runner
+
+bun run ci:local            # full local CI/CD validation; never publishes
+bun run ci:local:quick      # dependency, format, lint, and test checks
+bun run ci:local -- --release 1.2.3  # also validate desktop release readiness
 ```
+
+## Local CI/CD
+
+Routine CI and release-readiness checks run locally through
+[`scripts/local-ci.sh`](./scripts/local-ci.sh). GitHub Actions is reserved for the official
+signed desktop release in [`.github/workflows/desktop-release.yml`](./.github/workflows/desktop-release.yml).
+
+### Running local validation
+
+```bash
+# Complete CI/CD validation (default)
+bun run ci:local
+
+# Faster feedback: frozen install, formatting, lint, and tests only
+bun run ci:local:quick
+
+# Complete validation plus desktop release-readiness checks
+bun run ci:local -- --release 1.2.3
+
+# Reuse the current dependency installation
+bun run ci:local -- --skip-install
+
+# Show every option
+scripts/local-ci.sh --help
+```
+
+The full validation performs the following checks in order:
+
+1. Installs dependencies with `bun install --frozen-lockfile`.
+2. Checks formatting and lint with `bun run check`.
+3. Runs the complete Bun test suite.
+4. Builds the OSS application.
+5. Builds the desktop application.
+6. Builds the Node-compatible CLI release artifact.
+7. Dry-runs the npm package and smoke-tests the packed CLI.
+8. Generates a temporary unsigned desktop UI release bundle and verifies its manifest and archive.
+
+The script is validation-only. It never publishes npm packages, pushes tags, uploads assets, or
+creates GitHub releases. Temporary UI release artifacts are deleted automatically. A local unsigned
+UI bundle warning is expected because installed desktop applications reject unsigned manifests.
+Production signing remains part of the official release process.
+
+Pass `--release <version>` before creating an official desktop release. This validates release
+metadata and, for a stable release, confirms that the download page already advertises that version.
+It does not modify the version or trigger the release.
+
+### GitHub Actions scope
+
+Official desktop packaging and remote UI-bundle publishing still run on GitHub. The former general
+CI, Changesets release-PR, CLI publishing, and unsigned desktop-build workflows have moved out of
+GitHub Actions. CLI versioning and publishing are explicit local/manual operations;
+`bun run ci:local` validates their generated artifacts without publishing them.
+
+GitHub remains responsible for the parts that require native hosted runners and protected release
+credentials:
+
+- macOS universal packaging, Developer ID signing, notarization, and stapling
+- Windows x64 installer and portable packaging, with optional Authenticode signing
+- Uploading artifacts and publishing the official GitHub desktop release
+- Signing and uploading remote UI channel manifests (including the `pinToShipped` kill switch)
+  via `.github/workflows/ui-release.yml`
+
+Native macOS and Windows release steps cannot be fully validated from a Linux development machine.
+See [`docs/desktop-release.md`](./docs/desktop-release.md) for the release runbook and
+[`docs/code-signing.md`](./docs/code-signing.md) for signing configuration.
 
 The published CLI is Node-compatible and can be installed with `curl -fsSL https://agendex.dev/install.sh | bash` or directly with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://app.agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev ...` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
 
