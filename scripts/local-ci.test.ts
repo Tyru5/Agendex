@@ -7,5 +7,7 @@ test('local act uses the cached digest-pinned runner image when available', asyn
   const script = await readFile(scriptPath, 'utf8');
 
   expect(script).toContain("ACT_RUNNER_IMAGE='node:22-bookworm@sha256:");
+  expect(script).toContain('docker image inspect "$ACT_RUNNER_IMAGE"');
+  expect(script).toContain('docker pull "$ACT_RUNNER_IMAGE"');
   expect(script).toContain('--pull=false');
 });

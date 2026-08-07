@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { chmod, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -109,6 +109,25 @@ async function buildRelease() {
 }
 
 async function emptyDirectory(directory) {
+  let stats;
+  try {
+    stats = await lstat(directory);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return;
+    throw error;
+  }
+
+  // Match prior recursive rm: remove a top-level symlink itself instead of
+  // reading through it and deleting entries in the symlink target.
+  if (stats.isSymbolicLink()) {
+    await rm(directory, {
+      force: true,
+      maxRetries: 5,
+      retryDelay: 200,
+    });
+    return;
+  }
+
   let entries;
   try {
     entries = await readdir(directory);

@@ -265,6 +265,12 @@ if [[ "$RUN_ACT" == true ]]; then
 	*) ACT_CONTAINER_ARCH='linux/amd64' ;;
 	esac
 	ACT_RUNNER_IMAGE='node:22-bookworm@sha256:0557ac14e0d45d02ed563067b82856ca5e7aa3437fa28d98d4350ea9c3d9494a'
+	# Ensure the pinned runner exists using the developer's normal Docker config
+	# before isolating act with an empty DOCKER_CONFIG and --pull=false.
+	if ! docker image inspect "$ACT_RUNNER_IMAGE" >/dev/null 2>&1; then
+		step "Pull the pinned local act runner image"
+		docker pull "$ACT_RUNNER_IMAGE"
+	fi
 	ACT_DOCKER_CONFIG="$(mktemp -d "${TMPDIR:-/tmp}/agendex-docker-config.XXXXXX")"
 	printf '{"auths":{}}\n' >"$ACT_DOCKER_CONFIG/config.json"
 
