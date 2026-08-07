@@ -227,16 +227,23 @@ bun run check
 bun run check:fix
 bun test                    # run Bun's built-in test runner
 
-bun run ci:local            # full local CI/CD validation; never publishes
-bun run ci:local:quick      # dependency, format, lint, and test checks
+bun run ci:local            # host checks plus the safe act workflow; never publishes
+bun run ci:local:quick      # quick host checks plus the quick act workflow
 bun run ci:local -- --release 1.2.3  # also validate desktop release readiness
 ```
 
 ## Local CI/CD
 
 Routine CI and release-readiness checks run locally through
-[`scripts/local-ci.sh`](./scripts/local-ci.sh). GitHub Actions is reserved for the official
-signed desktop release in [`.github/workflows/desktop-release.yml`](./.github/workflows/desktop-release.yml).
+[`scripts/local-ci.sh`](./scripts/local-ci.sh). The script validates the current worktree directly
+and then executes [`.act/workflows/local-ci.yml`](./.act/workflows/local-ci.yml) with
+[`act`](https://github.com/nektos/act) in an isolated Linux container. GitHub Actions is reserved
+for the official signed desktop release in
+[`.github/workflows/desktop-release.yml`](./.github/workflows/desktop-release.yml).
+
+Install `act` and start a Docker-compatible container daemon before running local CI. On macOS, for
+example, install `act` with `brew install act` and start Docker Desktop. The first act run downloads
+its runner image and is slower than subsequent runs.
 
 ### Running local validation
 
@@ -250,8 +257,11 @@ bun run ci:local:quick
 # Complete validation plus desktop release-readiness checks
 bun run ci:local -- --release 1.2.3
 
-# Reuse the current dependency installation
+# Reuse the host dependency installation (the isolated act run still installs dependencies)
 bun run ci:local -- --skip-install
+
+# Run only the direct host checks when Docker/act is intentionally unavailable
+bun run ci:local -- --skip-act
 
 # Show every option
 scripts/local-ci.sh --help
@@ -260,22 +270,46 @@ scripts/local-ci.sh --help
 The full validation performs the following checks in order:
 
 1. Installs dependencies with `bun install --frozen-lockfile`.
-2. Checks formatting and lint with `bun run check`.
-3. Runs the complete Bun test suite.
-4. Builds the OSS application.
-5. Builds the desktop application.
-6. Builds the Node-compatible CLI release artifact.
-7. Dry-runs the npm package and smoke-tests the packed CLI.
+2. Requires a Changeset when CLI/shared changes differ from `origin/main`.
+3. Checks repository formatting/lint and the former CLI release surfaces.
+4. Runs the complete Bun test suite.
+5. Builds the OSS application.
+6. Builds the desktop application and packages an unsigned native artifact on macOS or Windows.
+7. Builds the Node-compatible CLI release artifact, dry-runs its npm package, and smoke-tests it.
 8. Generates a temporary unsigned desktop UI release bundle and verifies its manifest and archive.
+9. Runs the same selected mode again through the act-only workflow in an isolated Linux runner.
 
-The script is validation-only. It never publishes npm packages, pushes tags, uploads assets, or
-creates GitHub releases. Temporary UI release artifacts are deleted automatically. A local unsigned
-UI bundle warning is expected because installed desktop applications reject unsigned manifests.
-Production signing remains part of the official release process.
+The act workflow lives under `.act/workflows`, outside GitHub's `.github/workflows` discovery path,
+so GitHub never schedules it. The wrapper snapshots all tracked and unignored worktree files into a
+temporary Git repository before mounting it into act; ignored credentials, dependencies, and build
+output are excluded. The workflow receives no publishing credentials and invokes the validation
+script with recursion disabled. The overall command is validation-only: it never publishes npm
+packages, pushes tags, uploads assets, or creates GitHub releases. Temporary UI release artifacts
+are deleted automatically. A local unsigned UI bundle warning is expected because installed desktop
+applications reject unsigned manifests. Production signing remains part of the official release
+process.
 
 Pass `--release <version>` before creating an official desktop release. This validates release
 metadata and, for a stable release, confirms that the download page already advertises that version.
 It does not modify the version or trigger the release.
+
+### Migration parity
+
+The default full run preserves the validation from the removed general CI, CLI publish, and desktop
+build workflows: Changeset enforcement, CLI release-surface checks, all tests, CLI build/pack/smoke,
+desktop builds, and unsigned native desktop packaging. The full Bun suite is a superset of the old
+workflow-specific test selections, and act repeats the portable checks in Linux.
+
+Native packaging remains host-specific: macOS produces the unsigned universal DMG/ZIP, Windows
+produces and verifies the unsigned setup/portable executables and smoke-tests the packaged daemon,
+and Linux performs the desktop build without packaging. Matching the old two-runner desktop matrix
+therefore requires running `bun run ci:local` on both macOS and Windows; act cannot emulate those
+native packaging toolchains. The official release workflow remains the final signed cross-platform
+check.
+
+The removed workflow's side effects are intentionally not reproduced: creating a Changesets release
+PR, publishing npm, pushing tags, uploading artifacts, and creating GitHub releases remain explicit
+release operations rather than validation.
 
 ### GitHub Actions scope
 
