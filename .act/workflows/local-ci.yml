@@ -1,0 +1,46 @@
+name: Local CI/CD (act only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Validation mode passed by scripts/local-ci.sh
+        required: true
+        type: choice
+        options:
+          - full
+          - quick
+        default: full
+      release_version:
+        description: Optional desktop release version to validate
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  local-ci:
+    name: Safe local CI/CD
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # This workflow lives outside .github/workflows so GitHub never runs it.
+      # scripts/local-ci.sh snapshots the current worktree into an isolated Git
+      # repository, so no actions/checkout or publishing credentials are used.
+      # The pinned multi-architecture runner image already provides Node 22.
+      # Installing Bun from its pinned npm package avoids architecture-specific
+      # setup-action behavior under act on Apple Silicon.
+      - name: Install Bun
+        run: npm install --global bun@1.3.14
+
+      - name: Run validation without nested act
+        shell: bash
+        env:
+          VALIDATION_MODE: ${{ inputs.mode }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          set -euo pipefail
+          args=("--${VALIDATION_MODE:-full}")
+          if [[ -n "${RELEASE_VERSION:-}" ]]; then
+            args+=(--release "$RELEASE_VERSION")
+          fi
+          AGENDEX_ACT_CHILD=1 bash scripts/local-ci.sh "${args[@]}"
