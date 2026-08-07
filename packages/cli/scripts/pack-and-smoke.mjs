@@ -12,7 +12,13 @@ const packageDir = resolve(__dirname, '..');
 const workspaceCli = join(packageDir, 'dist', 'cli.js');
 const releaseDir = join(packageDir, '.release');
 const nodeBin = process.execPath;
-const cliVersion = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf-8')).version;
+const packageManagerCommands = new Map(
+  ['npm', 'npx', 'bun'].map((command) => [command, resolvePackageManager(command)]),
+);
+const cliVersion = parseJson(
+  await readFile(join(packageDir, 'package.json'), 'utf-8'),
+  'CLI package.json',
+).version;
 
 buildReleaseArtifacts();
 await verifyDirectRuntime();
@@ -105,7 +111,7 @@ async function exerciseLogin(env, baseUrl) {
   assert.equal(exitCode, 0, stderr || stdout);
 
   const configPath = join(env.HOME, '.agendex', 'config.json');
-  const config = JSON.parse(await readFile(configPath, 'utf-8'));
+  const config = parseJson(await readFile(configPath, 'utf-8'), configPath);
   assert.equal(config.cloudToken, 'cloud-token');
   assert.equal(config.cloudAccountId, 'account-1');
   assert.ok(typeof config.convexUrl === 'string' && config.convexUrl.length > 0);
@@ -113,7 +119,7 @@ async function exerciseLogin(env, baseUrl) {
 
 async function exerciseSyncParse(env) {
   const configPath = join(env.HOME, '.agendex', 'config.json');
-  const config = JSON.parse(await readFile(configPath, 'utf-8'));
+  const config = parseJson(await readFile(configPath, 'utf-8'), configPath);
   const originalConvexUrl = config.convexUrl;
 
   try {
@@ -271,7 +277,7 @@ async function startFakeCloud(state) {
     if (req.method === 'GET' && url.pathname === '/auth/cli') {
       const callback = url.searchParams.get('callback');
       assert.ok(callback, 'missing callback parameter');
-      const callbackUrl = new URL(callback);
+      const callbackUrl = parseUrl(callback, 'CLI auth callback URL');
       callbackUrl.searchParams.set('token', 'cloud-token');
       callbackUrl.searchParams.set('convexUrl', baseUrl);
       void fetch(callbackUrl)
@@ -341,8 +347,8 @@ async function startFakeCloud(state) {
 
 async function packRelease() {
   const pack = runSync('npm', ['pack', '--json', releaseDir], { cwd: repoRoot });
-  assert.equal(pack.status, 0, pack.stderr || pack.stdout);
-  const [{ filename }] = JSON.parse(pack.stdout);
+  assert.equal(pack.status, 0, pack.error?.stack || pack.stderr || pack.stdout);
+  const [{ filename }] = parseJson(pack.stdout, 'npm pack output');
   assert.ok(filename, 'npm pack did not produce a filename');
   return join(repoRoot, filename);
 }
@@ -381,9 +387,16 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
     const install = runSync(command, getArgs(projectDir), {
       cwd: options.useWorkingDir ? projectDir : repoRoot,
     });
-    assert.equal(install.status, 0, `${name} install failed\n${install.stderr || install.stdout}`);
+    assert.equal(
+      install.status,
+      0,
+      `${name} install failed\n${install.error?.stack || install.stderr || install.stdout}`,
+    );
 
-    const binary = join(projectDir, 'node_modules', '.bin', 'agendex');
+    const executeDirectly = process.platform !== 'win32';
+    const binary = executeDirectly
+      ? join(projectDir, 'node_modules', '.bin', 'agendex')
+      : join(projectDir, 'node_modules', 'agendex-cli', 'dist', 'cli.js');
     const env = {
       ...process.env,
       HOME: projectDir,
@@ -391,15 +404,19 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
       AGENDEX_UPDATE_CACHE_FILE: join(projectDir, '.agendex-update-cache.json'),
     };
 
-    const smoke = runSync(binary, ['help'], { cwd: projectDir, env });
-    assert.equal(smoke.status, 0, `${name} binary failed\n${smoke.stderr || smoke.stdout}`);
+    const smoke = runCli(binary, ['help'], { cwd: projectDir, env }, executeDirectly);
+    assert.equal(
+      smoke.status,
+      0,
+      `${name} binary failed\n${smoke.error?.stack || smoke.stderr || smoke.stdout}`,
+    );
     assert.match(smoke.stdout, /Usage:/);
 
     await createCursorFixture(projectDir);
     await writeSmokeConfig(projectDir);
-    await exerciseUpdateCheck(binary, env, projectDir, 'status', true);
+    await exerciseUpdateCheck(binary, env, projectDir, 'status', executeDirectly);
 
-    const sync = runSync(binary, ['sync'], { cwd: projectDir, env });
+    const sync = runCli(binary, ['sync'], { cwd: projectDir, env }, executeDirectly);
     assert.notEqual(sync.status, 0, `${name} sync should fail against an unreachable cloud`);
     assert.match(
       sync.stdout,
@@ -407,7 +424,12 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
       `${name} sync did not parse the installed SQLite adapter`,
     );
   } finally {
-    await rm(projectDir, { recursive: true, force: true });
+    await rm(projectDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 200,
+    });
   }
 }
 
@@ -440,11 +462,57 @@ async function readJson(req) {
   for await (const chunk of req) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  return parseJson(Buffer.concat(chunks).toString('utf8'), 'fake cloud request body');
+}
+
+function parseJson(value, context) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(`Failed to parse ${context}`, { cause: error });
+  }
+}
+
+function parseUrl(value, context) {
+  try {
+    return new URL(value);
+  } catch (error) {
+    throw new Error(`Failed to parse ${context}`, { cause: error });
+  }
+}
+
+function resolvePackageManager(command) {
+  if (process.platform !== 'win32') return { command, args: [] };
+
+  const executable = resolveExecutable(command);
+  if (command === 'bun') return { command: executable, args: [] };
+
+  const cli = join(
+    dirname(executable),
+    'node_modules',
+    'npm',
+    'bin',
+    command === 'npm' ? 'npm-cli.js' : 'npx-cli.js',
+  );
+  return { command: nodeBin, args: [cli] };
+}
+
+function resolveExecutable(command) {
+  if (process.platform !== 'win32') return command;
+
+  const lookup = spawnSync('where.exe', [command], { encoding: 'utf8' });
+  const candidates = lookup.stdout?.split(/\r?\n/).filter(Boolean) ?? [];
+  const executable =
+    candidates.find((candidate) => /\.(?:cmd|exe)$/i.test(candidate)) ?? candidates[0];
+  if (!executable) {
+    throw new Error(`Could not resolve ${command} executable`, { cause: lookup.error });
+  }
+  return executable;
 }
 
 function runSync(command, args, options = {}) {
-  return spawnSync(command, args, {
+  const resolved = packageManagerCommands.get(command) ?? { command, args: [] };
+  return spawnSync(resolved.command, [...resolved.args, ...args], {
     encoding: 'utf8',
     ...options,
   });
@@ -481,7 +549,7 @@ function buildReleaseArtifacts() {
   const build = runSync(nodeBin, [join(packageDir, 'scripts', 'build-release.mjs')], {
     cwd: repoRoot,
   });
-  assert.equal(build.status, 0, build.stderr || build.stdout);
+  assert.equal(build.status, 0, build.error?.stack || build.stderr || build.stdout);
 }
 
 async function waitFor(condition, timeoutMs) {

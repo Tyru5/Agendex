@@ -22,14 +22,48 @@ unset CSC_LINK CSC_KEY_PASSWORD
 unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
 unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER APPLE_TEAM_ID
 
+run_electron_builder_with_nsis_retry() {
+	local attempt=1
+	local max_attempts=3
+	local log_file
+	local status
+
+	while ((attempt <= max_attempts)); do
+		log_file="$(mktemp "${TMPDIR:-/tmp}/agendex-electron-builder.XXXXXX.log")"
+		set +e
+		bun run --cwd "$DESKTOP_DIR" dist -- "$@" 2>&1 | tee "$log_file"
+		status="${PIPESTATUS[0]}"
+		set -e
+
+		if ((status == 0)); then
+			rm -f "$log_file"
+			return 0
+		fi
+		if ! grep -q '3221225794' "$log_file"; then
+			rm -f "$log_file"
+			return "$status"
+		fi
+
+		rm -f "$log_file"
+		if ((attempt == max_attempts)); then
+			echo "error: makensis failed with Windows loader error 0xc0000142 after $max_attempts attempts" >&2
+			return "$status"
+		fi
+
+		echo "warning: makensis hit transient Windows loader error 0xc0000142; retrying ($attempt/$max_attempts)" >&2
+		sleep "$attempt"
+		((attempt += 1))
+	done
+}
+
 echo "==> Building desktop (bun)"
-(cd "$ROOT_DIR" && bun run desktop:build)
+bun run --cwd "$ROOT_DIR" desktop:build
 
 case "$PLATFORM" in
 Darwin)
 	echo "==> Packaging unsigned macOS app (electron-builder)"
 	rm -rf "$RELEASE_DIR"
-	(cd "$DESKTOP_DIR" && bun run dist -- --mac --universal)
+	bun run --cwd "$DESKTOP_DIR" dist -- --mac --universal
 
 	shopt -s nullglob
 	disk_images=("$RELEASE_DIR"/*.dmg)
@@ -42,7 +76,13 @@ Darwin)
 MINGW* | MSYS* | CYGWIN*)
 	echo "==> Packaging unsigned Windows app (electron-builder)"
 	rm -rf "$RELEASE_DIR"
-	(cd "$DESKTOP_DIR" && bun run dist -- --win --x64)
+	bun run --cwd "$DESKTOP_DIR" dist -- --dir --win --x64
+	# Compile each artifact from the packaged app in a fresh process. On Windows,
+	# launching makensis after Electron packaging can fail with 0xc0000142.
+	echo "==> Building unsigned Windows installer"
+	run_electron_builder_with_nsis_retry --prepackaged release/win-unpacked --win nsis --x64
+	echo "==> Building unsigned Windows portable"
+	run_electron_builder_with_nsis_retry --prepackaged release/win-unpacked --win portable --x64
 
 	shopt -s nullglob
 	setups=("$RELEASE_DIR"/Agendex-*-x64-Setup.exe)

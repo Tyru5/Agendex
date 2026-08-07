@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { chmod, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,7 +30,7 @@ function run(command, args, cwd) {
 }
 
 async function buildDist() {
-  await rm(distDir, { force: true, recursive: true });
+  await emptyDirectory(distDir);
   await mkdir(distDir, { recursive: true });
 
   run(
@@ -54,7 +54,7 @@ async function buildDist() {
 }
 
 async function buildRelease() {
-  await rm(releaseDir, { force: true, recursive: true });
+  await emptyDirectory(releaseDir);
   await mkdir(releaseDistDir, { recursive: true });
 
   const [cliManifest, sharedManifest] = await Promise.all([
@@ -108,6 +108,32 @@ async function buildRelease() {
   );
 }
 
+async function emptyDirectory(directory) {
+  let entries;
+  try {
+    entries = await readdir(directory);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return;
+    throw error;
+  }
+
+  await Promise.all(
+    entries.map((entry) =>
+      rm(join(directory, entry), {
+        force: true,
+        recursive: true,
+        maxRetries: 5,
+        retryDelay: 200,
+      }),
+    ),
+  );
+}
+
 async function readJson(filePath) {
-  return JSON.parse(await readFile(filePath, 'utf-8'));
+  const contents = await readFile(filePath, 'utf-8');
+  try {
+    return JSON.parse(contents);
+  } catch (error) {
+    throw new Error(`Failed to parse ${filePath}`, { cause: error });
+  }
 }
