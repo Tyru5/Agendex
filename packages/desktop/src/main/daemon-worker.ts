@@ -65,7 +65,8 @@ async function startWorker(
     if (consumeDaemonStopRequest(process.pid)) void requestWorkerShutdown();
   }, 100);
   stopRequestPoll.unref();
-  writePid({ launcher: 'desktop', parentPid: message.parentPid });
+  writePid({ launcher: 'desktop', parentPid: message.parentPid, ready: false });
+  postMessage({ type: 'booted', pid: process.pid });
 
   const parentWatchdog = setInterval(() => {
     try {
@@ -78,7 +79,11 @@ async function startWorker(
 
   try {
     await runWorker({
-      onReady: () => postMessage({ type: 'ready', pid: process.pid }),
+      onStatus: (status) => postMessage({ type: 'status', ...status }),
+      onReady: () => {
+        writePid({ launcher: 'desktop', parentPid: message.parentPid, ready: true });
+        postMessage({ type: 'ready', pid: process.pid });
+      },
       registerCredentialUpdateHandler: (handler) => {
         credentialUpdateHandler = handler;
       },

@@ -324,7 +324,15 @@ async function scanCustomPlanDirs(coveredPaths: Set<string>, into: Map<string, P
   }
 }
 
-export async function scan() {
+let activeScan: Promise<void> | null = null;
+let followUpScanRequested = false;
+
+export interface ScanOptions {
+  /** Passive polling can share an active traversal without extending the queue. */
+  queueIfBusy?: boolean;
+}
+
+async function scanOnce(): Promise<void> {
   const adapters = getActiveAdapters();
   const next = new Map<string, Plan>();
 
@@ -380,6 +388,34 @@ export async function scan() {
   console.log(
     `[agendex] indexed ${indexableCount} plans${hiddenSuffix} from ${adapters.length} adapters`,
   );
+}
+
+/**
+ * Refresh the process-local plan index without allowing periodic polling,
+ * watcher recovery, and API-triggered refreshes to traverse the same tree at
+ * the same time. A request arriving during traversal queues one more pass so
+ * route-triggered changes are visible before every waiting caller returns.
+ */
+export function scan(options: ScanOptions = {}): Promise<void> {
+  if (activeScan) {
+    if (options.queueIfBusy !== false) followUpScanRequested = true;
+    return activeScan;
+  }
+
+  const drainScans = async (): Promise<void> => {
+    do {
+      followUpScanRequested = false;
+      await scanOnce();
+    } while (followUpScanRequested);
+  };
+  const pending = drainScans().finally(() => {
+    if (activeScan === pending) {
+      activeScan = null;
+      followUpScanRequested = false;
+    }
+  });
+  activeScan = pending;
+  return pending;
 }
 
 export function getAll(): Plan[] {

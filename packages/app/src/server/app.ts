@@ -86,13 +86,17 @@ export function buildAgendexApp(options: BuildAgendexAppOptions): BuiltAgendexAp
 
       // Fallback polling for environments where fs.watch is unreliable (WSL, network mounts)
       let lastFingerprint = buildFingerprint();
-      setInterval(async () => {
-        await scan();
-        const fp = buildFingerprint();
-        if (fp !== lastFingerprint) {
-          lastFingerprint = fp;
-          broadcast('plan:updated', getAll());
-        }
+      setInterval(() => {
+        void (async () => {
+          await scan({ queueIfBusy: false });
+          const fp = buildFingerprint();
+          if (fp !== lastFingerprint) {
+            lastFingerprint = fp;
+            broadcast('plan:updated', getAll());
+          }
+        })().catch((error) => {
+          console.error('[agendex] fallback plan scan failed:', error);
+        });
       }, 60_000);
     });
 

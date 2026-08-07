@@ -26,7 +26,7 @@ export const YEARLY_PRICE = 69;
 export const SETTINGS_TABS = [
   { id: 'account', label: 'Account', enabled: true },
   { id: 'team', label: 'Team', enabled: true },
-  { id: 'runtime', label: 'Runtime', enabled: true },
+  { id: 'runtime', label: 'Plan folders', enabled: true },
   { id: 'updates', label: 'Updates', enabled: true },
 ] as const;
 

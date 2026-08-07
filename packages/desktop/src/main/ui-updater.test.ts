@@ -280,6 +280,7 @@ test('keeps a valid activation when the feed drops to or below shipped', async (
   expect(store.servedRevision()).toBe(active);
 });
 
+// An upgraded shell must immediately stop serving a downloaded UI that its new floor rejects.
 test('an app update that outranks the active bundle ends the prompt', async () => {
   promptAnswer = true;
   const updater = makeUpdater();
@@ -312,7 +313,7 @@ test('an app update that outranks the active bundle ends the prompt', async () =
 
   expect(upgraded.getState().status).toBe('no-update');
   expect(prompts).toBe(promptsBefore);
-  expect(reloads).toBe(1);
+  expect(reloads).toBe(2);
   expect(store.resolveActiveDir()).toBe(shippedDir);
   // The dead activation is cleared, so Settings stops naming a revision that is
   // not on screen.

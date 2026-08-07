@@ -72,6 +72,14 @@ interface WindowsEnvSetResult extends WindowsEnvStatus {
   willRelaunch: boolean;
 }
 
+type DesktopDaemonState =
+  | { status: 'idle' }
+  | { status: 'starting'; message?: string }
+  | { status: 'indexing'; message?: string }
+  | { status: 'ready' }
+  | { status: 'stopping' }
+  | { status: 'error'; message: string };
+
 // Forward update state from the main process to the renderer as a DOM event.
 // contextIsolation prevents passing callbacks through contextBridge, so we
 // dispatch a CustomEvent on the shared window object that the renderer can
@@ -82,6 +90,10 @@ ipcRenderer.on('agendex:update:state', (_event, state: UpdateState) => {
 
 ipcRenderer.on('agendex:ui-update:state', (_event, state: UiUpdateState) => {
   window.dispatchEvent(new CustomEvent('agendex:ui-update:state', { detail: state }));
+});
+
+ipcRenderer.on('agendex:daemon-state', (_event, state: DesktopDaemonState) => {
+  window.dispatchEvent(new CustomEvent('agendex:daemon-state', { detail: state }));
 });
 
 function emitPageZoom(factor = webFrame.getZoomFactor()) {
@@ -224,6 +236,7 @@ const agendexDesktop = {
   },
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('agendex:get-app-version'),
   getBuildInfo: (): Promise<DesktopBuildInfo> => ipcRenderer.invoke('agendex:get-build-info'),
+  getDaemonState: (): Promise<DesktopDaemonState> => ipcRenderer.invoke('agendex:daemon:get-state'),
   ...(process.platform === 'win32'
     ? {
         getWindowsEnv: (): Promise<WindowsEnvStatus | null> =>

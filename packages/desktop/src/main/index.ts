@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startNodeServer, type RunningNodeServer } from '@agendex/app/server';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from 'electron';
 import { autoUpdater } from 'electron-updater';
@@ -34,6 +33,7 @@ import { installDesktopProtocolLifecycle } from './desktop-protocol-lifecycle.ts
 import { stopDesktopServices } from './desktop-shutdown.ts';
 import { loadWithRetry } from './window-loader.ts';
 import { DesktopDaemonManager } from './desktop-daemon-manager.ts';
+import { DesktopBackendManager, type DesktopBackendConnection } from './desktop-backend-manager.ts';
 import { getUiFeedUrl, isUiUpdateDisabled } from './ui-bundle/config.ts';
 import { getUiBundlePublicKey, hasUiBundlePublicKey } from './ui-bundle/keys.ts';
 import { createUiBundleStore } from './ui-bundle/store.ts';
@@ -64,7 +64,7 @@ const DEV_SERVER_PORT = 4890;
 const DEV_RENDERER_URL = 'http://app.agendex.localhost:5174/dashboard';
 
 let mainWindow: BrowserWindow | null = null;
-let server: RunningNodeServer | null = null;
+let backendConnection: DesktopBackendConnection | null = null;
 let localApiToken = '';
 let rendererTargetUrl = '';
 let backendBoot: Promise<void> | null = null;
@@ -104,6 +104,10 @@ function resolveShippedClientDistDir(): string {
   return join(__dirname, '../../../ee/dist');
 }
 
+function resolveBackendClientDistDir(): string {
+  return is.dev ? resolveShippedClientDistDir() : uiBundleStore.resolveActiveDir();
+}
+
 const uiBundleRootDir = join(app.getPath('userData'), 'ui');
 
 const uiBundleStore = createUiBundleStore({
@@ -129,7 +133,9 @@ function createWindow(targetUrl: string): void {
 }
 
 async function ensureBackend() {
-  if (server) return;
+  const clientDistDir = resolveBackendClientDistDir();
+  desktopBackend.setClientDistDir(clientDistDir);
+  if (backendConnection) return;
   if (backendBoot) {
     await backendBoot;
     return;
@@ -140,12 +146,11 @@ async function ensureBackend() {
       // Renderer HMR: API on the fixed port the EE client's dev proxy + WS expect,
       // window points at the EE Vite dev server. Dev never serves a downloaded
       // bundle — the Vite dev server is the renderer.
-      server = await startNodeServer({
+      backendConnection = await desktopBackend.start({
         port: DEV_SERVER_PORT,
-        clientDistDir: resolveShippedClientDistDir(),
+        clientDistDir,
+        hostname: '127.0.0.1',
       });
-      localApiToken = server.token;
-      rendererTargetUrl = process.env.AGENDEX_RENDERER_URL ?? DEV_RENDERER_URL;
     } else {
       // Prod: ephemeral port on `localhost` (a cloud-trusted origin so better-auth
       // CORS accepts the desktop), client + local API served from the same origin.
@@ -153,14 +158,13 @@ async function ensureBackend() {
       // The client directory is resolved per request, so activating a downloaded
       // UI bundle takes effect on the next page load without restarting the
       // server or changing the origin.
-      server = await startNodeServer({
+      backendConnection = await desktopBackend.start({
         port: 0,
-        clientDistDir: () => uiBundleStore.resolveActiveDir(),
+        clientDistDir,
         hostname: 'localhost',
       });
-      localApiToken = server.token;
-      rendererTargetUrl = `http://localhost:${server.port}/dashboard`;
     }
+    applyBackendConnection(backendConnection);
   })();
 
   try {
@@ -168,6 +172,14 @@ async function ensureBackend() {
   } finally {
     backendBoot = null;
   }
+}
+
+function applyBackendConnection(connection: DesktopBackendConnection): void {
+  backendConnection = connection;
+  localApiToken = connection.token;
+  rendererTargetUrl = is.dev
+    ? (process.env.AGENDEX_RENDERER_URL ?? DEV_RENDERER_URL)
+    : `http://localhost:${connection.port}/dashboard`;
 }
 
 function showMainWindow() {
@@ -186,14 +198,36 @@ async function startBackendAndWindow() {
 }
 
 function reloadMainWindow() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+  // Keep rollback/quarantine decisions authoritative even while macOS has no window.
+  desktopBackend.setClientDistDir(resolveBackendClientDistDir());
+  if (!backendConnection || !mainWindow || mainWindow.isDestroyed()) return;
   loadWithRetry(mainWindow, rendererTargetUrl);
 }
+
+const desktopBackend = new DesktopBackendManager({
+  forkWorker: utilityProcess.fork,
+  getWorkerEnv: () => mergeWorkerEnv(process.env, windowsRuntimeEnvPatch),
+  log: logDesktop,
+  onUnexpectedExit: (error) => {
+    backendConnection = null;
+    localApiToken = '';
+    desktopBackend.setClientDistDir(resolveBackendClientDistDir());
+    logDesktop('Local API worker exited', error);
+  },
+  onConnectionRestored: (connection) => {
+    if (shutdownPromise) return;
+    applyBackendConnection(connection);
+    reloadMainWindow();
+  },
+});
 
 const desktopDaemon = new DesktopDaemonManager({
   isDev: is.dev,
   forkWorker: utilityProcess.fork,
   getWorkerEnv: () => mergeWorkerEnv(process.env, windowsRuntimeEnvPatch),
+  onStateChange: (state) => {
+    mainWindow?.webContents.send('agendex:daemon-state', state);
+  },
   rotateCloudToken: (previousToken, token, accountId) => {
     const current = loadCloudCreds();
     if (!current) return null;
@@ -254,6 +288,7 @@ ipcMain.handle('agendex:update:install', () => desktopUpdater.quitAndInstall());
 ipcMain.handle('agendex:update:get-state', () => desktopUpdater.getState());
 ipcMain.handle('agendex:get-app-version', () => app.getVersion());
 ipcMain.handle('agendex:get-build-info', () => desktopBuildInfo);
+ipcMain.handle('agendex:daemon:get-state', () => desktopDaemon.getState());
 
 const desktopUpdater = createDesktopUpdater({
   // electron-updater is CJS-only and ships no `default` export; import the
@@ -427,9 +462,8 @@ async function syncDaemonSession(creds: CloudCreds): Promise<void> {
 async function shutdownDesktopServices(): Promise<void> {
   if (shutdownPromise) return shutdownPromise;
   const window = mainWindow;
-  const runningServer = server;
   mainWindow = null;
-  server = null;
+  backendConnection = null;
   let resolveShutdown: (() => void) | undefined;
   shutdownPromise = new Promise<void>((resolve) => {
     resolveShutdown = resolve;
@@ -437,7 +471,7 @@ async function shutdownDesktopServices(): Promise<void> {
   void stopDesktopServices({
     window,
     stopDaemon: () => desktopDaemon.stop(),
-    ...(runningServer && { closeServer: () => runningServer.close() }),
+    closeServer: () => desktopBackend.stop(),
   }).then(resolveShutdown, resolveShutdown);
   return shutdownPromise;
 }

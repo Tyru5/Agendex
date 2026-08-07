@@ -72,6 +72,14 @@ export interface WindowsEnvSetResult extends WindowsEnvStatus {
   willRelaunch: boolean;
 }
 
+export type DesktopDaemonState =
+  | { status: 'idle' }
+  | { status: 'starting'; message?: string }
+  | { status: 'indexing'; message?: string }
+  | { status: 'ready' }
+  | { status: 'stopping' }
+  | { status: 'error'; message: string };
+
 /**
  * Desktop (Electron) integration bridge.
  *
@@ -98,6 +106,7 @@ export interface AgendexDesktopBridge {
   getUpdateState: () => Promise<UpdateState>;
   getAppVersion: () => Promise<string>;
   getBuildInfo: () => Promise<DesktopBuildInfo>;
+  getDaemonState?: () => Promise<DesktopDaemonState>;
   getPageZoomFactor?: () => number;
   resetPageZoom?: () => void;
   // UI-bundle updates. Optional: a shell older than this feature has no such
@@ -247,6 +256,32 @@ export async function desktopBridgeAuthFetch(
 
 export function getDesktopBridgeIdentity(): AgendexDesktopBridge | undefined {
   return getBridge();
+}
+
+/** Dispatched by the desktop preload when the bundled sync service changes state. */
+export const DESKTOP_DAEMON_STATE_EVENT = 'agendex:daemon-state';
+
+export async function getDesktopDaemonState(): Promise<DesktopDaemonState | null> {
+  const bridge = getBridge();
+  if (!bridge?.getDaemonState) return null;
+  try {
+    return await bridge.getDaemonState();
+  } catch (err) {
+    console.error('[agendex-desktop] failed to read daemon state', err);
+    return null;
+  }
+}
+
+export function subscribeDesktopDaemonState(
+  listener: (state: DesktopDaemonState) => void,
+): () => void {
+  if (typeof window === 'undefined' || !isDesktop()) return () => {};
+  const handler = (event: Event) => {
+    const state = (event as CustomEvent<DesktopDaemonState>).detail;
+    if (state && typeof state.status === 'string') listener(state);
+  };
+  window.addEventListener(DESKTOP_DAEMON_STATE_EVENT, handler);
+  return () => window.removeEventListener(DESKTOP_DAEMON_STATE_EVENT, handler);
 }
 
 export async function getDesktopWindowsEnv(): Promise<WindowsEnvStatus | null> {

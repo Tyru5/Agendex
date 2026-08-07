@@ -1,9 +1,9 @@
 // Quit orchestration for the desktop app.
 //
-// Quitting has to stop the in-process backend and the sync daemon before
-// Electron tears the runtime down, but none of that cleanup may stand between
-// the user and an exit: a quit that stalls shows up as a "not responding" app
-// the user has to force-kill.
+// Quitting has to stop the backend and sync utility processes before Electron
+// tears the runtime down, but none of that cleanup may stand between the user
+// and an exit: a quit that stalls shows up as a "not responding" app the user
+// has to force-kill.
 
 const DEFAULT_FORCE_EXIT_TIMEOUT_MS = 5_000;
 

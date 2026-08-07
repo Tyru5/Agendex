@@ -23,6 +23,8 @@ export interface StartNodeServerOptions {
 export interface RunningNodeServer {
   port: number;
   token: string;
+  /** Resolves after configuration, the initial plan scan, and watcher setup. */
+  ready: Promise<void>;
   close: () => Promise<void>;
 }
 
@@ -168,25 +170,32 @@ export function startNodeServer(options: StartNodeServerOptions): Promise<Runnin
 
   return new Promise<RunningNodeServer>((resolve, reject) => {
     let server: ServerType;
+    let closePromise: Promise<void> | null = null;
+    const close = (): Promise<void> => {
+      if (closePromise) return closePromise;
+      closePromise = new Promise<void>((res) => {
+        stopWatchingForShutdown();
+        server.close(() => res());
+      });
+      return closePromise;
+    };
     try {
       server = serve({ fetch: app.fetch, port, hostname }, (info) => {
-        void ready
-          .then(() => {
-            resolve({
-              port: info.port,
-              token,
-              close: () =>
-                new Promise<void>((res) => {
-                  stopWatchingForShutdown();
-                  server.close(() => res());
-                }),
-            });
-          })
-          .catch((err) => {
-            server.close(() => {
-              reject(err instanceof Error ? err : new Error(String(err)));
-            });
-          });
+        // Listening and indexing are deliberately separate lifecycle phases.
+        // The desktop can render immediately while a slow WSL/UNC scan runs in
+        // its utility process; API routes already await `ready` before serving.
+        // A rejected index can never recover in-place; release the socket so
+        // the desktop manager can replace this worker instead of serving 500s.
+        const indexed = ready.catch((error) => {
+          void close().catch(() => undefined);
+          throw error;
+        });
+        resolve({
+          port: info.port,
+          token,
+          ready: indexed,
+          close,
+        });
       });
     } catch (err) {
       reject(err instanceof Error ? err : new Error(String(err)));

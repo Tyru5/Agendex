@@ -16,8 +16,8 @@ files:
   # symlink to @agendex/app, which would otherwise pull in its built client).
   - '!node_modules/**/*'
 
-# The built EE web client is served by the in-process Node server at runtime via
-# process.resourcesPath/client (see src/main/index.ts resolveClientDistDir).
+# The built EE web client is served by the backend utility process at runtime
+# via process.resourcesPath/client (see src/main/index.ts resolveClientDistDir).
 extraResources:
   - from: ../ee/dist
     to: client

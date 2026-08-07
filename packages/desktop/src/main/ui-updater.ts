@@ -1,9 +1,9 @@
 // Remote UI bundle updates for the packaged desktop app.
 //
-// The renderer is served by the in-process Node server from a directory on
-// disk, so shipping a UI change does not require a new Electron build: publish
-// a signed bundle, and installed shells download it into userData and serve
-// that instead. `resources/client` stays as the immutable offline floor.
+// The renderer is served by the Node backend utility process from a directory
+// on disk, so shipping a UI change does not require a new Electron build:
+// publish a signed bundle, and installed shells download it into userData and
+// serve that instead. `resources/client` stays as the immutable offline floor.
 //
 // Deliberately mirrors createDesktopUpdater's dependency-injected shape so the
 // scheduling and prompt logic is testable without Electron. One difference:
@@ -174,7 +174,9 @@ export function createUiUpdater(options: UiUpdaterOptions): UiUpdater {
       // after an app update). A still-valid newer activation must survive a
       // rolling feed that drops to/below shipped — that is not a kill switch.
       if (store.servedRevision() === shipped) {
+        const wasOverridden = store.readState().revision !== null;
         store.revertToShipped();
+        if (wasOverridden) applyReload();
       }
       staged = null;
       setState({ status: 'no-update' });
