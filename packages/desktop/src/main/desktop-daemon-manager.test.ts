@@ -289,6 +289,47 @@ test('replaces an external daemon that stops after becoming ready', async () => 
   await manager.stop();
 });
 
+// A recycled PID that is still alive must not keep the desktop stuck on stale ready state.
+test('replaces an external daemon when its PID is recycled by a non-daemon', async () => {
+  useTempConfigDir();
+  const configDir = process.env.AGENDEX_CONFIG_DIR as string;
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(
+    join(configDir, 'daemon.pid'),
+    JSON.stringify({
+      pid: process.pid,
+      launcher: 'cli',
+      bootId: getDaemonBootId(),
+      ready: true,
+    }),
+  );
+  let isDaemon = true;
+  let forks = 0;
+  const child = new FakeUtilityProcess();
+  const manager = new DesktopDaemonManager({
+    isDev: false,
+    forkWorker: (() => {
+      forks += 1;
+      queueMicrotask(() => child.emit('spawn'));
+      return child;
+    }) as never,
+    isProcessRunning: () => true,
+    isDaemonProcess: (pid) => pid === process.pid && isDaemon,
+    timings: testTimings(),
+    rotateCloudToken: () => null,
+    onAuthExpired: () => undefined,
+    log: () => undefined,
+  });
+
+  expect(await manager.ensureRunning(credentials())).toBe('already-running');
+  expect(manager.getState()).toEqual({ status: 'ready' });
+  isDaemon = false;
+  await waitFor(() => forks === 1 && manager.getState().status === 'ready');
+
+  expect(manager.getState()).toEqual({ status: 'ready' });
+  await manager.stop();
+});
+
 test('starts a worker when a stale cross-host PID was reused by a live process', async () => {
   useTempConfigDir();
   mkdirSync(process.env.AGENDEX_CONFIG_DIR as string, { recursive: true });

@@ -532,11 +532,9 @@ export class DesktopDaemonManager {
         this.scheduleRestart();
         return;
       }
-      const sameValidatedProcess =
-        current.pid === this.externalDaemonPid &&
-        this.pidInfoIsCurrent(current) &&
-        this.processIsRunning(current.pid);
-      if (!sameValidatedProcess && !this.pidInfoMatchesRunningDaemon(current)) {
+      // Always require daemon identity — a recycled PID can still look "current"
+      // and alive without belonging to an Agendex daemon.
+      if (!this.pidInfoMatchesRunningDaemon(current)) {
         this.setState({ status: 'error', message: 'External sync service stopped' });
         this.externalDaemonPid = null;
         this.scheduleRestart();
