@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.2.1
+
+### Patch Changes
+
+- 4d48347: Add Windows desktop native vs WSL plan environment selection (AGENDEX_HOME) and keep adapter home resolution cycle-free.
+
 ## 5.2.0
 
 ### Minor Changes
