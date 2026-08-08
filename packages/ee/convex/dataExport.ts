@@ -12,6 +12,7 @@ import {
 import { authComponent } from './auth';
 import {
   DATA_EXPORT_TTL_MS,
+  isExportDownloadAvailable,
   redactShareLink,
   type ShareLinkForExport,
 } from './dataExportRedaction';
@@ -98,7 +99,14 @@ export const getMyDataExport = query({
     if (!latest) return null;
 
     let downloadUrl: string | null = null;
-    if (latest.status === 'ready' && latest.storageId) {
+    if (
+      isExportDownloadAvailable({
+        status: latest.status,
+        storageId: latest.storageId,
+        expiresAt: latest.expiresAt,
+      }) &&
+      latest.storageId
+    ) {
       downloadUrl = (await ctx.storage.getUrl(latest.storageId)) ?? null;
     }
 
@@ -401,6 +409,7 @@ export const collectPlanBundle = internalQuery({
       .withIndex('by_plan', (q) => q.eq('planId', planId))
       .collect();
 
+    const attachmentClaims = [];
     const attachmentBlobs: Array<{
       storageId: Id<'_storage'>;
       fileName: string | null;
@@ -413,6 +422,12 @@ export const collectPlanBundle = internalQuery({
     }> = [];
 
     for (const comment of comments) {
+      const claims = await ctx.db
+        .query('commentAttachmentClaims')
+        .withIndex('by_comment', (q) => q.eq('commentId', comment._id))
+        .collect();
+      attachmentClaims.push(...claims);
+
       for (const attachment of comment.attachments ?? []) {
         attachmentBlobs.push({
           storageId: attachment.storageId,
@@ -432,6 +447,7 @@ export const collectPlanBundle = internalQuery({
       versions,
       annotations,
       comments,
+      attachmentClaims,
       shareLinks,
       planLinks,
       writebacks,
@@ -459,6 +475,7 @@ export const collectAuthoredElsewhereComments = internalQuery({
       elsewhere.push(comment);
     }
 
+    const attachmentClaims = [];
     const attachmentBlobs: Array<{
       storageId: Id<'_storage'>;
       fileName: string | null;
@@ -471,6 +488,12 @@ export const collectAuthoredElsewhereComments = internalQuery({
     }> = [];
 
     for (const comment of elsewhere) {
+      const claims = await ctx.db
+        .query('commentAttachmentClaims')
+        .withIndex('by_comment', (q) => q.eq('commentId', comment._id))
+        .collect();
+      attachmentClaims.push(...claims);
+
       for (const attachment of comment.attachments ?? []) {
         attachmentBlobs.push({
           storageId: attachment.storageId,
@@ -485,9 +508,11 @@ export const collectAuthoredElsewhereComments = internalQuery({
       }
     }
 
-    return { comments: elsewhere, attachmentBlobs };
+    return { comments: elsewhere, attachmentClaims, attachmentBlobs };
   },
 });
+
+const EXPIRED_EXPORT_DELETE_BATCH = 100;
 
 export const deleteExpiredDataExports = internalMutation({
   args: {},
@@ -497,7 +522,7 @@ export const deleteExpiredDataExports = internalMutation({
     const expired = await ctx.db
       .query('dataExports')
       .withIndex('by_expiresAt', (q) => q.lt('expiresAt', now))
-      .take(100);
+      .take(EXPIRED_EXPORT_DELETE_BATCH);
 
     let deleted = 0;
     for (const job of expired) {
@@ -511,6 +536,12 @@ export const deleteExpiredDataExports = internalMutation({
       await ctx.db.delete(job._id);
       deleted += 1;
     }
+
+    // Continue until the expired set is drained (batch size is a mutation budget).
+    if (deleted === EXPIRED_EXPORT_DELETE_BATCH) {
+      await ctx.scheduler.runAfter(0, internal.dataExport.deleteExpiredDataExports, {});
+    }
+
     return { deleted };
   },
 });

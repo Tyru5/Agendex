@@ -5,6 +5,7 @@ import {
   buildExportManifest,
   EXPORT_INVENTORY_TABLES,
   EXPORT_MANIFEST_VERSION,
+  isExportDownloadAvailable,
   redactConnectedAccount,
   redactShareLink,
 } from './dataExportRedaction';
@@ -69,6 +70,42 @@ test('redactConnectedAccount strips OAuth secrets and passwords', () => {
   });
 });
 
+test('isExportDownloadAvailable respects ready status and expiresAt', () => {
+  const now = 1_000_000;
+  expect(
+    isExportDownloadAvailable({
+      status: 'ready',
+      storageId: 'storage1',
+      expiresAt: now + 1,
+      now,
+    }),
+  ).toBe(true);
+  expect(
+    isExportDownloadAvailable({
+      status: 'ready',
+      storageId: 'storage1',
+      expiresAt: now,
+      now,
+    }),
+  ).toBe(false);
+  expect(
+    isExportDownloadAvailable({
+      status: 'building',
+      storageId: 'storage1',
+      expiresAt: now + 1,
+      now,
+    }),
+  ).toBe(false);
+  expect(
+    isExportDownloadAvailable({
+      status: 'ready',
+      storageId: null,
+      expiresAt: now + 1,
+      now,
+    }),
+  ).toBe(false);
+});
+
 test('buildExportManifest includes inventory and redaction notes', () => {
   const manifest = buildExportManifest({
     ownerId: 'user1',
@@ -118,4 +155,7 @@ test('export inventory covers tables touched by purgeUserData and planDeletion',
     expect(EXPORT_INVENTORY_TABLES).toContain(table);
     expect(combined.includes(`'${table}'`) || combined.includes(`"${table}"`)).toBe(true);
   }
+
+  const exportSource = readFileSync(join(import.meta.dir, 'dataExport.ts'), 'utf8');
+  expect(exportSource).toContain("query('commentAttachmentClaims')");
 });

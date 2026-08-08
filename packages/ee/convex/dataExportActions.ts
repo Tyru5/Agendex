@@ -166,6 +166,10 @@ export const buildDataExport = internalAction({
           );
           zip.file(`${planDir}/comments.json`, JSON.stringify(bundle.comments, null, 2) + '\n');
           zip.file(
+            `${planDir}/attachment-claims.json`,
+            JSON.stringify(bundle.attachmentClaims, null, 2) + '\n',
+          );
+          zip.file(
             `${planDir}/share-links.json`,
             JSON.stringify(bundle.shareLinks, null, 2) + '\n',
           );
@@ -184,7 +188,14 @@ export const buildDataExport = internalAction({
       });
       zip.file(
         `${root}/comments-authored-elsewhere.json`,
-        JSON.stringify(elsewhere.comments, null, 2) + '\n',
+        JSON.stringify(
+          {
+            comments: elsewhere.comments,
+            attachmentClaims: elsewhere.attachmentClaims,
+          },
+          null,
+          2,
+        ) + '\n',
       );
       attachmentBlobs.push(...elsewhere.attachmentBlobs);
 
