@@ -380,4 +380,24 @@ export default defineSchema({
     .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
     .index('by_owner_device_status', ['ownerId', 'deviceId', 'status'])
     .index('by_plan', ['planId']),
+
+  dataExports: defineTable({
+    ownerId: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('building'),
+      v.literal('ready'),
+      v.literal('failed'),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    expiresAt: v.number(),
+    storageId: v.optional(v.id('_storage')),
+    error: v.optional(v.string()),
+    byteSize: v.optional(v.number()),
+    fileName: v.optional(v.string()),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_status', ['ownerId', 'status'])
+    .index('by_expiresAt', ['expiresAt']),
 });
