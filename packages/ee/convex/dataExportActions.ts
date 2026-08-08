@@ -5,10 +5,7 @@ import JSZip from 'jszip';
 import { components, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { internalAction } from './_generated/server';
-import {
-  buildExportManifest,
-  redactConnectedAccount,
-} from './dataExportRedaction';
+import { buildExportManifest, redactConnectedAccount } from './dataExportRedaction';
 
 const PLAN_PAGE_SIZE = 20;
 
@@ -80,9 +77,7 @@ export const buildDataExport = internalAction({
       const accountRows: unknown[] = accountsPage.page;
       const connectedAccounts = accountRows.map((account) =>
         redactConnectedAccount(
-          account && typeof account === 'object'
-            ? (account as Record<string, unknown>)
-            : {},
+          account && typeof account === 'object' ? (account as Record<string, unknown>) : {},
         ),
       );
 
@@ -175,10 +170,7 @@ export const buildDataExport = internalAction({
             JSON.stringify(bundle.shareLinks, null, 2) + '\n',
           );
           zip.file(`${planDir}/plan-links.json`, JSON.stringify(bundle.planLinks, null, 2) + '\n');
-          zip.file(
-            `${planDir}/writebacks.json`,
-            JSON.stringify(bundle.writebacks, null, 2) + '\n',
-          );
+          zip.file(`${planDir}/writebacks.json`, JSON.stringify(bundle.writebacks, null, 2) + '\n');
           zip.file(`${planDir}/plan-tags.json`, JSON.stringify(bundle.planTags, null, 2) + '\n');
           attachmentBlobs.push(...bundle.attachmentBlobs);
         }
