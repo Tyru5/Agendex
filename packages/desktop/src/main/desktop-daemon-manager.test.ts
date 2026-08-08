@@ -21,6 +21,7 @@ class FakeUtilityProcess extends EventEmitter {
 
   constructor(
     private readonly behavior: {
+      bootOnStart?: boolean;
       readyOnStart?: boolean;
       exitOnShutdown?: boolean;
       exitOnKill?: boolean;
@@ -37,8 +38,13 @@ class FakeUtilityProcess extends EventEmitter {
 
   postMessage(message: unknown): void {
     this.messages.push(message);
-    if ((message as { type?: string }).type === 'start' && this.behavior.readyOnStart !== false) {
-      queueMicrotask(() => this.emit('message', { type: 'ready', pid: this.pid }));
+    if ((message as { type?: string }).type === 'start') {
+      if (this.behavior.bootOnStart !== false) {
+        queueMicrotask(() => this.emit('message', { type: 'booted', pid: this.pid }));
+      }
+      if (this.behavior.readyOnStart !== false) {
+        queueMicrotask(() => this.emit('message', { type: 'ready', pid: this.pid }));
+      }
     }
     if (
       (message as { type?: string }).type === 'shutdown' &&
@@ -67,7 +73,14 @@ function testTimings() {
     orphanGraceMs: 5,
     contentionWaitMs: 5,
     restartDelayMs: 5,
+    externalStatePollMs: 2,
   };
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs = 250): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) await Bun.sleep(1);
+  expect(predicate()).toBe(true);
 }
 
 function useTempConfigDir(name = 'agendex daemon manager ') {
@@ -146,12 +159,20 @@ test('starts one utility worker without putting credentials in its environment',
   );
 });
 
-test('reuses a live external daemon and never forks or stops it', async () => {
+// Desktop users relying on an existing CLI daemon should see indexing become ready without restarting.
+test('tracks readiness for a live external daemon without taking ownership', async () => {
   useTempConfigDir();
-  mkdirSync(process.env.AGENDEX_CONFIG_DIR as string, { recursive: true });
+  const configDir = process.env.AGENDEX_CONFIG_DIR as string;
+  mkdirSync(configDir, { recursive: true });
+  const pidPath = join(configDir, 'daemon.pid');
   writeFileSync(
-    join(process.env.AGENDEX_CONFIG_DIR as string, 'daemon.pid'),
-    JSON.stringify({ pid: process.pid, launcher: 'cli', bootId: getDaemonBootId() }),
+    pidPath,
+    JSON.stringify({
+      pid: process.pid,
+      launcher: 'cli',
+      bootId: getDaemonBootId(),
+      ready: false,
+    }),
   );
   let forks = 0;
   const manager = new DesktopDaemonManager({
@@ -161,14 +182,152 @@ test('reuses a live external daemon and never forks or stops it', async () => {
       return new FakeUtilityProcess();
     }) as never,
     isDaemonProcess: () => true,
+    timings: testTimings(),
     rotateCloudToken: () => null,
     onAuthExpired: () => undefined,
     log: () => undefined,
   });
 
   expect(await manager.ensureRunning(credentials())).toBe('already-running');
+  expect(manager.getState()).toEqual({
+    status: 'indexing',
+    message: 'Another Agendex process is indexing plans',
+  });
+  writeFileSync(
+    pidPath,
+    JSON.stringify({
+      pid: process.pid,
+      launcher: 'cli',
+      bootId: getDaemonBootId(),
+      ready: true,
+    }),
+  );
+  await waitFor(() => manager.getState().status === 'ready');
   await manager.stop();
   expect(forks).toBe(0);
+});
+
+// If an external CLI dies while indexing, the signed-in desktop should take over synchronization.
+test('replaces an external daemon that stops before becoming ready', async () => {
+  useTempConfigDir();
+  const configDir = process.env.AGENDEX_CONFIG_DIR as string;
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(
+    join(configDir, 'daemon.pid'),
+    JSON.stringify({
+      pid: process.pid,
+      launcher: 'cli',
+      bootId: getDaemonBootId(),
+      ready: false,
+    }),
+  );
+  let externalAlive = true;
+  let forks = 0;
+  const child = new FakeUtilityProcess();
+  const manager = new DesktopDaemonManager({
+    isDev: false,
+    forkWorker: (() => {
+      forks += 1;
+      queueMicrotask(() => child.emit('spawn'));
+      return child;
+    }) as never,
+    isProcessRunning: (pid) => (pid === process.pid ? externalAlive : true),
+    isDaemonProcess: (pid) => pid === process.pid && externalAlive,
+    timings: testTimings(),
+    rotateCloudToken: () => null,
+    onAuthExpired: () => undefined,
+    log: () => undefined,
+  });
+
+  expect(await manager.ensureRunning(credentials())).toBe('already-running');
+  externalAlive = false;
+  await waitFor(() => manager.getState().status === 'ready');
+
+  expect(forks).toBe(1);
+  expect(manager.getState()).toEqual({ status: 'ready' });
+  await manager.stop();
+});
+
+// A CLI daemon that crashes after readiness must not leave the desktop reporting stale health.
+test('replaces an external daemon that stops after becoming ready', async () => {
+  useTempConfigDir();
+  const configDir = process.env.AGENDEX_CONFIG_DIR as string;
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(
+    join(configDir, 'daemon.pid'),
+    JSON.stringify({
+      pid: process.pid,
+      launcher: 'cli',
+      bootId: getDaemonBootId(),
+      ready: true,
+    }),
+  );
+  let externalAlive = true;
+  let forks = 0;
+  const child = new FakeUtilityProcess();
+  const manager = new DesktopDaemonManager({
+    isDev: false,
+    forkWorker: (() => {
+      forks += 1;
+      queueMicrotask(() => child.emit('spawn'));
+      return child;
+    }) as never,
+    isProcessRunning: (pid) => (pid === process.pid ? externalAlive : true),
+    isDaemonProcess: (pid) => pid === process.pid && externalAlive,
+    timings: testTimings(),
+    rotateCloudToken: () => null,
+    onAuthExpired: () => undefined,
+    log: () => undefined,
+  });
+
+  expect(await manager.ensureRunning(credentials())).toBe('already-running');
+  expect(manager.getState()).toEqual({ status: 'ready' });
+  externalAlive = false;
+  await waitFor(() => forks === 1 && manager.getState().status === 'ready');
+
+  expect(manager.getState()).toEqual({ status: 'ready' });
+  await manager.stop();
+});
+
+// A recycled PID that is still alive must not keep the desktop stuck on stale ready state.
+test('replaces an external daemon when its PID is recycled by a non-daemon', async () => {
+  useTempConfigDir();
+  const configDir = process.env.AGENDEX_CONFIG_DIR as string;
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(
+    join(configDir, 'daemon.pid'),
+    JSON.stringify({
+      pid: process.pid,
+      launcher: 'cli',
+      bootId: getDaemonBootId(),
+      ready: true,
+    }),
+  );
+  let isDaemon = true;
+  let forks = 0;
+  const child = new FakeUtilityProcess();
+  const manager = new DesktopDaemonManager({
+    isDev: false,
+    forkWorker: (() => {
+      forks += 1;
+      queueMicrotask(() => child.emit('spawn'));
+      return child;
+    }) as never,
+    isProcessRunning: () => true,
+    isDaemonProcess: (pid) => pid === process.pid && isDaemon,
+    timings: testTimings(),
+    rotateCloudToken: () => null,
+    onAuthExpired: () => undefined,
+    log: () => undefined,
+  });
+
+  expect(await manager.ensureRunning(credentials())).toBe('already-running');
+  expect(manager.getState()).toEqual({ status: 'ready' });
+  isDaemon = false;
+  await waitFor(() => forks === 1 && manager.getState().status === 'ready');
+
+  expect(manager.getState()).toEqual({ status: 'ready' });
+  await manager.stop();
 });
 
 test('starts a worker when a stale cross-host PID was reused by a live process', async () => {
@@ -313,9 +472,10 @@ test('stop during orphan grace cancels startup before forking', async () => {
   expect(forks).toBe(0);
 });
 
-test('stop cancels an owned worker that has not reported ready', async () => {
+// Quitting during worker boot must not leave a hidden sync process behind.
+test('stop cancels an owned worker that has not acknowledged boot', async () => {
   useTempConfigDir();
-  const child = new FakeUtilityProcess({ readyOnStart: false });
+  const child = new FakeUtilityProcess({ bootOnStart: false, readyOnStart: false });
   const manager = new DesktopDaemonManager({
     isDev: false,
     forkWorker: (() => {
@@ -335,12 +495,13 @@ test('stop cancels an owned worker that has not reported ready', async () => {
 
   expect(child.killed).toBe(true);
   expect(Date.now() - startedAt < 500).toBe(true);
-  await expect(starting).rejects.toThrow('exited before startup');
+  await expect(starting).rejects.toThrow('Daemon startup was cancelled');
 });
 
-test('rejects when a worker exits before reporting ready', async () => {
+// A failed worker launch must surface immediately so the desktop can retry it.
+test('rejects when a worker exits before acknowledging boot', async () => {
   useTempConfigDir();
-  const child = new FakeUtilityProcess({ readyOnStart: false });
+  const child = new FakeUtilityProcess({ bootOnStart: false, readyOnStart: false });
   const manager = new DesktopDaemonManager({
     isDev: false,
     forkWorker: (() => {
@@ -368,9 +529,10 @@ test('rejects when a worker exits before reporting ready', async () => {
   await manager.stop();
 });
 
-test('kills and rejects a worker that never reports ready', async () => {
+// A wedged worker must be terminated instead of freezing desktop startup indefinitely.
+test('kills and rejects a worker that never acknowledges boot', async () => {
   useTempConfigDir();
-  const child = new FakeUtilityProcess({ readyOnStart: false });
+  const child = new FakeUtilityProcess({ bootOnStart: false, readyOnStart: false });
   const manager = new DesktopDaemonManager({
     isDev: false,
     forkWorker: (() => {
@@ -396,9 +558,45 @@ test('kills and rejects a worker that never reports ready', async () => {
   await manager.stop();
 });
 
-test('automatically retries a transient pre-ready worker failure', async () => {
+// WSL users with slow UNC scans must keep one healthy daemon past the boot deadline.
+test('does not apply the boot timeout to a slow initial plan scan', async () => {
   useTempConfigDir();
-  const children = [new FakeUtilityProcess({ readyOnStart: false }), new FakeUtilityProcess()];
+  const child = new FakeUtilityProcess({ readyOnStart: false });
+  const states: string[] = [];
+  const manager = new DesktopDaemonManager({
+    isDev: false,
+    forkWorker: (() => {
+      queueMicrotask(() => child.emit('spawn'));
+      return child;
+    }) as never,
+    timings: { ...testTimings(), startTimeoutMs: 5 },
+    rotateCloudToken: () => null,
+    onAuthExpired: () => undefined,
+    onStateChange: (state) => states.push(state.status),
+    log: () => undefined,
+  });
+
+  await expect(manager.ensureRunning(credentials())).resolves.toBe('started');
+  child.emit('message', {
+    type: 'status',
+    status: 'indexing',
+    message: 'Scanning plan folders',
+  });
+  await Bun.sleep(15);
+
+  expect(child.killed).toBe(false);
+  expect(manager.getState()).toEqual({ status: 'indexing', message: 'Scanning plan folders' });
+  expect(states).toContain('indexing');
+  await manager.stop();
+});
+
+// A transient utility-process launch failure should recover without user intervention.
+test('automatically retries a transient pre-boot worker failure', async () => {
+  useTempConfigDir();
+  const children = [
+    new FakeUtilityProcess({ bootOnStart: false, readyOnStart: false }),
+    new FakeUtilityProcess(),
+  ];
   let forks = 0;
   const manager = new DesktopDaemonManager({
     isDev: false,

@@ -14,6 +14,8 @@ export type DesktopDaemonParentMessage =
   | { type: 'shutdown' };
 
 export type DesktopDaemonWorkerMessage =
+  | { type: 'booted'; pid: number }
+  | { type: 'status'; status: 'indexing'; message?: string }
   | { type: 'ready'; pid: number }
   | { type: 'token-rotated'; previousToken: string; token: string; accountId?: string }
   | { type: 'auth-expired'; failedToken: string }
@@ -49,6 +51,13 @@ export function parseDesktopDaemonParentMessage(value: unknown): DesktopDaemonPa
 
 export function parseDesktopDaemonWorkerMessage(value: unknown): DesktopDaemonWorkerMessage | null {
   if (!isRecord(value) || typeof value.type !== 'string') return null;
+  if (value.type === 'booted' && typeof value.pid === 'number' && value.pid > 0) {
+    return { type: 'booted', pid: value.pid };
+  }
+  if (value.type === 'status' && value.status === 'indexing') {
+    const message = typeof value.message === 'string' ? value.message.trim() : '';
+    return { type: 'status', status: 'indexing', ...(message ? { message } : {}) };
+  }
   if (value.type === 'auth-expired' && typeof value.failedToken === 'string' && value.failedToken) {
     return { type: 'auth-expired', failedToken: value.failedToken };
   }

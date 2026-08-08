@@ -89,6 +89,7 @@ const RETRY_TICK_INTERVAL_MS = 1_000;
 const REMOTE_SHUTDOWN_TIMEOUT_MS = 2_000;
 
 export interface RunWorkerOptions {
+  onStatus?: (status: { status: 'indexing'; message?: string }) => void;
   onReady?: () => void;
   registerCredentialUpdateHandler?: (handler: () => void) => void;
 }
@@ -593,6 +594,12 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
   process.on('SIGINT', terminate);
   if (shutdownRequested) await gracefulShutdown();
 
+  options.onStatus?.({ status: 'indexing', message: 'Scanning plan folders' });
+  // Publish liveness before the first scan. WSL/UNC homes can take minutes to
+  // traverse, and cloud clients should distinguish that healthy indexing phase
+  // from a daemon that is actually offline.
+  await sendHeartbeat(await getSyncIpAddress(true));
+
   console.log(`[agendex] initial scan...`);
   await scan();
 
@@ -604,7 +611,6 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
   startWatching(onPlansFileChange);
   options.onReady?.();
 
-  await sendHeartbeat(await getSyncIpAddress(true));
   refreshSyncCacheScope();
 
   const plans = getAll();
@@ -664,7 +670,7 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
   if (SYNC_RESCAN_INTERVAL_MS > 0) {
     setInterval(() => {
       void (async () => {
-        await scan();
+        await scan({ queueIfBusy: false });
         await enqueueChangedPlans(getAll());
         await reconcileLivePlannotatorSessions(getAll());
       })().catch((err) => {
@@ -692,7 +698,7 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
     // drops them once the PID is gone) and publish their "ended" state.
     setInterval(() => {
       void (async () => {
-        await scan();
+        await scan({ queueIfBusy: false });
         await enqueueChangedPlans(getAll());
         await reconcileLivePlannotatorSessions(getAll());
       })().catch((err) => {
@@ -707,7 +713,7 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
         pollingLiveSessions = true;
         void (async () => {
           if (!getAll().some((plan) => isLivePlannotatorMetadata(plan.metadata))) return;
-          await scan();
+          await scan({ queueIfBusy: false });
           const refreshedLive = getAll().filter((plan) => isLivePlannotatorMetadata(plan.metadata));
           await enqueueChangedPlans(refreshedLive);
         })()

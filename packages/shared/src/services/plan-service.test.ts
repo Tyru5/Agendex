@@ -65,6 +65,145 @@ async function useTempHome(prefix: string): Promise<string> {
   return tempHome;
 }
 
+// Adding a plan source during a scan should be indexed before the mutating request returns.
+test('overlapping scan requests queue one serialized follow-up traversal', async () => {
+  const home = await useTempHome('agendex-serialized-scan-');
+  const plansDir = join(home, 'agent-plans');
+  const planPath = join(plansDir, 'first.md');
+  const addedPlanPath = join(plansDir, 'added.md');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(planPath, '# Plan', 'utf8');
+
+  const parsedPaths: string[] = [];
+  let releaseParse: (() => void) | undefined;
+  const parseGate = new Promise<void>((resolve) => {
+    releaseParse = resolve;
+  });
+  const adapter: AgentAdapter = {
+    agent: 'test',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath.endsWith('.md'),
+    parse: async (filePath) => {
+      parsedPaths.push(filePath);
+      if (filePath === planPath && parsedPaths.length === 1) await parseGate;
+      return [
+        {
+          id: hashPath(filePath),
+          agent: 'test',
+          title: 'Indexed plan',
+          content: '# Indexed plan\n\nImplement the complete change and verify it.',
+          filePath,
+          format: 'md',
+          createdAt: new Date(0),
+          updatedAt: new Date(0),
+          metadata: {},
+        },
+      ];
+    },
+    write: async () => false,
+  };
+  setActiveAdapters([adapter]);
+
+  const first = scan();
+  while (parsedPaths.length === 0) await Bun.sleep(1);
+  await writeFile(addedPlanPath, '# Added plan', 'utf8');
+  const second = scan();
+  expect(second).toBe(first);
+  releaseParse?.();
+  await Promise.all([first, second]);
+
+  expect(parsedPaths.filter((filePath) => filePath === planPath)).toHaveLength(2);
+  expect(parsedPaths).toContain(addedPlanPath);
+  expect(getAll().map((plan) => plan.filePath)).toContain(addedPlanPath);
+});
+
+// Slow WSL safety polls must not keep extending a scan queue that can never drain.
+test('passive polling coalesces without queuing a follow-up traversal', async () => {
+  const home = await useTempHome('agendex-passive-scan-');
+  const plansDir = join(home, 'agent-plans');
+  const planPath = join(plansDir, 'plan.md');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(planPath, '# Plan', 'utf8');
+
+  let parseCalls = 0;
+  let releaseParse: (() => void) | undefined;
+  const parseGate = new Promise<void>((resolve) => {
+    releaseParse = resolve;
+  });
+  const adapter: AgentAdapter = {
+    agent: 'test',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath === planPath,
+    parse: async () => {
+      parseCalls += 1;
+      await parseGate;
+      return [];
+    },
+    write: async () => false,
+  };
+  setActiveAdapters([adapter]);
+
+  const first = scan();
+  while (parseCalls === 0) await Bun.sleep(1);
+  const passive = scan({ queueIfBusy: false });
+  releaseParse?.();
+  await Promise.all([first, passive]);
+
+  expect(parseCalls).toBe(1);
+});
+
+// A failed traversal must release queued callers and allow the next refresh to recover.
+test('scan queue clears after a traversal failure', async () => {
+  const home = await useTempHome('agendex-failed-scan-');
+  const plansDir = join(home, 'agent-plans');
+  const planPath = join(plansDir, 'plan.md');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(planPath, '# Plan', 'utf8');
+
+  let attempts = 0;
+  let releaseFailure: (() => void) | undefined;
+  const failureGate = new Promise<void>((resolve) => {
+    releaseFailure = resolve;
+  });
+  const adapter: AgentAdapter = {
+    agent: 'test',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath === planPath,
+    parse: async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        await failureGate;
+        throw new Error('scan failed');
+      }
+      return [];
+    },
+    write: async () => false,
+  };
+  setActiveAdapters([adapter]);
+
+  const first = scan();
+  while (attempts === 0) await Bun.sleep(1);
+  const queued = scan();
+  expect(queued).toBe(first);
+  const outcome = first.then(
+    () => null,
+    (error: unknown) => error,
+  );
+  releaseFailure?.();
+
+  const failure = await outcome;
+  expect(failure instanceof Error).toBe(true);
+  expect((failure as Error).message).toBe('scan failed');
+  await scan();
+  expect(attempts).toBe(2);
+});
+
 test('discovers documented project-local plan markers', async () => {
   const home = await useTempHome('agendex-project-markers-');
   const workspace = join(home, 'workspace');

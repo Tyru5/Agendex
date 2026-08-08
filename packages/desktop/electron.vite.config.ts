@@ -4,8 +4,9 @@ import { fileURLToPath } from 'node:url';
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 
-// The renderer is served by the app Vite server in dev and by the in-process
-// Node server in prod, so electron-vite only builds `main` and `preload` here.
+// The renderer is served by the app Vite server in dev and by the backend
+// utility process in prod, so electron-vite only builds main-side entries and
+// `preload` here.
 //
 // We intentionally do NOT use `externalizeDepsPlugin`: the backend lives in the
 // `@agendex/app`/`@agendex/shared` TypeScript workspace packages, which must be
@@ -27,6 +28,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(desktopDir, 'src/main/index.ts'),
+          'backend-worker': resolve(desktopDir, 'src/main/backend-worker.ts'),
           'daemon-worker': resolve(desktopDir, 'src/main/daemon-worker.ts'),
         },
         // `electron` + node built-ins stay external. `bufferutil` and

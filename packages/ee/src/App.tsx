@@ -103,6 +103,7 @@ import { useUnseenPlanToasts } from './hooks/useUnseenPlanToasts.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useCloudPlanSearch } from './hooks/useCloudPlanSearch.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
+import { useDesktopDaemonState } from './hooks/useDesktopDaemonState.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
@@ -678,29 +679,45 @@ function PlanHeaderExtra({
   );
 }
 
-function CloudSyncPausedBadge() {
+function CloudSyncPausedBadge({ label = 'Sync paused' }: { label?: string }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-[color-mix(in_oklch,var(--warning)_45%,transparent)] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-2 py-0.5 text-[11px] font-semibold text-[var(--warning)]">
       <span className="size-1.5 rounded-full bg-[var(--warning)]" />
-      Sync paused
+      {label}
     </span>
   );
 }
 
-function CloudSyncPausedNotice() {
+function CloudSyncPausedNotice({ cloudSyncPaused }: { cloudSyncPaused: boolean }) {
+  const desktopDaemonState = useDesktopDaemonState();
+  const desktop = isDesktop();
+  const indexing =
+    desktopDaemonState?.status === 'starting' || desktopDaemonState?.status === 'indexing';
+  const failed = desktopDaemonState?.status === 'error';
+  if (!cloudSyncPaused && !indexing && !failed) return null;
+  const label = failed ? 'Sync failed' : indexing ? 'Indexing plans' : 'Sync paused';
+  const detail = failed
+    ? desktopDaemonState.message
+    : indexing
+      ? (desktopDaemonState.message ?? 'Scanning plan folders')
+      : desktopDaemonState?.status === 'ready'
+        ? 'Sync is connected. Cloud status is catching up.'
+        : desktop
+          ? 'Showing synced cloud plans. New local file changes will appear after the desktop sync service is running again.'
+          : 'Showing synced cloud plans. New local file changes will appear after the CLI daemon is running again.';
+
   return (
     <div className="sticky top-0 z-30 border-b border-[color-mix(in_oklch,var(--warning)_35%,var(--border))] bg-[color-mix(in_oklch,var(--warning)_9%,var(--surface))] px-4 py-2.5 text-[12.5px] text-secondary backdrop-blur">
       <div className="mx-auto flex max-w-[960px] flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <CloudSyncPausedBadge />
-          <span>
-            Showing synced cloud plans. New local file changes will appear after the CLI daemon is
-            running again.
-          </span>
+          <CloudSyncPausedBadge label={label} />
+          <span>{detail}</span>
         </div>
-        <code className="rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-text">
-          agendex start
-        </code>
+        {!desktop && (
+          <code className="rounded-md border border-border bg-bg px-2 py-1 text-[11px] text-text">
+            agendex start
+          </code>
+        )}
       </div>
     </div>
   );
@@ -1394,8 +1411,8 @@ function useDashboardMain({
       className="agendex-main-pane overflow-auto main-scroll col-start-2 row-start-2 bg-transparent"
       style={{ viewTransitionName: 'main-content' }}
     >
-      {mode === 'cloud' && cloudSyncPaused && backendStatus !== 'offline' && (
-        <CloudSyncPausedNotice />
+      {mode === 'cloud' && backendStatus !== 'offline' && (
+        <CloudSyncPausedNotice cloudSyncPaused={cloudSyncPaused} />
       )}
       {selectionFilterNotice}
       {mode === 'cloud' && !isPro ? (

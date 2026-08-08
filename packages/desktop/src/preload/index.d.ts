@@ -39,6 +39,14 @@ interface WindowsEnvSetResult extends WindowsEnvStatus {
   willRelaunch: boolean;
 }
 
+type DesktopDaemonState =
+  | { status: 'idle' }
+  | { status: 'starting'; message?: string }
+  | { status: 'indexing'; message?: string }
+  | { status: 'ready' }
+  | { status: 'stopping' }
+  | { status: 'error'; message: string };
+
 interface AgendexDesktopBridge {
   readonly isDesktop: true;
   readonly cloudToken: string | null;
@@ -53,6 +61,7 @@ interface AgendexDesktopBridge {
   installUpdate: () => Promise<void>;
   getUpdateState: () => Promise<UpdateState>;
   getAppVersion: () => Promise<string>;
+  getDaemonState: () => Promise<DesktopDaemonState>;
   getWindowsEnv?: () => Promise<WindowsEnvStatus | null>;
   setWindowsEnv?: (env: WindowsAgentEnv) => Promise<WindowsEnvSetResult | null>;
   getPageZoomFactor: () => number;

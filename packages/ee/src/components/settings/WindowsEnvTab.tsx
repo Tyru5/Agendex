@@ -5,12 +5,14 @@ import {
   type WindowsAgentEnv,
   type WindowsEnvStatus,
 } from '../../lib/desktop.ts';
+import { useDesktopDaemonState } from '../../hooks/useDesktopDaemonState.ts';
 
 function envLabel(env: WindowsAgentEnv): string {
   return env === 'wsl' ? 'WSL' : 'Windows';
 }
 
 export function WindowsEnvTab() {
+  const daemonState = useDesktopDaemonState();
   const [status, setStatus] = useState<WindowsEnvStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
@@ -65,7 +67,7 @@ export function WindowsEnvTab() {
   if (loading) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-6 text-[13px] text-tertiary">
-        Loading runtime settings…
+        Loading plan folder settings…
       </div>
     );
   }
@@ -73,7 +75,7 @@ export function WindowsEnvTab() {
   if (!status) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-6 text-[13px] text-tertiary">
-        Runtime environment selection is only available in the Windows desktop app.
+        Plan folder selection is only available in the Windows desktop app.
       </div>
     );
   }
@@ -86,7 +88,8 @@ export function WindowsEnvTab() {
       <div className="rounded-2xl border border-border bg-surface p-6">
         <h3 className="text-[14px] font-semibold text-text mb-1">Plan folders</h3>
         <p className="text-[13px] text-tertiary mb-5 leading-[1.55]">
-          Choose which environment Agendex reads agent plans from. App settings stay on this PC.
+          Choose where Agendex reads agent plan files. The Electron app and its settings always run
+          on Windows.
         </p>
 
         <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-hover/60 border border-border">
@@ -130,6 +133,20 @@ export function WindowsEnvTab() {
           )}
           {!status.wslAvailable && (
             <p className="mb-0">{status.error ?? 'WSL not detected on this machine.'}</p>
+          )}
+          {daemonState && daemonState.status !== 'idle' && (
+            <p className="mb-0 pt-1">
+              Sync service:{' '}
+              <span className="text-secondary">
+                {daemonState.status === 'error'
+                  ? daemonState.message
+                  : daemonState.status === 'indexing' || daemonState.status === 'starting'
+                    ? (daemonState.message ?? 'Starting')
+                    : daemonState.status === 'ready'
+                      ? 'Ready'
+                      : 'Stopping'}
+              </span>
+            </p>
           )}
         </div>
       </div>

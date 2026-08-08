@@ -2,14 +2,17 @@ import { expect, test } from 'bun:test';
 import {
   type AgendexDesktopBridge,
   type DesktopAuthProvider,
+  DESKTOP_DAEMON_STATE_EVENT,
   DESKTOP_PAGE_ZOOM_EVENT,
   desktopLogout,
   desktopLogin,
   getDesktopConvexAuthToken,
+  getDesktopDaemonState,
   getDesktopPageZoomFactor,
   normalizeDesktopAuthProvider,
   resetDesktopPageZoom,
   subscribeDesktopPageZoom,
+  subscribeDesktopDaemonState,
 } from './desktop.ts';
 
 type TestLocation = {
@@ -67,6 +70,7 @@ function installDesktopWindow(
     getAppVersion: bridgeOverrides.getAppVersion ?? (async () => '0.0.0-test'),
     getBuildInfo:
       bridgeOverrides.getBuildInfo ?? (async () => ({ platform: 'linux', codeSigned: null })),
+    getDaemonState: bridgeOverrides.getDaemonState ?? (async () => ({ status: 'idle' as const })),
     getPageZoomFactor: bridgeOverrides.getPageZoomFactor ?? (() => 1),
     resetPageZoom: bridgeOverrides.resetPageZoom ?? (() => undefined),
   };
@@ -229,6 +233,35 @@ test('subscribeDesktopPageZoom listens for preload page-zoom events', () => {
 
     // Then
     expect(seen).toEqual([1.5]);
+  } finally {
+    uninstallDesktopWindow();
+  }
+});
+
+// Desktop users should see live indexing and failure states without refreshing the dashboard.
+test('desktop daemon state reads the current value and subscribes to changes', async () => {
+  installDesktopWindow(async () => true, {
+    getDaemonState: async () => ({ status: 'indexing', message: 'Scanning plan folders' }),
+  });
+  const seen: string[] = [];
+
+  try {
+    expect(await getDesktopDaemonState()).toEqual({
+      status: 'indexing',
+      message: 'Scanning plan folders',
+    });
+    const unsubscribe = subscribeDesktopDaemonState((state) => seen.push(state.status));
+    window.dispatchEvent(
+      new CustomEvent(DESKTOP_DAEMON_STATE_EVENT, { detail: { status: 'ready' } }),
+    );
+    unsubscribe();
+    window.dispatchEvent(
+      new CustomEvent(DESKTOP_DAEMON_STATE_EVENT, {
+        detail: { status: 'error', message: 'failed' },
+      }),
+    );
+
+    expect(seen).toEqual(['ready']);
   } finally {
     uninstallDesktopWindow();
   }
