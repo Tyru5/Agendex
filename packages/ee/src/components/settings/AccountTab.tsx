@@ -1,6 +1,7 @@
 import { api } from '@convex/_generated/api';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
+import { createPortal as createReactPortal } from 'react-dom';
 import type { DaemonDeviceInfo } from '../../hooks/useDaemonStatus';
 import type { Subscription } from '../../hooks/useSubscription';
 import { formatRelativeTime, formatUptime } from '../../lib/formatTime';
@@ -421,7 +422,7 @@ function DeleteConfirmModal({
   const [input, setInput] = useState('');
   const confirmed = input === email;
 
-  return (
+  return createReactPortal(
     <div
       className="fixed inset-0 z-[2000] flex items-center justify-center"
       style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
@@ -481,7 +482,8 @@ function DeleteConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
