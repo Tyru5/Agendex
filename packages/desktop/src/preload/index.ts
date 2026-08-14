@@ -226,6 +226,7 @@ const agendexDesktop = {
   applyUiUpdate: (): Promise<void> => ipcRenderer.invoke('agendex:ui-update:apply'),
   getUiUpdateState: (): Promise<UiUpdateState> => ipcRenderer.invoke('agendex:ui-update:get-state'),
   getUiRevision: (): Promise<number> => ipcRenderer.invoke('agendex:get-ui-revision'),
+  getUiVersion: (): Promise<string> => ipcRenderer.invoke('agendex:get-ui-version'),
   /**
    * Confirms the served UI bundle actually rendered. The main process treats a
    * bundle that never signals this as broken and reverts to the shipped UI, so

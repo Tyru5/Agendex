@@ -14,6 +14,7 @@ import {
 export function useDesktopUiUpdate() {
   const [state, setState] = useState<UiUpdateState>({ status: 'idle' });
   const [revision, setRevision] = useState<number | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
 
   useEffect(() => {
     const bridge = getDesktopBridgeIdentity();
@@ -34,6 +35,9 @@ export function useDesktopUiUpdate() {
     void bridge.getUiRevision?.().then((current) => {
       if (mounted) setRevision(current);
     });
+    void bridge.getUiVersion?.().then((current) => {
+      if (mounted) setVersion(current);
+    });
 
     return () => {
       mounted = false;
@@ -49,5 +53,5 @@ export function useDesktopUiUpdate() {
     void getDesktopBridgeIdentity()?.applyUiUpdate?.();
   };
 
-  return { state, revision, checkForUiUpdates, applyUiUpdate };
+  return { state, revision, version, checkForUiUpdates, applyUiUpdate };
 }
