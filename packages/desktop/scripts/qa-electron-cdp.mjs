@@ -57,25 +57,23 @@ export async function waitForHttp(url, timeoutMs = DEFAULT_TIMEOUT_MS) {
   return { ok: false, attempts };
 }
 
-async function waitForJson(url, timeoutMs = DEFAULT_TIMEOUT_MS) {
+export async function connectToElectronPage(port, timeoutMs = DEFAULT_TIMEOUT_MS) {
+  const url = `http://127.0.0.1:${port}/json/list`;
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     try {
       const response = await fetch(url);
-      if (response.ok) return await response.json();
+      if (response.ok) {
+        const targets = await response.json();
+        const target = targets.find((entry) => entry.type === 'page' && entry.webSocketDebuggerUrl);
+        if (target) return connectCdp(target.webSocketDebuggerUrl);
+      }
     } catch (error) {
       if (!(error instanceof Error)) throw error;
     }
     await delay(250);
   }
-  throw new Error(`Timed out waiting for ${url}`);
-}
-
-export async function connectToElectronPage(port) {
-  const targets = await waitForJson(`http://127.0.0.1:${port}/json/list`);
-  const target = targets.find((entry) => entry.type === 'page' && entry.webSocketDebuggerUrl);
-  if (!target) throw new Error('No Electron page target exposed over CDP');
-  return connectCdp(target.webSocketDebuggerUrl);
+  throw new Error('No Electron page target exposed over CDP');
 }
 
 function connectCdp(webSocketDebuggerUrl) {
