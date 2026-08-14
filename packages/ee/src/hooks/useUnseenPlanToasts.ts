@@ -37,9 +37,11 @@ export function useUnseenPlanToasts({
   const activeToastsRef = useRef(new Map<string, ActiveToast>());
   const baselineEstablishedRef = useRef(false);
   const baselineKeyRef = useRef(baselineKey);
-  // Latest onSelectPlan for toast handlers without stale closures.
+  // Latest callbacks for toast handlers without stale closures.
   const onSelectPlanRef = useRef(onSelectPlan);
   onSelectPlanRef.current = onSelectPlan;
+  const planStateRef = useRef(planState);
+  planStateRef.current = planState;
 
   const dismissActiveToastsRef = useRef(() => {});
 
@@ -113,7 +115,7 @@ export function useUnseenPlanToasts({
       // Version-gated settle: only the active toast version may clear the map
       // entry. Replaced versions and bulk-cleared toasts no-op, so a delayed
       // Sonner callback for version A cannot mutate tracking for B.
-      // Toasts never markSeen — unread dots stay until the plan is opened.
+      // Dismiss/auto-close never markSeen — unread dots stay until openPlan.
       const settleToast = () => {
         const current = activeToastsRef.current.get(plan.id);
         if (!isActiveToastVersion(current?.updatedAt, plan.updatedAt)) return;
@@ -122,6 +124,9 @@ export function useUnseenPlanToasts({
       };
 
       const openPlan = () => {
+        // Opening (View / body click) marks this version seen. Dismiss and
+        // auto-close must not — that is why settleToast never calls markSeen.
+        planStateRef.current.markSeen(plan.id, plan.updatedAt);
         onSelectPlanRef.current(plan);
         toast.dismiss(toastId);
       };
