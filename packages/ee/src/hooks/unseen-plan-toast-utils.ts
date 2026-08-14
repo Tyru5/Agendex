@@ -30,7 +30,7 @@ export function shouldShowPlanToast(
 /**
  * Whether a toast dismiss/auto-close callback belongs to the currently tracked
  * toast version. Stale versions (replaced by a newer updatedAt, or cleared by
- * bulk dismiss) must not markSeen or mutate the active map.
+ * bulk dismiss) must not mutate the active map.
  */
 export function isActiveToastVersion(
   activeUpdatedAt: string | undefined,
