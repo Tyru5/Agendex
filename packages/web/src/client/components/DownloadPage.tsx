@@ -15,7 +15,7 @@ export interface DownloadPageProps {
  * `Agendex-<version>-universal.{dmg,zip}` and `Agendex-<version>-x64-{Setup,Portable}.exe`
  * from electron-builder.
  */
-const DESKTOP_VERSION = '1.4.21';
+const DESKTOP_VERSION = '1.4.22';
 const DESKTOP_TAG = `desktop-v${DESKTOP_VERSION}`;
 const GITHUB_RELEASES_URL = 'https://github.com/Tyru5/Agendex/releases';
 const GITHUB_RELEASE_URL = `${GITHUB_RELEASES_URL}/tag/${DESKTOP_TAG}`;
