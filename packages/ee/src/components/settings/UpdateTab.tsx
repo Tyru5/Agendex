@@ -64,6 +64,7 @@ export function UpdateTab() {
   const {
     state: uiState,
     revision: uiRevision,
+    version: uiVersion,
     checkForUiUpdates,
     applyUiUpdate,
   } = useDesktopUiUpdate();
@@ -189,9 +190,9 @@ export function UpdateTab() {
         <div className="rounded-2xl border border-border bg-surface p-6">
           <h3 className="text-[14px] font-semibold text-text mb-4">Interface</h3>
           <div className="flex items-center justify-between text-[13px]">
-            <span className="text-tertiary">Current interface</span>
+            <span className="text-tertiary">Current version</span>
             <code className="font-mono text-[12px] bg-hover px-2 py-0.5 rounded">
-              {formatUiRevision(uiRevision)}
+              {uiVersion && uiVersion !== 'shipped' ? uiVersion : formatUiRevision(uiRevision)}
             </code>
           </div>
 

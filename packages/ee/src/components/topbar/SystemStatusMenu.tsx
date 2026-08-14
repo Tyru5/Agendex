@@ -70,6 +70,7 @@ export function SystemStatusMenu({
   const {
     state: uiUpdateState,
     revision: uiRevision,
+    version: uiVersion,
     checkForUiUpdates,
     applyUiUpdate,
   } = useDesktopUiUpdate();
@@ -346,9 +347,11 @@ export function SystemStatusMenu({
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-[12px]">
-                      <span className="text-tertiary">Current</span>
+                      <span className="text-tertiary">Version</span>
                       <code className="text-[11px] font-mono bg-hover px-1.5 py-0.5 rounded">
-                        {formatUiRevision(uiRevision)}
+                        {uiVersion && uiVersion !== 'shipped'
+                          ? uiVersion
+                          : formatUiRevision(uiRevision)}
                       </code>
                     </div>
                     {uiUpdateState.label && uiUpdateState.status !== 'no-update' && (

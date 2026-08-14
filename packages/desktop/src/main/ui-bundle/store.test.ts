@@ -69,12 +69,18 @@ test('falls back when the shipped UI is at least as new', () => {
   expect(tie.resolveActiveDir()).toBe(shippedDir);
 });
 
-test('the served revision follows the gates, not the state file', () => {
+test('the served stamp follows the gates, not the state file', () => {
   const store = makeStore();
   expect(store.servedRevision()).toBe(SHIPPED_REVISION);
+  expect(store.servedStamp()).toEqual({
+    revision: SHIPPED_REVISION,
+    label: `r${SHIPPED_REVISION}`,
+    minShellVersion: '1.0.0',
+  });
 
   installBundleAt(store, SHIPPED_REVISION + 100);
   expect(store.servedRevision()).toBe(SHIPPED_REVISION + 100);
+  expect(store.servedStamp().label).toBe(`r${SHIPPED_REVISION + 100}`);
 
   // Gated out by the floor: the state file names it, but the shipped UI is what
   // is on screen, so that is what callers must be told.
@@ -82,6 +88,7 @@ test('the served revision follows the gates, not the state file', () => {
   installBundleAt(outranked, SHIPPED_REVISION - 1);
   expect(outranked.readState().revision).toBe(SHIPPED_REVISION - 1);
   expect(outranked.servedRevision()).toBe(SHIPPED_REVISION);
+  expect(outranked.servedStamp().label).toBe(`r${SHIPPED_REVISION}`);
 });
 
 test('falls back when the bundle directory lost its stamp', () => {
