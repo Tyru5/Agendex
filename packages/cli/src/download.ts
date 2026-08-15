@@ -89,7 +89,9 @@ function resolveQueryAttempts(positionals: string[], agentFlag?: string): QueryA
     const firstIsAgent = looksLikePlanAgent(first);
     const secondIsAgent = looksLikePlanAgent(second);
     if (firstIsAgent && !secondIsAgent) {
-      return [{ query: second, agent: first }];
+      // Prefer the full title so `"cursor setup"` still matches after the
+      // shell splits it, then fall back to leading-agent shorthand.
+      return [{ query: joined }, { query: second, agent: first }];
     }
     if (secondIsAgent && !firstIsAgent) {
       // Prefer the full title so `Deploy cursor` can match, then fall back

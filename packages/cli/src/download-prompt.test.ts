@@ -19,7 +19,7 @@ test('strips terminal controls from cloud title and agent labels', () => {
   const match = {
     id: 'plan-1',
     agent: 'claude\u001b]0;pwned\u0007-code',
-    title: 'Deploy \u001b[31mcursor\u001b[0m\u202e',
+    title: 'Deploy \u001b[31mcursor\u001b[0m\u202e\u200e\u061c',
     updatedAt: '2026-08-02T00:00:00.000Z',
   };
 

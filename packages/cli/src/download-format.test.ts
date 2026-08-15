@@ -37,6 +37,9 @@ test('createPlanDownloadFilename sanitizes the title', () => {
   expect(createPlanDownloadFilename({ ...plan, title: 'Add \u202eauth' }, 'md')).toBe(
     'Add auth.md',
   );
+  expect(createPlanDownloadFilename({ ...plan, title: 'Add \u200e\u200f\u061cauth' }, 'md')).toBe(
+    'Add auth.md',
+  );
 });
 
 test('createPlanDownloadFilename keeps multibyte titles within 255 filename bytes', () => {

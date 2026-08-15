@@ -256,6 +256,41 @@ test('a single quoted title keeps agent-like words in the title', async () => {
   expect(cap.lastQuery).toEqual({ query: 'Deploy cursor', agent: undefined });
 });
 
+test('two unquoted tokens prefer a title that starts with an agent name', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan({ title: 'cursor setup' });
+  const code = await runDownload(
+    ['download', 'cursor', 'setup'],
+    makeDeps((query, agent) => {
+      if (query === 'cursor setup' && agent === undefined) return { kind: 'found', plan };
+      return { kind: 'not_found', suggestions: [] };
+    }, cap),
+  );
+  expect(code).toBe(0);
+  expect(cap.lastQuery).toEqual({ query: 'cursor setup', agent: undefined });
+  expect(cap.queries).toEqual([{ query: 'cursor setup', agent: undefined }]);
+});
+
+test('two unquoted tokens fall back to a leading agent filter', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan({ title: 'setup' });
+  const code = await runDownload(
+    ['download', 'cursor', 'setup'],
+    makeDeps((query, agent) => {
+      if (query === 'setup' && agent === 'cursor') return { kind: 'found', plan };
+      return { kind: 'not_found', suggestions: [] };
+    }, cap),
+  );
+  expect(code).toBe(0);
+  expect(cap.lastQuery).toEqual({ query: 'setup', agent: 'cursor' });
+  expect(cap.queries).toEqual([
+    { query: 'cursor setup', agent: undefined },
+    { query: 'setup', agent: 'cursor' },
+  ]);
+});
+
 test('two unquoted tokens prefer a matching two-word title', async () => {
   writeLoggedInConfig();
   const cap = newCapture();

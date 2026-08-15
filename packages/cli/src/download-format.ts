@@ -55,6 +55,8 @@ function isInvisibleFilenameChar(char: string): boolean {
   const codePoint = char.codePointAt(0);
   if (codePoint === undefined) return true;
   if (codePoint < 32 || (codePoint >= 0x7f && codePoint <= 0x9f)) return true;
+  if (codePoint === 0x061c || codePoint === 0x2060 || codePoint === 0xfeff) return true;
+  if (codePoint >= 0x200b && codePoint <= 0x200f) return true;
   if (codePoint >= 0x202a && codePoint <= 0x202e) return true;
   if (codePoint >= 0x2066 && codePoint <= 0x2069) return true;
   return false;
