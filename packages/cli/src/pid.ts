@@ -246,14 +246,25 @@ try {
       $info = Get-Content -LiteralPath $pidPath -Raw | ConvertFrom-Json
       $result.pidInfo = $info
 
-      # Single canonical Windows boot identity (LastBootUpTime ticks). Avoids
-      # writer/probe asymmetry between registry BootId and ticks for the same boot.
+      # Canonical identity is LastBootUpTime ticks (what new PID files store).
+      # Also collect registry BootId so a still-running older desktop daemon whose
+      # PID file has win32:0x... still overlaps until it restarts and rewrites.
       try {
         $lastBoot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
         if ($lastBoot) {
           $ticksId = "win32:$lastBoot"
           $result.currentBootIds.Add($ticksId) | Out-Null
           $result.currentBootId = $ticksId
+        }
+      } catch {}
+      try {
+        $regOut = (& reg.exe query 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters' /v BootId 2>$null | Out-String)
+        if ($regOut -match 'BootId\s+REG_DWORD\s+(0x[\da-f]+)') {
+          $regId = 'win32:' + $Matches[1].ToLower()
+          if (-not $result.currentBootIds.Contains($regId)) {
+            $result.currentBootIds.Add($regId) | Out-Null
+          }
+          if (-not $result.currentBootId) { $result.currentBootId = $regId }
         }
       } catch {}
 

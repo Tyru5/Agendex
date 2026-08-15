@@ -96,6 +96,17 @@ test('daemon PID metadata rejects records from another host or OS boot', () => {
       },
     ),
   ).toBe(true);
+  // Legacy desktop PID files stored registry BootId; the WSL probe includes it
+  // alongside ticks so a still-running older daemon stays current.
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12' },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345', 'win32:0x12'],
+      },
+    ),
+  ).toBe(true);
   expect(
     isDaemonPidInfoCurrent(
       {
@@ -238,7 +249,7 @@ test('WSL status reads the selected Windows desktop daemon with Windows process 
     pidInfo,
     currentHostname: 'windows-host',
     currentBootId: 'win32:638123456789012345',
-    currentBootIds: ['win32:638123456789012345'],
+    currentBootIds: ['win32:638123456789012345', 'win32:0x12'],
     processRunning: true,
     processCommand: 'Agendex.exe --type=utility --utility-sub-type=node.mojom.NodeService',
     parentProcessRunning: true,
@@ -298,6 +309,19 @@ test('WSL status reads the selected Windows desktop daemon with Windows process 
       },
     }),
   ).toBeNull();
+
+  const legacyPidInfo = { ...pidInfo, bootId: 'win32:0x12' };
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () =>
+        JSON.stringify({
+          ...JSON.parse(probe),
+          pidInfo: legacyPidInfo,
+        }),
+    }),
+  ).toEqual(legacyPidInfo);
 });
 
 test('Windows desktop daemon fallback is disabled outside WSL', () => {
