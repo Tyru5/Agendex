@@ -51,14 +51,20 @@ function filenameStemFromPath(filePath: string): string {
   return basename.slice(0, extensionStart);
 }
 
+function isInvisibleFilenameChar(char: string): boolean {
+  const codePoint = char.codePointAt(0);
+  if (codePoint === undefined) return true;
+  if (codePoint < 32 || (codePoint >= 0x7f && codePoint <= 0x9f)) return true;
+  if (codePoint >= 0x202a && codePoint <= 0x202e) return true;
+  if (codePoint >= 0x2066 && codePoint <= 0x2069) return true;
+  return false;
+}
+
 function replaceInvalidFilenameChars(value: string): string {
   let next = '';
   for (const char of value) {
-    const codePoint = char.codePointAt(0);
-    next +=
-      codePoint !== undefined && (codePoint < 32 || INVALID_FILENAME_CHARS.includes(char))
-        ? '-'
-        : char;
+    if (isInvisibleFilenameChar(char)) continue;
+    next += INVALID_FILENAME_CHARS.includes(char) ? '-' : char;
   }
   return next;
 }

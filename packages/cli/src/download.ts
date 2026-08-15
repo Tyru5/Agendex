@@ -88,9 +88,7 @@ function resolveQueryAndAgent(
     if (firstIsAgent && !secondIsAgent) {
       return { query: second, agent: agentFlag ?? first };
     }
-    // Trailing agent only after a quoted/multi-word title. Unquoted
-    // `Deploy cursor` must stay a title, not an agent filter.
-    if (secondIsAgent && !firstIsAgent && /\s/.test(first)) {
+    if (secondIsAgent && !firstIsAgent) {
       return { query: first, agent: agentFlag ?? second };
     }
   }
@@ -259,7 +257,7 @@ async function writeDownloadedPlan(
   deps.log(
     `[agendex] downloaded "${sanitizeTerminalText(plan.title)}" (${sanitizeTerminalText(plan.agent)})`,
   );
-  deps.log(`[agendex] ${destination}`);
+  deps.log(`[agendex] ${sanitizeTerminalText(destination)}`);
   return 0;
 }
 

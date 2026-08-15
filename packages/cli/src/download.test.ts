@@ -237,16 +237,28 @@ test('two positionals treat a known agent as the agent filter', async () => {
   expect(cap.lastQuery).toEqual({ query: 'Add auth', agent: 'cursor' });
 });
 
-test('two unquoted words keep a title that ends with an agent name', async () => {
+test('a single quoted title keeps agent-like words in the title', async () => {
   writeLoggedInConfig();
   const cap = newCapture();
   const plan = samplePlan({ title: 'Deploy cursor' });
   const code = await runDownload(
-    ['download', 'Deploy', 'cursor'],
+    ['download', 'Deploy cursor'],
     makeDeps({ kind: 'found', plan }, cap),
   );
   expect(code).toBe(0);
   expect(cap.lastQuery).toEqual({ query: 'Deploy cursor', agent: undefined });
+});
+
+test('two unquoted tokens treat a trailing agent as the filter', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan({ title: 'Auth' });
+  const code = await runDownload(
+    ['download', 'Auth', 'claude-code'],
+    makeDeps({ kind: 'found', plan }, cap),
+  );
+  expect(code).toBe(0);
+  expect(cap.lastQuery).toEqual({ query: 'Auth', agent: 'claude-code' });
 });
 
 test('strips control characters from downloaded title and agent logs', async () => {
@@ -261,6 +273,16 @@ test('strips control characters from downloaded title and agent logs', async () 
   expect(cap.logs.join('\n')).toContain('downloaded "Add auth" (claude-code)');
   expect(cap.logs.join('\n')).not.toContain('\u001b');
   expect(cap.logs.join('\n')).not.toContain('\u0007');
+});
+
+test('strips bidi controls from the destination log', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan({ title: 'Add \u202eauth' });
+  const code = await runDownload(['download', plan.id], makeDeps({ kind: 'found', plan }, cap));
+  expect(code).toBe(0);
+  expect(cap.logs.join('\n')).not.toContain('\u202e');
+  expect(cap.written[0]?.path.endsWith('Add auth.md')).toBe(true);
 });
 
 test('three or more positionals keep every word even if one is an agent name', async () => {
