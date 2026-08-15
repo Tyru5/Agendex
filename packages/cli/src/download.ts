@@ -335,15 +335,26 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
   let agent = initialAttempt.agent;
   let result: FetchCloudPlanResult | undefined;
   let firstMiss: { query: string; agent?: string; result: FetchCloudPlanResult } | undefined;
+  let pendingAmbiguous: { query: string; agent?: string; result: FetchCloudPlanResult } | undefined;
   try {
     for (const attempt of attempts) {
       query = attempt.query;
       agent = attempt.agent;
       result = await fetchCloudPlanFn(attempt.query, attempt.agent);
-      if (result.kind !== 'not_found') break;
+      if (result.kind === 'found' || result.kind === 'auth-expired' || result.kind === 'error') {
+        break;
+      }
+      if (result.kind === 'ambiguous') {
+        pendingAmbiguous = { query: attempt.query, agent: attempt.agent, result };
+        continue;
+      }
       firstMiss ??= { query: attempt.query, agent: attempt.agent, result };
     }
-    if (result?.kind === 'not_found' && firstMiss) {
+    if (result?.kind === 'not_found' && pendingAmbiguous) {
+      query = pendingAmbiguous.query;
+      agent = pendingAmbiguous.agent;
+      result = pendingAmbiguous.result;
+    } else if (result?.kind === 'not_found' && firstMiss) {
       query = firstMiss.query;
       agent = firstMiss.agent;
       result = firstMiss.result;

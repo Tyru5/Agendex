@@ -307,6 +307,41 @@ test('two unquoted tokens prefer a matching two-word title', async () => {
   expect(cap.queries).toEqual([{ query: 'Deploy cursor', agent: undefined }]);
 });
 
+test('ambiguous full-title matches still fall back to a trailing agent filter', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan({ title: 'Auth' });
+  const code = await runDownload(
+    ['download', 'Auth', 'claude-code'],
+    makeDeps((query, agent) => {
+      if (query === 'Auth' && agent === 'claude-code') return { kind: 'found', plan };
+      return {
+        kind: 'ambiguous',
+        matches: [
+          {
+            id: 'other-1',
+            agent: 'cursor',
+            title: 'Auth claude-code notes',
+            updatedAt: '2026-08-02T00:00:00.000Z',
+          },
+          {
+            id: 'other-2',
+            agent: 'codex-cli',
+            title: 'Auth claude-code follow-up',
+            updatedAt: '2026-08-02T00:00:00.000Z',
+          },
+        ],
+      };
+    }, cap),
+  );
+  expect(code).toBe(0);
+  expect(cap.lastQuery).toEqual({ query: 'Auth', agent: 'claude-code' });
+  expect(cap.queries).toEqual([
+    { query: 'Auth claude-code', agent: undefined },
+    { query: 'Auth', agent: 'claude-code' },
+  ]);
+});
+
 test('two unquoted tokens fall back to a trailing agent filter', async () => {
   writeLoggedInConfig();
   const cap = newCapture();
