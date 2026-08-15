@@ -206,10 +206,7 @@ function isWin32RegistryId(id: string): boolean {
   return /^win32:0x[\da-f]+$/i.test(id);
 }
 
-function recordWrittenAfterBoot(
-  info: DaemonPidInfo,
-  options: DaemonPidFreshnessOptions,
-): boolean {
+function recordWrittenAfterBoot(info: DaemonPidInfo, options: DaemonPidFreshnessOptions): boolean {
   return (
     Number.isFinite(info.startedAtMs) &&
     Number.isFinite(options.currentBootTimeMs) &&
