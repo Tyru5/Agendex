@@ -122,11 +122,11 @@ test('daemon PID metadata rejects records from another host or OS boot', () => {
       },
     ),
   ).toBe(false);
-  // Legacy registry-only vs ticks-only is inconclusive unless the worker
-  // started after LastBootUpTime (registry probe failed).
+  // Legacy registry-only vs ticks-only is inconclusive unless the PID record
+  // itself was written after LastBootUpTime (registry probe failed).
   expect(
     isDaemonPidInfoCurrent(
-      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12' },
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12', startedAtMs: 2_000 },
       {
         currentHostname: 'current-host',
         currentBootIds: ['win32:638123456789012345'],
@@ -135,11 +135,21 @@ test('daemon PID metadata rejects records from another host or OS boot', () => {
   ).toBe(false);
   expect(
     isDaemonPidInfoCurrent(
-      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12' },
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12', startedAtMs: 500 },
       {
         currentHostname: 'current-host',
         currentBootIds: ['win32:638123456789012345'],
-        processCreatedAfterBoot: true,
+        currentBootTimeMs: 1_000,
+      },
+    ),
+  ).toBe(false);
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12', startedAtMs: 2_000 },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345'],
+        currentBootTimeMs: 1_000,
       },
     ),
   ).toBe(true);
@@ -289,7 +299,7 @@ test('WSL status reads the selected Windows desktop daemon with Windows process 
     processRunning: true,
     processCommand: 'Agendex.exe --type=utility --utility-sub-type=node.mojom.NodeService',
     parentProcessRunning: true,
-    processCreatedAfterBoot: true,
+    currentBootTimeMs: 1_699_000_000_000,
   });
 
   expect(

@@ -152,8 +152,8 @@ export interface DaemonPidFreshnessOptions {
   processRunning?: boolean;
   /** Override for desktop launcher parent liveness checks (tests). */
   parentProcessRunning?: boolean;
-  /** True when the live worker's CreationDate is at/after LastBootUpTime. */
-  processCreatedAfterBoot?: boolean;
+  /** Windows LastBootUpTime as Unix ms; used when boot IDs are cross-family. */
+  currentBootTimeMs?: number;
 }
 
 /** Checks record provenance only; validate each live PID separately before signaling it. */
@@ -169,7 +169,7 @@ export function isDaemonPidInfoCurrent(
     const currentBootIds = resolveCurrentBootIds(options);
     const agreement = bootIdentitiesAgree(storedBootIds, currentBootIds);
     if (agreement === 'conflict') return false;
-    if (agreement === 'inconclusive' && options.processCreatedAfterBoot !== true) return false;
+    if (agreement === 'inconclusive' && !recordWrittenAfterBoot(info, options)) return false;
   }
 
   return true;
@@ -206,11 +206,22 @@ function isWin32RegistryId(id: string): boolean {
   return /^win32:0x[\da-f]+$/i.test(id);
 }
 
+function recordWrittenAfterBoot(
+  info: DaemonPidInfo,
+  options: DaemonPidFreshnessOptions,
+): boolean {
+  return (
+    Number.isFinite(info.startedAtMs) &&
+    Number.isFinite(options.currentBootTimeMs) &&
+    (info.startedAtMs as number) >= (options.currentBootTimeMs as number)
+  );
+}
+
 /**
  * Ticks are authoritative when both sides have them (reboot changes ticks even if
  * a registry BootId collides). Same-family registry is used for legacy PID files.
  * Cross-family-only comparisons are inconclusive — callers may accept via
- * processCreatedAfterBoot instead of treating families as interchangeable.
+ * record startedAtMs >= currentBootTimeMs instead of treating families as interchangeable.
  */
 function bootIdentitiesAgree(
   stored: string[],
@@ -269,7 +280,7 @@ $result = [ordered]@{
   processRunning = $false
   processCommand = $null
   parentProcessRunning = $false
-  processCreatedAfterBoot = $false
+  currentBootTimeMs = $null
 }
 
 try {
@@ -290,7 +301,9 @@ try {
       # Also collect registry BootId so a still-running older desktop daemon whose
       # PID file has win32:0x... still overlaps until it restarts and rewrites.
       try {
-        $lastBoot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
+        $bootUtc = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime()
+        $result.currentBootTimeMs = [int64]([DateTimeOffset]$bootUtc).ToUnixTimeMilliseconds()
+        $lastBoot = $bootUtc.Ticks
         if ($lastBoot) {
           $ticksId = "win32:$lastBoot"
           $result.currentBootIds.Add($ticksId) | Out-Null
@@ -315,12 +328,6 @@ try {
         if ($null -ne $process) {
           $result.processRunning = $true
           $result.processCommand = [string]$process.CommandLine
-          try {
-            $bootTime = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
-            if ($process.CreationDate -and $bootTime -and $process.CreationDate -ge $bootTime) {
-              $result.processCreatedAfterBoot = $true
-            }
-          } catch {}
         }
       }
 
@@ -396,8 +403,9 @@ export function readWindowsDesktopDaemonInfoFromWsl(
     if (probe.processCommand !== null && typeof probe.processCommand !== 'string') return null;
     if (typeof probe.parentProcessRunning !== 'boolean') return null;
     if (
-      probe.processCreatedAfterBoot !== undefined &&
-      typeof probe.processCreatedAfterBoot !== 'boolean'
+      probe.currentBootTimeMs !== undefined &&
+      probe.currentBootTimeMs !== null &&
+      !Number.isFinite(probe.currentBootTimeMs)
     ) {
       return null;
     }
@@ -408,10 +416,8 @@ export function readWindowsDesktopDaemonInfoFromWsl(
       processRunning: probe.processRunning,
       processCommand: probe.processCommand,
       parentProcessRunning: probe.parentProcessRunning,
-      processCreatedAfterBoot:
-        typeof probe.processCreatedAfterBoot === 'boolean'
-          ? probe.processCreatedAfterBoot
-          : undefined,
+      currentBootTimeMs:
+        typeof probe.currentBootTimeMs === 'number' ? probe.currentBootTimeMs : undefined,
     })
       ? info
       : null;
