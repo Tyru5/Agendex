@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.4.0
+
+### Minor Changes
+
+- 888c17f: Better WSL daemon detection
+
 ## 5.3.0
 
 ### Minor Changes
