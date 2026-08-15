@@ -86,6 +86,37 @@ test('daemon PID metadata rejects records from another host or OS boot', () => {
       runtime,
     ),
   ).toBe(true);
+  // Writer/probe may each surface a different win32 identity for the same boot;
+  // overlap against the full current set still matches, while a reboot clears it.
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12' },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:0x12', 'win32:638123456789012345'],
+      },
+    ),
+  ).toBe(true);
+  expect(
+    isDaemonPidInfoCurrent(
+      {
+        pid: process.pid,
+        hostname: 'current-host',
+        bootId: 'win32:638000000000000000',
+        bootIds: ['win32:0x11', 'win32:638000000000000000'],
+      },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:0x12', 'win32:638123456789012345'],
+      },
+    ),
+  ).toBe(false);
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12' },
+      { currentHostname: 'current-host', currentBootIds: [] },
+    ),
+  ).toBe(false);
 });
 
 test('daemon PID ownership accepts only CLI or marked desktop daemon commands', () => {
@@ -208,6 +239,7 @@ test('WSL status reads the selected Windows desktop daemon with Windows process 
     pidInfo,
     currentHostname: 'windows-host',
     currentBootId: 'win32:0x12',
+    currentBootIds: ['win32:0x12', 'win32:638123456789012345'],
     processRunning: true,
     processCommand: 'Agendex.exe --type=utility --utility-sub-type=node.mojom.NodeService',
     parentProcessRunning: true,
