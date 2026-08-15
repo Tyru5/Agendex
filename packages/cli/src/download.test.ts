@@ -237,6 +237,32 @@ test('two positionals treat a known agent as the agent filter', async () => {
   expect(cap.lastQuery).toEqual({ query: 'Add auth', agent: 'cursor' });
 });
 
+test('two unquoted words keep a title that ends with an agent name', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan({ title: 'Deploy cursor' });
+  const code = await runDownload(
+    ['download', 'Deploy', 'cursor'],
+    makeDeps({ kind: 'found', plan }, cap),
+  );
+  expect(code).toBe(0);
+  expect(cap.lastQuery).toEqual({ query: 'Deploy cursor', agent: undefined });
+});
+
+test('strips control characters from downloaded title and agent logs', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan({
+    title: 'Add \u001b[31mauth\u001b[0m',
+    agent: 'claude\u0007-code',
+  });
+  const code = await runDownload(['download', plan.id], makeDeps({ kind: 'found', plan }, cap));
+  expect(code).toBe(0);
+  expect(cap.logs.join('\n')).toContain('downloaded "Add auth" (claude-code)');
+  expect(cap.logs.join('\n')).not.toContain('\u001b');
+  expect(cap.logs.join('\n')).not.toContain('\u0007');
+});
+
 test('three or more positionals keep every word even if one is an agent name', async () => {
   writeLoggedInConfig();
   const cap = newCapture();

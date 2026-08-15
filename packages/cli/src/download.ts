@@ -25,6 +25,7 @@ import {
   formatPlanDownloadChoice,
   formatPlanDownloadRetry,
   promptForPlanDownload,
+  sanitizeTerminalText,
 } from './download-prompt.ts';
 
 const USAGE =
@@ -87,7 +88,9 @@ function resolveQueryAndAgent(
     if (firstIsAgent && !secondIsAgent) {
       return { query: second, agent: agentFlag ?? first };
     }
-    if (secondIsAgent && !firstIsAgent) {
+    // Trailing agent only after a quoted/multi-word title. Unquoted
+    // `Deploy cursor` must stay a title, not an agent filter.
+    if (secondIsAgent && !firstIsAgent && /\s/.test(first)) {
       return { query: first, agent: agentFlag ?? second };
     }
   }
@@ -188,7 +191,9 @@ function formatNotFound(
   suggestions: CloudPlanDownloadMatch[],
 ): string {
   const lines = [
-    `[agendex] no plan found for ${JSON.stringify(query)}${agent ? ` (agent ${agent})` : ''}`,
+    `[agendex] no plan found for ${JSON.stringify(sanitizeTerminalText(query))}${
+      agent ? ` (agent ${sanitizeTerminalText(agent)})` : ''
+    }`,
   ];
   if (suggestions.length === 0) return lines.join('\n');
   lines.push('[agendex] closest matches — pick one without retyping the title:');
@@ -251,7 +256,9 @@ async function writeDownloadedPlan(
     return 1;
   }
 
-  deps.log(`[agendex] downloaded "${plan.title}" (${plan.agent})`);
+  deps.log(
+    `[agendex] downloaded "${sanitizeTerminalText(plan.title)}" (${sanitizeTerminalText(plan.agent)})`,
+  );
   deps.log(`[agendex] ${destination}`);
   return 0;
 }

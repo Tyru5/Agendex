@@ -1,12 +1,26 @@
 import { cancel, isCancel, select } from '@clack/prompts';
 import type { CloudPlanDownloadMatch } from './api.ts';
 
+const ANSI_CSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
+const ANSI_OSC = /\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)?/g;
+const ANSI_FE = /\u001b[@-Z\\-_]/g;
+const TERMINAL_UNSAFE = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g;
+
+/** Strip CSI/OSC and other control chars from cloud metadata before TTY output. */
+export function sanitizeTerminalText(value: string): string {
+  return value
+    .replace(ANSI_CSI, '')
+    .replace(ANSI_OSC, '')
+    .replace(ANSI_FE, '')
+    .replace(TERMINAL_UNSAFE, '');
+}
+
 export function canPromptForPlanDownload(): boolean {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
 }
 
 export function formatPlanDownloadChoice(match: CloudPlanDownloadMatch, index: number): string {
-  return `[${index}] ${match.title}  (${match.agent})`;
+  return `[${index}] ${sanitizeTerminalText(match.title)}  (${sanitizeTerminalText(match.agent)})`;
 }
 
 export function formatPlanDownloadRetry(match: CloudPlanDownloadMatch): string {
