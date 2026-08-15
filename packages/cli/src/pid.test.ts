@@ -19,6 +19,7 @@ import {
   isDaemonPidInfoCurrent,
   isDaemonPidInfoRunning,
   readPidInfo,
+  readWindowsDesktopDaemonInfoFromWsl,
 } from './pid.ts';
 
 const originalConfigDir = process.env.AGENDEX_CONFIG_DIR;
@@ -85,6 +86,93 @@ test('daemon PID metadata rejects records from another host or OS boot', () => {
       runtime,
     ),
   ).toBe(true);
+  // Same-boot overlap still works when both sides use the canonical ticks identity.
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:638123456789012345' },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345'],
+      },
+    ),
+  ).toBe(true);
+  // Legacy desktop PID files stored registry BootId; the WSL probe includes it
+  // alongside ticks so a still-running older daemon stays current.
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12' },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345', 'win32:0x12'],
+      },
+    ),
+  ).toBe(true);
+  // Ticks are authoritative: a registry collision must not hide a reboot.
+  expect(
+    isDaemonPidInfoCurrent(
+      {
+        pid: process.pid,
+        hostname: 'current-host',
+        bootId: 'win32:638000000000000000',
+        bootIds: ['win32:638000000000000000', 'win32:0x12'],
+      },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345', 'win32:0x12'],
+      },
+    ),
+  ).toBe(false);
+  // Legacy registry-only vs ticks-only is inconclusive unless the PID record
+  // itself was written after LastBootUpTime (registry probe failed).
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12', startedAtMs: 2_000 },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345'],
+      },
+    ),
+  ).toBe(false);
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12', startedAtMs: 500 },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345'],
+        currentBootTimeMs: 1_000,
+      },
+    ),
+  ).toBe(false);
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12', startedAtMs: 2_000 },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345'],
+        currentBootTimeMs: 1_000,
+      },
+    ),
+  ).toBe(true);
+  expect(
+    isDaemonPidInfoCurrent(
+      {
+        pid: process.pid,
+        hostname: 'current-host',
+        bootId: 'win32:638000000000000000',
+        bootIds: ['win32:638000000000000000'],
+      },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345'],
+      },
+    ),
+  ).toBe(false);
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:638123456789012345' },
+      { currentHostname: 'current-host', currentBootIds: [] },
+    ),
+  ).toBe(false);
 });
 
 test('daemon PID ownership accepts only CLI or marked desktop daemon commands', () => {
@@ -190,6 +278,112 @@ test('desktop launcher ownership accepts Electron utility processes without visi
       },
     ),
   ).toBe(false);
+});
+
+test('WSL status reads the selected Windows desktop daemon with Windows process evidence', () => {
+  const pidInfo = {
+    pid: 456,
+    startedAtMs: 1_700_000_000_000,
+    hostname: 'windows-host',
+    launcher: 'desktop' as const,
+    parentPid: 100,
+    ready: true,
+    bootId: 'win32:638123456789012345',
+  };
+  const probe = JSON.stringify({
+    selectedEnv: 'wsl',
+    pidInfo,
+    currentHostname: 'windows-host',
+    currentBootId: 'win32:638123456789012345',
+    currentBootIds: ['win32:638123456789012345', 'win32:0x12'],
+    processRunning: true,
+    processCommand: 'Agendex.exe --type=utility --utility-sub-type=node.mojom.NodeService',
+    parentProcessRunning: true,
+    currentBootTimeMs: 1_699_000_000_000,
+  });
+
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () => probe,
+    }),
+  ).toEqual(pidInfo);
+
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () => JSON.stringify({ ...JSON.parse(probe), selectedEnv: 'native' }),
+    }),
+  ).toBeNull();
+
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () =>
+        JSON.stringify({
+          ...JSON.parse(probe),
+          pidInfo: { ...pidInfo, launcher: 'cli' },
+          processCommand: 'agendex start --daemon',
+        }),
+    }),
+  ).toBeNull();
+
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () =>
+        JSON.stringify({
+          ...JSON.parse(probe),
+          processCommand: 'unrelated.exe --type=utility',
+        }),
+    }),
+  ).toBeNull();
+
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () => {
+        const { bootId: _bootId, ...pidInfoWithoutBoot } = pidInfo;
+        return JSON.stringify({
+          ...JSON.parse(probe),
+          pidInfo: pidInfoWithoutBoot,
+        });
+      },
+    }),
+  ).toBeNull();
+
+  const legacyPidInfo = { ...pidInfo, bootId: 'win32:0x12' };
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () =>
+        JSON.stringify({
+          ...JSON.parse(probe),
+          pidInfo: legacyPidInfo,
+        }),
+    }),
+  ).toEqual(legacyPidInfo);
+});
+
+test('Windows desktop daemon fallback is disabled outside WSL', () => {
+  let probed = false;
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: {},
+      runProbe: () => {
+        probed = true;
+        return '{}';
+      },
+    }),
+  ).toBeNull();
+  expect(probed).toBe(false);
 });
 
 test('legacy PID files retain metadata and require daemon process ownership', () => {
