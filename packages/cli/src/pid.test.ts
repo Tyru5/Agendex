@@ -86,6 +86,19 @@ test('daemon PID metadata rejects records from another host or OS boot', () => {
       runtime,
     ),
   ).toBe(true);
+  // Writer/probe may disagree on win32 BootId vs LastBootUpTime; treat as inconclusive.
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12' },
+      { currentHostname: 'current-host', currentBootId: 'win32:638123456789012345' },
+    ),
+  ).toBe(true);
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12' },
+      { currentHostname: 'current-host', currentBootId: 'win32:0x13' },
+    ),
+  ).toBe(false);
 });
 
 test('daemon PID ownership accepts only CLI or marked desktop daemon commands', () => {

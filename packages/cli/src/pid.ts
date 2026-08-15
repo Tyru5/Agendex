@@ -158,8 +158,21 @@ export function isDaemonPidInfoCurrent(
   if (info.hostname && info.hostname.toLowerCase() !== currentHostname.toLowerCase()) return false;
 
   const currentBootId = options.currentBootId ?? getSystemBootId();
-  if (info.bootId && currentBootId && info.bootId !== currentBootId) return false;
+  if (info.bootId && currentBootId && bootIdConflicts(info.bootId, currentBootId)) return false;
 
+  return true;
+}
+
+/** True when stored/current boot IDs disagree within the same identity family. */
+function bootIdConflicts(stored: string, current: string): boolean {
+  if (stored === current) return false;
+  const storedReg = /^win32:0x[\da-f]+$/i.test(stored);
+  const currentReg = /^win32:0x[\da-f]+$/i.test(current);
+  const storedTicks = /^win32:\d+$/.test(stored);
+  const currentTicks = /^win32:\d+$/.test(current);
+  // Writer/probe can hit different win32 sources (reg BootId vs LastBootUpTime);
+  // cross-family mismatch is inconclusive, not proof of a reboot.
+  if ((storedReg && currentTicks) || (storedTicks && currentReg)) return false;
   return true;
 }
 
@@ -207,17 +220,22 @@ try {
       $info = Get-Content -LiteralPath $pidPath -Raw | ConvertFrom-Json
       $result.pidInfo = $info
 
+      # Match readWindowsBootId(): reg.exe BootId first, then LastBootUpTime ticks.
       try {
-        $bootId = (Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters').BootId
-        if ($null -ne $bootId) {
-          $result.currentBootId = 'win32:0x{0:x}' -f [uint32]$bootId
+        $regOut = (& reg.exe query 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters' /v BootId 2>$null | Out-String)
+        if ($regOut -match 'BootId\s+REG_DWORD\s+(0x[\da-f]+)') {
+          $result.currentBootId = 'win32:' + $Matches[1].ToLower()
         }
-      } catch {
-        $lastBoot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
-        if ($lastBoot) { $result.currentBootId = "win32:$lastBoot" }
+      } catch {}
+      if (-not $result.currentBootId) {
+        try {
+          $lastBoot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
+          if ($lastBoot) { $result.currentBootId = "win32:$lastBoot" }
+        } catch {}
       }
 
       $pidValue = 0
+      $process = $null
       if ([int]::TryParse([string]$info.pid, [ref]$pidValue) -and $pidValue -gt 0) {
         $process = Get-CimInstance Win32_Process -Filter "ProcessId = $pidValue" -ErrorAction SilentlyContinue
         if ($null -ne $process) {
@@ -229,7 +247,13 @@ try {
       $parentPidValue = 0
       if ([int]::TryParse([string]$info.parentPid, [ref]$parentPidValue) -and $parentPidValue -gt 0) {
         $parent = Get-CimInstance Win32_Process -Filter "ProcessId = $parentPidValue" -ErrorAction SilentlyContinue
-        $result.parentProcessRunning = $null -ne $parent
+        # Require the live worker's ParentProcessId to match — PID existence alone
+        # accepts recycled worker PIDs paired with an unrelated live parent PID.
+        if ($null -ne $parent -and $null -ne $process) {
+          $result.parentProcessRunning = ([int]$process.ParentProcessId -eq $parentPidValue)
+        } else {
+          $result.parentProcessRunning = $null -ne $parent
+        }
       }
     }
   }
