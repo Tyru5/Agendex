@@ -231,10 +231,17 @@ test('two positionals treat a known agent as the agent filter', async () => {
   const plan = samplePlan();
   const code = await runDownload(
     ['download', 'Add auth', 'cursor'],
-    makeDeps({ kind: 'found', plan }, cap),
+    makeDeps((query, agent) => {
+      if (query === 'Add auth' && agent === 'cursor') return { kind: 'found', plan };
+      return { kind: 'not_found', suggestions: [] };
+    }, cap),
   );
   expect(code).toBe(0);
   expect(cap.lastQuery).toEqual({ query: 'Add auth', agent: 'cursor' });
+  expect(cap.queries).toEqual([
+    { query: 'Add auth cursor', agent: undefined },
+    { query: 'Add auth', agent: 'cursor' },
+  ]);
 });
 
 test('a single quoted title keeps agent-like words in the title', async () => {
@@ -249,16 +256,39 @@ test('a single quoted title keeps agent-like words in the title', async () => {
   expect(cap.lastQuery).toEqual({ query: 'Deploy cursor', agent: undefined });
 });
 
-test('two unquoted tokens treat a trailing agent as the filter', async () => {
+test('two unquoted tokens prefer a matching two-word title', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan({ title: 'Deploy cursor' });
+  const code = await runDownload(
+    ['download', 'Deploy', 'cursor'],
+    makeDeps((query, agent) => {
+      if (query === 'Deploy cursor' && agent === undefined) return { kind: 'found', plan };
+      return { kind: 'not_found', suggestions: [] };
+    }, cap),
+  );
+  expect(code).toBe(0);
+  expect(cap.lastQuery).toEqual({ query: 'Deploy cursor', agent: undefined });
+  expect(cap.queries).toEqual([{ query: 'Deploy cursor', agent: undefined }]);
+});
+
+test('two unquoted tokens fall back to a trailing agent filter', async () => {
   writeLoggedInConfig();
   const cap = newCapture();
   const plan = samplePlan({ title: 'Auth' });
   const code = await runDownload(
     ['download', 'Auth', 'claude-code'],
-    makeDeps({ kind: 'found', plan }, cap),
+    makeDeps((query, agent) => {
+      if (query === 'Auth' && agent === 'claude-code') return { kind: 'found', plan };
+      return { kind: 'not_found', suggestions: [] };
+    }, cap),
   );
   expect(code).toBe(0);
   expect(cap.lastQuery).toEqual({ query: 'Auth', agent: 'claude-code' });
+  expect(cap.queries).toEqual([
+    { query: 'Auth claude-code', agent: undefined },
+    { query: 'Auth', agent: 'claude-code' },
+  ]);
 });
 
 test('strips control characters from downloaded title and agent logs', async () => {

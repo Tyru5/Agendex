@@ -76,32 +76,30 @@ function positionalArgs(args: string[]): string[] {
   return positionals;
 }
 
-function resolveQueryAndAgent(
-  positionals: string[],
-  agentFlag?: string,
-): { query: string; agent?: string } {
+type QueryAttempt = { query: string; agent?: string };
+
+function resolveQueryAttempts(positionals: string[], agentFlag?: string): QueryAttempt[] {
+  const joined = positionals.join(' ').trim();
+  if (!joined) return [{ query: '' }];
+  if (agentFlag) return [{ query: joined, agent: agentFlag }];
+
   if (positionals.length === 2) {
     const first = positionals[0] ?? '';
     const second = positionals[1] ?? '';
     const firstIsAgent = looksLikePlanAgent(first);
     const secondIsAgent = looksLikePlanAgent(second);
     if (firstIsAgent && !secondIsAgent) {
-      return { query: second, agent: agentFlag ?? first };
+      return [{ query: second, agent: first }];
     }
     if (secondIsAgent && !firstIsAgent) {
-      return { query: first, agent: agentFlag ?? second };
+      // Prefer the full title so `Deploy cursor` can match, then fall back
+      // to trailing-agent shorthand (`Auth claude-code`).
+      return [{ query: joined }, { query: first, agent: second }];
     }
   }
 
-  const joined = positionals.join(' ').trim();
-  if (agentFlag) {
-    return { query: joined, agent: agentFlag };
-  }
   const parsed = parsePlanDownloadQuery(joined);
-  return {
-    query: parsed.query,
-    agent: parsed.agent,
-  };
+  return [{ query: parsed.query, agent: parsed.agent }];
 }
 
 export function isUsableLaunchPath(pathArg: string, platform = process.platform): boolean {
@@ -298,8 +296,9 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
     return 1;
   }
 
-  const { query, agent } = resolveQueryAndAgent(positionalArgs(args), agentFlag.value);
-  if (!query) {
+  const attempts = resolveQueryAttempts(positionalArgs(args), agentFlag.value);
+  const initialAttempt = attempts[0];
+  if (!initialAttempt?.query) {
     error(`[agendex] usage: ${USAGE}`);
     return 1;
   }
@@ -330,11 +329,30 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
     return 1;
   }
 
-  let result: FetchCloudPlanResult;
+  let query = initialAttempt.query;
+  let agent = initialAttempt.agent;
+  let result: FetchCloudPlanResult | undefined;
+  let firstMiss: { query: string; agent?: string; result: FetchCloudPlanResult } | undefined;
   try {
-    result = await fetchCloudPlanFn(query, agent);
+    for (const attempt of attempts) {
+      query = attempt.query;
+      agent = attempt.agent;
+      result = await fetchCloudPlanFn(attempt.query, attempt.agent);
+      if (result.kind !== 'not_found') break;
+      firstMiss ??= { query: attempt.query, agent: attempt.agent, result };
+    }
+    if (result?.kind === 'not_found' && firstMiss) {
+      query = firstMiss.query;
+      agent = firstMiss.agent;
+      result = firstMiss.result;
+    }
   } catch (err) {
     error(`[agendex] download failed: ${err instanceof Error ? err.message : String(err)}`);
+    return 1;
+  }
+
+  if (!result) {
+    error('[agendex] download failed: no lookup result');
     return 1;
   }
 
