@@ -253,6 +253,20 @@ test('WSL status reads the selected Windows desktop daemon with Windows process 
         }),
     }),
   ).toBeNull();
+
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () => {
+        const { bootId: _bootId, ...pidInfoWithoutBoot } = pidInfo;
+        return JSON.stringify({
+          ...JSON.parse(probe),
+          pidInfo: pidInfoWithoutBoot,
+        });
+      },
+    }),
+  ).toBeNull();
 });
 
 test('Windows desktop daemon fallback is disabled outside WSL', () => {

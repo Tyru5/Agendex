@@ -207,13 +207,19 @@ try {
       $info = Get-Content -LiteralPath $pidPath -Raw | ConvertFrom-Json
       $result.pidInfo = $info
 
-      # Same source as readWindowsBootId(): registry BootId via reg.exe only.
+      # Same order/format as readWindowsBootId(): reg.exe BootId, then LastBootUpTime.
       try {
         $regOut = (& reg.exe query 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters' /v BootId 2>$null | Out-String)
         if ($regOut -match 'BootId\s+REG_DWORD\s+(0x[\da-f]+)') {
           $result.currentBootId = 'win32:' + $Matches[1].ToLower()
         }
       } catch {}
+      if (-not $result.currentBootId) {
+        try {
+          $lastBoot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
+          if ($lastBoot) { $result.currentBootId = "win32:$lastBoot" }
+        } catch {}
+      }
 
       $pidValue = 0
       $process = $null
@@ -287,14 +293,15 @@ export function readWindowsDesktopDaemonInfoFromWsl(
     const info = daemonPidInfoFromRecord(probe.pidInfo);
     if (!info || info.launcher !== 'desktop') return null;
     if (typeof probe.currentHostname !== 'string' || !probe.currentHostname.trim()) return null;
-    if (info.bootId && typeof probe.currentBootId !== 'string') return null;
+    // Desktop records must include boot identity so reboot boundaries stay enforceable.
+    if (!info.bootId || typeof probe.currentBootId !== 'string') return null;
     if (typeof probe.processRunning !== 'boolean') return null;
     if (probe.processCommand !== null && typeof probe.processCommand !== 'string') return null;
     if (typeof probe.parentProcessRunning !== 'boolean') return null;
 
     return isDaemonPidInfoRunning(info, {
       currentHostname: probe.currentHostname,
-      currentBootId: typeof probe.currentBootId === 'string' ? probe.currentBootId : null,
+      currentBootId: probe.currentBootId,
       processRunning: probe.processRunning,
       processCommand: probe.processCommand,
       parentProcessRunning: probe.parentProcessRunning,
@@ -338,9 +345,8 @@ function getSystemBootId(): string | null {
 }
 
 function readWindowsBootId(): string | null {
-  // Registry BootId only — no LastBootUpTime fallback. Mixing sources with the
-  // WSL probe caused false negatives (strict compare) or false positives
-  // (treating cross-family IDs as compatible). If unavailable, omit bootId.
+  // Prefer registry BootId; fall back to LastBootUpTime ticks. The WSL probe uses
+  // the same order/format so writer and reader stay comparable under strict equality.
   try {
     const registry = execFileSync(
       'reg.exe',
@@ -355,7 +361,23 @@ function readWindowsBootId(): string | null {
     const bootId = registry.match(/BootId\s+REG_DWORD\s+(0x[\da-f]+)/i)?.[1];
     if (bootId) return `win32:${bootId.toLowerCase()}`;
   } catch {}
-  return null;
+
+  try {
+    const lastBoot = execFileSync(
+      'powershell.exe',
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks',
+      ],
+      { encoding: 'utf8', timeout: 1_000, windowsHide: true },
+    ).trim();
+    return lastBoot ? `win32:${lastBoot}` : null;
+  } catch {
+    return null;
+  }
 }
 
 function readProcessCommand(pid: number): string | null {
