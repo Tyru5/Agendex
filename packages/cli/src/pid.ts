@@ -246,24 +246,14 @@ try {
       $info = Get-Content -LiteralPath $pidPath -Raw | ConvertFrom-Json
       $result.pidInfo = $info
 
-      # Collect every win32 boot identity so writer/probe source asymmetry still matches
-      # within the same boot, while a reboot changes both values and clears overlap.
-      try {
-        $regOut = (& reg.exe query 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters' /v BootId 2>$null | Out-String)
-        if ($regOut -match 'BootId\s+REG_DWORD\s+(0x[\da-f]+)') {
-          $regId = 'win32:' + $Matches[1].ToLower()
-          $result.currentBootIds.Add($regId) | Out-Null
-          $result.currentBootId = $regId
-        }
-      } catch {}
+      # Single canonical Windows boot identity (LastBootUpTime ticks). Avoids
+      # writer/probe asymmetry between registry BootId and ticks for the same boot.
       try {
         $lastBoot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
         if ($lastBoot) {
           $ticksId = "win32:$lastBoot"
-          if (-not $result.currentBootIds.Contains($ticksId)) {
-            $result.currentBootIds.Add($ticksId) | Out-Null
-          }
-          if (-not $result.currentBootId) { $result.currentBootId = $ticksId }
+          $result.currentBootIds.Add($ticksId) | Out-Null
+          $result.currentBootId = $ticksId
         }
       } catch {}
 
@@ -404,22 +394,8 @@ function getSystemBootIds(): string[] {
 }
 
 function readWindowsBootIdentities(): string[] {
-  const ids: string[] = [];
-  try {
-    const registry = execFileSync(
-      'reg.exe',
-      [
-        'query',
-        String.raw`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters`,
-        '/v',
-        'BootId',
-      ],
-      { encoding: 'utf8', timeout: 1_000, windowsHide: true },
-    );
-    const bootId = registry.match(/BootId\s+REG_DWORD\s+(0x[\da-f]+)/i)?.[1];
-    if (bootId) ids.push(`win32:${bootId.toLowerCase()}`);
-  } catch {}
-
+  // Single canonical identity (LastBootUpTime ticks). Mixing registry BootId with
+  // ticks let writer and WSL probe disagree for the same boot under overlap checks.
   try {
     const lastBoot = execFileSync(
       'powershell.exe',
@@ -432,13 +408,10 @@ function readWindowsBootIdentities(): string[] {
       ],
       { encoding: 'utf8', timeout: 1_000, windowsHide: true },
     ).trim();
-    if (lastBoot) {
-      const ticksId = `win32:${lastBoot}`;
-      if (!ids.includes(ticksId)) ids.push(ticksId);
-    }
-  } catch {}
-
-  return ids;
+    return lastBoot ? [`win32:${lastBoot}`] : [];
+  } catch {
+    return [];
+  }
 }
 
 function parseBootIdList(value: unknown): string[] {
