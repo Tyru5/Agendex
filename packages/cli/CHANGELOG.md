@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.3.0
+
+### Minor Changes
+
+- 0ed676e: Add `agendex download` to fetch a cloud plan by id, name, or name + agent as Markdown or HTML
+
 ## 5.2.1
 
 ### Patch Changes
