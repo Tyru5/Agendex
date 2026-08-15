@@ -152,6 +152,8 @@ export interface DaemonPidFreshnessOptions {
   processRunning?: boolean;
   /** Override for desktop launcher parent liveness checks (tests). */
   parentProcessRunning?: boolean;
+  /** True when the live worker's CreationDate is at/after LastBootUpTime. */
+  processCreatedAfterBoot?: boolean;
 }
 
 /** Checks record provenance only; validate each live PID separately before signaling it. */
@@ -165,9 +167,9 @@ export function isDaemonPidInfoCurrent(
   const storedBootIds = storedBootIdentities(info);
   if (storedBootIds.length > 0) {
     const currentBootIds = resolveCurrentBootIds(options);
-    // Empty current set: cannot verify — treat as not current when the record claims a boot.
-    if (currentBootIds.length === 0) return false;
-    if (!bootIdentitiesOverlap(storedBootIds, currentBootIds)) return false;
+    const agreement = bootIdentitiesAgree(storedBootIds, currentBootIds);
+    if (agreement === 'conflict') return false;
+    if (agreement === 'inconclusive' && options.processCreatedAfterBoot !== true) return false;
   }
 
   return true;
@@ -196,9 +198,46 @@ function resolveCurrentBootIds(options: DaemonPidFreshnessOptions): string[] {
   return getSystemBootIds();
 }
 
-function bootIdentitiesOverlap(stored: string[], current: string[]): boolean {
-  const currentSet = new Set(current);
-  return stored.some((id) => currentSet.has(id));
+function isWin32TicksId(id: string): boolean {
+  return /^win32:\d+$/.test(id);
+}
+
+function isWin32RegistryId(id: string): boolean {
+  return /^win32:0x[\da-f]+$/i.test(id);
+}
+
+/**
+ * Ticks are authoritative when both sides have them (reboot changes ticks even if
+ * a registry BootId collides). Same-family registry is used for legacy PID files.
+ * Cross-family-only comparisons are inconclusive — callers may accept via
+ * processCreatedAfterBoot instead of treating families as interchangeable.
+ */
+function bootIdentitiesAgree(
+  stored: string[],
+  current: string[],
+): 'match' | 'conflict' | 'inconclusive' {
+  if (stored.length === 0 || current.length === 0) return 'inconclusive';
+
+  const storedTicks = stored.filter(isWin32TicksId);
+  const currentTicks = current.filter(isWin32TicksId);
+  if (storedTicks.length > 0 && currentTicks.length > 0) {
+    return storedTicks.some((id) => currentTicks.includes(id)) ? 'match' : 'conflict';
+  }
+
+  const storedReg = stored.filter(isWin32RegistryId);
+  const currentReg = current.filter(isWin32RegistryId);
+  if (storedReg.length > 0 && currentReg.length > 0) {
+    return storedReg.some((id) => currentReg.includes(id)) ? 'match' : 'conflict';
+  }
+
+  const storedOther = stored.filter((id) => !isWin32TicksId(id) && !isWin32RegistryId(id));
+  const currentOther = current.filter((id) => !isWin32TicksId(id) && !isWin32RegistryId(id));
+  if (storedOther.length > 0 && currentOther.length > 0) {
+    const currentSet = new Set(currentOther);
+    return storedOther.some((id) => currentSet.has(id)) ? 'match' : 'conflict';
+  }
+
+  return 'inconclusive';
 }
 
 export function isDaemonPidInfoRunning(
@@ -230,6 +269,7 @@ $result = [ordered]@{
   processRunning = $false
   processCommand = $null
   parentProcessRunning = $false
+  processCreatedAfterBoot = $false
 }
 
 try {
@@ -275,6 +315,12 @@ try {
         if ($null -ne $process) {
           $result.processRunning = $true
           $result.processCommand = [string]$process.CommandLine
+          try {
+            $bootTime = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
+            if ($process.CreationDate -and $bootTime -and $process.CreationDate -ge $bootTime) {
+              $result.processCreatedAfterBoot = $true
+            }
+          } catch {}
         }
       }
 
@@ -349,6 +395,12 @@ export function readWindowsDesktopDaemonInfoFromWsl(
     if (typeof probe.processRunning !== 'boolean') return null;
     if (probe.processCommand !== null && typeof probe.processCommand !== 'string') return null;
     if (typeof probe.parentProcessRunning !== 'boolean') return null;
+    if (
+      probe.processCreatedAfterBoot !== undefined &&
+      typeof probe.processCreatedAfterBoot !== 'boolean'
+    ) {
+      return null;
+    }
 
     return isDaemonPidInfoRunning(info, {
       currentHostname: probe.currentHostname,
@@ -356,6 +408,10 @@ export function readWindowsDesktopDaemonInfoFromWsl(
       processRunning: probe.processRunning,
       processCommand: probe.processCommand,
       parentProcessRunning: probe.parentProcessRunning,
+      processCreatedAfterBoot:
+        typeof probe.processCreatedAfterBoot === 'boolean'
+          ? probe.processCreatedAfterBoot
+          : undefined,
     })
       ? info
       : null;

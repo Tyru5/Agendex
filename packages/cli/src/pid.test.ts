@@ -107,6 +107,42 @@ test('daemon PID metadata rejects records from another host or OS boot', () => {
       },
     ),
   ).toBe(true);
+  // Ticks are authoritative: a registry collision must not hide a reboot.
+  expect(
+    isDaemonPidInfoCurrent(
+      {
+        pid: process.pid,
+        hostname: 'current-host',
+        bootId: 'win32:638000000000000000',
+        bootIds: ['win32:638000000000000000', 'win32:0x12'],
+      },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345', 'win32:0x12'],
+      },
+    ),
+  ).toBe(false);
+  // Legacy registry-only vs ticks-only is inconclusive unless the worker
+  // started after LastBootUpTime (registry probe failed).
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12' },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345'],
+      },
+    ),
+  ).toBe(false);
+  expect(
+    isDaemonPidInfoCurrent(
+      { pid: process.pid, hostname: 'current-host', bootId: 'win32:0x12' },
+      {
+        currentHostname: 'current-host',
+        currentBootIds: ['win32:638123456789012345'],
+        processCreatedAfterBoot: true,
+      },
+    ),
+  ).toBe(true);
   expect(
     isDaemonPidInfoCurrent(
       {
@@ -253,6 +289,7 @@ test('WSL status reads the selected Windows desktop daemon with Windows process 
     processRunning: true,
     processCommand: 'Agendex.exe --type=utility --utility-sub-type=node.mojom.NodeService',
     parentProcessRunning: true,
+    processCreatedAfterBoot: true,
   });
 
   expect(
