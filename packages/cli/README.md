@@ -53,6 +53,8 @@ agendex sync --force           # Re-sync all plans, ignoring the local hash cach
 agendex upload <path>          # Upload a single Markdown plan file to the cloud
 agendex upload <path> --agent <name>  # Override the uploaded plan's agent label
 agendex upload <path> --open   # Open the uploaded plan in the browser after upload
+agendex download <query>       # Download a cloud plan by id, name, or name + agent
+agendex download <query> --agent <name> --format md|html --out <path> [--force]
 agendex cleanup                # Interactively remove cloud daemons
 agendex cleanup --stale        # Auto-remove all stale daemons
 agendex status                 # Show config state, daemon status, uptime & hostname
@@ -171,7 +173,7 @@ Before running `start`, `configure`, or `sync`, the CLI checks for a newer publi
 [agendex] run: npm i -g agendex-cli
 ```
 
-The check is skipped for `stop`, `status`, `login`, `logout`, `open`, `cleanup`, and `help`.
+The check is skipped for `stop`, `status`, `login`, `logout`, `open`, `cleanup`, `download`, `upload`, and `help`.
 
 ## Supported Runtime
 
@@ -191,6 +193,23 @@ agendex login --url https://agendex.yourdomain.com
 This opens your deployment's OAuth flow and stores the returned `cloudToken` and `convexUrl` in your active config directory (`~/.agendex/config.json` for prod, `~/.agendex-dev/config.json` when using `--dev` or `AGENDEX_DEV=1`).
 
 The target can also be set via `AGENDEX_SITE_URL` env var. For local development against the default dev app URL, use `agendex login --dev` or set `AGENDEX_DEV=1` (see [Dev vs prod](#dev-vs-prod-config-directory) above).
+
+## Download a plan
+
+`agendex download` fetches one of your cloud plans and writes it to disk. The query can be a cloud plan id, a local plan id, the plan title, or the title plus agent (`claude-code/Add auth`, `Add auth --agent claude-code`). Title matching is case-insensitive and accepts a unique prefix or substring.
+
+If a name is missing or matches more than one plan, the CLI prints numbered quick-select options. In a TTY you can pick a number instead of retyping a long title; otherwise each option includes a short `agendex download <id>` command.
+
+```bash
+agendex download k57abc123
+agendex download "Add auth"
+agendex download "Add auth" --agent claude-code
+agendex download claude-code/"Add auth" --format html --out ./exports
+agendex download "Add auth" --out -
+agendex download "Add auth" --force
+```
+
+`--format` accepts `md` (default) or `html`. If `--out` ends in `.html` or `.md` and `--format` is omitted, the extension selects the format. Use `--out -` to write the file contents to stdout. Existing files are left untouched unless you pass `--force`. PDF export remains a web-app action.
 
 ## Open the web app
 

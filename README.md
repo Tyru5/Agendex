@@ -206,6 +206,9 @@ bun run cli:sync --force    # re-sync all plans, ignoring cache
 bun run cli:upload ~/path/to/plan.md          # upload a single Markdown plan to the cloud
 bun run cli:upload ~/path/to/plan.md --agent codex  # override the plan's agent label
 bun run cli:upload ~/path/to/plan.md --open   # upload and open the plan in the browser
+bun run cli:download <query>                  # download a cloud plan by id, name, or name + agent
+bun run cli:download "Add auth" --agent claude-code --format md
+bun run cli:download "Add auth" --force    # overwrite an existing destination file
 bun run cli:stop            # stop daemon
 bun run cli:cleanup         # interactively remove cloud daemon records
 bun run cli:cleanup --stale

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
 import { saveConfig } from '@agendex/shared';
 import {
+  fetchCloudPlan,
   fetchPlannotatorWritebacks,
   getDaemonCloudScope,
   resetDaemonCredentialStore,
@@ -49,6 +50,8 @@ interface CloudApiOptions {
   heartbeatStatus?: number;
   refreshStatus?: number;
   syncStatus?: number;
+  planStatus?: number;
+  planBody?: Record<string, unknown>;
 }
 
 function startCloudApi(writebacks: PlannotatorWritebackJob[], options: CloudApiOptions = {}) {
@@ -78,6 +81,32 @@ function startCloudApi(writebacks: PlannotatorWritebackJob[], options: CloudApiO
                 expiresAt: Date.now() + 60_000,
               }
             : { error: 'Unauthorized' },
+        ),
+      );
+      return;
+    }
+
+    if (
+      (req.url === '/api/cli/plan' || req.url?.startsWith('/api/cli/plan?')) &&
+      req.method === 'GET'
+    ) {
+      const status = options.planStatus ?? 200;
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify(
+          options.planBody ?? {
+            status: 'found',
+            plan: {
+              id: 'plan-1',
+              agent: 'claude-code',
+              title: 'Add auth',
+              content: '# Add auth\n',
+              format: 'markdown',
+              filePath: '/tmp/add-auth.md',
+              createdAt: '2026-08-01T00:00:00.000Z',
+              updatedAt: '2026-08-02T00:00:00.000Z',
+            },
+          },
         ),
       );
       return;
@@ -311,6 +340,117 @@ test('does not retry an old account when refreshed credentials fail compare-and-
 
   expect(result.status).toBe(503);
   expect(cloud.requests.filter((request) => request === 'POST /api/cli/sync')).toHaveLength(1);
+});
+
+test('fetchCloudPlan returns a found plan and sends query params', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([]);
+  saveCloudConfig(cloud.url);
+
+  const result = await fetchCloudPlan('Add auth', 'claude-code');
+  expect(result).toEqual({
+    kind: 'found',
+    plan: {
+      id: 'plan-1',
+      agent: 'claude-code',
+      title: 'Add auth',
+      content: '# Add auth\n',
+      format: 'markdown',
+      filePath: '/tmp/add-auth.md',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: '2026-08-02T00:00:00.000Z',
+    },
+  });
+  expect(
+    cloud.requests.some((request) =>
+      request.includes('GET /api/cli/plan?q=Add+auth&agent=claude-code'),
+    ),
+  ).toBe(true);
+});
+
+test('fetchCloudPlan maps 409 to ambiguous and 404 to not_found', async () => {
+  await useTempHome();
+  const ambiguous = await startCloudApi([], {
+    planStatus: 409,
+    planBody: {
+      status: 'ambiguous',
+      matches: [
+        {
+          id: 'p1',
+          agent: 'claude-code',
+          title: 'Add auth',
+          updatedAt: '2026-08-02T00:00:00.000Z',
+        },
+      ],
+    },
+  });
+  saveCloudConfig(ambiguous.url);
+  expect(await fetchCloudPlan('Add auth')).toEqual({
+    kind: 'ambiguous',
+    matches: [
+      { id: 'p1', agent: 'claude-code', title: 'Add auth', updatedAt: '2026-08-02T00:00:00.000Z' },
+    ],
+  });
+
+  if (server) {
+    await new Promise<void>((resolve) => server?.close(() => resolve()));
+    server = undefined;
+  }
+
+  const missing = await startCloudApi([], {
+    planStatus: 404,
+    planBody: {
+      status: 'not_found',
+      suggestions: [
+        {
+          id: 'p2',
+          agent: 'claude-code',
+          title: 'Add auth',
+          updatedAt: '2026-08-02T00:00:00.000Z',
+        },
+      ],
+    },
+  });
+  saveCloudConfig(missing.url);
+  expect(await fetchCloudPlan('Add autth')).toEqual({
+    kind: 'not_found',
+    suggestions: [
+      {
+        id: 'p2',
+        agent: 'claude-code',
+        title: 'Add auth',
+        updatedAt: '2026-08-02T00:00:00.000Z',
+      },
+    ],
+  });
+});
+
+test('fetchCloudPlan treats a 409 without ambiguous status as a server error', async () => {
+  await useTempHome();
+  const truncated = await startCloudApi([], {
+    planStatus: 409,
+    planBody: { error: 'Title lookup did not finish scanning all plans. Retry with a plan id.' },
+  });
+  saveCloudConfig(truncated.url);
+
+  expect(await fetchCloudPlan('Add auth')).toEqual({
+    kind: 'error',
+    status: 409,
+    message: 'Title lookup did not finish scanning all plans. Retry with a plan id.',
+  });
+});
+
+test('fetchCloudPlan treats a generic 404 as a server error, not a missing plan', async () => {
+  await useTempHome();
+  const missingRoute = await startCloudApi([], { planStatus: 404, planBody: {} });
+  saveCloudConfig(missingRoute.url);
+
+  expect(await fetchCloudPlan('Add auth')).toEqual({
+    kind: 'error',
+    status: 404,
+    message:
+      'Cloud download is not available on this server. Update the Agendex cloud deployment or check that you are logged into the right host.',
+  });
 });
 
 afterEach(async () => {
