@@ -37,6 +37,7 @@ import {
 } from './pid.ts';
 import { renderStatus, type CloudDaemonStatusError } from './status.ts';
 import { syncAll } from './sync.ts';
+import { runDownload } from './download.ts';
 import { runUpgrade } from './upgrade.ts';
 import { runUpload } from './upload.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
@@ -89,6 +90,7 @@ async function main(): Promise<number> {
     'remove-dir',
     'list-dirs',
     'upload',
+    'download',
     'upgrade',
     'help',
     '--help',
@@ -328,6 +330,10 @@ async function main(): Promise<number> {
 
     case 'upload': {
       return runUpload(args);
+    }
+
+    case 'download': {
+      return runDownload(args);
     }
 
     case 'hooks': {

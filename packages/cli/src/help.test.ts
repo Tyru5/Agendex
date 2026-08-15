@@ -17,6 +17,9 @@ test('renders grouped help with usage, command categories, and flags', () => {
   expect(output).toContain('status');
   expect(output).toContain('Show local/cloud health and recommended next steps');
   expect(output).toContain('agendex hooks install claude-code --preview');
+  expect(output).toContain('download <query>');
+  expect(output).toContain('Download a cloud plan by id, name, or name + agent');
+  expect(output).toContain('agendex download "Add auth" --force');
   expect(output).toContain('--dev');
   expect(output).toContain('agendex status');
 });

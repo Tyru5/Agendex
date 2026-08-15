@@ -1,0 +1,292 @@
+import { expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  canonicalPlanAgent,
+  dedupePlanDownloadCandidates,
+  isExactPlanDownloadIdHit,
+  looksLikePlanIdQuery,
+  parsePlanDownloadQuery,
+  planAgentLookupValues,
+  planAgentsMatch,
+  scanPlanDownloadFallback,
+  scorePlanTitleSimilarity,
+  selectPlanDownloadMatches,
+  suggestClosestPlans,
+  type PlanDownloadLookupCandidate,
+} from './plan-download-lookup.ts';
+
+function plan(
+  partial: Partial<PlanDownloadLookupCandidate> & Pick<PlanDownloadLookupCandidate, 'id' | 'title'>,
+): PlanDownloadLookupCandidate {
+  return {
+    agent: 'claude-code',
+    updatedAt: 1,
+    ...partial,
+  };
+}
+
+test('parsePlanDownloadQuery extracts a known agent prefix', () => {
+  expect(parsePlanDownloadQuery('claude-code/Add auth')).toEqual({
+    query: 'Add auth',
+    agent: 'claude-code',
+  });
+  expect(parsePlanDownloadQuery('codex: Ship download command')).toEqual({
+    query: 'Ship download command',
+    agent: 'codex-cli',
+  });
+  expect(parsePlanDownloadQuery('cursor | Rename sync cache')).toEqual({
+    query: 'Rename sync cache',
+    agent: 'cursor',
+  });
+});
+
+test('parsePlanDownloadQuery keeps multiword titles with an agent-like suffix', () => {
+  expect(parsePlanDownloadQuery('Migration notes: codex')).toEqual({
+    query: 'Migration notes: codex',
+  });
+  expect(parsePlanDownloadQuery('Add auth / claude-code')).toEqual({
+    query: 'Add auth / claude-code',
+  });
+});
+
+test('parsePlanDownloadQuery extracts a single-token title with an agent suffix', () => {
+  expect(parsePlanDownloadQuery('Auth / claude-code')).toEqual({
+    query: 'Auth',
+    agent: 'claude-code',
+  });
+});
+
+test('parsePlanDownloadQuery leaves ordinary titles alone', () => {
+  expect(parsePlanDownloadQuery('API/Auth refactor')).toEqual({
+    query: 'API/Auth refactor',
+  });
+  expect(parsePlanDownloadQuery('just a title')).toEqual({
+    query: 'just a title',
+  });
+});
+
+test('plan-download-lookup stays Convex-safe and does not import the Node adapter catalog', () => {
+  const source = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), 'plan-download-lookup.ts'),
+    'utf8',
+  );
+  expect(source).not.toContain('adapters/catalog.ts');
+  expect(source).toContain('adapters/agent-ids');
+  expect(source).not.toContain('adapters/agent-ids.ts');
+});
+
+test('canonicalPlanAgent maps adapter aliases', () => {
+  expect(canonicalPlanAgent('codex')).toBe('codex-cli');
+  expect(canonicalPlanAgent('codex-cli')).toBe('codex-cli');
+  expect(canonicalPlanAgent('GITHUB-COPILOT')).toBe('copilot-chat');
+});
+
+test('planAgentsMatch treats adapter ids and aliases as the same agent', () => {
+  expect(planAgentsMatch('codex-cli', 'codex')).toBe(true);
+  expect(planAgentsMatch('claude-code', 'cursor')).toBe(false);
+  expect(planAgentsMatch('MyAgent', 'myagent')).toBe(true);
+});
+
+test('planAgentLookupValues includes adapter ids and stored aliases', () => {
+  expect(planAgentLookupValues('codex').toSorted()).toEqual(['codex', 'codex-cli']);
+  expect(planAgentLookupValues('codex-cli').toSorted()).toEqual(['codex', 'codex-cli']);
+  expect(planAgentLookupValues('claude-code')).toEqual(['claude-code']);
+  expect(planAgentLookupValues('  ')).toEqual([]);
+  expect(planAgentLookupValues('commandcode')).toContain('command-code');
+  expect(planAgentLookupValues('command-code')).toContain('commandcode');
+});
+
+test('selectPlanDownloadMatches prefers an exact id or localPlanId', () => {
+  const plans = [
+    plan({ id: 'cloud-1', title: 'Add auth', localPlanId: 'local-1' }),
+    plan({ id: 'cloud-2', title: 'cloud-1' }),
+  ];
+
+  expect(selectPlanDownloadMatches(plans, 'cloud-1')).toEqual({
+    kind: 'one',
+    plan: plans[0],
+  });
+  expect(selectPlanDownloadMatches(plans, 'local-1')).toEqual({
+    kind: 'one',
+    plan: plans[0],
+  });
+  expect(selectPlanDownloadMatches(plans, 'cloud-1', 'cursor')).toEqual({ kind: 'none' });
+  expect(selectPlanDownloadMatches(plans, 'local-1', 'cursor')).toEqual({ kind: 'none' });
+});
+
+test('dedupePlanDownloadCandidates collapses the same document id without identity fields', () => {
+  const first = plan({ id: 'same', title: 'Add auth', updatedAt: 1 });
+  const again = plan({ id: 'same', title: 'Add auth', updatedAt: 1 });
+  const unique = dedupePlanDownloadCandidates([first, again]);
+  expect(unique).toHaveLength(1);
+  expect(selectPlanDownloadMatches(unique, 'Add auth')).toEqual({ kind: 'one', plan: first });
+});
+
+test('dedupePlanDownloadCandidates collapses duplicate sync identities before title select', () => {
+  const older = plan({
+    id: 'old',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    updatedAt: 1,
+  });
+  const newer = plan({
+    id: 'new',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    updatedAt: 2,
+  });
+  const unique = dedupePlanDownloadCandidates([older, newer]);
+  expect(unique).toEqual([newer]);
+  expect(selectPlanDownloadMatches(unique, 'Add auth')).toEqual({ kind: 'one', plan: newer });
+});
+
+test('isExactPlanDownloadIdHit is only true for id or localPlanId', () => {
+  const hit = plan({ id: 'cloud-1', title: 'Add auth', localPlanId: 'local-1' });
+  expect(isExactPlanDownloadIdHit(hit, 'cloud-1')).toBe(true);
+  expect(isExactPlanDownloadIdHit(hit, 'local-1')).toBe(true);
+  expect(isExactPlanDownloadIdHit(hit, 'Add auth')).toBe(false);
+});
+
+test('looksLikePlanIdQuery treats ID-shaped titles as ids', () => {
+  expect(looksLikePlanIdQuery('AuthenticationFlow')).toBe(true);
+});
+
+test('selectPlanDownloadMatches finds an ID-shaped title substring', () => {
+  const plans = [plan({ id: '1', title: 'ImplementAuthenticationFlow' })];
+  expect(selectPlanDownloadMatches(plans, 'AuthenticationFlow')).toEqual({
+    kind: 'one',
+    plan: plans[0],
+  });
+});
+
+test('selectPlanDownloadMatches finds a unique title case-insensitively', () => {
+  const plans = [plan({ id: '1', title: 'Add Auth Flow' }), plan({ id: '2', title: 'Unrelated' })];
+
+  expect(selectPlanDownloadMatches(plans, 'add auth flow')).toEqual({
+    kind: 'one',
+    plan: plans[0],
+  });
+});
+
+test('selectPlanDownloadMatches uses a unique prefix or substring', () => {
+  const plans = [
+    plan({ id: '1', title: 'Download cloud plans' }),
+    plan({ id: '2', title: 'Unrelated note' }),
+  ];
+
+  expect(selectPlanDownloadMatches(plans, 'Download')).toEqual({
+    kind: 'one',
+    plan: plans[0],
+  });
+  expect(selectPlanDownloadMatches(plans, 'cloud plans')).toEqual({
+    kind: 'one',
+    plan: plans[0],
+  });
+});
+
+test('selectPlanDownloadMatches uses agent to disambiguate the same title', () => {
+  const plans = [
+    plan({ id: '1', title: 'Add auth', agent: 'claude-code', updatedAt: 2 }),
+    plan({ id: '2', title: 'Add auth', agent: 'codex-cli', updatedAt: 3 }),
+  ];
+
+  expect(selectPlanDownloadMatches(plans, 'Add auth')).toEqual({
+    kind: 'many',
+    plans: [plans[1], plans[0]],
+  });
+  expect(selectPlanDownloadMatches(plans, 'Add auth', 'codex')).toEqual({
+    kind: 'one',
+    plan: plans[1],
+  });
+});
+
+test('selectPlanDownloadMatches returns none for an empty query', () => {
+  expect(selectPlanDownloadMatches([plan({ id: '1', title: 'Add auth' })], '   ')).toEqual({
+    kind: 'none',
+  });
+});
+
+test('selectPlanDownloadMatches does not treat unrelated leftover plans as hits', () => {
+  expect(
+    selectPlanDownloadMatches(
+      [plan({ id: '1', title: 'Unrelated note' }), plan({ id: '2', title: 'Something else' })],
+      'Add auth',
+    ),
+  ).toEqual({ kind: 'none' });
+});
+
+test('scorePlanTitleSimilarity ranks typos above unrelated titles', () => {
+  expect(scorePlanTitleSimilarity('Add autth', 'Add auth')).toBeGreaterThan(0.7);
+  expect(scorePlanTitleSimilarity('Add autth', 'Add auth')).toBeGreaterThan(
+    scorePlanTitleSimilarity('Add autth', 'Weekly retro notes'),
+  );
+});
+
+test('suggestClosestPlans returns the closest titles and skips weak ones', () => {
+  const plans = [
+    plan({ id: '1', title: 'Add auth', agent: 'claude-code', updatedAt: 2 }),
+    plan({ id: '2', title: 'Add authentication flow', agent: 'codex-cli', updatedAt: 3 }),
+    plan({ id: '3', title: 'Weekly retro notes', updatedAt: 4 }),
+  ];
+
+  expect(suggestClosestPlans(plans, 'Add autth').map((item) => item.id)).toEqual(['1', '2']);
+  expect(suggestClosestPlans(plans, 'zzzz-no-such-plan')).toEqual([]);
+  expect(suggestClosestPlans(plans, 'k57abc123def4567')).toEqual([]);
+});
+
+test('suggestClosestPlans prefers the requested agent when titles are equally close', () => {
+  const plans = [
+    plan({ id: '1', title: 'Add auth', agent: 'claude-code', updatedAt: 4 }),
+    plan({ id: '2', title: 'Add auth', agent: 'codex-cli', updatedAt: 3 }),
+  ];
+
+  expect(suggestClosestPlans(plans, 'Add autth', 'codex').map((item) => item.id)).toEqual([
+    '2',
+    '1',
+  ]);
+});
+
+test('scanPlanDownloadFallback finds an older exact title beyond the first 25 plans', async () => {
+  const newest = Array.from({ length: 25 }, (_, index) =>
+    plan({
+      id: `recent-${index}`,
+      title: `Recent ${index}`,
+      updatedAt: 2000 + index,
+    }),
+  );
+  const older = plan({ id: 'old-exact', title: 'Add auth', updatedAt: 1 });
+  const pages = [newest, [older]];
+  let pageIndex = 0;
+
+  const result = await scanPlanDownloadFallback('Add auth', undefined, async () => {
+    const page = pages[pageIndex] ?? [];
+    pageIndex += 1;
+    return { plans: page, done: pageIndex >= pages.length };
+  });
+
+  expect(result.selection).toEqual({ kind: 'one', plan: older });
+  expect(pageIndex).toBe(2);
+});
+
+test('scanPlanDownloadFallback keeps scanning after a unique hit so later duplicates are ambiguous', async () => {
+  const first = plan({ id: 'first', title: 'Add auth', updatedAt: 3 });
+  const filler = Array.from({ length: 8 }, (_, index) =>
+    plan({ id: `other-${index}`, title: `Other ${index}`, updatedAt: 2 }),
+  );
+  const duplicate = plan({ id: 'second', title: 'Add auth', updatedAt: 1 });
+  const pages = [[first, ...filler], [duplicate]];
+  let pageIndex = 0;
+
+  const result = await scanPlanDownloadFallback('Add auth', undefined, async () => {
+    const page = pages[pageIndex] ?? [];
+    pageIndex += 1;
+    return { plans: page, done: pageIndex >= pages.length };
+  });
+
+  expect(result.selection.kind).toBe('many');
+  if (result.selection.kind !== 'many') throw new Error('expected many');
+  expect(result.selection.plans.map((item) => item.id).toSorted()).toEqual(['first', 'second']);
+  expect(pageIndex).toBe(2);
+});

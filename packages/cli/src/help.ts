@@ -97,6 +97,15 @@ const HELP_GROUPS: HelpGroup[] = [
         description: 'Upload a single Markdown plan file',
         examples: ['agendex upload plan.md --agent claude-code --open'],
       },
+      {
+        command: 'download <query>',
+        description: 'Download a cloud plan by id, name, or name + agent',
+        examples: [
+          'agendex download <plan-id>',
+          'agendex download "Add auth" --agent claude-code --format md',
+          'agendex download "Add auth" --force',
+        ],
+      },
     ],
   },
   {

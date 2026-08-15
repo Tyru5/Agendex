@@ -139,6 +139,169 @@ export interface CliPreferences {
   collectLocalIpAddress: boolean;
 }
 
+export interface CloudPlanDownload {
+  id: string;
+  localPlanId?: string;
+  agent: string;
+  title: string;
+  content: string;
+  format: string;
+  filePath: string;
+  workspace?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CloudPlanDownloadMatch {
+  id: string;
+  localPlanId?: string;
+  agent: string;
+  title: string;
+  updatedAt: string;
+}
+
+export type FetchCloudPlanResult =
+  | { kind: 'found'; plan: CloudPlanDownload }
+  | { kind: 'ambiguous'; matches: CloudPlanDownloadMatch[] }
+  | { kind: 'not_found'; suggestions: CloudPlanDownloadMatch[] }
+  | { kind: 'auth-expired' }
+  | { kind: 'error'; status: number; message: string };
+
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function parseCloudPlanDownload(value: unknown): CloudPlanDownload | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const plan = value as Record<string, unknown>;
+  if (
+    typeof plan.id !== 'string' ||
+    typeof plan.agent !== 'string' ||
+    typeof plan.title !== 'string' ||
+    typeof plan.content !== 'string' ||
+    typeof plan.format !== 'string' ||
+    typeof plan.filePath !== 'string' ||
+    typeof plan.createdAt !== 'string' ||
+    typeof plan.updatedAt !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    id: plan.id,
+    localPlanId: readOptionalString(plan.localPlanId),
+    agent: plan.agent,
+    title: plan.title,
+    content: plan.content,
+    format: plan.format,
+    filePath: plan.filePath,
+    workspace: readOptionalString(plan.workspace),
+    createdAt: plan.createdAt,
+    updatedAt: plan.updatedAt,
+  };
+}
+
+function parseCloudPlanDownloadMatch(value: unknown): CloudPlanDownloadMatch | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const plan = value as Record<string, unknown>;
+  if (
+    typeof plan.id !== 'string' ||
+    typeof plan.agent !== 'string' ||
+    typeof plan.title !== 'string' ||
+    typeof plan.updatedAt !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    id: plan.id,
+    localPlanId: readOptionalString(plan.localPlanId),
+    agent: plan.agent,
+    title: plan.title,
+    updatedAt: plan.updatedAt,
+  };
+}
+
+export async function fetchCloudPlan(query: string, agent?: string): Promise<FetchCloudPlanResult> {
+  const { token, convexUrl } = getCloudConfig();
+  const params = new URLSearchParams({ q: query });
+  if (agent) params.set('agent', agent);
+  const url = `${convexUrl}/api/cli/plan?${params.toString()}`;
+  let activeToken = token;
+
+  let res = await requestText(url, {
+    method: 'GET',
+    headers: authHeaders(activeToken),
+  });
+
+  if (isAuthenticationFailure(res.status)) {
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
+      res = await requestText(url, {
+        method: 'GET',
+        headers: authHeaders(activeToken),
+      });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      if (refreshed.kind === 'auth-rejected') return { kind: 'auth-expired' };
+      return {
+        kind: 'error',
+        status: refreshed.kind === 'credentials-changed' ? 409 : 503,
+        message:
+          refreshed.kind === 'credentials-changed'
+            ? 'Cloud credentials changed during download'
+            : 'Cloud session refresh unavailable',
+      };
+    }
+  }
+
+  if (isAuthenticationFailure(res.status)) {
+    reportAuthExpired(res.status, activeToken);
+    return { kind: 'auth-expired' };
+  }
+
+  const body = parseJsonObject(res.body);
+
+  if (body?.status === 'not_found') {
+    const suggestions = Array.isArray(body?.suggestions)
+      ? body.suggestions.flatMap((entry) => {
+          const match = parseCloudPlanDownloadMatch(entry);
+          return match ? [match] : [];
+        })
+      : [];
+    return { kind: 'not_found', suggestions };
+  }
+
+  if (res.status === 404) {
+    const message =
+      typeof body?.error === 'string' && body.error
+        ? body.error
+        : 'Cloud download is not available on this server. Update the Agendex cloud deployment or check that you are logged into the right host.';
+    return { kind: 'error', status: 404, message };
+  }
+
+  if (body?.status === 'ambiguous') {
+    const matches = Array.isArray(body?.matches)
+      ? body.matches.flatMap((entry) => {
+          const match = parseCloudPlanDownloadMatch(entry);
+          return match ? [match] : [];
+        })
+      : [];
+    return { kind: 'ambiguous', matches };
+  }
+
+  if (res.status >= 200 && res.status < 300 && body?.status === 'found') {
+    const plan = parseCloudPlanDownload(body.plan);
+    if (plan) return { kind: 'found', plan };
+    return { kind: 'error', status: res.status, message: 'Cloud returned an invalid plan payload' };
+  }
+
+  const message =
+    typeof body?.error === 'string' && body.error
+      ? body.error
+      : `${res.status}: ${res.body || 'unknown error'}`;
+  return { kind: 'error', status: res.status, message };
+}
+
 function parseJsonObject(body: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(body) as unknown;

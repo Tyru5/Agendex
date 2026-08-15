@@ -91,13 +91,22 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_owner', ['ownerId'])
+    .index('by_owner_and_agent', ['ownerId', 'agent'])
     .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
     .index('by_owner_plannotatorContinuityKey', ['ownerId', 'plannotatorContinuityKey'])
     .index('by_owner_syncIdentityKey', ['ownerId', 'syncIdentityKey'])
     .index('by_owner_contentHash', ['ownerId', 'contentHash'])
     // Server-side content search for the plan list. The list query no longer
     // ships `content` to clients, so full-text matching has to happen here.
-    .searchIndex('search_content', { searchField: 'content', filterFields: ['ownerId'] }),
+    .searchIndex('search_content', {
+      searchField: 'content',
+      filterFields: ['ownerId', 'agent'],
+    })
+    // Title search for CLI download lookup (id / name / name+agent).
+    .searchIndex('search_title', {
+      searchField: 'title',
+      filterFields: ['ownerId', 'agent'],
+    }),
 
   shareLinks: defineTable({
     planId: v.id('plans'),
