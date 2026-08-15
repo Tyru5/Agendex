@@ -31,6 +31,7 @@ import {
   isDaemonPidInfoRunning,
   isRunning,
   readPidInfo,
+  readWindowsDesktopDaemonInfoFromWsl,
   removePid,
   requestDaemonStop,
   writePidForProcess,
@@ -378,8 +379,15 @@ async function main(): Promise<number> {
 
     case 'status': {
       const config = loadConfig();
-      const pidInfo = readPidInfo();
-      const running = pidInfo ? isDaemonPidInfoRunning(pidInfo) : false;
+      let pidInfo = readPidInfo();
+      let running = pidInfo ? isDaemonPidInfoRunning(pidInfo) : false;
+      if (!running) {
+        const windowsDesktopPidInfo = readWindowsDesktopDaemonInfoFromWsl({ dev: devFlag });
+        if (windowsDesktopPidInfo) {
+          pidInfo = windowsDesktopPidInfo;
+          running = true;
+        }
+      }
       let devices: DeviceInfo[] | null = null;
       let cloudDaemonError: CloudDaemonStatusError | null = null;
 

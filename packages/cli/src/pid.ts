@@ -181,6 +181,126 @@ export function isDaemonPidInfoRunning(
   return isDesktopDaemonOwnership(info, command, options);
 }
 
+const WINDOWS_DESKTOP_DAEMON_PROBE = String.raw`
+$ErrorActionPreference = 'Stop'
+$result = [ordered]@{
+  selectedEnv = $null
+  pidInfo = $null
+  currentHostname = [System.Net.Dns]::GetHostName()
+  currentBootId = $null
+  processRunning = $false
+  processCommand = $null
+  parentProcessRunning = $false
+}
+
+try {
+  $prefPath = Join-Path $env:APPDATA 'Agendex\agendex-windows-env.json'
+  if (Test-Path -LiteralPath $prefPath) {
+    $pref = Get-Content -LiteralPath $prefPath -Raw | ConvertFrom-Json
+    $result.selectedEnv = $pref.env
+  }
+
+  if ($result.selectedEnv -eq 'wsl') {
+    $configDir = Join-Path $env:USERPROFILE '__AGENDEX_CONFIG_DIR_NAME__'
+    $pidPath = Join-Path $configDir 'daemon.pid'
+    if (Test-Path -LiteralPath $pidPath) {
+      $info = Get-Content -LiteralPath $pidPath -Raw | ConvertFrom-Json
+      $result.pidInfo = $info
+
+      try {
+        $bootId = (Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters').BootId
+        if ($null -ne $bootId) {
+          $result.currentBootId = 'win32:0x{0:x}' -f [uint32]$bootId
+        }
+      } catch {
+        $lastBoot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().Ticks
+        if ($lastBoot) { $result.currentBootId = "win32:$lastBoot" }
+      }
+
+      $pidValue = 0
+      if ([int]::TryParse([string]$info.pid, [ref]$pidValue) -and $pidValue -gt 0) {
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $pidValue" -ErrorAction SilentlyContinue
+        if ($null -ne $process) {
+          $result.processRunning = $true
+          $result.processCommand = [string]$process.CommandLine
+        }
+      }
+
+      $parentPidValue = 0
+      if ([int]::TryParse([string]$info.parentPid, [ref]$parentPidValue) -and $parentPidValue -gt 0) {
+        $parent = Get-CimInstance Win32_Process -Filter "ProcessId = $parentPidValue" -ErrorAction SilentlyContinue
+        $result.parentProcessRunning = $null -ne $parent
+      }
+    }
+  }
+} catch {}
+
+$result | ConvertTo-Json -Compress -Depth 4
+`;
+
+function probeWindowsDesktopDaemon(configDirName: string): string | null {
+  try {
+    return execFileSync(
+      'powershell.exe',
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        WINDOWS_DESKTOP_DAEMON_PROBE.replace('__AGENDEX_CONFIG_DIR_NAME__', configDirName),
+      ],
+      { encoding: 'utf8', timeout: 5_000, windowsHide: true },
+    ).trim();
+  } catch {
+    return null;
+  }
+}
+
+export function readWindowsDesktopDaemonInfoFromWsl(
+  options: {
+    platform?: NodeJS.Platform;
+    env?: NodeJS.ProcessEnv;
+    dev?: boolean;
+    runProbe?: (configDirName: string) => string | null;
+  } = {},
+): DaemonPidInfo | null {
+  const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
+  if (platform !== 'linux' || !(env.WSL_DISTRO_NAME?.trim() || env.WSL_INTEROP?.trim())) {
+    return null;
+  }
+
+  const raw = (options.runProbe ?? probeWindowsDesktopDaemon)(
+    options.dev ? '.agendex-dev' : '.agendex',
+  );
+  if (!raw) return null;
+
+  try {
+    const probe = JSON.parse(raw) as Record<string, unknown>;
+    if (probe.selectedEnv !== 'wsl' || !isRecord(probe.pidInfo)) return null;
+
+    const info = daemonPidInfoFromRecord(probe.pidInfo);
+    if (!info || info.launcher !== 'desktop') return null;
+    if (typeof probe.currentHostname !== 'string' || !probe.currentHostname.trim()) return null;
+    if (info.bootId && typeof probe.currentBootId !== 'string') return null;
+    if (typeof probe.processRunning !== 'boolean') return null;
+    if (probe.processCommand !== null && typeof probe.processCommand !== 'string') return null;
+    if (typeof probe.parentProcessRunning !== 'boolean') return null;
+
+    return isDaemonPidInfoRunning(info, {
+      currentHostname: probe.currentHostname,
+      currentBootId: typeof probe.currentBootId === 'string' ? probe.currentBootId : null,
+      processRunning: probe.processRunning,
+      processCommand: probe.processCommand,
+      parentProcessRunning: probe.parentProcessRunning,
+    })
+      ? info
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function isAgendexDaemonProcess(pid: number): boolean {
   return isRunning(pid) && isAgendexDaemonCommand(readProcessCommand(pid));
 }
@@ -289,6 +409,23 @@ function isElectronUtilityCommand(command: string | null): boolean {
   if (!command) return false;
   // Node utilityProcess.fork workers only — not Chromium network/audio/GPU helpers.
   return command.toLowerCase().includes('--utility-sub-type=node.mojom.nodeservice');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function daemonPidInfoFromRecord(value: Record<string, unknown>): DaemonPidInfo | null {
+  if (!Number.isFinite(value.pid) || (value.pid as number) <= 0) return null;
+  const info: DaemonPidInfo = { pid: value.pid as number };
+  if (Number.isFinite(value.startedAtMs)) info.startedAtMs = value.startedAtMs as number;
+  if (typeof value.hostname === 'string') info.hostname = value.hostname;
+  if (value.launcher === 'cli' || value.launcher === 'desktop') info.launcher = value.launcher;
+  if (Number.isFinite(value.parentPid)) info.parentPid = value.parentPid as number;
+  if (Number.isFinite(value.workerPid)) info.workerPid = value.workerPid as number;
+  if (typeof value.ready === 'boolean') info.ready = value.ready;
+  if (typeof value.bootId === 'string') info.bootId = value.bootId;
+  return info;
 }
 
 function isDesktopDaemonOwnership(

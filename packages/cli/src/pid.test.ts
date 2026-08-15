@@ -19,6 +19,7 @@ import {
   isDaemonPidInfoCurrent,
   isDaemonPidInfoRunning,
   readPidInfo,
+  readWindowsDesktopDaemonInfoFromWsl,
 } from './pid.ts';
 
 const originalConfigDir = process.env.AGENDEX_CONFIG_DIR;
@@ -190,6 +191,83 @@ test('desktop launcher ownership accepts Electron utility processes without visi
       },
     ),
   ).toBe(false);
+});
+
+test('WSL status reads the selected Windows desktop daemon with Windows process evidence', () => {
+  const pidInfo = {
+    pid: 456,
+    startedAtMs: 1_700_000_000_000,
+    hostname: 'windows-host',
+    launcher: 'desktop' as const,
+    parentPid: 100,
+    ready: true,
+    bootId: 'win32:0x12',
+  };
+  const probe = JSON.stringify({
+    selectedEnv: 'wsl',
+    pidInfo,
+    currentHostname: 'windows-host',
+    currentBootId: 'win32:0x12',
+    processRunning: true,
+    processCommand: 'Agendex.exe --type=utility --utility-sub-type=node.mojom.NodeService',
+    parentProcessRunning: true,
+  });
+
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () => probe,
+    }),
+  ).toEqual(pidInfo);
+
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () => JSON.stringify({ ...JSON.parse(probe), selectedEnv: 'native' }),
+    }),
+  ).toBeNull();
+
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () =>
+        JSON.stringify({
+          ...JSON.parse(probe),
+          pidInfo: { ...pidInfo, launcher: 'cli' },
+          processCommand: 'agendex start --daemon',
+        }),
+    }),
+  ).toBeNull();
+
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      runProbe: () =>
+        JSON.stringify({
+          ...JSON.parse(probe),
+          processCommand: 'unrelated.exe --type=utility',
+        }),
+    }),
+  ).toBeNull();
+});
+
+test('Windows desktop daemon fallback is disabled outside WSL', () => {
+  let probed = false;
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: {},
+      runProbe: () => {
+        probed = true;
+        return '{}';
+      },
+    }),
+  ).toBeNull();
+  expect(probed).toBe(false);
 });
 
 test('legacy PID files retain metadata and require daemon process ownership', () => {
