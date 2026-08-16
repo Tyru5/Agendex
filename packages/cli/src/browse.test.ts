@@ -375,6 +375,58 @@ test('pages through continueCursor until the list is complete', async () => {
   expect(cap.listQueries.map((query) => query.cursor)).toEqual([undefined, 'page-2']);
 });
 
+test('keeps paging past ten pages so later plans are not omitted', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const pages = Array.from({ length: 12 }, (_, i) =>
+    sampleMatch({ id: `plan-${i + 1}`, title: `Plan ${i + 1}` }),
+  );
+  const last = pages.at(-1);
+  if (!last) throw new Error('expected browse pages');
+  const code = await runBrowse(
+    ['browse'],
+    makeDeps(cap, {
+      list: (opts) => {
+        const index = opts.cursor ? Number(opts.cursor) : 0;
+        const plan = pages[index];
+        if (!plan) throw new Error(`missing browse page ${index}`);
+        const next = index + 1;
+        const done = next >= pages.length;
+        return {
+          kind: 'ok' as const,
+          plans: [plan],
+          continueCursor: done ? null : String(next),
+          isDone: done,
+        };
+      },
+      promptSelectPlan: async (matches) => {
+        expect(matches.map((match) => match.id)).toEqual(pages.map((plan) => plan.id));
+        return last.id;
+      },
+    }),
+  );
+  expect(code).toBe(0);
+  expect(cap.listQueries).toHaveLength(pages.length);
+});
+
+test('errors when pagination cursor does not advance', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const code = await runBrowse(
+    ['browse'],
+    makeDeps(cap, {
+      list: () => ({
+        kind: 'ok',
+        plans: [sampleMatch()],
+        continueCursor: 'stuck',
+        isDone: false,
+      }),
+    }),
+  );
+  expect(code).toBe(1);
+  expect(cap.errors.join('\n')).toContain('pagination did not advance');
+});
+
 test('keeps paging when an early page is empty so later matches are not missed', async () => {
   writeLoggedInConfig();
   const cap = newCapture();

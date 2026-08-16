@@ -22,7 +22,6 @@ import {
 } from './open-local-file.ts';
 
 const USAGE = 'agendex browse [--agent <name>] [--format md|html] [--out <path>] [--force]';
-const MAX_BROWSE_PAGES = 10;
 
 export interface BrowseDeps {
   listCloudPlans: (options: {
@@ -95,10 +94,10 @@ async function listBrowsePlanPages(
 ): Promise<ListCloudPlansResult> {
   const plans: CloudPlanDownloadMatch[] = [];
   const seen = new Set<string>();
+  const seenCursors = new Set<string>();
   let cursor: string | undefined;
-  let isDone = false;
 
-  for (let page = 0; page < MAX_BROWSE_PAGES; page++) {
+  while (true) {
     const listed = await listCloudPlansFn({ ...filter, cursor });
     if (listed.kind !== 'ok') return listed;
 
@@ -108,14 +107,19 @@ async function listBrowsePlanPages(
       plans.push(plan);
     }
 
-    isDone = listed.isDone || !listed.continueCursor;
-    if (isDone) {
+    if (listed.isDone || !listed.continueCursor) {
       return { kind: 'ok', plans, continueCursor: null, isDone: true };
     }
-    cursor = listed.continueCursor ?? undefined;
+    if (seenCursors.has(listed.continueCursor)) {
+      return {
+        kind: 'error',
+        status: 0,
+        message: 'browse list pagination did not advance; retry later',
+      };
+    }
+    seenCursors.add(listed.continueCursor);
+    cursor = listed.continueCursor;
   }
-
-  return { kind: 'ok', plans, continueCursor: cursor ?? null, isDone };
 }
 
 function writeDeps(deps: {
