@@ -19,7 +19,7 @@ export function buildOpenLocalFileCommand(
   if (platform === 'darwin') return { command: 'open', args: [path] };
   if (platform === 'win32') {
     return {
-      command: 'powershell.exe',
+      command: 'powershell',
       args: [
         '-NoProfile',
         '-NonInteractive',
@@ -45,10 +45,14 @@ export function commandExists(name: string, platform = process.platform): boolea
     platform === 'win32'
       ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';').map((ext) => ext.toLowerCase())
       : [''];
+  const suffixes =
+    platform === 'win32' && extensions.some((ext) => ext && name.toLowerCase().endsWith(ext))
+      ? ['']
+      : extensions;
 
   for (const dir of pathEnv.split(delimiter)) {
     if (!dir) continue;
-    for (const ext of extensions) {
+    for (const ext of suffixes) {
       if (existsSync(join(dir, name + ext))) return true;
     }
   }
