@@ -11,7 +11,7 @@ export type PlanDownloadContentInput = {
 const MAX_FILENAME_STEM_LENGTH = 90;
 const MAX_FILENAME_COMPONENT_BYTES = 255;
 const FALLBACK_PLAN_NAME = 'agendex-plan';
-const INVALID_FILENAME_CHARS = '<>:"/\\|?*';
+const INVALID_FILENAME_CHARS = '<>:"/\\|?*&^%!;';
 const HTML_ESCAPE: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',

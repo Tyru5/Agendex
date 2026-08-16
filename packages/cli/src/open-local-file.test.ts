@@ -16,11 +16,19 @@ test('builds platform-specific open commands', () => {
     command: 'xdg-open',
     args: ['/tmp/plan.md'],
   });
-  expect(buildOpenLocalFileCommand('C:\\plans\\plan.md', 'win32')).toEqual({
-    command: 'cmd',
-    args: ['/c', 'start', '', 'C:\\plans\\plan.md'],
-    options: { windowsHide: true },
-  });
+  const windows = buildOpenLocalFileCommand('C:\\plans\\foo & bar.md', 'win32');
+  expect(windows.command).toBe('powershell.exe');
+  expect(windows.args).toEqual([
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-Command',
+    'Start-Process -LiteralPath $env:AGENDEX_OPEN_PATH',
+  ]);
+  expect(windows.args.join(' ')).not.toContain('&');
+  expect(windows.options?.windowsHide).toBe(true);
+  expect(windows.options?.env?.AGENDEX_OPEN_PATH).toBe('C:\\plans\\foo & bar.md');
 });
 
 test('commandExists finds binaries on PATH and rejects missing names', () => {

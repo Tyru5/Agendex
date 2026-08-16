@@ -19,9 +19,19 @@ export function buildOpenLocalFileCommand(
   if (platform === 'darwin') return { command: 'open', args: [path] };
   if (platform === 'win32') {
     return {
-      command: 'cmd',
-      args: ['/c', 'start', '', path],
-      options: { windowsHide: true },
+      command: 'powershell.exe',
+      args: [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        'Start-Process -LiteralPath $env:AGENDEX_OPEN_PATH',
+      ],
+      options: {
+        windowsHide: true,
+        env: { ...process.env, AGENDEX_OPEN_PATH: path },
+      },
     };
   }
   return { command: 'xdg-open', args: [path] };
