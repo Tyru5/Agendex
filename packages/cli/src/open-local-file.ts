@@ -8,6 +8,8 @@ export interface OpenLocalFileCommand {
   options?: SpawnOptions;
 }
 
+const OPEN_LOCAL_FILE_WAIT_MS = 1500;
+
 export function isLocalFileOpenDisabled(): boolean {
   return process.env.AGENDEX_DISABLE_BROWSER === '1';
 }
@@ -45,26 +47,50 @@ export function commandExists(name: string, platform = process.platform): boolea
   return false;
 }
 
-function spawnDetached(command: string, args: string[], options: SpawnOptions = {}): boolean {
+export async function launchOpenCommand(
+  command: string,
+  args: string[],
+  options: SpawnOptions = {},
+): Promise<boolean> {
   if (!commandExists(command)) return false;
-  try {
-    const child = spawn(command, args, {
-      detached: true,
-      stdio: 'ignore',
-      ...options,
+  return await new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(ok);
+    };
+
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(command, args, {
+        stdio: 'ignore',
+        ...options,
+      });
+    } catch {
+      finish(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      child.unref();
+      finish(true);
+    }, OPEN_LOCAL_FILE_WAIT_MS);
+
+    child.once('error', () => {
+      clearTimeout(timer);
+      finish(false);
     });
-    child.on('error', () => {});
-    if (child.pid === undefined) return false;
-    child.unref();
-    return true;
-  } catch {
-    return false;
-  }
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      finish(code === 0);
+    });
+  });
 }
 
 /** Launch a local file with the OS handler. Returns false when launch is disabled or fails. */
-export function openLocalFile(path: string, platform = process.platform): boolean {
+export async function openLocalFile(path: string, platform = process.platform): Promise<boolean> {
   if (isLocalFileOpenDisabled()) return false;
   const launch = buildOpenLocalFileCommand(path, platform);
-  return spawnDetached(launch.command, launch.args, launch.options ?? {});
+  return await launchOpenCommand(launch.command, launch.args, launch.options ?? {});
 }

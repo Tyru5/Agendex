@@ -1531,7 +1531,9 @@ export const listPlansForBrowse = internalQuery({
       }
     };
 
-    if (query) {
+    // Title search ranks the first page only. Completeness comes from owner
+    // pagination so a 50-hit search result cannot hide later matches.
+    if (query && !args.cursor) {
       try {
         addHits(
           await ctx.db
@@ -1541,19 +1543,6 @@ export const listPlansForBrowse = internalQuery({
         );
       } catch {
         // Search indexes reject some short / punctuation-only terms.
-      }
-
-      let plans = uniqueLookupCandidates(candidates);
-      const selected = selectPlanDownloadMatches(plans, query, agent);
-      if (selected.kind === 'one') plans = [selected.plan];
-      else if (selected.kind === 'many') plans = selected.plans;
-
-      if (plans.length > 0) {
-        return {
-          plans: plans.map(serializeDownloadMatchFromCandidate),
-          continueCursor: null,
-          isDone: true,
-        };
       }
     }
 

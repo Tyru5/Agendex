@@ -39,7 +39,7 @@ export interface BrowseDeps {
   canPrompt: () => boolean;
   promptSelectPlan: (matches: CloudPlanDownloadMatch[]) => Promise<string | null>;
   promptSelectAction: () => Promise<BrowseAction | null>;
-  openLocalFile: (path: string) => boolean;
+  openLocalFile: (path: string) => boolean | Promise<boolean>;
 }
 
 type FlagParse = { kind: 'ok'; value?: string } | { kind: 'missing'; flag: string };
@@ -300,7 +300,7 @@ export async function runBrowse(args: string[], deps?: Partial<BrowseDeps>): Pro
       return 1;
     }
 
-    const opened = openLocalFileFn(written.destination);
+    const opened = await openLocalFileFn(written.destination);
     if (!opened) {
       if (isLocalFileOpenDisabled()) {
         log('[agendex] File open disabled by AGENDEX_DISABLE_BROWSER=1.');

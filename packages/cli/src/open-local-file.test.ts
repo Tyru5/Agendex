@@ -3,6 +3,7 @@ import {
   buildOpenLocalFileCommand,
   commandExists,
   isLocalFileOpenDisabled,
+  launchOpenCommand,
   openLocalFile,
 } from './open-local-file.ts';
 
@@ -27,14 +28,22 @@ test('commandExists finds binaries on PATH and rejects missing names', () => {
   expect(commandExists(process.execPath)).toBe(true);
 });
 
-test('skips launching when AGENDEX_DISABLE_BROWSER is set', () => {
+test('skips launching when AGENDEX_DISABLE_BROWSER is set', async () => {
   const previous = process.env.AGENDEX_DISABLE_BROWSER;
   process.env.AGENDEX_DISABLE_BROWSER = '1';
   try {
     expect(isLocalFileOpenDisabled()).toBe(true);
-    expect(openLocalFile('/tmp/plan.md')).toBe(false);
+    expect(await openLocalFile('/tmp/plan.md')).toBe(false);
   } finally {
     if (previous === undefined) delete process.env.AGENDEX_DISABLE_BROWSER;
     else process.env.AGENDEX_DISABLE_BROWSER = previous;
   }
+});
+
+test('launchOpenCommand is false when the process exits non-zero', async () => {
+  expect(await launchOpenCommand(process.execPath, ['-e', 'process.exit(1)'])).toBe(false);
+});
+
+test('launchOpenCommand is true when the process exits zero', async () => {
+  expect(await launchOpenCommand(process.execPath, ['-e', 'process.exit(0)'])).toBe(true);
 });

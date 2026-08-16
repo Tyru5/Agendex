@@ -14,7 +14,9 @@ test('browse list endpoint pages owner plans and stays authenticated', () => {
   expect(cliSource).toContain('50');
   expect(cliSource).toContain('authenticateRequest');
   expect(cliSource).toContain('search_title');
+  expect(cliSource).toContain('query && !args.cursor');
   expect(cliSource).toContain("withIndex('by_owner'");
+  expect(cliSource).toContain('page.isDone');
   expect(cliSource).toContain('selectPlanDownloadMatches');
   expect(cliSource).toContain("status: 'ok'");
 });
