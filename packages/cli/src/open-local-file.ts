@@ -59,17 +59,37 @@ export function commandExists(name: string, platform = process.platform): boolea
   return false;
 }
 
+export interface LaunchOpenHooks {
+  /** How long to watch for an early non-zero exit before declaring the launch good. */
+  graceMs?: number;
+  /** Called when the launcher fails after the launch was already reported as successful. */
+  onLateFailure?: (code: number | null) => void;
+}
+
+/**
+ * Launchers (`open`, `xdg-open`, `Start-Process`) normally exit within
+ * milliseconds; a missing handler surfaces as a fast non-zero exit, which this
+ * window catches. A launcher still alive past the window is a handler running
+ * in the foreground (e.g. a terminal editor), which is a successful open and
+ * must not be waited out.
+ */
+const OPEN_LAUNCH_GRACE_MS = 1000;
+
 export async function launchOpenCommand(
   command: string,
   args: string[],
   options: SpawnOptions = {},
+  hooks: LaunchOpenHooks = {},
 ): Promise<boolean> {
   if (!commandExists(command)) return false;
+  const graceMs = hooks.graceMs ?? OPEN_LAUNCH_GRACE_MS;
   return await new Promise((resolve) => {
     let settled = false;
+    let graceTimer: ReturnType<typeof setTimeout> | undefined;
     const finish = (ok: boolean) => {
       if (settled) return;
       settled = true;
+      if (graceTimer !== undefined) clearTimeout(graceTimer);
       resolve(ok);
     };
 
@@ -86,16 +106,36 @@ export async function launchOpenCommand(
     }
 
     child.once('error', () => finish(false));
+    child.on('exit', (code) => {
+      if (!settled) {
+        finish(code === 0);
+        return;
+      }
+      // Past the grace window the result is already reported; the best that
+      // can be done for a late failure is to surface it while still running.
+      if (code !== 0) hooks.onLateFailure?.(code);
+    });
     child.once('spawn', () => {
-      child.unref();
-      finish(true);
+      if (settled) return;
+      graceTimer = setTimeout(() => {
+        child.unref();
+        finish(true);
+      }, graceMs);
     });
   });
 }
 
-/** Launch a local file with the OS handler. True when the handler process started. */
-export async function openLocalFile(path: string, platform = process.platform): Promise<boolean> {
+/**
+ * Launch a local file with the OS handler. True when the handler started and
+ * did not fail within the grace window; failures after that are reported via
+ * `hooks.onLateFailure`.
+ */
+export async function openLocalFile(
+  path: string,
+  platform = process.platform,
+  hooks: LaunchOpenHooks = {},
+): Promise<boolean> {
   if (isLocalFileOpenDisabled()) return false;
   const launch = buildOpenLocalFileCommand(path, platform);
-  return await launchOpenCommand(launch.command, launch.args, launch.options ?? {});
+  return await launchOpenCommand(launch.command, launch.args, launch.options ?? {}, hooks);
 }

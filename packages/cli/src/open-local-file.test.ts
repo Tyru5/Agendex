@@ -76,14 +76,33 @@ test('launchOpenCommand is false when the command is missing', async () => {
   expect(await launchOpenCommand('definitely-not-an-agendex-opener', [])).toBe(false);
 });
 
-test('launchOpenCommand is true once the process starts', async () => {
+test('launchOpenCommand is true when the launcher exits zero', async () => {
   expect(await launchOpenCommand(process.execPath, ['-e', 'process.exit(0)'])).toBe(true);
 });
 
-test('launchOpenCommand does not wait for a long-lived process to quit', async () => {
+test('launchOpenCommand is false when the launcher exits non-zero in the grace window', async () => {
+  expect(await launchOpenCommand(process.execPath, ['-e', 'process.exit(3)'])).toBe(false);
+});
+
+test('launchOpenCommand does not wait out a handler that stays in the foreground', async () => {
   const started = Date.now();
   expect(
-    await launchOpenCommand(process.execPath, ['-e', 'setTimeout(() => {}, 5000)']),
+    await launchOpenCommand(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], {}, {
+      graceMs: 100,
+    }),
   ).toBe(true);
-  expect(Date.now() - started).toBeLessThan(1000);
+  expect(Date.now() - started).toBeLessThan(2000);
+});
+
+test('launchOpenCommand surfaces a late non-zero exit instead of ignoring it', async () => {
+  let lateCode: number | null | undefined;
+  const ok = await launchOpenCommand(
+    process.execPath,
+    ['-e', 'setTimeout(() => process.exit(7), 300)'],
+    {},
+    { graceMs: 50, onLateFailure: (code) => (lateCode = code) },
+  );
+  expect(ok).toBe(true);
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  expect(lateCode).toBe(7);
 });

@@ -157,7 +157,12 @@ export async function runBrowse(args: string[], deps?: Partial<BrowseDeps>): Pro
   const canPrompt = deps?.canPrompt ?? canPromptForPlanBrowse;
   const promptSelectPlan = deps?.promptSelectPlan ?? promptForBrowsePlan;
   const promptSelectAction = deps?.promptSelectAction ?? promptForBrowseAction;
-  const openLocalFileFn = deps?.openLocalFile ?? defaultOpenLocalFile;
+  const openLocalFileFn =
+    deps?.openLocalFile ??
+    ((path: string) =>
+      defaultOpenLocalFile(path, process.platform, {
+        onLateFailure: () => error('[agendex] the file handler exited with an error after launch'),
+      }));
 
   const agentFlag = flagValue(args, '--agent');
   if (agentFlag.kind === 'missing') {
