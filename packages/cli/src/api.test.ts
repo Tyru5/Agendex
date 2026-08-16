@@ -6,6 +6,7 @@ import { join, parse } from 'node:path';
 import { saveConfig } from '@agendex/shared';
 import {
   fetchCloudPlan,
+  listCloudPlans,
   fetchPlannotatorWritebacks,
   getDaemonCloudScope,
   resetDaemonCredentialStore,
@@ -52,6 +53,8 @@ interface CloudApiOptions {
   syncStatus?: number;
   planStatus?: number;
   planBody?: Record<string, unknown>;
+  plansStatus?: number;
+  plansBody?: Record<string, unknown>;
 }
 
 function startCloudApi(writebacks: PlannotatorWritebackJob[], options: CloudApiOptions = {}) {
@@ -81,6 +84,32 @@ function startCloudApi(writebacks: PlannotatorWritebackJob[], options: CloudApiO
                 expiresAt: Date.now() + 60_000,
               }
             : { error: 'Unauthorized' },
+        ),
+      );
+      return;
+    }
+
+    if (
+      (req.url === '/api/cli/plans' || req.url?.startsWith('/api/cli/plans?')) &&
+      req.method === 'GET'
+    ) {
+      const status = options.plansStatus ?? 200;
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify(
+          options.plansBody ?? {
+            status: 'ok',
+            plans: [
+              {
+                id: 'plan-1',
+                agent: 'claude-code',
+                title: 'Add auth',
+                updatedAt: '2026-08-02T00:00:00.000Z',
+              },
+            ],
+            continueCursor: null,
+            isDone: true,
+          },
         ),
       );
       return;
@@ -437,6 +466,45 @@ test('fetchCloudPlan treats a 409 without ambiguous status as a server error', a
     kind: 'error',
     status: 409,
     message: 'Title lookup did not finish scanning all plans. Retry with a plan id.',
+  });
+});
+
+test('listCloudPlans returns recent plans and sends query params', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([]);
+  saveCloudConfig(cloud.url);
+
+  const result = await listCloudPlans({ query: 'Add auth', agent: 'claude-code' });
+  expect(result).toEqual({
+    kind: 'ok',
+    plans: [
+      {
+        id: 'plan-1',
+        agent: 'claude-code',
+        title: 'Add auth',
+        updatedAt: '2026-08-02T00:00:00.000Z',
+      },
+    ],
+    continueCursor: null,
+    isDone: true,
+  });
+  expect(
+    cloud.requests.some((request) =>
+      request.includes('GET /api/cli/plans?q=Add+auth&agent=claude-code'),
+    ),
+  ).toBe(true);
+});
+
+test('listCloudPlans treats a generic 404 as a missing browse route', async () => {
+  await useTempHome();
+  const missingRoute = await startCloudApi([], { plansStatus: 404, plansBody: {} });
+  saveCloudConfig(missingRoute.url);
+
+  expect(await listCloudPlans()).toEqual({
+    kind: 'error',
+    status: 404,
+    message:
+      'Cloud browse is not available on this server. Update the Agendex cloud deployment or check that you are logged into the right host.',
   });
 });
 

@@ -38,6 +38,7 @@ import {
 } from './pid.ts';
 import { renderStatus, type CloudDaemonStatusError } from './status.ts';
 import { syncAll } from './sync.ts';
+import { runBrowse } from './browse.ts';
 import { runDownload } from './download.ts';
 import { runUpgrade } from './upgrade.ts';
 import { runUpload } from './upload.ts';
@@ -92,6 +93,7 @@ async function main(): Promise<number> {
     'list-dirs',
     'upload',
     'download',
+    'browse',
     'upgrade',
     'help',
     '--help',
@@ -335,6 +337,10 @@ async function main(): Promise<number> {
 
     case 'download': {
       return runDownload(args);
+    }
+
+    case 'browse': {
+      return runBrowse(args);
     }
 
     case 'hooks': {

@@ -209,6 +209,8 @@ bun run cli:upload ~/path/to/plan.md --open   # upload and open the plan in the 
 bun run cli:download <query>                  # download a cloud plan by id, name, or name + agent
 bun run cli:download "Add auth" --agent claude-code --format md
 bun run cli:download "Add auth" --force    # overwrite an existing destination file
+bun run cli:browse                            # interactively select, view, save, or open a cloud plan
+bun run cli:browse --agent claude-code
 bun run cli:stop            # stop daemon
 bun run cli:cleanup         # interactively remove cloud daemon records
 bun run cli:cleanup --stale

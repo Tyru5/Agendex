@@ -1152,6 +1152,8 @@ export const convexToken = httpAction(async (ctx, request) => {
 });
 
 const PLAN_DOWNLOAD_SEARCH_MAX_RESULTS = 8;
+const PLAN_BROWSE_PAGE_SIZE = 50;
+const PLAN_BROWSE_SEARCH_MAX_RESULTS = 50;
 
 function serializeDownloadPlan(plan: Doc<'plans'>) {
   return {
@@ -1491,4 +1493,125 @@ export const downloadPlan = httpAction(async (ctx, request) => {
     { status: 'not_found', suggestions: suggestions.map(serializeDownloadMatchFromCandidate) },
     404,
   );
+});
+
+const browsePlanMatchValidator = v.object({
+  id: v.string(),
+  localPlanId: v.optional(v.string()),
+  agent: v.string(),
+  title: v.string(),
+  updatedAt: v.string(),
+});
+
+export const listPlansForBrowse = internalQuery({
+  args: {
+    userId: v.string(),
+    query: v.optional(v.string()),
+    agent: v.optional(v.string()),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  returns: v.object({
+    plans: v.array(browsePlanMatchValidator),
+    continueCursor: v.union(v.string(), v.null()),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const ownerId = await resolvePublishedPlansOwnerId(ctx, args.userId);
+    const query = args.query?.trim() ?? '';
+    const agent = args.agent?.trim() || undefined;
+
+    const seen = new Set<string>();
+    const candidates: Doc<'plans'>[] = [];
+    const addHits = (hits: Doc<'plans'>[]) => {
+      for (const plan of filterVisiblePlans(hits)) {
+        if (plan.ownerId !== ownerId || seen.has(plan._id)) continue;
+        if (agent && !planAgentsMatch(plan.agent, agent)) continue;
+        seen.add(plan._id);
+        candidates.push(plan);
+      }
+    };
+
+    if (query) {
+      try {
+        addHits(
+          await ctx.db
+            .query('plans')
+            .withSearchIndex('search_title', (q) => q.search('title', query).eq('ownerId', ownerId))
+            .take(PLAN_BROWSE_SEARCH_MAX_RESULTS),
+        );
+      } catch {
+        // Search indexes reject some short / punctuation-only terms.
+      }
+
+      let plans = uniqueLookupCandidates(candidates);
+      const selected = selectPlanDownloadMatches(plans, query, agent);
+      if (selected.kind === 'one') plans = [selected.plan];
+      else if (selected.kind === 'many') plans = selected.plans;
+
+      if (plans.length > 0) {
+        return {
+          plans: plans.map(serializeDownloadMatchFromCandidate),
+          continueCursor: null,
+          isDone: true,
+        };
+      }
+    }
+
+    const page = await ctx.db
+      .query('plans')
+      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+      .order('desc')
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: PLAN_BROWSE_PAGE_SIZE,
+      });
+    addHits(page.page);
+
+    let plans = uniqueLookupCandidates(candidates);
+    if (query) {
+      const selected = selectPlanDownloadMatches(plans, query, agent);
+      if (selected.kind === 'one') plans = [selected.plan];
+      else if (selected.kind === 'many') plans = selected.plans;
+      else plans = [];
+    }
+
+    return {
+      plans: plans.map(serializeDownloadMatchFromCandidate),
+      continueCursor: page.isDone ? null : page.continueCursor,
+      isDone: page.isDone,
+    };
+  },
+});
+
+export const listPlans = httpAction(async (ctx, request) => {
+  if (request.method !== 'GET') {
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
+
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return jsonResponse({ error: 'Invalid request URL' }, 400);
+  }
+
+  const query = url.searchParams.get('q')?.trim() || undefined;
+  const agent = url.searchParams.get('agent')?.trim() || undefined;
+  const cursor = url.searchParams.get('cursor')?.trim() || undefined;
+
+  const result: {
+    plans: ReturnType<typeof serializeDownloadMatchFromCandidate>[];
+    continueCursor: string | null;
+    isDone: boolean;
+  } = await ctx.runQuery(internal.cli.listPlansForBrowse, {
+    userId: authResult.ownerId,
+    query,
+    agent,
+    cursor: cursor ?? null,
+  });
+
+  return jsonResponse({ status: 'ok', ...result });
 });

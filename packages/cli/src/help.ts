@@ -106,6 +106,15 @@ const HELP_GROUPS: HelpGroup[] = [
           'agendex download "Add auth" --force',
         ],
       },
+      {
+        command: 'browse',
+        description: 'Interactively select, view, save, or open a cloud plan',
+        examples: [
+          'agendex browse',
+          'agendex browse --agent claude-code',
+          'agendex browse "Add auth" --format md --out ./exports',
+        ],
+      },
     ],
   },
   {
