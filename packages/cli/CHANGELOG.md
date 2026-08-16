@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.5.0
+
+### Minor Changes
+
+- ec873a4: Add `agendex browse` to interactively select, view, save, or open a cloud plan on this machine
+
 ## 5.4.0
 
 ### Minor Changes
