@@ -23,7 +23,7 @@ interface Capture {
   stdout: string[];
   written: { path: string; content: string }[];
   opened: string[];
-  listQueries: { query?: string; agent?: string }[];
+  listQueries: { query?: string; agent?: string; cursor?: string }[];
   fetches: { query: string; agent?: string }[];
 }
 
@@ -56,7 +56,9 @@ function sampleMatch(overrides: Partial<CloudPlanDownloadMatch> = {}): CloudPlan
 function makeDeps(
   cap: Capture,
   options: {
-    list?: ListCloudPlansResult | ((query?: string, agent?: string) => ListCloudPlansResult);
+    list?:
+      | ListCloudPlansResult
+      | ((opts: { query?: string; agent?: string; cursor?: string }) => ListCloudPlansResult);
     fetch?:
       | FetchCloudPlanResult
       | ((query: string, agent?: string) => FetchCloudPlanResult | Promise<FetchCloudPlanResult>);
@@ -70,9 +72,9 @@ function makeDeps(
 ) {
   const plan = samplePlan();
   return {
-    listCloudPlans: async (opts: { query?: string; agent?: string }) => {
-      cap.listQueries.push({ query: opts.query, agent: opts.agent });
-      if (typeof options.list === 'function') return options.list(opts.query, opts.agent);
+    listCloudPlans: async (opts: { query?: string; agent?: string; cursor?: string }) => {
+      cap.listQueries.push({ query: opts.query, agent: opts.agent, cursor: opts.cursor });
+      if (typeof options.list === 'function') return options.list(opts);
       return (
         options.list ?? {
           kind: 'ok' as const,
@@ -230,7 +232,7 @@ test('passes optional filter and agent to the list API', async () => {
       promptSelectPlan: async () => null,
     }),
   );
-  expect(cap.listQueries).toEqual([{ query: 'Add auth', agent: 'claude-code' }]);
+  expect(cap.listQueries).toEqual([{ query: 'Add auth', agent: 'claude-code', cursor: undefined }]);
 });
 
 test('views markdown then saves the selected plan', async () => {
@@ -337,6 +339,74 @@ test('returns cancelled when the action picker is dismissed', async () => {
   );
   expect(code).toBe(1);
   expect(cap.written).toHaveLength(0);
+});
+
+test('pages through continueCursor until the list is complete', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const first = sampleMatch({ id: 'plan-1', title: 'Add auth' });
+  const second = sampleMatch({ id: 'plan-2', title: 'Ship browse' });
+  const code = await runBrowse(
+    ['browse'],
+    makeDeps(cap, {
+      list: (opts) => {
+        if (!opts.cursor) {
+          return {
+            kind: 'ok',
+            plans: [first],
+            continueCursor: 'page-2',
+            isDone: false,
+          };
+        }
+        return {
+          kind: 'ok',
+          plans: [second],
+          continueCursor: null,
+          isDone: true,
+        };
+      },
+      promptSelectPlan: async (matches) => {
+        expect(matches.map((match) => match.id)).toEqual(['plan-1', 'plan-2']);
+        return null;
+      },
+    }),
+  );
+  expect(code).toBe(1);
+  expect(cap.listQueries.map((query) => query.cursor)).toEqual([undefined, 'page-2']);
+});
+
+test('keeps paging when an early page is empty so later matches are not missed', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const later = sampleMatch({ id: 'plan-9', title: 'Later plan' });
+  const code = await runBrowse(
+    ['browse'],
+    makeDeps(cap, {
+      list: (opts) => {
+        if (!opts.cursor) {
+          return { kind: 'ok', plans: [], continueCursor: 'page-2', isDone: false };
+        }
+        return { kind: 'ok', plans: [later], continueCursor: null, isDone: true };
+      },
+    }),
+  );
+  expect(code).toBe(0);
+  expect(cap.written[0]?.path).toContain('Add auth.md');
+});
+
+test('reports an opener failure instead of pretending the file opened', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const code = await runBrowse(
+    ['browse'],
+    makeDeps(cap, {
+      promptSelectAction: async () => 'open',
+      openLocalFile: () => false,
+    }),
+  );
+  expect(code).toBe(1);
+  expect(cap.errors.join('\n')).toContain('could not open the file on this machine');
+  expect(cap.logs.join('\n')).not.toContain('opening ');
 });
 
 test('maps expired cloud auth from the list API', async () => {

@@ -16,9 +16,13 @@ import {
 import { createPlanMarkdownContent, type PlanDownloadFormat } from './download-format.ts';
 import { sanitizeTerminalText } from './download-prompt.ts';
 import { resolveDownloadFormat, writeDownloadedPlan } from './download-write.ts';
-import { openLocalFile as defaultOpenLocalFile } from './open-local-file.ts';
+import {
+  isLocalFileOpenDisabled,
+  openLocalFile as defaultOpenLocalFile,
+} from './open-local-file.ts';
 
 const USAGE = 'agendex browse [--agent <name>] [--format md|html] [--out <path>] [--force]';
+const MAX_BROWSE_PAGES = 10;
 
 export interface BrowseDeps {
   listCloudPlans: (options: {
@@ -83,6 +87,35 @@ function resolveBrowseFilter(
     query: parsed.query || undefined,
     agent: parsed.agent,
   };
+}
+
+async function listBrowsePlanPages(
+  listCloudPlansFn: BrowseDeps['listCloudPlans'],
+  filter: { query?: string; agent?: string },
+): Promise<ListCloudPlansResult> {
+  const plans: CloudPlanDownloadMatch[] = [];
+  const seen = new Set<string>();
+  let cursor: string | undefined;
+  let isDone = false;
+
+  for (let page = 0; page < MAX_BROWSE_PAGES; page++) {
+    const listed = await listCloudPlansFn({ ...filter, cursor });
+    if (listed.kind !== 'ok') return listed;
+
+    for (const plan of listed.plans) {
+      if (seen.has(plan.id)) continue;
+      seen.add(plan.id);
+      plans.push(plan);
+    }
+
+    isDone = listed.isDone || !listed.continueCursor;
+    if (isDone) {
+      return { kind: 'ok', plans, continueCursor: null, isDone: true };
+    }
+    cursor = listed.continueCursor ?? undefined;
+  }
+
+  return { kind: 'ok', plans, continueCursor: cursor ?? null, isDone };
 }
 
 function writeDeps(deps: {
@@ -170,7 +203,7 @@ export async function runBrowse(args: string[], deps?: Partial<BrowseDeps>): Pro
   const filter = resolveBrowseFilter(positionalArgs(args), agentFlag.value);
   let listed: ListCloudPlansResult;
   try {
-    listed = await listCloudPlansFn(filter);
+    listed = await listBrowsePlanPages(listCloudPlansFn, filter);
   } catch (err) {
     error(`[agendex] browse failed: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
@@ -265,8 +298,12 @@ export async function runBrowse(args: string[], deps?: Partial<BrowseDeps>): Pro
 
     const opened = openLocalFileFn(written.destination);
     if (!opened) {
-      log('[agendex] File open disabled by AGENDEX_DISABLE_BROWSER=1.');
-      return 0;
+      if (isLocalFileOpenDisabled()) {
+        log('[agendex] File open disabled by AGENDEX_DISABLE_BROWSER=1.');
+        return 0;
+      }
+      error('[agendex] could not open the file on this machine');
+      return 1;
     }
     log(`[agendex] opening ${sanitizeTerminalText(written.destination)}`);
     return 0;

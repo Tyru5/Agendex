@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import {
   buildOpenLocalFileCommand,
+  commandExists,
   isLocalFileOpenDisabled,
   openLocalFile,
 } from './open-local-file.ts';
@@ -19,6 +20,11 @@ test('builds platform-specific open commands', () => {
     args: ['/c', 'start', '', 'C:\\plans\\plan.md'],
     options: { windowsHide: true },
   });
+});
+
+test('commandExists finds binaries on PATH and rejects missing names', () => {
+  expect(commandExists('definitely-not-an-agendex-opener')).toBe(false);
+  expect(commandExists(process.execPath)).toBe(true);
 });
 
 test('skips launching when AGENDEX_DISABLE_BROWSER is set', () => {
