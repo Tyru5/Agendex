@@ -1503,6 +1503,7 @@ const browsePlanMatchValidator = v.object({
   agent: v.string(),
   title: v.string(),
   updatedAt: v.string(),
+  createdAt: v.optional(v.string()),
   dedupeKey: v.string(),
 });
 
@@ -1566,9 +1567,13 @@ export const listPlansForBrowse = internalQuery({
 
     return {
       // Each page is deduplicated in isolation, so the logical duplicate key
-      // rides along for the CLI to collapse duplicates across pages.
+      // (plus createdAt for the equal-updatedAt tie-break) rides along for
+      // the CLI to collapse duplicates across pages.
       plans: plans.map((plan) => ({
         ...serializeDownloadMatchFromCandidate(plan),
+        ...(typeof plan.createdAt === 'number' && {
+          createdAt: new Date(plan.createdAt).toISOString(),
+        }),
         dedupeKey: planDownloadDuplicateKey(plan),
       })),
       continueCursor: page.isDone ? null : page.continueCursor,
@@ -1597,7 +1602,10 @@ export const listPlans = httpAction(async (ctx, request) => {
   const cursor = url.searchParams.get('cursor')?.trim() || undefined;
 
   const result: {
-    plans: (ReturnType<typeof serializeDownloadMatchFromCandidate> & { dedupeKey: string })[];
+    plans: (ReturnType<typeof serializeDownloadMatchFromCandidate> & {
+      createdAt?: string;
+      dedupeKey: string;
+    })[];
     continueCursor: string | null;
     isDone: boolean;
   } = await ctx.runQuery(internal.cli.listPlansForBrowse, {

@@ -88,6 +88,23 @@ function resolveBrowseFilter(
   };
 }
 
+function browseMatchTimestamp(value: string | undefined): number {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+/** Mirrors the server dedupe winner: newest updatedAt, then newest createdAt. */
+function isFresherBrowseMatch(
+  next: CloudPlanDownloadMatch,
+  current: CloudPlanDownloadMatch,
+): boolean {
+  const nextUpdated = browseMatchTimestamp(next.updatedAt);
+  const currentUpdated = browseMatchTimestamp(current.updatedAt);
+  if (nextUpdated !== currentUpdated) return nextUpdated > currentUpdated;
+  return browseMatchTimestamp(next.createdAt) > browseMatchTimestamp(current.createdAt);
+}
+
 async function listBrowsePlanPages(
   listCloudPlansFn: BrowseDeps['listCloudPlans'],
   filter: { query?: string; agent?: string },
@@ -113,7 +130,7 @@ async function listBrowsePlanPages(
         continue;
       }
       const existing = plans[existingIndex];
-      if (existing && Date.parse(plan.updatedAt) > Date.parse(existing.updatedAt)) {
+      if (existing && isFresherBrowseMatch(plan, existing)) {
         plans[existingIndex] = plan;
       }
     }

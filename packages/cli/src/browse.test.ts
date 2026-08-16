@@ -409,6 +409,39 @@ test('collapses the same logical plan served on different pages', async () => {
   expect(code).toBe(1);
 });
 
+test('breaks equal-updatedAt duplicate ties by createdAt like the server', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const olderCreation = sampleMatch({
+    id: 'plan-old',
+    dedupeKey: 'sync:auth',
+    updatedAt: '2026-08-02T00:00:00.000Z',
+    createdAt: '2026-08-01T00:00:00.000Z',
+  });
+  const newerCreation = sampleMatch({
+    id: 'plan-new',
+    dedupeKey: 'sync:auth',
+    updatedAt: '2026-08-02T00:00:00.000Z',
+    createdAt: '2026-08-01T12:00:00.000Z',
+  });
+  const code = await runBrowse(
+    ['browse'],
+    makeDeps(cap, {
+      list: (opts) => {
+        if (!opts.cursor) {
+          return { kind: 'ok', plans: [olderCreation], continueCursor: 'page-2', isDone: false };
+        }
+        return { kind: 'ok', plans: [newerCreation], continueCursor: null, isDone: true };
+      },
+      promptSelectPlan: async (matches) => {
+        expect(matches.map((match) => match.id)).toEqual(['plan-new']);
+        return null;
+      },
+    }),
+  );
+  expect(code).toBe(1);
+});
+
 test('keeps paging past ten pages so later plans are not omitted', async () => {
   writeLoggedInConfig();
   const cap = newCapture();
