@@ -4,15 +4,18 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   canonicalPlanAgent,
+  dedupePlanBrowseCandidates,
   dedupePlanDownloadCandidates,
   isExactPlanDownloadIdHit,
   looksLikePlanIdQuery,
   parsePlanDownloadQuery,
   planAgentLookupValues,
   planAgentsMatch,
+  planBrowseDedupeKeys,
   scanPlanDownloadFallback,
   scorePlanTitleSimilarity,
   selectPlanDownloadMatches,
+  filterPlanBrowseMatches,
   suggestClosestPlans,
   type PlanDownloadLookupCandidate,
 } from './plan-download-lookup.ts';
@@ -142,6 +145,69 @@ test('dedupePlanDownloadCandidates collapses duplicate sync identities before ti
   expect(selectPlanDownloadMatches(unique, 'Add auth')).toEqual({ kind: 'one', plan: newer });
 });
 
+test('planBrowseDedupeKeys exposes every identity a row answers to', () => {
+  const synced = plan({
+    id: 'p1',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    contentHash: 'hash-1',
+  });
+  const keys = planBrowseDedupeKeys(synced);
+  expect(keys).toHaveLength(2);
+  expect(keys[0]).toBe('sync:sync-1');
+  expect(keys[1]).toStartWith('exact:');
+
+  const unsynced = plan({ id: 'p2', title: 'Add auth', contentHash: 'hash-1' });
+  const unsyncedKeys = planBrowseDedupeKeys(unsynced);
+  expect(unsyncedKeys).toEqual([keys[1] as string]);
+
+  expect(planBrowseDedupeKeys(plan({ id: 'p3', title: 'Bare' }))).toEqual(['id:p3']);
+});
+
+test('dedupePlanBrowseCandidates keeps identity keys from discarded duplicates', () => {
+  const winner = plan({
+    id: 'w',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    contentHash: 'hash-new',
+    updatedAt: 2,
+  });
+  const loser = plan({
+    id: 'l',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    contentHash: 'hash-old',
+    updatedAt: 1,
+  });
+  const result = dedupePlanBrowseCandidates([winner, loser]);
+  expect(result).toHaveLength(1);
+  expect(result[0]?.plan).toEqual(winner);
+  expect(result[0]?.dedupeKeys).toEqual(
+    expect.arrayContaining([...planBrowseDedupeKeys(winner), ...planBrowseDedupeKeys(loser)]),
+  );
+});
+
+test('dedupePlanBrowseCandidates can source keys from rows removed by filtering', () => {
+  const kept = plan({
+    id: 'k',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    contentHash: 'hash-1',
+    updatedAt: 1,
+  });
+  const filteredOut = plan({
+    id: 'f',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    contentHash: 'hash-2',
+    updatedAt: 2,
+  });
+  const result = dedupePlanBrowseCandidates([kept], [kept, filteredOut]);
+  expect(result).toHaveLength(1);
+  expect(result[0]?.plan).toEqual(kept);
+  expect(result[0]?.dedupeKeys).toEqual(expect.arrayContaining(planBrowseDedupeKeys(filteredOut)));
+});
+
 test('isExactPlanDownloadIdHit is only true for id or localPlanId', () => {
   const hit = plan({ id: 'cloud-1', title: 'Add auth', localPlanId: 'local-1' });
   expect(isExactPlanDownloadIdHit(hit, 'cloud-1')).toBe(true);
@@ -215,6 +281,23 @@ test('selectPlanDownloadMatches does not treat unrelated leftover plans as hits'
       'Add auth',
     ),
   ).toEqual({ kind: 'none' });
+});
+
+test('filterPlanBrowseMatches keeps exact and substring hits on the same page', () => {
+  const exact = plan({ id: '1', title: 'auth' });
+  const substring = plan({ id: '2', title: 'Add auth flow' });
+  const unrelated = plan({ id: '3', title: 'Weekly retro' });
+  expect(
+    filterPlanBrowseMatches([exact, substring, unrelated], 'auth').map((item) => item.id),
+  ).toEqual(['1', '2']);
+});
+
+test('filterPlanBrowseMatches still honors the agent filter', () => {
+  const claude = plan({ id: '1', title: 'Add auth', agent: 'claude-code' });
+  const cursor = plan({ id: '2', title: 'Add auth flow', agent: 'cursor' });
+  expect(
+    filterPlanBrowseMatches([claude, cursor], 'auth', 'claude-code').map((item) => item.id),
+  ).toEqual(['1']);
 });
 
 test('scorePlanTitleSimilarity ranks typos above unrelated titles', () => {

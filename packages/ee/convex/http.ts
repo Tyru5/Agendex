@@ -7,6 +7,7 @@ import {
   deleteDaemonsHttp,
   devices,
   downloadPlan,
+  listPlans,
   convexToken,
   heartbeat,
   plannotatorWritebackReport,
@@ -78,6 +79,7 @@ http.route({ path: '/api/cli/heartbeat', method: 'POST', handler: heartbeat });
 http.route({ path: '/api/cli/devices', method: 'GET', handler: devices });
 http.route({ path: '/api/cli/devices', method: 'DELETE', handler: deleteDaemonsHttp });
 http.route({ path: '/api/cli/plan', method: 'GET', handler: downloadPlan });
+http.route({ path: '/api/cli/plans', method: 'GET', handler: listPlans });
 http.route({
   path: '/api/cli/plannotator/writebacks',
   method: 'GET',

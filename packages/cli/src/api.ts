@@ -158,12 +158,31 @@ export interface CloudPlanDownloadMatch {
   agent: string;
   title: string;
   updatedAt: string;
+  createdAt?: string;
+  /** Logical duplicate keys from the server; rows sharing any are the same plan. */
+  dedupeKeys?: string[];
 }
 
 export type FetchCloudPlanResult =
   | { kind: 'found'; plan: CloudPlanDownload }
   | { kind: 'ambiguous'; matches: CloudPlanDownloadMatch[] }
   | { kind: 'not_found'; suggestions: CloudPlanDownloadMatch[] }
+  | { kind: 'auth-expired' }
+  | { kind: 'error'; status: number; message: string };
+
+export interface ListCloudPlansOptions {
+  query?: string;
+  agent?: string;
+  cursor?: string;
+}
+
+export type ListCloudPlansResult =
+  | {
+      kind: 'ok';
+      plans: CloudPlanDownloadMatch[];
+      continueCursor: string | null;
+      isDone: boolean;
+    }
   | { kind: 'auth-expired' }
   | { kind: 'error'; status: number; message: string };
 
@@ -217,6 +236,10 @@ function parseCloudPlanDownloadMatch(value: unknown): CloudPlanDownloadMatch | n
     agent: plan.agent,
     title: plan.title,
     updatedAt: plan.updatedAt,
+    createdAt: readOptionalString(plan.createdAt),
+    dedupeKeys: Array.isArray(plan.dedupeKeys)
+      ? plan.dedupeKeys.filter((key): key is string => typeof key === 'string')
+      : undefined,
   };
 }
 
@@ -293,6 +316,83 @@ export async function fetchCloudPlan(query: string, agent?: string): Promise<Fet
     const plan = parseCloudPlanDownload(body.plan);
     if (plan) return { kind: 'found', plan };
     return { kind: 'error', status: res.status, message: 'Cloud returned an invalid plan payload' };
+  }
+
+  const message =
+    typeof body?.error === 'string' && body.error
+      ? body.error
+      : `${res.status}: ${res.body || 'unknown error'}`;
+  return { kind: 'error', status: res.status, message };
+}
+
+export async function listCloudPlans(
+  options: ListCloudPlansOptions = {},
+): Promise<ListCloudPlansResult> {
+  const { token, convexUrl } = getCloudConfig();
+  const params = new URLSearchParams();
+  if (options.query) params.set('q', options.query);
+  if (options.agent) params.set('agent', options.agent);
+  if (options.cursor) params.set('cursor', options.cursor);
+  const query = params.toString();
+  const url = query ? `${convexUrl}/api/cli/plans?${query}` : `${convexUrl}/api/cli/plans`;
+  let activeToken = token;
+
+  let res = await requestText(url, {
+    method: 'GET',
+    headers: authHeaders(activeToken),
+  });
+
+  if (isAuthenticationFailure(res.status)) {
+    const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+    if (refreshed.kind === 'refreshed') {
+      activeToken = refreshed.credentials.token;
+      res = await requestText(url, {
+        method: 'GET',
+        headers: authHeaders(activeToken),
+      });
+    } else {
+      reportRefreshRejection(refreshed, activeToken);
+      if (refreshed.kind === 'auth-rejected') return { kind: 'auth-expired' };
+      return {
+        kind: 'error',
+        status: refreshed.kind === 'credentials-changed' ? 409 : 503,
+        message:
+          refreshed.kind === 'credentials-changed'
+            ? 'Cloud credentials changed during browse'
+            : 'Cloud session refresh unavailable',
+      };
+    }
+  }
+
+  if (isAuthenticationFailure(res.status)) {
+    reportAuthExpired(res.status, activeToken);
+    return { kind: 'auth-expired' };
+  }
+
+  const body = parseJsonObject(res.body);
+
+  if (res.status === 404) {
+    const message =
+      typeof body?.error === 'string' && body.error
+        ? body.error
+        : 'Cloud browse is not available on this server. Update the Agendex cloud deployment or check that you are logged into the right host.';
+    return { kind: 'error', status: 404, message };
+  }
+
+  if (res.status >= 200 && res.status < 300 && body?.status === 'ok') {
+    const plans = Array.isArray(body.plans)
+      ? body.plans.flatMap((entry) => {
+          const match = parseCloudPlanDownloadMatch(entry);
+          return match ? [match] : [];
+        })
+      : [];
+    const continueCursor = typeof body.continueCursor === 'string' ? body.continueCursor : null;
+    return {
+      kind: 'ok',
+      plans,
+      continueCursor,
+      isDone: body.isDone !== false,
+    };
   }
 
   const message =

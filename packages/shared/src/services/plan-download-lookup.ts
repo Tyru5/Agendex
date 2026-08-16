@@ -249,11 +249,89 @@ export function selectPlanDownloadMatches(
   return { kind: 'none' };
 }
 
+/** Inclusive title/id matching for browse listing. Unlike selectPlanDownloadMatches, this keeps every matching category on a page. */
+export function filterPlanBrowseMatches(
+  plans: readonly PlanDownloadLookupCandidate[],
+  query: string,
+  agent?: string,
+): PlanDownloadLookupCandidate[] {
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) return [...plans];
+
+  const requestedAgent = agent?.trim();
+  const pool = requestedAgent
+    ? plans.filter((plan) => planAgentsMatch(plan.agent, requestedAgent))
+    : [...plans];
+
+  const normalizedQuery = normalizePlanLookupText(trimmedQuery);
+  return pool.filter((plan) => {
+    if (plan.id === trimmedQuery || plan.localPlanId === trimmedQuery) return true;
+    const title = normalizePlanLookupText(plan.title);
+    return (
+      title === normalizedQuery ||
+      title.startsWith(normalizedQuery) ||
+      title.includes(normalizedQuery)
+    );
+  });
+}
+
 export function isExactPlanDownloadIdHit(
   plan: Pick<PlanDownloadLookupCandidate, 'id' | 'localPlanId'>,
   query: string,
 ): boolean {
   return plan.id === query || plan.localPlanId === query;
+}
+
+/**
+ * All duplicate identities a plan row answers to. A row that carries a sync
+ * identity still exposes its exact-content key so it collapses with a
+ * duplicate row that never got a sync identity.
+ */
+export function planBrowseDedupeKeys(plan: PlanDownloadLookupCandidate): string[] {
+  const keys: string[] = [];
+  if (plan.syncIdentityKey) keys.push(`sync:${plan.syncIdentityKey}`);
+  if (plan.contentHash) {
+    keys.push(
+      `exact:${exactDuplicateKey({
+        agent: plan.agent,
+        title: plan.title,
+        contentHash: plan.contentHash,
+      })}`,
+    );
+  }
+  if (keys.length === 0) keys.push(`id:${plan.id}`);
+  return keys;
+}
+
+export interface PlanBrowseDedupeResult {
+  plan: PlanDownloadLookupCandidate;
+  dedupeKeys: string[];
+}
+
+/**
+ * Deduplicate like {@link dedupePlanDownloadCandidates}, but return the union
+ * of identity keys across every row a group collapsed — optionally sourced
+ * from a wider row set (e.g. pre-filter) — so callers can still match a later
+ * duplicate that only a discarded row answered to.
+ */
+export function dedupePlanBrowseCandidates(
+  plans: readonly PlanDownloadLookupCandidate[],
+  keySource: readonly PlanDownloadLookupCandidate[] = plans,
+): PlanBrowseDedupeResult[] {
+  const unions = new Map<string, Set<string>>();
+  for (const plan of keySource) {
+    const groupKey = planDownloadDuplicateKey(plan);
+    let union = unions.get(groupKey);
+    if (!union) {
+      union = new Set();
+      unions.set(groupKey, union);
+    }
+    for (const key of planBrowseDedupeKeys(plan)) union.add(key);
+  }
+  return dedupePlanDownloadCandidates(plans).map((plan) => {
+    const union = unions.get(planDownloadDuplicateKey(plan));
+    return { plan, dedupeKeys: union ? [...union] : planBrowseDedupeKeys(plan) };
+  });
 }
 
 function planDownloadDuplicateKey(plan: PlanDownloadLookupCandidate): string {

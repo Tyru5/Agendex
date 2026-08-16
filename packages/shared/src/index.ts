@@ -127,6 +127,7 @@ export {
 } from './services/plan-service.ts';
 export { isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
 export type {
+  PlanBrowseDedupeResult,
   PlanDownloadFallbackPage,
   PlanDownloadLookupCandidate,
   PlanDownloadLookupSelection,
@@ -144,7 +145,10 @@ export {
   PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
   scanPlanDownloadFallback,
   scorePlanTitleSimilarity,
+  dedupePlanBrowseCandidates,
+  planBrowseDedupeKeys,
   selectPlanDownloadMatches,
+  filterPlanBrowseMatches,
   suggestClosestPlans,
 } from './services/plan-download-lookup.ts';
 export type { PlanSyncIdentity, PlanSyncIdentityStrength } from './services/plan-sync-identity.ts';

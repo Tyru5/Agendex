@@ -55,6 +55,8 @@ agendex upload <path> --agent <name>  # Override the uploaded plan's agent label
 agendex upload <path> --open   # Open the uploaded plan in the browser after upload
 agendex download <query>       # Download a cloud plan by id, name, or name + agent
 agendex download <query> --agent <name> --format md|html --out <path> [--force]
+agendex browse                 # Interactively select, view, save, or open a cloud plan
+agendex browse --agent <name> --format md|html --out <path> [--force]
 agendex cleanup                # Interactively remove cloud daemons
 agendex cleanup --stale        # Auto-remove all stale daemons
 agendex status                 # Show config state, daemon status, uptime & hostname
@@ -210,6 +212,20 @@ agendex download "Add auth" --force
 ```
 
 `--format` accepts `md` (default) or `html`. If `--out` ends in `.html` or `.md` and `--format` is omitted, the extension selects the format. Use `--out -` to write the file contents to stdout. Existing files are left untouched unless you pass `--force`. PDF export remains a web-app action.
+
+## Browse plans
+
+`agendex browse` lists your cloud plans in an interactive picker, then lets you view the Markdown in the terminal, save it with the same destination rules as `download`, or open the written file on this machine. An optional filter or `--agent` narrows the list.
+
+The command requires a TTY and a logged-in cloud session. In a non-interactive environment, use `agendex download <query>` instead.
+
+```bash
+agendex browse
+agendex browse --agent claude-code
+agendex browse "Add auth" --format md --out ./exports
+```
+
+`--format`, `--out`, and `--force` apply when you choose Save or Open. View always prints Markdown. Open uses the OS file handler (`open` / `xdg-open` / `start`) and honors `AGENDEX_DISABLE_BROWSER=1`.
 
 ## Open the web app
 
