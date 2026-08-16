@@ -44,7 +44,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .amp/*
 !.amp/plugins/
 !.amp/plugins/*.ts
-.cursor/
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**/
 .pi/
 
 .impeccable.md
