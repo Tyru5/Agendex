@@ -1,25 +1,11 @@
 import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { loadConfig, looksLikePlanAgent, parsePlanDownloadQuery } from '@agendex/shared';
 import {
-  isHomeRelativePath,
-  loadConfig,
-  looksLikePlanAgent,
-  parsePlanDownloadQuery,
-  resolveCustomPlanDirPath,
-} from '@agendex/shared';
-import {
-  type CloudPlanDownload,
   type CloudPlanDownloadMatch,
   type FetchCloudPlanResult,
   fetchCloudPlan as defaultFetchCloudPlan,
 } from './api.ts';
-import {
-  type PlanDownloadFormat,
-  createPlanDownloadFilename,
-  inferPlanDownloadFormat,
-  parsePlanDownloadFormat,
-  renderPlanDownload,
-} from './download-format.ts';
+import { type PlanDownloadFormat } from './download-format.ts';
 import {
   canPromptForPlanDownload,
   formatPlanDownloadChoice,
@@ -27,6 +13,9 @@ import {
   promptForPlanDownload,
   sanitizeTerminalText,
 } from './download-prompt.ts';
+import { resolveDownloadFormat, writeDownloadedPlan } from './download-write.ts';
+
+export { isUsableLaunchPath } from './download-write.ts';
 
 const USAGE =
   'agendex download <query> [--agent <name>] [--format md|html] [--out <path>] [--force]';
@@ -104,68 +93,6 @@ function resolveQueryAttempts(positionals: string[], agentFlag?: string): QueryA
   return [{ query: parsed.query, agent: parsed.agent }];
 }
 
-export function isUsableLaunchPath(pathArg: string, platform = process.platform): boolean {
-  if (platform !== 'win32') return true;
-  return /^[A-Za-z]:[\\/]/.test(pathArg) || pathArg.startsWith('\\\\');
-}
-
-function resolveLaunchCwd(): string {
-  const initCwd = process.env.INIT_CWD?.trim();
-  if (initCwd && isAbsolute(initCwd) && isUsableLaunchPath(initCwd)) return initCwd;
-
-  const shellPwd = process.env.PWD?.trim();
-  if (shellPwd && isAbsolute(shellPwd) && isUsableLaunchPath(shellPwd)) return shellPwd;
-
-  return process.cwd();
-}
-
-function resolveOutputPath(pathArg: string): string {
-  const trimmed = pathArg.trim();
-  if (isAbsolute(trimmed) || isHomeRelativePath(trimmed)) {
-    return resolveCustomPlanDirPath(trimmed);
-  }
-  return resolve(resolveLaunchCwd(), trimmed);
-}
-
-function outArgLooksLikeDirectory(outArg: string): boolean {
-  return outArg.endsWith('/') || outArg.endsWith('\\');
-}
-
-async function inferFormatFromOutArg(
-  outArg: string | undefined,
-  statFn: typeof stat,
-): Promise<PlanDownloadFormat | 'pdf' | undefined> {
-  if (!outArg || outArg === '-') return undefined;
-  if (outArgLooksLikeDirectory(outArg)) return undefined;
-
-  const target = resolveOutputPath(outArg);
-  try {
-    const info = await statFn(target);
-    if (info.isDirectory()) return undefined;
-  } catch {
-    // Path does not exist yet; infer from the requested file name.
-  }
-  return inferPlanDownloadFormat(outArg);
-}
-
-async function resolveDestinationFile(
-  outArg: string | undefined,
-  filename: string,
-  deps: Required<Pick<DownloadDeps, 'stat'>>,
-): Promise<string> {
-  if (!outArg || outArg === '-') return resolve(resolveLaunchCwd(), filename);
-
-  const target = resolveOutputPath(outArg);
-  if (outArgLooksLikeDirectory(outArg)) return resolve(target, filename);
-  try {
-    const info = await deps.stat(target);
-    if (info.isDirectory()) return resolve(target, filename);
-  } catch {
-    // Path does not exist yet; treat it as a file path.
-  }
-  return target;
-}
-
 function formatQuickSelectList(matches: CloudPlanDownloadMatch[]): string[] {
   return matches.flatMap((match, index) => [
     `  ${formatPlanDownloadChoice(match, index + 1)}`,
@@ -197,68 +124,6 @@ function formatNotFound(
   lines.push('[agendex] closest matches — pick one without retyping the title:');
   lines.push(...formatQuickSelectList(suggestions));
   return lines.join('\n');
-}
-
-function isAlreadyExistsError(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'EEXIST';
-}
-
-async function pathExists(path: string, statFn: typeof stat): Promise<boolean> {
-  try {
-    await statFn(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function writeDownloadedPlan(
-  plan: CloudPlanDownload,
-  format: PlanDownloadFormat,
-  outArg: string | undefined,
-  force: boolean,
-  deps: {
-    log: (message: string) => void;
-    error: (message: string) => void;
-    writeStdout: (content: string) => void;
-    writeFile: (path: string, content: string) => Promise<void>;
-    mkdir: (path: string) => Promise<void>;
-    stat: typeof stat;
-  },
-): Promise<number> {
-  const filename = createPlanDownloadFilename(plan, format);
-  const content = renderPlanDownload(plan, format);
-
-  if (outArg === '-') {
-    deps.writeStdout(content);
-    return 0;
-  }
-
-  const destination = await resolveDestinationFile(outArg, filename, { stat: deps.stat });
-  if (!force && (await pathExists(destination, deps.stat))) {
-    deps.error(`[agendex] ${destination} already exists. Use --force to overwrite.`);
-    return 1;
-  }
-
-  try {
-    await deps.mkdir(dirname(destination));
-    await deps.writeFile(destination, content);
-  } catch (err) {
-    if (isAlreadyExistsError(err)) {
-      deps.error(`[agendex] ${destination} already exists. Use --force to overwrite.`);
-      return 1;
-    }
-    deps.error(
-      `[agendex] could not write file: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return 1;
-  }
-
-  deps.log(
-    `[agendex] downloaded "${sanitizeTerminalText(plan.title)}" (${sanitizeTerminalText(plan.agent)})`,
-  );
-  deps.log(`[agendex] ${sanitizeTerminalText(destination)}`);
-  return 0;
 }
 
 export async function runDownload(args: string[], deps?: Partial<DownloadDeps>): Promise<number> {
@@ -305,25 +170,16 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
     return 1;
   }
 
-  let format: PlanDownloadFormat = 'md';
-  const inferred = await inferFormatFromOutArg(outFlag.value, statFn);
-  if (formatFlag.value) {
-    const parsed = parsePlanDownloadFormat(formatFlag.value);
-    if (parsed === 'invalid') {
-      error('[agendex] --format must be md or html');
-      return 1;
-    }
-    if (parsed === 'pdf') {
-      error('[agendex] PDF download is available in the web app; CLI supports md and html');
-      return 1;
-    }
-    format = parsed;
-  } else if (inferred === 'pdf') {
-    error('[agendex] PDF download is available in the web app; CLI supports md and html');
+  const resolvedFormat = await resolveDownloadFormat({
+    formatFlag: formatFlag.value,
+    outArg: outFlag.value,
+    stat: statFn,
+  });
+  if (resolvedFormat.kind === 'error') {
+    error(resolvedFormat.message);
     return 1;
-  } else if (inferred) {
-    format = inferred;
   }
+  const format: PlanDownloadFormat = resolvedFormat.format;
 
   const config = loadConfig();
   if (!config?.cloudToken || !config?.convexUrl) {
@@ -417,7 +273,7 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
     return 1;
   }
 
-  return writeDownloadedPlan(result.plan, format, outFlag.value, force, {
+  const written = await writeDownloadedPlan(result.plan, format, outFlag.value, force, {
     log,
     error,
     writeStdout,
@@ -425,4 +281,5 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
     mkdir: mkdirFn,
     stat: statFn,
   });
+  return written.ok ? 0 : 1;
 }
