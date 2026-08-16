@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   canonicalPlanAgent,
+  dedupePlanBrowseCandidates,
   dedupePlanDownloadCandidates,
   isExactPlanDownloadIdHit,
   looksLikePlanIdQuery,
@@ -161,6 +162,52 @@ test('planBrowseDedupeKeys exposes every identity a row answers to', () => {
   expect(unsyncedKeys).toEqual([keys[1] as string]);
 
   expect(planBrowseDedupeKeys(plan({ id: 'p3', title: 'Bare' }))).toEqual(['id:p3']);
+});
+
+test('dedupePlanBrowseCandidates keeps identity keys from discarded duplicates', () => {
+  const winner = plan({
+    id: 'w',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    contentHash: 'hash-new',
+    updatedAt: 2,
+  });
+  const loser = plan({
+    id: 'l',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    contentHash: 'hash-old',
+    updatedAt: 1,
+  });
+  const result = dedupePlanBrowseCandidates([winner, loser]);
+  expect(result).toHaveLength(1);
+  expect(result[0]?.plan).toEqual(winner);
+  expect(result[0]?.dedupeKeys).toEqual(
+    expect.arrayContaining([...planBrowseDedupeKeys(winner), ...planBrowseDedupeKeys(loser)]),
+  );
+});
+
+test('dedupePlanBrowseCandidates can source keys from rows removed by filtering', () => {
+  const kept = plan({
+    id: 'k',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    contentHash: 'hash-1',
+    updatedAt: 1,
+  });
+  const filteredOut = plan({
+    id: 'f',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    contentHash: 'hash-2',
+    updatedAt: 2,
+  });
+  const result = dedupePlanBrowseCandidates([kept], [kept, filteredOut]);
+  expect(result).toHaveLength(1);
+  expect(result[0]?.plan).toEqual(kept);
+  expect(result[0]?.dedupeKeys).toEqual(
+    expect.arrayContaining(planBrowseDedupeKeys(filteredOut)),
+  );
 });
 
 test('isExactPlanDownloadIdHit is only true for id or localPlanId', () => {

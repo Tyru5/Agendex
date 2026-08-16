@@ -6,7 +6,7 @@ import {
   planAgentLookupValues,
   planAgentsMatch,
   PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
-  planBrowseDedupeKeys,
+  dedupePlanBrowseCandidates,
   selectPlanDownloadMatches,
   filterPlanBrowseMatches,
   suggestClosestPlans,
@@ -1562,22 +1562,25 @@ export const listPlansForBrowse = internalQuery({
 
     // Filter before dedupe: a fresher duplicate whose title no longer
     // matches the query must not swallow the older row that does match.
-    let plans = candidates.map(toLookupCandidate);
+    const allCandidates = candidates.map(toLookupCandidate);
+    let plans = allCandidates;
     if (query) {
       plans = filterPlanBrowseMatches(plans, query, agent);
     }
-    plans = dedupePlanDownloadCandidates(plans);
+    // Page-local dedupe keeps the freshest row per group, but the emitted
+    // identity keys (plus createdAt for the equal-updatedAt tie-break) are
+    // the union across every row that collapsed — including rows discarded
+    // here — so the CLI can fold a later duplicate that only a discarded
+    // row answered to.
+    const deduped = dedupePlanBrowseCandidates(plans, allCandidates);
 
     return {
-      // Each page is deduplicated in isolation, so the logical duplicate keys
-      // (plus createdAt for the equal-updatedAt tie-break) ride along for
-      // the CLI to collapse duplicates across pages.
-      plans: plans.map((plan) => ({
+      plans: deduped.map(({ plan, dedupeKeys }) => ({
         ...serializeDownloadMatchFromCandidate(plan),
         ...(typeof plan.createdAt === 'number' && {
           createdAt: new Date(plan.createdAt).toISOString(),
         }),
-        dedupeKeys: planBrowseDedupeKeys(plan),
+        dedupeKeys,
       })),
       continueCursor: page.isDone ? null : page.continueCursor,
       isDone: page.isDone,

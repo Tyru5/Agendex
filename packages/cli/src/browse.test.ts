@@ -440,6 +440,43 @@ test('collapses a synced row with an exact duplicate that lacks a sync identity'
   expect(code).toBe(1);
 });
 
+test('folds an unsynced row matching an identity discarded by page dedupe', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  // Page dedupe on the server kept the fresher synced row, but its dedupeKeys
+  // carry the discarded older version's exact-content key too.
+  const winner = sampleMatch({
+    id: 'plan-winner',
+    dedupeKeys: [
+      'sync:auth',
+      'exact:claude|add auth|hash-new',
+      'exact:claude|add auth|hash-old',
+    ],
+    updatedAt: '2026-08-03T00:00:00.000Z',
+  });
+  const unsyncedOld = sampleMatch({
+    id: 'plan-unsynced',
+    dedupeKeys: ['exact:claude|add auth|hash-old'],
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  });
+  const code = await runBrowse(
+    ['browse'],
+    makeDeps(cap, {
+      list: (opts) => {
+        if (!opts.cursor) {
+          return { kind: 'ok', plans: [winner], continueCursor: 'page-2', isDone: false };
+        }
+        return { kind: 'ok', plans: [unsyncedOld], continueCursor: null, isDone: true };
+      },
+      promptSelectPlan: async (matches) => {
+        expect(matches.map((match) => match.id)).toEqual(['plan-winner']);
+        return null;
+      },
+    }),
+  );
+  expect(code).toBe(1);
+});
+
 test('folds two accumulated groups when a later row bridges them', async () => {
   writeLoggedInConfig();
   const cap = newCapture();

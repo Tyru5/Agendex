@@ -303,6 +303,37 @@ export function planBrowseDedupeKeys(plan: PlanDownloadLookupCandidate): string[
   return keys;
 }
 
+export interface PlanBrowseDedupeResult {
+  plan: PlanDownloadLookupCandidate;
+  dedupeKeys: string[];
+}
+
+/**
+ * Deduplicate like {@link dedupePlanDownloadCandidates}, but return the union
+ * of identity keys across every row a group collapsed — optionally sourced
+ * from a wider row set (e.g. pre-filter) — so callers can still match a later
+ * duplicate that only a discarded row answered to.
+ */
+export function dedupePlanBrowseCandidates(
+  plans: readonly PlanDownloadLookupCandidate[],
+  keySource: readonly PlanDownloadLookupCandidate[] = plans,
+): PlanBrowseDedupeResult[] {
+  const unions = new Map<string, Set<string>>();
+  for (const plan of keySource) {
+    const groupKey = planDownloadDuplicateKey(plan);
+    let union = unions.get(groupKey);
+    if (!union) {
+      union = new Set();
+      unions.set(groupKey, union);
+    }
+    for (const key of planBrowseDedupeKeys(plan)) union.add(key);
+  }
+  return dedupePlanDownloadCandidates(plans).map((plan) => {
+    const union = unions.get(planDownloadDuplicateKey(plan));
+    return { plan, dedupeKeys: union ? [...union] : planBrowseDedupeKeys(plan) };
+  });
+}
+
 function planDownloadDuplicateKey(plan: PlanDownloadLookupCandidate): string {
   if (plan.syncIdentityKey) return `sync:${plan.syncIdentityKey}`;
   if (plan.contentHash) {
