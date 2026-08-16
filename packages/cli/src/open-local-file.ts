@@ -72,8 +72,9 @@ export async function launchOpenCommand(
     let child: ReturnType<typeof spawn>;
     try {
       child = spawn(command, args, {
-        stdio: 'ignore',
         ...options,
+        detached: true,
+        stdio: 'ignore',
       });
     } catch {
       finish(false);
@@ -81,11 +82,14 @@ export async function launchOpenCommand(
     }
 
     child.once('error', () => finish(false));
-    child.once('exit', (code) => finish(code === 0));
+    child.once('spawn', () => {
+      child.unref();
+      finish(true);
+    });
   });
 }
 
-/** Launch a local file with the OS handler. Returns false when launch is disabled or fails. */
+/** Launch a local file with the OS handler. True when the handler process started. */
 export async function openLocalFile(path: string, platform = process.platform): Promise<boolean> {
   if (isLocalFileOpenDisabled()) return false;
   const launch = buildOpenLocalFileCommand(path, platform);

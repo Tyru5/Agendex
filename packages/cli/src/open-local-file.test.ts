@@ -48,16 +48,18 @@ test('skips launching when AGENDEX_DISABLE_BROWSER is set', async () => {
   }
 });
 
-test('launchOpenCommand is false when the process exits non-zero', async () => {
-  expect(await launchOpenCommand(process.execPath, ['-e', 'process.exit(1)'])).toBe(false);
+test('launchOpenCommand is false when the command is missing', async () => {
+  expect(await launchOpenCommand('definitely-not-an-agendex-opener', [])).toBe(false);
 });
 
-test('launchOpenCommand is true when the process exits zero', async () => {
+test('launchOpenCommand is true once the process starts', async () => {
   expect(await launchOpenCommand(process.execPath, ['-e', 'process.exit(0)'])).toBe(true);
 });
 
-test('launchOpenCommand waits for a delayed non-zero exit', async () => {
+test('launchOpenCommand does not wait for a long-lived process to quit', async () => {
+  const started = Date.now();
   expect(
-    await launchOpenCommand(process.execPath, ['-e', 'setTimeout(() => process.exit(1), 50)']),
-  ).toBe(false);
+    await launchOpenCommand(process.execPath, ['-e', 'setTimeout(() => {}, 5000)']),
+  ).toBe(true);
+  expect(Date.now() - started).toBeLessThan(1000);
 });
