@@ -45,6 +45,8 @@ export function commandExists(name: string, platform = process.platform): boolea
   return false;
 }
 
+const OPEN_LAUNCH_SETTLE_MS = 250;
+
 export async function launchOpenCommand(
   command: string,
   args: string[],
@@ -53,9 +55,11 @@ export async function launchOpenCommand(
   if (!commandExists(command)) return false;
   return await new Promise((resolve) => {
     let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const finish = (ok: boolean) => {
       if (settled) return;
       settled = true;
+      if (timer !== undefined) clearTimeout(timer);
       resolve(ok);
     };
 
@@ -72,6 +76,15 @@ export async function launchOpenCommand(
 
     child.once('error', () => finish(false));
     child.once('exit', (code) => finish(code === 0));
+    child.once('spawn', () => {
+      if (settled) return;
+      // Still-running openers (an editor that stays open) are a successful
+      // launch. Waiting for them to quit would hang `agendex browse`.
+      timer = setTimeout(() => {
+        child.unref();
+        finish(true);
+      }, OPEN_LAUNCH_SETTLE_MS);
+    });
   });
 }
 
