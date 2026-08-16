@@ -447,11 +447,7 @@ test('folds an unsynced row matching an identity discarded by page dedupe', asyn
   // carry the discarded older version's exact-content key too.
   const winner = sampleMatch({
     id: 'plan-winner',
-    dedupeKeys: [
-      'sync:auth',
-      'exact:claude|add auth|hash-new',
-      'exact:claude|add auth|hash-old',
-    ],
+    dedupeKeys: ['sync:auth', 'exact:claude|add auth|hash-new', 'exact:claude|add auth|hash-old'],
     updatedAt: '2026-08-03T00:00:00.000Z',
   });
   const unsyncedOld = sampleMatch({

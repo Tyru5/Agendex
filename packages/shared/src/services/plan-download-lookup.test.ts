@@ -205,9 +205,7 @@ test('dedupePlanBrowseCandidates can source keys from rows removed by filtering'
   const result = dedupePlanBrowseCandidates([kept], [kept, filteredOut]);
   expect(result).toHaveLength(1);
   expect(result[0]?.plan).toEqual(kept);
-  expect(result[0]?.dedupeKeys).toEqual(
-    expect.arrayContaining(planBrowseDedupeKeys(filteredOut)),
-  );
+  expect(result[0]?.dedupeKeys).toEqual(expect.arrayContaining(planBrowseDedupeKeys(filteredOut)));
 });
 
 test('isExactPlanDownloadIdHit is only true for id or localPlanId', () => {
@@ -289,17 +287,17 @@ test('filterPlanBrowseMatches keeps exact and substring hits on the same page', 
   const exact = plan({ id: '1', title: 'auth' });
   const substring = plan({ id: '2', title: 'Add auth flow' });
   const unrelated = plan({ id: '3', title: 'Weekly retro' });
-  expect(filterPlanBrowseMatches([exact, substring, unrelated], 'auth').map((item) => item.id)).toEqual(
-    ['1', '2'],
-  );
+  expect(
+    filterPlanBrowseMatches([exact, substring, unrelated], 'auth').map((item) => item.id),
+  ).toEqual(['1', '2']);
 });
 
 test('filterPlanBrowseMatches still honors the agent filter', () => {
   const claude = plan({ id: '1', title: 'Add auth', agent: 'claude-code' });
   const cursor = plan({ id: '2', title: 'Add auth flow', agent: 'cursor' });
-  expect(filterPlanBrowseMatches([claude, cursor], 'auth', 'claude-code').map((item) => item.id)).toEqual(
-    ['1'],
-  );
+  expect(
+    filterPlanBrowseMatches([claude, cursor], 'auth', 'claude-code').map((item) => item.id),
+  ).toEqual(['1']);
 });
 
 test('scorePlanTitleSimilarity ranks typos above unrelated titles', () => {

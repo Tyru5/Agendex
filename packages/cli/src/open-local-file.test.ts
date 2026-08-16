@@ -87,9 +87,14 @@ test('launchOpenCommand is false when the launcher exits non-zero in the grace w
 test('launchOpenCommand does not wait out a handler that stays in the foreground', async () => {
   const started = Date.now();
   expect(
-    await launchOpenCommand(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], {}, {
-      graceMs: 100,
-    }),
+    await launchOpenCommand(
+      process.execPath,
+      ['-e', 'setTimeout(() => {}, 5000)'],
+      {},
+      {
+        graceMs: 100,
+      },
+    ),
   ).toBe(true);
   expect(Date.now() - started).toBeLessThan(2000);
 });
