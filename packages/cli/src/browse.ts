@@ -93,7 +93,10 @@ async function listBrowsePlanPages(
   filter: { query?: string; agent?: string },
 ): Promise<ListCloudPlansResult> {
   const plans: CloudPlanDownloadMatch[] = [];
-  const seen = new Set<string>();
+  // The server deduplicates logical duplicates within a page only; the same
+  // plan can reappear on a later page under another physical row, so pages
+  // are merged by the logical key with the freshest row winning.
+  const indexByKey = new Map<string, number>();
   const seenCursors = new Set<string>();
   let cursor: string | undefined;
 
@@ -102,9 +105,17 @@ async function listBrowsePlanPages(
     if (listed.kind !== 'ok') return listed;
 
     for (const plan of listed.plans) {
-      if (seen.has(plan.id)) continue;
-      seen.add(plan.id);
-      plans.push(plan);
+      const key = plan.dedupeKey ?? plan.id;
+      const existingIndex = indexByKey.get(key);
+      if (existingIndex === undefined) {
+        indexByKey.set(key, plans.length);
+        plans.push(plan);
+        continue;
+      }
+      const existing = plans[existingIndex];
+      if (existing && Date.parse(plan.updatedAt) > Date.parse(existing.updatedAt)) {
+        plans[existingIndex] = plan;
+      }
     }
 
     if (listed.isDone || !listed.continueCursor) {

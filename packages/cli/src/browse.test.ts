@@ -375,6 +375,40 @@ test('pages through continueCursor until the list is complete', async () => {
   expect(cap.listQueries.map((query) => query.cursor)).toEqual([undefined, 'page-2']);
 });
 
+test('collapses the same logical plan served on different pages', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const stale = sampleMatch({
+    id: 'plan-old',
+    title: 'Add auth',
+    dedupeKey: 'sync:auth',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  });
+  const fresh = sampleMatch({
+    id: 'plan-new',
+    title: 'Add auth',
+    dedupeKey: 'sync:auth',
+    updatedAt: '2026-08-03T00:00:00.000Z',
+  });
+  const other = sampleMatch({ id: 'plan-2', title: 'Ship browse', dedupeKey: 'id:plan-2' });
+  const code = await runBrowse(
+    ['browse'],
+    makeDeps(cap, {
+      list: (opts) => {
+        if (!opts.cursor) {
+          return { kind: 'ok', plans: [stale], continueCursor: 'page-2', isDone: false };
+        }
+        return { kind: 'ok', plans: [fresh, other], continueCursor: null, isDone: true };
+      },
+      promptSelectPlan: async (matches) => {
+        expect(matches.map((match) => match.id)).toEqual(['plan-new', 'plan-2']);
+        return null;
+      },
+    }),
+  );
+  expect(code).toBe(1);
+});
+
 test('keeps paging past ten pages so later plans are not omitted', async () => {
   writeLoggedInConfig();
   const cap = newCapture();

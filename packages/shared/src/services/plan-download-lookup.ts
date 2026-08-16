@@ -282,7 +282,7 @@ export function isExactPlanDownloadIdHit(
   return plan.id === query || plan.localPlanId === query;
 }
 
-function planDownloadDuplicateKey(plan: PlanDownloadLookupCandidate): string {
+export function planDownloadDuplicateKey(plan: PlanDownloadLookupCandidate): string {
   if (plan.syncIdentityKey) return `sync:${plan.syncIdentityKey}`;
   if (plan.contentHash) {
     return `exact:${exactDuplicateKey({

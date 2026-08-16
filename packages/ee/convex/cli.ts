@@ -6,6 +6,7 @@ import {
   planAgentLookupValues,
   planAgentsMatch,
   PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
+  planDownloadDuplicateKey,
   selectPlanDownloadMatches,
   filterPlanBrowseMatches,
   suggestClosestPlans,
@@ -1502,6 +1503,7 @@ const browsePlanMatchValidator = v.object({
   agent: v.string(),
   title: v.string(),
   updatedAt: v.string(),
+  dedupeKey: v.string(),
 });
 
 export const listPlansForBrowse = internalQuery({
@@ -1563,7 +1565,12 @@ export const listPlansForBrowse = internalQuery({
     }
 
     return {
-      plans: plans.map(serializeDownloadMatchFromCandidate),
+      // Each page is deduplicated in isolation, so the logical duplicate key
+      // rides along for the CLI to collapse duplicates across pages.
+      plans: plans.map((plan) => ({
+        ...serializeDownloadMatchFromCandidate(plan),
+        dedupeKey: planDownloadDuplicateKey(plan),
+      })),
       continueCursor: page.isDone ? null : page.continueCursor,
       isDone: page.isDone,
     };
@@ -1590,7 +1597,7 @@ export const listPlans = httpAction(async (ctx, request) => {
   const cursor = url.searchParams.get('cursor')?.trim() || undefined;
 
   const result: {
-    plans: ReturnType<typeof serializeDownloadMatchFromCandidate>[];
+    plans: (ReturnType<typeof serializeDownloadMatchFromCandidate> & { dedupeKey: string })[];
     continueCursor: string | null;
     isDone: boolean;
   } = await ctx.runQuery(internal.cli.listPlansForBrowse, {

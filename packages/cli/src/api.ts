@@ -158,6 +158,8 @@ export interface CloudPlanDownloadMatch {
   agent: string;
   title: string;
   updatedAt: string;
+  /** Logical duplicate key from the server; rows sharing it are the same plan. */
+  dedupeKey?: string;
 }
 
 export type FetchCloudPlanResult =
@@ -233,6 +235,7 @@ function parseCloudPlanDownloadMatch(value: unknown): CloudPlanDownloadMatch | n
     agent: plan.agent,
     title: plan.title,
     updatedAt: plan.updatedAt,
+    dedupeKey: readOptionalString(plan.dedupeKey),
   };
 }
 
