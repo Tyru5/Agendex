@@ -10,6 +10,7 @@ import {
   parsePlanDownloadQuery,
   planAgentLookupValues,
   planAgentsMatch,
+  planBrowseDedupeKeys,
   scanPlanDownloadFallback,
   scorePlanTitleSimilarity,
   selectPlanDownloadMatches,
@@ -141,6 +142,25 @@ test('dedupePlanDownloadCandidates collapses duplicate sync identities before ti
   const unique = dedupePlanDownloadCandidates([older, newer]);
   expect(unique).toEqual([newer]);
   expect(selectPlanDownloadMatches(unique, 'Add auth')).toEqual({ kind: 'one', plan: newer });
+});
+
+test('planBrowseDedupeKeys exposes every identity a row answers to', () => {
+  const synced = plan({
+    id: 'p1',
+    title: 'Add auth',
+    syncIdentityKey: 'sync-1',
+    contentHash: 'hash-1',
+  });
+  const keys = planBrowseDedupeKeys(synced);
+  expect(keys).toHaveLength(2);
+  expect(keys[0]).toBe('sync:sync-1');
+  expect(keys[1]).toStartWith('exact:');
+
+  const unsynced = plan({ id: 'p2', title: 'Add auth', contentHash: 'hash-1' });
+  const unsyncedKeys = planBrowseDedupeKeys(unsynced);
+  expect(unsyncedKeys).toEqual([keys[1] as string]);
+
+  expect(planBrowseDedupeKeys(plan({ id: 'p3', title: 'Bare' }))).toEqual(['id:p3']);
 });
 
 test('isExactPlanDownloadIdHit is only true for id or localPlanId', () => {

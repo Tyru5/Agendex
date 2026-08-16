@@ -19,7 +19,7 @@ test('browse list endpoint pages owner plans and stays authenticated', () => {
   expect(cliSource).toContain('page.isDone');
   expect(cliSource).toContain('selectPlanDownloadMatches');
   expect(cliSource).toContain('filterPlanBrowseMatches');
-  expect(cliSource).toContain('planDownloadDuplicateKey');
-  expect(cliSource).toContain('dedupeKey');
+  expect(cliSource).toContain('planBrowseDedupeKeys');
+  expect(cliSource).toContain('dedupeKeys');
   expect(cliSource).toContain("status: 'ok'");
 });

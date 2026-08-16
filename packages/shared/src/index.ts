@@ -144,7 +144,7 @@ export {
   PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
   scanPlanDownloadFallback,
   scorePlanTitleSimilarity,
-  planDownloadDuplicateKey,
+  planBrowseDedupeKeys,
   selectPlanDownloadMatches,
   filterPlanBrowseMatches,
   suggestClosestPlans,

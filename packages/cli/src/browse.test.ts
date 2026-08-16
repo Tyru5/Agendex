@@ -381,16 +381,16 @@ test('collapses the same logical plan served on different pages', async () => {
   const stale = sampleMatch({
     id: 'plan-old',
     title: 'Add auth',
-    dedupeKey: 'sync:auth',
+    dedupeKeys: ['sync:auth'],
     updatedAt: '2026-08-01T00:00:00.000Z',
   });
   const fresh = sampleMatch({
     id: 'plan-new',
     title: 'Add auth',
-    dedupeKey: 'sync:auth',
+    dedupeKeys: ['sync:auth'],
     updatedAt: '2026-08-03T00:00:00.000Z',
   });
-  const other = sampleMatch({ id: 'plan-2', title: 'Ship browse', dedupeKey: 'id:plan-2' });
+  const other = sampleMatch({ id: 'plan-2', title: 'Ship browse', dedupeKeys: ['id:plan-2'] });
   const code = await runBrowse(
     ['browse'],
     makeDeps(cap, {
@@ -409,18 +409,49 @@ test('collapses the same logical plan served on different pages', async () => {
   expect(code).toBe(1);
 });
 
+test('collapses a synced row with an exact duplicate that lacks a sync identity', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const synced = sampleMatch({
+    id: 'plan-synced',
+    dedupeKeys: ['sync:auth', 'exact:claude|add auth|hash-1'],
+    updatedAt: '2026-08-03T00:00:00.000Z',
+  });
+  const unsynced = sampleMatch({
+    id: 'plan-unsynced',
+    dedupeKeys: ['exact:claude|add auth|hash-1'],
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  });
+  const code = await runBrowse(
+    ['browse'],
+    makeDeps(cap, {
+      list: (opts) => {
+        if (!opts.cursor) {
+          return { kind: 'ok', plans: [synced], continueCursor: 'page-2', isDone: false };
+        }
+        return { kind: 'ok', plans: [unsynced], continueCursor: null, isDone: true };
+      },
+      promptSelectPlan: async (matches) => {
+        expect(matches.map((match) => match.id)).toEqual(['plan-synced']);
+        return null;
+      },
+    }),
+  );
+  expect(code).toBe(1);
+});
+
 test('breaks equal-updatedAt duplicate ties by createdAt like the server', async () => {
   writeLoggedInConfig();
   const cap = newCapture();
   const olderCreation = sampleMatch({
     id: 'plan-old',
-    dedupeKey: 'sync:auth',
+    dedupeKeys: ['sync:auth'],
     updatedAt: '2026-08-02T00:00:00.000Z',
     createdAt: '2026-08-01T00:00:00.000Z',
   });
   const newerCreation = sampleMatch({
     id: 'plan-new',
-    dedupeKey: 'sync:auth',
+    dedupeKeys: ['sync:auth'],
     updatedAt: '2026-08-02T00:00:00.000Z',
     createdAt: '2026-08-01T12:00:00.000Z',
   });

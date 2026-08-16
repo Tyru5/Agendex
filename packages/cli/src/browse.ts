@@ -110,9 +110,9 @@ async function listBrowsePlanPages(
   filter: { query?: string; agent?: string },
 ): Promise<ListCloudPlansResult> {
   const plans: CloudPlanDownloadMatch[] = [];
-  // The server deduplicates logical duplicates within a page only; the same
-  // plan can reappear on a later page under another physical row, so pages
-  // are merged by the logical key with the freshest row winning.
+  // The server cannot see across pages, so rows are merged here by their
+  // logical duplicate keys: any shared key means the same plan, all of a
+  // row's keys join the winning entry, and the freshest row wins.
   const indexByKey = new Map<string, number>();
   const seenCursors = new Set<string>();
   let cursor: string | undefined;
@@ -122,17 +122,22 @@ async function listBrowsePlanPages(
     if (listed.kind !== 'ok') return listed;
 
     for (const plan of listed.plans) {
-      const key = plan.dedupeKey ?? plan.id;
-      const existingIndex = indexByKey.get(key);
+      const keys = plan.dedupeKeys?.length ? plan.dedupeKeys : [plan.id];
+      let existingIndex: number | undefined;
+      for (const key of keys) {
+        existingIndex = indexByKey.get(key);
+        if (existingIndex !== undefined) break;
+      }
       if (existingIndex === undefined) {
-        indexByKey.set(key, plans.length);
+        existingIndex = plans.length;
         plans.push(plan);
-        continue;
+      } else {
+        const existing = plans[existingIndex];
+        if (existing && isFresherBrowseMatch(plan, existing)) {
+          plans[existingIndex] = plan;
+        }
       }
-      const existing = plans[existingIndex];
-      if (existing && isFresherBrowseMatch(plan, existing)) {
-        plans[existingIndex] = plan;
-      }
+      for (const key of keys) indexByKey.set(key, existingIndex);
     }
 
     if (listed.isDone || !listed.continueCursor) {

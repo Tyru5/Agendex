@@ -6,7 +6,7 @@ import {
   planAgentLookupValues,
   planAgentsMatch,
   PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
-  planDownloadDuplicateKey,
+  planBrowseDedupeKeys,
   selectPlanDownloadMatches,
   filterPlanBrowseMatches,
   suggestClosestPlans,
@@ -1504,7 +1504,7 @@ const browsePlanMatchValidator = v.object({
   title: v.string(),
   updatedAt: v.string(),
   createdAt: v.optional(v.string()),
-  dedupeKey: v.string(),
+  dedupeKeys: v.array(v.string()),
 });
 
 export const listPlansForBrowse = internalQuery({
@@ -1566,15 +1566,15 @@ export const listPlansForBrowse = internalQuery({
     }
 
     return {
-      // Each page is deduplicated in isolation, so the logical duplicate key
-      // (plus createdAt for the equal-updatedAt tie-break) rides along for
+      // Each page is deduplicated in isolation, so the logical duplicate keys
+      // (plus createdAt for the equal-updatedAt tie-break) ride along for
       // the CLI to collapse duplicates across pages.
       plans: plans.map((plan) => ({
         ...serializeDownloadMatchFromCandidate(plan),
         ...(typeof plan.createdAt === 'number' && {
           createdAt: new Date(plan.createdAt).toISOString(),
         }),
-        dedupeKey: planDownloadDuplicateKey(plan),
+        dedupeKeys: planBrowseDedupeKeys(plan),
       })),
       continueCursor: page.isDone ? null : page.continueCursor,
       isDone: page.isDone,
@@ -1604,7 +1604,7 @@ export const listPlans = httpAction(async (ctx, request) => {
   const result: {
     plans: (ReturnType<typeof serializeDownloadMatchFromCandidate> & {
       createdAt?: string;
-      dedupeKey: string;
+      dedupeKeys: string[];
     })[];
     continueCursor: string | null;
     isDone: boolean;

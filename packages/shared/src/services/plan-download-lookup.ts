@@ -282,7 +282,28 @@ export function isExactPlanDownloadIdHit(
   return plan.id === query || plan.localPlanId === query;
 }
 
-export function planDownloadDuplicateKey(plan: PlanDownloadLookupCandidate): string {
+/**
+ * All duplicate identities a plan row answers to. A row that carries a sync
+ * identity still exposes its exact-content key so it collapses with a
+ * duplicate row that never got a sync identity.
+ */
+export function planBrowseDedupeKeys(plan: PlanDownloadLookupCandidate): string[] {
+  const keys: string[] = [];
+  if (plan.syncIdentityKey) keys.push(`sync:${plan.syncIdentityKey}`);
+  if (plan.contentHash) {
+    keys.push(
+      `exact:${exactDuplicateKey({
+        agent: plan.agent,
+        title: plan.title,
+        contentHash: plan.contentHash,
+      })}`,
+    );
+  }
+  if (keys.length === 0) keys.push(`id:${plan.id}`);
+  return keys;
+}
+
+function planDownloadDuplicateKey(plan: PlanDownloadLookupCandidate): string {
   if (plan.syncIdentityKey) return `sync:${plan.syncIdentityKey}`;
   if (plan.contentHash) {
     return `exact:${exactDuplicateKey({

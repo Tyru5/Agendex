@@ -159,8 +159,8 @@ export interface CloudPlanDownloadMatch {
   title: string;
   updatedAt: string;
   createdAt?: string;
-  /** Logical duplicate key from the server; rows sharing it are the same plan. */
-  dedupeKey?: string;
+  /** Logical duplicate keys from the server; rows sharing any are the same plan. */
+  dedupeKeys?: string[];
 }
 
 export type FetchCloudPlanResult =
@@ -237,7 +237,9 @@ function parseCloudPlanDownloadMatch(value: unknown): CloudPlanDownloadMatch | n
     title: plan.title,
     updatedAt: plan.updatedAt,
     createdAt: readOptionalString(plan.createdAt),
-    dedupeKey: readOptionalString(plan.dedupeKey),
+    dedupeKeys: Array.isArray(plan.dedupeKeys)
+      ? plan.dedupeKeys.filter((key): key is string => typeof key === 'string')
+      : undefined,
   };
 }
 
