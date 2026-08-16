@@ -56,10 +56,8 @@ test('launchOpenCommand is true when the process exits zero', async () => {
   expect(await launchOpenCommand(process.execPath, ['-e', 'process.exit(0)'])).toBe(true);
 });
 
-test('launchOpenCommand does not wait for a long-lived opener to quit', async () => {
-  const started = Date.now();
+test('launchOpenCommand waits for a delayed non-zero exit', async () => {
   expect(
-    await launchOpenCommand(process.execPath, ['-e', 'setTimeout(() => {}, 5000)']),
-  ).toBe(true);
-  expect(Date.now() - started).toBeLessThan(2000);
+    await launchOpenCommand(process.execPath, ['-e', 'setTimeout(() => process.exit(1), 50)']),
+  ).toBe(false);
 });
