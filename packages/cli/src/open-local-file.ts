@@ -8,8 +8,6 @@ export interface OpenLocalFileCommand {
   options?: SpawnOptions;
 }
 
-const OPEN_LOCAL_FILE_WAIT_MS = 1500;
-
 export function isLocalFileOpenDisabled(): boolean {
   return process.env.AGENDEX_DISABLE_BROWSER === '1';
 }
@@ -72,19 +70,8 @@ export async function launchOpenCommand(
       return;
     }
 
-    const timer = setTimeout(() => {
-      child.unref();
-      finish(true);
-    }, OPEN_LOCAL_FILE_WAIT_MS);
-
-    child.once('error', () => {
-      clearTimeout(timer);
-      finish(false);
-    });
-    child.once('exit', (code) => {
-      clearTimeout(timer);
-      finish(code === 0);
-    });
+    child.once('error', () => finish(false));
+    child.once('exit', (code) => finish(code === 0));
   });
 }
 

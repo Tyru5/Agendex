@@ -249,6 +249,32 @@ export function selectPlanDownloadMatches(
   return { kind: 'none' };
 }
 
+/** Inclusive title/id matching for browse listing. Unlike selectPlanDownloadMatches, this keeps every matching category on a page. */
+export function filterPlanBrowseMatches(
+  plans: readonly PlanDownloadLookupCandidate[],
+  query: string,
+  agent?: string,
+): PlanDownloadLookupCandidate[] {
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) return [...plans];
+
+  const requestedAgent = agent?.trim();
+  const pool = requestedAgent
+    ? plans.filter((plan) => planAgentsMatch(plan.agent, requestedAgent))
+    : [...plans];
+
+  const normalizedQuery = normalizePlanLookupText(trimmedQuery);
+  return pool.filter((plan) => {
+    if (plan.id === trimmedQuery || plan.localPlanId === trimmedQuery) return true;
+    const title = normalizePlanLookupText(plan.title);
+    return (
+      title === normalizedQuery ||
+      title.startsWith(normalizedQuery) ||
+      title.includes(normalizedQuery)
+    );
+  });
+}
+
 export function isExactPlanDownloadIdHit(
   plan: Pick<PlanDownloadLookupCandidate, 'id' | 'localPlanId'>,
   query: string,

@@ -145,6 +145,7 @@ export {
   scanPlanDownloadFallback,
   scorePlanTitleSimilarity,
   selectPlanDownloadMatches,
+  filterPlanBrowseMatches,
   suggestClosestPlans,
 } from './services/plan-download-lookup.ts';
 export type { PlanSyncIdentity, PlanSyncIdentityStrength } from './services/plan-sync-identity.ts';

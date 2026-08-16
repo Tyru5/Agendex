@@ -7,6 +7,7 @@ import {
   planAgentsMatch,
   PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
   selectPlanDownloadMatches,
+  filterPlanBrowseMatches,
   suggestClosestPlans,
   type PlanDownloadLookupCandidate,
 } from '@agendex/shared/plan-download-lookup';
@@ -1558,10 +1559,7 @@ export const listPlansForBrowse = internalQuery({
 
     let plans = uniqueLookupCandidates(candidates);
     if (query) {
-      const selected = selectPlanDownloadMatches(plans, query, agent);
-      if (selected.kind === 'one') plans = [selected.plan];
-      else if (selected.kind === 'many') plans = selected.plans;
-      else plans = [];
+      plans = filterPlanBrowseMatches(plans, query, agent);
     }
 
     return {

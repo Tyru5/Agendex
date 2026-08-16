@@ -13,6 +13,7 @@ import {
   scanPlanDownloadFallback,
   scorePlanTitleSimilarity,
   selectPlanDownloadMatches,
+  filterPlanBrowseMatches,
   suggestClosestPlans,
   type PlanDownloadLookupCandidate,
 } from './plan-download-lookup.ts';
@@ -215,6 +216,23 @@ test('selectPlanDownloadMatches does not treat unrelated leftover plans as hits'
       'Add auth',
     ),
   ).toEqual({ kind: 'none' });
+});
+
+test('filterPlanBrowseMatches keeps exact and substring hits on the same page', () => {
+  const exact = plan({ id: '1', title: 'auth' });
+  const substring = plan({ id: '2', title: 'Add auth flow' });
+  const unrelated = plan({ id: '3', title: 'Weekly retro' });
+  expect(filterPlanBrowseMatches([exact, substring, unrelated], 'auth').map((item) => item.id)).toEqual(
+    ['1', '2'],
+  );
+});
+
+test('filterPlanBrowseMatches still honors the agent filter', () => {
+  const claude = plan({ id: '1', title: 'Add auth', agent: 'claude-code' });
+  const cursor = plan({ id: '2', title: 'Add auth flow', agent: 'cursor' });
+  expect(filterPlanBrowseMatches([claude, cursor], 'auth', 'claude-code').map((item) => item.id)).toEqual(
+    ['1'],
+  );
 });
 
 test('scorePlanTitleSimilarity ranks typos above unrelated titles', () => {
