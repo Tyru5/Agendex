@@ -23,3 +23,12 @@ test('browse list endpoint pages owner plans and stays authenticated', () => {
   expect(cliSource).toContain('dedupeKeys');
   expect(cliSource).toContain("status: 'ok'");
 });
+
+test('browse list filters by title before deduplicating duplicates', () => {
+  const browseHandler = cliSource.slice(cliSource.indexOf('listPlansForBrowse'));
+  const filterAt = browseHandler.indexOf('filterPlanBrowseMatches(');
+  const dedupeAt = browseHandler.indexOf('dedupePlanDownloadCandidates(');
+  expect(filterAt).toBeGreaterThan(-1);
+  expect(dedupeAt).toBeGreaterThan(-1);
+  expect(filterAt).toBeLessThan(dedupeAt);
+});

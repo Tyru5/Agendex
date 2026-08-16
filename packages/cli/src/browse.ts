@@ -109,10 +109,11 @@ async function listBrowsePlanPages(
   listCloudPlansFn: BrowseDeps['listCloudPlans'],
   filter: { query?: string; agent?: string },
 ): Promise<ListCloudPlansResult> {
-  const plans: CloudPlanDownloadMatch[] = [];
   // The server cannot see across pages, so rows are merged here by their
-  // logical duplicate keys: any shared key means the same plan, all of a
-  // row's keys join the winning entry, and the freshest row wins.
+  // logical duplicate keys: any shared key means the same plan, a row that
+  // bridges previously separate groups folds them together, and the freshest
+  // row wins. Slots emptied by a fold stay undefined to keep indexes stable.
+  const plans: (CloudPlanDownloadMatch | undefined)[] = [];
   const indexByKey = new Map<string, number>();
   const seenCursors = new Set<string>();
   let cursor: string | undefined;
@@ -123,25 +124,47 @@ async function listBrowsePlanPages(
 
     for (const plan of listed.plans) {
       const keys = plan.dedupeKeys?.length ? plan.dedupeKeys : [plan.id];
-      let existingIndex: number | undefined;
+      const groups = new Set<number>();
       for (const key of keys) {
-        existingIndex = indexByKey.get(key);
-        if (existingIndex !== undefined) break;
+        const index = indexByKey.get(key);
+        if (index !== undefined) groups.add(index);
       }
-      if (existingIndex === undefined) {
-        existingIndex = plans.length;
+      const ordered = [...groups].sort((left, right) => left - right);
+      let target: number;
+      if (ordered.length === 0) {
+        target = plans.length;
         plans.push(plan);
       } else {
-        const existing = plans[existingIndex];
+        target = ordered[0] as number;
+        if (ordered.length > 1) {
+          const folded = new Set(ordered.slice(1));
+          for (const [key, index] of indexByKey) {
+            if (folded.has(index)) indexByKey.set(key, target);
+          }
+          for (const index of folded) {
+            const entry = plans[index];
+            const current = plans[target];
+            if (entry && current && isFresherBrowseMatch(entry, current)) {
+              plans[target] = entry;
+            }
+            plans[index] = undefined;
+          }
+        }
+        const existing = plans[target];
         if (existing && isFresherBrowseMatch(plan, existing)) {
-          plans[existingIndex] = plan;
+          plans[target] = plan;
         }
       }
-      for (const key of keys) indexByKey.set(key, existingIndex);
+      for (const key of keys) indexByKey.set(key, target);
     }
 
     if (listed.isDone || !listed.continueCursor) {
-      return { kind: 'ok', plans, continueCursor: null, isDone: true };
+      return {
+        kind: 'ok',
+        plans: plans.filter((plan): plan is CloudPlanDownloadMatch => plan !== undefined),
+        continueCursor: null,
+        isDone: true,
+      };
     }
     if (seenCursors.has(listed.continueCursor)) {
       return {

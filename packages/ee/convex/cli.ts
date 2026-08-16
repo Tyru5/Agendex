@@ -1560,10 +1560,13 @@ export const listPlansForBrowse = internalQuery({
       });
     addHits(page.page);
 
-    let plans = uniqueLookupCandidates(candidates);
+    // Filter before dedupe: a fresher duplicate whose title no longer
+    // matches the query must not swallow the older row that does match.
+    let plans = candidates.map(toLookupCandidate);
     if (query) {
       plans = filterPlanBrowseMatches(plans, query, agent);
     }
+    plans = dedupePlanDownloadCandidates(plans);
 
     return {
       // Each page is deduplicated in isolation, so the logical duplicate keys

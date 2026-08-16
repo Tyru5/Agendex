@@ -440,6 +440,47 @@ test('collapses a synced row with an exact duplicate that lacks a sync identity'
   expect(code).toBe(1);
 });
 
+test('folds two accumulated groups when a later row bridges them', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const syncOnly = sampleMatch({
+    id: 'plan-sync',
+    dedupeKeys: ['sync:auth'],
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  });
+  const exactOnly = sampleMatch({
+    id: 'plan-exact',
+    dedupeKeys: ['exact:claude|add auth|hash-1'],
+    updatedAt: '2026-08-02T00:00:00.000Z',
+  });
+  const bridge = sampleMatch({
+    id: 'plan-bridge',
+    dedupeKeys: ['sync:auth', 'exact:claude|add auth|hash-1'],
+    updatedAt: '2026-08-03T00:00:00.000Z',
+  });
+  const code = await runBrowse(
+    ['browse'],
+    makeDeps(cap, {
+      list: (opts) => {
+        if (!opts.cursor) {
+          return {
+            kind: 'ok',
+            plans: [syncOnly, exactOnly],
+            continueCursor: 'page-2',
+            isDone: false,
+          };
+        }
+        return { kind: 'ok', plans: [bridge], continueCursor: null, isDone: true };
+      },
+      promptSelectPlan: async (matches) => {
+        expect(matches.map((match) => match.id)).toEqual(['plan-bridge']);
+        return null;
+      },
+    }),
+  );
+  expect(code).toBe(1);
+});
+
 test('breaks equal-updatedAt duplicate ties by createdAt like the server', async () => {
   writeLoggedInConfig();
   const cap = newCapture();
