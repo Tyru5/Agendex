@@ -73,3 +73,6 @@ goals/
 scripts/release-status.sh
 
 .commandcode
+
+# upload files
+uploads/

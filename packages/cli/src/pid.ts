@@ -48,7 +48,10 @@ export interface DaemonPidInfo {
   parentPid?: number;
   workerPid?: number;
   ready?: boolean;
+  /** Preferred boot identity (first of `bootIds` when present). */
   bootId?: string;
+  /** All boot identities observed at write time (win32 may include registry + ticks). */
+  bootIds?: string[];
 }
 
 export function writePid(
@@ -65,12 +68,12 @@ export function writePidForProcess(
 ): void {
   const path = getPidPath(options);
   mkdirSync(dirname(path), { recursive: true });
-  const bootId = getSystemBootId();
+  const bootIds = getSystemBootIds();
   const info: DaemonPidInfo = {
     pid,
     startedAtMs: Date.now(),
     hostname: hostname(),
-    ...(bootId ? { bootId } : {}),
+    ...(bootIds[0] ? { bootId: bootIds[0], bootIds } : {}),
     ...metadata,
   };
   const candidatePath = `${path}.candidate-${process.pid}-${randomUUID()}`;
@@ -143,10 +146,14 @@ export function isRunning(pid: number): boolean {
 export interface DaemonPidFreshnessOptions {
   currentHostname?: string;
   currentBootId?: string | null;
+  /** All identities for the current OS boot; preferred over a single currentBootId. */
+  currentBootIds?: string[];
   processCommand?: string | null;
   processRunning?: boolean;
   /** Override for desktop launcher parent liveness checks (tests). */
   parentProcessRunning?: boolean;
+  /** Windows LastBootUpTime as Unix ms; used when boot IDs are cross-family. */
+  currentBootTimeMs?: number;
 }
 
 /** Checks record provenance only; validate each live PID separately before signaling it. */
@@ -157,10 +164,88 @@ export function isDaemonPidInfoCurrent(
   const currentHostname = options.currentHostname ?? hostname();
   if (info.hostname && info.hostname.toLowerCase() !== currentHostname.toLowerCase()) return false;
 
-  const currentBootId = options.currentBootId ?? getSystemBootId();
-  if (info.bootId && currentBootId && info.bootId !== currentBootId) return false;
+  const storedBootIds = storedBootIdentities(info);
+  if (storedBootIds.length > 0) {
+    const currentBootIds = resolveCurrentBootIds(options);
+    const agreement = bootIdentitiesAgree(storedBootIds, currentBootIds);
+    if (agreement === 'conflict') return false;
+    if (agreement === 'inconclusive' && !recordWrittenAfterBoot(info, options)) return false;
+  }
 
   return true;
+}
+
+function storedBootIdentities(info: DaemonPidInfo): string[] {
+  const ids: string[] = [];
+  if (Array.isArray(info.bootIds)) {
+    for (const id of info.bootIds) {
+      if (typeof id === 'string' && id.trim()) ids.push(id);
+    }
+  }
+  if (typeof info.bootId === 'string' && info.bootId.trim() && !ids.includes(info.bootId)) {
+    ids.push(info.bootId);
+  }
+  return ids;
+}
+
+function resolveCurrentBootIds(options: DaemonPidFreshnessOptions): string[] {
+  if (options.currentBootIds && options.currentBootIds.length > 0) {
+    return options.currentBootIds.filter((id) => typeof id === 'string' && id.trim());
+  }
+  if (options.currentBootId !== undefined) {
+    return options.currentBootId ? [options.currentBootId] : [];
+  }
+  return getSystemBootIds();
+}
+
+function isWin32TicksId(id: string): boolean {
+  return /^win32:\d+$/.test(id);
+}
+
+function isWin32RegistryId(id: string): boolean {
+  return /^win32:0x[\da-f]+$/i.test(id);
+}
+
+function recordWrittenAfterBoot(info: DaemonPidInfo, options: DaemonPidFreshnessOptions): boolean {
+  return (
+    Number.isFinite(info.startedAtMs) &&
+    Number.isFinite(options.currentBootTimeMs) &&
+    (info.startedAtMs as number) >= (options.currentBootTimeMs as number)
+  );
+}
+
+/**
+ * Ticks are authoritative when both sides have them (reboot changes ticks even if
+ * a registry BootId collides). Same-family registry is used for legacy PID files.
+ * Cross-family-only comparisons are inconclusive — callers may accept via
+ * record startedAtMs >= currentBootTimeMs instead of treating families as interchangeable.
+ */
+function bootIdentitiesAgree(
+  stored: string[],
+  current: string[],
+): 'match' | 'conflict' | 'inconclusive' {
+  if (stored.length === 0 || current.length === 0) return 'inconclusive';
+
+  const storedTicks = stored.filter(isWin32TicksId);
+  const currentTicks = current.filter(isWin32TicksId);
+  if (storedTicks.length > 0 && currentTicks.length > 0) {
+    return storedTicks.some((id) => currentTicks.includes(id)) ? 'match' : 'conflict';
+  }
+
+  const storedReg = stored.filter(isWin32RegistryId);
+  const currentReg = current.filter(isWin32RegistryId);
+  if (storedReg.length > 0 && currentReg.length > 0) {
+    return storedReg.some((id) => currentReg.includes(id)) ? 'match' : 'conflict';
+  }
+
+  const storedOther = stored.filter((id) => !isWin32TicksId(id) && !isWin32RegistryId(id));
+  const currentOther = current.filter((id) => !isWin32TicksId(id) && !isWin32RegistryId(id));
+  if (storedOther.length > 0 && currentOther.length > 0) {
+    const currentSet = new Set(currentOther);
+    return storedOther.some((id) => currentSet.has(id)) ? 'match' : 'conflict';
+  }
+
+  return 'inconclusive';
 }
 
 export function isDaemonPidInfoRunning(
@@ -181,6 +266,163 @@ export function isDaemonPidInfoRunning(
   return isDesktopDaemonOwnership(info, command, options);
 }
 
+const WINDOWS_DESKTOP_DAEMON_PROBE = String.raw`
+$ErrorActionPreference = 'Stop'
+$result = [ordered]@{
+  selectedEnv = $null
+  pidInfo = $null
+  currentHostname = [System.Net.Dns]::GetHostName()
+  currentBootId = $null
+  currentBootIds = [System.Collections.Generic.List[string]]::new()
+  processRunning = $false
+  processCommand = $null
+  parentProcessRunning = $false
+  currentBootTimeMs = $null
+}
+
+try {
+  $prefPath = Join-Path $env:APPDATA 'Agendex\agendex-windows-env.json'
+  if (Test-Path -LiteralPath $prefPath) {
+    $pref = Get-Content -LiteralPath $prefPath -Raw | ConvertFrom-Json
+    $result.selectedEnv = $pref.env
+  }
+
+  if ($result.selectedEnv -eq 'wsl') {
+    $configDir = Join-Path $env:USERPROFILE '__AGENDEX_CONFIG_DIR_NAME__'
+    $pidPath = Join-Path $configDir 'daemon.pid'
+    if (Test-Path -LiteralPath $pidPath) {
+      $info = Get-Content -LiteralPath $pidPath -Raw | ConvertFrom-Json
+      $result.pidInfo = $info
+
+      # Canonical identity is LastBootUpTime ticks (what new PID files store).
+      # Also collect registry BootId so a still-running older desktop daemon whose
+      # PID file has win32:0x... still overlaps until it restarts and rewrites.
+      try {
+        $bootUtc = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime()
+        $result.currentBootTimeMs = [int64]([DateTimeOffset]$bootUtc).ToUnixTimeMilliseconds()
+        $lastBoot = $bootUtc.Ticks
+        if ($lastBoot) {
+          $ticksId = "win32:$lastBoot"
+          $result.currentBootIds.Add($ticksId) | Out-Null
+          $result.currentBootId = $ticksId
+        }
+      } catch {}
+      try {
+        $regOut = (& reg.exe query 'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters' /v BootId 2>$null | Out-String)
+        if ($regOut -match 'BootId\s+REG_DWORD\s+(0x[\da-f]+)') {
+          $regId = 'win32:' + $Matches[1].ToLower()
+          if (-not $result.currentBootIds.Contains($regId)) {
+            $result.currentBootIds.Add($regId) | Out-Null
+          }
+          if (-not $result.currentBootId) { $result.currentBootId = $regId }
+        }
+      } catch {}
+
+      $pidValue = 0
+      $process = $null
+      if ([int]::TryParse([string]$info.pid, [ref]$pidValue) -and $pidValue -gt 0) {
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $pidValue" -ErrorAction SilentlyContinue
+        if ($null -ne $process) {
+          $result.processRunning = $true
+          $result.processCommand = [string]$process.CommandLine
+        }
+      }
+
+      $parentPidValue = 0
+      if ([int]::TryParse([string]$info.parentPid, [ref]$parentPidValue) -and $parentPidValue -gt 0) {
+        $parent = Get-CimInstance Win32_Process -Filter "ProcessId = $parentPidValue" -ErrorAction SilentlyContinue
+        # Require the live worker's ParentProcessId to match — PID existence alone
+        # accepts recycled worker PIDs paired with an unrelated live parent PID.
+        if ($null -ne $parent -and $null -ne $process) {
+          $result.parentProcessRunning = ([int]$process.ParentProcessId -eq $parentPidValue)
+        } else {
+          $result.parentProcessRunning = $null -ne $parent
+        }
+      }
+    }
+  }
+} catch {}
+
+$result | ConvertTo-Json -Compress -Depth 4
+`;
+
+function probeWindowsDesktopDaemon(configDirName: string): string | null {
+  try {
+    return execFileSync(
+      'powershell.exe',
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        WINDOWS_DESKTOP_DAEMON_PROBE.replace('__AGENDEX_CONFIG_DIR_NAME__', configDirName),
+      ],
+      { encoding: 'utf8', timeout: 5_000, windowsHide: true },
+    ).trim();
+  } catch {
+    return null;
+  }
+}
+
+export function readWindowsDesktopDaemonInfoFromWsl(
+  options: {
+    platform?: NodeJS.Platform;
+    env?: NodeJS.ProcessEnv;
+    dev?: boolean;
+    runProbe?: (configDirName: string) => string | null;
+  } = {},
+): DaemonPidInfo | null {
+  const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
+  if (platform !== 'linux' || !(env.WSL_DISTRO_NAME?.trim() || env.WSL_INTEROP?.trim())) {
+    return null;
+  }
+
+  const raw = (options.runProbe ?? probeWindowsDesktopDaemon)(
+    options.dev ? '.agendex-dev' : '.agendex',
+  );
+  if (!raw) return null;
+
+  try {
+    const probe = JSON.parse(raw) as Record<string, unknown>;
+    if (probe.selectedEnv !== 'wsl' || !isRecord(probe.pidInfo)) return null;
+
+    const info = daemonPidInfoFromRecord(probe.pidInfo);
+    if (!info || info.launcher !== 'desktop') return null;
+    if (typeof probe.currentHostname !== 'string' || !probe.currentHostname.trim()) return null;
+    const currentBootIds = parseBootIdList(probe.currentBootIds);
+    if (currentBootIds.length === 0 && typeof probe.currentBootId === 'string') {
+      currentBootIds.push(probe.currentBootId);
+    }
+    // Desktop records must include boot identity so reboot boundaries stay enforceable.
+    if (storedBootIdentities(info).length === 0 || currentBootIds.length === 0) return null;
+    if (typeof probe.processRunning !== 'boolean') return null;
+    if (probe.processCommand !== null && typeof probe.processCommand !== 'string') return null;
+    if (typeof probe.parentProcessRunning !== 'boolean') return null;
+    if (
+      probe.currentBootTimeMs !== undefined &&
+      probe.currentBootTimeMs !== null &&
+      !Number.isFinite(probe.currentBootTimeMs)
+    ) {
+      return null;
+    }
+
+    return isDaemonPidInfoRunning(info, {
+      currentHostname: probe.currentHostname,
+      currentBootIds,
+      processRunning: probe.processRunning,
+      processCommand: probe.processCommand,
+      parentProcessRunning: probe.parentProcessRunning,
+      currentBootTimeMs:
+        typeof probe.currentBootTimeMs === 'number' ? probe.currentBootTimeMs : undefined,
+    })
+      ? info
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function isAgendexDaemonProcess(pid: number): boolean {
   return isRunning(pid) && isAgendexDaemonCommand(readProcessCommand(pid));
 }
@@ -190,44 +432,40 @@ export function getDaemonBootId(): string | null {
 }
 
 function getSystemBootId(): string | null {
-  if (cachedBootId !== undefined) return cachedBootId;
+  return getSystemBootIds()[0] ?? null;
+}
+
+let cachedBootIds: string[] | undefined;
+
+function getSystemBootIds(): string[] {
+  if (cachedBootIds !== undefined) return cachedBootIds;
 
   try {
     if (process.platform === 'linux') {
-      cachedBootId = `linux:${readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim()}`;
+      cachedBootIds = [`linux:${readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim()}`];
     } else if (process.platform === 'darwin') {
-      cachedBootId = `darwin:${execFileSync('/usr/sbin/sysctl', ['-n', 'kern.boottime'], {
-        encoding: 'utf8',
-        timeout: 1_000,
-      }).trim()}`;
+      cachedBootIds = [
+        `darwin:${execFileSync('/usr/sbin/sysctl', ['-n', 'kern.boottime'], {
+          encoding: 'utf8',
+          timeout: 1_000,
+        }).trim()}`,
+      ];
     } else if (process.platform === 'win32') {
-      cachedBootId = readWindowsBootId();
+      cachedBootIds = readWindowsBootIdentities();
     } else {
-      cachedBootId = null;
+      cachedBootIds = [];
     }
   } catch {
-    cachedBootId = null;
+    cachedBootIds = [];
   }
 
-  return cachedBootId;
+  cachedBootId = cachedBootIds[0] ?? null;
+  return cachedBootIds;
 }
 
-function readWindowsBootId(): string | null {
-  try {
-    const registry = execFileSync(
-      'reg.exe',
-      [
-        'query',
-        String.raw`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters`,
-        '/v',
-        'BootId',
-      ],
-      { encoding: 'utf8', timeout: 1_000, windowsHide: true },
-    );
-    const bootId = registry.match(/BootId\s+REG_DWORD\s+(0x[\da-f]+)/i)?.[1];
-    if (bootId) return `win32:${bootId.toLowerCase()}`;
-  } catch {}
-
+function readWindowsBootIdentities(): string[] {
+  // Single canonical identity (LastBootUpTime ticks). Mixing registry BootId with
+  // ticks let writer and WSL probe disagree for the same boot under overlap checks.
   try {
     const lastBoot = execFileSync(
       'powershell.exe',
@@ -240,10 +478,19 @@ function readWindowsBootId(): string | null {
       ],
       { encoding: 'utf8', timeout: 1_000, windowsHide: true },
     ).trim();
-    return lastBoot ? `win32:${lastBoot}` : null;
+    return lastBoot ? [`win32:${lastBoot}`] : [];
   } catch {
-    return null;
+    return [];
   }
+}
+
+function parseBootIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const ids: string[] = [];
+  for (const entry of value) {
+    if (typeof entry === 'string' && entry.trim() && !ids.includes(entry)) ids.push(entry);
+  }
+  return ids;
 }
 
 function readProcessCommand(pid: number): string | null {
@@ -289,6 +536,25 @@ function isElectronUtilityCommand(command: string | null): boolean {
   if (!command) return false;
   // Node utilityProcess.fork workers only — not Chromium network/audio/GPU helpers.
   return command.toLowerCase().includes('--utility-sub-type=node.mojom.nodeservice');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function daemonPidInfoFromRecord(value: Record<string, unknown>): DaemonPidInfo | null {
+  if (!Number.isFinite(value.pid) || (value.pid as number) <= 0) return null;
+  const info: DaemonPidInfo = { pid: value.pid as number };
+  if (Number.isFinite(value.startedAtMs)) info.startedAtMs = value.startedAtMs as number;
+  if (typeof value.hostname === 'string') info.hostname = value.hostname;
+  if (value.launcher === 'cli' || value.launcher === 'desktop') info.launcher = value.launcher;
+  if (Number.isFinite(value.parentPid)) info.parentPid = value.parentPid as number;
+  if (Number.isFinite(value.workerPid)) info.workerPid = value.workerPid as number;
+  if (typeof value.ready === 'boolean') info.ready = value.ready;
+  if (typeof value.bootId === 'string') info.bootId = value.bootId;
+  const bootIds = parseBootIdList(value.bootIds);
+  if (bootIds.length > 0) info.bootIds = bootIds;
+  return info;
 }
 
 function isDesktopDaemonOwnership(

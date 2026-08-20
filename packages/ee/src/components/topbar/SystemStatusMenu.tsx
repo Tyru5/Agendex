@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { DaemonDeviceInfo } from '../../hooks/useDaemonStatus';
 import { useDesktopUpdate } from '../../hooks/useDesktopUpdate.ts';
+import { useDesktopUiUpdate } from '../../hooks/useDesktopUiUpdate.ts';
 import { getDesktopBridgeIdentity, isDesktop, type UpdateState } from '../../lib/desktop.ts';
 import { formatRelativeTime } from '../../lib/formatTime';
 
@@ -24,6 +25,16 @@ function getUpdateLabel(status: UpdateState['status']): string {
     default:
       return 'Updates';
   }
+}
+
+function formatUiRevision(revision: number | null): string {
+  if (revision === null) return '—';
+  if (revision === 0) return 'Shipped with app';
+  return new Date(revision * 1000).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 function getUpdateColor(status: UpdateState['status']): string {
@@ -56,7 +67,15 @@ export function SystemStatusMenu({
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const { state: updateState, checkForUpdates, installUpdate } = useDesktopUpdate();
+  const {
+    state: uiUpdateState,
+    revision: uiRevision,
+    version: uiVersion,
+    checkForUiUpdates,
+    applyUiUpdate,
+  } = useDesktopUiUpdate();
   const desktop = isDesktop();
+  const showUiUpdate = desktop && uiUpdateState.status !== 'unsupported';
 
   useEffect(() => {
     if (!desktop) return;
@@ -111,26 +130,37 @@ export function SystemStatusMenu({
     (updateState.status === 'ready' ||
       updateState.status === 'downloading' ||
       updateState.status === 'error');
+  const uiUpdateAttention =
+    showUiUpdate &&
+    (uiUpdateState.status === 'ready' ||
+      uiUpdateState.status === 'downloading' ||
+      uiUpdateState.status === 'error');
   const backendAttention = backendIndicator.label !== 'Live';
-  const attention = machinesAttention || updateAttention || backendAttention;
+  const attention = machinesAttention || updateAttention || uiUpdateAttention || backendAttention;
 
   const attentionColor = updateAttention
     ? getUpdateColor(updateState.status)
-    : backendAttention
-      ? backendIndicator.color
-      : machinesAttention
-        ? aggregateStatus === 'stale'
-          ? 'var(--warning)'
-          : 'var(--tertiary)'
-        : backendIndicator.color;
+    : uiUpdateAttention
+      ? getUpdateColor(uiUpdateState.status)
+      : backendAttention
+        ? backendIndicator.color
+        : machinesAttention
+          ? aggregateStatus === 'stale'
+            ? 'var(--warning)'
+            : 'var(--tertiary)'
+          : backendIndicator.color;
 
   const triggerLabel = updateAttention
     ? getUpdateLabel(updateState.status)
-    : backendAttention
-      ? backendIndicator.label
-      : machinesAttention
-        ? `${aliveCount}/${devices.length} online`
-        : backendIndicator.label;
+    : uiUpdateAttention
+      ? uiUpdateState.status === 'ready'
+        ? 'Interface update ready'
+        : getUpdateLabel(uiUpdateState.status)
+      : backendAttention
+        ? backendIndicator.label
+        : machinesAttention
+          ? `${aliveCount}/${devices.length} online`
+          : backendIndicator.label;
 
   return (
     <div className="relative" ref={ref}>
@@ -306,6 +336,82 @@ export function SystemStatusMenu({
                   )}
                 </div>
               </section>
+              {showUiUpdate && (
+                <>
+                  <div className="h-px bg-border" />
+                  <section className="flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-tertiary">Interface</span>
+                      <span className="text-secondary" style={{ fontWeight: 550 }}>
+                        {getUpdateLabel(uiUpdateState.status)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[12px]">
+                      <span className="text-tertiary">Version</span>
+                      <code className="text-[11px] font-mono bg-hover px-1.5 py-0.5 rounded">
+                        {uiVersion && uiVersion !== 'shipped'
+                          ? uiVersion
+                          : formatUiRevision(uiRevision)}
+                      </code>
+                    </div>
+                    {uiUpdateState.label && uiUpdateState.status !== 'no-update' && (
+                      <div className="flex items-center justify-between text-[12px]">
+                        <span className="text-tertiary">Available</span>
+                        <span className="text-secondary truncate max-w-[10rem]">
+                          {uiUpdateState.label}
+                        </span>
+                      </div>
+                    )}
+                    {uiUpdateState.status === 'downloading' &&
+                      uiUpdateState.progress !== undefined && (
+                        <div className="flex items-center gap-2 text-[12px]">
+                          <div className="flex-1 h-1.5 rounded-full bg-border overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${uiUpdateState.progress}%`,
+                                background: 'var(--accent)',
+                              }}
+                            />
+                          </div>
+                          <span className="text-tertiary">
+                            {Math.round(uiUpdateState.progress)}%
+                          </span>
+                        </div>
+                      )}
+                    {uiUpdateState.error && (
+                      <div className="text-[11px] text-[var(--danger)] break-words">
+                        {uiUpdateState.error}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => checkForUiUpdates()}
+                        disabled={
+                          uiUpdateState.status === 'checking' ||
+                          uiUpdateState.status === 'downloading'
+                        }
+                        className="flex-1 agendex-topbar-button text-[12px] py-1.5 rounded-lg border border-border cursor-pointer font-medium hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Check
+                      </button>
+                      {uiUpdateState.status === 'ready' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            applyUiUpdate();
+                            setOpen(false);
+                          }}
+                          className="flex-1 agendex-topbar-primary text-[12px] py-1.5 rounded-lg cursor-pointer font-semibold"
+                        >
+                          Reload
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                </>
+              )}
             </>
           )}
         </div>

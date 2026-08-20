@@ -33,6 +33,8 @@
     "cli:configure": "bun run --cwd ./packages/cli src/cli.ts configure",
     "cli:sync": "bun run --cwd ./packages/cli src/cli.ts sync",
     "cli:upload": "bun run --cwd ./packages/cli src/cli.ts upload",
+    "cli:download": "bun run --cwd ./packages/cli src/cli.ts download",
+    "cli:browse": "bun run --cwd ./packages/cli src/cli.ts browse",
     "cli:stop": "bun run --cwd ./packages/cli src/cli.ts stop",
     "cli:status": "bun run --cwd ./packages/cli src/cli.ts status",
     "cli:hooks": "bun run --cwd ./packages/cli src/cli.ts hooks",

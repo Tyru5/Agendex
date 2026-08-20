@@ -135,7 +135,7 @@ export const publishPlan = mutation({
 // Resolves whose plans `getMyPublishedPlans` returns: your own, unless you lack
 // an active subscription but belong to a workspace whose owner has one — then
 // you see that owner's plans. Preserves the pre-pagination branching exactly.
-async function resolvePublishedPlansOwnerId(ctx: QueryCtx, userId: string): Promise<string> {
+export async function resolvePublishedPlansOwnerId(ctx: QueryCtx, userId: string): Promise<string> {
   const ownActive = await hasActiveSubscriptionForUserId(ctx, userId);
   if (ownActive) return userId;
 

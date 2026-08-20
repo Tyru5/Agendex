@@ -31,12 +31,15 @@ import {
   isDaemonPidInfoRunning,
   isRunning,
   readPidInfo,
+  readWindowsDesktopDaemonInfoFromWsl,
   removePid,
   requestDaemonStop,
   writePidForProcess,
 } from './pid.ts';
 import { renderStatus, type CloudDaemonStatusError } from './status.ts';
 import { syncAll } from './sync.ts';
+import { runBrowse } from './browse.ts';
+import { runDownload } from './download.ts';
 import { runUpgrade } from './upgrade.ts';
 import { runUpload } from './upload.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
@@ -89,6 +92,8 @@ async function main(): Promise<number> {
     'remove-dir',
     'list-dirs',
     'upload',
+    'download',
+    'browse',
     'upgrade',
     'help',
     '--help',
@@ -330,6 +335,14 @@ async function main(): Promise<number> {
       return runUpload(args);
     }
 
+    case 'download': {
+      return runDownload(args);
+    }
+
+    case 'browse': {
+      return runBrowse(args);
+    }
+
     case 'hooks': {
       return runHooksCommand(args, cliEntry);
     }
@@ -372,8 +385,15 @@ async function main(): Promise<number> {
 
     case 'status': {
       const config = loadConfig();
-      const pidInfo = readPidInfo();
-      const running = pidInfo ? isDaemonPidInfoRunning(pidInfo) : false;
+      let pidInfo = readPidInfo();
+      let running = pidInfo ? isDaemonPidInfoRunning(pidInfo) : false;
+      if (!running) {
+        const windowsDesktopPidInfo = readWindowsDesktopDaemonInfoFromWsl({ dev: devFlag });
+        if (windowsDesktopPidInfo) {
+          pidInfo = windowsDesktopPidInfo;
+          running = true;
+        }
+      }
       let devices: DeviceInfo[] | null = null;
       let cloudDaemonError: CloudDaemonStatusError | null = null;
 

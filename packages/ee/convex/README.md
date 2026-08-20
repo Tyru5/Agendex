@@ -58,6 +58,8 @@ Stripe variables are needed for checkout, customer portal, and paid subscription
 - `POST /api/cli/sync` - upsert a plan into the cloud for the authenticated user
 - `POST /api/cli/refresh` - refresh the CLI session token
 - `POST /api/cli/heartbeat` - update daemon liveness
+- `GET /api/cli/plan` - download one cloud plan by id, title, or agent + title
+- `GET /api/cli/plans` - list recent cloud plans for interactive CLI browse
 - `/stripe/webhook` - Stripe webhook receiver registered through `@convex-dev/stripe`
 
 Auth routes are also registered through Better Auth in `http.ts`.

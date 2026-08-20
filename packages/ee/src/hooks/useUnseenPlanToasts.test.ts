@@ -54,7 +54,7 @@ describe('useUnseenPlanToasts helpers', () => {
     // Bulk dismiss clears the map before Sonner callbacks.
     expect(isActiveToastVersion(undefined, a)).toBe(false);
     expect(isActiveToastVersion(undefined, b)).toBe(false);
-    // Matching active version may markSeen / clear.
+    // Matching active version may clear the active map.
     expect(isActiveToastVersion(b, b)).toBe(true);
   });
 

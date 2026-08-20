@@ -115,6 +115,7 @@ export interface AgendexDesktopBridge {
   applyUiUpdate?: () => Promise<void>;
   getUiUpdateState?: () => Promise<UiUpdateState>;
   getUiRevision?: () => Promise<number>;
+  getUiVersion?: () => Promise<string>;
   signalUiReady?: () => void;
   // Windows desktop only: agent plan root environment (native vs WSL).
   getWindowsEnv?: () => Promise<WindowsEnvStatus | null>;

@@ -1,3 +1,17 @@
+import {
+  dedupePlanDownloadCandidates,
+  isExactPlanDownloadIdHit,
+  looksLikePlanAgent,
+  parsePlanDownloadQuery,
+  planAgentLookupValues,
+  planAgentsMatch,
+  PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
+  dedupePlanBrowseCandidates,
+  selectPlanDownloadMatches,
+  filterPlanBrowseMatches,
+  suggestClosestPlans,
+  type PlanDownloadLookupCandidate,
+} from '@agendex/shared/plan-download-lookup';
 import { computePlanSyncIdentity, exactDuplicateKey } from '@agendex/shared/plan-sync-identity';
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
@@ -13,12 +27,15 @@ import {
 import { authComponent, createAuth } from './auth';
 import { deletePlanRelatedData } from './planDeletion';
 import {
+  filterVisiblePlans,
   hasLowValueMetadata,
+  isVisiblePlan,
   mergePlanMetadata,
   metadataWithPlanValueAssessment,
 } from './planVisibility';
 import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { stripLocalIpFromMetadata } from './privacy';
+import { resolvePublishedPlansOwnerId } from './plans';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
@@ -1134,4 +1151,475 @@ export const convexToken = httpAction(async (ctx, request) => {
   } catch {
     return jsonResponse({ error: 'Failed to get Convex token' }, 500);
   }
+});
+
+const PLAN_DOWNLOAD_SEARCH_MAX_RESULTS = 8;
+const PLAN_BROWSE_PAGE_SIZE = 50;
+const PLAN_BROWSE_SEARCH_MAX_RESULTS = 50;
+
+function serializeDownloadPlan(plan: Doc<'plans'>) {
+  return {
+    id: plan._id,
+    ...(typeof plan.localPlanId === 'string' && { localPlanId: plan.localPlanId }),
+    agent: plan.agent,
+    title: plan.title,
+    content: plan.content,
+    format: plan.format,
+    filePath: plan.filePath ?? '',
+    ...(typeof plan.workspace === 'string' && { workspace: plan.workspace }),
+    createdAt: new Date(plan.createdAt).toISOString(),
+    updatedAt: new Date(plan.updatedAt).toISOString(),
+  };
+}
+
+function serializeDownloadMatch(plan: Doc<'plans'>) {
+  return serializeDownloadMatchFromCandidate(toLookupCandidate(plan));
+}
+
+function toLookupCandidate(plan: Doc<'plans'>): PlanDownloadLookupCandidate {
+  return {
+    id: plan._id,
+    ...(typeof plan.localPlanId === 'string' && { localPlanId: plan.localPlanId }),
+    agent: plan.agent,
+    title: plan.title,
+    updatedAt: plan.updatedAt,
+    ...(typeof plan.syncIdentityKey === 'string' && { syncIdentityKey: plan.syncIdentityKey }),
+    ...(typeof plan.contentHash === 'string' && { contentHash: plan.contentHash }),
+    createdAt: plan._creationTime,
+  };
+}
+
+function uniqueLookupCandidates(plans: Doc<'plans'>[]): PlanDownloadLookupCandidate[] {
+  return dedupePlanDownloadCandidates(plans.map(toLookupCandidate));
+}
+
+export const lookupPlanForDownload = internalQuery({
+  args: {
+    userId: v.string(),
+    query: v.string(),
+    agent: v.optional(v.string()),
+    mode: v.optional(v.union(v.literal('lookup'), v.literal('fallback'))),
+    fallbackCursor: v.optional(v.union(v.string(), v.null())),
+    fallbackAgentIndex: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const parsed = args.agent?.trim()
+      ? { query: args.query.trim(), agent: args.agent.trim() }
+      : parsePlanDownloadQuery(args.query);
+    const query = parsed.query.trim();
+    const agent = parsed.agent;
+    const ownerId = await resolvePublishedPlansOwnerId(ctx, args.userId);
+
+    if (!query) return { status: 'invalid' as const };
+
+    const planId = ctx.db.normalizeId('plans', query);
+    if (planId) {
+      const plan = await ctx.db.get(planId);
+      if (
+        plan &&
+        plan.ownerId === ownerId &&
+        isVisiblePlan(plan) &&
+        (!agent || planAgentsMatch(plan.agent, agent))
+      ) {
+        return { status: 'found' as const, plan: serializeDownloadPlan(plan) };
+      }
+    }
+
+    const byLocalId = await ctx.db
+      .query('plans')
+      .withIndex('by_owner_localPlanId', (q) => q.eq('ownerId', ownerId).eq('localPlanId', query))
+      .take(16);
+    const localMatches = uniqueLookupCandidates(
+      byLocalId.filter(
+        (plan) => isVisiblePlan(plan) && (!agent || planAgentsMatch(plan.agent, agent)),
+      ),
+    );
+    if (localMatches.length > 0) {
+      const winner = [...localMatches].sort((left, right) => right.updatedAt - left.updatedAt)[0];
+      const plan = byLocalId.find((row) => row._id === winner?.id);
+      if (plan) return { status: 'found' as const, plan: serializeDownloadPlan(plan) };
+    }
+
+    const seen = new Set<string>();
+    const candidates: Doc<'plans'>[] = [];
+    const agentValues = agent && looksLikePlanAgent(agent) ? planAgentLookupValues(agent) : [];
+    const addHits = (hits: Doc<'plans'>[]) => {
+      for (const plan of filterVisiblePlans(hits)) {
+        if (plan.ownerId !== ownerId || seen.has(plan._id)) continue;
+        if (agent && !planAgentsMatch(plan.agent, agent)) continue;
+        seen.add(plan._id);
+        candidates.push(plan);
+      }
+    };
+
+    const searchDownloadPlans = async (
+      index: 'search_title' | 'search_content',
+      field: 'title' | 'content',
+      term: string,
+    ) => {
+      try {
+        addHits(
+          await ctx.db
+            .query('plans')
+            .withSearchIndex(index, (q) => q.search(field, term).eq('ownerId', ownerId))
+            .take(PLAN_DOWNLOAD_SEARCH_MAX_RESULTS),
+        );
+      } catch {
+        // Search indexes reject some short / punctuation-only terms.
+      }
+    };
+
+    const readFallbackPage = async (cursor: string | null, agentIndex: number) => {
+      if (agentValues.length > 0) {
+        if (agentIndex >= agentValues.length) {
+          return {
+            plans: [] as PlanDownloadLookupCandidate[],
+            isDone: true,
+            cursor: null,
+            agentIndex,
+          };
+        }
+        const agentValue = agentValues[agentIndex];
+        if (!agentValue) {
+          return {
+            plans: [] as PlanDownloadLookupCandidate[],
+            isDone: true,
+            cursor: null,
+            agentIndex,
+          };
+        }
+        const result = await ctx.db
+          .query('plans')
+          .withIndex('by_owner_and_agent', (q) => q.eq('ownerId', ownerId).eq('agent', agentValue))
+          .order('desc')
+          .paginate({
+            cursor,
+            numItems: PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
+          });
+        const beforeCount = candidates.length;
+        addHits(result.page);
+        const nextAgentIndex = result.isDone ? agentIndex + 1 : agentIndex;
+        return {
+          plans: uniqueLookupCandidates(candidates.slice(beforeCount)),
+          isDone: result.isDone && nextAgentIndex >= agentValues.length,
+          cursor: result.isDone ? null : result.continueCursor,
+          agentIndex: nextAgentIndex,
+        };
+      }
+
+      const result = await ctx.db
+        .query('plans')
+        .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+        .order('desc')
+        .paginate({
+          cursor,
+          numItems: PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
+        });
+      const beforeCount = candidates.length;
+      addHits(result.page);
+      return {
+        plans: uniqueLookupCandidates(candidates.slice(beforeCount)),
+        isDone: result.isDone,
+        cursor: result.isDone ? null : result.continueCursor,
+        agentIndex,
+      };
+    };
+
+    if (args.mode === 'fallback') {
+      const page = await readFallbackPage(
+        args.fallbackCursor ?? null,
+        args.fallbackAgentIndex ?? 0,
+      );
+      return {
+        status: 'page' as const,
+        candidates: page.plans,
+        isDone: page.isDone,
+        fallbackCursor: page.cursor,
+        fallbackAgentIndex: page.agentIndex,
+      };
+    }
+
+    await searchDownloadPlans('search_title', 'title', query);
+
+    const unique = uniqueLookupCandidates(candidates);
+    const selected = selectPlanDownloadMatches(unique, query, agent);
+    if (selected.kind === 'one' && isExactPlanDownloadIdHit(selected.plan, query)) {
+      const selectedId = selected.plan.id;
+      const plan = candidates.find((candidate) => candidate._id === selectedId);
+      if (plan) return { status: 'found' as const, plan: serializeDownloadPlan(plan) };
+    }
+
+    return { status: 'continue' as const, candidates: unique };
+  },
+});
+
+function serializeDownloadMatchFromCandidate(plan: PlanDownloadLookupCandidate) {
+  return {
+    id: plan.id,
+    ...(typeof plan.localPlanId === 'string' && { localPlanId: plan.localPlanId }),
+    agent: plan.agent,
+    title: plan.title,
+    updatedAt: new Date(plan.updatedAt).toISOString(),
+  };
+}
+
+type DownloadLookupResult =
+  | { status: 'invalid' }
+  | { status: 'found'; plan: ReturnType<typeof serializeDownloadPlan> }
+  | { status: 'ambiguous'; matches: ReturnType<typeof serializeDownloadMatchFromCandidate>[] }
+  | { status: 'continue'; candidates: PlanDownloadLookupCandidate[] }
+  | {
+      status: 'page';
+      candidates: PlanDownloadLookupCandidate[];
+      isDone: boolean;
+      fallbackCursor: string | null;
+      fallbackAgentIndex: number;
+    };
+
+export const downloadPlan = httpAction(async (ctx, request) => {
+  if (request.method !== 'GET') {
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
+
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+  const userId = authResult.ownerId;
+
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return jsonResponse({ error: 'Invalid request URL' }, 400);
+  }
+
+  const query = url.searchParams.get('q')?.trim() ?? '';
+  const agent = url.searchParams.get('agent')?.trim() || undefined;
+  if (!query) {
+    return jsonResponse({ error: 'query is required' }, 400);
+  }
+
+  const first: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
+    userId,
+    query,
+    agent,
+    mode: 'lookup',
+  });
+
+  if (first.status === 'invalid') {
+    return jsonResponse({ error: 'query is required' }, 400);
+  }
+  if (first.status === 'found') {
+    return jsonResponse({ status: 'found', plan: first.plan });
+  }
+  if (first.status !== 'continue') {
+    return jsonResponse({ status: 'not_found', suggestions: [] }, 404);
+  }
+
+  let pool = first.candidates;
+  let fallbackCursor: string | null = null;
+  let fallbackAgentIndex = 0;
+  let pages = 0;
+  let truncated = true;
+  const maxPages = 250;
+
+  while (pages < maxPages) {
+    const page: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
+      userId,
+      query,
+      agent,
+      mode: 'fallback',
+      fallbackCursor,
+      fallbackAgentIndex,
+    });
+    if (page.status !== 'page') {
+      if (page.status === 'found') return jsonResponse({ status: 'found', plan: page.plan });
+      break;
+    }
+
+    pool = dedupePlanDownloadCandidates([...pool, ...page.candidates]);
+
+    pages += 1;
+    if (page.isDone) {
+      truncated = false;
+      break;
+    }
+    fallbackCursor = page.fallbackCursor ?? null;
+    fallbackAgentIndex = page.fallbackAgentIndex ?? 0;
+  }
+
+  if (truncated) {
+    return jsonResponse(
+      {
+        error: 'Title lookup did not finish scanning all plans. Retry with a plan id.',
+      },
+      409,
+    );
+  }
+
+  const selected = selectPlanDownloadMatches(pool, query, agent);
+  if (selected.kind === 'one') {
+    const full: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
+      userId,
+      query: selected.plan.id,
+      agent,
+      mode: 'lookup',
+    });
+    if (full.status === 'found') {
+      const stillMatches = selectPlanDownloadMatches(
+        [
+          {
+            id: full.plan.id,
+            localPlanId: full.plan.localPlanId,
+            agent: full.plan.agent,
+            title: full.plan.title,
+            updatedAt: Date.parse(full.plan.updatedAt) || 0,
+          },
+        ],
+        query,
+        agent,
+      );
+      if (stillMatches.kind === 'one') {
+        return jsonResponse({ status: 'found', plan: full.plan });
+      }
+    }
+  }
+  if (selected.kind === 'many') {
+    return jsonResponse(
+      { status: 'ambiguous', matches: selected.plans.map(serializeDownloadMatchFromCandidate) },
+      409,
+    );
+  }
+
+  const suggestions = suggestClosestPlans(pool, query, agent);
+  return jsonResponse(
+    { status: 'not_found', suggestions: suggestions.map(serializeDownloadMatchFromCandidate) },
+    404,
+  );
+});
+
+const browsePlanMatchValidator = v.object({
+  id: v.string(),
+  localPlanId: v.optional(v.string()),
+  agent: v.string(),
+  title: v.string(),
+  updatedAt: v.string(),
+  createdAt: v.optional(v.string()),
+  dedupeKeys: v.array(v.string()),
+});
+
+export const listPlansForBrowse = internalQuery({
+  args: {
+    userId: v.string(),
+    query: v.optional(v.string()),
+    agent: v.optional(v.string()),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  returns: v.object({
+    plans: v.array(browsePlanMatchValidator),
+    continueCursor: v.union(v.string(), v.null()),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const ownerId = await resolvePublishedPlansOwnerId(ctx, args.userId);
+    const query = args.query?.trim() ?? '';
+    const agent = args.agent?.trim() || undefined;
+
+    const seen = new Set<string>();
+    const candidates: Doc<'plans'>[] = [];
+    const addHits = (hits: Doc<'plans'>[]) => {
+      for (const plan of filterVisiblePlans(hits)) {
+        if (plan.ownerId !== ownerId || seen.has(plan._id)) continue;
+        if (agent && !planAgentsMatch(plan.agent, agent)) continue;
+        seen.add(plan._id);
+        candidates.push(plan);
+      }
+    };
+
+    // Title search ranks the first page only. Completeness comes from owner
+    // pagination so a 50-hit search result cannot hide later matches.
+    if (query && !args.cursor) {
+      try {
+        addHits(
+          await ctx.db
+            .query('plans')
+            .withSearchIndex('search_title', (q) => q.search('title', query).eq('ownerId', ownerId))
+            .take(PLAN_BROWSE_SEARCH_MAX_RESULTS),
+        );
+      } catch {
+        // Search indexes reject some short / punctuation-only terms.
+      }
+    }
+
+    const page = await ctx.db
+      .query('plans')
+      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+      .order('desc')
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: PLAN_BROWSE_PAGE_SIZE,
+      });
+    addHits(page.page);
+
+    // Filter before dedupe: a fresher duplicate whose title no longer
+    // matches the query must not swallow the older row that does match.
+    const allCandidates = candidates.map(toLookupCandidate);
+    let plans = allCandidates;
+    if (query) {
+      plans = filterPlanBrowseMatches(plans, query, agent);
+    }
+    // Page-local dedupe keeps the freshest row per group, but the emitted
+    // identity keys (plus createdAt for the equal-updatedAt tie-break) are
+    // the union across every row that collapsed — including rows discarded
+    // here — so the CLI can fold a later duplicate that only a discarded
+    // row answered to.
+    const deduped = dedupePlanBrowseCandidates(plans, allCandidates);
+
+    return {
+      plans: deduped.map(({ plan, dedupeKeys }) => ({
+        ...serializeDownloadMatchFromCandidate(plan),
+        ...(typeof plan.createdAt === 'number' && {
+          createdAt: new Date(plan.createdAt).toISOString(),
+        }),
+        dedupeKeys,
+      })),
+      continueCursor: page.isDone ? null : page.continueCursor,
+      isDone: page.isDone,
+    };
+  },
+});
+
+export const listPlans = httpAction(async (ctx, request) => {
+  if (request.method !== 'GET') {
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
+
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return jsonResponse({ error: 'Invalid request URL' }, 400);
+  }
+
+  const query = url.searchParams.get('q')?.trim() || undefined;
+  const agent = url.searchParams.get('agent')?.trim() || undefined;
+  const cursor = url.searchParams.get('cursor')?.trim() || undefined;
+
+  const result: {
+    plans: (ReturnType<typeof serializeDownloadMatchFromCandidate> & {
+      createdAt?: string;
+      dedupeKeys: string[];
+    })[];
+    continueCursor: string | null;
+    isDone: boolean;
+  } = await ctx.runQuery(internal.cli.listPlansForBrowse, {
+    userId: authResult.ownerId,
+    query,
+    agent,
+    cursor: cursor ?? null,
+  });
+
+  return jsonResponse({ status: 'ok', ...result });
 });
