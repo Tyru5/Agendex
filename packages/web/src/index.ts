@@ -25,6 +25,8 @@ export { default as dinoShadow } from './client/components/landing/dino-shadow.p
 export { default as dinoVitaIdleStrip } from './client/components/landing/dino-vita-idle-strip.png';
 export { useLandingContext } from './client/components/landing/LandingContext.tsx';
 export { MarkdownCodeBlock } from './client/components/MarkdownCodeBlock.tsx';
+export { MorningBrief, MorningBriefIcon } from './client/components/MorningBrief.tsx';
+export type { MorningBriefProps } from './client/components/MorningBrief.tsx';
 export {
   planMarkdownComponents,
   planMarkdownRehypePlugins,
@@ -157,6 +159,20 @@ export {
 export type { OutlineEntry } from './client/lib/extract-headings.ts';
 export { buildPlanOutline } from './client/lib/extract-headings.ts';
 export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-markdown.ts';
+export type {
+  BriefChecklist,
+  BriefPlanActivity,
+  BriefWorkspaceRelay,
+  MorningBriefSnapshot,
+} from './client/lib/morning-brief.ts';
+export {
+  buildMorningBrief,
+  extractBriefChecklist,
+  hasMorningBriefUpdates,
+  MORNING_BRIEF_DEFAULT_LOOKBACK_MS,
+  MORNING_BRIEF_MAX_LOOKBACK_MS,
+  resolveMorningBriefSince,
+} from './client/lib/morning-brief.ts';
 export { filterPlans } from './client/lib/plan-search.ts';
 export type {
   LineageConfidence,
