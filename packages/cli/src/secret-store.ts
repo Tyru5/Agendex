@@ -25,6 +25,18 @@ export class SecretStoreUnavailableError extends Error {
 
 const SERVICE = 'dev.agendex.obfuscation';
 
+async function commandIsAvailable(
+  run: SecretCommandRunner,
+  command: string,
+  args: string[],
+): Promise<boolean> {
+  try {
+    return (await run(command, args)).code === 0;
+  } catch {
+    return false;
+  }
+}
+
 export const runSecretCommand: SecretCommandRunner = (command, args, stdin) =>
   new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -45,7 +57,7 @@ export const runSecretCommand: SecretCommandRunner = (command, args, stdin) =>
 function macosSecretStore(run: SecretCommandRunner): SecretStore {
   return {
     backend: 'macos-keychain',
-    available: async () => (await run('security', ['help'])).code === 0,
+    available: () => commandIsAvailable(run, 'security', ['help']),
     get: async (key) => {
       const result = await run('security', [
         'find-generic-password',
@@ -75,7 +87,7 @@ function macosSecretStore(run: SecretCommandRunner): SecretStore {
 function linuxSecretStore(run: SecretCommandRunner): SecretStore {
   return {
     backend: 'linux-secret-service',
-    available: async () => (await run('secret-tool', ['--version'])).code === 0,
+    available: () => commandIsAvailable(run, 'secret-tool', ['--version']),
     get: async (key) => {
       const result = await run('secret-tool', ['lookup', 'service', SERVICE, 'account', key]);
       return result.code === 0 ? result.stdout.replace(/\r?\n$/, '') : null;
@@ -121,15 +133,13 @@ function windowsSecretStore(run: SecretCommandRunner): SecretStore {
   const command = 'powershell.exe';
   return {
     backend: 'windows-dpapi',
-    available: async () =>
-      (
-        await run(command, [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          '$PSVersionTable.PSVersion.ToString()',
-        ])
-      ).code === 0,
+    available: () =>
+      commandIsAvailable(run, command, [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '$PSVersionTable.PSVersion.ToString()',
+      ]),
     get: async (key) => {
       let protectedValue: string;
       try {

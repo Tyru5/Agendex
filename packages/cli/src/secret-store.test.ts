@@ -27,6 +27,15 @@ test('unsupported systems never fall back to a plaintext file', async () => {
   expect(error instanceof Error).toBe(true);
 });
 
+test('missing platform secret-store commands report unavailable', async () => {
+  const run: SecretCommandRunner = async () => {
+    throw new Error('spawn secret-tool ENOENT');
+  };
+
+  const store = createSecretStore('linux', run);
+  expect(await store.available()).toBe(false);
+});
+
 test('workspace secret keys are scoped by owner and epoch', () => {
   expect(workspaceSecretKey('owner-a', 3)).toBe('workspace:owner-a:epoch:3');
 });
