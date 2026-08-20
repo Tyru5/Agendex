@@ -5,6 +5,7 @@ import {
   requestWorkerShutdown,
   runWorker,
   setDaemonCredentialStore,
+  setInjectedWorkspaceKey,
   writePid,
 } from '@agendex/daemon-runtime';
 import { normalizeConvexSiteUrl } from '@agendex/shared/convex-url';
@@ -112,6 +113,10 @@ parentPort.on('message', (event) => {
     if (!setCredentials(message.credentials)) return;
     authExpiredToken = null;
     credentialUpdateHandler?.();
+    return;
+  }
+  if (message.type === 'workspace-key-updated') {
+    setInjectedWorkspaceKey(message.workspaceOwnerId, message.keyEpoch, message.keyBase64);
     return;
   }
 

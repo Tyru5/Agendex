@@ -1,0 +1,310 @@
+export type WorkspaceCryptoClassification =
+  | 'encrypted'
+  | 'plaintext'
+  | 'opaque_token'
+  | 'relation'
+  | 'unused_when_encrypted';
+
+type TableInventory = Record<WorkspaceCryptoClassification, readonly string[]>;
+
+const table = (inventory: TableInventory) => inventory;
+const none: readonly string[] = [];
+
+/**
+ * Security boundary for workspace-owned data. Every schema field must appear exactly once.
+ * The companion test fails when the schema grows without an explicit classification.
+ */
+export const WORKSPACE_CRYPTO_INVENTORY = {
+  plans: table({
+    encrypted: ['encryptedSummary', 'encryptedBody'],
+    plaintext: [
+      'ownerId',
+      'agent',
+      'format',
+      'stableCryptoId',
+      'keyEpoch',
+      'identityVersion',
+      'identityStrength',
+      'lowValue',
+      'version',
+      'createdAt',
+      'updatedAt',
+    ],
+    opaque_token: ['contentToken', 'localPlanToken', 'syncIdentityToken', 'continuityToken'],
+    relation: none,
+    unused_when_encrypted: [
+      'localPlanId',
+      'title',
+      'content',
+      'filePath',
+      'workspace',
+      'metadata',
+      'plannotatorContinuityKey',
+      'syncIdentityKey',
+      'contentHash',
+    ],
+  }),
+  shareLinks: table({
+    encrypted: none,
+    plaintext: ['createdAt'],
+    opaque_token: none,
+    relation: ['ownerId', 'planId', 'createdBy'],
+    unused_when_encrypted: ['token', 'passwordHash'],
+  }),
+  planAnnotations: table({
+    encrypted: ['encryptedAnnotation'],
+    plaintext: [
+      'source',
+      'type',
+      'status',
+      'createdAt',
+      'updatedAt',
+      'submittedAt',
+      'resolvedAt',
+      'stableCryptoId',
+      'keyEpoch',
+    ],
+    opaque_token: none,
+    relation: ['ownerId', 'planId', 'authorId', 'writebackId'],
+    unused_when_encrypted: ['authorName', 'body', 'replacementText', 'anchor'],
+  }),
+  comments: table({
+    encrypted: ['encryptedComment', 'encryptedAttachments'],
+    plaintext: ['createdAt', 'updatedAt', 'stableCryptoId', 'keyEpoch'],
+    opaque_token: none,
+    relation: ['ownerId', 'planId', 'authorId'],
+    unused_when_encrypted: ['authorName', 'authorAvatar', 'body', 'attachments'],
+  }),
+  planLinks: table({
+    encrypted: ['encryptedLink'],
+    plaintext: ['type', 'createdAt', 'stableCryptoId', 'keyEpoch'],
+    opaque_token: none,
+    relation: ['ownerId', 'planId'],
+    unused_when_encrypted: ['value', 'url'],
+  }),
+  commentAttachmentClaims: table({
+    encrypted: none,
+    plaintext: none,
+    opaque_token: none,
+    relation: ['storageId', 'commentId'],
+    unused_when_encrypted: none,
+  }),
+  commentUploadReservations: table({
+    encrypted: none,
+    plaintext: ['clientUploadId', 'createdAt'],
+    opaque_token: none,
+    relation: ['uploadedBy', 'planId'],
+    unused_when_encrypted: none,
+  }),
+  pendingUploads: table({
+    encrypted: ['storageId'],
+    plaintext: ['createdAt'],
+    opaque_token: none,
+    relation: ['uploadedBy', 'planId'],
+    unused_when_encrypted: none,
+  }),
+  subscriptions: table({
+    encrypted: none,
+    plaintext: [
+      'stripeCustomerId',
+      'stripeSubscriptionId',
+      'status',
+      'plan',
+      'currentPeriodEnd',
+      'cancelAtPeriodEnd',
+      'createdAt',
+      'updatedAt',
+    ],
+    opaque_token: none,
+    relation: ['userId'],
+    unused_when_encrypted: none,
+  }),
+  workspaceMembers: table({
+    encrypted: none,
+    plaintext: ['email', 'emailLc', 'role', 'addedAt'],
+    opaque_token: none,
+    relation: ['workspaceOwnerId', 'memberId'],
+    unused_when_encrypted: none,
+  }),
+  workspaceInvites: table({
+    encrypted: ['encryptedInviteSecret'],
+    plaintext: [
+      'email',
+      'emailLc',
+      'token',
+      'createdAt',
+      'acceptedAt',
+      'revokedAt',
+      'cryptoProtocol',
+      'approvalRequestedAt',
+      'approvedAt',
+      'memberPublicKey',
+    ],
+    opaque_token: ['inviteSecretCommitment', 'enrollmentProof'],
+    relation: ['workspaceOwnerId', 'pendingMemberId'],
+    unused_when_encrypted: none,
+  }),
+  planVersions: table({
+    encrypted: ['encryptedSummary', 'encryptedBody'],
+    plaintext: ['version', 'format', 'source', 'createdAt', 'stableCryptoId', 'keyEpoch'],
+    opaque_token: none,
+    relation: ['ownerId', 'planId'],
+    unused_when_encrypted: ['title', 'content', 'filePath', 'workspace', 'metadata'],
+  }),
+  tags: table({
+    encrypted: ['encryptedName'],
+    plaintext: ['color', 'createdAt', 'stableCryptoId', 'keyEpoch'],
+    opaque_token: ['nameToken'],
+    relation: ['ownerId'],
+    unused_when_encrypted: ['name', 'nameLc'],
+  }),
+  planTags: table({
+    encrypted: none,
+    plaintext: ['createdAt'],
+    opaque_token: none,
+    relation: ['ownerId', 'planId', 'tagId'],
+    unused_when_encrypted: none,
+  }),
+  collections: table({
+    encrypted: ['encryptedName', 'encryptedDescription'],
+    plaintext: ['createdAt', 'updatedAt', 'stableCryptoId', 'keyEpoch'],
+    opaque_token: ['nameToken'],
+    relation: ['ownerId'],
+    unused_when_encrypted: ['name', 'nameLc', 'description'],
+  }),
+  collectionPlans: table({
+    encrypted: none,
+    plaintext: ['position', 'createdAt'],
+    opaque_token: none,
+    relation: ['ownerId', 'collectionId', 'planId'],
+    unused_when_encrypted: none,
+  }),
+  planPreferences: table({
+    encrypted: none,
+    plaintext: ['pinned', 'lastSeenUpdatedAt', 'createdAt', 'updatedAt'],
+    opaque_token: none,
+    relation: ['ownerId', 'planId'],
+    unused_when_encrypted: none,
+  }),
+  agentAvatars: table({
+    encrypted: ['storageId'],
+    plaintext: ['agent', 'updatedAt', 'stableCryptoId', 'keyEpoch', 'encrypted'],
+    opaque_token: none,
+    relation: ['ownerId'],
+    unused_when_encrypted: none,
+  }),
+  accountPreferences: table({
+    encrypted: none,
+    plaintext: [
+      'collectLocalIpAddress',
+      'emptyStatePlanView',
+      'localIpDisclosureAcknowledgedAt',
+      'createdAt',
+      'updatedAt',
+    ],
+    opaque_token: none,
+    relation: ['ownerId'],
+    unused_when_encrypted: none,
+  }),
+  daemonHeartbeats: table({
+    encrypted: ['encryptedHostname', 'encryptedIpAddress'],
+    plaintext: [
+      'lastSeenAt',
+      'lastCleanedAt',
+      'deviceId',
+      'startedAtMs',
+      'pid',
+      'cryptoUnlocked',
+      'stableCryptoId',
+      'keyEpoch',
+    ],
+    opaque_token: none,
+    relation: ['ownerId'],
+    unused_when_encrypted: ['hostname', 'ipAddress'],
+  }),
+  plannotatorWritebacks: table({
+    encrypted: ['encryptedWriteback'],
+    plaintext: [
+      'deviceId',
+      'action',
+      'source',
+      'status',
+      'error',
+      'createdAt',
+      'updatedAt',
+      'expiresAt',
+      'sentAt',
+      'stableCryptoId',
+      'keyEpoch',
+    ],
+    opaque_token: ['localPlanToken'],
+    relation: ['ownerId', 'planId', 'annotationIds'],
+    unused_when_encrypted: ['localPlanId', 'feedback', 'revisedContent', 'annotations'],
+  }),
+  dataExports: table({
+    encrypted: ['storageId'],
+    plaintext: [
+      'status',
+      'createdAt',
+      'updatedAt',
+      'expiresAt',
+      'error',
+      'byteSize',
+      'fileName',
+      'encryptedBackup',
+      'keyEpoch',
+    ],
+    opaque_token: none,
+    relation: ['ownerId'],
+    unused_when_encrypted: none,
+  }),
+  workspaceCryptoSettings: table({
+    encrypted: [
+      'ownerPassphraseWrappedKey',
+      'ownerRecoveryWrappedKey',
+      'previousOwnerPassphraseWrappedKey',
+      'previousOwnerRecoveryWrappedKey',
+    ],
+    plaintext: [
+      'state',
+      'requestedAt',
+      'enabledAt',
+      'recoveryVerifiedAt',
+      'activeKeyEpoch',
+      'cryptoFormat',
+      'ownerKdf',
+      'previousKeyEpoch',
+      'previousOwnerKdf',
+      'minimumClientProtocol',
+      'operation',
+      'lastAuditAt',
+      'lastAuditClean',
+      'createdAt',
+      'updatedAt',
+    ],
+    opaque_token: ['recoveryProofCommitment'],
+    relation: ['ownerId'],
+    unused_when_encrypted: none,
+  }),
+  memberCryptoIdentities: table({
+    encrypted: ['encryptedPrivateKey', 'recoveryWrappedPrivateKey'],
+    plaintext: ['publicKey', 'kdf', 'keyVersion', 'createdAt', 'updatedAt', 'revokedAt'],
+    opaque_token: none,
+    relation: ['userId', 'inviteId'],
+    unused_when_encrypted: none,
+  }),
+  workspaceKeyGrants: table({
+    encrypted: ['encapsulatedKey', 'ciphertext'],
+    plaintext: ['keyEpoch', 'kem', 'kdf', 'aead', 'createdAt', 'revokedAt'],
+    opaque_token: none,
+    relation: ['workspaceOwnerId', 'memberId', 'inviteId'],
+    unused_when_encrypted: none,
+  }),
+} as const;
+
+export type WorkspaceCryptoInventoryTable = keyof typeof WORKSPACE_CRYPTO_INVENTORY;
+
+export function classifiedFields(tableName: WorkspaceCryptoInventoryTable): string[] {
+  const inventory = WORKSPACE_CRYPTO_INVENTORY[tableName];
+  return Object.values(inventory).flatMap((fields) => [...fields]);
+}

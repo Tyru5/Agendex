@@ -51,6 +51,12 @@ import {
   type WindowsEnvSetResult,
   type WindowsEnvStatus,
 } from './windows-env.ts';
+import {
+  clearAllObfuscationKeys,
+  clearObfuscationKey,
+  loadObfuscationKey,
+  storeObfuscationKey,
+} from './obfuscation-key-store.ts';
 
 // Package name is `@agendex/desktop`; without this, Electron labels the
 // macOS Keychain item for safeStorage as "@agendex/desktop Safe Storage".
@@ -593,6 +599,12 @@ if (!gotLock) {
       clearPendingDesktopAuthLogin,
       createPendingLoginCompletion: desktopProtocol.createPendingLoginCompletion,
       clearCloudCreds,
+      clearAllObfuscationKeys,
+      clearObfuscationKey,
+      loadObfuscationKey,
+      storeObfuscationKey,
+      updateDaemonWorkspaceKey: (workspaceOwnerId, keyEpoch, keyBase64) =>
+        desktopDaemon.updateWorkspaceKey(workspaceOwnerId, keyEpoch, keyBase64),
       getAuthSessionGeneration: () => authSessionGeneration,
       isAuthSessionGenerationCurrent,
       invalidateAuthSession,

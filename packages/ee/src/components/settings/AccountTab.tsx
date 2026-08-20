@@ -14,6 +14,7 @@ import {
   PRO_FEATURES,
 } from './constants';
 import { DataExportSection } from './DataExportSection';
+import { ObfuscationSection } from './ObfuscationSection';
 
 interface AccountTabProps {
   user: { name: string; email: string; image?: string | null };
@@ -455,7 +456,6 @@ function DeleteConfirmModal({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={email}
-              autoFocus
               disabled={deleting}
               className="mt-2 w-full px-3 py-2 text-[13px] rounded-default border border-border bg-bg text-text placeholder:text-tertiary outline-none transition-colors duration-150 focus:border-red-500/50"
             />
@@ -605,6 +605,8 @@ export function AccountTab({
 
       {/* Sync Privacy */}
       <PrivacySettingsSection />
+
+      <ObfuscationSection email={user.email} />
 
       {/* Plan Viewer */}
       <PlanViewerSettingsSection />

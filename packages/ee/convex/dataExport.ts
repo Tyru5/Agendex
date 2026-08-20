@@ -10,6 +10,7 @@ import {
   type QueryCtx,
 } from './_generated/server';
 import { authComponent } from './auth';
+import { resolveWorkspaceCryptoPolicy } from './workspaceCrypto';
 import {
   DATA_EXPORT_TTL_MS,
   isExportDownloadAvailable,
@@ -59,6 +60,10 @@ export const requestDataExport = mutation({
   handler: async (ctx) => {
     const user = await requireAuthUser(ctx);
     const ownerId = String(user._id);
+    const cryptoPolicy = await resolveWorkspaceCryptoPolicy(ctx, ownerId);
+    if (cryptoPolicy.requiresEncryption) {
+      throw new ConvexError('Use the unlocked client to create a readable Obfuscation export');
+    }
 
     const active = await findActiveExport(ctx, ownerId);
     if (active) {

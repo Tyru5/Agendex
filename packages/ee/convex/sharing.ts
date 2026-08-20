@@ -6,6 +6,7 @@ import { action, internalMutation, internalQuery, mutation, query } from './_gen
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { isVisiblePlan } from './planVisibility';
+import { resolveWorkspaceCryptoPolicy } from './workspaceCrypto';
 
 // Random salt via Web Crypto — only safe from actions, not from deterministic mutations/queries (Convex runtimes docs).
 async function hashPassword(password: string): Promise<string> {
@@ -90,7 +91,7 @@ function generateShareLinkSecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(SHARE_LINK_SECRET_BYTES));
   let binary = '';
   for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]!);
+    binary += String.fromCharCode(bytes[i] ?? 0);
   }
   const b64 = btoa(binary);
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -133,7 +134,7 @@ function constantTimeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
 
   let mismatch = 0;
   for (let i = 0; i < a.length; i += 1) {
-    mismatch |= a[i]! ^ b[i]!;
+    mismatch |= (a[i] ?? 0) ^ (b[i] ?? 0);
   }
   return mismatch === 0;
 }
@@ -194,7 +195,13 @@ export const createShareLinkInternal = internalMutation({
       throw new ConvexError('Access denied');
     }
 
+    const cryptoPolicy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
+    if (cryptoPolicy.requiresEncryption) {
+      throw new ConvexError('Share links are unavailable for obfuscated workspaces');
+    }
+
     await ctx.db.insert('shareLinks', {
+      ownerId: plan.ownerId,
       planId: args.planId,
       token: args.token,
       createdBy: args.createdBy,
@@ -247,6 +254,9 @@ export const getShareLinks = query({
       throw new ConvexError('Access denied');
     }
 
+    const cryptoPolicy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
+    if (cryptoPolicy.requiresEncryption) return [];
+
     const links = await ctx.db
       .query('shareLinks')
       .withIndex('by_plan', (q) => q.eq('planId', args.planId))
@@ -273,6 +283,9 @@ export const getShareLinkAndPlanInternal = internalQuery({
 
     const plan = await ctx.db.get(shareLink.planId);
     if (!plan || !isVisiblePlan(plan)) return null;
+
+    const cryptoPolicy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
+    if (cryptoPolicy.requiresEncryption) return null;
 
     return { shareLink, plan };
   },

@@ -1,9 +1,12 @@
 import { SkeletonBlock } from '@agendex/web';
+import { decryptPlanBody, decryptPlanSummary, encryptPlanWrite } from '@agendex/shared/crypto';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { timeAgo } from '../lib/formatTime.ts';
+import { useWorkspaceCryptoStatus } from '../hooks/useCloudMetadataCrypto.ts';
+import { withWorkspaceKey } from '../lib/obfuscation-keyring.ts';
 import { PlanDiffViewer } from './PlanDiffViewer.tsx';
 
 function sourceLabel(source?: string): string {
@@ -23,6 +26,10 @@ function sourceLabel(source?: string): string {
 
 export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose: () => void }) {
   const versions = useQuery(api.planVersions.listForPlan, { planId: planId as Id<'plans'> });
+  const planCryptoRecord = useQuery(api.plans.getPlanCryptoRecord, {
+    planId: planId as Id<'plans'>,
+  });
+  const cryptoStatus = useWorkspaceCryptoStatus();
   const restoreMutation = useMutation(api.planVersions.restore);
 
   const [compareFrom, setCompareFrom] = useState<number | null>(null);
@@ -30,11 +37,15 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
   const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
+    const newest = versions?.[0];
+    const previous = versions?.[1];
     if (versions && versions.length >= 2 && compareFrom === null && compareTo === null) {
-      setCompareFrom(versions[1]!.version);
-      setCompareTo(versions[0]!.version);
-    } else if (versions && versions.length === 1 && compareTo === null) {
-      setCompareTo(versions[0]!.version);
+      if (previous && newest) {
+        setCompareFrom(previous.version);
+        setCompareTo(newest.version);
+      }
+    } else if (versions?.length === 1 && compareTo === null && newest) {
+      setCompareTo(newest.version);
     }
   }, [versions, compareFrom, compareTo]);
 
@@ -47,6 +58,87 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
     compareTo != null ? { planId: planId as Id<'plans'>, version: compareTo } : 'skip',
   );
 
+  const readableVersions = useMemo(
+    () =>
+      versions?.map((version) => {
+        if (
+          !version.encryptedSummary ||
+          !version.stableCryptoId ||
+          !version.keyEpoch ||
+          !cryptoStatus?.workspaceOwnerId
+        ) {
+          return version;
+        }
+        const { encryptedSummary, stableCryptoId, keyEpoch } = version;
+        const workspaceOwnerId = cryptoStatus.workspaceOwnerId;
+        try {
+          const summary = withWorkspaceKey(workspaceOwnerId, (workspaceKey) =>
+            decryptPlanSummary({
+              workspaceKey,
+              workspaceOwnerId,
+              stableCryptoId,
+              keyEpoch,
+              envelope: encryptedSummary,
+              table: 'planVersions',
+            }),
+          );
+          return { ...version, title: summary.title };
+        } catch {
+          return { ...version, title: 'Locked version' };
+        }
+      }),
+    [cryptoStatus, versions],
+  );
+
+  const decryptSnapshot = useCallback(
+    (snapshot: typeof fromSnapshot) => {
+      if (
+        !snapshot?.encryptedSummary ||
+        !snapshot.encryptedBody ||
+        !snapshot.stableCryptoId ||
+        !snapshot.keyEpoch ||
+        !cryptoStatus?.workspaceOwnerId
+      ) {
+        return snapshot;
+      }
+      const { encryptedSummary, encryptedBody, stableCryptoId, keyEpoch } = snapshot;
+      const workspaceOwnerId = cryptoStatus.workspaceOwnerId;
+      try {
+        return withWorkspaceKey(workspaceOwnerId, (workspaceKey) => {
+          const summary = decryptPlanSummary({
+            workspaceKey,
+            workspaceOwnerId,
+            stableCryptoId,
+            keyEpoch,
+            envelope: encryptedSummary,
+            table: 'planVersions',
+          });
+          const content = decryptPlanBody({
+            workspaceKey,
+            workspaceOwnerId,
+            stableCryptoId,
+            keyEpoch,
+            envelope: encryptedBody,
+            table: 'planVersions',
+          });
+          return { ...snapshot, ...summary, content };
+        });
+      } catch {
+        return undefined;
+      }
+    },
+    [cryptoStatus],
+  );
+
+  const readableFromSnapshot = useMemo(
+    () => decryptSnapshot(fromSnapshot),
+    [decryptSnapshot, fromSnapshot],
+  );
+  const readableToSnapshot = useMemo(
+    () => decryptSnapshot(toSnapshot),
+    [decryptSnapshot, toSnapshot],
+  );
+
   async function handleRestore() {
     if (compareFrom == null) return;
     const ok = window.confirm(
@@ -55,7 +147,48 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
     if (!ok) return;
     setRestoring(true);
     try {
-      await restoreMutation({ planId: planId as Id<'plans'>, version: compareFrom });
+      if (cryptoStatus?.settings && planCryptoRecord?.stableCryptoId && readableFromSnapshot) {
+        const { workspaceOwnerId, settings } = cryptoStatus;
+        const stableCryptoId = planCryptoRecord.stableCryptoId;
+        const encrypted = withWorkspaceKey(workspaceOwnerId, (workspaceKey) =>
+          encryptPlanWrite({
+            workspaceKey,
+            workspaceOwnerId,
+            keyEpoch: settings.activeKeyEpoch,
+            stableCryptoId,
+            plan: {
+              localPlanId:
+                'localPlanId' in readableFromSnapshot &&
+                typeof readableFromSnapshot.localPlanId === 'string'
+                  ? readableFromSnapshot.localPlanId
+                  : '',
+              agent: planCryptoRecord.agent,
+              title: readableFromSnapshot.title,
+              content: readableFromSnapshot.content,
+              format: readableFromSnapshot.format,
+              filePath: readableFromSnapshot.filePath,
+              workspace: readableFromSnapshot.workspace,
+              metadata: readableFromSnapshot.metadata,
+              lowValue: planCryptoRecord.lowValue,
+            },
+          }),
+        );
+        await restoreMutation({
+          planId: planId as Id<'plans'>,
+          version: compareFrom,
+          clientCryptoProtocol: 1,
+          keyEpoch: encrypted.keyEpoch,
+          encryptedSummary: encrypted.encryptedSummary,
+          encryptedBody: encrypted.encryptedBody,
+          versionStableCryptoId: encrypted.versionStableCryptoId,
+          encryptedVersionSummary: encrypted.encryptedVersionSummary,
+          encryptedVersionBody: encrypted.encryptedVersionBody,
+          contentToken: encrypted.contentToken,
+          lowValue: encrypted.lowValue,
+        });
+      } else {
+        await restoreMutation({ planId: planId as Id<'plans'>, version: compareFrom });
+      }
     } finally {
       setRestoring(false);
     }
@@ -120,7 +253,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
               </span>
             </h3>
             <div className="flex flex-wrap gap-1.5">
-              {versions.map((ver: any, idx: number) => (
+              {readableVersions?.map((ver, idx) => (
                 <button
                   type="button"
                   key={ver._id}
@@ -161,13 +294,19 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
           {versions.length >= 2 && (
             <div className="flex items-center gap-3 mb-5 flex-wrap">
               <div className="flex items-center gap-2">
-                <label className="text-[12px] font-medium text-secondary">From</label>
+                <label
+                  htmlFor="history-compare-from"
+                  className="text-[12px] font-medium text-secondary"
+                >
+                  From
+                </label>
                 <select
+                  id="history-compare-from"
                   value={compareFrom ?? ''}
                   onChange={(e) => setCompareFrom(Number(e.target.value))}
                   className="py-1 px-2 text-[12px] font-[inherit] rounded-[6px] border border-border bg-transparent text-text cursor-pointer"
                 >
-                  {versions.map((ver: any) => (
+                  {readableVersions?.map((ver) => (
                     <option key={ver._id} value={ver.version}>
                       v{ver.version} — {timeAgo(ver.createdAt)}
                     </option>
@@ -176,13 +315,19 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
               </div>
               <span className="text-[12px] text-tertiary">→</span>
               <div className="flex items-center gap-2">
-                <label className="text-[12px] font-medium text-secondary">To</label>
+                <label
+                  htmlFor="history-compare-to"
+                  className="text-[12px] font-medium text-secondary"
+                >
+                  To
+                </label>
                 <select
+                  id="history-compare-to"
                   value={compareTo ?? ''}
                   onChange={(e) => setCompareTo(Number(e.target.value))}
                   className="py-1 px-2 text-[12px] font-[inherit] rounded-[6px] border border-border bg-transparent text-text cursor-pointer"
                 >
-                  {versions.map((ver: any) => (
+                  {readableVersions?.map((ver) => (
                     <option key={ver._id} value={ver.version}>
                       v{ver.version} — {timeAgo(ver.createdAt)}
                     </option>
@@ -207,20 +352,20 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
           )}
 
           {compareFrom != null && compareTo != null ? (
-            fromSnapshot === undefined || toSnapshot === undefined ? (
+            readableFromSnapshot === undefined || readableToSnapshot === undefined ? (
               <SkeletonBlock lines={6} />
             ) : (
               <PlanDiffViewer
-                oldContent={fromSnapshot.content}
-                newContent={toSnapshot.content}
+                oldContent={readableFromSnapshot.content}
+                newContent={readableToSnapshot.content}
                 oldLabel={`v${compareFrom}`}
                 newLabel={`v${compareTo}`}
-                oldTitle={fromSnapshot.title}
-                newTitle={toSnapshot.title}
+                oldTitle={readableFromSnapshot.title}
+                newTitle={readableToSnapshot.title}
               />
             )
           ) : compareTo != null && versions.length === 1 ? (
-            toSnapshot === undefined ? (
+            readableToSnapshot === undefined ? (
               <SkeletonBlock lines={6} />
             ) : (
               <div className="p-4 text-[12.5px] text-tertiary text-center border border-border rounded-lg">

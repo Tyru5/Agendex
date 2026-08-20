@@ -124,6 +124,18 @@ AGENDEX_DISABLE_LOCAL_IP=1 agendex sync
 
 ## Real-Time Cloud Sync (Daemon)
 
+## Obfuscated workspaces
+
+When a Cloud Pro owner enables Obfuscation, the CLI encrypts and decrypts plan content locally. Sync, browse, download, writeback, and sealing require an unlocked workspace; heartbeat status remains available while locked.
+
+```bash
+agendex unlock
+agendex unlock --recovery /path/to/agendex-recovery.json
+agendex lock
+```
+
+The unlock command uses the operating-system credential store when a reviewed backend is available. It never falls back to plaintext key storage in `~/.agendex`. Member passphrases and member recovery kits unlock the member identity first, then open the workspace's HPKE grant. Keep recovery kits offline; Agendex cannot replace them.
+
 While `agendex start` is running, the daemon watches local plan sources and uploads changes to your cloud account. The cloud web app updates reactively once uploads land (no manual refresh).
 
 **How uploads are scheduled:**

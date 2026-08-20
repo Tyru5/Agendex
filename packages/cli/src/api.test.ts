@@ -16,6 +16,7 @@ import {
   setDaemonCredentialStore,
   syncPlan,
 } from './api.ts';
+import { setInjectedWorkspaceKey } from './cloud-crypto.ts';
 
 const originalEnv: Record<string, string | undefined> = {
   AGENDEX_CONFIG_DIR: process.env.AGENDEX_CONFIG_DIR,
@@ -55,6 +56,7 @@ interface CloudApiOptions {
   planBody?: Record<string, unknown>;
   plansStatus?: number;
   plansBody?: Record<string, unknown>;
+  cryptoBody?: Record<string, unknown>;
 }
 
 function startCloudApi(writebacks: PlannotatorWritebackJob[], options: CloudApiOptions = {}) {
@@ -86,6 +88,17 @@ function startCloudApi(writebacks: PlannotatorWritebackJob[], options: CloudApiO
             : { error: 'Unauthorized' },
         ),
       );
+      return;
+    }
+
+    if (req.url === '/api/cli/crypto' && req.method === 'GET') {
+      if (!options.cryptoBody) {
+        res.writeHead(404);
+        res.end();
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(options.cryptoBody));
+      }
       return;
     }
 
@@ -243,6 +256,35 @@ test('sends local IP address in heartbeat payload', async () => {
 
   expect(cloud.heartbeats).toHaveLength(1);
   expect(cloud.heartbeats[0]).toMatchObject({ ipAddress: '192.168.4.30' });
+});
+
+test('reports whether an encrypted desktop daemon has an injected key', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([], {
+    cryptoBody: {
+      enabled: true,
+      role: 'owner',
+      workspaceOwnerId: 'owner-1',
+      state: 'sealed',
+      activeKeyEpoch: 1,
+      minimumClientProtocol: 1,
+      ownerKdf: {},
+      ownerPassphraseWrappedKey: {},
+    },
+  });
+  saveCloudConfig(cloud.url);
+  setInjectedWorkspaceKey('owner-1', 1, Buffer.alloc(32, 7).toString('base64'));
+  try {
+    await sendHeartbeat('192.168.4.30');
+  } finally {
+    setInjectedWorkspaceKey('owner-1', 1, null);
+  }
+
+  expect(cloud.heartbeats).toHaveLength(1);
+  expect(cloud.heartbeats[0]).toMatchObject({ cryptoUnlocked: true });
+  expect(cloud.heartbeats[0]?.hostname).toBeUndefined();
+  expect(cloud.heartbeats[0]?.ipAddress).toBeUndefined();
+  expect(cloud.heartbeats[0]?.encryptedHostname).toBeDefined();
 });
 
 test('fetches and reports Plannotator write-back queue jobs', async () => {

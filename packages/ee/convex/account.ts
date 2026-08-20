@@ -277,6 +277,14 @@ export const purgeUserData = internalMutation({
       }
     }
 
+    async function deleteMemberIdentity(memberId: string) {
+      const identity = await ctx.db
+        .query('memberCryptoIdentities')
+        .withIndex('by_user', (q) => q.eq('userId', memberId))
+        .first();
+      if (identity) await ctx.db.delete(identity._id);
+    }
+
     const plans = await ctx.db
       .query('plans')
       .withIndex('by_owner', (q) => q.eq('ownerId', userId))
@@ -326,12 +334,12 @@ export const purgeUserData = internalMutation({
         .withIndex('by_owner', (q) => q.eq('ownerId', userId))
         .collect(),
     );
-    await deleteRows(
-      await ctx.db
-        .query('workspaceMembers')
-        .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', userId))
-        .collect(),
-    );
+    const ownedMemberships = await ctx.db
+      .query('workspaceMembers')
+      .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', userId))
+      .collect();
+    await deleteRows(ownedMemberships);
+    for (const membership of ownedMemberships) await deleteMemberIdentity(membership.memberId);
     await deleteRows(
       await ctx.db
         .query('workspaceMembers')
@@ -357,12 +365,40 @@ export const purgeUserData = internalMutation({
         .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', userId))
         .collect(),
     );
+    const ownedInvites = await ctx.db
+      .query('workspaceInvites')
+      .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', userId))
+      .collect();
+    for (const invite of ownedInvites) {
+      if (invite.pendingMemberId) await deleteMemberIdentity(invite.pendingMemberId);
+    }
+    await deleteRows(ownedInvites);
     await deleteRows(
       await ctx.db
-        .query('workspaceInvites')
+        .query('workspaceKeyGrants')
         .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', userId))
         .collect(),
     );
+    await deleteRows(
+      await ctx.db
+        .query('workspaceKeyGrants')
+        .withIndex('by_member', (q) => q.eq('memberId', userId))
+        .collect(),
+    );
+    await deleteMemberIdentity(userId);
+    const cryptoSettings = await ctx.db
+      .query('workspaceCryptoSettings')
+      .withIndex('by_owner', (q) => q.eq('ownerId', userId))
+      .first();
+    if (cryptoSettings) await ctx.db.delete(cryptoSettings._id);
+    const exports = await ctx.db
+      .query('dataExports')
+      .withIndex('by_owner', (q) => q.eq('ownerId', userId))
+      .collect();
+    for (const dataExport of exports) {
+      if (dataExport.storageId) await ctx.storage.delete(dataExport.storageId);
+      await ctx.db.delete(dataExport._id);
+    }
     await deleteRows(
       await ctx.db
         .query('commentUploadReservations')

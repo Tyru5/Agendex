@@ -11,6 +11,12 @@ import {
 } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { cryptoEnvelopeV1 } from './schema';
+import {
+  resolveWorkspaceCryptoPolicy,
+  sanitizeWorkspaceCryptoError,
+  validateEncryptedWrite,
+} from './workspaceCrypto';
 
 const WRITEBACK_TTL_MS = 24 * 60 * 60 * 1000;
 const WRITEBACK_EXPIRED_ERROR = 'Write-back expired before a daemon could send it.';
@@ -314,6 +320,11 @@ export const enqueueWriteback = mutation({
     annotations: v.optional(v.array(feedbackAnnotation)),
     annotationIds: v.optional(v.array(v.id('planAnnotations'))),
     deviceId: v.optional(v.string()),
+    clientCryptoProtocol: v.optional(v.number()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedWriteback: v.optional(cryptoEnvelopeV1),
+    localPlanToken: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
@@ -324,35 +335,73 @@ export const enqueueWriteback = mutation({
     const requestedPlan = await ctx.db.get(args.planId);
     if (!requestedPlan) throw new ConvexError('Plan not found');
     if (requestedPlan.ownerId !== user._id) throw new ConvexError('Access denied');
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
 
     const action = args.action ?? 'request_changes';
     const feedback = args.feedback.trim();
     const revisedContent = args.revisedContent?.trim();
-    if (action === 'request_changes' && !feedback && !revisedContent) {
+    validateEncryptedWrite({
+      policy,
+      clientProtocol: args.clientCryptoProtocol,
+      envelopes: args.encryptedWriteback ? [args.encryptedWriteback] : [],
+      plaintext: {
+        feedback: args.feedback,
+        revisedContent: args.revisedContent,
+        annotations: args.annotations,
+      },
+    });
+    if (
+      policy.requiresEncryption &&
+      (!args.stableCryptoId ||
+        args.keyEpoch === undefined ||
+        !args.encryptedWriteback ||
+        !args.localPlanToken ||
+        args.localPlanToken !== requestedPlan.localPlanToken)
+    ) {
+      throw new ConvexError('Encrypted write-back metadata is required');
+    }
+    if (
+      !policy.requiresEncryption &&
+      action === 'request_changes' &&
+      !feedback &&
+      !revisedContent
+    ) {
       throw new ConvexError('Feedback or revised content is required');
     }
 
     const now = Date.now();
-    const plan = await findCurrentLivePlannotatorPlan(ctx, user._id, requestedPlan, true);
+    const plan = policy.requiresEncryption
+      ? requestedPlan
+      : await findCurrentLivePlannotatorPlan(ctx, user._id, requestedPlan, true);
     if (plan._id !== requestedPlan._id) {
       await markSupersededPlannotatorPlan(ctx, requestedPlan, plan, now);
     }
 
-    const localPlanId = plan.localPlanId;
-    if (!localPlanId) throw new ConvexError('Plan is not linked to a local daemon record');
-    if (!planHasLivePlannotatorMetadata(plan)) {
+    const localPlanId = policy.requiresEncryption ? '' : (plan.localPlanId ?? '');
+    if (!policy.requiresEncryption && !localPlanId) {
+      throw new ConvexError('Plan is not linked to a local daemon record');
+    }
+    if (!policy.requiresEncryption && !planHasLivePlannotatorMetadata(plan)) {
       throw new ConvexError('Plan is not a live Plannotator session');
     }
     // Guard against duplicate approvals: `findCurrentLivePlannotatorPlan` may
     // resolve to a canonical plan different from the one the user viewed, and
     // that canonical plan may already be approved.
-    if (action === 'approve' && getPlannotatorMetadata(plan)?.status === 'approved') {
+    if (
+      !policy.requiresEncryption &&
+      action === 'approve' &&
+      getPlannotatorMetadata(plan)?.status === 'approved'
+    ) {
       throw new ConvexError('Plan is already approved');
     }
     const pendingWritebacks = await ctx.db
       .query('plannotatorWritebacks')
-      .withIndex('by_owner_localPlanId', (q) =>
-        q.eq('ownerId', user._id).eq('localPlanId', localPlanId),
+      .withIndex(
+        policy.requiresEncryption ? 'by_owner_localPlanToken' : 'by_owner_localPlanId',
+        (q) =>
+          policy.requiresEncryption
+            ? q.eq('ownerId', user._id).eq('localPlanToken', args.localPlanToken)
+            : q.eq('ownerId', user._id).eq('localPlanId', localPlanId),
       )
       .filter((q) => q.eq(q.field('status'), 'pending'))
       .collect();
@@ -399,17 +448,25 @@ export const enqueueWriteback = mutation({
       ownerId: user._id,
       planId: plan._id,
       localPlanId,
+      ...(policy.requiresEncryption ? { localPlanToken: args.localPlanToken } : {}),
       deviceId: args.deviceId ?? getPlanSyncDeviceId(plan),
       action,
-      feedback,
-      revisedContent,
-      annotations: args.annotations,
+      feedback: policy.requiresEncryption ? '' : feedback,
+      revisedContent: policy.requiresEncryption ? undefined : revisedContent,
+      annotations: policy.requiresEncryption ? undefined : args.annotations,
       annotationIds,
       source: 'agendex-cloud',
       status: 'pending',
       createdAt: now,
       updatedAt: now,
       expiresAt: now + WRITEBACK_TTL_MS,
+      ...(policy.requiresEncryption
+        ? {
+            stableCryptoId: args.stableCryptoId,
+            keyEpoch: args.keyEpoch,
+            encryptedWriteback: args.encryptedWriteback,
+          }
+        : {}),
     });
 
     for (const annotationId of annotationIds) {
@@ -469,6 +526,31 @@ export const getCanonicalWritebackState = query({
     const requestedPlan = await ctx.db.get(args.planId);
     if (!requestedPlan) throw new ConvexError('Plan not found');
     if (requestedPlan.ownerId !== user._id) throw new ConvexError('Access denied');
+
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
+    if (policy.requiresEncryption) {
+      let pendingWritebackExpiresAt: number | null = null;
+      if (requestedPlan.localPlanToken) {
+        const pendingRows = await ctx.db
+          .query('plannotatorWritebacks')
+          .withIndex('by_owner_localPlanToken', (q) =>
+            q.eq('ownerId', user._id).eq('localPlanToken', requestedPlan.localPlanToken),
+          )
+          .filter((q) => q.eq(q.field('status'), 'pending'))
+          .collect();
+        for (const row of pendingRows) {
+          if (pendingWritebackExpiresAt === null || row.expiresAt > pendingWritebackExpiresAt) {
+            pendingWritebackExpiresAt = row.expiresAt;
+          }
+        }
+      }
+      return {
+        canonicalPlanId: requestedPlan._id,
+        isLive: true,
+        isApproved: false,
+        pendingWritebackExpiresAt,
+      };
+    }
 
     // Deep scan so the panel's gating matches what `enqueueWriteback` (which also
     // deep-scans) will resolve. The scan only runs as a last resort when index
@@ -586,7 +668,7 @@ export const reportWritebackStatus = internalMutation({
     const now = Date.now();
     await ctx.db.patch(args.writebackId, {
       status: args.status,
-      error: args.error,
+      error: args.error ? sanitizeWorkspaceCryptoError(args.error) : undefined,
       updatedAt: now,
       sentAt: args.status === 'sent' ? now : row.sentAt,
     });

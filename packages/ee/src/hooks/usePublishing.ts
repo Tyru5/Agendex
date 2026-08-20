@@ -1,8 +1,7 @@
-import { api } from '@convex/_generated/api';
-import { useMutation } from 'convex/react';
+import { useCloudPlanPublisher } from './useCloudPlanPublisher';
 
 export function usePublishing() {
-  const publishPlan = useMutation(api.plans.publishPlan);
+  const publishPlan = useCloudPlanPublisher();
 
   return {
     publish: async (plan: {

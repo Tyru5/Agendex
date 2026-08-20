@@ -13,6 +13,11 @@ import {
   type PlanDownloadLookupCandidate,
 } from '@agendex/shared/plan-download-lookup';
 import { computePlanSyncIdentity, exactDuplicateKey } from '@agendex/shared/plan-sync-identity';
+import {
+  bytesToBase64,
+  deserializeCryptoEnvelope,
+  serializeCryptoEnvelope,
+} from '@agendex/shared/crypto';
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
@@ -36,6 +41,8 @@ import {
 import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { stripLocalIpFromMetadata } from './privacy';
 import { resolvePublishedPlansOwnerId } from './plans';
+import { cryptoEnvelopeV1 } from './schema';
+import { resolveWorkspaceCryptoPolicy, validateEncryptedWrite } from './workspaceCrypto';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
@@ -240,6 +247,7 @@ interface HeartbeatDevice {
   ipAddress: string | null;
   startedAtMs: number | null;
   pid: number | null;
+  cryptoUnlocked: boolean | null;
 }
 
 function collectDevices(
@@ -250,6 +258,7 @@ function collectDevices(
     ipAddress?: string;
     startedAtMs?: number;
     pid?: number;
+    cryptoUnlocked?: boolean;
   }>,
 ): HeartbeatDevice[] {
   const cutoff = Date.now() - DAEMON_HEARTBEAT_RETENTION_MS;
@@ -262,6 +271,7 @@ function collectDevices(
       ipAddress: hb.ipAddress ?? null,
       startedAtMs: hb.startedAtMs ?? null,
       pid: hb.pid ?? null,
+      cryptoUnlocked: hb.cryptoUnlocked ?? null,
     }));
 }
 
@@ -311,6 +321,17 @@ export const findPlansByOwnerAndContentHash = internalQuery({
       )
       .take(25);
   },
+});
+
+export const findPlanByOwnerAndLocalToken = internalQuery({
+  args: { ownerId: v.string(), localPlanToken: v.string() },
+  handler: async (ctx, args) =>
+    ctx.db
+      .query('plans')
+      .withIndex('by_owner_localPlanToken', (lookup) =>
+        lookup.eq('ownerId', args.ownerId).eq('localPlanToken', args.localPlanToken),
+      )
+      .first(),
 });
 
 export const patchPlanSyncIdentity = internalMutation({
@@ -514,6 +535,152 @@ export const upsertPlan = internalMutation({
   },
 });
 
+export const upsertEncryptedPlan = internalMutation({
+  args: {
+    ownerId: v.string(),
+    agent: v.string(),
+    format: v.string(),
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
+    clientCryptoProtocol: v.number(),
+    stableCryptoId: v.string(),
+    keyEpoch: v.number(),
+    encryptedSummary: cryptoEnvelopeV1,
+    encryptedBody: cryptoEnvelopeV1,
+    versionStableCryptoId: v.string(),
+    encryptedVersionSummary: cryptoEnvelopeV1,
+    encryptedVersionBody: cryptoEnvelopeV1,
+    contentToken: v.string(),
+    localPlanToken: v.string(),
+    syncIdentityToken: v.optional(v.string()),
+    continuityToken: v.optional(v.string()),
+    lowValue: v.boolean(),
+    identityVersion: v.optional(v.number()),
+    identityStrength: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, args.ownerId);
+    validateEncryptedWrite({
+      policy,
+      clientProtocol: args.clientCryptoProtocol,
+      envelopes: [
+        args.encryptedSummary,
+        args.encryptedBody,
+        args.encryptedVersionSummary,
+        args.encryptedVersionBody,
+      ],
+      plaintext: {},
+    });
+    const existing = await ctx.db
+      .query('plans')
+      .withIndex('by_owner_localPlanToken', (lookup) =>
+        lookup.eq('ownerId', args.ownerId).eq('localPlanToken', args.localPlanToken),
+      )
+      .first();
+    if (existing?.stableCryptoId && existing.stableCryptoId !== args.stableCryptoId) {
+      throw new ConvexError('Encrypted plan identity changed; refresh and retry');
+    }
+    const now = Date.now();
+    const updatedAt = args.updatedAt ?? now;
+    if (existing && updatedAt < existing.updatedAt) {
+      return { planId: existing._id, stale: true, skippedLowValue: existing.lowValue === true };
+    }
+    if (existing && existing.contentToken === args.contentToken) {
+      await ctx.db.patch(existing._id, {
+        agent: args.agent,
+        format: args.format,
+        syncIdentityToken: args.syncIdentityToken,
+        continuityToken: args.continuityToken,
+        identityVersion: args.identityVersion,
+        identityStrength: args.identityStrength,
+        lowValue: args.lowValue,
+        updatedAt,
+      });
+      return { planId: existing._id, stale: false, skippedLowValue: args.lowValue };
+    }
+
+    const snapshot = {
+      title: '',
+      content: '',
+      format: args.format,
+      stableCryptoId: args.versionStableCryptoId,
+      keyEpoch: args.keyEpoch,
+      encryptedSummary: args.encryptedVersionSummary,
+      encryptedBody: args.encryptedVersionBody,
+    };
+    if (existing) {
+      const version = existing.version + 1;
+      await ctx.db.patch(existing._id, {
+        localPlanId: undefined,
+        agent: args.agent,
+        title: '',
+        content: '',
+        format: args.format,
+        filePath: undefined,
+        workspace: undefined,
+        metadata: undefined,
+        plannotatorContinuityKey: undefined,
+        syncIdentityKey: undefined,
+        contentHash: undefined,
+        stableCryptoId: args.stableCryptoId,
+        keyEpoch: args.keyEpoch,
+        encryptedSummary: args.encryptedSummary,
+        encryptedBody: args.encryptedBody,
+        contentToken: args.contentToken,
+        localPlanToken: args.localPlanToken,
+        syncIdentityToken: args.syncIdentityToken,
+        continuityToken: args.continuityToken,
+        lowValue: args.lowValue,
+        identityVersion: args.identityVersion,
+        identityStrength: args.identityStrength,
+        version,
+        updatedAt,
+      });
+      await recordPlanVersion(ctx, {
+        ownerId: args.ownerId,
+        planId: existing._id,
+        version,
+        snapshot,
+        source: 'cli_sync',
+        createdAt: updatedAt,
+      });
+      return { planId: existing._id, stale: false, skippedLowValue: args.lowValue };
+    }
+
+    const createdAt = args.createdAt ?? now;
+    const planId = await ctx.db.insert('plans', {
+      ownerId: args.ownerId,
+      agent: args.agent,
+      title: '',
+      content: '',
+      format: args.format,
+      stableCryptoId: args.stableCryptoId,
+      keyEpoch: args.keyEpoch,
+      encryptedSummary: args.encryptedSummary,
+      encryptedBody: args.encryptedBody,
+      contentToken: args.contentToken,
+      localPlanToken: args.localPlanToken,
+      syncIdentityToken: args.syncIdentityToken,
+      continuityToken: args.continuityToken,
+      lowValue: args.lowValue,
+      identityVersion: args.identityVersion,
+      identityStrength: args.identityStrength,
+      version: 1,
+      createdAt,
+      updatedAt,
+    });
+    await recordPlanVersion(ctx, {
+      ownerId: args.ownerId,
+      planId,
+      version: 1,
+      snapshot,
+      source: 'cli_sync',
+      createdAt,
+    });
+    return { planId, stale: false, skippedLowValue: args.lowValue };
+  },
+});
+
 export const deleteSyncedPlan = internalMutation({
   args: {
     ownerId: v.string(),
@@ -548,6 +715,114 @@ export const hasUserSubscription = internalQuery({
   },
 });
 
+export const getWorkspaceCryptoForCli = internalQuery({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const owned = await ctx.db
+      .query('workspaceCryptoSettings')
+      .withIndex('by_owner', (lookup) => lookup.eq('ownerId', args.userId))
+      .unique();
+    if (owned) return { role: 'owner' as const, settings: owned };
+    const membership = await ctx.db
+      .query('workspaceMembers')
+      .withIndex('by_member', (lookup) => lookup.eq('memberId', args.userId))
+      .first();
+    if (!membership) return null;
+    const settings = await ctx.db
+      .query('workspaceCryptoSettings')
+      .withIndex('by_owner', (lookup) => lookup.eq('ownerId', membership.workspaceOwnerId))
+      .unique();
+    if (!settings) return null;
+    const identity = await ctx.db
+      .query('memberCryptoIdentities')
+      .withIndex('by_user', (lookup) => lookup.eq('userId', args.userId))
+      .first();
+    const grant = await ctx.db
+      .query('workspaceKeyGrants')
+      .withIndex('by_workspace_member_epoch', (lookup) =>
+        lookup
+          .eq('workspaceOwnerId', membership.workspaceOwnerId)
+          .eq('memberId', args.userId)
+          .eq('keyEpoch', settings.activeKeyEpoch),
+      )
+      .first();
+    if (!identity || !grant || grant.revokedAt) return null;
+    return { role: 'member' as const, settings, identity, grant, memberId: args.userId };
+  },
+});
+
+export const cryptoStatus = httpAction(async (ctx, request) => {
+  if (request.method !== 'GET') return jsonResponse({ error: 'Method not allowed' }, 405);
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+  const crypto = await ctx.runQuery(internal.cli.getWorkspaceCryptoForCli, {
+    userId: authResult.ownerId,
+  });
+  if (!crypto) return jsonResponse({ enabled: false });
+  const { settings } = crypto;
+  if (crypto.role === 'member') {
+    return jsonResponse({
+      enabled: true,
+      role: 'member',
+      workspaceOwnerId: settings.ownerId,
+      memberId: crypto.memberId,
+      state: settings.state,
+      activeKeyEpoch: settings.activeKeyEpoch,
+      minimumClientProtocol: settings.minimumClientProtocol,
+      memberIdentity: {
+        encryptedPrivateKey: serializeCryptoEnvelope(crypto.identity.encryptedPrivateKey),
+        recoveryWrappedPrivateKey: serializeCryptoEnvelope(
+          crypto.identity.recoveryWrappedPrivateKey,
+        ),
+        kdf: { ...crypto.identity.kdf, salt: bytesToBase64(crypto.identity.kdf.salt) },
+        keyVersion: crypto.identity.keyVersion,
+      },
+      grant: {
+        kem: crypto.grant.kem,
+        kdf: crypto.grant.kdf,
+        aead: crypto.grant.aead,
+        encapsulatedKey: bytesToBase64(crypto.grant.encapsulatedKey),
+        ciphertext: bytesToBase64(crypto.grant.ciphertext),
+      },
+    });
+  }
+  return jsonResponse({
+    enabled: true,
+    role: 'owner',
+    workspaceOwnerId: settings.ownerId,
+    state: settings.state,
+    activeKeyEpoch: settings.activeKeyEpoch,
+    minimumClientProtocol: settings.minimumClientProtocol,
+    ownerKdf: {
+      ...settings.ownerKdf,
+      salt: bytesToBase64(settings.ownerKdf.salt),
+    },
+    ownerPassphraseWrappedKey: serializeCryptoEnvelope(settings.ownerPassphraseWrappedKey),
+  });
+});
+
+export const cryptoPlanIdentity = httpAction(async (ctx, request) => {
+  if (request.method !== 'GET') return jsonResponse({ error: 'Method not allowed' }, 405);
+  const authResult = await authenticateRequest(ctx, request);
+  if (authResult instanceof Response) return authResult;
+  const token = new URL(request.url).searchParams.get('token');
+  if (!token) return jsonResponse({ error: 'Missing plan token' }, 400);
+  const plan = await ctx.runQuery(internal.cli.findPlanByOwnerAndLocalToken, {
+    ownerId: authResult.ownerId,
+    localPlanToken: token,
+  });
+  return jsonResponse(
+    plan
+      ? {
+          found: true,
+          stableCryptoId: plan.stableCryptoId,
+          keyEpoch: plan.keyEpoch,
+          updatedAt: plan.updatedAt,
+        }
+      : { found: false },
+  );
+});
+
 export const sync = httpAction(async (ctx, request) => {
   if (request.method !== 'POST') {
     return jsonResponse({ error: 'Method not allowed' }, 405);
@@ -566,6 +841,9 @@ export const sync = httpAction(async (ctx, request) => {
     }
 
     const body = await request.json();
+    const cryptoSettings = await ctx.runQuery(internal.cli.getWorkspaceCryptoForCli, {
+      userId: ownerId,
+    });
     const privacyPreferences = await ctx.runQuery(internal.account.getPrivacyPreferencesForOwner, {
       ownerId,
     });
@@ -595,6 +873,50 @@ export const sync = httpAction(async (ctx, request) => {
         validIdentityStrength(body.identityStrength) === undefined)
     ) {
       return jsonResponse({ error: 'Invalid optional field types' }, 400);
+    }
+
+    if (cryptoSettings) {
+      try {
+        if (
+          body.cryptoProtocol !== 1 ||
+          typeof body.stableCryptoId !== 'string' ||
+          typeof body.versionStableCryptoId !== 'string' ||
+          typeof body.keyEpoch !== 'number' ||
+          typeof body.contentToken !== 'string' ||
+          typeof body.localPlanToken !== 'string' ||
+          typeof body.lowValue !== 'boolean'
+        ) {
+          return jsonResponse({ error: 'Encrypted sync payload is incomplete' }, 426);
+        }
+        const result = await ctx.runMutation(internal.cli.upsertEncryptedPlan, {
+          ownerId,
+          agent: body.agent,
+          format: body.format,
+          createdAt: body.createdAt,
+          updatedAt: body.updatedAt,
+          clientCryptoProtocol: body.cryptoProtocol,
+          stableCryptoId: body.stableCryptoId,
+          keyEpoch: body.keyEpoch,
+          encryptedSummary: deserializeCryptoEnvelope(body.encryptedSummary),
+          encryptedBody: deserializeCryptoEnvelope(body.encryptedBody),
+          versionStableCryptoId: body.versionStableCryptoId,
+          encryptedVersionSummary: deserializeCryptoEnvelope(body.encryptedVersionSummary),
+          encryptedVersionBody: deserializeCryptoEnvelope(body.encryptedVersionBody),
+          contentToken: body.contentToken,
+          localPlanToken: body.localPlanToken,
+          syncIdentityToken:
+            typeof body.syncIdentityToken === 'string' ? body.syncIdentityToken : undefined,
+          continuityToken:
+            typeof body.continuityToken === 'string' ? body.continuityToken : undefined,
+          lowValue: body.lowValue,
+          identityVersion: body.identityVersion,
+          identityStrength: body.identityStrength,
+        });
+        return jsonResponse({ ok: true, ...result });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Encrypted sync failed';
+        return jsonResponse({ error: message.slice(0, 200) }, 409);
+      }
     }
 
     const incomingMetadata =
@@ -790,9 +1112,37 @@ export const upsertHeartbeat = internalMutation({
     ipAddress: v.optional(v.union(v.string(), v.null())),
     startedAtMs: v.optional(v.number()),
     pid: v.optional(v.number()),
+    cryptoUnlocked: v.optional(v.boolean()),
+    clientCryptoProtocol: v.optional(v.number()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedHostname: v.optional(cryptoEnvelopeV1),
+    encryptedIpAddress: v.optional(cryptoEnvelopeV1),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const cryptoPolicy = await resolveWorkspaceCryptoPolicy(ctx, args.ownerId);
+    if (cryptoPolicy.requiresEncryption) {
+      if (args.hostname !== undefined || args.ipAddress !== undefined) {
+        throw new ConvexError('Plaintext heartbeat metadata is not allowed');
+      }
+      if (
+        args.clientCryptoProtocol !== 1 ||
+        !args.stableCryptoId ||
+        args.keyEpoch !== cryptoPolicy.activeKeyEpoch
+      ) {
+        throw new ConvexError('Encrypted heartbeat metadata is incomplete');
+      }
+      for (const value of [args.encryptedHostname, args.encryptedIpAddress]) {
+        if (value)
+          validateEncryptedWrite({
+            policy: cryptoPolicy,
+            clientProtocol: args.clientCryptoProtocol,
+            envelopes: [value],
+            plaintext: {},
+          });
+      }
+    }
 
     let existing: Doc<'daemonHeartbeats'> | null = null;
 
@@ -845,6 +1195,15 @@ export const upsertHeartbeat = internalMutation({
     if (args.ipAddress !== undefined) patch.ipAddress = args.ipAddress ?? undefined;
     if (args.startedAtMs !== undefined) patch.startedAtMs = args.startedAtMs;
     if (args.pid !== undefined) patch.pid = args.pid;
+    if (args.cryptoUnlocked !== undefined) patch.cryptoUnlocked = args.cryptoUnlocked;
+    if (cryptoPolicy.requiresEncryption) {
+      patch.hostname = undefined;
+      patch.ipAddress = undefined;
+      patch.stableCryptoId = args.stableCryptoId;
+      patch.keyEpoch = args.keyEpoch;
+      if (args.encryptedHostname) patch.encryptedHostname = args.encryptedHostname;
+      if (args.encryptedIpAddress) patch.encryptedIpAddress = args.encryptedIpAddress;
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, patch);
@@ -858,6 +1217,13 @@ export const upsertHeartbeat = internalMutation({
         ...(args.ipAddress ? { ipAddress: args.ipAddress } : {}),
         ...(args.startedAtMs !== undefined && { startedAtMs: args.startedAtMs }),
         ...(args.pid !== undefined && { pid: args.pid }),
+        ...(args.cryptoUnlocked !== undefined && { cryptoUnlocked: args.cryptoUnlocked }),
+        ...(cryptoPolicy.requiresEncryption && {
+          stableCryptoId: args.stableCryptoId,
+          keyEpoch: args.keyEpoch,
+          encryptedHostname: args.encryptedHostname,
+          encryptedIpAddress: args.encryptedIpAddress,
+        }),
       });
     }
   },
@@ -977,6 +1343,17 @@ export const heartbeat = httpAction(async (ctx, request) => {
   const ipAddress = privacyPreferences.collectLocalIpAddress === false ? null : rawIpAddress;
   const startedAtMs = typeof body.startedAtMs === 'number' ? body.startedAtMs : undefined;
   const pid = typeof body.pid === 'number' ? body.pid : undefined;
+  const cryptoUnlocked = typeof body.cryptoUnlocked === 'boolean' ? body.cryptoUnlocked : undefined;
+  const cryptoSettings = await ctx.runQuery(internal.cli.getWorkspaceCryptoForCli, {
+    userId: ownerId,
+  });
+
+  if (
+    cryptoSettings &&
+    (hostname !== undefined || (rawIpAddress !== null && rawIpAddress !== undefined))
+  ) {
+    return jsonResponse({ error: 'Upgrade required for encrypted heartbeat metadata' }, 426);
+  }
 
   if (!deviceId) {
     console.warn('[heartbeat] received heartbeat without deviceId — upgrade CLI to latest version');
@@ -989,6 +1366,18 @@ export const heartbeat = httpAction(async (ctx, request) => {
     ipAddress,
     startedAtMs,
     pid,
+    cryptoUnlocked,
+    clientCryptoProtocol: typeof body.cryptoProtocol === 'number' ? body.cryptoProtocol : undefined,
+    stableCryptoId: typeof body.stableCryptoId === 'string' ? body.stableCryptoId : undefined,
+    keyEpoch: typeof body.keyEpoch === 'number' ? body.keyEpoch : undefined,
+    encryptedHostname:
+      body.encryptedHostname !== undefined
+        ? deserializeCryptoEnvelope(body.encryptedHostname)
+        : undefined,
+    encryptedIpAddress:
+      body.encryptedIpAddress !== undefined
+        ? deserializeCryptoEnvelope(body.encryptedIpAddress)
+        : undefined,
   });
 
   return jsonResponse({ ok: true });
@@ -1049,7 +1438,14 @@ export const plannotatorWritebacks = httpAction(async (ctx, request) => {
     limit,
   });
 
-  return jsonResponse({ writebacks });
+  return jsonResponse({
+    writebacks: writebacks.map((writeback) => ({
+      ...writeback,
+      ...(writeback.encryptedWriteback
+        ? { encryptedWriteback: serializeCryptoEnvelope(writeback.encryptedWriteback) }
+        : {}),
+    })),
+  });
 });
 
 export const plannotatorWritebackReport = httpAction(async (ctx, request) => {
@@ -1160,6 +1556,7 @@ const PLAN_BROWSE_SEARCH_MAX_RESULTS = 50;
 function serializeDownloadPlan(plan: Doc<'plans'>) {
   return {
     id: plan._id,
+    ownerId: plan.ownerId,
     ...(typeof plan.localPlanId === 'string' && { localPlanId: plan.localPlanId }),
     agent: plan.agent,
     title: plan.title,
@@ -1169,17 +1566,32 @@ function serializeDownloadPlan(plan: Doc<'plans'>) {
     ...(typeof plan.workspace === 'string' && { workspace: plan.workspace }),
     createdAt: new Date(plan.createdAt).toISOString(),
     updatedAt: new Date(plan.updatedAt).toISOString(),
+    ...(plan.stableCryptoId && { stableCryptoId: plan.stableCryptoId }),
+    ...(plan.keyEpoch && { keyEpoch: plan.keyEpoch }),
+    ...(plan.encryptedSummary && {
+      encryptedSummary: serializeCryptoEnvelope(plan.encryptedSummary),
+    }),
+    ...(plan.encryptedBody && { encryptedBody: serializeCryptoEnvelope(plan.encryptedBody) }),
   };
 }
 
 function serializeDownloadMatch(plan: Doc<'plans'>) {
-  return serializeDownloadMatchFromCandidate(toLookupCandidate(plan));
+  return {
+    ...serializeDownloadMatchFromCandidate(toLookupCandidate(plan)),
+    ownerId: plan.ownerId,
+    ...(plan.stableCryptoId && { stableCryptoId: plan.stableCryptoId }),
+    ...(plan.keyEpoch && { keyEpoch: plan.keyEpoch }),
+    ...(plan.encryptedSummary && {
+      encryptedSummary: serializeCryptoEnvelope(plan.encryptedSummary),
+    }),
+  };
 }
 
 function toLookupCandidate(plan: Doc<'plans'>): PlanDownloadLookupCandidate {
   return {
     id: plan._id,
-    ...(typeof plan.localPlanId === 'string' && { localPlanId: plan.localPlanId }),
+    ...(typeof plan.localPlanId === 'string' &&
+      plan.localPlanId && { localPlanId: plan.localPlanId }),
     agent: plan.agent,
     title: plan.title,
     updatedAt: plan.updatedAt,
@@ -1505,6 +1917,18 @@ const browsePlanMatchValidator = v.object({
   updatedAt: v.string(),
   createdAt: v.optional(v.string()),
   dedupeKeys: v.array(v.string()),
+  ownerId: v.string(),
+  stableCryptoId: v.optional(v.string()),
+  keyEpoch: v.optional(v.number()),
+  encryptedSummary: v.optional(
+    v.object({
+      v: v.literal(1),
+      alg: v.literal('xchacha20poly1305'),
+      keyEpoch: v.number(),
+      nonce: v.string(),
+      ciphertext: v.string(),
+    }),
+  ),
 });
 
 export const listPlansForBrowse = internalQuery({
@@ -1521,6 +1945,7 @@ export const listPlansForBrowse = internalQuery({
   }),
   handler: async (ctx, args) => {
     const ownerId = await resolvePublishedPlansOwnerId(ctx, args.userId);
+    const cryptoPolicy = await resolveWorkspaceCryptoPolicy(ctx, ownerId);
     const query = args.query?.trim() ?? '';
     const agent = args.agent?.trim() || undefined;
 
@@ -1537,7 +1962,7 @@ export const listPlansForBrowse = internalQuery({
 
     // Title search ranks the first page only. Completeness comes from owner
     // pagination so a 50-hit search result cannot hide later matches.
-    if (query && !args.cursor) {
+    if (query && !args.cursor && !cryptoPolicy.requiresEncryption) {
       try {
         addHits(
           await ctx.db
@@ -1560,6 +1985,27 @@ export const listPlansForBrowse = internalQuery({
       });
     addHits(page.page);
 
+    if (cryptoPolicy.requiresEncryption) {
+      const encryptedPlans = page.page
+        .filter((plan) => isVisiblePlan(plan) && (!agent || planAgentsMatch(plan.agent, agent)))
+        .map((plan) => ({
+          ...serializeDownloadMatch(plan),
+          createdAt: new Date(plan._creationTime).toISOString(),
+          dedupeKeys: [
+            plan.localPlanToken,
+            plan.syncIdentityToken,
+            plan.continuityToken,
+            plan.contentToken,
+            plan._id,
+          ].filter((value): value is string => Boolean(value)),
+        }));
+      return {
+        plans: encryptedPlans,
+        continueCursor: page.isDone ? null : page.continueCursor,
+        isDone: page.isDone,
+      };
+    }
+
     // Filter before dedupe: a fresher duplicate whose title no longer
     // matches the query must not swallow the older row that does match.
     const allCandidates = candidates.map(toLookupCandidate);
@@ -1577,6 +2023,7 @@ export const listPlansForBrowse = internalQuery({
     return {
       plans: deduped.map(({ plan, dedupeKeys }) => ({
         ...serializeDownloadMatchFromCandidate(plan),
+        ownerId,
         ...(typeof plan.createdAt === 'number' && {
           createdAt: new Date(plan.createdAt).toISOString(),
         }),

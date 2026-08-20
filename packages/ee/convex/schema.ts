@@ -70,6 +70,65 @@ const planTextAnchor = v.object({
   contentHash: v.optional(v.string()),
 });
 
+export const cryptoEnvelopeV1 = v.object({
+  v: v.literal(1),
+  alg: v.literal('xchacha20poly1305'),
+  keyEpoch: v.number(),
+  nonce: v.bytes(),
+  ciphertext: v.bytes(),
+});
+
+const scryptKdfParamsV1 = v.object({
+  v: v.literal(1),
+  alg: v.literal('scrypt'),
+  salt: v.bytes(),
+  N: v.number(),
+  r: v.number(),
+  p: v.number(),
+  dkLen: v.literal(32),
+  maxmem: v.number(),
+});
+
+const argon2idKdfParamsV1 = v.object({
+  v: v.literal(1),
+  alg: v.literal('argon2id'),
+  salt: v.bytes(),
+  memorySize: v.number(),
+  iterations: v.number(),
+  parallelism: v.number(),
+  dkLen: v.literal(32),
+});
+
+export const passphraseKdfParamsV1 = v.union(scryptKdfParamsV1, argon2idKdfParamsV1);
+
+const workspaceCryptoState = v.union(
+  v.literal('disabled'),
+  v.literal('preparing'),
+  v.literal('sealing'),
+  v.literal('sealed'),
+  v.literal('rotating'),
+  v.literal('failed'),
+);
+
+const workspaceCryptoOperation = v.object({
+  id: v.string(),
+  kind: v.union(v.literal('seal'), v.literal('rotate')),
+  phase: v.string(),
+  cursor: v.optional(v.string()),
+  processed: v.number(),
+  total: v.optional(v.number()),
+  lastStableCryptoId: v.optional(v.string()),
+  auditTable: v.optional(v.string()),
+  lastError: v.optional(v.string()),
+  leaseId: v.optional(v.string()),
+  leaseExpiresAt: v.optional(v.number()),
+  heartbeatAt: v.optional(v.number()),
+  startedAt: v.number(),
+  updatedAt: v.number(),
+  fromEpoch: v.optional(v.number()),
+  targetEpoch: v.number(),
+});
+
 export default defineSchema({
   plans: defineTable({
     ownerId: v.string(),
@@ -84,8 +143,17 @@ export default defineSchema({
     plannotatorContinuityKey: v.optional(v.string()),
     syncIdentityKey: v.optional(v.string()),
     contentHash: v.optional(v.string()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedSummary: v.optional(cryptoEnvelopeV1),
+    encryptedBody: v.optional(cryptoEnvelopeV1),
+    contentToken: v.optional(v.string()),
+    localPlanToken: v.optional(v.string()),
+    syncIdentityToken: v.optional(v.string()),
+    continuityToken: v.optional(v.string()),
     identityVersion: v.optional(v.number()),
     identityStrength: v.optional(v.string()),
+    lowValue: v.optional(v.boolean()),
     version: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -93,9 +161,13 @@ export default defineSchema({
     .index('by_owner', ['ownerId'])
     .index('by_owner_and_agent', ['ownerId', 'agent'])
     .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
+    .index('by_owner_localPlanToken', ['ownerId', 'localPlanToken'])
     .index('by_owner_plannotatorContinuityKey', ['ownerId', 'plannotatorContinuityKey'])
     .index('by_owner_syncIdentityKey', ['ownerId', 'syncIdentityKey'])
     .index('by_owner_contentHash', ['ownerId', 'contentHash'])
+    .index('by_owner_contentToken', ['ownerId', 'contentToken'])
+    .index('by_owner_syncIdentityToken', ['ownerId', 'syncIdentityToken'])
+    .index('by_owner_continuityToken', ['ownerId', 'continuityToken'])
     // Server-side content search for the plan list. The list query no longer
     // ships `content` to clients, so full-text matching has to happen here.
     .searchIndex('search_content', {
@@ -109,6 +181,7 @@ export default defineSchema({
     }),
 
   shareLinks: defineTable({
+    ownerId: v.optional(v.string()),
     planId: v.id('plans'),
     token: v.string(),
     createdBy: v.string(),
@@ -116,9 +189,11 @@ export default defineSchema({
     passwordHash: v.optional(v.string()),
   })
     .index('by_token', ['token'])
-    .index('by_plan', ['planId']),
+    .index('by_plan', ['planId'])
+    .index('by_owner', ['ownerId']),
 
   planAnnotations: defineTable({
+    ownerId: v.optional(v.string()),
     planId: v.id('plans'),
     authorId: v.string(),
     authorName: v.string(),
@@ -133,12 +208,17 @@ export default defineSchema({
     submittedAt: v.optional(v.number()),
     resolvedAt: v.optional(v.number()),
     writebackId: v.optional(v.id('plannotatorWritebacks')),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedAnnotation: v.optional(cryptoEnvelopeV1),
   })
     .index('by_plan', ['planId'])
+    .index('by_owner', ['ownerId'])
     .index('by_plan_status', ['planId', 'status'])
     .index('by_author_plan', ['authorId', 'planId']),
 
   comments: defineTable({
+    ownerId: v.optional(v.string()),
     planId: v.id('plans'),
     authorId: v.string(),
     authorName: v.string(),
@@ -151,12 +231,21 @@ export default defineSchema({
           fileName: v.optional(v.string()),
           contentType: v.string(),
           size: v.number(),
+          encrypted: v.optional(v.boolean()),
+          keyEpoch: v.optional(v.number()),
+          stableCryptoId: v.optional(v.string()),
         }),
       ),
     ),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-  }).index('by_plan', ['planId']),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedComment: v.optional(cryptoEnvelopeV1),
+    encryptedAttachments: v.optional(cryptoEnvelopeV1),
+  })
+    .index('by_plan', ['planId'])
+    .index('by_owner', ['ownerId']),
 
   planLinks: defineTable({
     ownerId: v.string(),
@@ -165,6 +254,9 @@ export default defineSchema({
     value: v.string(),
     url: v.optional(v.string()),
     createdAt: v.number(),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedLink: v.optional(cryptoEnvelopeV1),
   })
     .index('by_plan', ['planId'])
     .index('by_owner_plan', ['ownerId', 'planId']),
@@ -245,6 +337,14 @@ export default defineSchema({
     createdAt: v.number(),
     acceptedAt: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
+    inviteSecretCommitment: v.optional(v.string()),
+    encryptedInviteSecret: v.optional(cryptoEnvelopeV1),
+    cryptoProtocol: v.optional(v.number()),
+    pendingMemberId: v.optional(v.string()),
+    memberPublicKey: v.optional(v.bytes()),
+    enrollmentProof: v.optional(v.string()),
+    approvalRequestedAt: v.optional(v.number()),
+    approvedAt: v.optional(v.number()),
   })
     .index('by_workspace', ['workspaceOwnerId'])
     .index('by_emailLc', ['emailLc'])
@@ -270,6 +370,10 @@ export default defineSchema({
       ),
     ),
     createdAt: v.number(),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedSummary: v.optional(cryptoEnvelopeV1),
+    encryptedBody: v.optional(cryptoEnvelopeV1),
   })
     .index('by_plan', ['planId'])
     .index('by_plan_version', ['planId', 'version'])
@@ -281,9 +385,14 @@ export default defineSchema({
     nameLc: v.string(),
     color: v.optional(v.string()),
     createdAt: v.number(),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedName: v.optional(cryptoEnvelopeV1),
+    nameToken: v.optional(v.string()),
   })
     .index('by_owner', ['ownerId'])
-    .index('by_owner_nameLc', ['ownerId', 'nameLc']),
+    .index('by_owner_nameLc', ['ownerId', 'nameLc'])
+    .index('by_owner_nameToken', ['ownerId', 'nameToken']),
 
   planTags: defineTable({
     ownerId: v.string(),
@@ -303,9 +412,15 @@ export default defineSchema({
     description: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedName: v.optional(cryptoEnvelopeV1),
+    encryptedDescription: v.optional(cryptoEnvelopeV1),
+    nameToken: v.optional(v.string()),
   })
     .index('by_owner', ['ownerId'])
-    .index('by_owner_nameLc', ['ownerId', 'nameLc']),
+    .index('by_owner_nameLc', ['ownerId', 'nameLc'])
+    .index('by_owner_nameToken', ['ownerId', 'nameToken']),
 
   collectionPlans: defineTable({
     ownerId: v.string(),
@@ -314,6 +429,7 @@ export default defineSchema({
     position: v.optional(v.number()),
     createdAt: v.number(),
   })
+    .index('by_owner', ['ownerId'])
     .index('by_collection', ['collectionId'])
     .index('by_plan', ['planId'])
     .index('by_collection_plan', ['collectionId', 'planId']),
@@ -335,6 +451,9 @@ export default defineSchema({
     agent: v.string(),
     storageId: v.id('_storage'),
     updatedAt: v.number(),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encrypted: v.optional(v.boolean()),
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_agent', ['ownerId', 'agent'])
@@ -358,6 +477,11 @@ export default defineSchema({
     ipAddress: v.optional(v.string()),
     startedAtMs: v.optional(v.number()),
     pid: v.optional(v.number()),
+    cryptoUnlocked: v.optional(v.boolean()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedHostname: v.optional(cryptoEnvelopeV1),
+    encryptedIpAddress: v.optional(cryptoEnvelopeV1),
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_device', ['ownerId', 'deviceId']),
@@ -384,9 +508,14 @@ export default defineSchema({
     updatedAt: v.number(),
     expiresAt: v.number(),
     sentAt: v.optional(v.number()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedWriteback: v.optional(cryptoEnvelopeV1),
+    localPlanToken: v.optional(v.string()),
   })
     .index('by_owner_status', ['ownerId', 'status'])
     .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
+    .index('by_owner_localPlanToken', ['ownerId', 'localPlanToken'])
     .index('by_owner_device_status', ['ownerId', 'deviceId', 'status'])
     .index('by_plan', ['planId']),
 
@@ -405,8 +534,67 @@ export default defineSchema({
     error: v.optional(v.string()),
     byteSize: v.optional(v.number()),
     fileName: v.optional(v.string()),
+    encryptedBackup: v.optional(v.boolean()),
+    keyEpoch: v.optional(v.number()),
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_status', ['ownerId', 'status'])
     .index('by_expiresAt', ['expiresAt']),
+
+  workspaceCryptoSettings: defineTable({
+    ownerId: v.string(),
+    state: workspaceCryptoState,
+    requestedAt: v.optional(v.number()),
+    enabledAt: v.optional(v.number()),
+    recoveryVerifiedAt: v.optional(v.number()),
+    recoveryProofCommitment: v.string(),
+    activeKeyEpoch: v.number(),
+    cryptoFormat: v.literal(1),
+    ownerKdf: passphraseKdfParamsV1,
+    ownerPassphraseWrappedKey: cryptoEnvelopeV1,
+    ownerRecoveryWrappedKey: cryptoEnvelopeV1,
+    previousKeyEpoch: v.optional(v.number()),
+    previousOwnerKdf: v.optional(passphraseKdfParamsV1),
+    previousOwnerPassphraseWrappedKey: v.optional(cryptoEnvelopeV1),
+    previousOwnerRecoveryWrappedKey: v.optional(cryptoEnvelopeV1),
+    minimumClientProtocol: v.number(),
+    operation: v.optional(workspaceCryptoOperation),
+    lastAuditAt: v.optional(v.number()),
+    lastAuditClean: v.optional(v.boolean()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_state', ['state']),
+
+  memberCryptoIdentities: defineTable({
+    userId: v.string(),
+    publicKey: v.bytes(),
+    encryptedPrivateKey: cryptoEnvelopeV1,
+    recoveryWrappedPrivateKey: cryptoEnvelopeV1,
+    kdf: passphraseKdfParamsV1,
+    keyVersion: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    revokedAt: v.optional(v.number()),
+    inviteId: v.optional(v.id('workspaceInvites')),
+  }).index('by_user', ['userId']),
+
+  workspaceKeyGrants: defineTable({
+    workspaceOwnerId: v.string(),
+    memberId: v.string(),
+    inviteId: v.optional(v.id('workspaceInvites')),
+    keyEpoch: v.number(),
+    kem: v.literal('DHKEM(X25519, HKDF-SHA256)'),
+    kdf: v.literal('HKDF-SHA256'),
+    aead: v.literal('ChaCha20Poly1305'),
+    encapsulatedKey: v.bytes(),
+    ciphertext: v.bytes(),
+    createdAt: v.number(),
+    revokedAt: v.optional(v.number()),
+  })
+    .index('by_workspace', ['workspaceOwnerId'])
+    .index('by_member', ['memberId'])
+    .index('by_workspace_member', ['workspaceOwnerId', 'memberId'])
+    .index('by_workspace_member_epoch', ['workspaceOwnerId', 'memberId', 'keyEpoch']),
 });

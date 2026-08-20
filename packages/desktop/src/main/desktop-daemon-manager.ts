@@ -71,6 +71,10 @@ export class DesktopDaemonManager {
   private externalDaemonPid: number | null = null;
   private restartAttempts = 0;
   private latestCredentials: CloudCreds | null = null;
+  private latestWorkspaceKey: Extract<
+    DesktopDaemonParentMessage,
+    { type: 'workspace-key-updated' }
+  > | null = null;
   private readonly daemonConfigDir: string;
   private readonly timings: DesktopDaemonTimings;
   private state: DesktopDaemonState = { status: 'idle' };
@@ -135,6 +139,16 @@ export class DesktopDaemonManager {
     }
   }
 
+  updateWorkspaceKey(workspaceOwnerId: string, keyEpoch: number, keyBase64: string | null): void {
+    this.latestWorkspaceKey = {
+      type: 'workspace-key-updated',
+      workspaceOwnerId,
+      keyEpoch,
+      keyBase64,
+    };
+    if (this.child) this.postTo(this.child, this.latestWorkspaceKey);
+  }
+
   getState(): DesktopDaemonState {
     return { ...this.state };
   }
@@ -151,6 +165,7 @@ export class DesktopDaemonManager {
     this.stopping = true;
     this.setState({ status: 'stopping' });
     this.latestCredentials = null;
+    this.latestWorkspaceKey = null;
     this.restartAttempts = 0;
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
@@ -379,7 +394,9 @@ export class DesktopDaemonManager {
           }
           if (!this.postTo(child, { type: 'start', credentials, parentPid: process.pid })) {
             child.kill();
+            return;
           }
+          if (this.latestWorkspaceKey) this.postTo(child, this.latestWorkspaceKey);
         });
         child.once('exit', (code) => {
           clearBootWait();

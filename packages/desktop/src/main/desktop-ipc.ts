@@ -40,6 +40,19 @@ type RegisterDesktopIpcDeps = {
   readonly clearPendingDesktopAuthLogin: () => void;
   readonly createPendingLoginCompletion: (state: string, expiresAtMs?: number) => Promise<boolean>;
   readonly clearCloudCreds: () => void;
+  readonly clearAllObfuscationKeys?: () => void;
+  readonly storeObfuscationKey?: (
+    workspaceOwnerId: string,
+    keyEpoch: number,
+    keyBase64: string,
+  ) => boolean;
+  readonly loadObfuscationKey?: (workspaceOwnerId: string, keyEpoch: number) => string | null;
+  readonly clearObfuscationKey?: (workspaceOwnerId: string, keyEpoch: number) => void;
+  readonly updateDaemonWorkspaceKey?: (
+    workspaceOwnerId: string,
+    keyEpoch: number,
+    keyBase64: string | null,
+  ) => void;
   readonly getAuthSessionGeneration: () => number;
   readonly isAuthSessionGenerationCurrent: (generation: number) => boolean;
   readonly invalidateAuthSession: () => void;
@@ -162,6 +175,44 @@ export function registerDesktopIpc(deps: RegisterDesktopIpcDeps): void {
     return handleDesktopAuthFetch({ loadCloudCreds: deps.loadCloudCreds }, url, init);
   });
 
+  if (deps.storeObfuscationKey && deps.loadObfuscationKey && deps.clearObfuscationKey) {
+    deps.ipcMain.handle(
+      'agendex:obfuscation:store-key',
+      (_event, workspaceOwnerId: unknown, keyEpoch: unknown, keyBase64: unknown) => {
+        if (
+          typeof workspaceOwnerId !== 'string' ||
+          !workspaceOwnerId.trim() ||
+          typeof keyEpoch !== 'number' ||
+          !Number.isSafeInteger(keyEpoch) ||
+          keyEpoch < 1 ||
+          typeof keyBase64 !== 'string' ||
+          !/^[A-Za-z0-9+/]{43}=$/.test(keyBase64)
+        ) {
+          return false;
+        }
+        const stored = deps.storeObfuscationKey?.(workspaceOwnerId, keyEpoch, keyBase64) ?? false;
+        if (stored) deps.updateDaemonWorkspaceKey?.(workspaceOwnerId, keyEpoch, keyBase64);
+        return stored;
+      },
+    );
+    deps.ipcMain.handle(
+      'agendex:obfuscation:load-key',
+      (_event, workspaceOwnerId: unknown, keyEpoch: unknown) => {
+        if (typeof workspaceOwnerId !== 'string' || typeof keyEpoch !== 'number') return null;
+        return deps.loadObfuscationKey?.(workspaceOwnerId, keyEpoch) ?? null;
+      },
+    );
+    deps.ipcMain.handle(
+      'agendex:obfuscation:clear-key',
+      (_event, workspaceOwnerId: unknown, keyEpoch: unknown) => {
+        if (typeof workspaceOwnerId !== 'string' || typeof keyEpoch !== 'number') return false;
+        deps.clearObfuscationKey?.(workspaceOwnerId, keyEpoch);
+        deps.updateDaemonWorkspaceKey?.(workspaceOwnerId, keyEpoch, null);
+        return true;
+      },
+    );
+  }
+
   deps.ipcMain.on('agendex:qa-bootstrap-observed', (_event, payload: unknown) => {
     deps.writeQaBootstrapEvidence(payload);
   });
@@ -174,6 +225,7 @@ export function registerDesktopIpc(deps: RegisterDesktopIpcDeps): void {
     deps.invalidateAuthSession();
     deps.clearPendingDesktopAuthLogin();
     await deps.stopDesktopDaemon();
+    deps.clearAllObfuscationKeys?.();
     deps.clearCloudCreds();
     return true;
   });

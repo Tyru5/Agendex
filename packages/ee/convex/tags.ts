@@ -4,6 +4,8 @@ import { internal } from './_generated/api';
 import { internalMutation, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { cryptoEnvelopeV1 } from './schema';
+import { resolveWorkspaceCryptoPolicy, validateEncryptedWrite } from './workspaceCrypto';
 
 export const listMyTags = query({
   args: {},
@@ -21,35 +23,74 @@ export const listMyTags = query({
 });
 
 export const createTag = mutation({
-  args: { name: v.string(), color: v.optional(v.string()) },
+  args: {
+    name: v.string(),
+    color: v.optional(v.string()),
+    clientCryptoProtocol: v.optional(v.number()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedName: v.optional(cryptoEnvelopeV1),
+    nameToken: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
 
-    const nameLc = args.name.trim().toLowerCase();
-    if (!nameLc) throw new ConvexError('Tag name cannot be empty');
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
+    const encrypted = policy.requiresEncryption;
+    validateEncryptedWrite({
+      policy,
+      clientProtocol: args.clientCryptoProtocol,
+      envelopes: args.encryptedName ? [args.encryptedName] : [],
+      plaintext: { name: args.name },
+    });
+    if (encrypted && (!args.stableCryptoId || !args.nameToken || args.keyEpoch === undefined)) {
+      throw new ConvexError('Encrypted tag metadata is required');
+    }
+
+    const nameLc = encrypted ? '' : args.name.trim().toLowerCase();
+    if (!encrypted && !nameLc) throw new ConvexError('Tag name cannot be empty');
 
     const existing = await ctx.db
       .query('tags')
-      .withIndex('by_owner_nameLc', (q) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
+      .withIndex(encrypted ? 'by_owner_nameToken' : 'by_owner_nameLc', (q) =>
+        encrypted
+          ? q.eq('ownerId', user._id).eq('nameToken', args.nameToken)
+          : q.eq('ownerId', user._id).eq('nameLc', nameLc),
+      )
       .first();
 
     if (existing) throw new ConvexError('A tag with this name already exists');
 
     return await ctx.db.insert('tags', {
       ownerId: user._id,
-      name: args.name.trim(),
+      name: encrypted ? '' : args.name.trim(),
       nameLc,
       color: args.color,
       createdAt: Date.now(),
+      ...(encrypted
+        ? {
+            stableCryptoId: args.stableCryptoId,
+            keyEpoch: args.keyEpoch,
+            encryptedName: args.encryptedName,
+            nameToken: args.nameToken,
+          }
+        : {}),
     });
   },
 });
 
 export const renameTag = mutation({
-  args: { tagId: v.id('tags'), name: v.string() },
+  args: {
+    tagId: v.id('tags'),
+    name: v.string(),
+    clientCryptoProtocol: v.optional(v.number()),
+    keyEpoch: v.optional(v.number()),
+    encryptedName: v.optional(cryptoEnvelopeV1),
+    nameToken: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -59,19 +100,45 @@ export const renameTag = mutation({
     const tag = await ctx.db.get(args.tagId);
     if (!tag || tag.ownerId !== user._id) throw new ConvexError('Tag not found');
 
-    const nameLc = args.name.trim().toLowerCase();
-    if (!nameLc) throw new ConvexError('Tag name cannot be empty');
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
+    const encrypted = policy.requiresEncryption;
+    validateEncryptedWrite({
+      policy,
+      clientProtocol: args.clientCryptoProtocol,
+      envelopes: args.encryptedName ? [args.encryptedName] : [],
+      plaintext: { name: args.name },
+    });
+    if (encrypted && (!tag.stableCryptoId || !args.nameToken || args.keyEpoch === undefined)) {
+      throw new ConvexError('Encrypted tag metadata is required');
+    }
+
+    const nameLc = encrypted ? '' : args.name.trim().toLowerCase();
+    if (!encrypted && !nameLc) throw new ConvexError('Tag name cannot be empty');
 
     const existing = await ctx.db
       .query('tags')
-      .withIndex('by_owner_nameLc', (q) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
+      .withIndex(encrypted ? 'by_owner_nameToken' : 'by_owner_nameLc', (q) =>
+        encrypted
+          ? q.eq('ownerId', user._id).eq('nameToken', args.nameToken)
+          : q.eq('ownerId', user._id).eq('nameLc', nameLc),
+      )
       .first();
 
     if (existing && existing._id !== args.tagId) {
       throw new ConvexError('A tag with this name already exists');
     }
 
-    await ctx.db.patch(args.tagId, { name: args.name.trim(), nameLc });
+    await ctx.db.patch(args.tagId, {
+      name: encrypted ? '' : args.name.trim(),
+      nameLc,
+      ...(encrypted
+        ? {
+            keyEpoch: args.keyEpoch,
+            encryptedName: args.encryptedName,
+            nameToken: args.nameToken,
+          }
+        : {}),
+    });
   },
 });
 

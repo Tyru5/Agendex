@@ -1,6 +1,11 @@
 import { api } from '@convex/_generated/api';
-import { useMutation, useQuery } from 'convex/react';
+import { useConvex, useMutation, useQuery } from 'convex/react';
 import { useEffect, useRef, useState } from 'react';
+import { useWorkspaceCryptoStatus } from '../../hooks/useCloudMetadataCrypto.ts';
+import {
+  downloadEncryptedObfuscationBackup,
+  downloadReadableObfuscationExport,
+} from '../../lib/readable-obfuscation-export.ts';
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[20px] font-semibold text-text mb-4">{children}</h2>;
@@ -24,9 +29,13 @@ function triggerDownload(url: string, fileName: string) {
 }
 
 export function DataExportSection() {
-  const exportStatus = useQuery(api.dataExport.getMyDataExport, {});
+  const cryptoStatus = useWorkspaceCryptoStatus();
+  const convex = useConvex();
+  const clientSideExport = Boolean(cryptoStatus?.settings);
+  const exportStatus = useQuery(api.dataExport.getMyDataExport, clientSideExport ? 'skip' : {});
   const requestExport = useMutation(api.dataExport.requestDataExport);
   const [requesting, setRequesting] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const awaitingExportId = useRef<string | null>(null);
   const downloadedExportId = useRef<string | null>(null);
@@ -60,11 +69,35 @@ export function DataExportSection() {
     setError(null);
     downloadedExportId.current = null;
     try {
+      if (cryptoStatus?.settings) {
+        await downloadReadableObfuscationExport({
+          convex,
+          workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+        });
+        setRequesting(false);
+        return;
+      }
       const { exportId } = await requestExport({});
       awaitingExportId.current = exportId;
     } catch (err) {
       setRequesting(false);
       setError(err instanceof Error ? err.message : 'Unable to start data export. Try again.');
+    }
+  }
+
+  async function startEncryptedBackup() {
+    if (backingUp || !cryptoStatus?.settings) return;
+    setBackingUp(true);
+    setError(null);
+    try {
+      await downloadEncryptedObfuscationBackup({
+        convex,
+        workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create encrypted backup.');
+    } finally {
+      setBackingUp(false);
     }
   }
 
@@ -76,7 +109,11 @@ export function DataExportSection() {
   const sizeLabel = formatBytes(exportStatus?.byteSize ?? null);
   let helperText =
     'Creates a ZIP of your cloud account data (plans, versions, comments, attachments, preferences, and more). OAuth tokens and share-link password hashes are omitted.';
-  if (inFlight && !ready) {
+  if (clientSideExport) {
+    helperText = inFlight
+      ? 'Decrypting and packaging your data on this device…'
+      : 'Creates a readable ZIP on this device. Agendex never receives the decrypted archive.';
+  } else if (inFlight && !ready) {
     helperText = 'Preparing your archive. This can take a minute for large accounts…';
   } else if (ready) {
     helperText = sizeLabel
@@ -102,6 +139,12 @@ export function DataExportSection() {
               <div className="mt-2 text-[12px] text-red-400" role="alert">
                 {error}
               </div>
+            )}
+            {clientSideExport && (
+              <p className="mt-2 max-w-[640px] text-[12px] leading-relaxed text-secondary">
+                The encrypted backup works while locked and preserves ciphertext for recovery or
+                support. Account and service metadata remain plaintext.
+              </p>
             )}
           </div>
           <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
@@ -131,6 +174,16 @@ export function DataExportSection() {
                 className="text-[13px] px-3.5 py-1.5 rounded-xl border border-border bg-transparent text-text cursor-pointer font-medium transition-colors duration-150 hover:bg-hover disabled:opacity-50 disabled:cursor-default"
               >
                 {inFlight ? 'Preparing…' : failed ? 'Retry export' : 'Download my data'}
+              </button>
+            )}
+            {clientSideExport && (
+              <button
+                type="button"
+                onClick={() => void startEncryptedBackup()}
+                disabled={backingUp}
+                className="text-[12px] px-2 py-1 rounded-lg border-0 bg-transparent text-secondary cursor-pointer hover:text-text disabled:opacity-50 disabled:cursor-default"
+              >
+                {backingUp ? 'Preparing encrypted backup…' : 'Download encrypted backup'}
               </button>
             )}
           </div>

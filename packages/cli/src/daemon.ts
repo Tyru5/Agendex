@@ -33,6 +33,7 @@ import {
   sendShutdown,
   syncPlan,
 } from './api.ts';
+import { decryptPlannotatorWritebackJob } from './cloud-crypto.ts';
 import {
   dedupeSyncPayloads,
   DEFAULT_LIVE_SESSION_POLL_MS,
@@ -336,7 +337,7 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
           }
           failedCount++;
           failedPayloads.push(payload);
-          console.error(`[agendex] sync failed for "${payload.title}": ${result.error}`);
+          console.error(`[agendex] sync failed for one plan: ${result.error}`);
         } else {
           if (result.skippedLowValue) {
             lowValueSkippedCount++;
@@ -402,7 +403,7 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
       pushToSyncQueue(endedPayload);
       liveSessions.delete(planId);
       queued = true;
-      console.log(`[agendex] Plannotator session ended: ${endedPayload.title}`);
+      console.log('[agendex] Plannotator session ended');
     }
 
     // Track the current live set (refresh remembered payloads).
@@ -537,7 +538,10 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
     try {
       const writebackScope = getDaemonCloudScope();
       if (!writebackScope) return;
-      const jobs = await fetchPlannotatorWritebacks();
+      const encryptedJobs = await fetchPlannotatorWritebacks();
+      const jobs = (
+        await Promise.all(encryptedJobs.map((job) => decryptPlannotatorWritebackJob(job)))
+      ).filter((job): job is PlannotatorWritebackJob => job !== null);
       if (!writebackScopeIsCurrent(writebackScope)) return;
       for (const job of jobs) {
         if (!writebackScopeIsCurrent(writebackScope)) return;

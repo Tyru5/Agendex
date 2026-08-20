@@ -1,8 +1,10 @@
 import { AGENT_IDS, AgentIcon, getAgentLabel } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { useMemo, useRef, useState } from 'react';
+import { encryptAgentAvatar, useAgentAvatars } from '../../hooks/useAgentAvatars.ts';
+import { useWorkspaceCryptoStatus } from '../../hooks/useCloudMetadataCrypto.ts';
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -85,7 +87,8 @@ function AgentAvatarRow({
 }
 
 export function AgentAvatarsSection() {
-  const avatars = useQuery(api.agentAvatars.listMyAgentAvatars);
+  const avatars = useAgentAvatars();
+  const cryptoStatus = useWorkspaceCryptoStatus();
   const generateUploadUrl = useMutation(api.agentAvatars.generateAgentAvatarUploadUrl);
   const setAgentAvatar = useMutation(api.agentAvatars.setAgentAvatar);
   const removeAgentAvatar = useMutation(api.agentAvatars.removeAgentAvatar);
@@ -128,17 +131,35 @@ export function AgentAvatarsSection() {
 
     setBusyAgent(agent);
     try {
-      const uploadUrl = await generateUploadUrl({});
+      const encrypted = cryptoStatus?.settings
+        ? await encryptAgentAvatar({
+            file,
+            workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+            keyEpoch: cryptoStatus.settings.activeKeyEpoch,
+          })
+        : null;
+      const uploadUrl = await generateUploadUrl(encrypted ? { clientCryptoProtocol: 1 } : {});
       const uploadRes = await fetch(uploadUrl, {
         method: 'POST',
-        headers: { 'Content-Type': file.type },
-        body: file,
+        headers: { 'Content-Type': encrypted ? 'application/octet-stream' : file.type },
+        body: encrypted?.body ?? file,
       });
       if (!uploadRes.ok) {
         throw new Error(`Upload failed (${uploadRes.status})`);
       }
       const { storageId } = (await uploadRes.json()) as { storageId: Id<'_storage'> };
-      await setAgentAvatar({ agent, storageId });
+      await setAgentAvatar({
+        agent,
+        storageId,
+        ...(encrypted
+          ? {
+              clientCryptoProtocol: 1,
+              encrypted: true,
+              stableCryptoId: encrypted.stableCryptoId,
+              keyEpoch: encrypted.keyEpoch,
+            }
+          : {}),
+      });
     } catch (err) {
       console.error('Avatar upload failed', err);
       setError(agent, err instanceof Error ? err.message : 'Upload failed');

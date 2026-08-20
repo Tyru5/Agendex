@@ -97,11 +97,17 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { useAuth } from './hooks/useAuth.ts';
+import { useAgentAvatars } from './hooks/useAgentAvatars.ts';
 import { useHydratedCloudPlan } from './hooks/useCloudPlanContent.ts';
 import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
 import { useUnseenPlanToasts } from './hooks/useUnseenPlanToasts.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useCloudPlanSearch } from './hooks/useCloudPlanSearch.ts';
+import {
+  useCloudCollections,
+  useCloudPlanTags,
+  useCloudTags,
+} from './hooks/useCloudMetadataCrypto.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useDesktopDaemonState } from './hooks/useDesktopDaemonState.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
@@ -351,11 +357,8 @@ function useDashboardData(
   const backendStatus = mode === 'cloud' ? cloudBackendStatus : localBackendStatus;
   const cloudSyncPaused = mode === 'cloud' && daemonStatus === 'stale';
 
-  const allTags = useQuery(api.tags.listMyTags, cloudPlanMetadataEnabled ? {} : 'skip');
-  const allCollections = useQuery(
-    api.collections.listMyCollections,
-    cloudPlanMetadataEnabled ? {} : 'skip',
-  );
+  const allTags = useCloudTags(cloudPlanMetadataEnabled);
+  const allCollections = useCloudCollections(cloudPlanMetadataEnabled);
   const selectedCollectionId = allCollections?.find(
     (collection) => collection._id === selectedCollection,
   )?._id;
@@ -399,16 +402,14 @@ function useDashboardData(
     [plans, mode, cloudPlanState, localPlanState],
   );
 
-  const planTagsMap = useQuery(
-    api.planTags.getTagsForPlans,
-    shouldQueryCloudPlanTags({
-      mode,
-      isPro,
-      selectedTagCount: selectedTags.length,
-      planCount: plans.length,
-    })
-      ? { planIds: plans.map((p) => p.id) as Array<Id<'plans'>> }
-      : 'skip',
+  const shouldLoadPlanTags = shouldQueryCloudPlanTags({
+    mode,
+    isPro,
+    selectedTagCount: selectedTags.length,
+    planCount: plans.length,
+  });
+  const planTagsMap = useCloudPlanTags(
+    shouldLoadPlanTags ? (plans.map((p) => p.id) as Array<Id<'plans'>>) : null,
   );
 
   const collectionPlanIdSet = useMemo(
@@ -790,7 +791,6 @@ function ToolbarOptionSurface({
 function ToolbarOptionRail({
   side,
   active,
-  onExitComplete,
   children,
 }: {
   side: 'left' | 'right';
@@ -2871,7 +2871,7 @@ function DashboardRoute() {
     ? desktopHasCloudToken && convexAuth.isAuthenticated
     : isAuthenticated;
   const routeLoading = desktop ? desktopAuthLoading : isLoading;
-  const avatars = useQuery(api.agentAvatars.listMyAgentAvatars, routeAuthenticated ? {} : 'skip');
+  const avatars = useAgentAvatars(routeAuthenticated);
   const { needsOnboarding, onboardingResolved } = useSubscription({
     enabled: !routeLoading && routeAuthenticated,
   });
