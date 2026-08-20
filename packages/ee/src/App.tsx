@@ -10,9 +10,12 @@ import {
   applyPlanFilters,
   focusPlanSearchField,
   getAppShortcuts,
+  hasMorningBriefUpdates,
   hasToken,
   LandingPage,
   MAX_FOLDERS,
+  MorningBrief,
+  MorningBriefIcon,
   normalizeFilterValues,
   OfflineView,
   type Plan,
@@ -25,6 +28,7 @@ import {
   SidebarFilters,
   SidebarResizeHandle,
   SkeletonBlock,
+  resolveMorningBriefSince,
   startViewTransition,
   useAgents,
   useBackendStatus,
@@ -38,7 +42,7 @@ import {
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
-import { useHotkey } from '@tanstack/react-hotkeys';
+import { formatForDisplay, useHotkey } from '@tanstack/react-hotkeys';
 import { ConvexProviderWithAuth, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react';
 import {
@@ -150,6 +154,7 @@ const PlanHistoryDrawer = lazy(() =>
 );
 
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
+const BRIEF_LAST_READ_PREF_KEY = 'agendex_brief_last_read_at';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
 const DASHBOARD_PATH = '/dashboard';
@@ -160,6 +165,14 @@ type DashboardMode = 'local' | 'cloud';
 
 const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
 const dateOptions = ['all', 'today', '7d', '30d'] as const;
+const workspaceViewOptions = ['brief'] as const;
+
+function readBriefLastReadAt(): number | null {
+  const value = localStorage.getItem(BRIEF_LAST_READ_PREF_KEY);
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
 
 type TagRecord = Doc<'tags'>;
 type CollectionRecord = Doc<'collections'>;
@@ -1144,6 +1157,12 @@ function useDashboardMain({
   isWorkspaceAccessLoading,
   backendStatus,
   cloudSyncPaused,
+  briefOpen,
+  briefSince,
+  briefUntil,
+  briefMarkedRead,
+  briefLoading,
+  briefError,
   uploading,
   creating,
   editing,
@@ -1154,6 +1173,8 @@ function useDashboardMain({
   selectedPlan,
   allPlans,
   onSelectRelatedPlan,
+  onMarkBriefRead,
+  onRetryBrief,
   onClose,
   onSaved,
   onCreated,
@@ -1179,6 +1200,12 @@ function useDashboardMain({
   isWorkspaceAccessLoading: boolean;
   backendStatus: string;
   cloudSyncPaused: boolean;
+  briefOpen: boolean;
+  briefSince: number;
+  briefUntil: number;
+  briefMarkedRead: boolean;
+  briefLoading: boolean;
+  briefError: string | null;
   uploading: boolean;
   creating: boolean;
   editing: boolean;
@@ -1189,6 +1216,8 @@ function useDashboardMain({
   selectedPlan: Plan | undefined;
   allPlans: readonly Plan[];
   onSelectRelatedPlan: (plan: Plan) => void;
+  onMarkBriefRead: () => void;
+  onRetryBrief: () => void;
   onClose: () => void;
   onSaved: () => void;
   onCreated: (plan: Plan) => void;
@@ -1421,6 +1450,18 @@ function useDashboardMain({
         <BootLoadingView message="Connecting to cloud..." fullscreen={false} />
       ) : backendStatus === 'offline' ? (
         <OfflineView />
+      ) : briefOpen ? (
+        <MorningBrief
+          plans={allPlans}
+          since={briefSince}
+          until={briefUntil}
+          loading={briefLoading}
+          error={briefError}
+          markedRead={briefMarkedRead}
+          onMarkRead={onMarkBriefRead}
+          onSelectPlan={onSelectRelatedPlan}
+          onRetry={onRetryBrief}
+        />
       ) : uploading ? (
         <Suspense
           fallback={
@@ -2011,6 +2052,13 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     'split',
     parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
   );
+  const [workspaceView, setWorkspaceView] = useQueryState(
+    'view',
+    parseAsStringLiteral(workspaceViewOptions).withOptions({
+      history: 'push',
+      clearOnDefault: true,
+    }),
+  );
 
   const workspaceFilter = workspaceFilterRaw ?? undefined;
   const selectedCollection = selectedCollectionRaw ?? undefined;
@@ -2064,6 +2112,12 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   });
   const mode = canSwitchMode ? (modeOverride ?? autoMode) : autoMode;
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [briefReadAt, setBriefReadAt] = useState<number | null>(() => readBriefLastReadAt());
+  const [briefSince, setBriefSince] = useState(() =>
+    resolveMorningBriefSince(readBriefLastReadAt()),
+  );
+  const [briefUntil, setBriefUntil] = useState(() => Date.now());
+  const [briefMarkedRead, setBriefMarkedRead] = useState(false);
   const setSelectedTags = useCallback(
     (tags: string[]) => setFilters({ tags: normalizeFilterValues(tags) }),
     [setFilters],
@@ -2141,6 +2195,19 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     localPlanState,
     cloudPlanState,
   );
+
+  const briefOpen = workspaceView === 'brief';
+  const briefHasUpdates = useMemo(
+    () => hasMorningBriefUpdates(plans, resolveMorningBriefSince(briefReadAt)),
+    [briefReadAt, plans],
+  );
+  const briefShortcutLabel = formatForDisplay('Mod+Shift+B');
+
+  useEffect(() => {
+    if (!briefOpen || !hasMorningBriefUpdates(plans, briefUntil)) return;
+    setBriefUntil(Date.now());
+    setBriefMarkedRead(false);
+  }, [briefOpen, briefUntil, plans]);
 
   const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
 
@@ -2293,12 +2360,41 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       setLocalAutoSelectSuppressed(!plan);
       setOptimisticSelectedPlan(plan);
       setSelectedPlanId(plan?.id ?? null);
+      setWorkspaceView(null);
       if (!plan || splitPlanId === plan.id) {
         setSplitPlanId(null);
       }
     },
-    [setActivePanel, setSelectedPlanId, splitPlanId, setSplitPlanId],
+    [setActivePanel, setSelectedPlanId, setWorkspaceView, splitPlanId, setSplitPlanId],
   );
+
+  const openBrief = useCallback(() => {
+    const openedAt = Date.now();
+    setBriefSince(resolveMorningBriefSince(briefReadAt, openedAt));
+    setBriefUntil(openedAt);
+    setBriefMarkedRead(false);
+    setActivePanel(null);
+    setLocalAutoSelectSuppressed(true);
+    setOptimisticSelectedPlan(undefined);
+    setSelectedPlanId(null);
+    setSplitPlanId(null);
+    setWorkspaceView('brief');
+  }, [briefReadAt, setActivePanel, setSelectedPlanId, setSplitPlanId, setWorkspaceView]);
+
+  const toggleBrief = useCallback(() => {
+    if (briefOpen) {
+      setWorkspaceView(null);
+      return;
+    }
+    openBrief();
+  }, [briefOpen, openBrief, setWorkspaceView]);
+
+  const markBriefRead = useCallback(() => {
+    const readAt = briefUntil;
+    localStorage.setItem(BRIEF_LAST_READ_PREF_KEY, String(readAt));
+    setBriefReadAt(readAt);
+    setBriefMarkedRead(true);
+  }, [briefUntil]);
 
   const planStateReady = mode === 'cloud' ? cloudPlanState.isReady : true;
   useUnseenPlanToasts({
@@ -2332,6 +2428,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       setLocalAutoSelectSuppressed(false);
       setSelectedPlanId(null);
       setSplitPlanId(null);
+      setWorkspaceView(null);
 
       if (isDesktop()) {
         await setDesktopModePref(next);
@@ -2352,6 +2449,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       setActivePanel,
       setSelectedPlanId,
       setSplitPlanId,
+      setWorkspaceView,
       setSearch,
       setFilters,
     ],
@@ -2438,6 +2536,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   useHotkey('Mod+B', toggleSidebar);
   useHotkey('Mod+Shift+O', toggleOutline);
   useHotkey('Mod+Shift+G', toggleChart);
+  useHotkey('Mod+Shift+B', toggleBrief);
 
   function handleNewPlan() {
     if (isPro) {
@@ -2545,6 +2644,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     <div
       className="agendex-app-shell h-screen grid overflow-clip relative"
       data-plan-open={selectedPlan ? 'true' : undefined}
+      data-brief-open={briefOpen ? 'true' : undefined}
       style={{
         gridTemplateColumns: `${sidebarWidth}px 1fr`,
         gridTemplateRows: `${TOPBAR_HEIGHT}px 1fr`,
@@ -2591,28 +2691,46 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         sidebarWidth={expandedWidth}
         hasUnseenPlans={hasUnseenPlans}
         actions={
-          canShowPlanSourcesAction ? (
+          <>
             <button
               type="button"
-              onClick={() => setSourcesOpen(true)}
-              aria-label="Manage plan sources"
-              title="Manage plan sources"
-              className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+              onClick={toggleBrief}
+              aria-label={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
+              aria-pressed={briefOpen}
+              title={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
+              className="agendex-topbar-button agendex-brief-trigger shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+              data-active={briefOpen ? 'true' : undefined}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
+              <MorningBriefIcon size={14} />
+              <span>Brief</span>
+              {briefHasUpdates && !briefOpen && (
+                <span className="agendex-brief-unread" aria-hidden="true" />
+              )}
             </button>
-          ) : undefined
+            {canShowPlanSourcesAction && (
+              <button
+                type="button"
+                onClick={() => setSourcesOpen(true)}
+                aria-label="Manage plan sources"
+                title="Manage plan sources"
+                className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
+            )}
+          </>
         }
       />
 
@@ -2701,6 +2819,12 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         isWorkspaceAccessLoading={isWorkspaceAccessLoading}
         backendStatus={backendStatus}
         cloudSyncPaused={cloudSyncPaused}
+        briefOpen={briefOpen}
+        briefSince={briefSince}
+        briefUntil={briefUntil}
+        briefMarkedRead={briefMarkedRead}
+        briefLoading={loading}
+        briefError={error}
         uploading={uploading}
         creating={creating}
         editing={editing}
@@ -2711,6 +2835,8 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         selectedPlan={selectedPlan}
         allPlans={plans}
         onSelectRelatedPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
+        onMarkBriefRead={markBriefRead}
+        onRetryBrief={() => void refresh()}
         onClose={() => startViewTransition(() => setActivePanel(null))}
         onSaved={handleSaved}
         onCreated={(plan) => {

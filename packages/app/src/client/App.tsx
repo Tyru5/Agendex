@@ -6,11 +6,8 @@ import {
   applyPlanFilters,
   focusPlanSearchField,
   getAppShortcuts,
-  hasMorningBriefUpdates,
   hasToken,
   LandingPage,
-  MorningBrief,
-  MorningBriefIcon,
   normalizeFilterValues,
   OfflineView,
   type Plan,
@@ -26,10 +23,9 @@ import {
   useCustomPlanSources,
   usePlans,
   useSidebarWidth,
-  resolveMorningBriefSince,
   workspacesFromPlans,
 } from '@agendex/web';
-import { formatForDisplay, useHotkey } from '@tanstack/react-hotkeys';
+import { useHotkey } from '@tanstack/react-hotkeys';
 import {
   parseAsNativeArrayOf,
   parseAsString,
@@ -42,7 +38,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const OUTLINE_PREF_KEY = 'agendex_outline_hidden';
-const BRIEF_LAST_READ_PREF_KEY = 'agendex_brief_last_read_at';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
 
@@ -51,15 +46,6 @@ const IS_LOCAL_WORKSPACE_SHELL = true;
 
 const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
 const dateOptions = ['all', 'today', '7d', '30d'] as const;
-const workspaceViewOptions = ['brief'] as const;
-
-function readBriefLastReadAt(): number | null {
-  const value = localStorage.getItem(BRIEF_LAST_READ_PREF_KEY);
-  if (!value) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
 function Dashboard() {
   const [search, setSearch] = useQueryState(
     'q',
@@ -90,14 +76,6 @@ function Dashboard() {
     'plan',
     parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
   );
-  const [workspaceView, setWorkspaceView] = useQueryState(
-    'view',
-    parseAsStringLiteral(workspaceViewOptions).withOptions({
-      history: 'push',
-      clearOnDefault: true,
-    }),
-  );
-
   const legacyAgentFilter = legacyAgentFilterRaw ?? undefined;
   const workspaceFilter = workspaceFilterRaw ?? undefined;
   const selectedAgents = useMemo(() => {
@@ -126,12 +104,6 @@ function Dashboard() {
   }, [setFilters, setSearch]);
 
   const [sourcesOpen, setSourcesOpen] = useState(false);
-  const [briefReadAt, setBriefReadAt] = useState<number | null>(() => readBriefLastReadAt());
-  const [briefSince, setBriefSince] = useState(() =>
-    resolveMorningBriefSince(readBriefLastReadAt()),
-  );
-  const [briefUntil, setBriefUntil] = useState(() => Date.now());
-  const [briefMarkedRead, setBriefMarkedRead] = useState(false);
 
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     return localStorage.getItem(SIDEBAR_PREF_KEY) === 'true';
@@ -191,18 +163,6 @@ function Dashboard() {
   }, [agents]);
 
   const activeAgents = agents.filter((a) => a.planCount > 0).length;
-  const briefOpen = workspaceView === 'brief';
-  const briefHasUpdates = useMemo(
-    () => hasMorningBriefUpdates(plans, resolveMorningBriefSince(briefReadAt)),
-    [briefReadAt, plans],
-  );
-  const briefShortcutLabel = formatForDisplay('Mod+Shift+B');
-
-  useEffect(() => {
-    if (!briefOpen || !hasMorningBriefUpdates(plans, briefUntil)) return;
-    setBriefUntil(Date.now());
-    setBriefMarkedRead(false);
-  }, [briefOpen, briefUntil, plans]);
 
   const [expandedWidth, setExpandedWidth] = useSidebarWidth();
 
@@ -253,34 +213,9 @@ function Dashboard() {
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
       setSelectedPlanId(plan?.id ?? null);
-      setWorkspaceView(null);
     },
-    [setSelectedPlanId, setWorkspaceView],
+    [setSelectedPlanId],
   );
-
-  const openBrief = useCallback(() => {
-    const openedAt = Date.now();
-    setBriefSince(resolveMorningBriefSince(briefReadAt, openedAt));
-    setBriefUntil(openedAt);
-    setBriefMarkedRead(false);
-    setSelectedPlanId(null);
-    setWorkspaceView('brief');
-  }, [briefReadAt, setSelectedPlanId, setWorkspaceView]);
-
-  const toggleBrief = useCallback(() => {
-    if (briefOpen) {
-      setWorkspaceView(null);
-      return;
-    }
-    openBrief();
-  }, [briefOpen, openBrief, setWorkspaceView]);
-
-  const markBriefRead = useCallback(() => {
-    const readAt = briefUntil;
-    localStorage.setItem(BRIEF_LAST_READ_PREF_KEY, String(readAt));
-    setBriefReadAt(readAt);
-    setBriefMarkedRead(true);
-  }, [briefUntil]);
 
   useEffect(() => {
     if (selectedPlanId && !plansById.has(selectedPlanId)) {
@@ -326,13 +261,11 @@ function Dashboard() {
 
   useHotkey('Mod+B', toggleSidebar);
   useHotkey('Mod+Shift+O', toggleOutline);
-  useHotkey('Mod+Shift+B', toggleBrief);
 
   return (
     <div
       className="agendex-app-shell h-screen grid overflow-clip"
       data-plan-open={selectedPlan ? 'true' : undefined}
-      data-brief-open={briefOpen ? 'true' : undefined}
       style={{
         position: 'relative',
         gridTemplateColumns: `${sidebarWidth}px 1fr`,
@@ -351,45 +284,28 @@ function Dashboard() {
         height={TOPBAR_HEIGHT}
         sidebarWidth={expandedWidth}
         actions={
-          <>
+          IS_LOCAL_WORKSPACE_SHELL ? (
             <button
               type="button"
-              onClick={toggleBrief}
-              aria-label={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
-              aria-pressed={briefOpen}
-              title={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
-              className="agendex-topbar-button agendex-brief-trigger shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
-              data-active={briefOpen ? 'true' : undefined}
+              onClick={() => setSourcesOpen(true)}
+              aria-label="Manage plan sources"
+              title="Manage plan sources"
+              className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
             >
-              <MorningBriefIcon size={14} />
-              <span>Brief</span>
-              {briefHasUpdates && !briefOpen && (
-                <span className="agendex-brief-unread" aria-hidden="true" />
-              )}
-            </button>
-            {IS_LOCAL_WORKSPACE_SHELL && (
-              <button
-                type="button"
-                onClick={() => setSourcesOpen(true)}
-                aria-label="Manage plan sources"
-                title="Manage plan sources"
-                className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                </svg>
-              </button>
-            )}
-          </>
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+          ) : undefined
         }
       />
 
@@ -462,20 +378,6 @@ function Dashboard() {
       >
         {backendStatus === 'offline' ? (
           <OfflineView />
-        ) : briefOpen ? (
-          <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
-            <MorningBrief
-              plans={plans}
-              since={briefSince}
-              until={briefUntil}
-              loading={loading}
-              error={error}
-              markedRead={briefMarkedRead}
-              onMarkRead={markBriefRead}
-              onSelectPlan={setSelectedPlan}
-              onRetry={() => void refresh()}
-            />
-          </div>
         ) : selectedPlan ? (
           <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
             <PlanViewer
