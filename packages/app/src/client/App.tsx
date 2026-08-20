@@ -46,7 +46,6 @@ const IS_LOCAL_WORKSPACE_SHELL = true;
 
 const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
 const dateOptions = ['all', 'today', '7d', '30d'] as const;
-
 function Dashboard() {
   const [search, setSearch] = useQueryState(
     'q',
@@ -77,7 +76,6 @@ function Dashboard() {
     'plan',
     parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
   );
-
   const legacyAgentFilter = legacyAgentFilterRaw ?? undefined;
   const workspaceFilter = workspaceFilterRaw ?? undefined;
   const selectedAgents = useMemo(() => {
