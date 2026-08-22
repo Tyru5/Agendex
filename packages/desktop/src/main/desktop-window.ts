@@ -5,6 +5,7 @@ import {
   shouldOpenNavigationExternally,
   shouldOpenWindowExternally,
 } from './desktop-navigation.ts';
+import { installDesktopPageZoomShortcuts } from './desktop-zoom.ts';
 import { loadWithRetry } from './window-loader.ts';
 
 export function createDesktopWindow(targetUrl: string, onClosed: () => void): BrowserWindow {
@@ -45,6 +46,10 @@ export function createDesktopWindow(targetUrl: string, onClosed: () => void): Br
     event.preventDefault();
     void shell.openExternal(url);
   });
+
+  // View-menu accelerators are not reliable across platforms and keyboard
+  // layouts. Handle the actual key input at the window boundary as a fallback.
+  installDesktopPageZoomShortcuts(window.webContents);
 
   // View-menu / shortcut zoom does not reliably fire DOM `resize`; forward the
   // factor so the renderer can keep the page-zoom indicator in sync.

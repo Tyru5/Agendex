@@ -28,6 +28,7 @@ import { installDesktopQuitLifecycle } from './desktop-quit.ts';
 import { writeQaBootstrapEvidence, writeQaStartupEvidence } from './desktop-qa-evidence.ts';
 import { createDesktopUpdater, isPortableWindowsBuild } from './desktop-updater.ts';
 import { createDesktopWindow } from './desktop-window.ts';
+import { applyDesktopPageZoom } from './desktop-zoom.ts';
 import { redactDesktopAuthCallbackUrl } from '@agendex/shared/desktop-auth-callback';
 import { installDesktopProtocolLifecycle } from './desktop-protocol-lifecycle.ts';
 import { stopDesktopServices } from './desktop-shutdown.ts';
@@ -602,11 +603,14 @@ if (!gotLock) {
         console.error('[agendex-desktop] cloud login failed', error);
       },
     });
-    buildMenu(
-      desktopUpdater.isSupported
+    buildMenu({
+      onPageZoom: (shortcut) => {
+        if (mainWindow) applyDesktopPageZoom(mainWindow.webContents, shortcut);
+      },
+      ...(desktopUpdater.isSupported
         ? { onCheckForUpdates: () => void desktopUpdater.checkForUpdatesInteractive() }
-        : {},
-    );
+        : {}),
+    });
     desktopUpdater.start();
 
     // Before anything is served: a bundle still marked pending from the last run
