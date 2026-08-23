@@ -1179,6 +1179,7 @@ function useDashboardMain({
   onSelectRelatedPlan,
   comparePlan,
   compareBodiesLoading,
+  compareBodiesMissing,
   onComparePlan,
   onCloseCompare,
   onSwapCompare,
@@ -1228,6 +1229,8 @@ function useDashboardMain({
   comparePlan?: Plan;
   /** True while either compare pane's cloud body is still hydrating. */
   compareBodiesLoading?: boolean;
+  /** True when either compare pane's cloud body is inaccessible. */
+  compareBodiesMissing?: boolean;
   onComparePlan?: (plan: Plan) => void;
   onCloseCompare?: () => void;
   onSwapCompare?: () => void;
@@ -1536,6 +1539,17 @@ function useDashboardMain({
           compareBodiesLoading ? (
             <div className="p-4">
               <SkeletonBlock lines={8} />
+            </div>
+          ) : compareBodiesMissing ? (
+            <div className="flex h-full flex-col items-start gap-3 p-6 text-sm text-[var(--muted-foreground)]">
+              <p>One of the plans is no longer available to compare.</p>
+              <button
+                type="button"
+                className="text-[var(--foreground)] underline underline-offset-2"
+                onClick={onCloseCompare}
+              >
+                Close compare
+              </button>
             </div>
           ) : (
             <PlanCompareView
@@ -2315,10 +2329,8 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   // any plan open in the viewer (selected + split pane) before it fans out to
   // editor/share/plannotator consumers. Plans that already carry content (local
   // mode, optimistic copies from the editor) skip the fetch.
-  const { plan: selectedPlan, contentLoading: selectedContentLoading } = useHydratedCloudPlan(
-    mode,
-    selectedPlanBase,
-  );
+  const { plan: selectedPlan, contentLoading: selectedContentLoading, contentMissing: selectedContentMissing } =
+    useHydratedCloudPlan(mode, selectedPlanBase);
 
   // Auto-follow a live replacement only for a session that ended *while the user
   // was viewing it* (it got superseded while open). Deliberately opening an
@@ -2367,12 +2379,11 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     if (!comparePlanId) return undefined;
     return plansById.get(comparePlanId) ?? plans.find((p) => p.id === comparePlanId);
   }, [plansById, plans, comparePlanId]);
-  const { plan: comparePlan, contentLoading: compareContentLoading } = useHydratedCloudPlan(
-    mode,
-    comparePlanBase,
-  );
-  // Avoid false diffs / similarity stats while either cloud body is still empty.
+  const { plan: comparePlan, contentLoading: compareContentLoading, contentMissing: compareContentMissing } =
+    useHydratedCloudPlan(mode, comparePlanBase);
+  // Avoid false diffs / similarity stats while either cloud body is empty or gone.
   const compareBodiesLoading = selectedContentLoading || compareContentLoading;
+  const compareBodiesMissing = selectedContentMissing || compareContentMissing;
 
   const isSplitView = !!selectedPlan && !!splitPlan && selectedPlan.id !== splitPlan.id;
   const selectedPlanOutsideFilters = Boolean(
@@ -2954,6 +2965,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         onCloseSplit={closeSplitView}
         comparePlan={comparePlan}
         compareBodiesLoading={compareBodiesLoading}
+        compareBodiesMissing={compareBodiesMissing}
         onComparePlan={startCompare}
         onCloseCompare={closeCompare}
         onSwapCompare={swapCompare}
