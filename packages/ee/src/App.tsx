@@ -1178,6 +1178,7 @@ function useDashboardMain({
   allPlans,
   onSelectRelatedPlan,
   comparePlan,
+  compareBodiesLoading,
   onComparePlan,
   onCloseCompare,
   onSwapCompare,
@@ -1225,6 +1226,8 @@ function useDashboardMain({
   allPlans: readonly Plan[];
   onSelectRelatedPlan: (plan: Plan) => void;
   comparePlan?: Plan;
+  /** True while either compare pane's cloud body is still hydrating. */
+  compareBodiesLoading?: boolean;
   onComparePlan?: (plan: Plan) => void;
   onCloseCompare?: () => void;
   onSwapCompare?: () => void;
@@ -1530,13 +1533,19 @@ function useDashboardMain({
             <PlanHistoryDrawer planId={selectedPlan.id} onClose={onClose} />
           </Suspense>
         ) : comparePlan && onCloseCompare ? (
-          <PlanCompareView
-            basePlan={comparePlan}
-            targetPlan={selectedPlan}
-            onClose={onCloseCompare}
-            onSwap={onSwapCompare ?? (() => {})}
-            onOpenPlan={onSelectRelatedPlan}
-          />
+          compareBodiesLoading ? (
+            <div className="p-4">
+              <SkeletonBlock lines={8} />
+            </div>
+          ) : (
+            <PlanCompareView
+              basePlan={comparePlan}
+              targetPlan={selectedPlan}
+              onClose={onCloseCompare}
+              onSwap={onSwapCompare ?? (() => {})}
+              onOpenPlan={onSelectRelatedPlan}
+            />
+          )
         ) : (
           <>
             {isPro && mode === 'cloud' ? (
@@ -2306,7 +2315,10 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   // any plan open in the viewer (selected + split pane) before it fans out to
   // editor/share/plannotator consumers. Plans that already carry content (local
   // mode, optimistic copies from the editor) skip the fetch.
-  const selectedPlan = useHydratedCloudPlan(mode, selectedPlanBase);
+  const { plan: selectedPlan, contentLoading: selectedContentLoading } = useHydratedCloudPlan(
+    mode,
+    selectedPlanBase,
+  );
 
   // Auto-follow a live replacement only for a session that ended *while the user
   // was viewing it* (it got superseded while open). Deliberately opening an
@@ -2349,13 +2361,18 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     if (!splitPlanId) return undefined;
     return plansById.get(splitPlanId) ?? plans.find((p) => p.id === splitPlanId);
   }, [plansById, plans, splitPlanId]);
-  const splitPlan = useHydratedCloudPlan(mode, splitPlanBase);
+  const { plan: splitPlan } = useHydratedCloudPlan(mode, splitPlanBase);
 
   const comparePlanBase = useMemo(() => {
     if (!comparePlanId) return undefined;
     return plansById.get(comparePlanId) ?? plans.find((p) => p.id === comparePlanId);
   }, [plansById, plans, comparePlanId]);
-  const comparePlan = useHydratedCloudPlan(mode, comparePlanBase);
+  const { plan: comparePlan, contentLoading: compareContentLoading } = useHydratedCloudPlan(
+    mode,
+    comparePlanBase,
+  );
+  // Avoid false diffs / similarity stats while either cloud body is still empty.
+  const compareBodiesLoading = selectedContentLoading || compareContentLoading;
 
   const isSplitView = !!selectedPlan && !!splitPlan && selectedPlan.id !== splitPlan.id;
   const selectedPlanOutsideFilters = Boolean(
@@ -2936,6 +2953,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         splitPlan={splitPlan}
         onCloseSplit={closeSplitView}
         comparePlan={comparePlan}
+        compareBodiesLoading={compareBodiesLoading}
         onComparePlan={startCompare}
         onCloseCompare={closeCompare}
         onSwapCompare={swapCompare}
