@@ -2329,8 +2329,11 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   // any plan open in the viewer (selected + split pane) before it fans out to
   // editor/share/plannotator consumers. Plans that already carry content (local
   // mode, optimistic copies from the editor) skip the fetch.
-  const { plan: selectedPlan, contentLoading: selectedContentLoading, contentMissing: selectedContentMissing } =
-    useHydratedCloudPlan(mode, selectedPlanBase);
+  const {
+    plan: selectedPlan,
+    contentLoading: selectedContentLoading,
+    contentMissing: selectedContentMissing,
+  } = useHydratedCloudPlan(mode, selectedPlanBase);
 
   // Auto-follow a live replacement only for a session that ended *while the user
   // was viewing it* (it got superseded while open). Deliberately opening an
@@ -2379,8 +2382,11 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     if (!comparePlanId) return undefined;
     return plansById.get(comparePlanId) ?? plans.find((p) => p.id === comparePlanId);
   }, [plansById, plans, comparePlanId]);
-  const { plan: comparePlan, contentLoading: compareContentLoading, contentMissing: compareContentMissing } =
-    useHydratedCloudPlan(mode, comparePlanBase);
+  const {
+    plan: comparePlan,
+    contentLoading: compareContentLoading,
+    contentMissing: compareContentMissing,
+  } = useHydratedCloudPlan(mode, comparePlanBase);
   // Avoid false diffs / similarity stats while either cloud body is empty or gone.
   const compareBodiesLoading = selectedContentLoading || compareContentLoading;
   const compareBodiesMissing = selectedContentMissing || compareContentMissing;
