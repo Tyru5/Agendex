@@ -70,6 +70,8 @@ export type { PlanCompareViewProps } from './client/components/PlanCompareView.t
 export { PlanCompareView } from './client/components/PlanCompareView.tsx';
 export type { PlanComparePickerProps } from './client/components/PlanComparePicker.tsx';
 export { PlanComparePicker } from './client/components/PlanComparePicker.tsx';
+export type { PlanDiffBodyProps, PlanDiffLayout } from './client/components/PlanDiffBody.tsx';
+export { PlanDiffBody } from './client/components/PlanDiffBody.tsx';
 export type { DiffBlock, PlanDiff, PlanDiffStats } from './client/lib/plan-diff.ts';
 export { buildDiffSections, diffPlanContent } from './client/lib/plan-diff.ts';
 export { SearchBar } from './client/components/SearchBar.tsx';

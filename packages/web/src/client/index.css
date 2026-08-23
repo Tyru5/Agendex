@@ -3599,6 +3599,13 @@ body {
   line-height: 1.6;
 }
 
+/* Hosted inside another bordered container (e.g. the history drawer). */
+.plan-diff--embedded {
+  margin-top: 0;
+  border: none;
+  border-radius: 0;
+}
+
 .plan-diff-row {
   display: grid;
   grid-template-columns: 42px 42px 18px minmax(0, 1fr);

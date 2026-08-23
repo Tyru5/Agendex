@@ -1,19 +1,11 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
-import {
-  buildDiffSections,
-  type DiffBlock,
-  type DiffDisplaySection,
-  type DiffLine,
-  type DiffWordSegment,
-  diffPlanContent,
-} from '../lib/plan-diff.ts';
+import { diffPlanContent } from '../lib/plan-diff.ts';
 import { AgentIcon } from './AgentIcon.tsx';
+import { PlanDiffBody, type PlanDiffLayout } from './PlanDiffBody.tsx';
 
 const COMPARE_VIEW_PREF_KEY = 'agendex_compare_view';
-
-type CompareViewMode = 'split' | 'unified';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -26,7 +18,7 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
-function initialViewMode(): CompareViewMode {
+function initialViewMode(): PlanDiffLayout {
   try {
     const stored = localStorage.getItem(COMPARE_VIEW_PREF_KEY);
     if (stored === 'split' || stored === 'unified') return stored;
@@ -35,154 +27,6 @@ function initialViewMode(): CompareViewMode {
   }
   if (typeof window !== 'undefined' && window.innerWidth < 900) return 'unified';
   return 'split';
-}
-
-function renderSegments(segments: DiffWordSegment[]) {
-  // Segments are stable per line render; a char-offset key is unique and
-  // avoids index-key churn warnings.
-  let offset = 0;
-  return segments.map((segment) => {
-    const key = `${offset}:${segment.type}`;
-    offset += segment.text.length;
-    return segment.type === 'same' ? (
-      <Fragment key={key}>{segment.text}</Fragment>
-    ) : (
-      <mark
-        key={key}
-        className={
-          segment.type === 'add'
-            ? 'plan-diff-word plan-diff-word--add'
-            : 'plan-diff-word plan-diff-word--del'
-        }
-      >
-        {segment.text}
-      </mark>
-    );
-  });
-}
-
-function lineContent(line: DiffLine) {
-  if (line.segments) return renderSegments(line.segments);
-  return line.text;
-}
-
-/** Non-breaking space keeps empty diff lines at full row height. */
-function textOrSpace(text: string) {
-  return text.length > 0 ? text : ' ';
-}
-
-function UnifiedBlock({ block }: { block: DiffBlock }) {
-  if (block.type === 'same') {
-    return (
-      <>
-        {block.lines.map((line) => (
-          <div key={`s-${line.aLine}-${line.bLine}`} className="plan-diff-row">
-            <span className="plan-diff-gutter">{line.aLine}</span>
-            <span className="plan-diff-gutter">{line.bLine}</span>
-            <span className="plan-diff-sign" aria-hidden="true" />
-            <span className="plan-diff-text">{textOrSpace(line.text)}</span>
-          </div>
-        ))}
-      </>
-    );
-  }
-  return (
-    <>
-      {block.removed.map((line) => (
-        <div key={`d-${line.line}`} className="plan-diff-row plan-diff-row--del">
-          <span className="plan-diff-gutter">{line.line}</span>
-          <span className="plan-diff-gutter" />
-          <span className="plan-diff-sign" aria-hidden="true">
-            −
-          </span>
-          <span className="plan-diff-text">{line.text.length > 0 ? lineContent(line) : ' '}</span>
-        </div>
-      ))}
-      {block.added.map((line) => (
-        <div key={`a-${line.line}`} className="plan-diff-row plan-diff-row--add">
-          <span className="plan-diff-gutter" />
-          <span className="plan-diff-gutter">{line.line}</span>
-          <span className="plan-diff-sign" aria-hidden="true">
-            +
-          </span>
-          <span className="plan-diff-text">{line.text.length > 0 ? lineContent(line) : ' '}</span>
-        </div>
-      ))}
-    </>
-  );
-}
-
-function SplitBlock({ block }: { block: DiffBlock }) {
-  if (block.type === 'same') {
-    return (
-      <>
-        {block.lines.map((line) => (
-          <div key={`s-${line.aLine}-${line.bLine}`} className="plan-diff-split-row">
-            <span className="plan-diff-gutter">{line.aLine}</span>
-            <span className="plan-diff-text">{textOrSpace(line.text)}</span>
-            <span className="plan-diff-gutter">{line.bLine}</span>
-            <span className="plan-diff-text">{textOrSpace(line.text)}</span>
-          </div>
-        ))}
-      </>
-    );
-  }
-
-  const rowCount = Math.max(block.removed.length, block.added.length);
-  const rows = [];
-  for (let i = 0; i < rowCount; i++) {
-    const removed = block.removed[i];
-    const added = block.added[i];
-    rows.push(
-      <div key={`c-${removed?.line ?? 'x'}-${added?.line ?? 'x'}`} className="plan-diff-split-row">
-        <span className={removed ? 'plan-diff-gutter plan-diff-gutter--del' : 'plan-diff-gutter'}>
-          {removed?.line ?? ''}
-        </span>
-        <span
-          className={
-            removed ? 'plan-diff-text plan-diff-text--del' : 'plan-diff-text plan-diff-text--empty'
-          }
-        >
-          {removed ? (removed.text.length > 0 ? lineContent(removed) : ' ') : ' '}
-        </span>
-        <span className={added ? 'plan-diff-gutter plan-diff-gutter--add' : 'plan-diff-gutter'}>
-          {added?.line ?? ''}
-        </span>
-        <span
-          className={
-            added ? 'plan-diff-text plan-diff-text--add' : 'plan-diff-text plan-diff-text--empty'
-          }
-        >
-          {added ? (added.text.length > 0 ? lineContent(added) : ' ') : ' '}
-        </span>
-      </div>,
-    );
-  }
-  return <>{rows}</>;
-}
-
-function CollapsedSection({
-  section,
-  mode,
-  onExpand,
-}: {
-  section: Extract<DiffDisplaySection, { type: 'collapsed' }>;
-  mode: CompareViewMode;
-  onExpand: () => void;
-}) {
-  const label = `Show ${section.lines.length} unchanged line${section.lines.length !== 1 ? 's' : ''}`;
-  return (
-    <button
-      type="button"
-      className={
-        mode === 'split' ? 'plan-diff-collapsed plan-diff-collapsed--split' : 'plan-diff-collapsed'
-      }
-      onClick={onExpand}
-    >
-      <ExpandIcon />
-      {label}
-    </button>
-  );
 }
 
 type ComparePlanCardProps = {
@@ -240,12 +84,7 @@ export function PlanCompareView({
   onSwap,
   onOpenPlan,
 }: PlanCompareViewProps) {
-  const [viewMode, setViewMode] = useState<CompareViewMode>(initialViewMode);
-  const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(new Set());
-
-  useEffect(() => {
-    setExpandedKeys(new Set());
-  }, [basePlan.id, targetPlan.id]);
+  const [viewMode, setViewMode] = useState<PlanDiffLayout>(initialViewMode);
 
   useEffect(() => {
     try {
@@ -275,7 +114,6 @@ export function PlanCompareView({
     () => diffPlanContent(basePlan.content, targetPlan.content),
     [basePlan.content, targetPlan.content],
   );
-  const sections = useMemo(() => buildDiffSections(diff.blocks), [diff.blocks]);
 
   const similarityPercent = Math.round(diff.stats.similarity * 100);
 
@@ -365,38 +203,7 @@ export function PlanCompareView({
           </span>
         </div>
       ) : (
-        <div
-          className={
-            viewMode === 'split' ? 'plan-diff plan-diff--split' : 'plan-diff plan-diff--unified'
-          }
-        >
-          {sections.map((section, index) => {
-            if (section.type === 'collapsed' && !expandedKeys.has(section.key)) {
-              return (
-                <CollapsedSection
-                  key={section.key}
-                  section={section}
-                  mode={viewMode}
-                  onExpand={() =>
-                    setExpandedKeys((current) => {
-                      const next = new Set(current);
-                      next.add(section.key);
-                      return next;
-                    })
-                  }
-                />
-              );
-            }
-            const block: DiffBlock =
-              section.type === 'collapsed' ? { type: 'same', lines: section.lines } : section.block;
-            const key = section.type === 'collapsed' ? `${section.key}-expanded` : `block-${index}`;
-            return viewMode === 'split' ? (
-              <SplitBlock key={key} block={block} />
-            ) : (
-              <UnifiedBlock key={key} block={block} />
-            );
-          })}
-        </div>
+        <PlanDiffBody diff={diff} layout={viewMode} />
       )}
     </div>
   );
@@ -460,22 +267,6 @@ function CloseIcon() {
       className="w-[14px] h-[14px]"
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6 6 18" />
-    </svg>
-  );
-}
-
-function ExpandIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.6}
-      stroke="currentColor"
-      className="w-[12px] h-[12px]"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="m7 9 5-5 5 5M7 15l5 5 5-5" />
     </svg>
   );
 }
