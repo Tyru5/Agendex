@@ -4,13 +4,17 @@ import {
   extractPlanGitContext,
   planGitLinkUrl,
   shortCommit,
+  normalizePlanGitLink,
 } from '@agendex/shared/git-forge';
+import { decryptWorkspaceValue, encryptWorkspaceValue } from '@agendex/shared/crypto';
 import { PlanGitSection, type PlanGitChip } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { useMemo } from 'react';
+import { useWorkspaceCryptoStatus } from '../hooks/useCloudMetadataCrypto.ts';
+import { withWorkspaceKey } from '../lib/obfuscation-keyring.ts';
 
 function errorMessage(err: unknown): string {
   if (err instanceof ConvexError) {
@@ -71,13 +75,47 @@ export function buildDetectedGitChips(metadata: unknown): PlanGitChip[] {
  */
 export function CloudPlanGitLinks({ planId, metadata }: { planId: string; metadata: unknown }) {
   const links = useQuery(api.planLinks.getLinks, { planId: planId as Id<'plans'> });
+  const cryptoStatus = useWorkspaceCryptoStatus();
   const addLink = useMutation(api.planLinks.addLink);
   const deleteLink = useMutation(api.planLinks.deleteLink);
 
   const repo = useMemo(() => extractPlanGitContext(metadata)?.repo, [metadata]);
   const detectedChips = useMemo(() => buildDetectedGitChips(metadata), [metadata]);
 
-  const linkChips: PlanGitChip[] = (links ?? []).map((link) => ({
+  const readableLinks = useMemo(
+    () =>
+      (links ?? []).map((link) => {
+        if (
+          !link.encryptedLink ||
+          !link.stableCryptoId ||
+          !link.keyEpoch ||
+          !cryptoStatus?.workspaceOwnerId
+        ) {
+          return link;
+        }
+        const keyEpoch = link.keyEpoch;
+        const stableCryptoId = link.stableCryptoId;
+        try {
+          const value = withWorkspaceKey(cryptoStatus.workspaceOwnerId, (workspaceKey) =>
+            decryptWorkspaceValue<{ value: string; url?: string }>({
+              workspaceKey,
+              workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+              keyEpoch,
+              table: 'planLinks',
+              slot: 'link',
+              stableCryptoId,
+              envelope: link.encryptedLink,
+            }),
+          );
+          return { ...link, ...value };
+        } catch {
+          return { ...link, value: 'Locked link', url: undefined };
+        }
+      }),
+    [cryptoStatus, links],
+  );
+
+  const linkChips: PlanGitChip[] = readableLinks.map((link) => ({
     key: link._id,
     kind: link.type,
     label: link.type === 'commit' ? shortCommit(link.value) : link.value,
@@ -92,7 +130,32 @@ export function CloudPlanGitLinks({ planId, metadata }: { planId: string; metada
 
   const handleAddLink = async (input: string): Promise<string | null> => {
     try {
-      await addLink({ planId: planId as Id<'plans'>, input });
+      if (cryptoStatus?.settings) {
+        const settings = cryptoStatus.settings;
+        const normalized = normalizePlanGitLink(input, repo);
+        if (!normalized.ok) return normalized.error;
+        const encrypted = withWorkspaceKey(cryptoStatus.workspaceOwnerId, (workspaceKey) =>
+          encryptWorkspaceValue({
+            workspaceKey,
+            workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+            keyEpoch: settings.activeKeyEpoch,
+            table: 'planLinks',
+            slot: 'link',
+            value: { value: normalized.link.value, url: normalized.link.url },
+          }),
+        );
+        await addLink({
+          planId: planId as Id<'plans'>,
+          input: '',
+          type: normalized.link.type,
+          clientCryptoProtocol: 1,
+          stableCryptoId: encrypted.stableCryptoId,
+          keyEpoch: encrypted.keyEpoch,
+          encryptedLink: encrypted.envelope,
+        });
+      } else {
+        await addLink({ planId: planId as Id<'plans'>, input });
+      }
       return null;
     } catch (err) {
       return errorMessage(err);

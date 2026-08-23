@@ -3,11 +3,16 @@ import {
   toPlannotatorFeedbackAnnotations,
   type PlanAnnotationRecord as SharedPlanAnnotationRecord,
 } from '@agendex/shared/annotations';
+import { decryptWorkspaceValue, encryptWorkspaceValue } from '@agendex/shared/crypto';
 import type { Plan, PlanAnnotationCreateDraft, PlanAnnotationRecord } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useMemo, useState } from 'react';
+import { useAuth } from '../hooks/useAuth.ts';
+import { useWorkspaceCryptoStatus } from '../hooks/useCloudMetadataCrypto.ts';
+import { withWorkspaceKey } from '../lib/obfuscation-keyring.ts';
+import { buildEncryptedWriteback } from '../lib/plannotator-crypto.ts';
 import { DANGER_BUTTON, GHOST_BUTTON, PRIMARY_BUTTON } from './CloudPlannotatorPanel.tsx';
 
 type AnnotationDoc = {
@@ -26,6 +31,17 @@ type AnnotationDoc = {
   submittedAt?: number;
   resolvedAt?: number;
   writebackId?: Id<'plannotatorWritebacks'>;
+  stableCryptoId?: string;
+  keyEpoch?: number;
+  encryptedAnnotation?: unknown;
+};
+
+type PrivateAnnotationValue = {
+  authorName: string;
+  source?: string;
+  body?: string;
+  replacementText?: string;
+  anchor: PlanAnnotationRecord['anchor'];
 };
 
 function toWebAnnotation(doc: AnnotationDoc): PlanAnnotationRecord {
@@ -94,13 +110,51 @@ export function useCloudPlanAnnotations({
 }) {
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | undefined>();
+  const { user } = useAuth();
+  const cryptoStatus = useWorkspaceCryptoStatus(enabled);
   const createAnnotationMutation = useMutation(api.annotations.createAnnotation);
   const docs = useQuery(
     api.annotations.listForPlan,
     enabled && plan ? { planId: plan.id as Id<'plans'> } : 'skip',
   ) as AnnotationDoc[] | undefined;
 
-  const annotations = useMemo(() => (docs ?? []).map(toWebAnnotation), [docs]);
+  const annotations = useMemo(
+    () =>
+      (docs ?? []).map((doc) => {
+        if (
+          !doc.encryptedAnnotation ||
+          !doc.stableCryptoId ||
+          !doc.keyEpoch ||
+          !cryptoStatus?.workspaceOwnerId
+        ) {
+          return toWebAnnotation(doc);
+        }
+        const { encryptedAnnotation, stableCryptoId, keyEpoch } = doc;
+        const workspaceOwnerId = cryptoStatus.workspaceOwnerId;
+        try {
+          const privateValue = withWorkspaceKey(workspaceOwnerId, (workspaceKey) =>
+            decryptWorkspaceValue<PrivateAnnotationValue>({
+              workspaceKey,
+              workspaceOwnerId,
+              keyEpoch,
+              table: 'planAnnotations',
+              slot: 'annotation',
+              stableCryptoId,
+              envelope: encryptedAnnotation,
+            }),
+          );
+          return toWebAnnotation({ ...doc, ...privateValue });
+        } catch {
+          return toWebAnnotation({
+            ...doc,
+            authorName: 'Locked annotation',
+            body: 'Unlock Obfuscation to read this annotation.',
+            anchor: {},
+          });
+        }
+      }),
+    [cryptoStatus, docs],
+  );
 
   async function createAnnotation(draft: PlanAnnotationCreateDraft) {
     if (!plan) {
@@ -109,7 +163,7 @@ export function useCloudPlanAnnotations({
     }
     setCreateError(undefined);
     try {
-      const id = await createAnnotationMutation({
+      const base = {
         planId: plan.id as Id<'plans'>,
         type: draft.type,
         body: draft.body,
@@ -117,7 +171,42 @@ export function useCloudPlanAnnotations({
         anchor: draft.anchor,
         status: 'open',
         source: 'agendex-cloud',
-      });
+      } as const;
+      const cryptoSettings = cryptoStatus?.settings;
+      const encrypted = cryptoSettings
+        ? withWorkspaceKey(cryptoStatus.workspaceOwnerId, (workspaceKey) => {
+            const value = encryptWorkspaceValue({
+              workspaceKey,
+              workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+              keyEpoch: cryptoSettings.activeKeyEpoch,
+              table: 'planAnnotations',
+              slot: 'annotation',
+              value: {
+                authorName: user?.name ?? 'Anonymous',
+                source: 'agendex-cloud',
+                body: draft.body,
+                replacementText: draft.replacementText,
+                anchor: draft.anchor,
+              } satisfies PrivateAnnotationValue,
+            });
+            return {
+              planId: base.planId,
+              type: base.type,
+              status: base.status,
+              source: base.source,
+              anchor: {
+                startOffset: draft.anchor.startOffset,
+                endOffset: draft.anchor.endOffset,
+                occurrenceIndex: draft.anchor.occurrenceIndex,
+              },
+              clientCryptoProtocol: 1,
+              stableCryptoId: value.stableCryptoId,
+              keyEpoch: value.keyEpoch,
+              encryptedAnnotation: value.envelope,
+            };
+          })
+        : base;
+      const id = await createAnnotationMutation(encrypted);
       setSelectedAnnotationId(id);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create annotation');
@@ -159,6 +248,7 @@ export function CloudPlanAnnotationsPanel({
   const enqueueWriteback = useMutation(api.plannotator.enqueueWriteback);
   const updateAnnotation = useMutation(api.annotations.updateAnnotation);
   const deleteAnnotation = useMutation(api.annotations.deleteAnnotation);
+  const cryptoStatus = useWorkspaceCryptoStatus();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
   const [queued, setQueued] = useState(false);
@@ -185,10 +275,19 @@ export function CloudPlanAnnotationsPanel({
     try {
       const sharedAnnotations = openAnnotations.map(toSharedAnnotation);
       const feedback = formatPlanAnnotationFeedback(sharedAnnotations);
+      const writebackAnnotations = toPlannotatorFeedbackAnnotations(sharedAnnotations);
+      const encrypted = cryptoStatus?.settings
+        ? buildEncryptedWriteback({
+            workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+            keyEpoch: cryptoStatus.settings.activeKeyEpoch,
+            plan,
+            feedback,
+            annotations: writebackAnnotations,
+          })
+        : { feedback, annotations: writebackAnnotations };
       await enqueueWriteback({
         planId: plan.id as Id<'plans'>,
-        feedback,
-        annotations: toPlannotatorFeedbackAnnotations(sharedAnnotations),
+        ...encrypted,
         annotationIds: openAnnotations.map((annotation) => annotation.id as Id<'planAnnotations'>),
       });
       setQueued(true);
@@ -206,6 +305,7 @@ export function CloudPlanAnnotationsPanel({
       await updateAnnotation({
         annotationId: annotation.id as Id<'planAnnotations'>,
         status: annotation.status === 'resolved' ? 'open' : 'resolved',
+        ...(cryptoStatus?.settings ? { clientCryptoProtocol: 1 } : {}),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update annotation');

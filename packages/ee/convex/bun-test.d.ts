@@ -16,6 +16,8 @@ declare module 'bun:test' {
     toBeFalsy(): void;
     toHaveLength(expected: number): void;
     toMatchObject(expected: unknown): void;
+    toBeGreaterThan(expected: number): void;
+    toBeLessThan(expected: number): void;
     toThrow(expected?: unknown): void;
     toBeNumber(): void;
     toMatch(expected: unknown): void;

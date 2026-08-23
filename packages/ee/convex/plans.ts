@@ -16,6 +16,8 @@ import {
 } from './planVisibility';
 import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
+import { cryptoEnvelopeV1 } from './schema';
+import { resolveWorkspaceCryptoPolicy, validateEncryptedWrite } from './workspaceCrypto';
 
 export const publishPlan = mutation({
   args: {
@@ -27,6 +29,19 @@ export const publishPlan = mutation({
     filePath: v.optional(v.string()),
     workspace: v.optional(v.string()),
     metadata: v.optional(v.any()),
+    clientCryptoProtocol: v.optional(v.number()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedSummary: v.optional(cryptoEnvelopeV1),
+    encryptedBody: v.optional(cryptoEnvelopeV1),
+    versionStableCryptoId: v.optional(v.string()),
+    encryptedVersionSummary: v.optional(cryptoEnvelopeV1),
+    encryptedVersionBody: v.optional(cryptoEnvelopeV1),
+    contentToken: v.optional(v.string()),
+    localPlanToken: v.optional(v.string()),
+    syncIdentityToken: v.optional(v.string()),
+    continuityToken: v.optional(v.string()),
+    lowValue: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
@@ -38,38 +53,90 @@ export const publishPlan = mutation({
 
     const ownerId = user._id;
     const now = Date.now();
+    const cryptoPolicy = await resolveWorkspaceCryptoPolicy(ctx, ownerId);
 
-    const metadata = metadataWithPlanValueAssessment(args.metadata, {
-      title: args.title,
-      content: args.content,
-    });
+    if (cryptoPolicy.requiresEncryption) {
+      if (
+        !args.encryptedSummary ||
+        !args.encryptedBody ||
+        !args.stableCryptoId ||
+        !args.encryptedVersionSummary ||
+        !args.encryptedVersionBody ||
+        !args.versionStableCryptoId ||
+        !args.contentToken ||
+        !args.localPlanToken ||
+        args.keyEpoch === undefined
+      ) {
+        throw new ConvexError('Encrypted plan fields are required');
+      }
+      validateEncryptedWrite({
+        policy: cryptoPolicy,
+        clientProtocol: args.clientCryptoProtocol,
+        envelopes: [
+          args.encryptedSummary,
+          args.encryptedBody,
+          args.encryptedVersionSummary,
+          args.encryptedVersionBody,
+        ],
+        plaintext: {
+          localPlanId: args.localPlanId,
+          title: args.title,
+          content: args.content,
+          filePath: args.filePath,
+          workspace: args.workspace,
+          metadata: args.metadata,
+        },
+      });
+      if (args.keyEpoch !== cryptoPolicy.activeKeyEpoch) {
+        throw new ConvexError('Encrypted plan uses a stale key epoch');
+      }
+    }
 
-    const existing = await ctx.db
-      .query('plans')
-      .withIndex('by_owner_localPlanId', (q) =>
-        q.eq('ownerId', ownerId).eq('localPlanId', args.localPlanId),
-      )
-      .first();
+    const metadata = cryptoPolicy.requiresEncryption
+      ? undefined
+      : metadataWithPlanValueAssessment(args.metadata, {
+          title: args.title,
+          content: args.content,
+        });
+
+    const existing = cryptoPolicy.requiresEncryption
+      ? await ctx.db
+          .query('plans')
+          .withIndex('by_owner_localPlanToken', (q) =>
+            q.eq('ownerId', ownerId).eq('localPlanToken', args.localPlanToken),
+          )
+          .first()
+      : await ctx.db
+          .query('plans')
+          .withIndex('by_owner_localPlanId', (q) =>
+            q.eq('ownerId', ownerId).eq('localPlanId', args.localPlanId),
+          )
+          .first();
 
     if (existing) {
-      if (!planContentChanged(existing, args)) {
+      const contentChanged = cryptoPolicy.requiresEncryption
+        ? existing.contentToken !== args.contentToken
+        : planContentChanged(existing, args);
+      if (!contentChanged) {
         return existing._id;
       }
 
-      await ensureBaselinePlanVersion(ctx, {
-        ownerId,
-        planId: existing._id,
-        version: existing.version,
-        snapshot: {
-          title: existing.title,
-          content: existing.content,
-          format: existing.format,
-          filePath: existing.filePath,
-          workspace: existing.workspace,
-          metadata: existing.metadata,
-        },
-        createdAt: existing.updatedAt,
-      });
+      if (!cryptoPolicy.requiresEncryption) {
+        await ensureBaselinePlanVersion(ctx, {
+          ownerId,
+          planId: existing._id,
+          version: existing.version,
+          snapshot: {
+            title: existing.title,
+            content: existing.content,
+            format: existing.format,
+            filePath: existing.filePath,
+            workspace: existing.workspace,
+            metadata: existing.metadata,
+          },
+          createdAt: existing.updatedAt,
+        });
+      }
 
       const newVersion = existing.version + 1;
       const snapshot = {
@@ -79,10 +146,33 @@ export const publishPlan = mutation({
         filePath: args.filePath,
         workspace: args.workspace,
         metadata,
+        stableCryptoId: cryptoPolicy.requiresEncryption
+          ? args.versionStableCryptoId
+          : args.stableCryptoId,
+        keyEpoch: args.keyEpoch,
+        encryptedSummary: cryptoPolicy.requiresEncryption
+          ? args.encryptedVersionSummary
+          : args.encryptedSummary,
+        encryptedBody: cryptoPolicy.requiresEncryption
+          ? args.encryptedVersionBody
+          : args.encryptedBody,
       };
       await ctx.db.patch(existing._id, {
         agent: args.agent,
         ...snapshot,
+        localPlanId: cryptoPolicy.requiresEncryption ? undefined : args.localPlanId,
+        contentToken: args.contentToken,
+        localPlanToken: args.localPlanToken,
+        syncIdentityToken: args.syncIdentityToken,
+        continuityToken: args.continuityToken,
+        lowValue: args.lowValue,
+        ...(cryptoPolicy.requiresEncryption
+          ? {
+              plannotatorContinuityKey: undefined,
+              syncIdentityKey: undefined,
+              contentHash: undefined,
+            }
+          : {}),
         version: newVersion,
         updatedAt: now,
       });
@@ -99,7 +189,7 @@ export const publishPlan = mutation({
 
     const planId = await ctx.db.insert('plans', {
       ownerId,
-      localPlanId: args.localPlanId,
+      localPlanId: cryptoPolicy.requiresEncryption ? undefined : args.localPlanId,
       agent: args.agent,
       title: args.title,
       content: args.content,
@@ -107,6 +197,15 @@ export const publishPlan = mutation({
       filePath: args.filePath,
       workspace: args.workspace,
       metadata,
+      stableCryptoId: args.stableCryptoId,
+      keyEpoch: args.keyEpoch,
+      encryptedSummary: args.encryptedSummary,
+      encryptedBody: args.encryptedBody,
+      contentToken: args.contentToken,
+      localPlanToken: args.localPlanToken,
+      syncIdentityToken: args.syncIdentityToken,
+      continuityToken: args.continuityToken,
+      lowValue: args.lowValue,
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -123,12 +222,61 @@ export const publishPlan = mutation({
         filePath: args.filePath,
         workspace: args.workspace,
         metadata,
+        stableCryptoId: cryptoPolicy.requiresEncryption
+          ? args.versionStableCryptoId
+          : args.stableCryptoId,
+        keyEpoch: args.keyEpoch,
+        encryptedSummary: cryptoPolicy.requiresEncryption
+          ? args.encryptedVersionSummary
+          : args.encryptedSummary,
+        encryptedBody: cryptoPolicy.requiresEncryption
+          ? args.encryptedVersionBody
+          : args.encryptedBody,
       },
       source: 'editor',
       createdAt: now,
     });
 
     return planId;
+  },
+});
+
+export const getPlanCryptoIdentity = query({
+  args: { localPlanToken: v.string() },
+  handler: async (ctx, args) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return null;
+    const plan = await ctx.db
+      .query('plans')
+      .withIndex('by_owner_localPlanToken', (lookup) =>
+        lookup.eq('ownerId', user._id).eq('localPlanToken', args.localPlanToken),
+      )
+      .first();
+    return plan
+      ? {
+          stableCryptoId: plan.stableCryptoId,
+          keyEpoch: plan.keyEpoch,
+          updatedAt: plan.updatedAt,
+        }
+      : null;
+  },
+});
+
+export const getPlanCryptoRecord = query({
+  args: { planId: v.id('plans') },
+  handler: async (ctx, args) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return null;
+    const plan = await ctx.db.get(args.planId);
+    if (!plan || plan.ownerId !== user._id) return null;
+    return {
+      ownerId: plan.ownerId,
+      stableCryptoId: plan.stableCryptoId,
+      keyEpoch: plan.keyEpoch,
+      agent: plan.agent,
+      format: plan.format,
+      lowValue: plan.lowValue ?? false,
+    };
   },
 });
 
@@ -181,7 +329,7 @@ export const getMyPublishedPlans = query({
     return {
       ...result,
       page: dedupeVisiblePlans(filterVisiblePlans(result.page)).map(
-        ({ content: _content, ...plan }) => plan,
+        ({ content: _content, encryptedBody: _encryptedBody, ...plan }) => plan,
       ),
     };
   },
@@ -220,7 +368,12 @@ export const getMyPlanContent = query({
 
     if (!isVisiblePlan(plan)) return null;
 
-    return { content: plan.content };
+    return {
+      content: plan.content,
+      encryptedBody: plan.encryptedBody,
+      stableCryptoId: plan.stableCryptoId,
+      keyEpoch: plan.keyEpoch,
+    };
   },
 });
 
@@ -242,6 +395,8 @@ export const searchMyPlans = query({
     if (!user) return [];
 
     const ownerId = await resolvePublishedPlansOwnerId(ctx, user._id);
+    const cryptoPolicy = await resolveWorkspaceCryptoPolicy(ctx, ownerId);
+    if (cryptoPolicy.requiresEncryption) return [];
 
     const matches = await ctx.db
       .query('plans')

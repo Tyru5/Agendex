@@ -14,6 +14,9 @@ export default defineConfig(
         '@convex': path.resolve(__dirname, 'convex'),
       },
     },
+    worker: {
+      format: 'es',
+    },
     server: {
       port: 5174,
       host: 'agendex.localhost',

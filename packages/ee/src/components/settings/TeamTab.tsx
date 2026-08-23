@@ -1,8 +1,25 @@
 import { api } from '@convex/_generated/api';
+import {
+  clearBytes,
+  equalBytes,
+  openBytes,
+  sealWorkspaceKeyGrant,
+  toBytes,
+  verifyRecoveryKit,
+  verifyInviteEnrollmentProof,
+  unwrapWorkspaceKeyWithPassphrase,
+} from '@agendex/shared/crypto';
 import type { Id } from '@convex/_generated/dataModel';
-import { useMutation, useQuery } from 'convex/react';
+import { useConvex, useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { InviteWorkspaceMemberDialog } from '../InviteWorkspaceMemberDialog';
+import { useWorkspaceCryptoStatus } from '../../hooks/useCloudMetadataCrypto.ts';
+import {
+  createWorkspaceSetupMaterial,
+  unlockWorkspaceKey,
+  withWorkspaceKey,
+} from '../../lib/obfuscation-keyring.ts';
+import { runWorkspaceSeal } from '../../lib/obfuscation-seal.ts';
 import { PRIMARY_CONTRAST_FALLBACK } from './constants';
 
 function SeatMeter({ used, total }: { used: number; total: number }) {
@@ -109,20 +126,205 @@ interface TeamTabProps {
 
 export function TeamTab({ isActive }: TeamTabProps) {
   const [showInvite, setShowInvite] = useState(false);
+  const [rotatingMemberId, setRotatingMemberId] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const convex = useConvex();
+  const cryptoStatus = useWorkspaceCryptoStatus(isActive);
 
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const workspace = useQuery(
-    // oxlint-disable-next-line typescript/no-explicit-any
-    (api as any).workspaceMembers.listWorkspaceMembers,
-    isActive ? {} : 'skip',
-  );
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const removeMember = useMutation((api as any).workspaceMembers.removeWorkspaceMember);
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const revokeInvite = useMutation((api as any).workspaceMembers.revokeWorkspaceInvite);
+  const workspace = useQuery(api.workspaceMembers.listWorkspaceMembers, isActive ? {} : 'skip');
+  const removeMember = useMutation(api.workspaceMembers.removeWorkspaceMember);
+  const revokeInvite = useMutation(api.workspaceMembers.revokeWorkspaceInvite);
+  const approveInvite = useMutation(api.workspaceMembers.approveEncryptedWorkspaceInvite);
+  const startRotation = useMutation(api.workspaceCrypto.startWorkspaceRotation);
+
+  async function removeMemberWithRotation(membershipId: Id<'workspaceMembers'>) {
+    if (!cryptoStatus?.settings) {
+      await removeMember({ membershipId });
+      return;
+    }
+    if (
+      !window.confirm(
+        'Removing this member revokes access and rotates every cloud encryption key. Previously copied data cannot be revoked. Continue?',
+      )
+    ) {
+      return;
+    }
+    const passphrase = window.prompt(
+      'Enter the current Obfuscation passphrase. It will also protect the rotated key:',
+    );
+    if (!passphrase || passphrase.length < 12) return;
+    setRotatingMemberId(membershipId);
+    setOperationError(null);
+    let oldWorkspaceKey: Uint8Array | undefined;
+    let setup: Awaited<ReturnType<typeof createWorkspaceSetupMaterial>> | undefined;
+    try {
+      oldWorkspaceKey = withWorkspaceKey(cryptoStatus.workspaceOwnerId, (workspaceKey) =>
+        workspaceKey.slice(),
+      );
+      if (!cryptoStatus.settings.ownerKdf || !cryptoStatus.settings.ownerPassphraseWrappedKey) {
+        throw new Error('Owner key wrapper is unavailable');
+      }
+      const verifiedOldKey = await unwrapWorkspaceKeyWithPassphrase({
+        wrappedKey: {
+          v: 1,
+          kdf: cryptoStatus.settings.ownerKdf,
+          envelope: cryptoStatus.settings.ownerPassphraseWrappedKey,
+        },
+        passphrase,
+        workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+        keyEpoch: cryptoStatus.settings.activeKeyEpoch,
+      });
+      const passphraseMatches = equalBytes(verifiedOldKey, oldWorkspaceKey);
+      clearBytes(verifiedOldKey);
+      if (!passphraseMatches) throw new Error('The Obfuscation passphrase is incorrect');
+      const nextEpoch = cryptoStatus.settings.activeKeyEpoch + 1;
+      setup = await createWorkspaceSetupMaterial({
+        passphrase,
+        workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+        keyEpoch: nextEpoch,
+      });
+      const recipients = await convex.query(api.workspaceMembers.getRotationRecipients, {
+        membershipId,
+      });
+      const retainedSetup = setup;
+      const grants = await Promise.all(
+        recipients.map(async (recipient) => ({
+          memberId: recipient.memberId,
+          ...(await sealWorkspaceKeyGrant({
+            workspaceKey: retainedSetup.workspaceKey,
+            recipientPublicKey: toBytes(recipient.publicKey),
+            workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+            memberId: recipient.memberId,
+            keyEpoch: nextEpoch,
+          })),
+        })),
+      );
+      const recoveryContents = `${JSON.stringify(setup.recoveryKit, null, 2)}\n`;
+      const recoveryUrl = URL.createObjectURL(
+        new Blob([recoveryContents], { type: 'application/json' }),
+      );
+      const recoveryLink = document.createElement('a');
+      recoveryLink.href = recoveryUrl;
+      recoveryLink.download = `agendex-recovery-epoch-${nextEpoch}.json`;
+      recoveryLink.click();
+      URL.revokeObjectURL(recoveryUrl);
+      const recoveryFile = await new Promise<File | null>((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json,.json';
+        input.addEventListener('change', () => resolve(input.files?.[0] ?? null), { once: true });
+        input.addEventListener('cancel', () => resolve(null), { once: true });
+        input.click();
+      });
+      if (!recoveryFile) throw new Error('Rotation cancelled before recovery-kit verification');
+      if (!verifyRecoveryKit(await recoveryFile.text(), setup.workspaceKey)) {
+        throw new Error('The selected recovery kit does not match the rotated key');
+      }
+      const operationId = crypto.randomUUID();
+      const leaseId = crypto.randomUUID();
+      await startRotation({
+        membershipId,
+        clientProtocol: 1,
+        operationId,
+        leaseId,
+        ownerKdf: setup.passphraseWrappedKey.kdf,
+        ownerPassphraseWrappedKey: setup.passphraseWrappedKey.envelope,
+        ownerRecoveryWrappedKey: setup.recoveryEnvelope,
+        recoveryProofCommitment: setup.recoveryProofCommitment,
+        grants: grants.map((grant) => ({
+          ...grant,
+          encapsulatedKey: grant.encapsulatedKey.buffer as ArrayBuffer,
+          ciphertext: grant.ciphertext.buffer as ArrayBuffer,
+        })),
+      });
+      unlockWorkspaceKey(cryptoStatus.workspaceOwnerId, nextEpoch, setup.workspaceKey);
+      await runWorkspaceSeal({
+        convex,
+        workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+        keyEpoch: nextEpoch,
+        sourceWorkspaceKey: oldWorkspaceKey,
+        operation: { id: operationId, phase: 'plans', processed: 0, leaseId },
+      });
+    } catch (caught) {
+      setOperationError(
+        caught instanceof Error ? caught.message : 'Unable to rotate workspace key',
+      );
+    } finally {
+      if (oldWorkspaceKey) clearBytes(oldWorkspaceKey);
+      if (setup) clearBytes(setup.workspaceKey);
+      setRotatingMemberId(null);
+    }
+  }
+
+  async function approveEncryptedInvite(invite: {
+    _id: string;
+    token: string;
+    pendingMemberId?: string;
+    memberPublicKey?: ArrayBuffer;
+    enrollmentProof?: string;
+    encryptedInviteSecret?: unknown;
+  }) {
+    setOperationError(null);
+    if (
+      !cryptoStatus?.settings ||
+      !invite.pendingMemberId ||
+      !invite.memberPublicKey ||
+      !invite.enrollmentProof ||
+      !invite.encryptedInviteSecret
+    ) {
+      return;
+    }
+    const workspaceOwnerId = cryptoStatus.workspaceOwnerId;
+    const keyEpoch = cryptoStatus.settings.activeKeyEpoch;
+    const pendingMemberId = invite.pendingMemberId;
+    const memberPublicKey = invite.memberPublicKey;
+    const enrollmentProof = invite.enrollmentProof;
+    const encryptedInviteSecret = invite.encryptedInviteSecret;
+    try {
+      await withWorkspaceKey(workspaceOwnerId, async (workspaceKey, derivedKeys) => {
+        const retainedWorkspaceKey = workspaceKey.slice();
+        const inviteSecret = openBytes(derivedKeys.inviteKey, encryptedInviteSecret, {
+          workspaceOwnerId,
+          table: 'workspaceInvitations',
+          stableCryptoId: invite.token,
+          slot: 'invite-secret',
+          keyEpoch,
+        });
+        const publicKey = toBytes(memberPublicKey, 'member public key');
+        try {
+          if (
+            !verifyInviteEnrollmentProof({
+              inviteSecret,
+              token: invite.token,
+              userId: pendingMemberId,
+              publicKey,
+              proof: enrollmentProof,
+            })
+          ) {
+            throw new Error('Member enrollment proof does not match this invite');
+          }
+          const grant = await sealWorkspaceKeyGrant({
+            workspaceKey: retainedWorkspaceKey,
+            recipientPublicKey: publicKey,
+            workspaceOwnerId,
+            memberId: pendingMemberId,
+            keyEpoch,
+          });
+          await approveInvite({
+            inviteId: invite._id as Id<'workspaceInvites'>,
+            keyEpoch,
+            ...grant,
+            encapsulatedKey: grant.encapsulatedKey.buffer as ArrayBuffer,
+            ciphertext: grant.ciphertext.buffer as ArrayBuffer,
+          });
+        } finally {
+          clearBytes(retainedWorkspaceKey, inviteSecret);
+        }
+      });
+    } catch (caught) {
+      setOperationError(caught instanceof Error ? caught.message : 'Unable to approve member');
+    }
+  }
 
   if (!isActive) {
     return (
@@ -147,7 +349,7 @@ export function TeamTab({ isActive }: TeamTabProps) {
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           </div>
-          <h3 className="text-[15px] font-semibold text-text mb-1.5">
+          <h3 className="text-[14px] font-semibold text-text mb-1.5">
             Team members require a Pro plan
           </h3>
           <p className="text-[13px] text-secondary max-w-[320px] mx-auto leading-relaxed">
@@ -184,12 +386,20 @@ export function TeamTab({ isActive }: TeamTabProps) {
 
   return (
     <div className="space-y-6">
+      {operationError && (
+        <div
+          className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-[13px] text-[var(--danger)]"
+          role="alert"
+        >
+          {operationError}
+        </div>
+      )}
       {/* Header row with seat meter and invite button */}
       <div className="flex items-end justify-between gap-4">
         <div className="flex-1 max-w-xs">
           <SeatMeter used={workspace.usedSeats} total={workspace.seatLimit} />
         </div>
-        {workspace.remainingSeats > 0 && (
+        {workspace.remainingSeats > 0 && workspace.teamEnrollmentAvailable && (
           <button
             type="button"
             onClick={() => setShowInvite(true)}
@@ -215,6 +425,9 @@ export function TeamTab({ isActive }: TeamTabProps) {
             Invite member
           </button>
         )}
+        {!workspace.teamEnrollmentAvailable && (
+          <span className="text-[12px] text-tertiary">Encrypted team enrollment is in canary.</span>
+        )}
       </div>
 
       {/* Members list */}
@@ -228,25 +441,36 @@ export function TeamTab({ isActive }: TeamTabProps) {
                 email={member.email}
                 memberRole="Member"
                 detail={`Joined ${new Date(member.addedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
-                onAction={() =>
-                  removeMember({ membershipId: member._id as Id<'workspaceMembers'> })
-                }
-                actionLabel="Remove"
+                onAction={() => void removeMemberWithRotation(member._id as Id<'workspaceMembers'>)}
+                actionLabel={rotatingMemberId === member._id ? 'Rotating…' : 'Remove'}
                 actionDanger
               />
             ))}
 
             {/* Pending invites */}
             {workspace.pendingInvites.map(
-              (invite: { _id: string; email: string; createdAt: number }) => (
+              (invite: {
+                _id: string;
+                email: string;
+                createdAt: number;
+                token: string;
+                pendingMemberId?: string;
+                memberPublicKey?: ArrayBuffer;
+                enrollmentProof?: string;
+                encryptedInviteSecret?: unknown;
+              }) => (
                 <MemberRow
                   key={invite._id}
                   email={invite.email}
                   memberRole="Invited"
                   detail={`Sent ${new Date(invite.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
                   isPending
-                  onAction={() => revokeInvite({ inviteId: invite._id as Id<'workspaceInvites'> })}
-                  actionLabel="Revoke"
+                  onAction={() =>
+                    invite.pendingMemberId
+                      ? void approveEncryptedInvite(invite)
+                      : revokeInvite({ inviteId: invite._id as Id<'workspaceInvites'> })
+                  }
+                  actionLabel={invite.pendingMemberId ? 'Approve' : 'Revoke'}
                 />
               ),
             )}

@@ -1,11 +1,18 @@
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { useEffect, useRef, useState } from 'react';
+import {
+  buildTagWrite,
+  useCloudPlanTags,
+  useCloudTags,
+  useWorkspaceCryptoStatus,
+} from '../hooks/useCloudMetadataCrypto.ts';
 
 export function TagPickerPopover({ planId, onClose }: { planId: string; onClose: () => void }) {
-  const allTags = useQuery(api.tags.listMyTags);
-  const planTagsMap = useQuery(api.planTags.getTagsForPlans, { planIds: [planId as Id<'plans'>] });
+  const allTags = useCloudTags();
+  const planTagsMap = useCloudPlanTags([planId as Id<'plans'>]);
+  const cryptoStatus = useWorkspaceCryptoStatus();
   const addTag = useMutation(api.planTags.addTag);
   const removeTag = useMutation(api.planTags.removeTag);
   const createTag = useMutation(api.tags.createTag);
@@ -14,7 +21,7 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
   const [creating, setCreating] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const assignedIds = new Set((planTagsMap?.[planId] ?? []).map((t: any) => t._id));
+  const assignedIds = new Set((planTagsMap?.[planId] ?? []).map((tag) => tag._id));
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -31,7 +38,7 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
     if (!trimmed || creating) return;
     setCreating(true);
     try {
-      const tagId = await createTag({ name: trimmed });
+      const tagId = await createTag(buildTagWrite(cryptoStatus, trimmed));
       await addTag({ planId: planId as Id<'plans'>, tagId });
       setNewName('');
     } finally {
@@ -39,11 +46,11 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
     }
   }
 
-  async function handleToggle(tagId: string) {
+  async function handleToggle(tagId: Id<'tags'>) {
     if (assignedIds.has(tagId)) {
-      await removeTag({ planId: planId as Id<'plans'>, tagId: tagId as Id<'tags'> });
+      await removeTag({ planId: planId as Id<'plans'>, tagId });
     } else {
-      await addTag({ planId: planId as Id<'plans'>, tagId: tagId as Id<'tags'> });
+      await addTag({ planId: planId as Id<'plans'>, tagId });
     }
   }
 
@@ -75,8 +82,8 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
           <div className="p-2 text-[12px] text-tertiary">Type to create your first tag</div>
         ) : (
           allTags
-            .filter((t: any) => !newName.trim() || t.nameLc.includes(newName.trim().toLowerCase()))
-            .map((tag: any) => (
+            .filter((tag) => !newName.trim() || tag.nameLc.includes(newName.trim().toLowerCase()))
+            .map((tag) => (
               <button
                 key={tag._id}
                 type="button"

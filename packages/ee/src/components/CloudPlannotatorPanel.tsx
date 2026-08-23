@@ -5,6 +5,8 @@ import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useEffect, useMemo, useState } from 'react';
 import { type DaemonDeviceInfo, useDaemonStatus } from '../hooks/useDaemonStatus.ts';
+import { useWorkspaceCryptoStatus } from '../hooks/useCloudMetadataCrypto.ts';
+import { buildEncryptedWriteback } from '../lib/plannotator-crypto.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -257,6 +259,7 @@ export function CloudPlannotatorWritebackPanel({
 }) {
   const metadata = getPlannotatorMetadata(plan);
   const enqueueWriteback = useMutation(api.plannotator.enqueueWriteback);
+  const cryptoStatus = useWorkspaceCryptoStatus();
   // `enqueueWriteback` resolves to the canonical live plan, which may differ
   // from the plan being displayed (e.g. a superseded row). Gate the actions on
   // that canonical plan's state so we never enable approve/request against a
@@ -326,10 +329,20 @@ export function CloudPlannotatorWritebackPanel({
     setError(undefined);
     setQueuedAction(null);
     try {
+      const encrypted = cryptoStatus?.settings
+        ? buildEncryptedWriteback({
+            workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+            keyEpoch: cryptoStatus.settings.activeKeyEpoch,
+            plan,
+            action: 'approve',
+            feedback: '',
+          })
+        : { feedback: '' };
       await enqueueWriteback({
         planId: plan.id as Id<'plans'>,
         action: 'approve',
-        feedback: '',
+        ...encrypted,
+        ...(getSyncDeviceId(plan) ? { deviceId: getSyncDeviceId(plan) } : {}),
       });
       setQueuedAction('approve');
     } catch (err) {
@@ -345,11 +358,23 @@ export function CloudPlannotatorWritebackPanel({
     setError(undefined);
     setQueuedAction(null);
     try {
+      const requestFeedback = feedback.trim();
+      const requestRevision = revisedContent.trim() || undefined;
+      const encrypted = cryptoStatus?.settings
+        ? buildEncryptedWriteback({
+            workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+            keyEpoch: cryptoStatus.settings.activeKeyEpoch,
+            plan,
+            action: 'request_changes',
+            feedback: requestFeedback,
+            revisedContent: requestRevision,
+          })
+        : { feedback: requestFeedback, revisedContent: requestRevision };
       await enqueueWriteback({
         planId: plan.id as Id<'plans'>,
         action: 'request_changes',
-        feedback: feedback.trim(),
-        revisedContent: revisedContent.trim() || undefined,
+        ...encrypted,
+        ...(getSyncDeviceId(plan) ? { deviceId: getSyncDeviceId(plan) } : {}),
       });
       setFeedback('');
       setRevisedContent('');

@@ -1,4 +1,5 @@
 export type { AdapterCatalogEntry, AdapterGroup, AdapterId } from './adapters/catalog.ts';
+export * from './crypto/index.ts';
 export { ADAPTER_AGENT_ALIASES } from './adapters/catalog.ts';
 export {
   getActiveAdapters,

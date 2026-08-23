@@ -4,6 +4,8 @@ import { internal } from './_generated/api';
 import { internalMutation, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { cryptoEnvelopeV1 } from './schema';
+import { resolveWorkspaceCryptoPolicy, validateEncryptedWrite } from './workspaceCrypto';
 
 export const listMyCollections = query({
   args: {},
@@ -21,19 +23,44 @@ export const listMyCollections = query({
 });
 
 export const createCollection = mutation({
-  args: { name: v.string(), description: v.optional(v.string()) },
+  args: {
+    name: v.string(),
+    description: v.optional(v.string()),
+    clientCryptoProtocol: v.optional(v.number()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedName: v.optional(cryptoEnvelopeV1),
+    encryptedDescription: v.optional(cryptoEnvelopeV1),
+    nameToken: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
 
-    const nameLc = args.name.trim().toLowerCase();
-    if (!nameLc) throw new ConvexError('Collection name cannot be empty');
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
+    const encrypted = policy.requiresEncryption;
+    validateEncryptedWrite({
+      policy,
+      clientProtocol: args.clientCryptoProtocol,
+      envelopes: [args.encryptedName, args.encryptedDescription].filter(Boolean),
+      plaintext: { name: args.name, description: args.description },
+    });
+    if (encrypted && (!args.stableCryptoId || !args.nameToken || args.keyEpoch === undefined)) {
+      throw new ConvexError('Encrypted collection metadata is required');
+    }
+
+    const nameLc = encrypted ? '' : args.name.trim().toLowerCase();
+    if (!encrypted && !nameLc) throw new ConvexError('Collection name cannot be empty');
 
     const existing = await ctx.db
       .query('collections')
-      .withIndex('by_owner_nameLc', (q) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
+      .withIndex(encrypted ? 'by_owner_nameToken' : 'by_owner_nameLc', (q) =>
+        encrypted
+          ? q.eq('ownerId', user._id).eq('nameToken', args.nameToken)
+          : q.eq('ownerId', user._id).eq('nameLc', nameLc),
+      )
       .first();
 
     if (existing) throw new ConvexError('A collection with this name already exists');
@@ -41,17 +68,35 @@ export const createCollection = mutation({
     const now = Date.now();
     return await ctx.db.insert('collections', {
       ownerId: user._id,
-      name: args.name.trim(),
+      name: encrypted ? '' : args.name.trim(),
       nameLc,
-      description: args.description,
+      description: encrypted ? undefined : args.description,
       createdAt: now,
       updatedAt: now,
+      ...(encrypted
+        ? {
+            stableCryptoId: args.stableCryptoId,
+            keyEpoch: args.keyEpoch,
+            encryptedName: args.encryptedName,
+            encryptedDescription: args.encryptedDescription,
+            nameToken: args.nameToken,
+          }
+        : {}),
     });
   },
 });
 
 export const renameCollection = mutation({
-  args: { collectionId: v.id('collections'), name: v.string() },
+  args: {
+    collectionId: v.id('collections'),
+    name: v.string(),
+    description: v.optional(v.string()),
+    clientCryptoProtocol: v.optional(v.number()),
+    keyEpoch: v.optional(v.number()),
+    encryptedName: v.optional(cryptoEnvelopeV1),
+    encryptedDescription: v.optional(cryptoEnvelopeV1),
+    nameToken: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -63,12 +108,31 @@ export const renameCollection = mutation({
       throw new ConvexError('Collection not found');
     }
 
-    const nameLc = args.name.trim().toLowerCase();
-    if (!nameLc) throw new ConvexError('Collection name cannot be empty');
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
+    const encrypted = policy.requiresEncryption;
+    validateEncryptedWrite({
+      policy,
+      clientProtocol: args.clientCryptoProtocol,
+      envelopes: [args.encryptedName, args.encryptedDescription].filter(Boolean),
+      plaintext: { name: args.name, description: args.description },
+    });
+    if (
+      encrypted &&
+      (!collection.stableCryptoId || !args.nameToken || args.keyEpoch === undefined)
+    ) {
+      throw new ConvexError('Encrypted collection metadata is required');
+    }
+
+    const nameLc = encrypted ? '' : args.name.trim().toLowerCase();
+    if (!encrypted && !nameLc) throw new ConvexError('Collection name cannot be empty');
 
     const existing = await ctx.db
       .query('collections')
-      .withIndex('by_owner_nameLc', (q) => q.eq('ownerId', user._id).eq('nameLc', nameLc))
+      .withIndex(encrypted ? 'by_owner_nameToken' : 'by_owner_nameLc', (q) =>
+        encrypted
+          ? q.eq('ownerId', user._id).eq('nameToken', args.nameToken)
+          : q.eq('ownerId', user._id).eq('nameLc', nameLc),
+      )
       .first();
 
     if (existing && existing._id !== args.collectionId) {
@@ -76,8 +140,19 @@ export const renameCollection = mutation({
     }
 
     await ctx.db.patch(args.collectionId, {
-      name: args.name.trim(),
+      name: encrypted ? '' : args.name.trim(),
       nameLc,
+      ...(encrypted
+        ? {
+            description: undefined,
+            keyEpoch: args.keyEpoch,
+            encryptedName: args.encryptedName,
+            encryptedDescription: args.encryptedDescription,
+            nameToken: args.nameToken,
+          }
+        : args.description !== undefined
+          ? { description: args.description }
+          : {}),
       updatedAt: Date.now(),
     });
   },

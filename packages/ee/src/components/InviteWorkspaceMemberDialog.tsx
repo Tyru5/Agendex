@@ -1,7 +1,15 @@
 import { api } from '@convex/_generated/api';
+import {
+  bytesToBase64Url,
+  generateInviteSecret,
+  inviteSecretCommitment,
+  sealBytes,
+} from '@agendex/shared/crypto';
 import { useMutation } from 'convex/react';
 import { useState } from 'react';
 import { normalizeLocalDevUrl } from '../lib/auth-client.ts';
+import { useWorkspaceCryptoStatus } from '../hooks/useCloudMetadataCrypto.ts';
+import { withWorkspaceKey } from '../lib/obfuscation-keyring.ts';
 import { PRIMARY_CONTRAST_FALLBACK } from './settings/constants';
 
 const appUrl = normalizeLocalDevUrl(
@@ -16,19 +24,44 @@ export function InviteWorkspaceMemberDialog({ onClose }: InviteWorkspaceMemberDi
   const [email, setEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [inviteSecret, setInviteSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Convex component API not in generated types
   // oxlint-disable-next-line typescript/no-explicit-any
   const invite = useMutation((api as any).workspaceMembers.inviteWorkspaceMember);
+  const cryptoStatus = useWorkspaceCryptoStatus();
 
   async function handleInvite() {
     if (!email.trim()) return;
     setInviting(true);
     setError(null);
     try {
-      const result = await invite({ email: email.trim() });
+      let cryptoArgs = {};
+      if (cryptoStatus?.settings) {
+        const settings = cryptoStatus.settings;
+        const token = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(24)));
+        const secret = generateInviteSecret();
+        cryptoArgs = withWorkspaceKey(
+          cryptoStatus.workspaceOwnerId,
+          (_workspaceKey, derivedKeys) => ({
+            token,
+            clientCryptoProtocol: 1,
+            inviteSecretCommitment: inviteSecretCommitment(secret),
+            encryptedInviteSecret: sealBytes(derivedKeys.inviteKey, secret, {
+              workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+              table: 'workspaceInvitations',
+              stableCryptoId: token,
+              slot: 'invite-secret',
+              keyEpoch: settings.activeKeyEpoch,
+            }),
+          }),
+        );
+        setInviteSecret(bytesToBase64Url(secret));
+        secret.fill(0);
+      }
+      const result = await invite({ email: email.trim(), ...cryptoArgs });
       setInviteToken(result.token);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to send invite';
@@ -40,7 +73,7 @@ export function InviteWorkspaceMemberDialog({ onClose }: InviteWorkspaceMemberDi
 
   async function handleCopy() {
     if (!inviteToken) return;
-    const url = `${appUrl}/invite/${inviteToken}`;
+    const url = `${appUrl}/invite/${inviteToken}${inviteSecret ? `#k=${inviteSecret}` : ''}`;
     await navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -48,8 +81,7 @@ export function InviteWorkspaceMemberDialog({ onClose }: InviteWorkspaceMemberDi
 
   return (
     <div
-      className="fixed inset-0 z-[2000] flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-(--z-overlay) flex items-center justify-center bg-bg/80 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
@@ -64,7 +96,7 @@ export function InviteWorkspaceMemberDialog({ onClose }: InviteWorkspaceMemberDi
         style={{ animation: 'statusPopoverIn 150ms ease-out' }}
       >
         <div className="p-5 border-b border-border">
-          <h3 className="text-[15px] font-semibold text-text">Invite workspace member</h3>
+          <h3 className="text-[14px] font-semibold text-text">Invite workspace member</h3>
           <p className="text-[13px] text-secondary mt-1.5 leading-relaxed">
             Members get read-only access to all your synced plans.
           </p>
@@ -79,12 +111,13 @@ export function InviteWorkspaceMemberDialog({ onClose }: InviteWorkspaceMemberDi
               <div className="flex items-center gap-2 py-2 px-2.5 rounded-default border border-border bg-bg">
                 <span className="flex-1 text-[12px] text-secondary font-mono overflow-hidden text-ellipsis whitespace-nowrap">
                   {appUrl}/invite/{inviteToken}
+                  {inviteSecret ? '#k=••••••••' : ''}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopy}
                   className="py-[3px] px-2.5 text-[11.5px] font-medium rounded-default border border-border bg-transparent cursor-pointer whitespace-nowrap"
-                  style={{ color: copied ? '#16a34a' : 'var(--secondary)' }}
+                  style={{ color: copied ? 'var(--success)' : 'var(--secondary)' }}
                 >
                   {copied ? 'Copied' : 'Copy'}
                 </button>
@@ -99,7 +132,6 @@ export function InviteWorkspaceMemberDialog({ onClose }: InviteWorkspaceMemberDi
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="teammate@example.com"
-                  autoFocus
                   disabled={inviting}
                   className="mt-2 w-full px-3 py-2 text-[13px] rounded-default border border-border bg-bg text-text placeholder:text-tertiary outline-none transition-colors duration-150 focus:border-[var(--primary)]"
                   onKeyDown={(e) => {

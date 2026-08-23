@@ -159,6 +159,43 @@ test('starts one utility worker without putting credentials in its environment',
   );
 });
 
+test('delivers the retained workspace key after worker start and clears it live', async () => {
+  useTempConfigDir();
+  const child = new FakeUtilityProcess();
+  const manager = new DesktopDaemonManager({
+    isDev: true,
+    workerEntry: join(tempRoot, 'daemon-worker.js'),
+    forkWorker: (() => {
+      queueMicrotask(() => child.emit('spawn'));
+      return child;
+    }) as never,
+    rotateCloudToken: () => null,
+    onAuthExpired: () => undefined,
+    log: () => undefined,
+    isProcessRunning: () => false,
+    isDaemonProcess: () => false,
+    timings: testTimings(),
+  });
+
+  manager.updateWorkspaceKey('owner-1', 2, `${'A'.repeat(43)}=`);
+  await manager.ensureRunning(credentials());
+  expect(child.messages).toContainEqual({
+    type: 'workspace-key-updated',
+    workspaceOwnerId: 'owner-1',
+    keyEpoch: 2,
+    keyBase64: `${'A'.repeat(43)}=`,
+  });
+
+  manager.updateWorkspaceKey('owner-1', 2, null);
+  expect(child.messages.at(-1)).toEqual({
+    type: 'workspace-key-updated',
+    workspaceOwnerId: 'owner-1',
+    keyEpoch: 2,
+    keyBase64: null,
+  });
+  await manager.stop();
+});
+
 // Desktop users relying on an existing CLI daemon should see indexing become ready without restarting.
 test('tracks readiness for a live external daemon without taking ownership', async () => {
   useTempConfigDir();

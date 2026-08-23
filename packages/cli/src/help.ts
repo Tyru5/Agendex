@@ -64,6 +64,11 @@ const HELP_GROUPS: HelpGroup[] = [
         examples: ['agendex login --url <self-hosted-url>'],
       },
       { command: 'logout', description: 'Clear the stored cloud token' },
+      {
+        command: 'unlock [--recovery <kit.json>]',
+        description: 'Unlock an obfuscated workspace on this device',
+      },
+      { command: 'lock', description: 'Remove the stored Obfuscation key from this device' },
       { command: 'view <url>', description: 'Open a shared plan URL in your browser' },
     ],
   },

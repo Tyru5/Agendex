@@ -26,6 +26,27 @@ test('desktop daemon protocol accepts the closed parent message set', () => {
     parentPid: 42,
   });
   expect(parseDesktopDaemonParentMessage({ type: 'shutdown' })).toEqual({ type: 'shutdown' });
+  expect(
+    parseDesktopDaemonParentMessage({
+      type: 'workspace-key-updated',
+      workspaceOwnerId: 'owner-1',
+      keyEpoch: 2,
+      keyBase64: `${'A'.repeat(43)}=`,
+    }),
+  ).toEqual({
+    type: 'workspace-key-updated',
+    workspaceOwnerId: 'owner-1',
+    keyEpoch: 2,
+    keyBase64: `${'A'.repeat(43)}=`,
+  });
+  expect(
+    parseDesktopDaemonParentMessage({
+      type: 'workspace-key-updated',
+      workspaceOwnerId: 'owner-1',
+      keyEpoch: 0,
+      keyBase64: 'AQID',
+    }),
+  ).toBeNull();
   expect(parseDesktopDaemonParentMessage({ type: 'start', parentPid: -1 })).toBeNull();
 });
 

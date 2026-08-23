@@ -44,6 +44,7 @@ import { runUpgrade } from './upgrade.ts';
 import { runUpload } from './upload.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
 import { openAgendexWeb, openSharedPlan } from './web.ts';
+import { runLockCommand, runUnlockCommand } from './cloud-crypto.ts';
 
 const args = process.argv.slice(2);
 const devFlag = args.includes('--dev');
@@ -82,6 +83,8 @@ async function main(): Promise<number> {
     'status',
     'login',
     'logout',
+    'unlock',
+    'lock',
     'open',
     'view',
     'cleanup',
@@ -315,9 +318,18 @@ async function main(): Promise<number> {
     }
 
     case 'logout': {
+      try {
+        await runLockCommand();
+      } catch {
+        // Logout still removes the cloud token when the backend is unreachable.
+      }
       logout();
       return 0;
     }
+    case 'unlock':
+      return runUnlockCommand(args);
+    case 'lock':
+      return runLockCommand();
 
     case 'configure': {
       const config = await loadOrInitConfig({ configureAdapters: true });

@@ -35,6 +35,7 @@ Agendex is a Bun workspaces monorepo:
 - Dashboard plan creation, uploads, and editing
 - Pro Plannotator sync and daemon-mediated request-changes write-back
 - Trial and subscription flows
+- Optional irreversible **Obfuscation** mode: client-side zero-access encryption for cloud content, recovery kits, member key grants, resumable sealing/rotation, and client-side readable export. See [`docs/obfuscation.md`](./docs/obfuscation.md).
 
 The Electron app starts its cloud sync worker automatically after desktop sign-in when no
 CLI daemon is already running. The worker uses the encrypted desktop session, requires no

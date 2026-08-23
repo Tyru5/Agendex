@@ -5,6 +5,8 @@ import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { assessPlanForVisibility, metadataWithPlanValueAssessment } from './planVisibility';
 import { recordPlanVersion } from './planVersioning';
+import { cryptoEnvelopeV1 } from './schema';
+import { resolveWorkspaceCryptoPolicy, validateEncryptedWrite } from './workspaceCrypto';
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
@@ -40,6 +42,9 @@ export const listForPlan = query({
       title: ver.title,
       source: ver.source,
       createdAt: ver.createdAt,
+      stableCryptoId: ver.stableCryptoId,
+      keyEpoch: ver.keyEpoch,
+      encryptedSummary: ver.encryptedSummary,
     }));
   },
 });
@@ -78,7 +83,19 @@ export const getVersion = query({
 });
 
 export const restore = mutation({
-  args: { planId: v.id('plans'), version: v.number() },
+  args: {
+    planId: v.id('plans'),
+    version: v.number(),
+    clientCryptoProtocol: v.optional(v.number()),
+    keyEpoch: v.optional(v.number()),
+    encryptedSummary: v.optional(cryptoEnvelopeV1),
+    encryptedBody: v.optional(cryptoEnvelopeV1),
+    versionStableCryptoId: v.optional(v.string()),
+    encryptedVersionSummary: v.optional(cryptoEnvelopeV1),
+    encryptedVersionBody: v.optional(cryptoEnvelopeV1),
+    contentToken: v.optional(v.string()),
+    lowValue: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -95,6 +112,7 @@ export const restore = mutation({
     if (plan.ownerId !== user._id) {
       throw new ConvexError('Access denied');
     }
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
 
     // Intentionally does not gate on `isVisiblePlan(plan)` here: restoring is how
     // an owner recovers a plan that was previously (and possibly incorrectly)
@@ -107,6 +125,64 @@ export const restore = mutation({
 
     if (!snapshot) {
       throw new ConvexError('Version not found');
+    }
+
+    if (policy.requiresEncryption) {
+      validateEncryptedWrite({
+        policy,
+        clientProtocol: args.clientCryptoProtocol,
+        envelopes: [
+          args.encryptedSummary,
+          args.encryptedBody,
+          args.encryptedVersionSummary,
+          args.encryptedVersionBody,
+        ].filter(Boolean),
+        plaintext: {},
+      });
+      if (
+        !plan.stableCryptoId ||
+        args.keyEpoch === undefined ||
+        !args.encryptedSummary ||
+        !args.encryptedBody ||
+        !args.versionStableCryptoId ||
+        !args.encryptedVersionSummary ||
+        !args.encryptedVersionBody ||
+        !args.contentToken ||
+        args.lowValue === undefined
+      ) {
+        throw new ConvexError('Encrypted restore metadata is required');
+      }
+      const newVersion = plan.version + 1;
+      const now = Date.now();
+      await ctx.db.patch(args.planId, {
+        title: '',
+        content: '',
+        filePath: undefined,
+        workspace: undefined,
+        metadata: undefined,
+        version: newVersion,
+        updatedAt: now,
+        keyEpoch: args.keyEpoch,
+        encryptedSummary: args.encryptedSummary,
+        encryptedBody: args.encryptedBody,
+        contentToken: args.contentToken,
+        lowValue: args.lowValue,
+      });
+      await ctx.db.insert('planVersions', {
+        ownerId: user._id,
+        planId: args.planId,
+        version: newVersion,
+        title: '',
+        content: '',
+        format: snapshot.format,
+        source: 'restore',
+        createdAt: now,
+        stableCryptoId: args.versionStableCryptoId,
+        keyEpoch: args.keyEpoch,
+        encryptedSummary: args.encryptedVersionSummary,
+        encryptedBody: args.encryptedVersionBody,
+      });
+      return;
     }
 
     const restoredAssessment = assessPlanForVisibility({

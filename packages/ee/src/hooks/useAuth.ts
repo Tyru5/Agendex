@@ -1,4 +1,5 @@
 import { authClient } from '../lib/auth-client.ts';
+import { useEffect, useRef } from 'react';
 import {
   desktopLogin,
   desktopLogout,
@@ -6,9 +7,18 @@ import {
   isDesktop,
   normalizeDesktopAuthProvider,
 } from '../lib/desktop.ts';
+import { lockAllWorkspaceKeys } from '../lib/obfuscation-keyring.ts';
 
 export function useAuth() {
   const session = authClient.useSession();
+  const userId = session.data?.user?.id ?? null;
+  const previousUserId = useRef<string | null>(userId);
+  useEffect(() => {
+    if (previousUserId.current && previousUserId.current !== userId) {
+      lockAllWorkspaceKeys();
+    }
+    previousUserId.current = userId;
+  }, [userId]);
   const desktop = isDesktop();
   const desktopCloudToken = desktop ? getDesktopCloudToken() : null;
   const desktopHasCloudSession = Boolean(desktopCloudToken);
@@ -28,12 +38,16 @@ export function useAuth() {
       } as typeof authClient.signIn)
     : authClient.signIn;
 
-  const signOut = desktop
+  const platformSignOut = desktop
     ? ((async () => {
         await desktopLogout();
         return { data: null, error: null };
       }) as unknown as typeof authClient.signOut)
     : authClient.signOut;
+  const signOut = (async (...args: Parameters<typeof authClient.signOut>) => {
+    lockAllWorkspaceKeys();
+    return platformSignOut(...args);
+  }) as typeof authClient.signOut;
 
   return {
     user: session.data?.user ?? null,

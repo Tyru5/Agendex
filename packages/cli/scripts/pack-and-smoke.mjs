@@ -128,7 +128,7 @@ async function exerciseSyncParse(env) {
 
     const sync = runSync(nodeBin, [workspaceCli, 'sync'], { env });
     assert.notEqual(sync.status, 0, 'expected sync against an unreachable host to fail');
-    assert.match(sync.stdout, /Found 1 syncable plans/);
+    assert.match(sync.stderr, /Unable to verify the workspace encryption state/);
   } finally {
     config.convexUrl = originalConvexUrl;
     await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
@@ -136,8 +136,10 @@ async function exerciseSyncParse(env) {
 }
 
 async function exerciseDaemon(env, cloudState) {
-  const start = runSync(nodeBin, [workspaceCli, 'start'], { env });
-  assert.equal(start.status, 0, start.stderr || start.stdout);
+  // The worker verifies crypto state before publishing its first heartbeat. Keep
+  // this process's event loop available so the in-process fake cloud can answer.
+  const start = await runAsync(nodeBin, [workspaceCli, 'start'], { env });
+  assert.equal(start.code, 0, start.stderr || start.stdout);
 
   const pidPath = join(env.HOME, '.agendex', 'daemon.pid');
   await waitFor(async () => {
@@ -152,7 +154,15 @@ async function exerciseDaemon(env, cloudState) {
     }
   }, 10_000);
 
-  await waitFor(() => cloudState.heartbeatCount > 0, 10_000);
+  try {
+    await waitFor(() => cloudState.heartbeatCount > 0, 10_000);
+  } catch (error) {
+    const logPath = join(env.HOME, '.agendex', 'daemon.log');
+    const daemonLog = await readFile(logPath, 'utf-8').catch(() => '<daemon log unavailable>');
+    throw new Error(
+      `Daemon did not publish its first heartbeat. ${error instanceof Error ? error.message : String(error)}\n${daemonLog.slice(-4_000)}`,
+    );
+  }
 
   // Use async spawn so the event loop stays unblocked — the stop command
   // calls sendShutdown() which makes an HTTP request back to the fake cloud
@@ -187,7 +197,11 @@ async function exerciseUpdateCheck(
     runCli(binary, ['sync'], { cwd, env }, executeDirectly),
   );
   assert.match(advised.stderr, /update available/, advised.stderr || advised.stdout);
-  assert.match(advised.stdout, /Found 1 syncable plans/, advised.stderr || advised.stdout);
+  assert.match(
+    advised.stderr,
+    /Unable to verify the workspace encryption state/,
+    advised.stderr || advised.stdout,
+  );
 
   const bypassed = runCli(binary, [bypassCommand], { cwd, env }, executeDirectly);
   assert.equal(bypassed.status, 0, bypassed.stderr || bypassed.stdout);
@@ -202,7 +216,8 @@ async function exerciseUpdateCheck(
   const allowed = await withUnreachableConvexUrl(env, () =>
     runCli(binary, ['sync'], { cwd, env }, executeDirectly),
   );
-  assert.match(allowed.stdout, /Found 1 syncable plans/);
+  assert.doesNotMatch(allowed.stderr, /update available/);
+  assert.match(allowed.stderr, /Unable to verify the workspace encryption state/);
   assert.doesNotMatch(allowed.stderr, /update available/);
 }
 
@@ -294,6 +309,11 @@ async function startFakeCloud(state) {
     if (req.method === 'POST' && url.pathname === '/api/cli/sync') {
       state.syncBodies.push(await readJson(req));
       respond(res, 200, '{"ok":true}', 'application/json');
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/cli/crypto') {
+      respond(res, 200, '{"enabled":false}', 'application/json');
       return;
     }
 
@@ -412,17 +432,24 @@ async function verifyInstalledTarball(name, _tarballPath, getArgs, options = {})
     );
     assert.match(smoke.stdout, /Usage:/);
 
-    await createCursorFixture(projectDir);
-    await writeSmokeConfig(projectDir);
-    await exerciseUpdateCheck(binary, env, projectDir, 'status', executeDirectly);
+    const cloudState = { heartbeatCount: 0, syncBodies: [] };
+    const server = await startFakeCloud(cloudState);
+    try {
+      await createCursorFixture(projectDir);
+      await writeSmokeConfig(projectDir, server.baseUrl);
+      await exerciseUpdateCheck(binary, env, projectDir, 'status', executeDirectly);
 
-    const sync = runCli(binary, ['sync'], { cwd: projectDir, env }, executeDirectly);
-    assert.notEqual(sync.status, 0, `${name} sync should fail against an unreachable cloud`);
-    assert.match(
-      sync.stdout,
-      /Found 1 syncable plans/,
-      `${name} sync did not parse the installed SQLite adapter`,
-    );
+      const sync = await runCliAsync(binary, ['sync'], { cwd: projectDir, env }, executeDirectly);
+      assert.equal(sync.code, 0, sync.stderr || sync.stdout);
+      assert.match(
+        sync.stdout,
+        /Found 1 syncable plans/,
+        `${name} sync did not parse the installed SQLite adapter`,
+      );
+      assert.equal(cloudState.syncBodies.length, 1, `${name} sync did not reach fake cloud`);
+    } finally {
+      await server.close();
+    }
   } finally {
     await rm(projectDir, {
       recursive: true,
@@ -437,7 +464,7 @@ async function writeUpdateCache(filePath, result) {
   await writeFile(filePath, `${JSON.stringify({ result, ts: Date.now() })}\n`);
 }
 
-async function writeSmokeConfig(homeDir) {
+async function writeSmokeConfig(homeDir, convexUrl) {
   const configDir = join(homeDir, '.agendex');
   await mkdir(configDir, { recursive: true });
   await writeFile(
@@ -448,7 +475,7 @@ async function writeSmokeConfig(homeDir) {
         token: 'local-token',
         cloudToken: 'cloud-token',
         cloudAccountId: 'account-1',
-        convexUrl: 'http://127.0.0.1:9',
+        convexUrl,
         enabledAdapters: ['cursor'],
       },
       null,
@@ -543,6 +570,12 @@ function runCli(binary, args, options, executeDirectly) {
   return executeDirectly
     ? runSync(binary, args, options)
     : runSync(nodeBin, [binary, ...args], options);
+}
+
+function runCliAsync(binary, args, options, executeDirectly) {
+  return executeDirectly
+    ? runAsync(binary, args, options)
+    : runAsync(nodeBin, [binary, ...args], options);
 }
 
 function buildReleaseArtifacts() {

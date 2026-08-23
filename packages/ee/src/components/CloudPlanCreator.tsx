@@ -6,10 +6,9 @@ import {
   planMarkdownRemarkPlugins,
   type Plan,
 } from '@agendex/web';
-import { api } from '@convex/_generated/api';
-import { useMutation } from 'convex/react';
 import { useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
+import { useCloudPlanPublisher } from '../hooks/useCloudPlanPublisher';
 
 function getAgentOptions(agents: AgentStats[]) {
   return Array.from(new Set([...agents.map((agent) => agent.agent), ...AGENT_IDS]));
@@ -39,7 +38,7 @@ export function CloudPlanCreator({
   onClose: () => void;
   onCreated: (plan: Plan) => void;
 }) {
-  const publishPlan = useMutation(api.plans.publishPlan);
+  const publishPlan = useCloudPlanPublisher();
   const agentOptions = useMemo(() => getAgentOptions(agents), [agents]);
   const [agent, setAgent] = useState(() => agentOptions[0] ?? '');
   const [title, setTitle] = useState('');
