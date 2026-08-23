@@ -66,6 +66,12 @@ export {
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export type { PlanAnnotationCreateDraft } from './client/components/PlanViewer.tsx';
 export { PlanActionButton, PlanViewer } from './client/components/PlanViewer.tsx';
+export type { PlanCompareViewProps } from './client/components/PlanCompareView.tsx';
+export { PlanCompareView } from './client/components/PlanCompareView.tsx';
+export type { PlanComparePickerProps } from './client/components/PlanComparePicker.tsx';
+export { PlanComparePicker } from './client/components/PlanComparePicker.tsx';
+export type { DiffBlock, PlanDiff, PlanDiffStats } from './client/lib/plan-diff.ts';
+export { buildDiffSections, diffPlanContent } from './client/lib/plan-diff.ts';
 export { SearchBar } from './client/components/SearchBar.tsx';
 export { Sidebar } from './client/components/Sidebar.tsx';
 export type { SidebarFiltersProps, SidebarSortBy } from './client/components/SidebarFilters.tsx';

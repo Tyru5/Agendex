@@ -11,6 +11,7 @@ import {
   normalizeFilterValues,
   OfflineView,
   type Plan,
+  PlanCompareView,
   PlanFilterMismatchBanner,
   PlanSourcesDialog,
   PlanViewer,
@@ -74,6 +75,10 @@ function Dashboard() {
   );
   const [selectedPlanId, setSelectedPlanId] = useQueryState(
     'plan',
+    parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
+  );
+  const [comparePlanId, setComparePlanId] = useQueryState(
+    'compare',
     parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
   );
   const legacyAgentFilter = legacyAgentFilterRaw ?? undefined;
@@ -195,6 +200,10 @@ function Dashboard() {
     if (!selectedPlanId) return undefined;
     return plansById.get(selectedPlanId);
   }, [plansById, selectedPlanId]);
+  const comparePlan = useMemo(() => {
+    if (!comparePlanId) return undefined;
+    return plansById.get(comparePlanId);
+  }, [plansById, comparePlanId]);
   const filterMismatchKey = useMemo(() => {
     if (!selectedPlan) return '';
     return [
@@ -213,15 +222,35 @@ function Dashboard() {
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
       setSelectedPlanId(plan?.id ?? null);
+      setComparePlanId(null);
     },
-    [setSelectedPlanId],
+    [setComparePlanId, setSelectedPlanId],
   );
+
+  const startCompare = useCallback(
+    (plan: Plan) => {
+      setComparePlanId(plan.id);
+    },
+    [setComparePlanId],
+  );
+
+  const swapCompare = useCallback(() => {
+    if (!selectedPlan || !comparePlan) return;
+    setSelectedPlanId(comparePlan.id);
+    setComparePlanId(selectedPlan.id);
+  }, [comparePlan, selectedPlan, setComparePlanId, setSelectedPlanId]);
 
   useEffect(() => {
     if (selectedPlanId && !plansById.has(selectedPlanId)) {
       setSelectedPlanId(null);
     }
   }, [selectedPlanId, plansById, setSelectedPlanId]);
+
+  useEffect(() => {
+    if (comparePlanId && plans.length > 0 && !plansById.has(comparePlanId)) {
+      setComparePlanId(null);
+    }
+  }, [comparePlanId, plans.length, plansById, setComparePlanId]);
 
   const clearHoverCloseTimer = useCallback(() => {
     if (!hoverCloseTimer.current) return;
@@ -378,12 +407,23 @@ function Dashboard() {
       >
         {backendStatus === 'offline' ? (
           <OfflineView />
+        ) : selectedPlan && comparePlan ? (
+          <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
+            <PlanCompareView
+              basePlan={comparePlan}
+              targetPlan={selectedPlan}
+              onClose={() => setComparePlanId(null)}
+              onSwap={swapCompare}
+              onOpenPlan={setSelectedPlan}
+            />
+          </div>
         ) : selectedPlan ? (
           <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
             <PlanViewer
               plan={selectedPlan}
               allPlans={plans}
               onSelectRelatedPlan={setSelectedPlan}
+              onComparePlan={startCompare}
               outlineHidden={outlineHidden}
               headerExtra={
                 showFilterMismatchBanner ? (

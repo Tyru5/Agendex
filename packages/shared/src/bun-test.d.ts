@@ -18,6 +18,11 @@ declare module 'bun:test' {
     toMatchObject(expected: unknown): void;
     toThrow(expected?: unknown): void;
     toBeNumber(): void;
+    toBeGreaterThan(expected: number): void;
+    toBeGreaterThanOrEqual(expected: number): void;
+    toBeLessThan(expected: number): void;
+    toBeLessThanOrEqual(expected: number): void;
+    toBeCloseTo(expected: number, precision?: number): void;
     toMatch(expected: unknown): void;
     not: Matcher;
   }
