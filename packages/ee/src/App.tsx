@@ -24,6 +24,7 @@ import {
   PlanActionButton,
   PlanSourcesDialog,
   type PlanState,
+  PlanCompareView,
   PlanViewer,
   SidebarFilters,
   SidebarResizeHandle,
@@ -891,6 +892,7 @@ function CloudPlanReviewWorkspace({
   chartHidden,
   allPlans,
   onSelectRelatedPlan,
+  onComparePlan,
   onEdit,
   onHistory,
   onShare,
@@ -907,6 +909,7 @@ function CloudPlanReviewWorkspace({
   chartHidden?: boolean;
   allPlans?: readonly Plan[];
   onSelectRelatedPlan?: (plan: Plan) => void;
+  onComparePlan?: (plan: Plan) => void;
   onEdit: () => void;
   onHistory: () => void;
   onShare: () => void;
@@ -1023,6 +1026,7 @@ function CloudPlanReviewWorkspace({
             plan={plan}
             allPlans={allPlans}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            onComparePlan={onComparePlan}
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
             onToggleChart={onToggleChart}
@@ -1173,6 +1177,12 @@ function useDashboardMain({
   selectedPlan,
   allPlans,
   onSelectRelatedPlan,
+  comparePlan,
+  compareBodiesLoading,
+  compareBodiesMissing,
+  onComparePlan,
+  onCloseCompare,
+  onSwapCompare,
   onMarkBriefRead,
   onRetryBrief,
   onClose,
@@ -1216,6 +1226,14 @@ function useDashboardMain({
   selectedPlan: Plan | undefined;
   allPlans: readonly Plan[];
   onSelectRelatedPlan: (plan: Plan) => void;
+  comparePlan?: Plan;
+  /** True while either compare pane's cloud body is still hydrating. */
+  compareBodiesLoading?: boolean;
+  /** True when either compare pane's cloud body is inaccessible. */
+  compareBodiesMissing?: boolean;
+  onComparePlan?: (plan: Plan) => void;
+  onCloseCompare?: () => void;
+  onSwapCompare?: () => void;
   onMarkBriefRead: () => void;
   onRetryBrief: () => void;
   onClose: () => void;
@@ -1517,6 +1535,31 @@ function useDashboardMain({
           >
             <PlanHistoryDrawer planId={selectedPlan.id} onClose={onClose} />
           </Suspense>
+        ) : comparePlan && onCloseCompare ? (
+          compareBodiesLoading ? (
+            <div className="p-4">
+              <SkeletonBlock lines={8} />
+            </div>
+          ) : compareBodiesMissing ? (
+            <div className="flex h-full flex-col items-start gap-3 p-6 text-[13px] text-tertiary">
+              <p>One of the plans is no longer available to compare.</p>
+              <button
+                type="button"
+                className="text-text underline underline-offset-2"
+                onClick={onCloseCompare}
+              >
+                Close compare
+              </button>
+            </div>
+          ) : (
+            <PlanCompareView
+              basePlan={comparePlan}
+              targetPlan={selectedPlan}
+              onClose={onCloseCompare}
+              onSwap={onSwapCompare ?? (() => {})}
+              onOpenPlan={onSelectRelatedPlan}
+            />
+          )
         ) : (
           <>
             {isPro && mode === 'cloud' ? (
@@ -1535,6 +1578,7 @@ function useDashboardMain({
                 chartHidden={chartHidden}
                 allPlans={allPlans}
                 onSelectRelatedPlan={onSelectRelatedPlan}
+                onComparePlan={onComparePlan}
                 onEdit={onEdit}
                 onHistory={onHistory}
                 onShare={onShare}
@@ -1546,6 +1590,7 @@ function useDashboardMain({
                 plan={selectedPlan}
                 allPlans={allPlans}
                 onSelectRelatedPlan={onSelectRelatedPlan}
+                onComparePlan={onComparePlan}
                 onEdit={onEdit}
                 onChartWideChange={onChartWideChange}
                 onToggleChart={onToggleChart}
@@ -2052,6 +2097,10 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     'split',
     parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
   );
+  const [comparePlanId, setComparePlanId] = useQueryState(
+    'compare',
+    parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
+  );
   const [workspaceView, setWorkspaceView] = useQueryState(
     'view',
     parseAsStringLiteral(workspaceViewOptions).withOptions({
@@ -2280,7 +2329,11 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   // any plan open in the viewer (selected + split pane) before it fans out to
   // editor/share/plannotator consumers. Plans that already carry content (local
   // mode, optimistic copies from the editor) skip the fetch.
-  const selectedPlan = useHydratedCloudPlan(mode, selectedPlanBase);
+  const {
+    plan: selectedPlan,
+    contentLoading: selectedContentLoading,
+    contentMissing: selectedContentMissing,
+  } = useHydratedCloudPlan(mode, selectedPlanBase);
 
   // Auto-follow a live replacement only for a session that ended *while the user
   // was viewing it* (it got superseded while open). Deliberately opening an
@@ -2323,7 +2376,20 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     if (!splitPlanId) return undefined;
     return plansById.get(splitPlanId) ?? plans.find((p) => p.id === splitPlanId);
   }, [plansById, plans, splitPlanId]);
-  const splitPlan = useHydratedCloudPlan(mode, splitPlanBase);
+  const { plan: splitPlan } = useHydratedCloudPlan(mode, splitPlanBase);
+
+  const comparePlanBase = useMemo(() => {
+    if (!comparePlanId) return undefined;
+    return plansById.get(comparePlanId) ?? plans.find((p) => p.id === comparePlanId);
+  }, [plansById, plans, comparePlanId]);
+  const {
+    plan: comparePlan,
+    contentLoading: compareContentLoading,
+    contentMissing: compareContentMissing,
+  } = useHydratedCloudPlan(mode, comparePlanBase);
+  // Avoid false diffs / similarity stats while either cloud body is empty or gone.
+  const compareBodiesLoading = selectedContentLoading || compareContentLoading;
+  const compareBodiesMissing = selectedContentMissing || compareContentMissing;
 
   const isSplitView = !!selectedPlan && !!splitPlan && selectedPlan.id !== splitPlan.id;
   const selectedPlanOutsideFilters = Boolean(
@@ -2360,13 +2426,47 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       setLocalAutoSelectSuppressed(!plan);
       setOptimisticSelectedPlan(plan);
       setSelectedPlanId(plan?.id ?? null);
+      setComparePlanId(null);
       setWorkspaceView(null);
       if (!plan || splitPlanId === plan.id) {
         setSplitPlanId(null);
       }
     },
-    [setActivePanel, setSelectedPlanId, setWorkspaceView, splitPlanId, setSplitPlanId],
+    [
+      setActivePanel,
+      setComparePlanId,
+      setSelectedPlanId,
+      setWorkspaceView,
+      splitPlanId,
+      setSplitPlanId,
+    ],
   );
+
+  const startCompare = useCallback(
+    (plan: Plan) => {
+      setComparePlanId(plan.id);
+    },
+    [setComparePlanId],
+  );
+
+  const closeCompare = useCallback(() => {
+    setComparePlanId(null);
+  }, [setComparePlanId]);
+
+  const swapCompare = useCallback(() => {
+    if (!selectedPlan || !comparePlan) return;
+    setOptimisticSelectedPlan(undefined);
+    setSelectedPlanId(comparePlan.id);
+    setComparePlanId(selectedPlan.id);
+  }, [comparePlan, selectedPlan, setComparePlanId, setSelectedPlanId]);
+
+  useEffect(() => {
+    if (!comparePlanId || loading) return;
+    const exists =
+      plans.some((plan) => plan.id === comparePlanId) ||
+      optimisticSelectedPlan?.id === comparePlanId;
+    if (!exists) void setComparePlanId(null);
+  }, [comparePlanId, loading, optimisticSelectedPlan, plans, setComparePlanId]);
 
   const openBrief = useCallback(() => {
     const openedAt = Date.now();
@@ -2378,8 +2478,16 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     setOptimisticSelectedPlan(undefined);
     setSelectedPlanId(null);
     setSplitPlanId(null);
+    setComparePlanId(null);
     setWorkspaceView('brief');
-  }, [briefReadAt, setActivePanel, setSelectedPlanId, setSplitPlanId, setWorkspaceView]);
+  }, [
+    briefReadAt,
+    setActivePanel,
+    setComparePlanId,
+    setSelectedPlanId,
+    setSplitPlanId,
+    setWorkspaceView,
+  ]);
 
   const toggleBrief = useCallback(() => {
     if (briefOpen) {
@@ -2428,6 +2536,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       setLocalAutoSelectSuppressed(false);
       setSelectedPlanId(null);
       setSplitPlanId(null);
+      setComparePlanId(null);
       setWorkspaceView(null);
 
       if (isDesktop()) {
@@ -2447,6 +2556,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       autoMode,
       modeOverride,
       setActivePanel,
+      setComparePlanId,
       setSelectedPlanId,
       setSplitPlanId,
       setWorkspaceView,
@@ -2859,6 +2969,12 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         isSplitView={isSplitView}
         splitPlan={splitPlan}
         onCloseSplit={closeSplitView}
+        comparePlan={comparePlan}
+        compareBodiesLoading={compareBodiesLoading}
+        compareBodiesMissing={compareBodiesMissing}
+        onComparePlan={startCompare}
+        onCloseCompare={closeCompare}
+        onSwapCompare={swapCompare}
         outlineHidden={outlineHidden}
         chartHidden={effectiveChartHidden}
         selectedPlanOutsideFilters={selectedPlanOutsideFilters}

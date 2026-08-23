@@ -31,6 +31,8 @@ import {
 import { extractSyncOrigin, formatSyncOriginLabel } from '../lib/sync-origin.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { ExitFullscreenIcon, FullscreenIcon } from './FullscreenIcons.tsx';
+import { CompareIcon } from './PlanCompareView.tsx';
+import { PlanComparePicker } from './PlanComparePicker.tsx';
 import {
   planMarkdownComponents,
   planMarkdownRehypePlugins,
@@ -180,10 +182,12 @@ function PlanLineageSection({
   entries,
   confidence,
   onSelectRelatedPlan,
+  onComparePlan,
 }: {
   entries: RelatedPlanEntry[];
   confidence: LineageConfidence | undefined;
   onSelectRelatedPlan?: (plan: Plan) => void;
+  onComparePlan?: (plan: Plan) => void;
 }) {
   return (
     <section className="plan-lineage" aria-label={lineageSectionTitle(confidence)}>
@@ -229,6 +233,17 @@ function PlanLineageSection({
                   {content}
                 </button>
               )}
+              {!isSelf && onComparePlan && (
+                <button
+                  type="button"
+                  className="plan-lineage-item-compare"
+                  onClick={() => onComparePlan(entry.plan)}
+                  aria-label={`Compare "${entry.plan.title}" with the current plan`}
+                  title="Compare with current plan"
+                >
+                  <CompareIcon />
+                </button>
+              )}
             </li>
           );
         })}
@@ -242,6 +257,8 @@ type PlanViewerProps = {
   /** Full indexed plan list used to resolve session lineage. */
   allPlans?: readonly Plan[];
   onSelectRelatedPlan?: (plan: Plan) => void;
+  /** Enables compare affordances; called with the plan to diff against. */
+  onComparePlan?: (plan: Plan) => void;
   headerExtra?: ReactNode;
   actionToolbarExtra?: ReactNode;
   onEdit?: () => void;
@@ -268,6 +285,7 @@ export function PlanViewer({
   plan,
   allPlans,
   onSelectRelatedPlan,
+  onComparePlan,
   headerExtra,
   actionToolbarExtra,
   onEdit,
@@ -308,6 +326,7 @@ export function PlanViewer({
     useState<ActionToolbarDockState>('inline');
   const [actionToolbarDockLeft, setActionToolbarDockLeft] = useState<number | null>(null);
   const [chartWide, setChartWide] = useState(false);
+  const [comparePickerOpen, setComparePickerOpen] = useState(false);
   const fullscreen = useFullscreen<HTMLDivElement>();
   const isSplit = mode === 'split';
 
@@ -443,6 +462,10 @@ export function PlanViewer({
   useEffect(() => {
     setChartWide(false);
   }, [plan.id, chartHidden]);
+
+  useEffect(() => {
+    setComparePickerOpen(false);
+  }, [plan.id]);
 
   useEffect(() => {
     if (!selectionToolbar) return;
@@ -758,6 +781,15 @@ export function PlanViewer({
         </span>
       </PlanActionButton>
       <PlanDownloadButton plan={plan} />
+      {onComparePlan && allPlans && allPlans.length > 1 && (
+        <PlanActionButton
+          onClick={() => setComparePickerOpen(true)}
+          label="Compare with another plan"
+          tooltip="Compare plans"
+        >
+          <CompareIcon />
+        </PlanActionButton>
+      )}
       {actionToolbarExtra}
       {onEdit && (
         <PlanActionButton onClick={onEdit} label="Edit plan">
@@ -874,6 +906,7 @@ export function PlanViewer({
                 entries={lineage.items}
                 confidence={lineageConfidence}
                 onSelectRelatedPlan={onSelectRelatedPlan}
+                onComparePlan={onComparePlan}
               />
             )}
           </header>
@@ -1034,6 +1067,22 @@ export function PlanViewer({
           {!isSplit && <ScrollToTop />}
         </div>
       </div>
+
+      {onComparePlan && allPlans && (
+        <PlanComparePicker
+          open={comparePickerOpen}
+          onClose={() => setComparePickerOpen(false)}
+          currentPlan={plan}
+          plans={allPlans}
+          relatedPlans={lineage?.items
+            .filter((entry) => entry.relation !== 'self')
+            .map((entry) => entry.plan)}
+          onPick={(picked) => {
+            setComparePickerOpen(false);
+            onComparePlan(picked);
+          }}
+        />
+      )}
     </div>
   );
 }
