@@ -1541,11 +1541,11 @@ function useDashboardMain({
               <SkeletonBlock lines={8} />
             </div>
           ) : compareBodiesMissing ? (
-            <div className="flex h-full flex-col items-start gap-3 p-6 text-sm text-[var(--muted-foreground)]">
+            <div className="flex h-full flex-col items-start gap-3 p-6 text-[13px] text-tertiary">
               <p>One of the plans is no longer available to compare.</p>
               <button
                 type="button"
-                className="text-[var(--foreground)] underline underline-offset-2"
+                className="text-text underline underline-offset-2"
                 onClick={onCloseCompare}
               >
                 Close compare
