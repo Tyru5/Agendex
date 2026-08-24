@@ -28,3 +28,23 @@ Convex **deployment** env vars (set with `CONVEX_AGENT_MODE=anonymous npx convex
 - Do **not** set `CONVEX_SITE_URL` — it is a built-in Convex variable (auto `http://127.0.0.1:3211`) and the CLI rejects overriding it.
 
 Login is **GitHub/Google OAuth only** (no email/password). To actually sign in, create an OAuth app, set its callback to `http://127.0.0.1:3211/api/auth/callback/github` (or `.../google`), and set `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` (or the Google pair) as Convex deployment env vars. Without these, the stack still runs and the dashboard/landing/sign-in pages render and connect to Convex, but the OAuth login itself cannot complete. Stripe vars (`STRIPE_*`) are only needed for billing/checkout flows.
+
+## Skill routing
+
+When the user's request matches an available skill, ALWAYS invoke it using the Skill
+tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+The skill has specialized workflows that produce better results than ad-hoc answers.
+
+Key routing rules:
+- Product ideas, "is this worth building", brainstorming → invoke office-hours
+- Bugs, errors, "why is this broken", 500 errors → invoke investigate
+- Ship, deploy, push, create PR → invoke ship
+- QA, test the site, find bugs → invoke qa
+- Code review, check my diff → invoke review
+- Update docs after shipping → invoke document-release
+- Weekly retro → invoke retro
+- Design system, brand → invoke design-consultation
+- Visual audit, design polish → invoke design-review
+- Architecture review → invoke plan-eng-review
+- Save progress, checkpoint, resume → invoke checkpoint
+- Code quality, health check → invoke health
