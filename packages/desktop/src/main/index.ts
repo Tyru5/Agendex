@@ -570,9 +570,11 @@ if (!gotLock) {
   app.whenReady().then(() => {
     electronApp.setAppUserModelId('dev.agendex.desktop');
 
-    app.on('browser-window-created', (_event, window) => {
-      optimizer.watchWindowShortcuts(window);
-    });
+    if (is.dev) {
+      app.on('browser-window-created', (_event, window) => {
+        optimizer.watchWindowShortcuts(window);
+      });
+    }
 
     registerDesktopIpc({
       ipcMain,

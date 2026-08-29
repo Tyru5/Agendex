@@ -5,6 +5,7 @@ import {
   shouldOpenNavigationExternally,
   shouldOpenWindowExternally,
 } from './desktop-navigation.ts';
+import { installDesktopForceReloadShortcut } from './desktop-reload.ts';
 import { installDesktopPageZoomShortcuts } from './desktop-zoom.ts';
 import { loadWithRetry } from './window-loader.ts';
 
@@ -49,6 +50,7 @@ export function createDesktopWindow(targetUrl: string, onClosed: () => void): Br
 
   // View-menu accelerators are not reliable across platforms and keyboard
   // layouts. Handle the actual key input at the window boundary as a fallback.
+  installDesktopForceReloadShortcut(window.webContents);
   installDesktopPageZoomShortcuts(window.webContents);
 
   // View-menu / shortcut zoom does not reliably fire DOM `resize`; forward the
