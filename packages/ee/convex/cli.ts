@@ -39,12 +39,66 @@ import { resolvePublishedPlansOwnerId } from './plans';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
+const MAX_USAGE_SNAPSHOT_BYTES = 512_000;
+const USAGE_WINDOW_KEYS = new Set(['1', '7', '30', '90']);
 const MAX_SUPERSEDE_SCAN = 2_000;
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+export function normalizeUsageSnapshots(value: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(value)) return undefined;
+
+  try {
+    const encoded = new TextEncoder().encode(JSON.stringify(value));
+    if (encoded.byteLength > MAX_USAGE_SNAPSHOT_BYTES) return undefined;
+  } catch {
+    return undefined;
+  }
+
+  const snapshots: Record<string, unknown> = {};
+  for (const [key, rawSummary] of Object.entries(value)) {
+    if (!USAGE_WINDOW_KEYS.has(key)) continue;
+    if (!isRecord(rawSummary)) return undefined;
+    if (rawSummary.days !== Number(key)) return undefined;
+    if (
+      typeof rawSummary.generatedAt !== 'string' ||
+      Number.isNaN(Date.parse(rawSummary.generatedAt))
+    ) {
+      return undefined;
+    }
+    if (rawSummary.resolution !== 'day' && rawSummary.resolution !== 'hour') return undefined;
+    if (!Array.isArray(rawSummary.buckets) || rawSummary.buckets.length > 366) return undefined;
+    if (!Array.isArray(rawSummary.agents) || rawSummary.agents.length > 20) return undefined;
+    if (!Array.isArray(rawSummary.models) || rawSummary.models.length > 500) return undefined;
+    if (!isRecord(rawSummary.totals)) return undefined;
+
+    for (const field of [
+      'totalTokens',
+      'costUsd',
+      'cacheSavingsUsd',
+      'records',
+      'unpricedRecords',
+      'sessions',
+    ]) {
+      const fieldValue = rawSummary[field];
+      if (typeof fieldValue !== 'number' || !Number.isFinite(fieldValue) || fieldValue < 0) {
+        return undefined;
+      }
+    }
+
+    snapshots[key] = {
+      ...rawSummary,
+      // Defense in depth: the cloud copy never retains local transcript paths.
+      sources: [],
+      scanDurationMs: 0,
+    };
+  }
+
+  return Object.keys(snapshots).length > 0 ? snapshots : undefined;
 }
 
 function normalizedTitle(title: string): string {
@@ -790,6 +844,7 @@ export const upsertHeartbeat = internalMutation({
     ipAddress: v.optional(v.union(v.string(), v.null())),
     startedAtMs: v.optional(v.number()),
     pid: v.optional(v.number()),
+    usageSnapshots: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -845,6 +900,10 @@ export const upsertHeartbeat = internalMutation({
     if (args.ipAddress !== undefined) patch.ipAddress = args.ipAddress ?? undefined;
     if (args.startedAtMs !== undefined) patch.startedAtMs = args.startedAtMs;
     if (args.pid !== undefined) patch.pid = args.pid;
+    if (args.usageSnapshots !== undefined) {
+      patch.usageSnapshots = args.usageSnapshots;
+      patch.usageUpdatedAt = now;
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, patch);
@@ -858,6 +917,10 @@ export const upsertHeartbeat = internalMutation({
         ...(args.ipAddress ? { ipAddress: args.ipAddress } : {}),
         ...(args.startedAtMs !== undefined && { startedAtMs: args.startedAtMs }),
         ...(args.pid !== undefined && { pid: args.pid }),
+        ...(args.usageSnapshots !== undefined && {
+          usageSnapshots: args.usageSnapshots,
+          usageUpdatedAt: now,
+        }),
       });
     }
   },
@@ -929,6 +992,30 @@ export const getDaemonStatus = query({
   },
 });
 
+export const getUsage = query({
+  args: {
+    days: v.union(v.literal(1), v.literal(7), v.literal(30), v.literal(90)),
+  },
+  handler: async (ctx, args) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return null;
+
+    const heartbeats = await ctx.db
+      .query('daemonHeartbeats')
+      .withIndex('by_owner', (q) => q.eq('ownerId', String(user._id)))
+      .collect();
+    heartbeats.sort((a, b) => (b.usageUpdatedAt ?? 0) - (a.usageUpdatedAt ?? 0));
+
+    for (const heartbeat of heartbeats) {
+      if (!isRecord(heartbeat.usageSnapshots)) continue;
+      const summary = heartbeat.usageSnapshots[String(args.days)];
+      if (isRecord(summary) && summary.days === args.days) return summary;
+    }
+
+    return null;
+  },
+});
+
 export const removeDaemon = mutation({
   args: { deviceId: v.string() },
   handler: async (ctx, args) => {
@@ -977,6 +1064,12 @@ export const heartbeat = httpAction(async (ctx, request) => {
   const ipAddress = privacyPreferences.collectLocalIpAddress === false ? null : rawIpAddress;
   const startedAtMs = typeof body.startedAtMs === 'number' ? body.startedAtMs : undefined;
   const pid = typeof body.pid === 'number' ? body.pid : undefined;
+  const usageSnapshots =
+    body.usageSnapshots === undefined ? undefined : normalizeUsageSnapshots(body.usageSnapshots);
+
+  if (body.usageSnapshots !== undefined && !usageSnapshots) {
+    return jsonResponse({ error: 'Invalid usageSnapshots payload' }, 400);
+  }
 
   if (!deviceId) {
     console.warn('[heartbeat] received heartbeat without deviceId — upgrade CLI to latest version');
@@ -989,6 +1082,7 @@ export const heartbeat = httpAction(async (ctx, request) => {
     ipAddress,
     startedAtMs,
     pid,
+    usageSnapshots,
   });
 
   return jsonResponse({ ok: true });

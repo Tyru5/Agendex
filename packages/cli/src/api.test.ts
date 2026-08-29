@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
-import { saveConfig } from '@agendex/shared';
+import { saveConfig, type UsageSummary } from '@agendex/shared';
 import {
   fetchCloudPlan,
   listCloudPlans,
@@ -243,6 +243,34 @@ test('sends local IP address in heartbeat payload', async () => {
 
   expect(cloud.heartbeats).toHaveLength(1);
   expect(cloud.heartbeats[0]).toMatchObject({ ipAddress: '192.168.4.30' });
+});
+
+test('sends sanitized usage snapshots in the heartbeat payload', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([]);
+  saveCloudConfig(cloud.url);
+  const usage = {
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    days: 30,
+    resolution: 'day',
+    buckets: [],
+    totals: {},
+    totalTokens: 1,
+    costUsd: 0,
+    cacheSavingsUsd: 0,
+    records: 1,
+    unpricedRecords: 0,
+    sessions: 1,
+    agents: [],
+    models: [],
+    sources: [],
+    scanDurationMs: 0,
+  } as unknown as UsageSummary;
+
+  await sendHeartbeat(undefined, { '30': usage });
+
+  expect(cloud.heartbeats).toHaveLength(1);
+  expect(cloud.heartbeats[0]).toMatchObject({ usageSnapshots: { '30': { days: 30 } } });
 });
 
 test('fetches and reports Plannotator write-back queue jobs', async () => {

@@ -7,6 +7,7 @@ import {
   loadOrCreateDeviceId,
   type PlannotatorFeedbackAnnotation,
   type PlannotatorWritebackAction,
+  type UsageSummary,
   updateConfig,
 } from '@agendex/shared';
 import { readPidInfo } from './pid.ts';
@@ -497,7 +498,10 @@ export async function refreshCurrentDaemonToken(): Promise<boolean> {
   return refreshed.kind === 'refreshed';
 }
 
-export async function sendHeartbeat(ipAddress?: string): Promise<void> {
+export async function sendHeartbeat(
+  ipAddress?: string,
+  usageSnapshots?: Readonly<Record<string, UsageSummary>>,
+): Promise<void> {
   try {
     const { token, convexUrl } = getCloudConfig();
     const pidInfo = readPidInfo();
@@ -508,6 +512,7 @@ export async function sendHeartbeat(ipAddress?: string): Promise<void> {
       startedAtMs: pidInfo?.startedAtMs,
       pid: pidInfo?.pid,
       ipAddress: ipAddress ?? null,
+      ...(usageSnapshots && { usageSnapshots }),
     });
     let activeToken = token;
     let res = await requestText(`${convexUrl}/api/cli/heartbeat`, {

@@ -42,8 +42,15 @@ import {
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
+import type { UsageSummary } from '@agendex/shared';
 import { formatForDisplay, useHotkey } from '@tanstack/react-hotkeys';
-import { ConvexProviderWithAuth, useConvexAuth, useMutation, useQuery } from 'convex/react';
+import {
+  ConvexProviderWithAuth,
+  useConvex,
+  useConvexAuth,
+  useMutation,
+  useQuery,
+} from 'convex/react';
 import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react';
 import {
   parseAsNativeArrayOf,
@@ -1255,6 +1262,18 @@ function useDashboardMain({
 }) {
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const convex = useConvex();
+  const cloudUsage = useQuery(api.cli.getUsage, mode === 'cloud' ? { days: 30 } : 'skip') as
+    | UsageSummary
+    | null
+    | undefined;
+  const loadCloudUsage = useCallback(
+    async (days = 30) => {
+      const usageDays = days === 1 || days === 7 || days === 30 || days === 90 ? days : 30;
+      return (await convex.query(api.cli.getUsage, { days: usageDays })) as UsageSummary | null;
+    },
+    [convex],
+  );
   const selectedAnnotationState = useCloudPlanAnnotations({
     plan: selectedPlan,
     enabled: mode === 'cloud' && isPro && Boolean(selectedPlan),
@@ -1623,6 +1642,8 @@ function useDashboardMain({
             (shortcut) => onToggleChart || shortcut.id !== 'chart',
           )}
           planViewMode={planViewMode}
+          usageSummary={mode === 'cloud' ? cloudUsage : undefined}
+          usageLoader={mode === 'cloud' ? loadCloudUsage : undefined}
         />
       )}
     </div>

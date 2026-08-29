@@ -13,7 +13,7 @@ import { type AgentStats, api, type Plan, type UsageSummary } from '../lib/api.t
 import { getAppShortcuts, shortcutDisplayKeys, type ShortcutHint } from '../lib/shortcuts.ts';
 import { formatTokens, formatUsd } from '../lib/usage-format.ts';
 import { AgentIcon } from './AgentIcon.tsx';
-import { UsageView } from './UsageView.tsx';
+import { type UsageLoader, UsageView } from './UsageView.tsx';
 
 declare global {
   interface Window {
@@ -30,6 +30,8 @@ export interface EmptyStateViewProps {
   onSelectPlan?: (plan: Plan) => void;
   shortcuts?: ShortcutHint[];
   planViewMode?: PlanViewMode;
+  usageSummary?: UsageSummary | null;
+  usageLoader?: UsageLoader;
 }
 
 export type PlanViewMode = 'list' | 'card';
@@ -429,14 +431,21 @@ function AgentLedger({
  * Fetch the aggregated agent usage summary once. Fails silently (returns
  * null) so shells without the local usage endpoint simply hide the panel.
  */
-function useUsageSummary(enabled: boolean): UsageSummary | null {
-  const [summary, setSummary] = useState<UsageSummary | null>(null);
+function useUsageSummary(
+  enabled: boolean,
+  initialSummary: UsageSummary | null | undefined,
+  loadUsage: UsageLoader,
+): UsageSummary | null {
+  const [summary, setSummary] = useState<UsageSummary | null>(initialSummary ?? null);
+
+  useEffect(() => {
+    if (initialSummary !== undefined) setSummary(initialSummary);
+  }, [initialSummary]);
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    api
-      .getUsage()
+    loadUsage()
       .then((result) => {
         if (!cancelled) setSummary(result);
       })
@@ -446,7 +455,7 @@ function useUsageSummary(enabled: boolean): UsageSummary | null {
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [enabled, loadUsage]);
 
   return summary;
 }
@@ -1005,6 +1014,8 @@ export function EmptyStateView({
   onSelectPlan,
   shortcuts = getAppShortcuts(),
   planViewMode,
+  usageSummary,
+  usageLoader = api.getUsage,
 }: EmptyStateViewProps) {
   const [triviaActive, setTriviaActive] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
@@ -1036,7 +1047,7 @@ export function EmptyStateView({
   const browsingUsage = viewingUsage && !triviaActive;
   const browsing = browsingAgent || browsingUsage;
   const showLedger = hasPlans && !triviaActive && agentCount > 0 && !browsing;
-  const usage = useUsageSummary(true);
+  const usage = useUsageSummary(true, usageSummary, usageLoader);
   const showUsage =
     usage !== null && usage.records > 0 && usage.agents.length > 0 && !triviaActive && !browsing;
   const searchShortcut = '/';
@@ -1083,7 +1094,11 @@ export function EmptyStateView({
               <TriviaGame onExit={() => setTriviaActive(false)} />
             </div>
           ) : browsingUsage ? (
-            <UsageView onBack={() => setViewingUsage(false)} initialSummary={usage} />
+            <UsageView
+              onBack={() => setViewingUsage(false)}
+              initialSummary={usage}
+              loadUsage={usageLoader}
+            />
           ) : browsingAgent && selectedAgent ? (
             <AgentPlansBrowser
               agent={selectedAgent}

@@ -312,9 +312,12 @@ export interface UsageViewProps {
   onBack?: () => void;
   /** Pre-fetched 30-day summary so the initial render has data. */
   initialSummary?: UsageSummary | null;
+  loadUsage?: UsageLoader;
 }
 
-export function UsageView({ onBack, initialSummary }: UsageViewProps) {
+export type UsageLoader = (days?: number, refresh?: boolean) => Promise<UsageSummary | null>;
+
+export function UsageView({ onBack, initialSummary, loadUsage = api.getUsage }: UsageViewProps) {
   const [days, setDays] = useState(initialSummary?.days ?? 30);
   const [metric, setMetric] = useState<Metric>('cost');
   const [breakdown, setBreakdown] = useState<Breakdown>('model');
@@ -326,6 +329,11 @@ export function UsageView({ onBack, initialSummary }: UsageViewProps) {
   // requests so cancelling one (window switch) never clears busy while another
   // is still running, and so a cancelled fetch still releases the counter.
   const inflightRef = useRef(0);
+
+  useEffect(() => {
+    if (!initialSummary) return;
+    setSummaries((prev) => ({ ...prev, [initialSummary.days]: initialSummary }));
+  }, [initialSummary]);
 
   const beginLoad = () => {
     inflightRef.current += 1;
@@ -342,10 +350,9 @@ export function UsageView({ onBack, initialSummary }: UsageViewProps) {
     if (summaries[days]) return;
     let cancelled = false;
     beginLoad();
-    api
-      .getUsage(days)
+    loadUsage(days)
       .then((result) => {
-        if (!cancelled) setSummaries((prev) => ({ ...prev, [days]: result }));
+        if (!cancelled && result) setSummaries((prev) => ({ ...prev, [days]: result }));
       })
       .catch(() => {
         // Endpoint unavailable: leave the view in its empty state.
@@ -356,13 +363,14 @@ export function UsageView({ onBack, initialSummary }: UsageViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [days, summaries]);
+  }, [days, loadUsage, summaries]);
 
   const refresh = () => {
     beginLoad();
-    api
-      .getUsage(days, true)
-      .then((result) => setSummaries((prev) => ({ ...prev, [days]: result })))
+    loadUsage(days, true)
+      .then((result) => {
+        if (result) setSummaries((prev) => ({ ...prev, [days]: result }));
+      })
       .catch(() => {})
       .finally(() => endLoad());
   };
