@@ -4,7 +4,7 @@ import { internal } from './_generated/api';
 const crons = cronJobs();
 
 crons.interval(
-  'cleanup stale pending uploads',
+  'cleanup expired comment uploads',
   { minutes: 5 },
   internal.comments.cleanupStalePendingUploads,
 );
