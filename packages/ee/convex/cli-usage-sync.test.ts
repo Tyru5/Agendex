@@ -203,3 +203,40 @@ test('mergeUsageSummaries keeps unique events from partial device overlap', () =
     totalTokens: 7,
   });
 });
+
+test('mergeUsageSummaries skips key-only devices that overlap eventful ones', () => {
+  const eventful = summary({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    costUsd: 3,
+    records: 1,
+    sessions: 1,
+    dedupeKeys: ['shared', 'event-only'],
+    events: [
+      {
+        key: 'shared',
+        agent: 'codex-cli',
+        model: 'gpt-5',
+        timestampMs: Date.parse('2026-08-28T12:00:00.000Z'),
+        sessionId: 's1',
+        totals: { ...emptyTotals, outputTokens: 3 },
+        costUsd: 3,
+        cacheSavingsUsd: 0,
+        unpriced: false,
+      },
+    ],
+  });
+  const keyOnlyOverlap = summary({
+    generatedAt: '2026-08-29T17:00:00.000Z',
+    costUsd: 9,
+    records: 9,
+    sessions: 9,
+    dedupeKeys: ['shared', 'other'],
+    events: [],
+  });
+
+  expect(mergeUsageSummaries([eventful, keyOnlyOverlap], 30)).toMatchObject({
+    costUsd: 3,
+    records: 1,
+    sessions: 1,
+  });
+});
