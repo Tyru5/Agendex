@@ -2,6 +2,10 @@ import { ConvexError, v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
 import { type MutationCtx, mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
+import {
+  resolveSharedPlanAccess,
+  shareAccessProofIdValidator,
+} from './shareAccess';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB
 const ALLOWED_AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -95,16 +99,20 @@ export const listMyAgentAvatars = query({
 });
 
 export const listAgentAvatarsForShare = query({
-  args: { token: v.string() },
+  args: {
+    token: v.string(),
+    accessProof: v.optional(shareAccessProofIdValidator),
+  },
+  returns: v.record(v.string(), v.string()),
   handler: async (ctx, args) => {
-    const shareLink = await ctx.db
-      .query('shareLinks')
-      .withIndex('by_token', (q) => q.eq('token', args.token))
-      .first();
-    if (!shareLink) return {} as Record<string, string>;
-    const plan = await ctx.db.get(shareLink.planId);
-    if (!plan) return {} as Record<string, string>;
-    return await buildAvatarUrlMap(ctx, plan.ownerId);
+    const access = await resolveSharedPlanAccess(ctx, {
+      token: args.token,
+      ...(args.accessProof ? { accessProof: args.accessProof } : {}),
+    });
+    if (access.kind === 'password_required') {
+      return {};
+    }
+    return await buildAvatarUrlMap(ctx, access.plan.ownerId);
   },
 });
 

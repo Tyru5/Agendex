@@ -11,6 +11,10 @@ import {
 import { isAgentAvatarStorageId } from './agentAvatars';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import {
+  requireSharedPlanAccess,
+  shareAccessProofIdValidator,
+} from './shareAccess';
 
 const MAX_COMMENT_IMAGE_COUNT = 4;
 const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -18,36 +22,58 @@ const ALLOWED_COMMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/w
 const MAX_TRACKED_UPLOAD_AGE_MS = 5 * 60 * 1000;
 const STALE_COMMENT_UPLOAD_AGE_MS = 15 * 60 * 1000;
 
+const commentAttachmentWithUrlValidator = v.object({
+  storageId: v.id('_storage'),
+  fileName: v.optional(v.string()),
+  contentType: v.string(),
+  size: v.number(),
+  url: v.string(),
+});
+
+const commentWithAttachmentUrlsValidator = v.object({
+  _id: v.id('comments'),
+  _creationTime: v.number(),
+  planId: v.id('plans'),
+  authorId: v.string(),
+  authorName: v.string(),
+  authorAvatar: v.optional(v.string()),
+  body: v.string(),
+  attachments: v.array(commentAttachmentWithUrlValidator),
+  createdAt: v.number(),
+  updatedAt: v.optional(v.number()),
+});
+
+const trackPendingUploadResultValidator = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({ success: v.literal(false), error: v.string() }),
+);
+
 type CommentStorageCtx = Pick<MutationCtx, 'db' | 'storage'>;
 
-async function validateShareToken(ctx: QueryCtx, planId: string, token: string): Promise<void> {
-  const shareLink = await ctx.db
-    .query('shareLinks')
-    .withIndex('by_token', (q) => q.eq('token', token))
-    .first();
-
-  if (!shareLink || shareLink.planId !== planId) {
-    throw new ConvexError('Invalid or revoked share token');
-  }
-}
 
 async function validateCommentAccess(
   ctx: QueryCtx,
   planId: Id<'plans'>,
   token: string | undefined,
+  accessProof: Id<'shareAccessProofs'> | undefined,
+  authenticatedUserId?: string,
 ): Promise<void> {
   const plan = await ctx.db.get(planId);
   if (!plan) throw new ConvexError('Plan not found');
 
-  const user = await authComponent.safeGetAuthUser(ctx);
-  const isOwner = user && plan.ownerId === user._id;
-
-  if (isOwner) {
+  const userId =
+    authenticatedUserId ?? (await authComponent.safeGetAuthUser(ctx))?._id;
+  if (userId === plan.ownerId) {
     await requireFeature(ctx, ProFeature.COMMENTS);
-  } else {
-    if (!token) throw new ConvexError('Share token required');
-    await validateShareToken(ctx, planId, token);
+    return;
   }
+
+  if (!token) throw new ConvexError('Share token required');
+  await requireSharedPlanAccess(ctx, {
+    planId,
+    token,
+    ...(accessProof ? { accessProof } : {}),
+  });
 }
 
 async function isCommentReferencedStorageId(
@@ -195,9 +221,14 @@ export async function deleteCommentWithAttachments(
 }
 
 export const getComments = query({
-  args: { planId: v.id('plans'), token: v.optional(v.string()) },
+  args: {
+    planId: v.id('plans'),
+    token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
+  },
+  returns: v.array(commentWithAttachmentUrlsValidator),
   handler: async (ctx, args) => {
-    await validateCommentAccess(ctx, args.planId, args.token);
+    await validateCommentAccess(ctx, args.planId, args.token, args.accessProof);
 
     const comments = await ctx.db
       .query('comments')
@@ -224,22 +255,21 @@ export const generateCommentImageUploadUrl = mutation({
   args: {
     planId: v.id('plans'),
     token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
     clientUploadId: v.optional(v.string()),
   },
+  returns: v.string(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
-    const plan = await ctx.db.get(args.planId);
-    if (!plan) throw new ConvexError('Plan not found');
-
-    const isOwner = plan.ownerId === user._id;
-    if (isOwner) {
-      await requireFeature(ctx, ProFeature.COMMENTS);
-    } else {
-      if (!args.token) throw new ConvexError('Share token required');
-      await validateShareToken(ctx, args.planId, args.token);
-    }
+    await validateCommentAccess(
+      ctx,
+      args.planId,
+      args.token,
+      args.accessProof,
+      user._id,
+    );
 
     await reserveCommentUpload(ctx, {
       uploadedBy: user._id,
@@ -256,22 +286,21 @@ export const trackPendingUpload = mutation({
     storageId: v.id('_storage'),
     planId: v.id('plans'),
     token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
     clientUploadId: v.optional(v.string()),
   },
+  returns: trackPendingUploadResultValidator,
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
-    const plan = await ctx.db.get(args.planId);
-    if (!plan) throw new ConvexError('Plan not found');
-
-    const isOwner = plan.ownerId === user._id;
-    if (isOwner) {
-      await requireFeature(ctx, ProFeature.COMMENTS);
-    } else {
-      if (!args.token) throw new ConvexError('Share token required');
-      await validateShareToken(ctx, args.planId, args.token);
-    }
+    await validateCommentAccess(
+      ctx,
+      args.planId,
+      args.token,
+      args.accessProof,
+      user._id,
+    );
 
     const reservation = await findUploadReservation(ctx, {
       uploadedBy: user._id,
@@ -347,25 +376,22 @@ export const addComment = mutation({
       ),
     ),
     token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
   },
+  returns: v.id('comments'),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
       throw new ConvexError('Unauthenticated');
     }
 
-    const plan = await ctx.db.get(args.planId);
-    if (!plan) {
-      throw new ConvexError('Plan not found');
-    }
-
-    const isOwner = plan.ownerId === user._id;
-    if (isOwner) {
-      await requireFeature(ctx, ProFeature.COMMENTS);
-    } else {
-      if (!args.token) throw new ConvexError('Share token required');
-      await validateShareToken(ctx, args.planId, args.token);
-    }
+    await validateCommentAccess(
+      ctx,
+      args.planId,
+      args.token,
+      args.accessProof,
+      user._id,
+    );
 
     const trimmedBody = args.body.trim();
     const incomingAttachments = args.attachments ?? [];
@@ -468,7 +494,9 @@ export const editComment = mutation({
     commentId: v.id('comments'),
     body: v.string(),
     token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -484,33 +512,34 @@ export const editComment = mutation({
       throw new ConvexError('Only the comment author can edit');
     }
 
-    const plan = await ctx.db.get(comment.planId);
-    if (!plan) {
-      throw new ConvexError('Plan not found');
-    }
-
-    const isOwner = plan.ownerId === user._id;
-    if (isOwner) {
-      await requireFeature(ctx, ProFeature.COMMENTS);
-    } else {
-      if (!args.token) throw new ConvexError('Share token required');
-      await validateShareToken(ctx, comment.planId, args.token);
-    }
+    await validateCommentAccess(
+      ctx,
+      comment.planId,
+      args.token,
+      args.accessProof,
+      user._id,
+    );
 
     const trimmed = args.body.trim();
     const hasAttachments = (comment.attachments ?? []).length > 0;
     if (!trimmed && !hasAttachments) throw new ConvexError('Comment body cannot be empty');
-    if (trimmed === comment.body) return;
+    if (trimmed === comment.body) return null;
 
     await ctx.db.patch(args.commentId, {
       body: trimmed,
       updatedAt: Date.now(),
     });
+    return null;
   },
 });
 
 export const deleteComment = mutation({
-  args: { commentId: v.id('comments'), token: v.optional(v.string()) },
+  args: {
+    commentId: v.id('comments'),
+    token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
+  },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -538,10 +567,15 @@ export const deleteComment = mutation({
 
     if (!isOwner) {
       if (!args.token) throw new ConvexError('Share token required');
-      await validateShareToken(ctx, comment.planId, args.token);
+      await requireSharedPlanAccess(ctx, {
+        planId: comment.planId,
+        token: args.token,
+        ...(args.accessProof ? { accessProof: args.accessProof } : {}),
+      });
     }
 
     await deleteCommentWithAttachments(ctx, comment);
+    return null;
   },
 });
 
