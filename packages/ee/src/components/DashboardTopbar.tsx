@@ -9,7 +9,7 @@ import {
   subscribeDesktopPageZoom,
 } from '../lib/desktop';
 import { AuthButton } from './AuthButton';
-import { CommandPalette } from './command-palette/CommandPalette';
+import { CommandPalette, type CommandPaletteFilters } from './command-palette/CommandPalette';
 import { SubscriptionBadge } from './SubscriptionBadge';
 import { BrandSection } from './topbar/BrandSection';
 import { SystemStatusMenu } from './topbar/SystemStatusMenu';
@@ -63,6 +63,8 @@ export function DashboardTopbar({
   activeAgents,
   search,
   plans,
+  filteredPlans,
+  filters,
   selectedPlan,
   height,
   onToggleSidebar,
@@ -99,6 +101,8 @@ export function DashboardTopbar({
   activeAgents: number;
   search: string;
   plans: Plan[];
+  filteredPlans: Plan[];
+  filters: CommandPaletteFilters;
   selectedPlan: Plan | undefined;
   height: number;
   onToggleSidebar: () => void;
@@ -145,12 +149,13 @@ export function DashboardTopbar({
         onLogoClick={() => onSelectPlan(undefined)}
       />
 
-      <div className="hidden md:flex flex-1 min-w-0 justify-center">
+      <div className="flex flex-1 min-w-0 justify-center px-1.5">
         <CommandPalette
-          hideTrigger
           search={search}
           onSearch={onSetSearch}
           plans={plans}
+          filteredPlans={filteredPlans}
+          filters={filters}
           selectedId={selectedPlan?.id}
           onSelectPlan={onSelectPlan}
           isPro={isPro}

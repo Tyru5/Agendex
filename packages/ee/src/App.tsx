@@ -26,7 +26,6 @@ import {
   type PlanState,
   PlanCompareView,
   PlanViewer,
-  SidebarFilters,
   SidebarResizeHandle,
   SkeletonBlock,
   resolveMorningBriefSince,
@@ -42,7 +41,7 @@ import {
 } from '@agendex/web';
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { api } from '@convex/_generated/api';
-import type { Doc, Id } from '@convex/_generated/dataModel';
+import type { Id } from '@convex/_generated/dataModel';
 import { formatForDisplay, useHotkey } from '@tanstack/react-hotkeys';
 import { ConvexProviderWithAuth, useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react';
@@ -118,6 +117,7 @@ import { findCloudCustomPlanSource, isConfiguredPlanSourcePath } from './lib/clo
 import {
   canManageCustomPlanSources,
   canUseCloudPlanMetadata,
+  canUseTechDependencyChart,
   shouldQueryCloudPlanTags,
 } from './lib/cloud-query-mode.ts';
 import { convex } from './lib/convex-client.ts';
@@ -174,9 +174,6 @@ function readBriefLastReadAt(): number | null {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
-
-type TagRecord = Doc<'tags'>;
-type CollectionRecord = Doc<'collections'>;
 
 function BootLoadingView({
   message = 'Loading your dashboard...',
@@ -913,7 +910,7 @@ function CloudPlanReviewWorkspace({
   onEdit: () => void;
   onHistory: () => void;
   onShare: () => void;
-  onChartWideChange: (wide: boolean) => void;
+  onChartWideChange?: (wide: boolean) => void;
   onToggleChart?: () => void;
 }) {
   const { mode, isPro } = planContext;
@@ -1243,7 +1240,7 @@ function useDashboardMain({
   onHistory: () => void;
   onShare: () => void;
   onCloseShare: () => void;
-  onChartWideChange: (wide: boolean) => void;
+  onChartWideChange?: (wide: boolean) => void;
   onToggleChart?: () => void;
   onSearch: () => void;
   isSplitView?: boolean;
@@ -1622,7 +1619,9 @@ function useDashboardMain({
           agents={agents}
           plans={allPlans}
           onSelectPlan={onSelectRelatedPlan}
-          shortcuts={getAppShortcuts({ ee: true })}
+          shortcuts={getAppShortcuts({ ee: true }).filter(
+            (shortcut) => onToggleChart || shortcut.id !== 'chart',
+          )}
           planViewMode={planViewMode}
         />
       )}
@@ -1677,32 +1676,18 @@ function useDashboardSidebar({
   loading,
   error,
   search,
-  onSearch,
   sortBy,
   dateBucket,
-  agents,
   selectedAgents,
   workspace,
-  workspaces,
-  allTags,
   selectedTags,
-  allCollections,
   selectedCollection,
   filteredPlans,
   selectedPlan,
   onRevealHover,
   onScheduleClose,
-  onRevealSearch,
-  onSortChange,
-  onDateBucketChange,
-  onAgentsChange,
-  onWorkspaceChange,
-  onTagSelect,
-  onCollectionSelect,
   onClearFilters,
   onSelectPlan,
-  onNewPlan,
-  onUpload,
   splitPlanId,
   onOpenInSplitView,
   planState,
@@ -1723,32 +1708,18 @@ function useDashboardSidebar({
   loading: boolean;
   error: string | null | undefined;
   search: string;
-  onSearch: (v: string) => void;
   sortBy: 'updatedAt' | 'createdAt' | 'title';
   dateBucket: 'all' | 'today' | '7d' | '30d';
-  agents: AgentStats[];
   selectedAgents: readonly string[];
   workspace: string | undefined;
-  workspaces: readonly string[];
-  allTags: TagRecord[] | undefined;
   selectedTags: string[];
-  allCollections: CollectionRecord[] | undefined;
   selectedCollection: string | undefined;
   filteredPlans: Plan[];
   selectedPlan: Plan | undefined;
   onRevealHover: () => void;
   onScheduleClose: () => void;
-  onRevealSearch: () => void;
-  onSortChange: (v: 'updatedAt' | 'createdAt' | 'title') => void;
-  onDateBucketChange: (v: 'all' | 'today' | '7d' | '30d') => void;
-  onAgentsChange: (v: string[]) => void;
-  onWorkspaceChange: (v: string | undefined) => void;
-  onTagSelect: (v: string[]) => void;
-  onCollectionSelect: (v: string | undefined) => void;
   onClearFilters: () => void;
   onSelectPlan: (plan: Plan | undefined) => void;
-  onNewPlan: () => void;
-  onUpload: () => void;
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
   planState: PlanState;
@@ -1817,89 +1788,6 @@ function useDashboardSidebar({
       }}
     >
       {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
-      <div
-        className="sidebar-command-zone"
-        style={
-          backendStatus === 'offline'
-            ? {
-                opacity: 0.35,
-                filter: 'blur(1.5px)',
-                pointerEvents: 'none',
-                transition: 'opacity 0.3s, filter 0.3s',
-              }
-            : { transition: 'opacity 0.3s, filter 0.3s' }
-        }
-      >
-        {(mode === 'local' || (mode === 'cloud' && isPro)) && (
-          <div className="sidebar-command-strip">
-            <button
-              type="button"
-              onClick={onNewPlan}
-              className="sidebar-primary-action flex-1 px-3 text-[12px] font-semibold tracking-[0] cursor-pointer flex items-center justify-center gap-1.5 border-none"
-            >
-              <svg
-                aria-hidden="true"
-                width="11"
-                height="11"
-                viewBox="0 0 12 12"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              >
-                <path d="M6 1v10M1 6h10" />
-              </svg>
-              New plan
-            </button>
-            <button
-              type="button"
-              onClick={onUpload}
-              aria-label="Upload plan"
-              title="Upload plan"
-              className="sidebar-icon-action"
-            >
-              <svg
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                className="size-3.5"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13"
-                />
-              </svg>
-            </button>
-          </div>
-        )}
-        <SidebarFilters
-          search={search}
-          onSearch={onSearch}
-          sortBy={sortBy}
-          onSortChange={onSortChange}
-          dateBucket={dateBucket}
-          onDateBucketChange={onDateBucketChange}
-          agents={agents}
-          selectedAgents={selectedAgents}
-          onAgentsChange={onAgentsChange}
-          workspace={workspace}
-          onWorkspaceChange={onWorkspaceChange}
-          workspaces={workspaces}
-          tags={allTags}
-          selectedTags={selectedTags}
-          onTagSelect={onTagSelect}
-          collections={allCollections}
-          selectedCollection={selectedCollection}
-          onCollectionSelect={onCollectionSelect}
-          onClearAll={onClearFilters}
-          onSearchFocusRequest={onRevealSearch}
-        />
-      </div>
-
       <div
         ref={scrollViewportRef}
         className="flex-1 overflow-auto sidebar-scroll sidebar-content-list"
@@ -2418,7 +2306,8 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       workspaceFilter,
     ],
   );
-  const effectiveChartHidden = !isPro && !isWorkspaceAccessLoading ? false : chartHidden;
+  const techChartEnabled = canUseTechDependencyChart(mode, isPro);
+  const effectiveChartHidden = techChartEnabled ? chartHidden : true;
 
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
@@ -2618,13 +2507,6 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     dsd({ type: 'TOGGLE_SIDEBAR' });
   }
 
-  const clearPeekTimer = peek.clear;
-  const revealSidebarForSearch = useCallback(() => {
-    clearPeekTimer();
-    setSidebarPeek(false);
-    setSidebarHidden(false);
-  }, [clearPeekTimer, setSidebarPeek, setSidebarHidden]);
-
   function toggleOutline() {
     dsd({ type: 'TOGGLE_OUTLINE' });
   }
@@ -2635,7 +2517,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   }
 
   function toggleChart() {
-    if (!isPro) return;
+    if (!techChartEnabled) return;
     if (!chartHidden && sidebarBeforeWide.current !== null) {
       restoreSidebarAfterWide();
     }
@@ -2772,6 +2654,26 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         activeAgents={activeAgents}
         search={search}
         plans={plans}
+        filteredPlans={filteredPlans}
+        filters={{
+          sortBy,
+          onSortChange: setSortBy,
+          dateBucket,
+          onDateBucketChange: setDateBucket,
+          agents,
+          selectedAgents,
+          onAgentsChange: setSelectedAgents,
+          workspace: workspaceFilter,
+          onWorkspaceChange: setWorkspaceFilter,
+          workspaces,
+          tags: allTags ?? undefined,
+          selectedTags,
+          onTagSelect: setSelectedTags,
+          collections: allCollections ?? undefined,
+          selectedCollection,
+          onCollectionSelect: setSelectedCollection,
+          onClearAll: clearFilters,
+        }}
         selectedPlan={selectedPlan}
         height={TOPBAR_HEIGHT}
         onToggleSidebar={toggleSidebar}
@@ -2794,7 +2696,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         onCloseSplit={splitPlanId ? closeSplitView : undefined}
         planState={planState}
         onToggleOutline={toggleOutline}
-        onToggleChart={isPro ? toggleChart : undefined}
+        onToggleChart={techChartEnabled ? toggleChart : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
         onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
         onSwitchMode={canSwitchMode ? switchMode : undefined}
@@ -2886,32 +2788,18 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         loading={loading}
         error={error}
         search={search}
-        onSearch={setSearch}
         sortBy={sortBy}
         dateBucket={dateBucket}
-        agents={agents}
         selectedAgents={selectedAgents}
         workspace={workspaceFilter}
-        workspaces={workspaces}
-        allTags={allTags ?? undefined}
         selectedTags={selectedTags}
-        allCollections={allCollections ?? undefined}
         selectedCollection={selectedCollection}
         filteredPlans={filteredPlans}
         selectedPlan={selectedPlan}
         onRevealHover={peek.reveal}
         onScheduleClose={peek.scheduleClose}
-        onRevealSearch={revealSidebarForSearch}
-        onSortChange={setSortBy}
-        onDateBucketChange={setDateBucket}
-        onAgentsChange={setSelectedAgents}
-        onWorkspaceChange={setWorkspaceFilter}
-        onTagSelect={setSelectedTags}
-        onCollectionSelect={setSelectedCollection}
         onClearFilters={clearFilters}
         onSelectPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
-        onNewPlan={handleNewPlan}
-        onUpload={handleUpload}
         splitPlanId={splitPlanId ?? undefined}
         onOpenInSplitView={(plan: Plan) => startViewTransition(() => openPlanInSplitView(plan))}
         planState={planState}
@@ -2960,12 +2848,9 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         onHistory={() => startViewTransition(() => setActivePanel('history'))}
         onShare={() => setActivePanel('sharing')}
         onCloseShare={() => setActivePanel(null)}
-        onChartWideChange={handleChartWideChange}
-        onToggleChart={isPro ? toggleChart : undefined}
-        onSearch={() => {
-          revealSidebarForSearch();
-          focusPlanSearchField();
-        }}
+        onChartWideChange={techChartEnabled ? handleChartWideChange : undefined}
+        onToggleChart={techChartEnabled ? toggleChart : undefined}
+        onSearch={focusPlanSearchField}
         isSplitView={isSplitView}
         splitPlan={splitPlan}
         onCloseSplit={closeSplitView}
