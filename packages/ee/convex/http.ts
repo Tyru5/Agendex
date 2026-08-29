@@ -1,6 +1,6 @@
 import { registerRoutes } from '@convex-dev/stripe';
-import { httpRouter } from 'convex/server';
-import type Stripe from 'stripe';
+import { httpRouter, type GenericActionCtx, type GenericDataModel } from 'convex/server';
+import Stripe from 'stripe';
 import { internal } from './_generated/api';
 import { LOCAL_DEV_CORS_ORIGINS, authComponent, createAuth } from './auth';
 import {
@@ -17,6 +17,34 @@ import {
   sync,
 } from './cli';
 import { stripeComponent } from './stripe';
+import { loadCanonicalSubscriptionSnapshot } from './subscriptions';
+
+async function syncCanonicalStripeSubscription(
+  ctx: GenericActionCtx<GenericDataModel>,
+  event: Stripe.Event,
+): Promise<void> {
+  const eventSubscription = event.data.object as Stripe.Subscription;
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) throw new Error('STRIPE_SECRET_KEY is not configured');
+
+  const stripeClient = new Stripe(secretKey);
+  const snapshot = await loadCanonicalSubscriptionSnapshot(
+    eventSubscription.id,
+    {
+      monthly: process.env.STRIPE_MONTHLY_PRICE_ID,
+      yearly: process.env.STRIPE_YEARLY_PRICE_ID,
+    },
+    (subscriptionId) => stripeClient.subscriptions.retrieve(subscriptionId),
+  );
+
+  if (!snapshot.plan) {
+    console.error(
+      `[stripe webhook] subscription ${snapshot.stripeSubscriptionId} has an unrecognized price; access will not be granted`,
+    );
+  }
+
+  await ctx.runMutation(internal.subscriptions.syncCanonicalSubscription, snapshot);
+}
 
 const http = httpRouter();
 
@@ -29,45 +57,9 @@ authComponent.registerRoutes(http, createAuth, {
 registerRoutes(http, stripeComponent, {
   webhookPath: '/stripe/webhook',
   events: {
-    'customer.subscription.created': async (ctx, event) => {
-      const subscription = event.data.object as Stripe.Subscription;
-      const item = subscription.items.data[0];
-
-      const userId = subscription.metadata?.userId;
-      const plan = subscription.metadata?.plan as 'monthly' | 'yearly' | undefined;
-      if (!userId || !plan) {
-        console.error(
-          `[stripe webhook] subscription.created missing metadata: userId=${userId}, plan=${plan}, subId=${subscription.id}`,
-        );
-        return;
-      }
-
-      await ctx.runMutation(internal.subscriptions.fulfillCheckout, {
-        userId,
-        stripeCustomerId: subscription.customer as string,
-        stripeSubscriptionId: subscription.id,
-        plan,
-        currentPeriodEnd: (item?.current_period_end ?? 0) * 1000,
-      });
-    },
-    'customer.subscription.updated': async (ctx, event) => {
-      const subscription = event.data.object as Stripe.Subscription;
-      const item = subscription.items.data[0];
-
-      await ctx.runMutation(internal.subscriptions.syncSubscriptionUpdate, {
-        stripeSubscriptionId: subscription.id,
-        status: subscription.status,
-        currentPeriodEnd: (item?.current_period_end ?? 0) * 1000,
-        cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
-      });
-    },
-    'customer.subscription.deleted': async (ctx, event) => {
-      const subscription = event.data.object as Stripe.Subscription;
-
-      await ctx.runMutation(internal.subscriptions.syncSubscriptionDeletion, {
-        stripeSubscriptionId: subscription.id,
-      });
-    },
+    'customer.subscription.created': syncCanonicalStripeSubscription,
+    'customer.subscription.updated': syncCanonicalStripeSubscription,
+    'customer.subscription.deleted': syncCanonicalStripeSubscription,
   },
 });
 

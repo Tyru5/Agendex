@@ -11,6 +11,85 @@ import {
 import { authComponent } from './auth';
 import { stripe } from './stripe';
 
+const subscriptionStatusValidator = v.union(
+  v.literal('active'),
+  v.literal('canceled'),
+  v.literal('past_due'),
+  v.literal('incomplete'),
+  v.literal('incomplete_expired'),
+  v.literal('trialing'),
+  v.literal('paused'),
+  v.literal('unpaid'),
+);
+
+export type SubscriptionPlan = 'monthly' | 'yearly';
+
+export type ConfiguredStripePrices = {
+  monthly: string | undefined;
+  yearly: string | undefined;
+};
+
+export type CanonicalSubscriptionSnapshot = {
+  userId: string | null;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  status: Stripe.Subscription.Status;
+  plan: SubscriptionPlan | null;
+  currentPeriodEnd: number;
+  cancelAtPeriodEnd: boolean;
+};
+
+export function resolveSubscriptionPlan(
+  subscription: Stripe.Subscription,
+  prices: ConfiguredStripePrices,
+): SubscriptionPlan | null {
+  if (subscription.items.data.length !== 1) return null;
+
+  const priceId = subscription.items.data[0]?.price.id;
+  if (!priceId) return null;
+  if (prices.monthly && prices.yearly && prices.monthly === prices.yearly) return null;
+  if (prices.monthly && priceId === prices.monthly) return 'monthly';
+  if (prices.yearly && priceId === prices.yearly) return 'yearly';
+  return null;
+}
+
+export function subscriptionStatusForPlan(
+  status: Stripe.Subscription.Status,
+  plan: SubscriptionPlan | null,
+): Stripe.Subscription.Status {
+  return plan ? status : 'canceled';
+}
+
+export function canonicalSubscriptionSnapshot(
+  subscription: Stripe.Subscription,
+  prices: ConfiguredStripePrices,
+): CanonicalSubscriptionSnapshot {
+  const item = subscription.items.data[0];
+  const userId = subscription.metadata.userId?.trim() || null;
+
+  return {
+    userId,
+    stripeCustomerId:
+      typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer.id,
+    stripeSubscriptionId: subscription.id,
+    status: subscription.status,
+    plan: resolveSubscriptionPlan(subscription, prices),
+    currentPeriodEnd: (item?.current_period_end ?? 0) * 1000,
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+  };
+}
+
+export async function loadCanonicalSubscriptionSnapshot(
+  stripeSubscriptionId: string,
+  prices: ConfiguredStripePrices,
+  retrieve: (subscriptionId: string) => Promise<Stripe.Subscription>,
+): Promise<CanonicalSubscriptionSnapshot> {
+  const subscription = await retrieve(stripeSubscriptionId);
+  return canonicalSubscriptionSnapshot(subscription, prices);
+}
+
 function isProBypassUserId(userId: string): boolean {
   const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
     .split(',')
@@ -216,13 +295,11 @@ export const reactivateSubscription = action({
       cancel_at_period_end: false,
     });
 
-    const item = updated.items.data[0];
-    await ctx.runMutation(internal.subscriptions.syncSubscriptionUpdate, {
-      stripeSubscriptionId: sub.stripeSubscriptionId,
-      status: updated.status,
-      currentPeriodEnd: (item?.current_period_end ?? 0) * 1000,
-      cancelAtPeriodEnd: false,
+    const snapshot = canonicalSubscriptionSnapshot(updated, {
+      monthly: process.env.STRIPE_MONTHLY_PRICE_ID,
+      yearly: process.env.STRIPE_YEARLY_PRICE_ID,
     });
+    await ctx.runMutation(internal.subscriptions.syncCanonicalSubscription, snapshot);
 
     return { ok: true };
   },
@@ -247,98 +324,97 @@ export const createPortalSession = action({
   },
 });
 
-// --- Webhook sync mutations (called from http.ts event handlers) ---
+// --- Webhook sync mutation (called with a fresh Stripe API snapshot) ---
 
-export const fulfillCheckout = internalMutation({
+export const syncCanonicalSubscription = internalMutation({
   args: {
-    userId: v.string(),
+    userId: v.union(v.string(), v.null()),
     stripeCustomerId: v.string(),
     stripeSubscriptionId: v.string(),
-    plan: v.union(v.literal('monthly'), v.literal('yearly')),
+    status: subscriptionStatusValidator,
+    plan: v.union(v.literal('monthly'), v.literal('yearly'), v.null()),
     currentPeriodEnd: v.number(),
+    cancelAtPeriodEnd: v.boolean(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
-    const existing = await ctx.db
+    const existingBySubscription = await ctx.db
       .query('subscriptions')
-      .withIndex('by_user', (q) => q.eq('userId', args.userId))
+      .withIndex('by_stripe_subscription', (q) =>
+        q.eq('stripeSubscriptionId', args.stripeSubscriptionId),
+      )
       .first();
 
+    if (!args.plan) {
+      if (existingBySubscription) {
+        await ctx.db.patch(existingBySubscription._id, {
+          status: subscriptionStatusForPlan(args.status, args.plan),
+          currentPeriodEnd: args.currentPeriodEnd,
+          cancelAtPeriodEnd: args.cancelAtPeriodEnd,
+          updatedAt: Date.now(),
+        });
+      }
+      return null;
+    }
+
+    const existingByCustomer =
+      existingBySubscription ??
+      (await ctx.db
+        .query('subscriptions')
+        .withIndex('by_stripe_customer', (q) =>
+          q.eq('stripeCustomerId', args.stripeCustomerId),
+        )
+        .first());
+
+    let existing = existingByCustomer;
+    const userId = args.userId;
+    if (!existing && userId) {
+      const existingByUser = await ctx.db
+        .query('subscriptions')
+        .withIndex('by_user', (q) => q.eq('userId', userId))
+        .first();
+
+      if (existingByUser && existingByUser.stripeCustomerId !== args.stripeCustomerId) {
+        console.error(
+          `[stripe webhook] refusing to replace subscription for user ${userId} with a different Stripe customer`,
+        );
+        return null;
+      }
+      existing = existingByUser;
+    }
+
+    const now = Date.now();
     if (existing) {
       await ctx.db.patch(existing._id, {
         stripeCustomerId: args.stripeCustomerId,
         stripeSubscriptionId: args.stripeSubscriptionId,
-        status: 'active',
-        plan: args.plan,
-        currentPeriodEnd: args.currentPeriodEnd,
-        cancelAtPeriodEnd: false,
-        updatedAt: Date.now(),
-      });
-    } else {
-      await ctx.db.insert('subscriptions', {
-        userId: args.userId,
-        stripeCustomerId: args.stripeCustomerId,
-        stripeSubscriptionId: args.stripeSubscriptionId,
-        status: 'active',
-        plan: args.plan,
-        currentPeriodEnd: args.currentPeriodEnd,
-        cancelAtPeriodEnd: false,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-    }
-  },
-});
-
-export const syncSubscriptionUpdate = internalMutation({
-  args: {
-    stripeSubscriptionId: v.string(),
-    status: v.union(
-      v.literal('active'),
-      v.literal('canceled'),
-      v.literal('past_due'),
-      v.literal('incomplete'),
-      v.literal('incomplete_expired'),
-      v.literal('trialing'),
-      v.literal('paused'),
-      v.literal('unpaid'),
-    ),
-    currentPeriodEnd: v.number(),
-    cancelAtPeriodEnd: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const sub = await ctx.db
-      .query('subscriptions')
-      .withIndex('by_stripe_subscription', (q) =>
-        q.eq('stripeSubscriptionId', args.stripeSubscriptionId),
-      )
-      .first();
-
-    if (sub) {
-      await ctx.db.patch(sub._id, {
         status: args.status,
+        plan: args.plan,
         currentPeriodEnd: args.currentPeriodEnd,
         cancelAtPeriodEnd: args.cancelAtPeriodEnd,
-        updatedAt: Date.now(),
+        updatedAt: now,
       });
+      return null;
     }
-  },
-});
 
-export const syncSubscriptionDeletion = internalMutation({
-  args: { stripeSubscriptionId: v.string() },
-  handler: async (ctx, args) => {
-    const sub = await ctx.db
-      .query('subscriptions')
-      .withIndex('by_stripe_subscription', (q) =>
-        q.eq('stripeSubscriptionId', args.stripeSubscriptionId),
-      )
-      .first();
-
-    if (sub) {
-      await ctx.db.patch(sub._id, {
-        status: 'canceled',
-        updatedAt: Date.now(),
-      });
+    if (!args.userId) {
+      console.error(
+        `[stripe webhook] cannot create subscription ${args.stripeSubscriptionId} without userId metadata`,
+      );
+      return null;
     }
+
+    await ctx.db.insert('subscriptions', {
+      userId: args.userId,
+      stripeCustomerId: args.stripeCustomerId,
+      stripeSubscriptionId: args.stripeSubscriptionId,
+      status: args.status,
+      plan: args.plan,
+      currentPeriodEnd: args.currentPeriodEnd,
+      cancelAtPeriodEnd: args.cancelAtPeriodEnd,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return null;
   },
 });
