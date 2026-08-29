@@ -151,7 +151,7 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
     if (rawSummary.events !== undefined) {
       if (
         !Array.isArray(rawSummary.events) ||
-        rawSummary.events.length > 2_500 ||
+        rawSummary.events.length > 400 ||
         !rawSummary.events.every(isUsageCloudEvent)
       ) {
         return undefined;
@@ -178,7 +178,7 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
       ...(Array.isArray(rawSummary.dedupeKeys)
         ? { dedupeKeys: rawSummary.dedupeKeys.slice(0, 20_000) }
         : {}),
-      ...(Array.isArray(rawSummary.events) ? { events: rawSummary.events.slice(0, 2_500) } : {}),
+      ...(Array.isArray(rawSummary.events) ? { events: rawSummary.events.slice(0, 400) } : {}),
     };
   }
 
@@ -417,8 +417,15 @@ export function mergeUsageSummaries(
     const dedupeKeys = Array.isArray(summary.dedupeKeys)
       ? summary.dedupeKeys.filter((key): key is string => typeof key === 'string')
       : [];
+    const records =
+      typeof summary.records === 'number' && Number.isFinite(summary.records)
+        ? summary.records
+        : null;
+    // Only exact-merge from a complete event list. A capped prefix would drop
+    // the remainder of that device's aggregate usage.
+    const eventsComplete = events.length > 0 && records !== null && events.length === records;
 
-    if (events.length > 0) {
+    if (eventsComplete) {
       for (const event of events) {
         if (!isUsageCloudEvent(event)) continue;
         const key = event.key as string;

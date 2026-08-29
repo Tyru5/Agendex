@@ -39,7 +39,7 @@ const SCAN_CACHE_FILE = 'usage-scan-cache.json';
 const SCAN_CACHE_VERSION = 1;
 export const DEFAULT_USAGE_DAYS = 30;
 /** Soft cap so multi-window cloud snapshots stay under the heartbeat byte budget. */
-const MAX_CLOUD_EVENTS = 2_500;
+const MAX_CLOUD_EVENTS = 400;
 
 interface UsageSource {
   agent: UsageAgent;

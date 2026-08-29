@@ -163,6 +163,7 @@ test('mergeUsageSummaries keeps unique events from partial device overlap', () =
   };
   const primary = summary({
     generatedAt: '2026-08-29T18:00:00.000Z',
+    records: 2,
     events: [
       shared,
       {
@@ -180,6 +181,7 @@ test('mergeUsageSummaries keeps unique events from partial device overlap', () =
   });
   const secondary = summary({
     generatedAt: '2026-08-29T17:00:00.000Z',
+    records: 2,
     events: [
       shared,
       {
@@ -238,5 +240,61 @@ test('mergeUsageSummaries skips key-only devices that overlap eventful ones', ()
     costUsd: 3,
     records: 1,
     sessions: 1,
+  });
+});
+
+test('mergeUsageSummaries keeps full aggregate when events are capped', () => {
+  const capped = summary({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    costUsd: 50,
+    records: 2,
+    sessions: 2,
+    totalTokens: 50,
+    totals: { ...emptyTotals, outputTokens: 50 },
+    dedupeKeys: ['a', 'b'],
+    // Incomplete event prefix for a larger record count.
+    events: [
+      {
+        key: 'a',
+        agent: 'codex-cli',
+        model: 'gpt-5',
+        timestampMs: Date.parse('2026-08-28T12:00:00.000Z'),
+        sessionId: 's1',
+        totals: { ...emptyTotals, outputTokens: 1 },
+        costUsd: 1,
+        cacheSavingsUsd: 0,
+        unpriced: false,
+      },
+    ],
+  });
+  const other = summary({
+    generatedAt: '2026-08-29T17:00:00.000Z',
+    costUsd: 7,
+    records: 1,
+    sessions: 1,
+    totalTokens: 7,
+    totals: { ...emptyTotals, outputTokens: 7 },
+    agents: [],
+    models: [],
+    dedupeKeys: ['z'],
+    events: [
+      {
+        key: 'z',
+        agent: 'claude-code',
+        model: 'opus',
+        timestampMs: Date.parse('2026-08-28T13:00:00.000Z'),
+        sessionId: 's2',
+        totals: { ...emptyTotals, outputTokens: 7 },
+        costUsd: 7,
+        cacheSavingsUsd: 0,
+        unpriced: false,
+      },
+    ],
+  });
+
+  expect(mergeUsageSummaries([capped, other], 30)).toMatchObject({
+    costUsd: 57,
+    records: 3,
+    sessions: 3,
   });
 });
