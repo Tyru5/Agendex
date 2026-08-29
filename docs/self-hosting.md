@@ -48,13 +48,18 @@ In the [Convex dashboard](https://dashboard.convex.dev), configure these variabl
 
 ### Backend and auth
 
-| Variable               | Value                                                                 |
-| ---------------------- | --------------------------------------------------------------------- |
-| `SITE_URL`             | Public EE dashboard URL, for example `https://agendex.yourdomain.com` |
-| `CONVEX_SITE_URL`      | Convex site URL from `.env.local`                                     |
-| `GITHUB_CLIENT_ID`     | GitHub OAuth app client ID                                            |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret                                        |
-| `BETTER_AUTH_SECRET`   | Generate with `openssl rand -base64 32`                               |
+| Variable                      | Value                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `SITE_URL`                    | Public EE dashboard URL, for example `https://agendex.yourdomain.com`                       |
+| `APP_URL`                     | Canonical application URL, normally the same public dashboard URL                           |
+| `BETTER_AUTH_ENVIRONMENT`     | `production` for a hosted deployment; use `development` only for the documented local stack |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | Comma-separated exact owned origins; required in production                                 |
+| `CONVEX_SITE_URL`             | Convex site URL from `.env.local`                                                           |
+| `GITHUB_CLIENT_ID`            | GitHub OAuth app client ID                                                                  |
+| `GITHUB_CLIENT_SECRET`        | GitHub OAuth app client secret                                                              |
+| `BETTER_AUTH_SECRET`          | Generate with `openssl rand -base64 32`                                                     |
+
+For a production deployment whose only public application is `https://agendex.yourdomain.com`, set `BETTER_AUTH_TRUSTED_ORIGINS=https://agendex.yourdomain.com`. Add other owned applications or preview deployments as exact origins separated by commas. Wildcards such as `https://*.vercel.app`, URL paths, and localhost origins are rejected in production. A Vercel preview must be added by its full exact origin; unrelated Vercel projects are never trusted automatically.
 
 ### Billing
 
