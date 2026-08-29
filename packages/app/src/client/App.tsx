@@ -15,6 +15,7 @@ import {
   PlanFilterMismatchBanner,
   PlanSourcesDialog,
   PlanViewer,
+  setToken,
   Sidebar,
   startViewTransition,
   ToolsUsedPage,
@@ -548,6 +549,15 @@ export default function App() {
         }}
       />
     );
+  }
+
+  // Accept a one-time token from the URL fragment (e.g. /#token=abc) so setup
+  // links can connect without pasting. Fragments never reach the server; the
+  // hash is stripped immediately so the token doesn't linger in the URL.
+  if (typeof window !== 'undefined' && window.location.hash.startsWith('#token=')) {
+    const token = window.location.hash.slice('#token='.length).trim();
+    if (token) setToken(token);
+    history.replaceState(null, '', window.location.pathname + window.location.search);
   }
 
   if (!hasToken()) {

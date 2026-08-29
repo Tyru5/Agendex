@@ -161,6 +161,17 @@ export {
   relativeSyncPath,
 } from './services/plan-sync-identity.ts';
 export { collectWatchPaths, startWatching, stopWatchingForShutdown } from './services/watcher.ts';
+export type {
+  AgentUsageTotals,
+  ModelUsageTotals,
+  UsageAgent,
+  UsageBucket,
+  UsageRecord,
+  UsageSourceStatus,
+  UsageSummary,
+  UsageTokenTotals,
+} from './usage/types.ts';
+export { DEFAULT_USAGE_DAYS, getUsageSummary } from './usage/service.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 export type {
   AgentAdapter,

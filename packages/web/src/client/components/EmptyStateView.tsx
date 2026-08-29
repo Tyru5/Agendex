@@ -9,9 +9,11 @@ import {
   useState,
 } from 'react';
 import { getAgentLabel } from '../lib/agent-colors.ts';
-import type { AgentStats, Plan } from '../lib/api.ts';
+import { type AgentStats, api, type Plan, type UsageSummary } from '../lib/api.ts';
 import { getAppShortcuts, shortcutDisplayKeys, type ShortcutHint } from '../lib/shortcuts.ts';
+import { formatTokens, formatUsd } from '../lib/usage-format.ts';
 import { AgentIcon } from './AgentIcon.tsx';
+import { UsageView } from './UsageView.tsx';
 
 declare global {
   interface Window {
@@ -419,6 +421,97 @@ function AgentLedger({
           </li>
         )}
       </ul>
+    </section>
+  );
+}
+
+/**
+ * Fetch the aggregated agent usage summary once. Fails silently (returns
+ * null) so shells without the local usage endpoint simply hide the panel.
+ */
+function useUsageSummary(enabled: boolean): UsageSummary | null {
+  const [summary, setSummary] = useState<UsageSummary | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    api
+      .getUsage()
+      .then((result) => {
+        if (!cancelled) setSummary(result);
+      })
+      .catch(() => {
+        // Endpoint unavailable (cloud shell, older server): keep panel hidden.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
+
+  return summary;
+}
+
+function UsageLedger({ usage, onOpen }: { usage: UsageSummary; onOpen: () => void }) {
+  const maxCost = usage.agents[0]?.costUsd ?? 0;
+  const maxTokens = usage.agents[0]?.totalTokens ?? 0;
+  // Cost drives the share bars unless nothing could be priced.
+  const byCost = maxCost > 0;
+
+  return (
+    <section className="empty-state-ledger empty-state-usage" aria-label="Agent usage">
+      <div className="empty-state-ledger-head">
+        <h3 className="empty-state-ledger-title">Agent usage · past {usage.days} days</h3>
+        <span className="empty-state-ledger-total">
+          {byCost && `${formatUsd(usage.costUsd)} · `}
+          {formatTokens(usage.totalTokens)} tokens
+          <button type="button" className="empty-state-usage-open" onClick={onOpen}>
+            View usage →
+          </button>
+        </span>
+      </div>
+      <ul className="empty-state-ledger-rows">
+        {usage.agents.map((agent) => {
+          const share = byCost
+            ? maxCost > 0
+              ? agent.costUsd / maxCost
+              : 0
+            : maxTokens > 0
+              ? agent.totalTokens / maxTokens
+              : 0;
+
+          return (
+            <li key={agent.agent}>
+              <div className="empty-state-ledger-row empty-state-usage-row">
+                <span className="empty-state-ledger-icon" aria-hidden="true">
+                  <AgentIcon agent={agent.agent} size={14} />
+                </span>
+                <span className="empty-state-ledger-name">{getAgentLabel(agent.agent)}</span>
+                <span className="empty-state-ledger-bar" aria-hidden="true">
+                  <span
+                    className="empty-state-ledger-bar-fill"
+                    style={
+                      {
+                        '--empty-ledger-share': `${Math.max(share * 100, 6)}%`,
+                      } as React.CSSProperties
+                    }
+                  />
+                </span>
+                <span className="empty-state-ledger-count">
+                  {byCost && agent.costUsd > 0 && (
+                    <span className="empty-state-usage-cost">{formatUsd(agent.costUsd)}</span>
+                  )}
+                  {formatTokens(agent.totalTokens)}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="empty-state-usage-note">
+        {usage.sessions.toLocaleString()} {usage.sessions === 1 ? 'session' : 'sessions'}
+        {byCost && ' · API-equivalent cost estimate'}
+        {usage.unpricedRecords > 0 && ` · ${usage.unpricedRecords.toLocaleString()} unpriced`}
+      </p>
     </section>
   );
 }
@@ -915,6 +1008,7 @@ export function EmptyStateView({
 }: EmptyStateViewProps) {
   const [triviaActive, setTriviaActive] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [viewingUsage, setViewingUsage] = useState(false);
   const viewMode = planViewMode ?? 'list';
 
   const unlockTrivia = useCallback(() => {
@@ -938,8 +1032,13 @@ export function EmptyStateView({
   const maxAgentCount = activeAgents[0]?.planCount ?? 0;
   const agentCount = activeAgents.length;
   const hasPlans = planCount > 0;
-  const browsingAgent = selectedAgent !== null && !triviaActive;
-  const showLedger = hasPlans && !triviaActive && agentCount > 0 && !browsingAgent;
+  const browsingAgent = selectedAgent !== null && !triviaActive && !viewingUsage;
+  const browsingUsage = viewingUsage && !triviaActive;
+  const browsing = browsingAgent || browsingUsage;
+  const showLedger = hasPlans && !triviaActive && agentCount > 0 && !browsing;
+  const usage = useUsageSummary(true);
+  const showUsage =
+    usage !== null && usage.records > 0 && usage.agents.length > 0 && !triviaActive && !browsing;
   const searchShortcut = '/';
 
   const heading = hasPlans ? 'Choose a plan to review' : 'No plans indexed yet';
@@ -956,10 +1055,8 @@ export function EmptyStateView({
     : 'waiting for the first plan';
 
   return (
-    <div
-      className={`h-full empty-state-shell${browsingAgent ? ' empty-state-shell--browser' : ''}`}
-    >
-      <div className={`empty-state-frame${browsingAgent ? ' empty-state-frame--browser' : ''}`}>
+    <div className={`h-full empty-state-shell${browsing ? ' empty-state-shell--browser' : ''}`}>
+      <div className={`empty-state-frame${browsing ? ' empty-state-frame--browser' : ''}`}>
         <FrameRule ticks />
 
         <header className="empty-state-status" role="status">
@@ -980,11 +1077,13 @@ export function EmptyStateView({
 
         <FrameRule />
 
-        <div className={`empty-state-main${browsingAgent ? ' empty-state-main--browser' : ''}`}>
+        <div className={`empty-state-main${browsing ? ' empty-state-main--browser' : ''}`}>
           {triviaActive ? (
             <div className="empty-state-panel empty-state-panel--trivia">
               <TriviaGame onExit={() => setTriviaActive(false)} />
             </div>
+          ) : browsingUsage ? (
+            <UsageView onBack={() => setViewingUsage(false)} initialSummary={usage} />
           ) : browsingAgent && selectedAgent ? (
             <AgentPlansBrowser
               agent={selectedAgent}
@@ -1025,8 +1124,10 @@ export function EmptyStateView({
           />
         )}
 
+        {showUsage && usage && <UsageLedger usage={usage} onOpen={() => setViewingUsage(true)} />}
+
         <footer
-          className={`empty-state-foot${showLedger || browsingAgent ? ' empty-state-foot--divided' : ''}`}
+          className={`empty-state-foot${showLedger || showUsage || browsing ? ' empty-state-foot--divided' : ''}`}
         >
           {shortcuts.map((shortcut) => {
             const keys = shortcutDisplayKeys(shortcut);

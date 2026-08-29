@@ -89,6 +89,60 @@ export interface AgentStats {
   writable: boolean;
 }
 
+export interface UsageTokenTotals {
+  uncachedInputTokens: number;
+  cachedInputTokens: number;
+  cacheCreationTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+}
+
+export interface AgentUsageTotals {
+  agent: string;
+  totals: UsageTokenTotals;
+  totalTokens: number;
+  costUsd: number;
+  records: number;
+  unpricedRecords: number;
+  sessions: number;
+}
+
+export interface ModelUsageTotals {
+  agent: string;
+  model: string;
+  totals: UsageTokenTotals;
+  totalTokens: number;
+  costUsd: number;
+  records: number;
+  unpricedRecords: number;
+}
+
+export interface UsageBucket {
+  /** `YYYY-MM-DD` for day resolution; ISO hour start for hour resolution. */
+  start: string;
+  costUsd: number;
+  totalTokens: number;
+  byAgent: Record<string, { costUsd: number; totalTokens: number }>;
+}
+
+export interface UsageSummary {
+  generatedAt: string;
+  days: number;
+  resolution: 'day' | 'hour';
+  buckets: UsageBucket[];
+  totals: UsageTokenTotals;
+  totalTokens: number;
+  costUsd: number;
+  cacheSavingsUsd: number;
+  records: number;
+  unpricedRecords: number;
+  sessions: number;
+  agents: AgentUsageTotals[];
+  models: ModelUsageTotals[];
+  sources: { agent: string; path: string; status: string; files: number; message?: string }[];
+  scanDurationMs: number;
+}
+
 export interface PlanAnnotationApiRecord {
   id: string;
   planId?: string;
@@ -141,6 +195,14 @@ export const api = {
   getPlan: (id: string) => request<Plan>(`/plans/${id}`),
 
   getAgents: () => request<AgentStats[]>('/agents'),
+
+  getUsage: (days?: number, refresh?: boolean) => {
+    const params = new URLSearchParams();
+    if (days) params.set('days', String(days));
+    if (refresh) params.set('refresh', '1');
+    const query = params.toString();
+    return request<UsageSummary>(`/usage${query ? `?${query}` : ''}`);
+  },
 
   rescan: () => request<{ ok: boolean }>('/rescan', { method: 'POST' }),
 
