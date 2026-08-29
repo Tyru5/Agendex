@@ -298,12 +298,11 @@ function aggregate(
     models,
     sources,
     scanDurationMs,
-    // Opaque keys only — used when the event list is omitted for size.
+    // Opaque keys cover the full window; events are capped for heartbeat size.
     dedupeKeys: Array.from(
       new Set(records.map((record) => record.dedupeKey).filter((key): key is string => key !== null)),
     ).slice(0, 20_000),
-    // Exact merge payload; omit when over budget so heartbeats stay small.
-    ...(records.length <= MAX_CLOUD_EVENTS ? { events } : {}),
+    ...(events.length > 0 ? { events } : {}),
   };
 }
 

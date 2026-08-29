@@ -403,28 +403,75 @@ export function mergeUsageSummaries(
     return only;
   }
 
-  // Prefer exact event-level merge when every device shipped priced events.
-  const eventful = valid.every(
-    (summary) => Array.isArray(summary.events) && summary.events.length > 0,
-  );
-  if (eventful) {
-    const byKey = new Map<string, Record<string, unknown>>();
-    let generatedAt = '';
-    for (const summary of valid) {
-      if (typeof summary.generatedAt === 'string' && summary.generatedAt > generatedAt) {
-        generatedAt = summary.generatedAt;
-      }
-      for (const event of summary.events as Array<Record<string, unknown>>) {
-        if (!isUsageCloudEvent(event)) continue;
-        if (!byKey.has(event.key as string)) byKey.set(event.key as string, event);
-      }
+  const byEventKey = new Map<string, Record<string, unknown>>();
+  const claimedKeys = new Set<string>();
+  let generatedAt = '';
+  const withoutEvents: Array<Record<string, unknown>> = [];
+
+  for (const summary of valid) {
+    if (typeof summary.generatedAt === 'string' && summary.generatedAt > generatedAt) {
+      generatedAt = summary.generatedAt;
     }
-    return aggregateUsageEvents(Array.from(byKey.values()), days, generatedAt);
+
+    const events = Array.isArray(summary.events) ? summary.events : [];
+    const dedupeKeys = Array.isArray(summary.dedupeKeys)
+      ? summary.dedupeKeys.filter((key): key is string => typeof key === 'string')
+      : [];
+
+    if (events.length > 0) {
+      for (const event of events) {
+        if (!isUsageCloudEvent(event)) continue;
+        const key = event.key as string;
+        if (!byEventKey.has(key)) byEventKey.set(key, event);
+        claimedKeys.add(key);
+      }
+      for (const key of dedupeKeys) claimedKeys.add(key);
+      continue;
+    }
+
+    withoutEvents.push(summary);
   }
 
-  // Legacy fallback without events: sum disjoint aggregates. Overlap is rare
-  // for distinct machines and unavoidable without the event payload.
-  const resolution = valid[0]!.resolution === 'hour' ? 'hour' : 'day';
+  withoutEvents.sort((a, b) => {
+    const aAt = typeof a.generatedAt === 'string' ? a.generatedAt : '';
+    const bAt = typeof b.generatedAt === 'string' ? b.generatedAt : '';
+    return bAt.localeCompare(aAt);
+  });
+
+  const extras: Array<Record<string, unknown>> = [];
+  for (const summary of withoutEvents) {
+    const keys = Array.isArray(summary.dedupeKeys)
+      ? summary.dedupeKeys.filter((key): key is string => typeof key === 'string')
+      : [];
+    if (keys.length > 0) {
+      // Without events we cannot surgically drop shared records. Skip the whole
+      // device when any fingerprint was already claimed so totals never inflate.
+      if (keys.some((key) => claimedKeys.has(key))) continue;
+      for (const key of keys) claimedKeys.add(key);
+    }
+    extras.push(summary);
+  }
+
+  if (byEventKey.size > 0 && extras.length === 0) {
+    return aggregateUsageEvents(Array.from(byEventKey.values()), days, generatedAt);
+  }
+
+  const parts: Array<Record<string, unknown>> = [];
+  if (byEventKey.size > 0) {
+    parts.push(aggregateUsageEvents(Array.from(byEventKey.values()), days, generatedAt));
+  }
+  parts.push(...extras);
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return parts[0]!;
+  return sumUsageAggregates(parts, days, generatedAt);
+}
+
+function sumUsageAggregates(
+  summaries: Array<Record<string, unknown>>,
+  days: number,
+  generatedAt: string,
+): Record<string, unknown> {
+  const resolution = summaries[0]!.resolution === 'hour' ? 'hour' : 'day';
   const totals = {
     uncachedInputTokens: 0,
     cachedInputTokens: 0,
@@ -437,14 +484,14 @@ export function mergeUsageSummaries(
   let records = 0;
   let unpricedRecords = 0;
   let sessions = 0;
-  let generatedAt = '';
+  let latestGeneratedAt = generatedAt;
   const agents = new Map<string, Record<string, unknown>>();
   const models = new Map<string, Record<string, unknown>>();
   const buckets = new Map<string, Record<string, unknown>>();
 
-  for (const summary of valid) {
-    if (typeof summary.generatedAt === 'string' && summary.generatedAt > generatedAt) {
-      generatedAt = summary.generatedAt;
+  for (const summary of summaries) {
+    if (typeof summary.generatedAt === 'string' && summary.generatedAt > latestGeneratedAt) {
+      latestGeneratedAt = summary.generatedAt;
     }
     addUsageTokenTotals(totals, summary.totals as Record<string, unknown>);
     costUsd += summary.costUsd as number;
@@ -541,7 +588,7 @@ export function mergeUsageSummaries(
   }
 
   return {
-    generatedAt: generatedAt || new Date(0).toISOString(),
+    generatedAt: latestGeneratedAt || new Date(0).toISOString(),
     days,
     resolution,
     buckets: Array.from(buckets.values()).sort((a, b) =>
