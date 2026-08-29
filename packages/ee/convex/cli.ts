@@ -148,6 +148,15 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
         return undefined;
       }
     }
+    if (rawSummary.events !== undefined) {
+      if (
+        !Array.isArray(rawSummary.events) ||
+        rawSummary.events.length > 2_500 ||
+        !rawSummary.events.every(isUsageCloudEvent)
+      ) {
+        return undefined;
+      }
+    }
 
     for (const field of [
       'totalTokens',
@@ -169,10 +178,31 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
       ...(Array.isArray(rawSummary.dedupeKeys)
         ? { dedupeKeys: rawSummary.dedupeKeys.slice(0, 20_000) }
         : {}),
+      ...(Array.isArray(rawSummary.events) ? { events: rawSummary.events.slice(0, 2_500) } : {}),
     };
   }
 
   return Object.keys(snapshots).length > 0 ? snapshots : undefined;
+}
+
+function isUsageCloudEvent(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.key !== 'string' || value.key.length === 0 || value.key.length > 256) {
+    return false;
+  }
+  if (typeof value.agent !== 'string' || value.agent.length === 0 || value.agent.length > 64) {
+    return false;
+  }
+  if (typeof value.model !== 'string' || value.model.length === 0 || value.model.length > 256) {
+    return false;
+  }
+  if (typeof value.sessionId !== 'string' || value.sessionId.length === 0 || value.sessionId.length > 256) {
+    return false;
+  }
+  if (!isNonNegFinite(value.timestampMs) || !isNonNegFinite(value.costUsd)) return false;
+  if (!isNonNegFinite(value.cacheSavingsUsd)) return false;
+  if (typeof value.unpriced !== 'boolean') return false;
+  return isUsageTokenTotals(value.totals);
 }
 
 function addUsageTokenTotals(
@@ -190,6 +220,173 @@ function addUsageTokenTotals(
   }
 }
 
+function tokenTotalOf(totals: Record<string, number>): number {
+  return (
+    totals.uncachedInputTokens +
+    totals.cachedInputTokens +
+    totals.cacheCreationTokens +
+    totals.outputTokens
+  );
+}
+
+function bucketStartFromMs(timestampMs: number, resolution: 'day' | 'hour'): string {
+  const date = new Date(timestampMs);
+  if (resolution === 'hour') {
+    date.setUTCMinutes(0, 0, 0);
+    return date.toISOString();
+  }
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function aggregateUsageEvents(
+  events: Array<Record<string, unknown>>,
+  days: number,
+  generatedAt: string,
+): Record<string, unknown> {
+  const resolution: 'day' | 'hour' = days === 1 ? 'hour' : 'day';
+  const totals = {
+    uncachedInputTokens: 0,
+    cachedInputTokens: 0,
+    cacheCreationTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+  };
+  let costUsd = 0;
+  let cacheSavingsUsd = 0;
+  let unpricedRecords = 0;
+  const agents = new Map<
+    string,
+    {
+      agent: string;
+      totals: Record<string, number>;
+      totalTokens: number;
+      costUsd: number;
+      records: number;
+      unpricedRecords: number;
+      sessionIds: Set<string>;
+    }
+  >();
+  const models = new Map<string, Record<string, unknown>>();
+  const buckets = new Map<string, Record<string, unknown>>();
+
+  for (const event of events) {
+    const eventTotals = event.totals as Record<string, number>;
+    addUsageTokenTotals(totals, eventTotals);
+    costUsd += event.costUsd as number;
+    cacheSavingsUsd += event.cacheSavingsUsd as number;
+    if (event.unpriced) unpricedRecords++;
+
+    const agentId = event.agent as string;
+    let agent = agents.get(agentId);
+    if (!agent) {
+      agent = {
+        agent: agentId,
+        totals: {
+          uncachedInputTokens: 0,
+          cachedInputTokens: 0,
+          cacheCreationTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+        },
+        totalTokens: 0,
+        costUsd: 0,
+        records: 0,
+        unpricedRecords: 0,
+        sessionIds: new Set(),
+      };
+      agents.set(agentId, agent);
+    }
+    addUsageTokenTotals(agent.totals, eventTotals);
+    agent.costUsd += event.costUsd as number;
+    agent.records++;
+    if (event.unpriced) agent.unpricedRecords++;
+    agent.sessionIds.add(event.sessionId as string);
+
+    const modelKey = `${event.agent}\u0000${event.model}`;
+    let model = models.get(modelKey);
+    if (!model) {
+      model = {
+        agent: event.agent,
+        model: event.model,
+        totals: {
+          uncachedInputTokens: 0,
+          cachedInputTokens: 0,
+          cacheCreationTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+        },
+        totalTokens: 0,
+        costUsd: 0,
+        records: 0,
+        unpricedRecords: 0,
+      };
+      models.set(modelKey, model);
+    }
+    addUsageTokenTotals(model.totals as Record<string, number>, eventTotals);
+    model.costUsd = (model.costUsd as number) + (event.costUsd as number);
+    model.records = (model.records as number) + 1;
+    if (event.unpriced) model.unpricedRecords = (model.unpricedRecords as number) + 1;
+
+    const start = bucketStartFromMs(event.timestampMs as number, resolution);
+    let bucket = buckets.get(start);
+    if (!bucket) {
+      bucket = { start, costUsd: 0, totalTokens: 0, byAgent: {} };
+      buckets.set(start, bucket);
+    }
+    const eventTokens = tokenTotalOf(eventTotals);
+    bucket.costUsd = (bucket.costUsd as number) + (event.costUsd as number);
+    bucket.totalTokens = (bucket.totalTokens as number) + eventTokens;
+    const byAgent = bucket.byAgent as Record<string, { costUsd: number; totalTokens: number }>;
+    const bucketAgent = byAgent[agentId] ?? { costUsd: 0, totalTokens: 0 };
+    bucketAgent.costUsd += event.costUsd as number;
+    bucketAgent.totalTokens += eventTokens;
+    byAgent[agentId] = bucketAgent;
+  }
+
+  const agentList = Array.from(agents.values())
+    .map(({ sessionIds, totals: agentTotals, ...rest }) => ({
+      ...rest,
+      totals: agentTotals,
+      totalTokens: tokenTotalOf(agentTotals),
+      sessions: sessionIds.size,
+    }))
+    .sort((a, b) => b.costUsd - a.costUsd || b.totalTokens - a.totalTokens);
+
+  const modelList = Array.from(models.values())
+    .map((model) => ({
+      ...model,
+      totalTokens: tokenTotalOf(model.totals as Record<string, number>),
+    }))
+    .sort(
+      (a, b) =>
+        (b.costUsd as number) - (a.costUsd as number) ||
+        (b.totalTokens as number) - (a.totalTokens as number),
+    );
+
+  return {
+    generatedAt,
+    days,
+    resolution,
+    buckets: Array.from(buckets.values()).sort((a, b) =>
+      (a.start as string).localeCompare(b.start as string),
+    ),
+    totals,
+    totalTokens: tokenTotalOf(totals),
+    costUsd,
+    cacheSavingsUsd,
+    records: events.length,
+    unpricedRecords,
+    sessions: agentList.reduce((sum, agent) => sum + agent.sessions, 0),
+    agents: agentList,
+    models: modelList,
+    sources: [],
+    scanDurationMs: 0,
+  };
+}
+
 /** Merge per-device usage windows so multi-machine accounts see combined totals. */
 export function mergeUsageSummaries(
   summaries: Array<Record<string, unknown>>,
@@ -199,39 +396,35 @@ export function mergeUsageSummaries(
     (summary) => isRecord(summary) && summary.days === days && isUsageTokenTotals(summary.totals),
   );
   if (valid.length === 0) return null;
-
-  // Freshest first. Skip a device when most of its fingerprints already appear
-  // in a kept device — overlapping transcript roots would otherwise double-count.
-  const ordered = [...valid].sort((a, b) => {
-    const aAt = typeof a.generatedAt === 'string' ? a.generatedAt : '';
-    const bAt = typeof b.generatedAt === 'string' ? b.generatedAt : '';
-    return bAt.localeCompare(aAt);
-  });
-  const claimedKeys = new Set<string>();
-  const selected: Array<Record<string, unknown>> = [];
-  for (const summary of ordered) {
-    const keys = Array.isArray(summary.dedupeKeys)
-      ? summary.dedupeKeys.filter((key): key is string => typeof key === 'string')
-      : [];
-    if (keys.length > 0) {
-      let novel = 0;
-      for (const key of keys) {
-        if (!claimedKeys.has(key)) novel++;
-      }
-      if (novel === 0) continue;
-      if (novel / keys.length < 0.9) continue;
-      for (const key of keys) claimedKeys.add(key);
-    }
-    selected.push(summary);
-  }
-  if (selected.length === 0) return null;
-  if (selected.length === 1) {
-    const only = { ...selected[0]! };
+  if (valid.length === 1) {
+    const only = { ...valid[0]! };
     delete only.dedupeKeys;
+    delete only.events;
     return only;
   }
 
-  const resolution = selected[0]!.resolution === 'hour' ? 'hour' : 'day';
+  // Prefer exact event-level merge when every device shipped priced events.
+  const eventful = valid.every(
+    (summary) => Array.isArray(summary.events) && summary.events.length > 0,
+  );
+  if (eventful) {
+    const byKey = new Map<string, Record<string, unknown>>();
+    let generatedAt = '';
+    for (const summary of valid) {
+      if (typeof summary.generatedAt === 'string' && summary.generatedAt > generatedAt) {
+        generatedAt = summary.generatedAt;
+      }
+      for (const event of summary.events as Array<Record<string, unknown>>) {
+        if (!isUsageCloudEvent(event)) continue;
+        if (!byKey.has(event.key as string)) byKey.set(event.key as string, event);
+      }
+    }
+    return aggregateUsageEvents(Array.from(byKey.values()), days, generatedAt);
+  }
+
+  // Legacy fallback without events: sum disjoint aggregates. Overlap is rare
+  // for distinct machines and unavoidable without the event payload.
+  const resolution = valid[0]!.resolution === 'hour' ? 'hour' : 'day';
   const totals = {
     uncachedInputTokens: 0,
     cachedInputTokens: 0,
@@ -249,7 +442,7 @@ export function mergeUsageSummaries(
   const models = new Map<string, Record<string, unknown>>();
   const buckets = new Map<string, Record<string, unknown>>();
 
-  for (const summary of selected) {
+  for (const summary of valid) {
     if (typeof summary.generatedAt === 'string' && summary.generatedAt > generatedAt) {
       generatedAt = summary.generatedAt;
     }
@@ -347,38 +540,30 @@ export function mergeUsageSummaries(
     }
   }
 
-  const agentList = Array.from(agents.values()).sort(
-    (a, b) =>
-      (b.costUsd as number) - (a.costUsd as number) ||
-      (b.totalTokens as number) - (a.totalTokens as number),
-  );
-  const modelList = Array.from(models.values()).sort(
-    (a, b) =>
-      (b.costUsd as number) - (a.costUsd as number) ||
-      (b.totalTokens as number) - (a.totalTokens as number),
-  );
-  const bucketList = Array.from(buckets.values()).sort((a, b) =>
-    (a.start as string).localeCompare(b.start as string),
-  );
-
   return {
     generatedAt: generatedAt || new Date(0).toISOString(),
     days,
     resolution,
-    buckets: bucketList,
+    buckets: Array.from(buckets.values()).sort((a, b) =>
+      (a.start as string).localeCompare(b.start as string),
+    ),
     totals,
-    totalTokens:
-      totals.uncachedInputTokens +
-      totals.cachedInputTokens +
-      totals.cacheCreationTokens +
-      totals.outputTokens,
+    totalTokens: tokenTotalOf(totals),
     costUsd,
     cacheSavingsUsd,
     records,
     unpricedRecords,
     sessions,
-    agents: agentList,
-    models: modelList,
+    agents: Array.from(agents.values()).sort(
+      (a, b) =>
+        (b.costUsd as number) - (a.costUsd as number) ||
+        (b.totalTokens as number) - (a.totalTokens as number),
+    ),
+    models: Array.from(models.values()).sort(
+      (a, b) =>
+        (b.costUsd as number) - (a.costUsd as number) ||
+        (b.totalTokens as number) - (a.totalTokens as number),
+    ),
     sources: [],
     scanDurationMs: 0,
   };

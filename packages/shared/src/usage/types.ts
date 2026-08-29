@@ -117,4 +117,22 @@ export interface UsageSummary {
    * cloud-bound snapshots; safe to omit in local UI responses.
    */
   dedupeKeys?: string[];
+  /**
+   * Compact priced events for exact cross-device merge. Omitted when the
+   * window is too large to fit the cloud snapshot budget.
+   */
+  events?: UsageCloudEvent[];
+}
+
+/** One priced usage event shipped with cloud snapshots for exact merge. */
+export interface UsageCloudEvent {
+  key: string;
+  agent: UsageAgent;
+  model: string;
+  timestampMs: number;
+  sessionId: string;
+  totals: UsageTokenTotals;
+  costUsd: number;
+  cacheSavingsUsd: number;
+  unpriced: boolean;
 }

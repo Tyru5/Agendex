@@ -97,24 +97,19 @@ test('mergeUsageSummaries combines multi-device windows', () => {
     records: 1,
     sessions: 1,
     models: [],
-    dedupeKeys: ['left-a', 'left-b'],
-    agents: [
+    agents: [],
+    buckets: [],
+    events: [
       {
+        key: 'left-a',
         agent: 'codex-cli',
+        model: 'gpt-5',
+        timestampMs: Date.parse('2026-08-28T12:00:00.000Z'),
+        sessionId: 's-left',
         totals: { ...emptyTotals, outputTokens: 2 },
-        totalTokens: 2,
         costUsd: 1,
-        records: 1,
-        unpricedRecords: 0,
-        sessions: 1,
-      },
-    ],
-    buckets: [
-      {
-        start: '2026-08-28',
-        costUsd: 1,
-        totalTokens: 2,
-        byAgent: { 'codex-cli': { costUsd: 1, totalTokens: 2 } },
+        cacheSavingsUsd: 0,
+        unpriced: false,
       },
     ],
   });
@@ -123,27 +118,22 @@ test('mergeUsageSummaries combines multi-device windows', () => {
     totals: { ...emptyTotals, outputTokens: 3 },
     totalTokens: 3,
     costUsd: 2,
-    records: 2,
-    sessions: 2,
+    records: 1,
+    sessions: 1,
     models: [],
-    dedupeKeys: ['right-a', 'right-b'],
-    agents: [
+    agents: [],
+    buckets: [],
+    events: [
       {
+        key: 'right-a',
         agent: 'codex-cli',
+        model: 'gpt-5',
+        timestampMs: Date.parse('2026-08-28T15:00:00.000Z'),
+        sessionId: 's-right',
         totals: { ...emptyTotals, outputTokens: 3 },
-        totalTokens: 3,
         costUsd: 2,
-        records: 2,
-        unpricedRecords: 0,
-        sessions: 2,
-      },
-    ],
-    buckets: [
-      {
-        start: '2026-08-28',
-        costUsd: 2,
-        totalTokens: 3,
-        byAgent: { 'codex-cli': { costUsd: 2, totalTokens: 3 } },
+        cacheSavingsUsd: 0,
+        unpriced: false,
       },
     ],
   });
@@ -152,40 +142,64 @@ test('mergeUsageSummaries combines multi-device windows', () => {
     days: 30,
     generatedAt: '2026-08-29T18:00:00.000Z',
     costUsd: 3,
-    records: 3,
-    sessions: 3,
+    records: 2,
+    sessions: 2,
     totalTokens: 5,
-    agents: [{ agent: 'codex-cli', sessions: 3, costUsd: 3, totalTokens: 5 }],
-    buckets: [
-      {
-        start: '2026-08-28',
-        costUsd: 3,
-        totalTokens: 5,
-        byAgent: { 'codex-cli': { costUsd: 3, totalTokens: 5 } },
-      },
-    ],
+    agents: [{ agent: 'codex-cli', sessions: 2, costUsd: 3, totalTokens: 5 }],
   });
 });
 
-test('mergeUsageSummaries skips heavily overlapping device snapshots', () => {
+test('mergeUsageSummaries keeps unique events from partial device overlap', () => {
+  const shared = {
+    key: 'shared',
+    agent: 'codex-cli',
+    model: 'gpt-5',
+    timestampMs: Date.parse('2026-08-28T12:00:00.000Z'),
+    sessionId: 's-shared',
+    totals: { ...emptyTotals, outputTokens: 1 },
+    costUsd: 1,
+    cacheSavingsUsd: 0,
+    unpriced: false,
+  };
   const primary = summary({
     generatedAt: '2026-08-29T18:00:00.000Z',
-    costUsd: 5,
-    records: 5,
-    sessions: 5,
-    dedupeKeys: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+    events: [
+      shared,
+      {
+        key: 'primary-only',
+        agent: 'codex-cli',
+        model: 'gpt-5',
+        timestampMs: Date.parse('2026-08-28T13:00:00.000Z'),
+        sessionId: 's-primary',
+        totals: { ...emptyTotals, outputTokens: 4 },
+        costUsd: 4,
+        cacheSavingsUsd: 0,
+        unpriced: false,
+      },
+    ],
   });
-  const overlap = summary({
+  const secondary = summary({
     generatedAt: '2026-08-29T17:00:00.000Z',
-    costUsd: 4,
-    records: 4,
-    sessions: 4,
-    dedupeKeys: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'extra'],
+    events: [
+      shared,
+      {
+        key: 'secondary-only',
+        agent: 'claude-code',
+        model: 'opus',
+        timestampMs: Date.parse('2026-08-28T14:00:00.000Z'),
+        sessionId: 's-secondary',
+        totals: { ...emptyTotals, outputTokens: 2 },
+        costUsd: 2,
+        cacheSavingsUsd: 0,
+        unpriced: false,
+      },
+    ],
   });
 
-  expect(mergeUsageSummaries([primary, overlap], 30)).toMatchObject({
-    costUsd: 5,
-    records: 5,
-    sessions: 5,
+  expect(mergeUsageSummaries([primary, secondary], 30)).toMatchObject({
+    costUsd: 7,
+    records: 3,
+    sessions: 3,
+    totalTokens: 7,
   });
 });

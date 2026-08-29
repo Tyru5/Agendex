@@ -166,6 +166,7 @@ export type {
   ModelUsageTotals,
   UsageAgent,
   UsageBucket,
+  UsageCloudEvent,
   UsageRecord,
   UsageSourceStatus,
   UsageSummary,

@@ -29,6 +29,7 @@ import {
   totalTokens,
   type UsageAgent,
   type UsageBucket,
+  type UsageCloudEvent,
   type UsageRecord,
   type UsageSourceStatus,
   type UsageSummary,
@@ -37,6 +38,8 @@ import {
 const SCAN_CACHE_FILE = 'usage-scan-cache.json';
 const SCAN_CACHE_VERSION = 1;
 export const DEFAULT_USAGE_DAYS = 30;
+/** Soft cap so multi-window cloud snapshots stay under the heartbeat byte budget. */
+const MAX_CLOUD_EVENTS = 2_500;
 
 interface UsageSource {
   agent: UsageAgent;
@@ -187,10 +190,28 @@ function aggregate(
   const byModel = new Map<string, ModelUsageTotals>();
   const resolution: 'day' | 'hour' = days === 1 ? 'hour' : 'day';
   const byBucket = new Map<string, UsageBucket>();
+  const events: UsageCloudEvent[] = [];
 
   for (const record of records) {
     const rate = lookupRate(rateTable, record.model);
     const priced = priceUsage(record.totals, record.reportedCostUsd, rate);
+    const eventKey =
+      record.dedupeKey ??
+      `${record.agent}:${record.sessionId}:${record.timestampMs}:${record.model}`;
+
+    if (events.length < MAX_CLOUD_EVENTS) {
+      events.push({
+        key: eventKey,
+        agent: record.agent,
+        model: record.model,
+        timestampMs: record.timestampMs,
+        sessionId: record.sessionId,
+        totals: { ...record.totals },
+        costUsd: priced.costUsd,
+        cacheSavingsUsd: priced.cacheSavingsUsd,
+        unpriced: !priced.priced,
+      });
+    }
 
     addTokenTotals(overall, record.totals);
     costUsd += priced.costUsd;
@@ -277,10 +298,12 @@ function aggregate(
     models,
     sources,
     scanDurationMs,
-    // Opaque keys only — used by cloud merge to skip overlapping device scans.
+    // Opaque keys only — used when the event list is omitted for size.
     dedupeKeys: Array.from(
       new Set(records.map((record) => record.dedupeKey).filter((key): key is string => key !== null)),
     ).slice(0, 20_000),
+    // Exact merge payload; omit when over budget so heartbeats stay small.
+    ...(records.length <= MAX_CLOUD_EVENTS ? { events } : {}),
   };
 }
 
