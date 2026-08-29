@@ -367,15 +367,26 @@ export function UsageView({ onBack, initialSummary, loadUsage = api.getUsage }: 
   const summary = summaries[days] ?? null;
 
   useEffect(() => {
-    if (summaries[days]) return;
     let cancelled = false;
     beginLoad();
     loadUsage(days)
       .then((result) => {
-        if (!cancelled && result) setSummaries((prev) => ({ ...prev, [days]: result }));
+        if (cancelled) return;
+        if (result) setSummaries((prev) => ({ ...prev, [days]: result }));
+        else setSummaries((prev) => {
+          const next = { ...prev };
+          delete next[days];
+          return next;
+        });
       })
       .catch(() => {
-        // Endpoint unavailable: leave the view in its empty state.
+        if (!cancelled) {
+          setSummaries((prev) => {
+            const next = { ...prev };
+            delete next[days];
+            return next;
+          });
+        }
       })
       .finally(() => {
         endLoad();
@@ -383,7 +394,7 @@ export function UsageView({ onBack, initialSummary, loadUsage = api.getUsage }: 
     return () => {
       cancelled = true;
     };
-  }, [days, loadUsage, summaries]);
+  }, [days, loadUsage]);
 
   const refresh = () => {
     beginLoad();

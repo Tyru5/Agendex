@@ -437,14 +437,19 @@ function useUsageSummary(
   loadUsage: UsageLoader,
 ): UsageSummary | null {
   const [summary, setSummary] = useState<UsageSummary | null>(initialSummary ?? null);
+  const sourceRef = useRef(loadUsage);
+
+  // Reset during render so a local→cloud switch never paints the prior source.
+  if (sourceRef.current !== loadUsage) {
+    sourceRef.current = loadUsage;
+    setSummary(initialSummary ?? null);
+  }
 
   useEffect(() => {
     if (initialSummary !== undefined) {
       setSummary(initialSummary);
       return;
     }
-    // Parent handed control to the loader (e.g. local mode): drop any prior
-    // cloud/local snapshot immediately so mode switches never show stale data.
     setSummary(null);
   }, [initialSummary]);
 
@@ -456,7 +461,6 @@ function useUsageSummary(
         if (!cancelled) setSummary(result);
       })
       .catch(() => {
-        // Endpoint unavailable (cloud shell, older server): hide the panel.
         if (!cancelled) setSummary(null);
       });
     return () => {
@@ -1105,6 +1109,7 @@ export function EmptyStateView({
               onBack={() => setViewingUsage(false)}
               initialSummary={usage}
               loadUsage={usageLoader}
+              key={usageLoader === api.getUsage ? 'local' : 'cloud'}
             />
           ) : browsingAgent && selectedAgent ? (
             <AgentPlansBrowser
