@@ -22,7 +22,7 @@
     "github-slugger": "^2.0.0",
     "gsap": "^3.15.0",
     "highlight.js": "^11.11.1",
-    "mermaid": "^11.12.2",
+    "mermaid": "^11.16.1",
     "nuqs": "^2.8.8",
     "react-markdown": "^10.1.0",
     "rehype-raw": "^7.0.0",
