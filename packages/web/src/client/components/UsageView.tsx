@@ -326,7 +326,12 @@ export function UsageView({ onBack, initialSummary }: UsageViewProps) {
   const summary = summaries[days] ?? null;
 
   useEffect(() => {
-    if (summaries[days]) return;
+    // Switching back to a cached window must clear any in-flight loading flag
+    // left by the previous request's cancelled cleanup.
+    if (summaries[days]) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     api

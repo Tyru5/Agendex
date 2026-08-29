@@ -215,17 +215,27 @@ function grokTotals(usage: Record<string, unknown>): UsageTokenTotals {
   };
 }
 
+function isGrokTurnCompleted(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  // Older fixtures used `type`; native Grok Build ACP uses `sessionUpdate`.
+  return value.type === 'turn_completed' || value.sessionUpdate === 'turn_completed';
+}
+
 export function parseGrokLine(line: string, fallbackSessionId: string): UsageRecord[] {
   const row = tryParseJson(line);
   if (!row) return [];
 
-  // Envelope varies between versions: the update may be the row itself or
-  // nested under `update`.
-  const update =
-    row.type === 'turn_completed'
-      ? row
-      : isRecord(row.update) && row.update.type === 'turn_completed'
-        ? row.update
+  // Envelope varies across versions:
+  // - flat: `{ type: 'turn_completed', usage }`
+  // - nested: `{ update: { type: 'turn_completed', usage } }`
+  // - native ACP: `{ params: { sessionId, update: { sessionUpdate: 'turn_completed', usage } } }`
+  const params = isRecord(row.params) ? row.params : undefined;
+  const update = isGrokTurnCompleted(row)
+    ? row
+    : isGrokTurnCompleted(row.update)
+      ? row.update
+      : params && isGrokTurnCompleted(params.update)
+        ? params.update
         : null;
   if (!update) return [];
 
@@ -234,7 +244,11 @@ export function parseGrokLine(line: string, fallbackSessionId: string): UsageRec
 
   const timestampMs =
     parseTimestampMs(update.timestamp) ?? parseTimestampMs(row.timestamp) ?? Date.now();
-  const sessionId = asString(update.sessionId) ?? asString(row.sessionId) ?? fallbackSessionId;
+  const sessionId =
+    asString(update.sessionId) ??
+    asString(row.sessionId) ??
+    (params ? asString(params.sessionId) : undefined) ??
+    fallbackSessionId;
   const turnCostUsd = grokTicksToUsd(usage.costUsdTicks);
 
   const modelUsage = isRecord(usage.modelUsage) ? usage.modelUsage : undefined;

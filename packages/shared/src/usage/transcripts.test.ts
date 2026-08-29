@@ -158,6 +158,47 @@ test('parseGrokLine converts cost ticks and handles nested update envelope', () 
   expect(record?.sessionId).toBe('grok:session-x');
 });
 
+test('parseGrokLine accepts native ACP sessionUpdate envelope', () => {
+  const records = parseGrokLine(
+    JSON.stringify({
+      timestamp: 1_788_860_667,
+      method: '_x.ai/session/update',
+      params: {
+        sessionId: '01a044cb-native',
+        update: {
+          sessionUpdate: 'turn_completed',
+          usage: {
+            inputTokens: 500,
+            cachedReadTokens: 200,
+            outputTokens: 100,
+            reasoningTokens: 40,
+            costUsdTicks: 25_000_000_000,
+            modelUsage: {
+              'grok-4.6-build': {
+                inputTokens: 500,
+                cachedReadTokens: 200,
+                outputTokens: 100,
+                reasoningTokens: 40,
+                costUsdTicks: 25_000_000_000,
+              },
+            },
+          },
+        },
+      },
+    }),
+    'fallback',
+  );
+
+  expect(records).toHaveLength(1);
+  const [record] = records;
+  expect(record?.agent).toBe('grok');
+  expect(record?.model).toBe('grok-4.6-build');
+  expect(record?.sessionId).toBe('01a044cb-native');
+  expect(record?.totals.uncachedInputTokens).toBe(300);
+  expect(record?.reportedCostUsd).toBeCloseTo(2.5);
+  expect(record?.timestampMs).toBe(1_788_860_667_000);
+});
+
 test('parseGrokLine allocates remaining cost across unticked models by tokens', () => {
   const records = parseGrokLine(
     JSON.stringify({
@@ -195,4 +236,7 @@ test('mightCarryUsage never drops lines its parser would accept', () => {
   expect(mightCarryUsage('claude-code', '{"type":"user"}')).toBe(false);
   expect(mightCarryUsage('codex-cli', '{"payload":{"type":"token_count"}}')).toBe(true);
   expect(mightCarryUsage('grok', '{"update":{"type":"turn_completed"}}')).toBe(true);
+  expect(
+    mightCarryUsage('grok', '{"params":{"update":{"sessionUpdate":"turn_completed"}}}'),
+  ).toBe(true);
 });

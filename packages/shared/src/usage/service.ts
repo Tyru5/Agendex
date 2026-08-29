@@ -307,7 +307,9 @@ export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Pro
 
   const sources = options.sources ?? usageSources();
   const sourceStatuses: UsageSourceStatus[] = [];
-  const nextCacheFiles: Record<string, ScanCacheEntry> = {};
+  // Only files touched this scan — merged with the on-disk cache on write so
+  // overlapping day-window requests do not discard each other's entries.
+  const updatedCacheFiles: Record<string, ScanCacheEntry> = {};
   const records: UsageRecord[] = [];
   const seenDedupeKeys = new Set<string>();
 
@@ -339,7 +341,7 @@ export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Pro
           continue;
         }
       }
-      nextCacheFiles[file.path] = {
+      updatedCacheFiles[file.path] = {
         size: file.size,
         mtimeMs: file.mtimeMs,
         records: fileRecords,
@@ -363,12 +365,17 @@ export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Pro
     });
   }
 
-  // Persist the cache best-effort; entries for stale/vanished files drop out.
+  // Persist best-effort: re-read then merge so concurrent window scans keep
+  // reusable entries from other day windows.
   try {
     await mkdir(cacheDir, { recursive: true });
+    const latest = await readScanCache(cachePath);
     await writeFile(
       cachePath,
-      JSON.stringify({ version: SCAN_CACHE_VERSION, files: nextCacheFiles } satisfies ScanCache),
+      JSON.stringify({
+        version: SCAN_CACHE_VERSION,
+        files: { ...latest.files, ...updatedCacheFiles },
+      } satisfies ScanCache),
     );
   } catch {
     // Read-only config dir: totals still work, rescans just reparse.
