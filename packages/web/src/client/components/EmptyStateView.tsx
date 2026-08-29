@@ -439,7 +439,13 @@ function useUsageSummary(
   const [summary, setSummary] = useState<UsageSummary | null>(initialSummary ?? null);
 
   useEffect(() => {
-    if (initialSummary !== undefined) setSummary(initialSummary);
+    if (initialSummary !== undefined) {
+      setSummary(initialSummary);
+      return;
+    }
+    // Parent handed control to the loader (e.g. local mode): drop any prior
+    // cloud/local snapshot immediately so mode switches never show stale data.
+    setSummary(null);
   }, [initialSummary]);
 
   useEffect(() => {
@@ -450,7 +456,8 @@ function useUsageSummary(
         if (!cancelled) setSummary(result);
       })
       .catch(() => {
-        // Endpoint unavailable (cloud shell, older server): keep panel hidden.
+        // Endpoint unavailable (cloud shell, older server): hide the panel.
+        if (!cancelled) setSummary(null);
       });
     return () => {
       cancelled = true;

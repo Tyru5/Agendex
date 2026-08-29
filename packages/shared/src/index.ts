@@ -171,7 +171,7 @@ export type {
   UsageSummary,
   UsageTokenTotals,
 } from './usage/types.ts';
-export { DEFAULT_USAGE_DAYS, getUsageSummary } from './usage/service.ts';
+export { DEFAULT_USAGE_DAYS, getUsageSummaries, getUsageSummary } from './usage/service.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 export type {
   AgentAdapter,

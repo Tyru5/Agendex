@@ -35,14 +35,14 @@ function summary(days: number): UsageSummary {
   };
 }
 
-test('collectUsageSnapshots builds every cloud window and removes local scan details', async () => {
-  const requested: number[] = [];
-  const snapshots = await collectUsageSnapshots(async ({ days }) => {
-    requested.push(days);
-    return summary(days);
+test('collectUsageSnapshots builds every cloud window from one multi-window load', async () => {
+  const requested: number[][] = [];
+  const snapshots = await collectUsageSnapshots(async (windows) => {
+    requested.push([...windows]);
+    return Object.fromEntries(windows.map((days) => [String(days), summary(days)]));
   });
 
-  expect(requested).toEqual([...CLOUD_USAGE_WINDOWS]);
+  expect(requested).toEqual([[...CLOUD_USAGE_WINDOWS]]);
   expect(Object.keys(snapshots).sort()).toEqual(['1', '30', '7', '90']);
   for (const snapshot of Object.values(snapshots)) {
     expect(snapshot.sources).toEqual([]);

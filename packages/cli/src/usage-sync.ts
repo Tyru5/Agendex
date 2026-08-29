@@ -1,4 +1,4 @@
-import { getUsageSummary, type UsageSummary } from '@agendex/shared';
+import { getUsageSummaries, type UsageSummary } from '@agendex/shared';
 import { sendHeartbeat } from './api.ts';
 
 export const USAGE_SYNC_INTERVAL_MS = 5 * 60_000;
@@ -6,7 +6,9 @@ export const CLOUD_USAGE_WINDOWS = [90, 30, 7, 1] as const;
 
 export type CloudUsageSnapshots = Record<string, UsageSummary>;
 
-type UsageSummaryLoader = (options: { days: number }) => Promise<UsageSummary>;
+type UsageSummariesLoader = (
+  windows: readonly number[],
+) => Promise<Readonly<Record<string, UsageSummary>>>;
 type UsageSnapshotLoader = () => Promise<CloudUsageSnapshots>;
 type HeartbeatSender = (
   ipAddress?: string,
@@ -23,13 +25,16 @@ export function sanitizeUsageSummary(summary: UsageSummary): UsageSummary {
 }
 
 export async function collectUsageSnapshots(
-  loadSummary: UsageSummaryLoader = getUsageSummary,
+  loadSummaries: UsageSummariesLoader = getUsageSummaries,
 ): Promise<CloudUsageSnapshots> {
+  // One filesystem scan covers every cloud window; smaller windows filter the
+  // shared record set instead of walking transcript dirs again.
+  const raw = await loadSummaries(CLOUD_USAGE_WINDOWS);
   const snapshots: CloudUsageSnapshots = {};
 
-  // Scan the largest window first. Later windows reuse the per-file scan cache.
   for (const days of CLOUD_USAGE_WINDOWS) {
-    snapshots[String(days)] = sanitizeUsageSummary(await loadSummary({ days }));
+    const summary = raw[String(days)];
+    if (summary) snapshots[String(days)] = sanitizeUsageSummary(summary);
   }
 
   return snapshots;

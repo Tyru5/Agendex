@@ -49,6 +49,65 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function isNonNegFinite(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isUsageTokenTotals(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  for (const field of [
+    'uncachedInputTokens',
+    'cachedInputTokens',
+    'cacheCreationTokens',
+    'outputTokens',
+    'reasoningTokens',
+  ]) {
+    if (!isNonNegFinite(value[field])) return false;
+  }
+  return true;
+}
+
+function isUsageBucket(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.start !== 'string' || value.start.length === 0 || value.start.length > 64) {
+    return false;
+  }
+  if (!isNonNegFinite(value.costUsd) || !isNonNegFinite(value.totalTokens)) return false;
+  if (!isRecord(value.byAgent)) return false;
+  for (const entry of Object.values(value.byAgent)) {
+    if (!isRecord(entry)) return false;
+    if (!isNonNegFinite(entry.costUsd) || !isNonNegFinite(entry.totalTokens)) return false;
+  }
+  return true;
+}
+
+function isUsageAgentEntry(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.agent !== 'string' || value.agent.length === 0 || value.agent.length > 64) {
+    return false;
+  }
+  if (!isUsageTokenTotals(value.totals)) return false;
+  for (const field of ['totalTokens', 'costUsd', 'records', 'unpricedRecords', 'sessions']) {
+    if (!isNonNegFinite(value[field])) return false;
+  }
+  return true;
+}
+
+function isUsageModelEntry(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.agent !== 'string' || value.agent.length === 0 || value.agent.length > 64) {
+    return false;
+  }
+  if (typeof value.model !== 'string' || value.model.length === 0 || value.model.length > 256) {
+    return false;
+  }
+  if (!isUsageTokenTotals(value.totals)) return false;
+  for (const field of ['totalTokens', 'costUsd', 'records', 'unpricedRecords']) {
+    if (!isNonNegFinite(value[field])) return false;
+  }
+  return true;
+}
+
 export function normalizeUsageSnapshots(value: unknown): Record<string, unknown> | undefined {
   if (!isRecord(value)) return undefined;
 
@@ -74,7 +133,10 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
     if (!Array.isArray(rawSummary.buckets) || rawSummary.buckets.length > 366) return undefined;
     if (!Array.isArray(rawSummary.agents) || rawSummary.agents.length > 20) return undefined;
     if (!Array.isArray(rawSummary.models) || rawSummary.models.length > 500) return undefined;
-    if (!isRecord(rawSummary.totals)) return undefined;
+    if (!isUsageTokenTotals(rawSummary.totals)) return undefined;
+    if (!rawSummary.buckets.every(isUsageBucket)) return undefined;
+    if (!rawSummary.agents.every(isUsageAgentEntry)) return undefined;
+    if (!rawSummary.models.every(isUsageModelEntry)) return undefined;
 
     for (const field of [
       'totalTokens',
@@ -85,9 +147,7 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
       'sessions',
     ]) {
       const fieldValue = rawSummary[field];
-      if (typeof fieldValue !== 'number' || !Number.isFinite(fieldValue) || fieldValue < 0) {
-        return undefined;
-      }
+      if (!isNonNegFinite(fieldValue)) return undefined;
     }
 
     snapshots[key] = {
@@ -99,6 +159,185 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
   }
 
   return Object.keys(snapshots).length > 0 ? snapshots : undefined;
+}
+
+function addUsageTokenTotals(
+  into: Record<string, number>,
+  from: Record<string, unknown>,
+): void {
+  for (const field of [
+    'uncachedInputTokens',
+    'cachedInputTokens',
+    'cacheCreationTokens',
+    'outputTokens',
+    'reasoningTokens',
+  ]) {
+    into[field] = (into[field] ?? 0) + (from[field] as number);
+  }
+}
+
+/** Merge per-device usage windows so multi-machine accounts see combined totals. */
+export function mergeUsageSummaries(
+  summaries: Array<Record<string, unknown>>,
+  days: number,
+): Record<string, unknown> | null {
+  const valid = summaries.filter(
+    (summary) => isRecord(summary) && summary.days === days && isUsageTokenTotals(summary.totals),
+  );
+  if (valid.length === 0) return null;
+  if (valid.length === 1) return valid[0]!;
+
+  const resolution = valid[0]!.resolution === 'hour' ? 'hour' : 'day';
+  const totals = {
+    uncachedInputTokens: 0,
+    cachedInputTokens: 0,
+    cacheCreationTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+  };
+  let costUsd = 0;
+  let cacheSavingsUsd = 0;
+  let records = 0;
+  let unpricedRecords = 0;
+  let sessions = 0;
+  let generatedAt = '';
+  const agents = new Map<string, Record<string, unknown>>();
+  const models = new Map<string, Record<string, unknown>>();
+  const buckets = new Map<string, Record<string, unknown>>();
+
+  for (const summary of valid) {
+    if (typeof summary.generatedAt === 'string' && summary.generatedAt > generatedAt) {
+      generatedAt = summary.generatedAt;
+    }
+    addUsageTokenTotals(totals, summary.totals as Record<string, unknown>);
+    costUsd += summary.costUsd as number;
+    cacheSavingsUsd += summary.cacheSavingsUsd as number;
+    records += summary.records as number;
+    unpricedRecords += summary.unpricedRecords as number;
+    sessions += summary.sessions as number;
+
+    if (Array.isArray(summary.agents)) {
+      for (const rawAgent of summary.agents) {
+        if (!isUsageAgentEntry(rawAgent)) continue;
+        const existing = agents.get(rawAgent.agent as string);
+        if (!existing) {
+          agents.set(rawAgent.agent as string, {
+            ...rawAgent,
+            totals: { ...(rawAgent.totals as Record<string, number>) },
+          });
+          continue;
+        }
+        addUsageTokenTotals(
+          existing.totals as Record<string, number>,
+          rawAgent.totals as Record<string, unknown>,
+        );
+        existing.totalTokens = (existing.totalTokens as number) + (rawAgent.totalTokens as number);
+        existing.costUsd = (existing.costUsd as number) + (rawAgent.costUsd as number);
+        existing.records = (existing.records as number) + (rawAgent.records as number);
+        existing.unpricedRecords =
+          (existing.unpricedRecords as number) + (rawAgent.unpricedRecords as number);
+        existing.sessions = (existing.sessions as number) + (rawAgent.sessions as number);
+      }
+    }
+
+    if (Array.isArray(summary.models)) {
+      for (const rawModel of summary.models) {
+        if (!isUsageModelEntry(rawModel)) continue;
+        const key = `${rawModel.agent}\u0000${rawModel.model}`;
+        const existing = models.get(key);
+        if (!existing) {
+          models.set(key, {
+            ...rawModel,
+            totals: { ...(rawModel.totals as Record<string, number>) },
+          });
+          continue;
+        }
+        addUsageTokenTotals(
+          existing.totals as Record<string, number>,
+          rawModel.totals as Record<string, unknown>,
+        );
+        existing.totalTokens = (existing.totalTokens as number) + (rawModel.totalTokens as number);
+        existing.costUsd = (existing.costUsd as number) + (rawModel.costUsd as number);
+        existing.records = (existing.records as number) + (rawModel.records as number);
+        existing.unpricedRecords =
+          (existing.unpricedRecords as number) + (rawModel.unpricedRecords as number);
+      }
+    }
+
+    if (Array.isArray(summary.buckets)) {
+      for (const rawBucket of summary.buckets) {
+        if (!isUsageBucket(rawBucket)) continue;
+        const start = rawBucket.start as string;
+        const existing = buckets.get(start);
+        if (!existing) {
+          const byAgent: Record<string, { costUsd: number; totalTokens: number }> = {};
+          for (const [agent, entry] of Object.entries(
+            rawBucket.byAgent as Record<string, { costUsd: number; totalTokens: number }>,
+          )) {
+            byAgent[agent] = { ...entry };
+          }
+          buckets.set(start, {
+            start,
+            costUsd: rawBucket.costUsd,
+            totalTokens: rawBucket.totalTokens,
+            byAgent,
+          });
+          continue;
+        }
+        existing.costUsd = (existing.costUsd as number) + (rawBucket.costUsd as number);
+        existing.totalTokens =
+          (existing.totalTokens as number) + (rawBucket.totalTokens as number);
+        const byAgent = existing.byAgent as Record<
+          string,
+          { costUsd: number; totalTokens: number }
+        >;
+        for (const [agent, entry] of Object.entries(
+          rawBucket.byAgent as Record<string, { costUsd: number; totalTokens: number }>,
+        )) {
+          const current = byAgent[agent] ?? { costUsd: 0, totalTokens: 0 };
+          current.costUsd += entry.costUsd;
+          current.totalTokens += entry.totalTokens;
+          byAgent[agent] = current;
+        }
+      }
+    }
+  }
+
+  const agentList = Array.from(agents.values()).sort(
+    (a, b) =>
+      (b.costUsd as number) - (a.costUsd as number) ||
+      (b.totalTokens as number) - (a.totalTokens as number),
+  );
+  const modelList = Array.from(models.values()).sort(
+    (a, b) =>
+      (b.costUsd as number) - (a.costUsd as number) ||
+      (b.totalTokens as number) - (a.totalTokens as number),
+  );
+  const bucketList = Array.from(buckets.values()).sort((a, b) =>
+    (a.start as string).localeCompare(b.start as string),
+  );
+
+  return {
+    generatedAt: generatedAt || new Date(0).toISOString(),
+    days,
+    resolution,
+    buckets: bucketList,
+    totals,
+    totalTokens:
+      totals.uncachedInputTokens +
+      totals.cachedInputTokens +
+      totals.cacheCreationTokens +
+      totals.outputTokens,
+    costUsd,
+    cacheSavingsUsd,
+    records,
+    unpricedRecords,
+    sessions,
+    agents: agentList,
+    models: modelList,
+    sources: [],
+    scanDurationMs: 0,
+  };
 }
 
 function normalizedTitle(title: string): string {
@@ -1004,15 +1243,17 @@ export const getUsage = query({
       .query('daemonHeartbeats')
       .withIndex('by_owner', (q) => q.eq('ownerId', String(user._id)))
       .collect();
-    heartbeats.sort((a, b) => (b.usageUpdatedAt ?? 0) - (a.usageUpdatedAt ?? 0));
 
+    const windowSummaries: Array<Record<string, unknown>> = [];
     for (const heartbeat of heartbeats) {
       if (!isRecord(heartbeat.usageSnapshots)) continue;
       const summary = heartbeat.usageSnapshots[String(args.days)];
-      if (isRecord(summary) && summary.days === args.days) return summary;
+      if (isRecord(summary) && summary.days === args.days) {
+        windowSummaries.push(summary);
+      }
     }
 
-    return null;
+    return mergeUsageSummaries(windowSummaries, args.days);
   },
 });
 

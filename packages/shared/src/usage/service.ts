@@ -293,10 +293,25 @@ export interface GetUsageSummaryOptions {
   cacheDir?: string;
 }
 
-export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Promise<UsageSummary> {
+/**
+ * Scan transcript sources once for the largest requested window, then derive
+ * each window's summary from the shared record set. Avoids repeated directory
+ * walks when the daemon publishes several cloud windows together.
+ */
+export async function getUsageSummaries(
+  windows: readonly number[],
+  options: Omit<GetUsageSummaryOptions, 'days'> = {},
+): Promise<Record<string, UsageSummary>> {
   const startedAt = Date.now();
-  const days = Math.min(Math.max(Math.floor(options.days ?? DEFAULT_USAGE_DAYS), 1), 365);
-  const sinceMs = startedAt - days * 24 * 60 * 60 * 1000;
+  const uniqueDays = [
+    ...new Set(
+      windows.map((days) => Math.min(Math.max(Math.floor(days), 1), 365)).filter((days) => days > 0),
+    ),
+  ].sort((a, b) => b - a);
+  if (uniqueDays.length === 0) return {};
+
+  const maxDays = uniqueDays[0]!;
+  const sinceMs = startedAt - maxDays * 24 * 60 * 60 * 1000;
   const cacheDir = options.cacheDir ?? getConfigDir();
   const cachePath = join(cacheDir, SCAN_CACHE_FILE);
 
@@ -381,5 +396,25 @@ export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Pro
     // Read-only config dir: totals still work, rescans just reparse.
   }
 
-  return aggregate(records, rateTable, sourceStatuses, days, Date.now() - startedAt);
+  const scanDurationMs = Date.now() - startedAt;
+  const summaries: Record<string, UsageSummary> = {};
+  for (const days of uniqueDays) {
+    const windowSinceMs = startedAt - days * 24 * 60 * 60 * 1000;
+    const windowRecords =
+      days === maxDays ? records : records.filter((record) => record.timestampMs >= windowSinceMs);
+    summaries[String(days)] = aggregate(
+      windowRecords,
+      rateTable,
+      sourceStatuses,
+      days,
+      scanDurationMs,
+    );
+  }
+  return summaries;
+}
+
+export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Promise<UsageSummary> {
+  const days = Math.min(Math.max(Math.floor(options.days ?? DEFAULT_USAGE_DAYS), 1), 365);
+  const summaries = await getUsageSummaries([days], options);
+  return summaries[String(days)]!;
 }
