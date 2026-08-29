@@ -293,8 +293,8 @@ export default defineSchema({
   })
     .index('by_plan', ['planId'])
     .index('by_tag', ['tagId'])
-    .index('by_plan_tag', ['planId', 'tagId'])
-    .index('by_owner_plan', ['ownerId', 'planId']),
+    .index('by_owner_plan', ['ownerId', 'planId'])
+    .index('by_owner_plan_tag', ['ownerId', 'planId', 'tagId']),
 
   collections: defineTable({
     ownerId: v.string(),
