@@ -67,7 +67,17 @@ function fillBuckets(summary: UsageSummary): UsageBucket[] {
       cursor.setDate(cursor.getDate() + 1);
     }
   }
-  return filled;
+
+  // Keep device-stamped cloud buckets that fall outside the viewer's local
+  // calendar grid so timezone differences never hide existing usage.
+  const seen = new Set(filled.map((bucket) => bucket.start));
+  for (const bucket of summary.buckets) {
+    if (!seen.has(bucket.start)) {
+      filled.push(bucket);
+      seen.add(bucket.start);
+    }
+  }
+  return filled.sort((a, b) => a.start.localeCompare(b.start));
 }
 
 /** Round a maximum up to a "nice" 1/2/5 × 10ⁿ value for the Y scale. */
@@ -312,9 +322,12 @@ export interface UsageViewProps {
   onBack?: () => void;
   /** Pre-fetched 30-day summary so the initial render has data. */
   initialSummary?: UsageSummary | null;
+  loadUsage?: UsageLoader;
 }
 
-export function UsageView({ onBack, initialSummary }: UsageViewProps) {
+export type UsageLoader = (days?: number, refresh?: boolean) => Promise<UsageSummary | null>;
+
+export function UsageView({ onBack, initialSummary, loadUsage = api.getUsage }: UsageViewProps) {
   const [days, setDays] = useState(initialSummary?.days ?? 30);
   const [metric, setMetric] = useState<Metric>('cost');
   const [breakdown, setBreakdown] = useState<Breakdown>('model');
@@ -326,6 +339,21 @@ export function UsageView({ onBack, initialSummary }: UsageViewProps) {
   // requests so cancelling one (window switch) never clears busy while another
   // is still running, and so a cancelled fetch still releases the counter.
   const inflightRef = useRef(0);
+
+  // Drop cached windows when the data source changes so a kept-open usage
+  // view cannot show cloud totals in local mode (or the reverse).
+  useEffect(() => {
+    setSummaries(initialSummary ? { [initialSummary.days]: initialSummary } : {});
+  }, [loadUsage]);
+
+  useEffect(() => {
+    if (initialSummary === undefined) return;
+    if (initialSummary === null) {
+      setSummaries({});
+      return;
+    }
+    setSummaries((prev) => ({ ...prev, [initialSummary.days]: initialSummary }));
+  }, [initialSummary]);
 
   const beginLoad = () => {
     inflightRef.current += 1;
@@ -339,16 +367,27 @@ export function UsageView({ onBack, initialSummary }: UsageViewProps) {
   const summary = summaries[days] ?? null;
 
   useEffect(() => {
-    if (summaries[days]) return;
     let cancelled = false;
     beginLoad();
-    api
-      .getUsage(days)
+    loadUsage(days)
       .then((result) => {
-        if (!cancelled) setSummaries((prev) => ({ ...prev, [days]: result }));
+        if (cancelled) return;
+        if (result) setSummaries((prev) => ({ ...prev, [days]: result }));
+        else
+          setSummaries((prev) => {
+            const next = { ...prev };
+            delete next[days];
+            return next;
+          });
       })
       .catch(() => {
-        // Endpoint unavailable: leave the view in its empty state.
+        if (!cancelled) {
+          setSummaries((prev) => {
+            const next = { ...prev };
+            delete next[days];
+            return next;
+          });
+        }
       })
       .finally(() => {
         endLoad();
@@ -356,13 +395,14 @@ export function UsageView({ onBack, initialSummary }: UsageViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [days, summaries]);
+  }, [days, loadUsage]);
 
   const refresh = () => {
     beginLoad();
-    api
-      .getUsage(days, true)
-      .then((result) => setSummaries((prev) => ({ ...prev, [days]: result })))
+    loadUsage(days, true)
+      .then((result) => {
+        if (result) setSummaries((prev) => ({ ...prev, [days]: result }));
+      })
       .catch(() => {})
       .finally(() => endLoad());
   };

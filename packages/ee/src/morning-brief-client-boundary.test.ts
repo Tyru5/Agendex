@@ -12,6 +12,12 @@ test('activity brief is integrated into the EE client only', () => {
   expect(ossAppSource).not.toContain('agendex_brief_last_read_at');
 });
 
+test('cloud usage is loaded from Convex instead of the OSS API route', () => {
+  expect(eeAppSource).toContain('api.cli.getUsage');
+  expect(eeAppSource).toContain("usageSummary={mode === 'cloud' ? cloudUsage : undefined}");
+  expect(eeAppSource).toContain("usageLoader={mode === 'cloud' ? loadCloudUsage : undefined}");
+});
+
 test('plan sources action keeps the complete folder icon path', () => {
   const actionStart = eeAppSource.indexOf('aria-label="Manage plan sources"');
   const actionSource = eeAppSource.slice(actionStart, actionStart + 1_200);

@@ -29,6 +29,7 @@ import {
   totalTokens,
   type UsageAgent,
   type UsageBucket,
+  type UsageCloudEvent,
   type UsageRecord,
   type UsageSourceStatus,
   type UsageSummary,
@@ -37,6 +38,8 @@ import {
 const SCAN_CACHE_FILE = 'usage-scan-cache.json';
 const SCAN_CACHE_VERSION = 1;
 export const DEFAULT_USAGE_DAYS = 30;
+/** Soft cap so multi-window cloud snapshots stay under the heartbeat byte budget. */
+const MAX_CLOUD_EVENTS = 400;
 
 interface UsageSource {
   agent: UsageAgent;
@@ -187,17 +190,35 @@ function aggregate(
   const byModel = new Map<string, ModelUsageTotals>();
   const resolution: 'day' | 'hour' = days === 1 ? 'hour' : 'day';
   const byBucket = new Map<string, UsageBucket>();
+  const events: UsageCloudEvent[] = [];
 
   for (const record of records) {
     const rate = lookupRate(rateTable, record.model);
     const priced = priceUsage(record.totals, record.reportedCostUsd, rate);
+    const eventKey =
+      record.dedupeKey ??
+      `${record.agent}:${record.sessionId}:${record.timestampMs}:${record.model}`;
+    const start = bucketStart(record.timestampMs, resolution);
+
+    if (events.length < MAX_CLOUD_EVENTS) {
+      events.push({
+        key: eventKey,
+        agent: record.agent,
+        model: record.model,
+        timestampMs: record.timestampMs,
+        bucketStart: start,
+        sessionId: record.sessionId,
+        totals: { ...record.totals },
+        costUsd: priced.costUsd,
+        cacheSavingsUsd: priced.cacheSavingsUsd,
+        unpriced: !priced.priced,
+      });
+    }
 
     addTokenTotals(overall, record.totals);
     costUsd += priced.costUsd;
     cacheSavingsUsd += priced.cacheSavingsUsd;
     if (!priced.priced) unpricedRecords++;
-
-    const start = bucketStart(record.timestampMs, resolution);
     let bucket = byBucket.get(start);
     if (!bucket) {
       bucket = { start, costUsd: 0, totalTokens: 0, byAgent: {} };
@@ -277,6 +298,13 @@ function aggregate(
     models,
     sources,
     scanDurationMs,
+    // Opaque keys cover the full window; events are capped for heartbeat size.
+    dedupeKeys: Array.from(
+      new Set(
+        records.map((record) => record.dedupeKey).filter((key): key is string => key !== null),
+      ),
+    ).slice(0, 20_000),
+    ...(events.length > 0 ? { events } : {}),
   };
 }
 
@@ -293,10 +321,27 @@ export interface GetUsageSummaryOptions {
   cacheDir?: string;
 }
 
-export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Promise<UsageSummary> {
+/**
+ * Scan transcript sources once for the largest requested window, then derive
+ * each window's summary from the shared record set. Avoids repeated directory
+ * walks when the daemon publishes several cloud windows together.
+ */
+export async function getUsageSummaries(
+  windows: readonly number[],
+  options: Omit<GetUsageSummaryOptions, 'days'> = {},
+): Promise<Record<string, UsageSummary>> {
   const startedAt = Date.now();
-  const days = Math.min(Math.max(Math.floor(options.days ?? DEFAULT_USAGE_DAYS), 1), 365);
-  const sinceMs = startedAt - days * 24 * 60 * 60 * 1000;
+  const uniqueDays = [
+    ...new Set(
+      windows
+        .map((days) => Math.min(Math.max(Math.floor(days), 1), 365))
+        .filter((days) => days > 0),
+    ),
+  ].sort((a, b) => b - a);
+  if (uniqueDays.length === 0) return {};
+
+  const maxDays = uniqueDays[0]!;
+  const sinceMs = startedAt - maxDays * 24 * 60 * 60 * 1000;
   const cacheDir = options.cacheDir ?? getConfigDir();
   const cachePath = join(cacheDir, SCAN_CACHE_FILE);
 
@@ -311,7 +356,6 @@ export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Pro
   // overlapping day-window requests do not discard each other's entries.
   const updatedCacheFiles: Record<string, ScanCacheEntry> = {};
   const records: UsageRecord[] = [];
-  const seenDedupeKeys = new Set<string>();
 
   for (const source of sources) {
     const candidates: CandidateFile[] = [];
@@ -349,10 +393,8 @@ export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Pro
 
       for (const record of fileRecords) {
         if (record.timestampMs < sinceMs || record.timestampMs > startedAt + 60_000) continue;
-        if (record.dedupeKey !== null) {
-          if (seenDedupeKeys.has(record.dedupeKey)) continue;
-          seenDedupeKeys.add(record.dedupeKey);
-        }
+        // Defer dedupe until each window is derived so a key that only collides
+        // with an out-of-window older record still counts in smaller windows.
         records.push(record);
       }
     }
@@ -381,5 +423,33 @@ export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Pro
     // Read-only config dir: totals still work, rescans just reparse.
   }
 
-  return aggregate(records, rateTable, sourceStatuses, days, Date.now() - startedAt);
+  const scanDurationMs = Date.now() - startedAt;
+  const summaries: Record<string, UsageSummary> = {};
+  for (const days of uniqueDays) {
+    const windowSinceMs = startedAt - days * 24 * 60 * 60 * 1000;
+    const seenDedupeKeys = new Set<string>();
+    const windowRecords: UsageRecord[] = [];
+    for (const record of records) {
+      if (record.timestampMs < windowSinceMs) continue;
+      if (record.dedupeKey !== null) {
+        if (seenDedupeKeys.has(record.dedupeKey)) continue;
+        seenDedupeKeys.add(record.dedupeKey);
+      }
+      windowRecords.push(record);
+    }
+    summaries[String(days)] = aggregate(
+      windowRecords,
+      rateTable,
+      sourceStatuses,
+      days,
+      scanDurationMs,
+    );
+  }
+  return summaries;
+}
+
+export async function getUsageSummary(options: GetUsageSummaryOptions = {}): Promise<UsageSummary> {
+  const days = Math.min(Math.max(Math.floor(options.days ?? DEFAULT_USAGE_DAYS), 1), 365);
+  const summaries = await getUsageSummaries([days], options);
+  return summaries[String(days)]!;
 }

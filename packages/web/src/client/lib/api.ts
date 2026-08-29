@@ -141,6 +141,7 @@ export interface UsageSummary {
   models: ModelUsageTotals[];
   sources: { agent: string; path: string; status: string; files: number; message?: string }[];
   scanDurationMs: number;
+  dedupeKeys?: string[];
 }
 
 export interface PlanAnnotationApiRecord {

@@ -49,6 +49,7 @@ import { planToSyncPayload } from './payload.ts';
 import { clearDaemonStopRequest, consumeDaemonStopRequest, removePid, writePid } from './pid.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
 import { shouldIncludeLocalIpAddressInSync } from './sync-privacy.ts';
+import { syncUsageSnapshots, USAGE_SYNC_INTERVAL_MS } from './usage-sync.ts';
 import {
   loadPendingWritebackReports,
   savePendingWritebackReports,
@@ -655,6 +656,13 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
   // of these sessions later stops being live.
   await reconcileLivePlannotatorSessions(getAll());
 
+  const syncUsage = async () => {
+    await syncUsageSnapshots(await getSyncIpAddress(true));
+  };
+  void syncUsage().catch((err) => {
+    console.error('[agendex] failed to sync usage summary:', err);
+  });
+
   setInterval(() => {
     void (async () => {
       await sendHeartbeat(await getSyncIpAddress(true));
@@ -662,6 +670,12 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
       // Heartbeats are best-effort; the next interval will retry.
     });
   }, CLI_DAEMON_HEARTBEAT_INTERVAL_MS);
+
+  setInterval(() => {
+    void syncUsage().catch((err) => {
+      console.error('[agendex] failed to sync usage summary:', err);
+    });
+  }, USAGE_SYNC_INTERVAL_MS);
 
   setInterval(() => {
     flushReadyRetries();
