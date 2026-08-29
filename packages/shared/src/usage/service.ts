@@ -198,6 +198,7 @@ function aggregate(
     const eventKey =
       record.dedupeKey ??
       `${record.agent}:${record.sessionId}:${record.timestampMs}:${record.model}`;
+    const start = bucketStart(record.timestampMs, resolution);
 
     if (events.length < MAX_CLOUD_EVENTS) {
       events.push({
@@ -205,6 +206,7 @@ function aggregate(
         agent: record.agent,
         model: record.model,
         timestampMs: record.timestampMs,
+        bucketStart: start,
         sessionId: record.sessionId,
         totals: { ...record.totals },
         costUsd: priced.costUsd,
@@ -217,8 +219,6 @@ function aggregate(
     costUsd += priced.costUsd;
     cacheSavingsUsd += priced.cacheSavingsUsd;
     if (!priced.priced) unpricedRecords++;
-
-    const start = bucketStart(record.timestampMs, resolution);
     let bucket = byBucket.get(start);
     if (!bucket) {
       bucket = { start, costUsd: 0, totalTokens: 0, byAgent: {} };

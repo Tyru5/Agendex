@@ -199,6 +199,13 @@ function isUsageCloudEvent(value: unknown): boolean {
   if (typeof value.sessionId !== 'string' || value.sessionId.length === 0 || value.sessionId.length > 256) {
     return false;
   }
+  if (
+    typeof value.bucketStart !== 'string' ||
+    value.bucketStart.length === 0 ||
+    value.bucketStart.length > 64
+  ) {
+    return false;
+  }
   if (!isNonNegFinite(value.timestampMs) || !isNonNegFinite(value.costUsd)) return false;
   if (!isNonNegFinite(value.cacheSavingsUsd)) return false;
   if (typeof value.unpriced !== 'boolean') return false;
@@ -227,20 +234,6 @@ function tokenTotalOf(totals: Record<string, number>): number {
     totals.cacheCreationTokens +
     totals.outputTokens
   );
-}
-
-function bucketStartFromMs(timestampMs: number, resolution: 'day' | 'hour'): string {
-  // Match packages/shared usage scanner: local calendar days / local hours so
-  // reconstructed multi-device buckets align with UsageView's fillBuckets keys.
-  const date = new Date(timestampMs);
-  if (resolution === 'hour') {
-    date.setMinutes(0, 0, 0);
-    return date.toISOString();
-  }
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
 }
 
 function aggregateUsageEvents(
@@ -332,7 +325,10 @@ function aggregateUsageEvents(
     model.records = (model.records as number) + 1;
     if (event.unpriced) model.unpricedRecords = (model.unpricedRecords as number) + 1;
 
-    const start = bucketStartFromMs(event.timestampMs as number, resolution);
+    const start =
+      typeof event.bucketStart === 'string' && event.bucketStart.length > 0
+        ? event.bucketStart
+        : String(event.timestampMs);
     let bucket = buckets.get(start);
     if (!bucket) {
       bucket = { start, costUsd: 0, totalTokens: 0, byAgent: {} };
@@ -423,21 +419,19 @@ export function mergeUsageSummaries(
       typeof summary.records === 'number' && Number.isFinite(summary.records)
         ? summary.records
         : null;
-    // Only exact-merge from a complete event list. A capped prefix would drop
-    // the remainder of that device's aggregate usage.
     const eventsComplete = events.length > 0 && records !== null && events.length === records;
 
-    if (eventsComplete) {
-      for (const event of events) {
-        if (!isUsageCloudEvent(event)) continue;
-        const key = event.key as string;
-        if (!byEventKey.has(key)) byEventKey.set(key, event);
-        claimedKeys.add(key);
-      }
-      for (const key of dedupeKeys) claimedKeys.add(key);
-      continue;
+    // Always keep unique events, even from a capped prefix, so partial overlap
+    // does not drop the other device's novel records.
+    for (const event of events) {
+      if (!isUsageCloudEvent(event)) continue;
+      const key = event.key as string;
+      if (!byEventKey.has(key)) byEventKey.set(key, event);
+      claimedKeys.add(key);
     }
+    for (const key of dedupeKeys) claimedKeys.add(key);
 
+    if (eventsComplete || events.length > 0) continue;
     withoutEvents.push(summary);
   }
 

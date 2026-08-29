@@ -130,6 +130,8 @@ export interface UsageCloudEvent {
   agent: UsageAgent;
   model: string;
   timestampMs: number;
+  /** Device-local bucket key (`YYYY-MM-DD` or hour ISO). Never recompute in Convex. */
+  bucketStart: string;
   sessionId: string;
   totals: UsageTokenTotals;
   costUsd: number;

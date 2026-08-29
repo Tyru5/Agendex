@@ -67,7 +67,17 @@ function fillBuckets(summary: UsageSummary): UsageBucket[] {
       cursor.setDate(cursor.getDate() + 1);
     }
   }
-  return filled;
+
+  // Keep device-stamped cloud buckets that fall outside the viewer's local
+  // calendar grid so timezone differences never hide existing usage.
+  const seen = new Set(filled.map((bucket) => bucket.start));
+  for (const bucket of summary.buckets) {
+    if (!seen.has(bucket.start)) {
+      filled.push(bucket);
+      seen.add(bucket.start);
+    }
+  }
+  return filled.sort((a, b) => a.start.localeCompare(b.start));
 }
 
 /** Round a maximum up to a "nice" 1/2/5 × 10ⁿ value for the Y scale. */
