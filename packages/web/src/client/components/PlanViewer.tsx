@@ -833,7 +833,7 @@ export function PlanViewer({
       className={fullscreen.isFullscreen ? 'main-scroll' : undefined}
       data-chart-wide={chartWide ? 'true' : undefined}
     >
-      {showOutline && !isSplit && <PlanOutline entries={entries} pinned={!outlineHidden} />}
+      {showOutline && !isSplit && <PlanOutline entries={entries} hidden={outlineHidden} />}
       <div
         ref={frameRef}
         className={isSplit ? 'plan-viewer-frame plan-viewer-frame--split' : 'plan-viewer-frame'}

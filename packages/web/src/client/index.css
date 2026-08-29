@@ -8826,147 +8826,130 @@ a.plan-git-chip-link:focus-visible {
   opacity: 0.012;
 }
 
-/* ─── Plan Outline (TOC) — right-edge dock ─── */
+/* ─── Plan Outline (TOC) — proximity-reactive minimap ─── */
 
 .plan-outline-dock {
   position: fixed;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 28px;
+  left: var(--plan-outline-left);
+  top: 50%;
+  width: 40px;
+  height: var(--plan-outline-height);
+  max-height: calc(100vh - 18rem);
+  transform: translateY(-50%);
+  transform-origin: left center;
   z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  opacity: 1;
+  transition:
+    width 150ms ease,
+    opacity 180ms ease-out,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.plan-outline-dock[data-hidden] {
+  transform: translate(-10px, -50%) scale(0.96);
+  opacity: 0;
   pointer-events: none;
 }
 
-.plan-outline-dock > * {
-  pointer-events: auto;
+.plan-outline-dock[data-hovered] {
+  width: 360px;
 }
 
-/* Hint ticks — visible idle state */
-.plan-outline-hint {
+.plan-outline-rail {
   position: absolute;
-  right: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-end;
-  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  inset: 0 auto 0 0;
+  width: 40px;
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
 }
 
-.plan-outline-hint-tick {
+.plan-outline-rail:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--primary) 70%, transparent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.plan-outline-tick {
+  position: absolute;
+  left: 12px;
+  width: 8px;
   height: 2px;
-  border-radius: 1px;
-  background: var(--tertiary);
-  opacity: 0.3;
-  transition: opacity 0.2s, width 0.2s, background 0.2s;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--tertiary) 35%, transparent);
+  transition:
+    width 150ms ease,
+    background-color 150ms ease;
 }
 
-.plan-outline-hint-tick[data-level="2"] { width: 12px; }
-.plan-outline-hint-tick[data-level="3"] { width: 8px; }
-.plan-outline-hint-tick[data-level="4"] { width: 5px; }
-
-.plan-outline-hint-tick[data-active] {
-  opacity: 0.7;
-  background: var(--text);
+.plan-outline-tick[data-distance="2"] {
+  width: 10px;
 }
 
-/* Slide-in panel */
-.plan-outline-panel {
+.plan-outline-tick[data-distance="1"] {
+  width: 16px;
+}
+
+.plan-outline-tick[data-distance="0"] {
+  width: 24px;
+  background: color-mix(in oklch, var(--tertiary) 75%, transparent);
+}
+
+.plan-outline-tick[data-in-view] {
+  background: color-mix(in oklch, var(--text) 90%, transparent);
+}
+
+.plan-outline-preview {
   position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translate(calc(100% + 4px), -50%);
-  width: 200px;
-  max-height: 70vh;
-  overflow-y: auto;
-  padding: 10px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  left: 40px;
+  width: 320px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.12),
-    0 0 0 1px rgba(0, 0, 0, 0.02);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.dark .plan-outline-panel {
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
-.plan-outline-panel::-webkit-scrollbar { width: 0; }
-
-/* Hover / pinned interaction — expand dock, show panel, hide hint */
-.plan-outline-dock:hover,
-.plan-outline-dock[data-pinned] {
-  width: 240px;
-  pointer-events: auto;
-}
-
-.plan-outline-dock:hover .plan-outline-hint,
-.plan-outline-dock[data-pinned] .plan-outline-hint {
-  opacity: 0;
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
   pointer-events: none;
 }
 
-.plan-outline-dock:hover .plan-outline-panel,
-.plan-outline-dock[data-pinned] .plan-outline-panel {
-  transform: translate(0, -50%);
-  right: 12px;
-  opacity: 1;
-  pointer-events: auto;
+.dark .plan-outline-preview {
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.42);
 }
 
-/* Items */
-.plan-outline-item {
-  display: block;
-  flex-shrink: 0;
-  width: 100%;
-  text-align: left;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 450;
-  font-family: inherit;
-  line-height: 1.35;
-  letter-spacing: 0;
-  color: var(--tertiary);
-  background: none;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  white-space: nowrap;
+.plan-outline-preview-title {
   overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
   text-overflow: ellipsis;
-  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
 }
 
-.plan-outline-item[data-level="3"] { padding-left: 22px; }
-.plan-outline-item[data-level="4"] { padding-left: 34px; }
-
-.plan-outline-item:hover {
-  color: var(--text);
-  background: var(--hover);
-}
-
-.plan-outline-item[data-active] {
-  color: var(--text);
-  font-weight: 550;
-  background: var(--hover);
+.plan-outline-preview-text {
+  display: -webkit-box;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 @media (max-width: 1100px) {
   .plan-outline-dock { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-outline-dock,
+  .plan-outline-tick {
+    transition: none;
+  }
 }
 
 /* ─── Reduced motion: modal, onboarding, and status surfaces ───
