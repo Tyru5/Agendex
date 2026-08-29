@@ -22,6 +22,7 @@ import {
 } from './file-artifact-adapters.ts';
 import { grokAdapter } from './grok.ts';
 import { ohMyOpencodeAdapter } from './oh-my-opencode.ts';
+import { ompAdapter } from './omp.ts';
 import { openCodeAdapter } from './opencode.ts';
 import { plannotatorAdapter } from './plannotator.ts';
 import { createStubAdapter } from './stub.ts';
@@ -265,6 +266,14 @@ const CATALOG: AdapterCatalogEntry[] = [
     implemented: true,
     defaultEnabled: true,
     createAdapter: () => muxAdapter,
+  },
+  {
+    id: 'omp',
+    displayName: 'omp (oh-my-pi)',
+    group: 'other',
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => ompAdapter,
   },
   {
     id: 'opencode',

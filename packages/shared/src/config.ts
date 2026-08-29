@@ -36,7 +36,7 @@ export function getConfigDir(): string {
 }
 
 /** Current on-disk config schema version. Bump when applying one-shot migrations. */
-export const CURRENT_CONFIG_VERSION = 6;
+export const CURRENT_CONFIG_VERSION = 7;
 
 /**
  * One-shot adapter enable migrations.
@@ -70,6 +70,9 @@ const ADAPTER_ENABLE_MIGRATIONS: Array<{ toVersion: number; enable: AdapterId[] 
   },
   // v6: Command Code plans under ~/.commandcode/plans become a real adapter.
   { toVersion: 6, enable: ['commandcode'] },
+  // v7: omp (oh-my-pi) plan-mode drafts under ~/.omp/agent/sessions become a
+  // real adapter.
+  { toVersion: 7, enable: ['omp'] },
 ];
 
 export interface AgendexConfig {

@@ -86,6 +86,7 @@ const HERO_AGENT_CHIPS = [
   { agent: 'kimi-cli', label: 'Kimi Code' },
   { agent: 'kiro-cli', label: 'Kiro' },
   { agent: 'mux', label: 'Mux' },
+  { agent: 'omp', label: 'omp (oh-my-pi)' },
   { agent: 'opencode', label: 'OpenCode' },
   { agent: 'oh-my-opencode', label: 'Oh My OpenCode' },
   { agent: 'plannotator', label: 'Plannotator' },

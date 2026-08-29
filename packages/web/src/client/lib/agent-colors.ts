@@ -329,6 +329,11 @@ const AGENT_BRANDING: Record<string, AgentBranding> = {
     color: '#14b8a6',
     icon: siWindsurf,
   },
+  omp: {
+    label: 'omp (oh-my-pi)',
+    color: '#f59e0b',
+    fallbackGlyph: 'MP',
+  },
   opencode: {
     label: 'OpenCode',
     color: '#131010',
