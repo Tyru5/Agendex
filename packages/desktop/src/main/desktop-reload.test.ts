@@ -17,6 +17,17 @@ function input(overrides: Partial<ForceReloadInput> = {}): ForceReloadInput {
   };
 }
 
+function platformAcceleratorInput(
+  overrides: Partial<ForceReloadInput> = {},
+): ForceReloadInput {
+  const isMac = process.platform === 'darwin';
+  return input({
+    control: !isMac,
+    meta: isMac,
+    ...overrides,
+  });
+}
+
 describe('desktop force reload shortcut', () => {
   test('recognizes the platform force reload keybind', () => {
     expect(isForceReloadShortcut(input(), false)).toBe(true);
@@ -51,11 +62,14 @@ describe('desktop force reload shortcut', () => {
 
     installDesktopForceReloadShortcut(webContents);
     expect(listener).toBeDefined();
-    listener?.({ preventDefault: () => (prevented += 1) }, input());
+    listener?.({ preventDefault: () => (prevented += 1) }, platformAcceleratorInput());
     expect(prevented).toBe(1);
     expect(reloaded).toBe(1);
 
-    listener?.({ preventDefault: () => (prevented += 1) }, input({ shift: false }));
+    listener?.(
+      { preventDefault: () => (prevented += 1) },
+      platformAcceleratorInput({ shift: false }),
+    );
     expect(prevented).toBe(1);
     expect(reloaded).toBe(1);
   });
