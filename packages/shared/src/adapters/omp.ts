@@ -1,4 +1,4 @@
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
@@ -53,6 +53,10 @@ function isPlanArtifactName(fileName: string): boolean {
   return lower === 'plan.md' || lower.endsWith('-plan.md');
 }
 
+function isSessionFile(filePath: string): boolean {
+  return basename(filePath).toLowerCase().endsWith('.jsonl');
+}
+
 function isUnderSessionsRoot(filePath: string, scanRoot?: string): boolean {
   const normalized = resolve(filePath);
   const roots = scanRoot ? [...getSessionsDirs(), scanRoot] : getSessionsDirs();
@@ -62,6 +66,24 @@ function isUnderSessionsRoot(filePath: string, scanRoot?: string): boolean {
 /** `<sessions>/<cwd>/<stem>/local/<name>-plan.md` → `<sessions>/<cwd>/<stem>.jsonl` */
 function sessionFileForPlan(planPath: string): string {
   return `${dirname(dirname(resolve(planPath)))}.jsonl`;
+}
+
+function sessionFileForSource(filePath: string): string {
+  return isSessionFile(filePath) ? resolve(filePath) : sessionFileForPlan(filePath);
+}
+
+async function planFilesForSource(filePath: string): Promise<string[]> {
+  if (!isSessionFile(filePath)) return [filePath];
+
+  const sessionFile = resolve(filePath);
+  const sessionStem = basename(sessionFile).replace(/\.jsonl$/i, '');
+  const localDir = join(dirname(sessionFile), sessionStem, 'local');
+  try {
+    const names = await readdir(localDir);
+    return names.filter(isPlanArtifactName).map((name) => join(localDir, name));
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -131,6 +153,42 @@ function parseDate(value?: string): Date | undefined {
   return date;
 }
 
+async function parsePlanArtifact(filePath: string): Promise<Plan | null> {
+  try {
+    const content = await readFile(filePath, 'utf-8');
+    if (!content.trim()) return null;
+
+    const stats = await stat(filePath);
+    const meta = await readSessionMeta(filePath);
+    const sessionId = meta.sessionId ?? sessionIdFromPath(filePath);
+
+    const title = headingTitle(content) ?? meta.title ?? slugTitle(filePath) ?? 'omp Plan';
+
+    const metadata: Record<string, unknown> = {
+      sourcePaths: [sessionFileForPlan(filePath)],
+    };
+    if (sessionId) {
+      metadata.sessionId = sessionId;
+      metadata.sessionIdSource = 'omp';
+    }
+
+    return {
+      id: hashPath(filePath),
+      agent: 'omp',
+      title,
+      content,
+      filePath,
+      format: 'md',
+      createdAt: parseDate(meta.createdAt) ?? stats.birthtime,
+      updatedAt: stats.mtime,
+      workspace: meta.workspace,
+      metadata,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const ompAdapter: AgentAdapter = {
   agent: 'omp',
   writable: true,
@@ -143,46 +201,31 @@ export const ompAdapter: AgentAdapter = {
     return getSessionsDirs();
   },
 
+  getCreatePath(slug: string, timestamp: number) {
+    const sessionsDir = getSessionsDirs()[0] ?? join(getHomeDir(), '.omp', 'agent', 'sessions');
+    const sessionStem = `${timestamp}_agendex-${timestamp}`;
+    const fileName = slug.endsWith('-plan') ? `${slug}.md` : `${slug}-plan.md`;
+    return join(sessionsDir, '-agendex', sessionStem, 'local', fileName);
+  },
+
+  getSourcePath(filePath: string) {
+    return sessionFileForSource(filePath);
+  },
+
   matches(filePath: string, scanRoot?: string) {
+    if (isSessionFile(filePath)) return isUnderSessionsRoot(filePath, scanRoot);
     if (!isPlanArtifactName(basename(filePath))) return false;
     if (basename(dirname(filePath)) !== 'local') return false;
     return isUnderSessionsRoot(filePath, scanRoot);
   },
 
   async parse(filePath: string): Promise<Plan[]> {
-    try {
-      const content = await readFile(filePath, 'utf-8');
-      if (!content.trim()) return [];
-
-      const stats = await stat(filePath);
-      const meta = await readSessionMeta(filePath);
-      const sessionId = meta.sessionId ?? sessionIdFromPath(filePath);
-
-      const title = headingTitle(content) ?? meta.title ?? slugTitle(filePath) ?? 'omp Plan';
-
-      const metadata: Record<string, unknown> = {};
-      if (sessionId) {
-        metadata.sessionId = sessionId;
-        metadata.sessionIdSource = 'omp';
-      }
-
-      return [
-        {
-          id: hashPath(filePath),
-          agent: 'omp',
-          title,
-          content,
-          filePath,
-          format: 'md',
-          createdAt: parseDate(meta.createdAt) ?? stats.birthtime,
-          updatedAt: stats.mtime,
-          workspace: meta.workspace,
-          metadata,
-        },
-      ];
-    } catch {
-      return [];
+    const plans: Plan[] = [];
+    for (const planPath of await planFilesForSource(filePath)) {
+      const plan = await parsePlanArtifact(planPath);
+      if (plan) plans.push(plan);
     }
+    return plans;
   },
 
   async write(plan: Plan, newContent: string): Promise<boolean> {

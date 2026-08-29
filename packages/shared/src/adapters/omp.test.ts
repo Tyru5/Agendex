@@ -90,7 +90,7 @@ test('honors PI_CODING_AGENT_DIR and XDG_DATA_HOME session locations', async () 
   expect(paths).toContain(join(home, '.omp', 'agent', 'sessions'));
 });
 
-test('matches only plan artifacts under session local/ dirs', async () => {
+test('matches plan artifacts and their companion session files', async () => {
   const home = await useTempHome();
   const localDir = await makeSessionArtifactDir(home, '-work-foo', '2026-05-14_abc123');
 
@@ -98,14 +98,35 @@ test('matches only plan artifacts under session local/ dirs', async () => {
   expect(ompAdapter.matches(join(localDir, 'auth-storage-plan.md'))).toBe(true);
   expect(ompAdapter.matches(join(localDir, 'PLAN.md'))).toBe(true);
   expect(ompAdapter.matches(join(localDir, 'notes.md'))).toBe(false);
-  // Session JSONL files are metadata, not plans.
-  expect(
-    ompAdapter.matches(
-      join(home, '.omp', 'agent', 'sessions', '-work-foo', '2026-05-14_abc123.jsonl'),
-    ),
-  ).toBe(false);
+  const sessionPath = join(
+    home,
+    '.omp',
+    'agent',
+    'sessions',
+    '-work-foo',
+    '2026-05-14_abc123.jsonl',
+  );
+  expect(ompAdapter.matches(sessionPath)).toBe(true);
+  expect(ompAdapter.getSourcePath?.(join(localDir, 'auth-storage-plan.md'))).toBe(sessionPath);
+  expect(ompAdapter.getSourcePath?.(sessionPath)).toBe(sessionPath);
   // Plan-named files outside the sessions tree are not omp artifacts.
   expect(ompAdapter.matches(join(home, 'local', 'auth-storage-plan.md'))).toBe(false);
+});
+
+test('creates omp plans at a path that remains discoverable after a full scan', async () => {
+  await useTempHome();
+
+  const { ompAdapter } = await import('./omp.ts');
+  const { create, getById, scan } = await import('../services/plan-service.ts');
+  setActiveAdapters([ompAdapter]);
+
+  const created = await create('omp', 'Persist this plan', '- [ ] Keep it indexed');
+  expect(ompAdapter.matches(created.filePath)).toBe(true);
+  expect(created.filePath).toEndWith('local/persist-this-plan.md');
+
+  await scan();
+  expect(getById(created.id)?.title).toBe('Persist this plan');
+  expect(getById(created.id)?.content).toContain('Keep it indexed');
 });
 
 test('parses a plan draft with session metadata', async () => {
@@ -161,6 +182,36 @@ test('falls back to session title, slug, and path-derived session id', async () 
   const [fromSession] = await ompAdapter.parse(planPath);
   expect(fromSession?.title).toBe('auth storage session');
   expect(fromSession?.workspace).toBe('/work/api');
+});
+
+test('refreshes indexed metadata when the companion session file changes', async () => {
+  const home = await useTempHome();
+  const stem = '2026-05-14T10-12-03_deadbeef';
+  const localDir = await makeSessionArtifactDir(home, '-work-api', stem);
+  const planPath = join(localDir, 'auth-storage-plan.md');
+  await writeFile(planPath, 'No heading in this draft.\n', 'utf-8');
+  const sessionPath = await writeSessionFile(home, '-work-api', stem, [
+    JSON.stringify({ type: 'title', v: 1, title: 'Old title' }),
+    JSON.stringify({ type: 'session', version: 3, id: 'deadbeef', cwd: '/work/old' }),
+  ]);
+
+  const { ompAdapter } = await import('./omp.ts');
+  const { getById, rescanFile } = await import('../services/plan-service.ts');
+  setActiveAdapters([ompAdapter]);
+
+  const [initial] = await rescanFile(planPath);
+  expect(initial?.title).toBe('Old title');
+  expect(initial?.workspace).toBe('/work/old');
+
+  await writeFile(
+    sessionPath,
+    `${JSON.stringify({ type: 'title', v: 1, title: 'New title' })}\n${JSON.stringify({ type: 'session', version: 3, id: 'deadbeef', cwd: '/work/new' })}\n`,
+    'utf-8',
+  );
+  await rescanFile(sessionPath);
+
+  expect(getById(initial?.id ?? '')?.title).toBe('New title');
+  expect(getById(initial?.id ?? '')?.workspace).toBe('/work/new');
 });
 
 test('skips empty plan drafts and writes edits back to the artifact', async () => {
