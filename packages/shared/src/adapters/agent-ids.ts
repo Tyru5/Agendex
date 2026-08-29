@@ -24,6 +24,7 @@ export type SkillsAdapterId =
   | 'kode'
   | 'mistral-vibe'
   | 'mux'
+  | 'omp'
   | 'opencode'
   | 'oh-my-opencode'
   | 'openhands'
@@ -69,6 +70,7 @@ export const ADAPTER_AGENT_ALIASES: Record<AdapterId, string> = {
   kode: 'kode',
   'mistral-vibe': 'mistral-vibe',
   mux: 'mux',
+  omp: 'omp',
   opencode: 'opencode',
   'oh-my-opencode': 'oh-my-opencode',
   openhands: 'openhands',

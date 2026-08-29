@@ -43,7 +43,7 @@ independently owned and are never stopped by desktop logout or shutdown.
 
 ## Adapter Status
 
-Agendex currently has **21 implemented adapters**. Twenty use durable plan artifacts or
+Agendex currently has **22 implemented adapters**. Twenty-one use durable plan artifacts or
 explicit Plan-mode session state; Continue is retained as an experimental session adapter:
 
 - `antigravity`
@@ -61,6 +61,7 @@ explicit Plan-mode session state; Continue is retained as an experimental sessio
 - `kimi-cli`
 - `kiro-cli`
 - `mux`
+- `omp` (oh-my-pi)
 - `opencode`
 - `oh-my-opencode`
 - `plannotator`
@@ -73,6 +74,10 @@ explicit Plan-mode session state; Continue is retained as an experimental sessio
 Unsupported catalog entries are retained for ecosystem tracking but are hidden from adapter selection
 and cannot be enabled. Stock OpenCode session plans and Oh My OpenCode Markdown plans are separate
 adapters.
+
+The `omp` adapter indexes [omp (oh-my-pi)](https://omp.sh/docs/plan) Plan-mode draft artifacts stored
+inside omp session directories (`~/.omp/agent/sessions/**/local/*-plan.md`), honoring omp's
+`PI_CODING_AGENT_SESSION_DIR`, `PI_CODING_AGENT_DIR`, and `XDG_DATA_HOME` overrides.
 
 File adapters honor the agents' documented roots and these optional path-list overrides (use the
 platform path delimiter): `AGENDEX_ANTIGRAVITY_PLAN_DIRS`, `AGENDEX_CODEBUDDY_PLAN_DIRS`,
