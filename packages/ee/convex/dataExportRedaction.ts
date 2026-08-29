@@ -23,7 +23,7 @@ export const EXPORT_INVENTORY_TABLES = [
   'workspaceInvites',
 ] as const;
 
-export const EXPORT_MANIFEST_VERSION = 1;
+export const EXPORT_MANIFEST_VERSION = 2;
 
 export const DATA_EXPORT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -42,6 +42,51 @@ export const EXPORT_REDACTION_NOTES = [
   'OAuth accessToken, refreshToken, idToken, and password fields are omitted from connected accounts.',
   'Share-link passwordHash values are omitted; passwordProtected is set instead.',
 ] as const;
+
+export type CursorPage<T> = {
+  page: T[];
+  isDone: boolean;
+  continueCursor: string;
+};
+
+/**
+ * Walks a cursor-backed data set one page at a time. Callers decide what to do
+ * with each bounded page, so the full result never needs to be retained.
+ */
+export async function walkCursorPages<T>(
+  fetchPage: (cursor: string | null) => Promise<CursorPage<T>>,
+  visitPage: (page: T[]) => Promise<void> | void,
+): Promise<void> {
+  let cursor: string | null = null;
+  let isDone = false;
+  while (!isDone) {
+    const result = await fetchPage(cursor);
+    await visitPage(result.page);
+    cursor = result.continueCursor;
+    isDone = result.isDone;
+  }
+}
+
+export type ExportBuildClaimDecision = 'acquire' | 'retry' | 'terminal';
+
+/** Pure claim policy shared by the mutation and retry-focused tests. */
+export function decideExportBuildClaim(args: {
+  status: 'pending' | 'building' | 'ready' | 'failed';
+  currentToken?: string;
+  leaseExpiresAt?: number;
+  proposedToken: string;
+  now: number;
+}): ExportBuildClaimDecision {
+  if (args.status === 'ready' || args.status === 'failed') return 'terminal';
+  if (
+    args.status === 'building' &&
+    args.currentToken !== args.proposedToken &&
+    (args.leaseExpiresAt ?? 0) > args.now
+  ) {
+    return 'retry';
+  }
+  return 'acquire';
+}
 
 export type ShareLinkForExport = {
   _id: string;
@@ -87,6 +132,8 @@ export function buildExportManifest(args: {
     exportId: args.exportId,
     ownerId: args.ownerId,
     createdAt: args.createdAt,
+    archiveLayout: 'streamed-single-zip',
+    collectionsLayout: 'collections-and-memberships',
     inventory: [...EXPORT_INVENTORY_TABLES],
     redactions: [...EXPORT_REDACTION_NOTES],
   };

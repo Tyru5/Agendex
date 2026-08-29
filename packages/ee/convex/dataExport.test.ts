@@ -3,11 +3,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   buildExportManifest,
+  decideExportBuildClaim,
   EXPORT_INVENTORY_TABLES,
   EXPORT_MANIFEST_VERSION,
   isExportDownloadAvailable,
   redactConnectedAccount,
   redactShareLink,
+  walkCursorPages,
 } from './dataExportRedaction';
 
 test('redactShareLink omits passwordHash and sets passwordProtected', () => {
@@ -118,6 +120,93 @@ test('buildExportManifest includes inventory and redaction notes', () => {
   expect(manifest.createdAt).toBe(42);
   expect(manifest.inventory).toEqual([...EXPORT_INVENTORY_TABLES]);
   expect(manifest.redactions.length).toBeGreaterThan(0);
+  expect(manifest.archiveLayout).toBe('streamed-single-zip');
+  expect(manifest.collectionsLayout).toBe('collections-and-memberships');
+});
+
+test('walkCursorPages processes large exports without retaining an unbounded page', async () => {
+  const totalRows = 10_005;
+  const pageSize = 50;
+  let visited = 0;
+  let largestPage = 0;
+  let calls = 0;
+
+  await walkCursorPages(
+    async (cursor) => {
+      calls += 1;
+      const start = cursor === null ? 0 : Number(cursor);
+      const end = Math.min(start + pageSize, totalRows);
+      const page = Array.from({ length: end - start }, (_, index) => start + index);
+      return {
+        page,
+        isDone: end === totalRows,
+        continueCursor: String(end),
+      };
+    },
+    (page) => {
+      visited += page.length;
+      largestPage = Math.max(largestPage, page.length);
+    },
+  );
+
+  expect(visited).toBe(totalRows);
+  expect(largestPage).toBe(pageSize);
+  expect(calls).toBe(Math.ceil(totalRows / pageSize));
+});
+
+test('export build claims are idempotent across duplicate and expired retries', () => {
+  expect(
+    decideExportBuildClaim({
+      status: 'pending',
+      proposedToken: 'attempt-a',
+      now: 1_000,
+    }),
+  ).toBe('acquire');
+  expect(
+    decideExportBuildClaim({
+      status: 'building',
+      currentToken: 'attempt-a',
+      leaseExpiresAt: 2_000,
+      proposedToken: 'attempt-b',
+      now: 1_000,
+    }),
+  ).toBe('retry');
+  expect(
+    decideExportBuildClaim({
+      status: 'building',
+      currentToken: 'attempt-a',
+      leaseExpiresAt: 999,
+      proposedToken: 'attempt-b',
+      now: 1_000,
+    }),
+  ).toBe('acquire');
+  expect(
+    decideExportBuildClaim({
+      status: 'ready',
+      currentToken: 'attempt-a',
+      leaseExpiresAt: 2_000,
+      proposedToken: 'attempt-b',
+      now: 1_000,
+    }),
+  ).toBe('terminal');
+});
+
+test('export implementation uses indexed cursor pages and a file-backed streaming archive', () => {
+  const exportSource = readFileSync(join(import.meta.dir, 'dataExport.ts'), 'utf8');
+  const actionSource = readFileSync(join(import.meta.dir, 'dataExportActions.ts'), 'utf8');
+  const schemaSource = readFileSync(join(import.meta.dir, 'schema.ts'), 'utf8');
+
+  expect(exportSource).not.toContain('.collect()');
+  expect(exportSource).not.toContain(".query('comments')\n      .filter(");
+  expect(exportSource).toContain(".withIndex('by_author'");
+  expect(exportSource).toContain(".withIndex('by_owner'");
+  expect(schemaSource).toContain(".index('by_author', ['authorId'])");
+  expect(schemaSource).toContain(".index('by_owner', ['ownerId'])");
+  expect(actionSource).toContain('generateNodeStream');
+  expect(actionSource).toContain('streamFiles: true');
+  expect(actionSource).toContain('openAsBlob');
+  expect(actionSource).not.toContain('generateAsync');
+  expect(actionSource).not.toContain('arrayBuffer()');
 });
 
 test('export inventory covers tables touched by purgeUserData and planDeletion', () => {
