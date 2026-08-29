@@ -149,6 +149,7 @@ test('export inventory covers tables touched by purgeUserData and planDeletion',
     'daemonHeartbeats',
     'plannotatorWritebacks',
     'agentAvatars',
+    'agentAvatarUploadReservations',
   ] as const;
 
   for (const table of required) {

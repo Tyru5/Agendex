@@ -128,7 +128,7 @@ export function AgentAvatarsSection() {
 
     setBusyAgent(agent);
     try {
-      const uploadUrl = await generateUploadUrl({});
+      const { uploadUrl, reservationId } = await generateUploadUrl({ agent });
       const uploadRes = await fetch(uploadUrl, {
         method: 'POST',
         headers: { 'Content-Type': file.type },
@@ -138,7 +138,7 @@ export function AgentAvatarsSection() {
         throw new Error(`Upload failed (${uploadRes.status})`);
       }
       const { storageId } = (await uploadRes.json()) as { storageId: Id<'_storage'> };
-      await setAgentAvatar({ agent, storageId });
+      await setAgentAvatar({ agent, storageId, reservationId });
     } catch (err) {
       console.error('Avatar upload failed', err);
       setError(agent, err instanceof Error ? err.message : 'Upload failed');

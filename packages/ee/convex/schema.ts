@@ -340,6 +340,16 @@ export default defineSchema({
     .index('by_owner_agent', ['ownerId', 'agent'])
     .index('by_storage', ['storageId']),
 
+  agentAvatarUploadReservations: defineTable({
+    ownerId: v.string(),
+    agent: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_agent', ['ownerId', 'agent'])
+    .index('by_expiresAt', ['expiresAt']),
+
   accountPreferences: defineTable({
     ownerId: v.string(),
     collectLocalIpAddress: v.boolean(),
@@ -410,5 +420,6 @@ export default defineSchema({
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_status', ['ownerId', 'status'])
-    .index('by_expiresAt', ['expiresAt']),
+    .index('by_expiresAt', ['expiresAt'])
+    .index('by_storage', ['storageId']),
 });
