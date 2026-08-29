@@ -36,6 +36,7 @@ import {
 import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { stripLocalIpFromMetadata } from './privacy';
 import { resolvePublishedPlansOwnerId } from './plans';
+import { hasActiveSubscriptionForUserId } from './subscriptions';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
@@ -900,7 +901,11 @@ export const patchPlanSyncIdentity = internalMutation({
     workspace: v.optional(v.string()),
     updatedAt: v.optional(v.number()),
   },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
+    if (!(await hasActiveSubscriptionForUserId(ctx, args.ownerId))) {
+      throw new ConvexError('Cloud Pro subscription required');
+    }
     const plan = await ctx.db.get(args.planId);
     if (!plan || plan.ownerId !== args.ownerId) return false;
 
@@ -942,7 +947,11 @@ export const upsertPlan = internalMutation({
     existingId: v.optional(v.id('plans')),
     existingVersion: v.optional(v.number()),
   },
+  returns: v.id('plans'),
   handler: async (ctx, args) => {
+    if (!(await hasActiveSubscriptionForUserId(ctx, args.ownerId))) {
+      throw new ConvexError('Cloud Pro subscription required');
+    }
     const now = Date.now();
     const continuityKey = plannotatorContinuityKey(args.metadata, args.filePath);
     const updatedAt = args.updatedAt ?? now;
@@ -1091,7 +1100,11 @@ export const deleteSyncedPlan = internalMutation({
     ownerId: v.string(),
     planId: v.id('plans'),
   },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
+    if (!(await hasActiveSubscriptionForUserId(ctx, args.ownerId))) {
+      throw new ConvexError('Cloud Pro subscription required');
+    }
     const plan = await ctx.db.get(args.planId);
     if (!plan || plan.ownerId !== args.ownerId) return false;
 
@@ -1103,20 +1116,9 @@ export const deleteSyncedPlan = internalMutation({
 
 export const hasUserSubscription = internalQuery({
   args: { userId: v.string() },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
-    const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
-    if (bypassIds.includes(args.userId)) return true;
-
-    const sub = await ctx.db
-      .query('subscriptions')
-      .withIndex('by_user', (q) => q.eq('userId', args.userId))
-      .first();
-    if (!sub) return false;
-    const validStatus = sub.status === 'active' || sub.status === 'trialing';
-    return validStatus && sub.currentPeriodEnd > Date.now();
+    return hasActiveSubscriptionForUserId(ctx, args.userId);
   },
 });
 

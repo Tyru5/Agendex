@@ -15,4 +15,10 @@ crons.interval(
   internal.dataExport.deleteExpiredDataExports,
 );
 
+crons.interval(
+  'recover overdue internal trial expirations',
+  { minutes: 5 },
+  internal.subscriptions.expireOverdueInternalTrials,
+);
+
 export default crons;
