@@ -249,7 +249,7 @@ test('mergeUsageSummaries skips key-only devices that overlap eventful ones', ()
   });
 });
 
-test('mergeUsageSummaries keeps full aggregate when events are capped', () => {
+test('mergeUsageSummaries keeps unique events when one device is capped', () => {
   const capped = summary({
     generatedAt: '2026-08-29T18:00:00.000Z',
     costUsd: 50,
