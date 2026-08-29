@@ -45,6 +45,7 @@ export function PlanOutline({ entries, hidden }: PlanOutlineProps) {
   const dockRef = useRef<HTMLElement | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [dockLeft, setDockLeft] = useState(12);
+  const hasEnoughEntries = entries.filter((entry) => entry.source !== 'fallback_root').length >= 2;
   const activeIndex = Math.max(
     0,
     entries.findIndex((entry) => entry.id === activeId),
@@ -64,7 +65,7 @@ export function PlanOutline({ entries, hidden }: PlanOutlineProps) {
       observer.disconnect();
       window.removeEventListener('resize', updatePosition);
     };
-  }, []);
+  }, [hasEnoughEntries]);
 
   useEffect(() => {
     if (hidden) setHoveredIndex(null);
@@ -122,6 +123,8 @@ export function PlanOutline({ entries, hidden }: PlanOutlineProps) {
     '--plan-outline-left': `${dockLeft}px`,
     '--plan-outline-height': `${naturalHeight}px`,
   } as CSSProperties;
+
+  if (!hasEnoughEntries) return null;
 
   return (
     <nav

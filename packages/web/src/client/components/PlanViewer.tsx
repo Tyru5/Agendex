@@ -381,8 +381,6 @@ export function PlanViewer({
   );
   const { entries, renderContent, renderMode } = outline;
 
-  const showOutline = entries.filter((e) => e.source !== 'fallback_root').length >= 2;
-
   usePlanAnnotationHighlights({
     rootRef: bodyRef,
     annotations,
@@ -833,7 +831,7 @@ export function PlanViewer({
       className={fullscreen.isFullscreen ? 'main-scroll' : undefined}
       data-chart-wide={chartWide ? 'true' : undefined}
     >
-      {showOutline && !isSplit && <PlanOutline entries={entries} hidden={outlineHidden} />}
+      {!isSplit && <PlanOutline entries={entries} hidden={outlineHidden} />}
       <div
         ref={frameRef}
         className={isSplit ? 'plan-viewer-frame plan-viewer-frame--split' : 'plan-viewer-frame'}
