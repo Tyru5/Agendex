@@ -322,18 +322,26 @@ export function UsageView({ onBack, initialSummary }: UsageViewProps) {
   const [summaries, setSummaries] = useState<Record<number, UsageSummary>>(() =>
     initialSummary ? { [initialSummary.days]: initialSummary } : {},
   );
+  // Shared loading flag across window fetches and refresh — count outstanding
+  // requests so cancelling one (window switch) never clears busy while another
+  // is still running, and so a cancelled fetch still releases the counter.
+  const inflightRef = useRef(0);
+
+  const beginLoad = () => {
+    inflightRef.current += 1;
+    setLoading(true);
+  };
+  const endLoad = () => {
+    inflightRef.current = Math.max(0, inflightRef.current - 1);
+    if (inflightRef.current === 0) setLoading(false);
+  };
 
   const summary = summaries[days] ?? null;
 
   useEffect(() => {
-    // Switching back to a cached window must clear any in-flight loading flag
-    // left by the previous request's cancelled cleanup.
-    if (summaries[days]) {
-      setLoading(false);
-      return;
-    }
+    if (summaries[days]) return;
     let cancelled = false;
-    setLoading(true);
+    beginLoad();
     api
       .getUsage(days)
       .then((result) => {
@@ -343,7 +351,7 @@ export function UsageView({ onBack, initialSummary }: UsageViewProps) {
         // Endpoint unavailable: leave the view in its empty state.
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        endLoad();
       });
     return () => {
       cancelled = true;
@@ -351,12 +359,12 @@ export function UsageView({ onBack, initialSummary }: UsageViewProps) {
   }, [days, summaries]);
 
   const refresh = () => {
-    setLoading(true);
+    beginLoad();
     api
       .getUsage(days, true)
       .then((result) => setSummaries((prev) => ({ ...prev, [days]: result })))
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => endLoad());
   };
 
   const buckets = useMemo(() => (summary ? fillBuckets(summary) : []), [summary]);
