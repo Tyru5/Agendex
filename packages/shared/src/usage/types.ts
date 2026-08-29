@@ -112,4 +112,9 @@ export interface UsageSummary {
   models: ModelUsageTotals[];
   sources: UsageSourceStatus[];
   scanDurationMs: number;
+  /**
+   * Opaque record fingerprints for cross-device cloud dedup. Present on
+   * cloud-bound snapshots; safe to omit in local UI responses.
+   */
+  dedupeKeys?: string[];
 }

@@ -137,6 +137,17 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
     if (!rawSummary.buckets.every(isUsageBucket)) return undefined;
     if (!rawSummary.agents.every(isUsageAgentEntry)) return undefined;
     if (!rawSummary.models.every(isUsageModelEntry)) return undefined;
+    if (rawSummary.dedupeKeys !== undefined) {
+      if (
+        !Array.isArray(rawSummary.dedupeKeys) ||
+        rawSummary.dedupeKeys.length > 20_000 ||
+        !rawSummary.dedupeKeys.every(
+          (key) => typeof key === 'string' && key.length > 0 && key.length <= 256,
+        )
+      ) {
+        return undefined;
+      }
+    }
 
     for (const field of [
       'totalTokens',
@@ -155,6 +166,9 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
       // Defense in depth: the cloud copy never retains local transcript paths.
       sources: [],
       scanDurationMs: 0,
+      ...(Array.isArray(rawSummary.dedupeKeys)
+        ? { dedupeKeys: rawSummary.dedupeKeys.slice(0, 20_000) }
+        : {}),
     };
   }
 
@@ -185,9 +199,39 @@ export function mergeUsageSummaries(
     (summary) => isRecord(summary) && summary.days === days && isUsageTokenTotals(summary.totals),
   );
   if (valid.length === 0) return null;
-  if (valid.length === 1) return valid[0]!;
 
-  const resolution = valid[0]!.resolution === 'hour' ? 'hour' : 'day';
+  // Freshest first. Skip a device when most of its fingerprints already appear
+  // in a kept device — overlapping transcript roots would otherwise double-count.
+  const ordered = [...valid].sort((a, b) => {
+    const aAt = typeof a.generatedAt === 'string' ? a.generatedAt : '';
+    const bAt = typeof b.generatedAt === 'string' ? b.generatedAt : '';
+    return bAt.localeCompare(aAt);
+  });
+  const claimedKeys = new Set<string>();
+  const selected: Array<Record<string, unknown>> = [];
+  for (const summary of ordered) {
+    const keys = Array.isArray(summary.dedupeKeys)
+      ? summary.dedupeKeys.filter((key): key is string => typeof key === 'string')
+      : [];
+    if (keys.length > 0) {
+      let novel = 0;
+      for (const key of keys) {
+        if (!claimedKeys.has(key)) novel++;
+      }
+      if (novel === 0) continue;
+      if (novel / keys.length < 0.9) continue;
+      for (const key of keys) claimedKeys.add(key);
+    }
+    selected.push(summary);
+  }
+  if (selected.length === 0) return null;
+  if (selected.length === 1) {
+    const only = { ...selected[0]! };
+    delete only.dedupeKeys;
+    return only;
+  }
+
+  const resolution = selected[0]!.resolution === 'hour' ? 'hour' : 'day';
   const totals = {
     uncachedInputTokens: 0,
     cachedInputTokens: 0,
@@ -205,7 +249,7 @@ export function mergeUsageSummaries(
   const models = new Map<string, Record<string, unknown>>();
   const buckets = new Map<string, Record<string, unknown>>();
 
-  for (const summary of valid) {
+  for (const summary of selected) {
     if (typeof summary.generatedAt === 'string' && summary.generatedAt > generatedAt) {
       generatedAt = summary.generatedAt;
     }

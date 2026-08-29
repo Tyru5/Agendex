@@ -277,6 +277,10 @@ function aggregate(
     models,
     sources,
     scanDurationMs,
+    // Opaque keys only — used by cloud merge to skip overlapping device scans.
+    dedupeKeys: Array.from(
+      new Set(records.map((record) => record.dedupeKey).filter((key): key is string => key !== null)),
+    ).slice(0, 20_000),
   };
 }
 
@@ -326,7 +330,6 @@ export async function getUsageSummaries(
   // overlapping day-window requests do not discard each other's entries.
   const updatedCacheFiles: Record<string, ScanCacheEntry> = {};
   const records: UsageRecord[] = [];
-  const seenDedupeKeys = new Set<string>();
 
   for (const source of sources) {
     const candidates: CandidateFile[] = [];
@@ -364,10 +367,8 @@ export async function getUsageSummaries(
 
       for (const record of fileRecords) {
         if (record.timestampMs < sinceMs || record.timestampMs > startedAt + 60_000) continue;
-        if (record.dedupeKey !== null) {
-          if (seenDedupeKeys.has(record.dedupeKey)) continue;
-          seenDedupeKeys.add(record.dedupeKey);
-        }
+        // Defer dedupe until each window is derived so a key that only collides
+        // with an out-of-window older record still counts in smaller windows.
         records.push(record);
       }
     }
@@ -400,8 +401,16 @@ export async function getUsageSummaries(
   const summaries: Record<string, UsageSummary> = {};
   for (const days of uniqueDays) {
     const windowSinceMs = startedAt - days * 24 * 60 * 60 * 1000;
-    const windowRecords =
-      days === maxDays ? records : records.filter((record) => record.timestampMs >= windowSinceMs);
+    const seenDedupeKeys = new Set<string>();
+    const windowRecords: UsageRecord[] = [];
+    for (const record of records) {
+      if (record.timestampMs < windowSinceMs) continue;
+      if (record.dedupeKey !== null) {
+        if (seenDedupeKeys.has(record.dedupeKey)) continue;
+        seenDedupeKeys.add(record.dedupeKey);
+      }
+      windowRecords.push(record);
+    }
     summaries[String(days)] = aggregate(
       windowRecords,
       rateTable,

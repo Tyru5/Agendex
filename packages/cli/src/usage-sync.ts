@@ -21,6 +21,8 @@ export function sanitizeUsageSummary(summary: UsageSummary): UsageSummary {
     // Local transcript paths and scanner diagnostics never leave the device.
     sources: [],
     scanDurationMs: 0,
+    // Keep opaque fingerprints so cloud merge can skip overlapping scans.
+    dedupeKeys: summary.dedupeKeys?.slice(0, 20_000),
   };
 }
 

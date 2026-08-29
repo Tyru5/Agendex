@@ -97,6 +97,7 @@ test('mergeUsageSummaries combines multi-device windows', () => {
     records: 1,
     sessions: 1,
     models: [],
+    dedupeKeys: ['left-a', 'left-b'],
     agents: [
       {
         agent: 'codex-cli',
@@ -125,6 +126,7 @@ test('mergeUsageSummaries combines multi-device windows', () => {
     records: 2,
     sessions: 2,
     models: [],
+    dedupeKeys: ['right-a', 'right-b'],
     agents: [
       {
         agent: 'codex-cli',
@@ -162,5 +164,28 @@ test('mergeUsageSummaries combines multi-device windows', () => {
         byAgent: { 'codex-cli': { costUsd: 3, totalTokens: 5 } },
       },
     ],
+  });
+});
+
+test('mergeUsageSummaries skips heavily overlapping device snapshots', () => {
+  const primary = summary({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    costUsd: 5,
+    records: 5,
+    sessions: 5,
+    dedupeKeys: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+  });
+  const overlap = summary({
+    generatedAt: '2026-08-29T17:00:00.000Z',
+    costUsd: 4,
+    records: 4,
+    sessions: 4,
+    dedupeKeys: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'extra'],
+  });
+
+  expect(mergeUsageSummaries([primary, overlap], 30)).toMatchObject({
+    costUsd: 5,
+    records: 5,
+    sessions: 5,
   });
 });
