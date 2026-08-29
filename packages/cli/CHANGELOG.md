@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.6.0
+
+### Minor Changes
+
+- 92f63a1: Usage stats
+
 ## 5.5.0
 
 ### Minor Changes
