@@ -15,4 +15,10 @@ crons.interval(
   internal.dataExport.deleteExpiredDataExports,
 );
 
+crons.interval(
+  'backfill plan download lookup keys',
+  { hours: 1 },
+  internal.cli.backfillPlanDownloadLookupKeys,
+);
+
 export default crons;

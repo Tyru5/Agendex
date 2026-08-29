@@ -439,15 +439,30 @@ test('fetchCloudPlan maps 409 to ambiguous and 404 to not_found', async () => {
           updatedAt: '2026-08-02T00:00:00.000Z',
         },
       ],
+      pagination: {
+        nextCursor: 'cursor-2',
+        hasMore: true,
+        pageSize: 8,
+      },
     },
   });
   saveCloudConfig(ambiguous.url);
-  expect(await fetchCloudPlan('Add auth')).toEqual({
+  expect(await fetchCloudPlan('Add auth', undefined, 'cursor-1')).toEqual({
     kind: 'ambiguous',
     matches: [
       { id: 'p1', agent: 'claude-code', title: 'Add auth', updatedAt: '2026-08-02T00:00:00.000Z' },
     ],
+    pagination: {
+      nextCursor: 'cursor-2',
+      hasMore: true,
+      pageSize: 8,
+    },
   });
+  expect(
+    ambiguous.requests.some((request) =>
+      request.includes('GET /api/cli/plan?q=Add+auth&cursor=cursor-1'),
+    ),
+  ).toBe(true);
 
   if (server) {
     await new Promise<void>((resolve) => server?.close(() => resolve()));
@@ -482,18 +497,18 @@ test('fetchCloudPlan maps 409 to ambiguous and 404 to not_found', async () => {
   });
 });
 
-test('fetchCloudPlan treats a 409 without ambiguous status as a server error', async () => {
+test('fetchCloudPlan rejects an ambiguous response without pagination metadata', async () => {
   await useTempHome();
-  const truncated = await startCloudApi([], {
+  const malformed = await startCloudApi([], {
     planStatus: 409,
-    planBody: { error: 'Title lookup did not finish scanning all plans. Retry with a plan id.' },
+    planBody: { status: 'ambiguous', matches: [] },
   });
-  saveCloudConfig(truncated.url);
+  saveCloudConfig(malformed.url);
 
   expect(await fetchCloudPlan('Add auth')).toEqual({
     kind: 'error',
     status: 409,
-    message: 'Title lookup did not finish scanning all plans. Retry with a plan id.',
+    message: 'Cloud returned invalid ambiguity pagination',
   });
 });
 

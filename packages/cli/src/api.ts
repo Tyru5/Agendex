@@ -163,10 +163,20 @@ export interface CloudPlanDownloadMatch {
   /** Logical duplicate keys from the server; rows sharing any are the same plan. */
   dedupeKeys?: string[];
 }
+export interface CloudPlanDownloadPagination {
+  nextCursor: string | null;
+  hasMore: boolean;
+  pageSize: number;
+}
+
 
 export type FetchCloudPlanResult =
   | { kind: 'found'; plan: CloudPlanDownload }
-  | { kind: 'ambiguous'; matches: CloudPlanDownloadMatch[] }
+  | {
+      kind: 'ambiguous';
+      matches: CloudPlanDownloadMatch[];
+      pagination: CloudPlanDownloadPagination;
+    }
   | { kind: 'not_found'; suggestions: CloudPlanDownloadMatch[] }
   | { kind: 'auth-expired' }
   | { kind: 'error'; status: number; message: string };
@@ -244,10 +254,42 @@ function parseCloudPlanDownloadMatch(value: unknown): CloudPlanDownloadMatch | n
   };
 }
 
-export async function fetchCloudPlan(query: string, agent?: string): Promise<FetchCloudPlanResult> {
+function parseCloudPlanDownloadPagination(value: unknown): CloudPlanDownloadPagination | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const pagination = value as Record<string, unknown>;
+  const nextCursor =
+    pagination.nextCursor === null
+      ? null
+      : typeof pagination.nextCursor === 'string' && pagination.nextCursor.length > 0
+        ? pagination.nextCursor
+        : undefined;
+  if (
+    nextCursor === undefined ||
+    typeof pagination.hasMore !== 'boolean' ||
+    typeof pagination.pageSize !== 'number' ||
+    !Number.isInteger(pagination.pageSize) ||
+    pagination.pageSize < 1 ||
+    pagination.pageSize > 100 ||
+    (pagination.hasMore && nextCursor === null)
+  ) {
+    return null;
+  }
+  return {
+    nextCursor,
+    hasMore: pagination.hasMore,
+    pageSize: pagination.pageSize,
+  };
+}
+
+export async function fetchCloudPlan(
+  query: string,
+  agent?: string,
+  cursor?: string,
+): Promise<FetchCloudPlanResult> {
   const { token, convexUrl } = getCloudConfig();
   const params = new URLSearchParams({ q: query });
   if (agent) params.set('agent', agent);
+  if (cursor) params.set('cursor', cursor);
   const url = `${convexUrl}/api/cli/plan?${params.toString()}`;
   let activeToken = token;
 
@@ -310,7 +352,15 @@ export async function fetchCloudPlan(query: string, agent?: string): Promise<Fet
           return match ? [match] : [];
         })
       : [];
-    return { kind: 'ambiguous', matches };
+    const pagination = parseCloudPlanDownloadPagination(body.pagination);
+    if (!pagination) {
+      return {
+        kind: 'error',
+        status: res.status,
+        message: 'Cloud returned invalid ambiguity pagination',
+      };
+    }
+    return { kind: 'ambiguous', matches, pagination };
   }
 
   if (res.status >= 200 && res.status < 300 && body?.status === 'found') {

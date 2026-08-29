@@ -21,6 +21,10 @@ export type PlanDownloadLookupSelection =
   | { kind: 'one'; plan: PlanDownloadLookupCandidate }
   | { kind: 'many'; plans: PlanDownloadLookupCandidate[] };
 
+export type PlanDownloadTitlePageSelection =
+  | { kind: 'none' }
+  | { kind: 'one'; plan: PlanDownloadLookupCandidate }
+  | { kind: 'many'; plans: PlanDownloadLookupCandidate[]; hasMore: boolean };
 const AGENT_TITLE_SEPARATOR = /^(.+?)\s*[/|:]\s*(.+)$/;
 
 export function normalizePlanLookupText(value: string): string {
@@ -106,6 +110,21 @@ function finish(matches: PlanDownloadLookupCandidate[]): PlanDownloadLookupSelec
     return { kind: 'one', plan };
   }
   return { kind: 'many', plans: sortByNewest(matches) };
+}
+/**
+ * Classify one exact-title index page. A non-final page is always ambiguous,
+ * even when it currently contains one visible logical plan, because a later
+ * page may contain another plan with the same normalized title.
+ */
+export function selectPlanDownloadTitlePage(
+  plans: readonly PlanDownloadLookupCandidate[],
+  isDone: boolean,
+): PlanDownloadTitlePageSelection {
+  const unique = dedupePlanDownloadCandidates(plans);
+  if (!isDone) return { kind: 'many', plans: sortByNewest(unique), hasMore: true };
+  const selection = finish(unique);
+  if (selection.kind !== 'many') return selection;
+  return { ...selection, hasMore: false };
 }
 
 function lookupTokens(value: string): string[] {
@@ -376,39 +395,3 @@ export function dedupePlanDownloadCandidates(
   return result;
 }
 
-export const PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE = 8;
-export const PLAN_DOWNLOAD_FALLBACK_MAX_PLANS = 500;
-
-export type PlanDownloadFallbackPage<T extends PlanDownloadLookupCandidate> = {
-  plans: readonly T[];
-  done: boolean;
-};
-
-/**
- * Walk owner-plan pages until the scan is exhausted or capped. Matching is
- * decided only on the full collected pool so a unique hit on an early page
- * can still become ambiguous if a later page has the same title.
- */
-export async function scanPlanDownloadFallback<T extends PlanDownloadLookupCandidate>(
-  query: string,
-  agent: string | undefined,
-  readPage: () => Promise<PlanDownloadFallbackPage<T>>,
-  maxPlans: number = PLAN_DOWNLOAD_FALLBACK_MAX_PLANS,
-): Promise<{ selection: PlanDownloadLookupSelection; candidates: T[] }> {
-  const candidates: T[] = [];
-  const maxPages = Math.max(1, Math.ceil(maxPlans / PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE));
-  for (let pagesRead = 0; pagesRead < maxPages && candidates.length < maxPlans; pagesRead++) {
-    const page = await readPage();
-    if (page.plans.length === 0) {
-      if (page.done) break;
-      continue;
-    }
-    const remaining = maxPlans - candidates.length;
-    candidates.push(...page.plans.slice(0, remaining));
-    if (page.done) break;
-  }
-  return {
-    selection: selectPlanDownloadMatches(candidates, query, agent),
-    candidates,
-  };
-}

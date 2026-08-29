@@ -1,4 +1,8 @@
 import { ProFeature } from '@agendex/shared/types';
+import {
+  canonicalPlanAgent,
+  normalizePlanLookupText,
+} from '@agendex/shared/plan-download-lookup';
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
@@ -82,6 +86,8 @@ export const publishPlan = mutation({
       };
       await ctx.db.patch(existing._id, {
         agent: args.agent,
+        titleNormalized: normalizePlanLookupText(args.title),
+        agentNormalized: canonicalPlanAgent(args.agent),
         ...snapshot,
         version: newVersion,
         updatedAt: now,
@@ -102,6 +108,8 @@ export const publishPlan = mutation({
       localPlanId: args.localPlanId,
       agent: args.agent,
       title: args.title,
+      titleNormalized: normalizePlanLookupText(args.title),
+      agentNormalized: canonicalPlanAgent(args.agent),
       content: args.content,
       format: args.format,
       filePath: args.filePath,
@@ -349,6 +357,8 @@ export const renamePlan = mutation({
 
     await ctx.db.patch(args.planId, {
       title,
+      titleNormalized: normalizePlanLookupText(title),
+      agentNormalized: canonicalPlanAgent(plan.agent),
       updatedAt: Date.now(),
     });
   },
@@ -413,6 +423,8 @@ export const updatePlanContent = mutation({
 
     await ctx.db.patch(args.planId, {
       title: args.title,
+      titleNormalized: normalizePlanLookupText(args.title),
+      agentNormalized: canonicalPlanAgent(plan.agent),
       content: args.content,
       metadata,
       version: newVersion,

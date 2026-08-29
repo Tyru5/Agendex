@@ -76,6 +76,8 @@ export default defineSchema({
     localPlanId: v.optional(v.string()),
     agent: v.string(),
     title: v.string(),
+    titleNormalized: v.optional(v.string()),
+    agentNormalized: v.optional(v.string()),
     content: v.string(),
     format: v.string(),
     filePath: v.optional(v.string()),
@@ -96,13 +98,21 @@ export default defineSchema({
     .index('by_owner_plannotatorContinuityKey', ['ownerId', 'plannotatorContinuityKey'])
     .index('by_owner_syncIdentityKey', ['ownerId', 'syncIdentityKey'])
     .index('by_owner_contentHash', ['ownerId', 'contentHash'])
+    // Transitional missing-key index used by the bounded lookup-key backfill.
+    .index('by_titleNormalized', ['titleNormalized'])
+    .index('by_owner_and_titleNormalized_and_agentNormalized', [
+      'ownerId',
+      'titleNormalized',
+      'agentNormalized',
+    ])
     // Server-side content search for the plan list. The list query no longer
     // ships `content` to clients, so full-text matching has to happen here.
     .searchIndex('search_content', {
       searchField: 'content',
       filterFields: ['ownerId', 'agent'],
     })
-    // Title search for CLI download lookup (id / name / name+agent).
+    // Bounded fuzzy suggestions for CLI download misses. Exact titles use the
+    // normalized compound index above.
     .searchIndex('search_title', {
       searchField: 'title',
       filterFields: ['ownerId', 'agent'],
