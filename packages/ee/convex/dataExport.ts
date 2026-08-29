@@ -59,6 +59,13 @@ export const requestDataExport = mutation({
   handler: async (ctx) => {
     const user = await requireAuthUser(ctx);
     const ownerId = String(user._id);
+    const deletionJob = await ctx.db
+      .query('accountDeletionJobs')
+      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+      .first();
+    if (deletionJob) {
+      throw new ConvexError('Account deletion is already in progress');
+    }
 
     const active = await findActiveExport(ctx, ownerId);
     if (active) {
@@ -173,13 +180,14 @@ export const markExportReady = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.exportId);
-    if (!job) return null;
+    if (!job) {
+      const metadata = await ctx.db.system.get(args.storageId);
+      if (metadata) await ctx.storage.delete(args.storageId);
+      return null;
+    }
     if (job.storageId && job.storageId !== args.storageId) {
-      try {
-        await ctx.storage.delete(job.storageId);
-      } catch {
-        // Previous blob may already be gone.
-      }
+      const metadata = await ctx.db.system.get(job.storageId);
+      if (metadata) await ctx.storage.delete(job.storageId);
     }
     await ctx.db.patch(args.exportId, {
       status: 'ready',

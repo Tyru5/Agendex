@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
+import { accountDeletionPhaseValidator } from './accountDeletionState';
 
 const plannotatorPlanAnnotation = v.object({
   id: v.optional(v.string()),
@@ -116,7 +117,8 @@ export default defineSchema({
     passwordHash: v.optional(v.string()),
   })
     .index('by_token', ['token'])
-    .index('by_plan', ['planId']),
+    .index('by_plan', ['planId'])
+    .index('by_createdBy', ['createdBy']),
 
   planAnnotations: defineTable({
     planId: v.id('plans'),
@@ -156,7 +158,9 @@ export default defineSchema({
     ),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-  }).index('by_plan', ['planId']),
+  })
+    .index('by_plan', ['planId'])
+    .index('by_author', ['authorId']),
 
   planLinks: defineTable({
     ownerId: v.string(),
@@ -316,7 +320,8 @@ export default defineSchema({
   })
     .index('by_collection', ['collectionId'])
     .index('by_plan', ['planId'])
-    .index('by_collection_plan', ['collectionId', 'planId']),
+    .index('by_collection_plan', ['collectionId', 'planId'])
+    .index('by_owner', ['ownerId']),
 
   planPreferences: defineTable({
     ownerId: v.string(),
@@ -328,7 +333,8 @@ export default defineSchema({
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_plan', ['ownerId', 'planId'])
-    .index('by_owner_pinned', ['ownerId', 'pinned']),
+    .index('by_owner_pinned', ['ownerId', 'pinned'])
+    .index('by_plan', ['planId']),
 
   agentAvatars: defineTable({
     ownerId: v.string(),
@@ -339,6 +345,36 @@ export default defineSchema({
     .index('by_owner', ['ownerId'])
     .index('by_owner_agent', ['ownerId', 'agent'])
     .index('by_storage', ['storageId']),
+
+  accountDeletionJobs: defineTable({
+    ownerId: v.string(),
+    status: v.literal('deleting'),
+    phase: accountDeletionPhaseValidator,
+    activeSubscriptionId: v.optional(v.id('subscriptions')),
+    stripeSubscriptionId: v.optional(v.string()),
+    stripeCancellationRequired: v.optional(v.boolean()),
+    stripeCanceledAt: v.optional(v.number()),
+    activePlanId: v.optional(v.id('plans')),
+    planPhase: v.optional(
+      v.union(
+        v.literal('shareLinks'),
+        v.literal('comments'),
+        v.literal('pendingUploads'),
+        v.literal('commentUploadReservations'),
+        v.literal('planVersions'),
+        v.literal('planAnnotations'),
+        v.literal('plannotatorWritebacks'),
+        v.literal('planTags'),
+        v.literal('planLinks'),
+        v.literal('collectionPlans'),
+        v.literal('planPreferences'),
+      ),
+    ),
+    attempt: v.number(),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_owner', ['ownerId']),
 
   accountPreferences: defineTable({
     ownerId: v.string(),
