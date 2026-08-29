@@ -300,7 +300,9 @@ function aggregate(
     scanDurationMs,
     // Opaque keys cover the full window; events are capped for heartbeat size.
     dedupeKeys: Array.from(
-      new Set(records.map((record) => record.dedupeKey).filter((key): key is string => key !== null)),
+      new Set(
+        records.map((record) => record.dedupeKey).filter((key): key is string => key !== null),
+      ),
     ).slice(0, 20_000),
     ...(events.length > 0 ? { events } : {}),
   };
@@ -331,7 +333,9 @@ export async function getUsageSummaries(
   const startedAt = Date.now();
   const uniqueDays = [
     ...new Set(
-      windows.map((days) => Math.min(Math.max(Math.floor(days), 1), 365)).filter((days) => days > 0),
+      windows
+        .map((days) => Math.min(Math.max(Math.floor(days), 1), 365))
+        .filter((days) => days > 0),
     ),
   ].sort((a, b) => b - a);
   if (uniqueDays.length === 0) return {};

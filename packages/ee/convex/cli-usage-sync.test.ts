@@ -74,7 +74,9 @@ test('usage snapshot validation strips local sources and rejects malformed windo
     '30': { days: 30, sources: [], scanDurationMs: 0 },
   });
   expect(normalizeUsageSnapshots({ '30': { ...valid, days: 7 } })).toBeUndefined();
-  expect(normalizeUsageSnapshots({ '30': { ...valid, extra: 'x'.repeat(512_000) } })).toBeUndefined();
+  expect(
+    normalizeUsageSnapshots({ '30': { ...valid, extra: 'x'.repeat(512_000) } }),
+  ).toBeUndefined();
   expect(
     normalizeUsageSnapshots({ '30': { ...valid, extra: 'é'.repeat(260_000) } }),
   ).toBeUndefined();

@@ -373,11 +373,12 @@ export function UsageView({ onBack, initialSummary, loadUsage = api.getUsage }: 
       .then((result) => {
         if (cancelled) return;
         if (result) setSummaries((prev) => ({ ...prev, [days]: result }));
-        else setSummaries((prev) => {
-          const next = { ...prev };
-          delete next[days];
-          return next;
-        });
+        else
+          setSummaries((prev) => {
+            const next = { ...prev };
+            delete next[days];
+            return next;
+          });
       })
       .catch(() => {
         if (!cancelled) {

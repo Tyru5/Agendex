@@ -196,7 +196,11 @@ function isUsageCloudEvent(value: unknown): boolean {
   if (typeof value.model !== 'string' || value.model.length === 0 || value.model.length > 256) {
     return false;
   }
-  if (typeof value.sessionId !== 'string' || value.sessionId.length === 0 || value.sessionId.length > 256) {
+  if (
+    typeof value.sessionId !== 'string' ||
+    value.sessionId.length === 0 ||
+    value.sessionId.length > 256
+  ) {
     return false;
   }
   if (
@@ -212,10 +216,7 @@ function isUsageCloudEvent(value: unknown): boolean {
   return isUsageTokenTotals(value.totals);
 }
 
-function addUsageTokenTotals(
-  into: Record<string, number>,
-  from: Record<string, unknown>,
-): void {
+function addUsageTokenTotals(into: Record<string, number>, from: Record<string, unknown>): void {
   for (const field of [
     'uncachedInputTokens',
     'cachedInputTokens',
@@ -572,8 +573,7 @@ function sumUsageAggregates(
           continue;
         }
         existing.costUsd = (existing.costUsd as number) + (rawBucket.costUsd as number);
-        existing.totalTokens =
-          (existing.totalTokens as number) + (rawBucket.totalTokens as number);
+        existing.totalTokens = (existing.totalTokens as number) + (rawBucket.totalTokens as number);
         const byAgent = existing.byAgent as Record<
           string,
           { costUsd: number; totalTokens: number }
