@@ -340,8 +340,18 @@ export function UsageView({ onBack, initialSummary, loadUsage = api.getUsage }: 
   // is still running, and so a cancelled fetch still releases the counter.
   const inflightRef = useRef(0);
 
+  // Drop cached windows when the data source changes so a kept-open usage
+  // view cannot show cloud totals in local mode (or the reverse).
   useEffect(() => {
-    if (!initialSummary) return;
+    setSummaries(initialSummary ? { [initialSummary.days]: initialSummary } : {});
+  }, [loadUsage]);
+
+  useEffect(() => {
+    if (initialSummary === undefined) return;
+    if (initialSummary === null) {
+      setSummaries({});
+      return;
+    }
     setSummaries((prev) => ({ ...prev, [initialSummary.days]: initialSummary }));
   }, [initialSummary]);
 
