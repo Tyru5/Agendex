@@ -236,7 +236,7 @@ test('mightCarryUsage never drops lines its parser would accept', () => {
   expect(mightCarryUsage('claude-code', '{"type":"user"}')).toBe(false);
   expect(mightCarryUsage('codex-cli', '{"payload":{"type":"token_count"}}')).toBe(true);
   expect(mightCarryUsage('grok', '{"update":{"type":"turn_completed"}}')).toBe(true);
-  expect(
-    mightCarryUsage('grok', '{"params":{"update":{"sessionUpdate":"turn_completed"}}}'),
-  ).toBe(true);
+  expect(mightCarryUsage('grok', '{"params":{"update":{"sessionUpdate":"turn_completed"}}}')).toBe(
+    true,
+  );
 });
