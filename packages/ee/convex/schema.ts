@@ -156,7 +156,9 @@ export default defineSchema({
     ),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-  }).index('by_plan', ['planId']),
+  })
+    .index('by_plan', ['planId'])
+    .index('by_author', ['authorId']),
 
   planLinks: defineTable({
     ownerId: v.string(),
@@ -319,6 +321,7 @@ export default defineSchema({
     position: v.optional(v.number()),
     createdAt: v.number(),
   })
+    .index('by_owner', ['ownerId'])
     .index('by_collection', ['collectionId'])
     .index('by_plan', ['planId'])
     .index('by_collection_plan', ['collectionId', 'planId'])
@@ -425,6 +428,8 @@ export default defineSchema({
     error: v.optional(v.string()),
     byteSize: v.optional(v.number()),
     fileName: v.optional(v.string()),
+    buildToken: v.optional(v.string()),
+    buildLeaseExpiresAt: v.optional(v.number()),
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_status', ['ownerId', 'status'])
