@@ -171,15 +171,12 @@ async function reserveCommentUpload(
 }
 
 async function deleteStorageFile(
-  ctx: Pick<MutationCtx, 'storage'>,
+  ctx: Pick<MutationCtx, 'db' | 'storage'>,
   storageId: Id<'_storage'>,
-): Promise<boolean> {
-  try {
+): Promise<void> {
+  const metadata = await ctx.db.system.get(storageId);
+  if (metadata) {
     await ctx.storage.delete(storageId);
-    return true;
-  } catch {
-    // File may already be deleted; continue cleanup.
-    return false;
   }
 }
 
