@@ -16,14 +16,16 @@ const RESERVATION = {
   expiresAt: 301_000,
 };
 
-function claim(overrides: {
-  callerId?: string;
-  agent?: string;
-  now?: number;
-  storageCreatedAt?: number;
-  references?: StorageReferences;
-  reservation?: typeof RESERVATION;
-} = {}) {
+function claim(
+  overrides: {
+    callerId?: string;
+    agent?: string;
+    now?: number;
+    storageCreatedAt?: number;
+    references?: StorageReferences;
+    reservation?: typeof RESERVATION;
+  } = {},
+) {
   return validateAvatarStorageClaim({
     callerId: overrides.callerId ?? 'user-a',
     agent: overrides.agent ?? 'claude',
