@@ -551,6 +551,8 @@ export async function sendHeartbeat(
   ipAddress?: string,
   usageSnapshots?: Readonly<Record<string, UsageSummary>>,
 ): Promise<void> {
+  if (!hasDaemonCloudCredentials()) return;
+
   try {
     const { token, convexUrl } = getCloudConfig();
     const pidInfo = readPidInfo();
@@ -578,6 +580,16 @@ export async function sendHeartbeat(
       const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
       if (refreshed.kind !== 'refreshed') {
         reportRefreshRejection(refreshed, activeToken);
+        if (usageSnapshots) {
+          const status = refreshed.kind === 'auth-rejected' ? 401 : 503;
+          const detail =
+            refreshed.kind === 'auth-rejected'
+              ? 'Cloud authentication rejected'
+              : refreshed.kind === 'credentials-changed'
+                ? 'Cloud credentials changed during refresh'
+                : 'Cloud session refresh unavailable';
+          throw new Error(`Cloud rejected usage heartbeat (${status}): ${detail}`);
+        }
         return;
       }
 
@@ -593,12 +605,20 @@ export async function sendHeartbeat(
       });
     }
 
-    if (isAuthenticationFailure(res.status)) {
-      reportAuthExpired(res.status, activeToken);
+    if (res.status < 200 || res.status >= 300) {
+      const authenticationFailure = isAuthenticationFailure(res.status);
+      if (authenticationFailure) reportAuthExpired(res.status, activeToken);
+      if (usageSnapshots) {
+        const detail = authenticationFailure
+          ? 'authentication failed after refresh'
+          : 'request failed';
+        throw new Error(`Cloud rejected usage heartbeat (${res.status}): ${detail}`);
+      }
       return;
     }
-  } catch {
-    // best-effort, don't crash the daemon
+  } catch (error) {
+    if (usageSnapshots) throw error;
+    // Plain liveness heartbeats remain best-effort.
   }
 }
 

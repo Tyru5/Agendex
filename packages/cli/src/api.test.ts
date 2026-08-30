@@ -273,6 +273,85 @@ test('sends sanitized usage snapshots in the heartbeat payload', async () => {
   expect(cloud.heartbeats[0]).toMatchObject({ usageSnapshots: { '30': { days: 30 } } });
 });
 
+test('keeps unconfigured usage heartbeats best-effort', async () => {
+  setDaemonCredentialStore({
+    load: () => null,
+    saveToken: () => false,
+  });
+
+  await expect(sendHeartbeat(undefined, {})).resolves.toBeUndefined();
+});
+
+test('surfaces rejected usage heartbeats instead of silently dropping them', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([], { heartbeatStatus: 400 });
+  saveCloudConfig(cloud.url);
+
+  await expect(sendHeartbeat(undefined, {})).rejects.toThrow(
+    'Cloud rejected usage heartbeat (400): request failed',
+  );
+});
+
+test('keeps rejected liveness heartbeats best-effort', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([], { heartbeatStatus: 400 });
+  saveCloudConfig(cloud.url);
+
+  await expect(sendHeartbeat()).resolves.toBeUndefined();
+});
+
+test('surfaces usage heartbeats when authentication refresh is rejected', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([], { heartbeatStatus: 401, refreshStatus: 401 });
+  saveCloudConfig(cloud.url);
+
+  await expect(sendHeartbeat(undefined, {})).rejects.toThrow(
+    'Cloud rejected usage heartbeat (401): Cloud authentication rejected',
+  );
+});
+
+test('surfaces usage heartbeats when refreshed authentication is still rejected', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([], { heartbeatStatus: 401 });
+  saveCloudConfig(cloud.url);
+
+  await expect(sendHeartbeat(undefined, {})).rejects.toThrow(
+    'Cloud rejected usage heartbeat (401): authentication failed after refresh',
+  );
+  expect(cloud.heartbeats).toHaveLength(2);
+});
+
+test('surfaces usage heartbeats when authentication refresh is unavailable', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([], { heartbeatStatus: 401, refreshStatus: 500 });
+  saveCloudConfig(cloud.url);
+
+  await expect(sendHeartbeat(undefined, {})).rejects.toThrow(
+    'Cloud rejected usage heartbeat (503): Cloud session refresh unavailable',
+  );
+});
+
+test('surfaces usage heartbeats when refreshed credentials cannot be saved', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([], { heartbeatStatus: 401 });
+  setDaemonCredentialStore({
+    load: () => ({ token: 'token', convexUrl: cloud.url }),
+    saveToken: () => false,
+  });
+
+  await expect(sendHeartbeat(undefined, {})).rejects.toThrow(
+    'Cloud rejected usage heartbeat (503): Cloud credentials changed during refresh',
+  );
+});
+
+test('rethrows transport failures only for usage heartbeats', async () => {
+  await useTempHome();
+  saveCloudConfig('http://127.0.0.1:1');
+
+  await expect(sendHeartbeat()).resolves.toBeUndefined();
+  await expect(sendHeartbeat(undefined, {})).rejects.toThrow();
+});
+
 test('fetches and reports Plannotator write-back queue jobs', async () => {
   await useTempHome();
   const jobs: PlannotatorWritebackJob[] = [
