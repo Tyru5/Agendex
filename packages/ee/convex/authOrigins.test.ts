@@ -1,8 +1,5 @@
 import { expect, test } from 'bun:test';
-import {
-  LOCAL_DEVELOPMENT_AUTH_ORIGINS,
-  resolveAuthTrustedOrigins,
-} from './auth';
+import { LOCAL_DEVELOPMENT_AUTH_ORIGINS, resolveAuthTrustedOrigins } from './auth';
 
 test('production resolves only canonical and explicitly configured exact origins', () => {
   const origins = resolveAuthTrustedOrigins({

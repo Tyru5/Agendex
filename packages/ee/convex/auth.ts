@@ -76,9 +76,7 @@ function isLocalDevelopmentOrigin(origin: string): boolean {
 export function resolveAuthTrustedOrigins(env: AuthOriginEnvironment): string[] {
   const environment = env.BETTER_AUTH_ENVIRONMENT?.trim() || 'production';
   if (environment !== 'production' && environment !== 'development') {
-    throw new Error(
-      'BETTER_AUTH_ENVIRONMENT must be either "production" or "development"',
-    );
+    throw new Error('BETTER_AUTH_ENVIRONMENT must be either "production" or "development"');
   }
 
   const explicitOriginValues =
@@ -106,9 +104,7 @@ export function resolveAuthTrustedOrigins(env: AuthOriginEnvironment): string[] 
       : []),
   ];
 
-  const origins = candidates.map(({ value, source }) =>
-    parseExactOrigin(value, source),
-  );
+  const origins = candidates.map(({ value, source }) => parseExactOrigin(value, source));
   for (const origin of origins) {
     if (!isLocalDevelopmentOrigin(origin)) continue;
     if (environment !== 'development') {
