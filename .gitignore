@@ -42,6 +42,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 .claude/
 .amp/*
+!.amp/services.yaml
 !.amp/plugins/
 !.amp/plugins/*.ts
 .cursor/

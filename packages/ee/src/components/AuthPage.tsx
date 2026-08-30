@@ -1,13 +1,19 @@
 import { GitHubIcon, GoogleIcon, startViewTransition } from '@agendex/web';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth.ts';
 import { APP_URL } from '../lib/auth-client.ts';
+import {
+  externalAuthUrl,
+  isEmbeddedBrowser,
+  requestedAuthProvider,
+  shouldOpenAuthExternally,
+} from '../lib/auth-navigation.ts';
+import { AUTH_PROVIDERS, type AuthProvider } from '../lib/auth-providers.ts';
 
 const DASHBOARD_PATH = '/dashboard';
 
 type AuthMode = 'login' | 'signup';
-type AuthProvider = 'github' | 'google';
 
 function Spinner({ size = 14, color }: { size?: number; color?: string }) {
   return (
@@ -40,24 +46,20 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
 function AuthProviderButton({
   provider,
   activeProvider,
+  externalHref,
   onClick,
 }: {
   provider: AuthProvider;
   activeProvider: AuthProvider | null;
+  externalHref?: string;
   onClick: (provider: AuthProvider) => void;
 }) {
   const isActive = activeProvider === provider;
   const isDisabled = activeProvider !== null;
   const label = provider === 'github' ? 'Continue with GitHub' : 'Continue with Google';
   const Icon = provider === 'github' ? GitHubIcon : GoogleIcon;
-
-  return (
-    <button
-      type="button"
-      disabled={isDisabled}
-      onClick={() => onClick(provider)}
-      className="group flex w-full items-center justify-between rounded-[10px] border border-[oklch(90%_0.01_145_/_0.13)] bg-[oklch(20%_0.025_178)] px-4 py-3 text-left text-[13.5px] font-semibold text-[oklch(94%_0.014_125)] transition-[background-color,border-color,opacity] duration-200 ease-out hover:border-[oklch(90%_0.22_129_/_0.34)] hover:bg-[oklch(23%_0.026_178)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(90%_0.22_129)] disabled:cursor-default disabled:opacity-65"
-    >
+  const content = (
+    <>
       <span className="flex items-center gap-3">
         {isActive ? <Spinner size={16} /> : <Icon size={17} />}
         {isActive ? 'Redirecting...' : label}
@@ -65,6 +67,28 @@ function AuthProviderButton({
       <span className="text-[15px] text-[oklch(67%_0.025_165)]" aria-hidden="true">
         →
       </span>
+    </>
+  );
+
+  const className =
+    'group flex w-full items-center justify-between rounded-[10px] border border-[oklch(90%_0.01_145_/_0.13)] bg-[oklch(20%_0.025_178)] px-4 py-3 text-left text-[13.5px] font-semibold text-[oklch(94%_0.014_125)] no-underline transition-[background-color,border-color,opacity] duration-200 ease-out hover:border-[oklch(90%_0.22_129_/_0.34)] hover:bg-[oklch(23%_0.026_178)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(90%_0.22_129)] disabled:cursor-default disabled:opacity-65';
+
+  if (externalHref) {
+    return (
+      <a href={externalHref} target="_blank" rel="noopener noreferrer" className={className}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={isDisabled}
+      onClick={() => onClick(provider)}
+      className={className}
+    >
+      {content}
     </button>
   );
 }
@@ -73,8 +97,16 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   const { isAuthenticated, isLoading, signIn } = useAuth();
   const [, navigate] = useLocation();
   const didRedirectRef = useRef(false);
+  const didStartRequestedProviderRef = useRef(false);
   const [activeProvider, setActiveProvider] = useState<AuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const embedded = isEmbeddedBrowser(window.self, window.top);
+  const requestedProvider = requestedAuthProvider(window.location.search);
+  const openAuthExternally = shouldOpenAuthExternally(
+    window.self,
+    window.top,
+    import.meta.env.VITE_AUTH_OPEN_EXTERNALLY === 'true' && !requestedProvider,
+  );
 
   const copy = useMemo(
     () =>
@@ -82,7 +114,10 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
         ? {
             eyebrow: 'Create account',
             title: 'Start with Agendex.',
-            body: 'Use GitHub or Google. No password to set up.',
+            body:
+              AUTH_PROVIDERS.length === 1
+                ? `Use ${AUTH_PROVIDERS[0] === 'github' ? 'GitHub' : 'Google'}. No password to set up.`
+                : 'Use GitHub or Google. No password to set up.',
             switchLabel: 'Already have access?',
             switchCta: 'Sign in',
             switchHref: '/login',
@@ -105,6 +140,42 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     startViewTransition(() => navigate(DASHBOARD_PATH));
   }, [isAuthenticated, navigate]);
 
+  const handleProvider = useCallback(
+    async (provider: AuthProvider) => {
+      setActiveProvider(provider);
+      setError(null);
+      try {
+        const result = await signIn.social({
+          provider,
+          callbackURL: `${APP_URL}${DASHBOARD_PATH}`,
+        });
+        if (result.error) {
+          setActiveProvider(null);
+          setError(result.error.message || 'Could not start OAuth. Try again in a moment.');
+        }
+      } catch {
+        setActiveProvider(null);
+        setError('Could not start OAuth. Try again in a moment.');
+      }
+    },
+    [signIn],
+  );
+
+  useEffect(() => {
+    if (
+      embedded ||
+      !requestedProvider ||
+      isLoading ||
+      isAuthenticated ||
+      didStartRequestedProviderRef.current
+    ) {
+      return;
+    }
+
+    didStartRequestedProviderRef.current = true;
+    void handleProvider(requestedProvider);
+  }, [embedded, handleProvider, isAuthenticated, isLoading, requestedProvider]);
+
   if (isAuthenticated || isLoading) {
     return (
       <main className="grid min-h-screen place-items-center bg-[oklch(16%_0.026_178)] px-5 py-10 text-[oklch(94%_0.014_125)]">
@@ -118,17 +189,6 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
         </div>
       </main>
     );
-  }
-
-  async function handleProvider(provider: AuthProvider) {
-    setActiveProvider(provider);
-    setError(null);
-    try {
-      await signIn.social({ provider, callbackURL: `${APP_URL}${DASHBOARD_PATH}` });
-    } catch {
-      setActiveProvider(null);
-      setError('Could not start OAuth. Try again in a moment.');
-    }
   }
 
   return (
@@ -148,16 +208,15 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
           </div>
 
           <div className="space-y-3" aria-busy={activeProvider !== null || isLoading}>
-            <AuthProviderButton
-              provider="github"
-              activeProvider={activeProvider}
-              onClick={handleProvider}
-            />
-            <AuthProviderButton
-              provider="google"
-              activeProvider={activeProvider}
-              onClick={handleProvider}
-            />
+            {AUTH_PROVIDERS.map((provider) => (
+              <AuthProviderButton
+                key={provider}
+                provider={provider}
+                activeProvider={activeProvider}
+                externalHref={openAuthExternally ? externalAuthUrl(APP_URL, provider) : undefined}
+                onClick={handleProvider}
+              />
+            ))}
           </div>
 
           {error && (

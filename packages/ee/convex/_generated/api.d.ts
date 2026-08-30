@@ -9,9 +9,11 @@
  */
 
 import type * as account from "../account.js";
+import type * as accountDeletionState from "../accountDeletionState.js";
 import type * as agentAvatars from "../agentAvatars.js";
 import type * as annotations from "../annotations.js";
 import type * as auth from "../auth.js";
+import type * as avatarUploadPolicy from "../avatarUploadPolicy.js";
 import type * as cli from "../cli.js";
 import type * as collections from "../collections.js";
 import type * as comments from "../comments.js";
@@ -24,6 +26,7 @@ import type * as http from "../http.js";
 import type * as planCleanup from "../planCleanup.js";
 import type * as planDeletion from "../planDeletion.js";
 import type * as planLinks from "../planLinks.js";
+import type * as planMetadata from "../planMetadata.js";
 import type * as planPreferences from "../planPreferences.js";
 import type * as planSourcePath from "../planSourcePath.js";
 import type * as planTags from "../planTags.js";
@@ -33,10 +36,14 @@ import type * as planVisibility from "../planVisibility.js";
 import type * as plannotator from "../plannotator.js";
 import type * as plans from "../plans.js";
 import type * as privacy from "../privacy.js";
+import type * as shareAccess from "../shareAccess.js";
+import type * as sharedPlanDto from "../sharedPlanDto.js";
 import type * as sharing from "../sharing.js";
+import type * as storageReferences from "../storageReferences.js";
 import type * as stripe from "../stripe.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as tags from "../tags.js";
+import type * as validators from "../validators.js";
 import type * as workspaceAccess from "../workspaceAccess.js";
 import type * as workspaceMembers from "../workspaceMembers.js";
 
@@ -48,9 +55,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   account: typeof account;
+  accountDeletionState: typeof accountDeletionState;
   agentAvatars: typeof agentAvatars;
   annotations: typeof annotations;
   auth: typeof auth;
+  avatarUploadPolicy: typeof avatarUploadPolicy;
   cli: typeof cli;
   collections: typeof collections;
   comments: typeof comments;
@@ -63,6 +72,7 @@ declare const fullApi: ApiFromModules<{
   planCleanup: typeof planCleanup;
   planDeletion: typeof planDeletion;
   planLinks: typeof planLinks;
+  planMetadata: typeof planMetadata;
   planPreferences: typeof planPreferences;
   planSourcePath: typeof planSourcePath;
   planTags: typeof planTags;
@@ -72,10 +82,14 @@ declare const fullApi: ApiFromModules<{
   plannotator: typeof plannotator;
   plans: typeof plans;
   privacy: typeof privacy;
+  shareAccess: typeof shareAccess;
+  sharedPlanDto: typeof sharedPlanDto;
   sharing: typeof sharing;
+  storageReferences: typeof storageReferences;
   stripe: typeof stripe;
   subscriptions: typeof subscriptions;
   tags: typeof tags;
+  validators: typeof validators;
   workspaceAccess: typeof workspaceAccess;
   workspaceMembers: typeof workspaceMembers;
 }>;

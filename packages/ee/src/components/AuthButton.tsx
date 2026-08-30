@@ -11,6 +11,8 @@ import { useLocation } from 'wouter';
 import { useAuth } from '../hooks/useAuth.ts';
 import { useSubscription } from '../hooks/useSubscription';
 import { APP_URL } from '../lib/auth-client.ts';
+import { externalAuthUrl, shouldOpenAuthExternally } from '../lib/auth-navigation.ts';
+import { AUTH_PROVIDERS } from '../lib/auth-providers.ts';
 import { PricingModal } from './PricingModal';
 
 const DASHBOARD_PATH = '/dashboard';
@@ -108,28 +110,48 @@ export function AuthButton() {
             className="agendex-popover agendex-popover--enter absolute top-full right-0 mt-1.5 rounded-default min-w-[200px] z-[1000] py-1"
             role="menu"
           >
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                signIn.social({ provider: 'github', callbackURL: `${APP_URL}${DASHBOARD_PATH}` });
-              }}
-              className="w-full py-2 px-3 border-none bg-transparent text-[13px] text-text text-left cursor-pointer transition-colors duration-150 hover:bg-hover flex items-center gap-2"
-            >
-              <GitHubIcon size={14} />
-              Continue with GitHub
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                signIn.social({ provider: 'google', callbackURL: `${APP_URL}${DASHBOARD_PATH}` });
-              }}
-              className="w-full py-2 px-3 border-none bg-transparent text-[13px] text-text text-left cursor-pointer transition-colors duration-150 hover:bg-hover flex items-center gap-2"
-            >
-              <GoogleIcon size={14} />
-              Continue with Google
-            </button>
+            {AUTH_PROVIDERS.map((provider) => {
+              const Icon = provider === 'github' ? GitHubIcon : GoogleIcon;
+              const label = provider === 'github' ? 'GitHub' : 'Google';
+              const openExternally = shouldOpenAuthExternally(
+                window.self,
+                window.top,
+                import.meta.env.VITE_AUTH_OPEN_EXTERNALLY === 'true',
+              );
+              const className =
+                'w-full py-2 px-3 border-none bg-transparent text-[13px] text-text text-left cursor-pointer no-underline transition-colors duration-150 hover:bg-hover flex items-center gap-2';
+
+              if (openExternally) {
+                return (
+                  <a
+                    key={provider}
+                    href={externalAuthUrl(APP_URL, provider)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setOpen(false)}
+                    className={className}
+                  >
+                    <Icon size={14} />
+                    Continue with {label}
+                  </a>
+                );
+              }
+
+              return (
+                <button
+                  key={provider}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    signIn.social({ provider, callbackURL: `${APP_URL}${DASHBOARD_PATH}` });
+                  }}
+                  className={className}
+                >
+                  <Icon size={14} />
+                  Continue with {label}
+                </button>
+              );
+            })}
             <div className="mx-1 my-1 h-px bg-border" />
             <div className="px-3 pt-1.5 pb-1 text-[11px] font-medium text-tertiary">Theme</div>
             {THEME_OPTIONS.map((opt) => (
