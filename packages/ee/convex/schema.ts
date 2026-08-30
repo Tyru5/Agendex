@@ -118,6 +118,12 @@ export default defineSchema({
     .index('by_token', ['token'])
     .index('by_plan', ['planId']),
 
+  shareAccessProofs: defineTable({
+    shareLinkId: v.id('shareLinks'),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  }),
+
   planAnnotations: defineTable({
     planId: v.id('plans'),
     authorId: v.string(),

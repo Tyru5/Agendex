@@ -28,17 +28,20 @@ export function CommentThread({
   planId,
   isOwner,
   shareToken,
+  shareAccessProof,
   className = 'mt-10',
 }: {
   planId: string;
   isOwner?: boolean;
   shareToken?: string;
+  shareAccessProof?: Id<'shareAccessProofs'>;
   className?: string;
 }) {
   const { user, isAuthenticated, signIn } = useAuth();
   const comments = useQuery(api.comments.getComments, {
     planId: planId as Id<'plans'>,
     ...(shareToken ? { token: shareToken } : {}),
+    ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
   });
   const addComment = useMutation(api.comments.addComment);
   const editComment = useMutation(api.comments.editComment);
@@ -137,6 +140,7 @@ export function CommentThread({
             planId: planId as Id<'plans'>,
             clientUploadId: pending.clientUploadId,
             ...(shareToken ? { token: shareToken } : {}),
+            ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
           });
 
           const result = await fetch(uploadUrl, {
@@ -161,6 +165,7 @@ export function CommentThread({
               planId: planId as Id<'plans'>,
               clientUploadId: pending.clientUploadId,
               ...(shareToken ? { token: shareToken } : {}),
+              ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
             });
 
             if (trackResult && !trackResult.success) {
@@ -218,6 +223,7 @@ export function CommentThread({
             ? { attachments: succeeded.map(({ storageId, fileName }) => ({ storageId, fileName })) }
             : {}),
           ...(shareToken ? { token: shareToken } : {}),
+          ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
         });
       } catch (addErr) {
         await Promise.allSettled(
@@ -244,6 +250,7 @@ export function CommentThread({
     trackPendingUpload,
     planId,
     shareToken,
+    shareAccessProof,
     addComment,
     deleteOrphanedUpload,
   ]);
@@ -257,6 +264,7 @@ export function CommentThread({
         commentId: commentId as Id<'comments'>,
         body: trimmed,
         ...(shareToken ? { token: shareToken } : {}),
+        ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
       });
       let wasEditing = false;
       setEditingId((prev) => {
@@ -278,6 +286,7 @@ export function CommentThread({
       await deleteComment({
         commentId: commentId as Id<'comments'>,
         ...(shareToken ? { token: shareToken } : {}),
+        ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
       });
     } finally {
       setDeletingId(null);

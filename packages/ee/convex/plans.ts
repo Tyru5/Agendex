@@ -7,6 +7,7 @@ import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
 import { normalizePlanSourcePath, planMatchesSource } from './planSourcePath';
+import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 import {
   dedupeVisiblePlans,
   dedupeSearchPlans,
@@ -293,7 +294,10 @@ export const getPlan = query({
 });
 
 export const getPlanByShareToken = query({
-  args: { token: v.string() },
+  args: {
+    token: v.string(),
+    accessProof: v.optional(shareAccessProofIdValidator),
+  },
   returns: v.union(
     sharedPlanDtoValidator,
     v.object({
@@ -301,25 +305,16 @@ export const getPlanByShareToken = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const shareLink = await ctx.db
-      .query('shareLinks')
-      .withIndex('by_token', (q) => q.eq('token', args.token))
-      .first();
+    const access = await resolveSharedPlanAccess(ctx, {
+      token: args.token,
+      ...(args.accessProof ? { accessProof: args.accessProof } : {}),
+    });
 
-    if (!shareLink) {
-      throw new ConvexError('Invalid or revoked share link');
-    }
-
-    const plan = await ctx.db.get(shareLink.planId);
-    if (!plan || !isVisiblePlan(plan)) {
-      throw new ConvexError('Plan not found');
-    }
-
-    if (shareLink.passwordHash) {
+    if (access.kind === 'password_required') {
       return { passwordRequired: true as const };
     }
 
-    return toSharedPlanDto(plan);
+    return toSharedPlanDto(access.plan);
   },
 });
 
