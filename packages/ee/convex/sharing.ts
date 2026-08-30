@@ -288,7 +288,6 @@ export const getSharedPlanWithPassword = action({
       token: args.token,
     });
 
-
     const { shareLink } = result;
     if (!shareLink.passwordHash) {
       throw new ConvexError('Share link is not password protected');

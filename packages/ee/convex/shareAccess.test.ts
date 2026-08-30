@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
-import {
-  evaluateShareAccessPolicy,
-  requireSharedPlanAccess,
-} from './shareAccess';
+import { evaluateShareAccessPolicy, requireSharedPlanAccess } from './shareAccess';
 
 const shareLinkId = 'share-link-a' as Id<'shareLinks'>;
 const otherShareLinkId = 'share-link-b' as Id<'shareLinks'>;
@@ -129,10 +126,10 @@ describe('share access policy', () => {
 
 describe('central shared-resource authorization', () => {
   test('raw tokens continue to authorize unprotected shared resources', async () => {
-    const result = await requireSharedPlanAccess(
-      createShareAccessCtx({ protectedLink: false }),
-      { token: 'raw-token', planId },
-    );
+    const result = await requireSharedPlanAccess(createShareAccessCtx({ protectedLink: false }), {
+      token: 'raw-token',
+      planId,
+    });
     expect(result.plan._id).toBe(planId);
   });
 
@@ -189,14 +186,11 @@ describe('central shared-resource authorization', () => {
     } satisfies Doc<'shareAccessProofs'>;
 
     await expect(
-      requireSharedPlanAccess(
-        createShareAccessCtx({ protectedLink: true, revoked: true, proof }),
-        {
-          token: 'raw-token',
-          planId,
-          accessProof: proofId,
-        },
-      ),
+      requireSharedPlanAccess(createShareAccessCtx({ protectedLink: true, revoked: true, proof }), {
+        token: 'raw-token',
+        planId,
+        accessProof: proofId,
+      }),
     ).rejects.toThrow('Invalid or revoked share link');
   });
 });

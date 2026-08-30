@@ -11,10 +11,7 @@ import {
 import { isAgentAvatarStorageId } from './agentAvatars';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
-import {
-  requireSharedPlanAccess,
-  shareAccessProofIdValidator,
-} from './shareAccess';
+import { requireSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 
 const MAX_COMMENT_IMAGE_COUNT = 4;
 const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -50,7 +47,6 @@ const trackPendingUploadResultValidator = v.union(
 
 type CommentStorageCtx = Pick<MutationCtx, 'db' | 'storage'>;
 
-
 async function validateCommentAccess(
   ctx: QueryCtx,
   planId: Id<'plans'>,
@@ -61,8 +57,7 @@ async function validateCommentAccess(
   const plan = await ctx.db.get(planId);
   if (!plan) throw new ConvexError('Plan not found');
 
-  const userId =
-    authenticatedUserId ?? (await authComponent.safeGetAuthUser(ctx))?._id;
+  const userId = authenticatedUserId ?? (await authComponent.safeGetAuthUser(ctx))?._id;
   if (userId === plan.ownerId) {
     await requireFeature(ctx, ProFeature.COMMENTS);
     return;
@@ -263,13 +258,7 @@ export const generateCommentImageUploadUrl = mutation({
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
-    await validateCommentAccess(
-      ctx,
-      args.planId,
-      args.token,
-      args.accessProof,
-      user._id,
-    );
+    await validateCommentAccess(ctx, args.planId, args.token, args.accessProof, user._id);
 
     await reserveCommentUpload(ctx, {
       uploadedBy: user._id,
@@ -294,13 +283,7 @@ export const trackPendingUpload = mutation({
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
-    await validateCommentAccess(
-      ctx,
-      args.planId,
-      args.token,
-      args.accessProof,
-      user._id,
-    );
+    await validateCommentAccess(ctx, args.planId, args.token, args.accessProof, user._id);
 
     const reservation = await findUploadReservation(ctx, {
       uploadedBy: user._id,
@@ -385,13 +368,7 @@ export const addComment = mutation({
       throw new ConvexError('Unauthenticated');
     }
 
-    await validateCommentAccess(
-      ctx,
-      args.planId,
-      args.token,
-      args.accessProof,
-      user._id,
-    );
+    await validateCommentAccess(ctx, args.planId, args.token, args.accessProof, user._id);
 
     const trimmedBody = args.body.trim();
     const incomingAttachments = args.attachments ?? [];
@@ -512,13 +489,7 @@ export const editComment = mutation({
       throw new ConvexError('Only the comment author can edit');
     }
 
-    await validateCommentAccess(
-      ctx,
-      comment.planId,
-      args.token,
-      args.accessProof,
-      user._id,
-    );
+    await validateCommentAccess(ctx, comment.planId, args.token, args.accessProof, user._id);
 
     const trimmed = args.body.trim();
     const hasAttachments = (comment.attachments ?? []).length > 0;

@@ -7,10 +7,7 @@ import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
 import { normalizePlanSourcePath, planMatchesSource } from './planSourcePath';
-import {
-  resolveSharedPlanAccess,
-  shareAccessProofIdValidator,
-} from './shareAccess';
+import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 import {
   dedupeVisiblePlans,
   dedupeSearchPlans,
@@ -322,10 +319,7 @@ export const getPlanByShareToken = query({
     token: v.string(),
     accessProof: v.optional(shareAccessProofIdValidator),
   },
-  returns: v.union(
-    v.object({ passwordRequired: v.literal(true) }),
-    sharedPlanValidator,
-  ),
+  returns: v.union(v.object({ passwordRequired: v.literal(true) }), sharedPlanValidator),
   handler: async (ctx, args) => {
     const access = await resolveSharedPlanAccess(ctx, {
       token: args.token,

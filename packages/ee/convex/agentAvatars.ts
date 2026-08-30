@@ -2,10 +2,7 @@ import { ConvexError, v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
 import { type MutationCtx, mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
-import {
-  resolveSharedPlanAccess,
-  shareAccessProofIdValidator,
-} from './shareAccess';
+import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB
 const ALLOWED_AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);

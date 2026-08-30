@@ -9,10 +9,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature, requireFeatureForUserId } from './entitlements';
-import {
-  requireSharedPlanAccess,
-  shareAccessProofIdValidator,
-} from './shareAccess';
+import { requireSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 
 const MAX_LINKS_PER_PLAN = 20;
 
@@ -28,7 +25,6 @@ const planGitLinkDoc = v.object({
   url: v.optional(v.string()),
   createdAt: v.number(),
 });
-
 
 /**
  * Read access for git links:
