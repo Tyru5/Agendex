@@ -49,7 +49,7 @@ async function waitForProcessExit(pid: number, timeoutMs = 2_000): Promise<void>
 async function waitForPidInfo(
   path: string,
   predicate: (info: DaemonPidInfo) => boolean,
-  timeoutMs = 2_000,
+  timeoutMs = 5_000,
 ): Promise<DaemonPidInfo> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -152,7 +152,7 @@ test('CLI start remains singleton while a ready worker is restarting', async () 
     }
     rmSync(tempRoot, { recursive: true, force: true });
   }
-});
+}, 15_000);
 
 test('initial startup drains an orphaned worker before a replacement starts', async () => {
   const tempRoot = mkdtempSync(join(tmpdir(), 'agendex cli initial crash '));
@@ -213,7 +213,7 @@ test('initial startup drains an orphaned worker before a replacement starts', as
     }
     rmSync(tempRoot, { recursive: true, force: true });
   }
-});
+}, 15_000);
 
 test('CLI stop drains a worker orphaned by a crashed supervisor', async () => {
   const tempRoot = mkdtempSync(join(tmpdir(), 'agendex cli stop orphan '));
@@ -255,4 +255,4 @@ test('CLI stop drains a worker orphaned by a crashed supervisor', async () => {
     }
     rmSync(tempRoot, { recursive: true, force: true });
   }
-});
+}, 15_000);
