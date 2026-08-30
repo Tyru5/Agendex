@@ -17,9 +17,7 @@ function input(overrides: Partial<ForceReloadInput> = {}): ForceReloadInput {
   };
 }
 
-function platformAcceleratorInput(
-  overrides: Partial<ForceReloadInput> = {},
-): ForceReloadInput {
+function platformAcceleratorInput(overrides: Partial<ForceReloadInput> = {}): ForceReloadInput {
   const isMac = process.platform === 'darwin';
   return input({
     control: !isMac,
