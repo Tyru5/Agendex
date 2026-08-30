@@ -316,7 +316,10 @@ export default defineSchema({
   })
     .index('by_collection', ['collectionId'])
     .index('by_plan', ['planId'])
-    .index('by_collection_plan', ['collectionId', 'planId']),
+    .index('by_collection_plan', ['collectionId', 'planId'])
+    .index('by_owner_and_collection', ['ownerId', 'collectionId'])
+    .index('by_owner_and_plan', ['ownerId', 'planId'])
+    .index('by_owner_and_collection_and_plan', ['ownerId', 'collectionId', 'planId']),
 
   planPreferences: defineTable({
     ownerId: v.string(),
