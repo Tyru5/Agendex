@@ -1,14 +1,12 @@
 import {
-  dedupePlanDownloadCandidates,
-  isExactPlanDownloadIdHit,
-  looksLikePlanAgent,
-  parsePlanDownloadQuery,
-  planAgentLookupValues,
-  planAgentsMatch,
-  PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
+  canonicalPlanAgent,
   dedupePlanBrowseCandidates,
-  selectPlanDownloadMatches,
+  dedupePlanDownloadCandidates,
   filterPlanBrowseMatches,
+  normalizePlanLookupText,
+  parsePlanDownloadQuery,
+  planAgentsMatch,
+  selectPlanDownloadTitlePage,
   suggestClosestPlans,
   type PlanDownloadLookupCandidate,
 } from '@agendex/shared/plan-download-lookup';
@@ -749,10 +747,6 @@ function sumUsageAggregates(
   };
 }
 
-function normalizedTitle(title: string): string {
-  return title.replace(/\s+/g, ' ').trim().toLowerCase();
-}
-
 function validIdentityStrength(value: unknown): 'strong' | 'path' | 'content' | undefined {
   return value === 'strong' || value === 'path' || value === 'content' ? value : undefined;
 }
@@ -1094,6 +1088,8 @@ export const upsertPlan = internalMutation({
       if (!contentChanged) {
         await ctx.db.patch(args.existingId, {
           agent: args.agent,
+          titleNormalized: normalizePlanLookupText(args.title),
+          agentNormalized: canonicalPlanAgent(args.agent),
           title: args.title,
           content: args.content,
           format: args.format,
@@ -1146,6 +1142,8 @@ export const upsertPlan = internalMutation({
       };
       await ctx.db.patch(args.existingId, {
         agent: args.agent,
+        titleNormalized: normalizePlanLookupText(args.title),
+        agentNormalized: canonicalPlanAgent(args.agent),
         ...snapshot,
         ...(continuityKey ? { plannotatorContinuityKey: continuityKey } : {}),
         syncIdentityKey: args.syncIdentityKey,
@@ -1180,6 +1178,8 @@ export const upsertPlan = internalMutation({
       localPlanId: args.localPlanId,
       agent: args.agent,
       title: args.title,
+      titleNormalized: normalizePlanLookupText(args.title),
+      agentNormalized: canonicalPlanAgent(args.agent),
       content: args.content,
       format: args.format,
       filePath: args.filePath,
@@ -1404,7 +1404,7 @@ export const sync = httpAction(async (ctx, request) => {
       const exactDuplicate =
         (existing.contentHash === identity.contentHash &&
           existing.agent === body.agent &&
-          normalizedTitle(existing.title) === normalizedTitle(body.title)) ||
+          normalizePlanLookupText(existing.title) === normalizePlanLookupText(body.title)) ||
         (existing.title === body.title &&
           existing.content === body.content &&
           existing.format === body.format);
@@ -1898,11 +1898,39 @@ export const convexToken = httpAction(async (ctx, request) => {
   }
 });
 
+// A download request never scans an owner's corpus. It performs at most one
+// direct id read, one local-id index read capped at 2 rows, and one exact-title
+// index page capped at 8 rows. Only when the exact-title page is empty does it
+// ask the search index for up to 8 suggestions.
+const PLAN_DOWNLOAD_TITLE_PAGE_SIZE = 8;
+const PLAN_DOWNLOAD_LOCAL_ID_READ_LIMIT = 2;
 const PLAN_DOWNLOAD_SEARCH_MAX_RESULTS = 8;
+const PLAN_DOWNLOAD_LOOKUP_KEY_BACKFILL_BATCH_SIZE = 8;
 const PLAN_BROWSE_PAGE_SIZE = 50;
 const PLAN_BROWSE_SEARCH_MAX_RESULTS = 50;
 
-function serializeDownloadPlan(plan: Doc<'plans'>) {
+interface SerializedDownloadPlan {
+  id: string;
+  localPlanId?: string;
+  agent: string;
+  title: string;
+  content: string;
+  format: string;
+  filePath: string;
+  workspace?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SerializedDownloadMatch {
+  id: string;
+  localPlanId?: string;
+  agent: string;
+  title: string;
+  updatedAt: string;
+}
+
+function serializeDownloadPlan(plan: Doc<'plans'>): SerializedDownloadPlan {
   return {
     id: plan._id,
     ...(typeof plan.localPlanId === 'string' && { localPlanId: plan.localPlanId }),
@@ -1915,10 +1943,6 @@ function serializeDownloadPlan(plan: Doc<'plans'>) {
     createdAt: new Date(plan.createdAt).toISOString(),
     updatedAt: new Date(plan.updatedAt).toISOString(),
   };
-}
-
-function serializeDownloadMatch(plan: Doc<'plans'>) {
-  return serializeDownloadMatchFromCandidate(toLookupCandidate(plan));
 }
 
 function toLookupCandidate(plan: Doc<'plans'>): PlanDownloadLookupCandidate {
@@ -1938,15 +1962,103 @@ function uniqueLookupCandidates(plans: Doc<'plans'>[]): PlanDownloadLookupCandid
   return dedupePlanDownloadCandidates(plans.map(toLookupCandidate));
 }
 
+function serializeDownloadMatchFromCandidate(
+  plan: PlanDownloadLookupCandidate,
+): SerializedDownloadMatch {
+  return {
+    id: plan.id,
+    ...(typeof plan.localPlanId === 'string' && { localPlanId: plan.localPlanId }),
+    agent: plan.agent,
+    title: plan.title,
+    updatedAt: new Date(plan.updatedAt).toISOString(),
+  };
+}
+
+const serializedDownloadPlanValidator = v.object({
+  id: v.string(),
+  localPlanId: v.optional(v.string()),
+  agent: v.string(),
+  title: v.string(),
+  content: v.string(),
+  format: v.string(),
+  filePath: v.string(),
+  workspace: v.optional(v.string()),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+});
+
+const serializedDownloadMatchValidator = v.object({
+  id: v.string(),
+  localPlanId: v.optional(v.string()),
+  agent: v.string(),
+  title: v.string(),
+  updatedAt: v.string(),
+});
+
+const downloadLookupPaginationValidator = v.object({
+  nextCursor: v.union(v.string(), v.null()),
+  hasMore: v.boolean(),
+  pageSize: v.number(),
+});
+
+const downloadLookupResultValidator = v.union(
+  v.object({ status: v.literal('invalid') }),
+  v.object({ status: v.literal('found'), plan: serializedDownloadPlanValidator }),
+  v.object({
+    status: v.literal('ambiguous'),
+    matches: v.array(serializedDownloadMatchValidator),
+    pagination: downloadLookupPaginationValidator,
+  }),
+  v.object({
+    status: v.literal('not_found'),
+    suggestions: v.array(serializedDownloadMatchValidator),
+  }),
+);
+
+interface PlanLookupBackfillResult {
+  updated: number;
+  isDone: boolean;
+}
+/**
+ * Transitional schema backfill. Missing lookup keys are indexed under
+ * `undefined`, so each batch reads and writes at most 8 rows and then
+ * immediately schedules the next bounded batch.
+ */
+export const backfillPlanDownloadLookupKeys = internalMutation({
+  args: {},
+  returns: v.object({
+    updated: v.number(),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx): Promise<PlanLookupBackfillResult> => {
+    const plans = await ctx.db
+      .query('plans')
+      .withIndex('by_titleNormalized', (q) => q.eq('titleNormalized', undefined))
+      .take(PLAN_DOWNLOAD_LOOKUP_KEY_BACKFILL_BATCH_SIZE);
+
+    for (const plan of plans) {
+      await ctx.db.patch(plan._id, {
+        titleNormalized: normalizePlanLookupText(plan.title),
+        agentNormalized: canonicalPlanAgent(plan.agent),
+      });
+    }
+
+    const isDone = plans.length < PLAN_DOWNLOAD_LOOKUP_KEY_BACKFILL_BATCH_SIZE;
+    if (!isDone) {
+      await ctx.scheduler.runAfter(0, internal.cli.backfillPlanDownloadLookupKeys, {});
+    }
+    return { updated: plans.length, isDone };
+  },
+});
+
 export const lookupPlanForDownload = internalQuery({
   args: {
     userId: v.string(),
     query: v.string(),
     agent: v.optional(v.string()),
-    mode: v.optional(v.union(v.literal('lookup'), v.literal('fallback'))),
-    fallbackCursor: v.optional(v.union(v.string(), v.null())),
-    fallbackAgentIndex: v.optional(v.number()),
+    titleCursor: v.optional(v.union(v.string(), v.null())),
   },
+  returns: downloadLookupResultValidator,
   handler: async (ctx, args) => {
     const parsed = args.agent?.trim()
       ? { query: args.query.trim(), agent: args.agent.trim() }
@@ -1973,152 +2085,111 @@ export const lookupPlanForDownload = internalQuery({
     const byLocalId = await ctx.db
       .query('plans')
       .withIndex('by_owner_localPlanId', (q) => q.eq('ownerId', ownerId).eq('localPlanId', query))
-      .take(16);
+      .order('desc')
+      .take(PLAN_DOWNLOAD_LOCAL_ID_READ_LIMIT);
     const localMatches = uniqueLookupCandidates(
       byLocalId.filter(
         (plan) => isVisiblePlan(plan) && (!agent || planAgentsMatch(plan.agent, agent)),
       ),
     );
-    if (localMatches.length > 0) {
-      const winner = [...localMatches].sort((left, right) => right.updatedAt - left.updatedAt)[0];
-      const plan = byLocalId.find((row) => row._id === winner?.id);
+    const localWinner = localMatches[0];
+    if (localWinner) {
+      const plan = byLocalId.find((row) => row._id === localWinner.id);
       if (plan) return { status: 'found' as const, plan: serializeDownloadPlan(plan) };
     }
 
-    const seen = new Set<string>();
-    const candidates: Doc<'plans'>[] = [];
-    const agentValues = agent && looksLikePlanAgent(agent) ? planAgentLookupValues(agent) : [];
-    const addHits = (hits: Doc<'plans'>[]) => {
-      for (const plan of filterVisiblePlans(hits)) {
-        if (plan.ownerId !== ownerId || seen.has(plan._id)) continue;
-        if (agent && !planAgentsMatch(plan.agent, agent)) continue;
-        seen.add(plan._id);
-        candidates.push(plan);
-      }
-    };
-
-    const searchDownloadPlans = async (
-      index: 'search_title' | 'search_content',
-      field: 'title' | 'content',
-      term: string,
-    ) => {
-      try {
-        addHits(
-          await ctx.db
-            .query('plans')
-            .withSearchIndex(index, (q) => q.search(field, term).eq('ownerId', ownerId))
-            .take(PLAN_DOWNLOAD_SEARCH_MAX_RESULTS),
-        );
-      } catch {
-        // Search indexes reject some short / punctuation-only terms.
-      }
-    };
-
-    const readFallbackPage = async (cursor: string | null, agentIndex: number) => {
-      if (agentValues.length > 0) {
-        if (agentIndex >= agentValues.length) {
-          return {
-            plans: [] as PlanDownloadLookupCandidate[],
-            isDone: true,
-            cursor: null,
-            agentIndex,
-          };
-        }
-        const agentValue = agentValues[agentIndex];
-        if (!agentValue) {
-          return {
-            plans: [] as PlanDownloadLookupCandidate[],
-            isDone: true,
-            cursor: null,
-            agentIndex,
-          };
-        }
-        const result = await ctx.db
+    const titleNormalized = normalizePlanLookupText(query);
+    const agentNormalized = agent ? canonicalPlanAgent(agent) : undefined;
+    const indexedTitleQuery = agentNormalized
+      ? ctx.db
           .query('plans')
-          .withIndex('by_owner_and_agent', (q) => q.eq('ownerId', ownerId).eq('agent', agentValue))
-          .order('desc')
-          .paginate({
-            cursor,
-            numItems: PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
-          });
-        const beforeCount = candidates.length;
-        addHits(result.page);
-        const nextAgentIndex = result.isDone ? agentIndex + 1 : agentIndex;
-        return {
-          plans: uniqueLookupCandidates(candidates.slice(beforeCount)),
-          isDone: result.isDone && nextAgentIndex >= agentValues.length,
-          cursor: result.isDone ? null : result.continueCursor,
-          agentIndex: nextAgentIndex,
-        };
-      }
-
-      const result = await ctx.db
-        .query('plans')
-        .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
-        .order('desc')
-        .paginate({
-          cursor,
-          numItems: PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
-        });
-      const beforeCount = candidates.length;
-      addHits(result.page);
+          .withIndex('by_owner_and_titleNormalized_and_agentNormalized', (q) =>
+            q
+              .eq('ownerId', ownerId)
+              .eq('titleNormalized', titleNormalized)
+              .eq('agentNormalized', agentNormalized),
+          )
+      : ctx.db
+          .query('plans')
+          .withIndex('by_owner_and_titleNormalized_and_agentNormalized', (q) =>
+            q.eq('ownerId', ownerId).eq('titleNormalized', titleNormalized),
+          );
+    const titlePage = await indexedTitleQuery.order('desc').paginate({
+      cursor: args.titleCursor ?? null,
+      numItems: PLAN_DOWNLOAD_TITLE_PAGE_SIZE,
+    });
+    const visibleTitleCandidates = filterVisiblePlans(titlePage.page).map(toLookupCandidate);
+    if (args.titleCursor) {
       return {
-        plans: uniqueLookupCandidates(candidates.slice(beforeCount)),
-        isDone: result.isDone,
-        cursor: result.isDone ? null : result.continueCursor,
-        agentIndex,
-      };
-    };
-
-    if (args.mode === 'fallback') {
-      const page = await readFallbackPage(
-        args.fallbackCursor ?? null,
-        args.fallbackAgentIndex ?? 0,
-      );
-      return {
-        status: 'page' as const,
-        candidates: page.plans,
-        isDone: page.isDone,
-        fallbackCursor: page.cursor,
-        fallbackAgentIndex: page.agentIndex,
+        status: 'ambiguous' as const,
+        matches: dedupePlanDownloadCandidates(visibleTitleCandidates).map(
+          serializeDownloadMatchFromCandidate,
+        ),
+        pagination: {
+          nextCursor: titlePage.isDone ? null : titlePage.continueCursor,
+          hasMore: !titlePage.isDone,
+          pageSize: PLAN_DOWNLOAD_TITLE_PAGE_SIZE,
+        },
       };
     }
+    const titleSelection = selectPlanDownloadTitlePage(visibleTitleCandidates, titlePage.isDone);
 
-    await searchDownloadPlans('search_title', 'title', query);
-
-    const unique = uniqueLookupCandidates(candidates);
-    const selected = selectPlanDownloadMatches(unique, query, agent);
-    if (selected.kind === 'one' && isExactPlanDownloadIdHit(selected.plan, query)) {
-      const selectedId = selected.plan.id;
-      const plan = candidates.find((candidate) => candidate._id === selectedId);
+    if (titleSelection.kind === 'one') {
+      const plan = titlePage.page.find((row) => row._id === titleSelection.plan.id);
       if (plan) return { status: 'found' as const, plan: serializeDownloadPlan(plan) };
     }
+    if (titleSelection.kind === 'many') {
+      return {
+        status: 'ambiguous' as const,
+        matches: titleSelection.plans.map(serializeDownloadMatchFromCandidate),
+        pagination: {
+          nextCursor: titleSelection.hasMore ? titlePage.continueCursor : null,
+          hasMore: titleSelection.hasMore,
+          pageSize: PLAN_DOWNLOAD_TITLE_PAGE_SIZE,
+        },
+      };
+    }
 
-    return { status: 'continue' as const, candidates: unique };
+    let searchMatches: Doc<'plans'>[] = [];
+    try {
+      searchMatches = await ctx.db
+        .query('plans')
+        .withSearchIndex('search_title', (q) => q.search('title', query).eq('ownerId', ownerId))
+        .take(PLAN_DOWNLOAD_SEARCH_MAX_RESULTS);
+    } catch {
+      // Search indexes reject some short / punctuation-only terms.
+    }
+    const suggestions = suggestClosestPlans(
+      uniqueLookupCandidates(
+        filterVisiblePlans(searchMatches).filter(
+          (plan) => !agent || planAgentsMatch(plan.agent, agent),
+        ),
+      ),
+      query,
+      agent,
+    );
+    return {
+      status: 'not_found' as const,
+      suggestions: suggestions.map(serializeDownloadMatchFromCandidate),
+    };
   },
 });
 
-function serializeDownloadMatchFromCandidate(plan: PlanDownloadLookupCandidate) {
-  return {
-    id: plan.id,
-    ...(typeof plan.localPlanId === 'string' && { localPlanId: plan.localPlanId }),
-    agent: plan.agent,
-    title: plan.title,
-    updatedAt: new Date(plan.updatedAt).toISOString(),
-  };
-}
-
 type DownloadLookupResult =
   | { status: 'invalid' }
-  | { status: 'found'; plan: ReturnType<typeof serializeDownloadPlan> }
-  | { status: 'ambiguous'; matches: ReturnType<typeof serializeDownloadMatchFromCandidate>[] }
-  | { status: 'continue'; candidates: PlanDownloadLookupCandidate[] }
+  | { status: 'found'; plan: SerializedDownloadPlan }
   | {
-      status: 'page';
-      candidates: PlanDownloadLookupCandidate[];
-      isDone: boolean;
-      fallbackCursor: string | null;
-      fallbackAgentIndex: number;
+      status: 'ambiguous';
+      matches: SerializedDownloadMatch[];
+      pagination: {
+        nextCursor: string | null;
+        hasMore: boolean;
+        pageSize: number;
+      };
+    }
+  | {
+      status: 'not_found';
+      suggestions: SerializedDownloadMatch[];
     };
 
 export const downloadPlan = httpAction(async (ctx, request) => {
@@ -2139,107 +2210,35 @@ export const downloadPlan = httpAction(async (ctx, request) => {
 
   const query = url.searchParams.get('q')?.trim() ?? '';
   const agent = url.searchParams.get('agent')?.trim() || undefined;
+  const titleCursor = url.searchParams.get('cursor')?.trim() || undefined;
   if (!query) {
     return jsonResponse({ error: 'query is required' }, 400);
   }
 
-  const first: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
+  const result: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
     userId,
     query,
     agent,
-    mode: 'lookup',
+    titleCursor,
   });
 
-  if (first.status === 'invalid') {
+  if (result.status === 'invalid') {
     return jsonResponse({ error: 'query is required' }, 400);
   }
-  if (first.status === 'found') {
-    return jsonResponse({ status: 'found', plan: first.plan });
+  if (result.status === 'found') {
+    return jsonResponse({ status: 'found', plan: result.plan });
   }
-  if (first.status !== 'continue') {
-    return jsonResponse({ status: 'not_found', suggestions: [] }, 404);
-  }
-
-  let pool = first.candidates;
-  let fallbackCursor: string | null = null;
-  let fallbackAgentIndex = 0;
-  let pages = 0;
-  let truncated = true;
-  const maxPages = 250;
-
-  while (pages < maxPages) {
-    const page: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
-      userId,
-      query,
-      agent,
-      mode: 'fallback',
-      fallbackCursor,
-      fallbackAgentIndex,
-    });
-    if (page.status !== 'page') {
-      if (page.status === 'found') return jsonResponse({ status: 'found', plan: page.plan });
-      break;
-    }
-
-    pool = dedupePlanDownloadCandidates([...pool, ...page.candidates]);
-
-    pages += 1;
-    if (page.isDone) {
-      truncated = false;
-      break;
-    }
-    fallbackCursor = page.fallbackCursor ?? null;
-    fallbackAgentIndex = page.fallbackAgentIndex ?? 0;
-  }
-
-  if (truncated) {
+  if (result.status === 'ambiguous') {
     return jsonResponse(
       {
-        error: 'Title lookup did not finish scanning all plans. Retry with a plan id.',
+        status: 'ambiguous',
+        matches: result.matches,
+        pagination: result.pagination,
       },
       409,
     );
   }
-
-  const selected = selectPlanDownloadMatches(pool, query, agent);
-  if (selected.kind === 'one') {
-    const full: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
-      userId,
-      query: selected.plan.id,
-      agent,
-      mode: 'lookup',
-    });
-    if (full.status === 'found') {
-      const stillMatches = selectPlanDownloadMatches(
-        [
-          {
-            id: full.plan.id,
-            localPlanId: full.plan.localPlanId,
-            agent: full.plan.agent,
-            title: full.plan.title,
-            updatedAt: Date.parse(full.plan.updatedAt) || 0,
-          },
-        ],
-        query,
-        agent,
-      );
-      if (stillMatches.kind === 'one') {
-        return jsonResponse({ status: 'found', plan: full.plan });
-      }
-    }
-  }
-  if (selected.kind === 'many') {
-    return jsonResponse(
-      { status: 'ambiguous', matches: selected.plans.map(serializeDownloadMatchFromCandidate) },
-      409,
-    );
-  }
-
-  const suggestions = suggestClosestPlans(pool, query, agent);
-  return jsonResponse(
-    { status: 'not_found', suggestions: suggestions.map(serializeDownloadMatchFromCandidate) },
-    404,
-  );
+  return jsonResponse({ status: 'not_found', suggestions: result.suggestions }, 404);
 });
 
 const browsePlanMatchValidator = v.object({

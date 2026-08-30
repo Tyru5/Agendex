@@ -331,6 +331,11 @@ test('ambiguous full-title matches still fall back to a trailing agent filter', 
             updatedAt: '2026-08-02T00:00:00.000Z',
           },
         ],
+        pagination: {
+          nextCursor: null,
+          hasMore: false,
+          pageSize: 8,
+        },
       };
     }, cap),
   );
@@ -512,6 +517,11 @@ test('reports not found and ambiguous matches', async () => {
               updatedAt: '2026-08-03T00:00:00.000Z',
             },
           ],
+          pagination: {
+            nextCursor: 'cursor-2',
+            hasMore: true,
+            pageSize: 8,
+          },
         },
         ambiguous,
       ),
@@ -521,6 +531,7 @@ test('reports not found and ambiguous matches', async () => {
   expect(ambiguous.errors.join('\n')).toContain('[1] Add auth  (claude-code)');
   expect(ambiguous.errors.join('\n')).toContain('agendex download p1');
   expect(ambiguous.errors.join('\n')).toContain('[2] Add auth  (codex-cli)');
+  expect(ambiguous.errors.join('\n')).toContain('more exact-title matches exist');
 });
 
 test('prints closest matches when a name lookup misses', async () => {

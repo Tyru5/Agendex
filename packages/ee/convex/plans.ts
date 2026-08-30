@@ -1,4 +1,5 @@
 import { ProFeature } from '@agendex/shared/types';
+import { canonicalPlanAgent, normalizePlanLookupText } from '@agendex/shared/plan-download-lookup';
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
@@ -7,6 +8,7 @@ import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
 import { normalizePlanSourcePath, planMatchesSource } from './planSourcePath';
+import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 import {
   dedupeVisiblePlans,
   dedupeSearchPlans,
@@ -83,6 +85,8 @@ export const publishPlan = mutation({
       };
       await ctx.db.patch(existing._id, {
         agent: args.agent,
+        titleNormalized: normalizePlanLookupText(args.title),
+        agentNormalized: canonicalPlanAgent(args.agent),
         ...snapshot,
         version: newVersion,
         updatedAt: now,
@@ -103,6 +107,8 @@ export const publishPlan = mutation({
       localPlanId: args.localPlanId,
       agent: args.agent,
       title: args.title,
+      titleNormalized: normalizePlanLookupText(args.title),
+      agentNormalized: canonicalPlanAgent(args.agent),
       content: args.content,
       format: args.format,
       filePath: args.filePath,
@@ -293,7 +299,10 @@ export const getPlan = query({
 });
 
 export const getPlanByShareToken = query({
-  args: { token: v.string() },
+  args: {
+    token: v.string(),
+    accessProof: v.optional(shareAccessProofIdValidator),
+  },
   returns: v.union(
     sharedPlanDtoValidator,
     v.object({
@@ -301,25 +310,16 @@ export const getPlanByShareToken = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const shareLink = await ctx.db
-      .query('shareLinks')
-      .withIndex('by_token', (q) => q.eq('token', args.token))
-      .first();
+    const access = await resolveSharedPlanAccess(ctx, {
+      token: args.token,
+      ...(args.accessProof ? { accessProof: args.accessProof } : {}),
+    });
 
-    if (!shareLink) {
-      throw new ConvexError('Invalid or revoked share link');
-    }
-
-    const plan = await ctx.db.get(shareLink.planId);
-    if (!plan || !isVisiblePlan(plan)) {
-      throw new ConvexError('Plan not found');
-    }
-
-    if (shareLink.passwordHash) {
+    if (access.kind === 'password_required') {
       return { passwordRequired: true as const };
     }
 
-    return toSharedPlanDto(plan);
+    return toSharedPlanDto(access.plan);
   },
 });
 
@@ -356,6 +356,8 @@ export const renamePlan = mutation({
 
     await ctx.db.patch(args.planId, {
       title,
+      titleNormalized: normalizePlanLookupText(title),
+      agentNormalized: canonicalPlanAgent(plan.agent),
       updatedAt: Date.now(),
     });
   },
@@ -420,6 +422,8 @@ export const updatePlanContent = mutation({
 
     await ctx.db.patch(args.planId, {
       title: args.title,
+      titleNormalized: normalizePlanLookupText(args.title),
+      agentNormalized: canonicalPlanAgent(plan.agent),
       content: args.content,
       metadata,
       version: newVersion,
