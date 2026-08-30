@@ -52,6 +52,16 @@ export interface UsageRecord {
   reportedCostUsd: number | null;
   /** Global dedupe key; records sharing a non-null key count once. */
   dedupeKey: string | null;
+  /** Bounded ownership key used for cloud reconciliation; not used for local deduplication. */
+  cloudDedupeKey?: string;
+  /** Previous event identity retained for independently deployed older cloud backends. */
+  cloudLegacyDedupeKey?: string;
+  /** Stable source-local occurrence used to distinguish provider-id-less records. */
+  cloudSourcePosition?: string;
+  /** Previous CLI fallback session retained during mixed-version cloud merges. */
+  legacyCloudSessionId?: string;
+  /** Keep the pre-fingerprint cloud identity when the source supplied a stable timestamp. */
+  preserveLegacyCloudKey?: boolean;
 }
 
 export interface AgentUsageTotals {
@@ -127,12 +137,16 @@ export interface UsageSummary {
 /** One priced usage event shipped with cloud snapshots for exact merge. */
 export interface UsageCloudEvent {
   key: string;
+  /** Stable v2 ownership identity when `key` carries the legacy fallback identity. */
+  ownershipKey?: string;
   agent: UsageAgent;
   model: string;
   timestampMs: number;
   /** Device-local bucket key (`YYYY-MM-DD` or hour ISO). Never recompute in Convex. */
   bucketStart: string;
   sessionId: string;
+  /** Current session identity when `sessionId` carries the legacy fallback session. */
+  ownershipSessionId?: string;
   totals: UsageTokenTotals;
   costUsd: number;
   cacheSavingsUsd: number;

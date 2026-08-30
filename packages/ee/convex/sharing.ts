@@ -4,13 +4,14 @@ import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
-import { requireFeature } from './entitlements';
+import { requireFeature, requireFeatureForUserId } from './entitlements';
 import { isVisiblePlan } from './planVisibility';
 import {
   resolveSharedPlanAccess,
   SHARE_ACCESS_PROOF_TTL_MS,
   shareAccessProofIdValidator,
 } from './shareAccess';
+import { sharedPlanDtoValidator, toSharedPlanDto } from './sharedPlanDto';
 
 // Random salt via Web Crypto — only safe from actions, not from deterministic mutations/queries (Convex runtimes docs).
 async function hashPassword(password: string): Promise<string> {
@@ -189,7 +190,9 @@ export const createShareLinkInternal = internalMutation({
     createdBy: v.string(),
     passwordHash: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
+    await requireFeatureForUserId(ctx, args.createdBy, ProFeature.SHARE_LINKS);
     const plan = await ctx.db.get(args.planId);
     if (!plan || !isVisiblePlan(plan)) {
       throw new ConvexError('Plan not found');
@@ -206,6 +209,7 @@ export const createShareLinkInternal = internalMutation({
       createdAt: Date.now(),
       passwordHash: args.passwordHash,
     });
+    return null;
   },
 });
 
@@ -268,9 +272,20 @@ export const getShareLinks = query({
 
 export const getShareLinkAndPlanInternal = internalQuery({
   args: { token: v.string() },
+  returns: v.object({
+    shareLinkId: v.id('shareLinks'),
+    plan: sharedPlanDtoValidator,
+    passwordHash: v.optional(v.string()),
+  }),
   handler: async (ctx, args) => {
     const access = await resolveSharedPlanAccess(ctx, { token: args.token });
-    return { shareLink: access.shareLink, plan: access.plan };
+    return {
+      shareLinkId: access.shareLink._id,
+      plan: toSharedPlanDto(access.plan),
+      ...(access.shareLink.passwordHash !== undefined && {
+        passwordHash: access.shareLink.passwordHash,
+      }),
+    };
   },
 });
 
@@ -288,18 +303,18 @@ export const getSharedPlanWithPassword = action({
       token: args.token,
     });
 
-    const { shareLink } = result;
-    if (!shareLink.passwordHash) {
+    const { shareLinkId, passwordHash } = result;
+    if (!passwordHash) {
       throw new ConvexError('Share link is not password protected');
     }
 
-    const valid = await verifyPassword(args.password, shareLink.passwordHash);
+    const valid = await verifyPassword(args.password, passwordHash);
     if (!valid) {
       throw new ConvexError('Incorrect password');
     }
 
     return await ctx.runMutation(internal.sharing.issueShareAccessProofInternal, {
-      shareLinkId: shareLink._id,
+      shareLinkId,
     });
   },
 });

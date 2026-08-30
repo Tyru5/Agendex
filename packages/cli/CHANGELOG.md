@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.7.1
+
+### Patch Changes
+
+- c3526f9: Keep cloud usage heartbeats under the server payload limit, surface failed syncs, and avoid double-counting multi-device usage.
+
 ## 5.7.0
 
 ### Minor Changes

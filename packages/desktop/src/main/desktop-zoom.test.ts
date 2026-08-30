@@ -61,6 +61,10 @@ describe('desktop page zoom shortcuts', () => {
 
   test('applies a shortcut once and forwards the new factor to the renderer', () => {
     type ZoomListener = (event: { preventDefault(): void }, shortcutInput: PageZoomInput) => void;
+    const platformModifier =
+      process.platform === 'darwin'
+        ? { control: false, meta: true }
+        : { control: true, meta: false };
 
     let zoomLevel = 0;
     let factor = 1;
@@ -87,7 +91,10 @@ describe('desktop page zoom shortcuts', () => {
     const listener = webContents.listener;
     expect(listener).not.toBeNull();
     if (!listener) throw new Error('zoom shortcut listener was not installed');
-    listener({ preventDefault: () => (prevented += 1) }, input({ key: '+', code: 'Equal' }));
+    listener(
+      { preventDefault: () => (prevented += 1) },
+      input({ ...platformModifier, key: '+', code: 'Equal' }),
+    );
     expect(zoomLevel).toBe(0.5);
     expect(factor).toBeCloseTo(1.2 ** 0.5);
     expect(prevented).toBe(1);

@@ -390,6 +390,8 @@ Common environment variables:
   - `SITE_URL`
   - `APP_URL`
   - `BETTER_AUTH_SECRET`
+  - `BETTER_AUTH_ENVIRONMENT=production|development` - defaults to production; local origins are enabled only by the explicit `development` value
+  - `BETTER_AUTH_TRUSTED_ORIGINS` - required in production; comma-separated exact owned origins with no wildcards, paths, queries, or hashes
   - `GITHUB_CLIENT_ID`
   - `GITHUB_CLIENT_SECRET`
   - `GOOGLE_CLIENT_ID`
@@ -419,6 +421,8 @@ cd packages/ee
 CONVEX_AGENT_MODE=anonymous npx convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
 CONVEX_AGENT_MODE=anonymous npx convex env set SITE_URL http://agendex.localhost:5174
 CONVEX_AGENT_MODE=anonymous npx convex env set APP_URL http://agendex.localhost:5174
+CONVEX_AGENT_MODE=anonymous npx convex env set BETTER_AUTH_ENVIRONMENT development
+CONVEX_AGENT_MODE=anonymous npx convex env set BETTER_AUTH_TRUSTED_ORIGINS http://agendex.localhost:5174,http://app.agendex.localhost:5174
 ```
 
 Then start the OSS API and EE client in separate terminals from the repo root:

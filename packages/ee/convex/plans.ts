@@ -17,28 +17,7 @@ import {
 } from './planVisibility';
 import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
-
-const sharedPlanValidator = v.object({
-  _id: v.id('plans'),
-  _creationTime: v.number(),
-  ownerId: v.string(),
-  localPlanId: v.optional(v.string()),
-  agent: v.string(),
-  title: v.string(),
-  content: v.string(),
-  format: v.string(),
-  filePath: v.optional(v.string()),
-  workspace: v.optional(v.string()),
-  metadata: v.optional(v.any()),
-  plannotatorContinuityKey: v.optional(v.string()),
-  syncIdentityKey: v.optional(v.string()),
-  contentHash: v.optional(v.string()),
-  identityVersion: v.optional(v.number()),
-  identityStrength: v.optional(v.string()),
-  version: v.number(),
-  createdAt: v.number(),
-  updatedAt: v.number(),
-});
+import { sharedPlanDtoValidator, toSharedPlanDto } from './sharedPlanDto';
 
 export const publishPlan = mutation({
   args: {
@@ -319,7 +298,12 @@ export const getPlanByShareToken = query({
     token: v.string(),
     accessProof: v.optional(shareAccessProofIdValidator),
   },
-  returns: v.union(v.object({ passwordRequired: v.literal(true) }), sharedPlanValidator),
+  returns: v.union(
+    sharedPlanDtoValidator,
+    v.object({
+      passwordRequired: v.literal(true),
+    }),
+  ),
   handler: async (ctx, args) => {
     const access = await resolveSharedPlanAccess(ctx, {
       token: args.token,
@@ -330,7 +314,7 @@ export const getPlanByShareToken = query({
       return { passwordRequired: true as const };
     }
 
-    return access.plan;
+    return toSharedPlanDto(access.plan);
   },
 });
 
