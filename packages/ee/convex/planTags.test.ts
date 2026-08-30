@@ -7,8 +7,9 @@ import {
 } from './planTags';
 
 test('normalizeBoundedIds deduplicates and sorts valid bulk inputs deterministically', () => {
-  expect(normalizeBoundedIds(['tag-c', 'tag-a', 'tag-c', 'tag-b'], MAX_TAGS_PER_PLAN, 'tags'))
-    .toEqual(['tag-a', 'tag-b', 'tag-c']);
+  expect(
+    normalizeBoundedIds(['tag-c', 'tag-a', 'tag-c', 'tag-b'], MAX_TAGS_PER_PLAN, 'tags'),
+  ).toEqual(['tag-a', 'tag-b', 'tag-c']);
 });
 
 test('normalizeBoundedIds bounds the raw request even when it only repeats one id', () => {
@@ -21,11 +22,7 @@ test('normalizeBoundedIds bounds the raw request even when it only repeats one i
 
 test('requireOwnedDocuments rejects a mixed-owner plan array', () => {
   expect(() =>
-    requireOwnedDocuments(
-      [{ ownerId: 'owner-a' }, { ownerId: 'owner-b' }],
-      'owner-a',
-      'Plan',
-    ),
+    requireOwnedDocuments([{ ownerId: 'owner-a' }, { ownerId: 'owner-b' }], 'owner-a', 'Plan'),
   ).toThrow('Plan not found');
 });
 
@@ -35,11 +32,7 @@ test('requireOwnedDocuments rejects a guessed plan id without revealing whether 
 
 test('requireOwnedDocuments rejects foreign tags from a mixed-owner bulk update', () => {
   expect(() =>
-    requireOwnedDocuments(
-      [{ ownerId: 'owner-a' }, { ownerId: 'owner-b' }],
-      'owner-a',
-      'Tag',
-    ),
+    requireOwnedDocuments([{ ownerId: 'owner-a' }, { ownerId: 'owner-b' }], 'owner-a', 'Tag'),
   ).toThrow('Tag not found');
 });
 

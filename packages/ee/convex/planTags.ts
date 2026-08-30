@@ -70,9 +70,7 @@ export const getTagsForPlans = query({
       plans.map(async (plan) => {
         const rows = await ctx.db
           .query('planTags')
-          .withIndex('by_owner_plan', (q) =>
-            q.eq('ownerId', ownerId).eq('planId', plan._id),
-          )
+          .withIndex('by_owner_plan', (q) => q.eq('ownerId', ownerId).eq('planId', plan._id))
           .take(MAX_TAGS_PER_PLAN + 1);
         if (rows.length > MAX_TAGS_PER_PLAN) {
           throw new ConvexError(`A plan cannot have more than ${MAX_TAGS_PER_PLAN} tags`);
@@ -102,9 +100,7 @@ export const getTagsForPlans = query({
     }
     for (const planTags of Object.values(result)) {
       planTags.sort(
-        (a, b) =>
-          a.nameLc.localeCompare(b.nameLc) ||
-          (a._id < b._id ? -1 : a._id > b._id ? 1 : 0),
+        (a, b) => a.nameLc.localeCompare(b.nameLc) || (a._id < b._id ? -1 : a._id > b._id ? 1 : 0),
       );
     }
 
@@ -138,9 +134,7 @@ export const addTag = mutation({
     if (existing) return existing._id;
     const currentRows = await ctx.db
       .query('planTags')
-      .withIndex('by_owner_plan', (q) =>
-        q.eq('ownerId', plan.ownerId).eq('planId', args.planId),
-      )
+      .withIndex('by_owner_plan', (q) => q.eq('ownerId', plan.ownerId).eq('planId', args.planId))
       .take(MAX_TAGS_PER_PLAN);
     if (currentRows.length >= MAX_TAGS_PER_PLAN) {
       throw new ConvexError(`A plan cannot have more than ${MAX_TAGS_PER_PLAN} tags`);
@@ -200,9 +194,7 @@ export const setTagsForPlan = mutation({
 
     const existing = await ctx.db
       .query('planTags')
-      .withIndex('by_owner_plan', (q) =>
-        q.eq('ownerId', plan.ownerId).eq('planId', args.planId),
-      )
+      .withIndex('by_owner_plan', (q) => q.eq('ownerId', plan.ownerId).eq('planId', args.planId))
       .take(MAX_TAGS_PER_PLAN + 1);
     if (existing.length > MAX_TAGS_PER_PLAN) {
       throw new ConvexError(`A plan cannot have more than ${MAX_TAGS_PER_PLAN} tags`);
