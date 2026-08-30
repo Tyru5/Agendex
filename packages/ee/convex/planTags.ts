@@ -4,19 +4,10 @@ import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { tagValidator } from './validators';
 
 export const MAX_PLANS_PER_TAG_QUERY = 100;
 export const MAX_TAGS_PER_PLAN = 50;
-
-const tagDocValidator = v.object({
-  _id: v.id('tags'),
-  _creationTime: v.number(),
-  ownerId: v.string(),
-  name: v.string(),
-  nameLc: v.string(),
-  color: v.optional(v.string()),
-  createdAt: v.number(),
-});
 
 export function normalizeBoundedIds<T extends string>(
   ids: readonly T[],
@@ -47,7 +38,7 @@ export function requireOwnedDocuments<T extends { ownerId: string }>(
 
 export const getTagsForPlans = query({
   args: { planIds: v.array(v.id('plans')) },
-  returns: v.record(v.id('plans'), v.array(tagDocValidator)),
+  returns: v.record(v.id('plans'), v.array(tagValidator)),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');

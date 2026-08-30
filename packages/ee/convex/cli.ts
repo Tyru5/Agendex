@@ -11,6 +11,7 @@ import {
   type PlanDownloadLookupCandidate,
 } from '@agendex/shared/plan-download-lookup';
 import { computePlanSyncIdentity, exactDuplicateKey } from '@agendex/shared/plan-sync-identity';
+import type { UsageSummary } from '@agendex/shared';
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
@@ -42,6 +43,78 @@ const MAX_USAGE_SNAPSHOT_BYTES = 512_000;
 const USAGE_WINDOW_KEYS = new Set(['1', '7', '30', '90']);
 const MAX_SUPERSEDE_SCAN = 2_000;
 
+const usageAgentValidator = v.union(
+  v.literal('claude-code'),
+  v.literal('codex-cli'),
+  v.literal('grok'),
+);
+const usageTokenTotalsValidator = v.object({
+  uncachedInputTokens: v.number(),
+  cachedInputTokens: v.number(),
+  cacheCreationTokens: v.number(),
+  outputTokens: v.number(),
+  reasoningTokens: v.number(),
+});
+const usageSummaryValidator = v.object({
+  generatedAt: v.string(),
+  days: v.number(),
+  resolution: v.union(v.literal('day'), v.literal('hour')),
+  buckets: v.array(
+    v.object({
+      start: v.string(),
+      costUsd: v.number(),
+      totalTokens: v.number(),
+      byAgent: v.record(v.string(), v.object({ costUsd: v.number(), totalTokens: v.number() })),
+    }),
+  ),
+  totals: usageTokenTotalsValidator,
+  totalTokens: v.number(),
+  costUsd: v.number(),
+  cacheSavingsUsd: v.number(),
+  records: v.number(),
+  unpricedRecords: v.number(),
+  sessions: v.number(),
+  agents: v.array(
+    v.object({
+      agent: usageAgentValidator,
+      totals: usageTokenTotalsValidator,
+      totalTokens: v.number(),
+      costUsd: v.number(),
+      records: v.number(),
+      unpricedRecords: v.number(),
+      sessions: v.number(),
+    }),
+  ),
+  models: v.array(
+    v.object({
+      agent: usageAgentValidator,
+      model: v.string(),
+      totals: usageTokenTotalsValidator,
+      totalTokens: v.number(),
+      costUsd: v.number(),
+      records: v.number(),
+      unpricedRecords: v.number(),
+    }),
+  ),
+  sources: v.array(
+    v.object({
+      agent: usageAgentValidator,
+      path: v.string(),
+      status: v.union(v.literal('scanned'), v.literal('missing'), v.literal('error')),
+      files: v.number(),
+      message: v.optional(v.string()),
+    }),
+  ),
+  scanDurationMs: v.number(),
+});
+const heartbeatDeviceValidator = v.object({
+  lastSeenAt: v.number(),
+  deviceId: v.union(v.string(), v.null()),
+  hostname: v.union(v.string(), v.null()),
+  ipAddress: v.union(v.string(), v.null()),
+  startedAtMs: v.union(v.number(), v.null()),
+  pid: v.union(v.number(), v.null()),
+});
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1629,6 +1702,8 @@ export const deleteDaemonsHttp = httpAction(async (ctx, request) => {
 });
 
 export const getDaemonStatus = query({
+  args: {},
+  returns: v.object({ devices: v.array(heartbeatDeviceValidator) }),
   handler: async (ctx) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return { devices: [] as HeartbeatDevice[] };
@@ -1645,6 +1720,7 @@ export const getUsage = query({
   args: {
     days: v.union(v.literal(1), v.literal(7), v.literal(30), v.literal(90)),
   },
+  returns: v.union(usageSummaryValidator, v.null()),
   handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return null;
@@ -1663,12 +1739,13 @@ export const getUsage = query({
       }
     }
 
-    return mergeUsageSummaries(windowSummaries, args.days);
+    return mergeUsageSummaries(windowSummaries, args.days) as UsageSummary | null;
   },
 });
 
 export const removeDaemon = mutation({
   args: { deviceId: v.string() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) throw new Error('Unauthorized');
@@ -1680,6 +1757,7 @@ export const removeDaemon = mutation({
     if (row) {
       await ctx.db.delete(row._id);
     }
+    return null;
   },
 });
 

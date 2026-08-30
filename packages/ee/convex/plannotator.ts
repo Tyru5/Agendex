@@ -11,6 +11,7 @@ import {
 } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { plannotatorWritebackValidator } from './validators';
 
 const WRITEBACK_TTL_MS = 24 * 60 * 60 * 1000;
 const WRITEBACK_EXPIRED_ERROR = 'Write-back expired before a daemon could send it.';
@@ -315,6 +316,7 @@ export const enqueueWriteback = mutation({
     annotationIds: v.optional(v.array(v.id('planAnnotations'))),
     deviceId: v.optional(v.string()),
   },
+  returns: v.id('plannotatorWritebacks'),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -427,6 +429,7 @@ export const enqueueWriteback = mutation({
 
 export const listWritebacksForPlan = query({
   args: { planId: v.id('plans') },
+  returns: v.array(plannotatorWritebackValidator),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');

@@ -4,6 +4,7 @@ import type { Id } from './_generated/dataModel';
 import { type MutationCtx, mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature, requireFeatureForUserId } from './entitlements';
+import { planAnnotationValidator } from './validators';
 
 const annotationType = v.union(
   v.literal('comment'),
@@ -110,6 +111,7 @@ function validateAnnotationInput(args: {
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
+  returns: v.array(planAnnotationValidator),
   handler: async (ctx, args) => {
     await requirePlanReadAccess(ctx, args.planId);
 
@@ -131,6 +133,7 @@ export const createAnnotation = mutation({
     anchor: planTextAnchor,
     source: v.optional(v.string()),
   },
+  returns: v.id('planAnnotations'),
   handler: async (ctx, args) => {
     const user = await requirePlanOwnerWriteAccess(ctx, args.planId);
     if (args.status === 'submitted') {
@@ -163,6 +166,7 @@ export const updateAnnotation = mutation({
     replacementText: v.optional(v.string()),
     status: v.optional(annotationStatus),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const annotation = await ctx.db.get(args.annotationId);
     if (!annotation) throw new ConvexError('Annotation not found');
@@ -190,6 +194,7 @@ export const updateAnnotation = mutation({
     }
 
     await ctx.db.replace(args.annotationId, nextAnnotation);
+    return null;
   },
 });
 
@@ -198,6 +203,7 @@ export const markSubmitted = mutation({
     annotationIds: v.array(v.id('planAnnotations')),
     writebackId: v.id('plannotatorWritebacks'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const now = Date.now();
     const writeback = await ctx.db.get(args.writebackId);
@@ -245,16 +251,19 @@ export const markSubmitted = mutation({
         writebackId: args.writebackId,
       });
     }
+    return null;
   },
 });
 
 export const deleteAnnotation = mutation({
   args: { annotationId: v.id('planAnnotations') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const annotation = await ctx.db.get(args.annotationId);
     if (!annotation) throw new ConvexError('Annotation not found');
 
     await requirePlanOwnerWriteAccess(ctx, annotation.planId);
     await ctx.db.delete(args.annotationId);
+    return null;
   },
 });

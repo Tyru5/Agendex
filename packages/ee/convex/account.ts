@@ -71,6 +71,13 @@ export const getPrivacyPreferencesForOwner = internalQuery({
 
 export const getMyPrivacyPreferences = query({
   args: {},
+  returns: v.union(
+    v.object({
+      collectLocalIpAddress: v.boolean(),
+      localIpDisclosureAcknowledgedAt: v.union(v.number(), v.null()),
+    }),
+    v.null(),
+  ),
   handler: async (ctx) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return null;
@@ -86,6 +93,7 @@ export const getMyPrivacyPreferences = query({
 
 export const getMyPlanViewPreference = query({
   args: {},
+  returns: v.union(v.literal('list'), v.literal('card'), v.null()),
   handler: async (ctx) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return null;
@@ -99,6 +107,7 @@ export const updatePlanViewPreference = mutation({
   args: {
     emptyStatePlanView: v.union(v.literal('list'), v.literal('card')),
   },
+  returns: v.union(v.literal('list'), v.literal('card')),
   handler: async (ctx, { emptyStatePlanView }) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) throw new ConvexError('Not authenticated');
@@ -128,6 +137,10 @@ export const updatePrivacyPreferences = mutation({
     collectLocalIpAddress: v.optional(v.boolean()),
     acknowledgeLocalIpDisclosure: v.optional(v.boolean()),
   },
+  returns: v.object({
+    collectLocalIpAddress: v.boolean(),
+    localIpDisclosureAcknowledgedAt: v.union(v.number(), v.null()),
+  }),
   handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) throw new ConvexError('Not authenticated');

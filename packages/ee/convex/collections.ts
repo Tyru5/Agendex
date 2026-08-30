@@ -5,6 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { collectionValidator } from './validators';
 
 const collectionValidator = v.object({
   _id: v.id('collections'),

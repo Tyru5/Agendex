@@ -19,6 +19,26 @@ const ALLOWED_COMMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/w
 const MAX_TRACKED_UPLOAD_AGE_MS = 5 * 60 * 1000;
 export const COMMENT_UPLOAD_CLEANUP_BATCH_SIZE = 500;
 const STALE_COMMENT_UPLOAD_AGE_MS = 15 * 60 * 1000;
+const commentDtoValidator = v.object({
+  _id: v.id('comments'),
+  _creationTime: v.number(),
+  planId: v.id('plans'),
+  authorId: v.string(),
+  authorName: v.string(),
+  authorAvatar: v.optional(v.string()),
+  body: v.string(),
+  attachments: v.array(
+    v.object({
+      storageId: v.id('_storage'),
+      fileName: v.optional(v.string()),
+      contentType: v.string(),
+      size: v.number(),
+      url: v.string(),
+    }),
+  ),
+  createdAt: v.number(),
+  updatedAt: v.optional(v.number()),
+});
 
 const commentAttachmentWithUrlValidator = v.object({
   storageId: v.id('_storage'),
@@ -222,14 +242,30 @@ export const getComments = query({
 
     return await Promise.all(
       comments.map(async (comment) => ({
-        ...comment,
-        attachments: await Promise.all(
-          (comment.attachments ?? []).map(async (attachment) => {
-            const url = await ctx.storage.getUrl(attachment.storageId);
-            if (!url) return null;
-            return { ...attachment, url };
-          }),
-        ).then((results) => results.filter((a) => a !== null)),
+        _id: comment._id,
+        _creationTime: comment._creationTime,
+        planId: comment.planId,
+        authorId: comment.authorId,
+        authorName: comment.authorName,
+        ...(comment.authorAvatar !== undefined && { authorAvatar: comment.authorAvatar }),
+        body: comment.body,
+        attachments: (
+          await Promise.all(
+            (comment.attachments ?? []).map(async (attachment) => {
+              const url = await ctx.storage.getUrl(attachment.storageId);
+              if (!url) return null;
+              return {
+                storageId: attachment.storageId,
+                ...(attachment.fileName !== undefined && { fileName: attachment.fileName }),
+                contentType: attachment.contentType,
+                size: attachment.size,
+                url,
+              };
+            }),
+          )
+        ).filter((attachment) => attachment !== null),
+        createdAt: comment.createdAt,
+        ...(comment.updatedAt !== undefined && { updatedAt: comment.updatedAt }),
       })),
     );
   },
@@ -436,6 +472,7 @@ export const addComment = mutation({
 
 export const deleteOrphanedUpload = mutation({
   args: { storageId: v.id('_storage') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -452,6 +489,7 @@ export const deleteOrphanedUpload = mutation({
     }
 
     await deletePendingUploadRecord(ctx, pending);
+    return null;
   },
 });
 
