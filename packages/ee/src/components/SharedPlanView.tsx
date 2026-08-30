@@ -42,13 +42,7 @@ function timeAgo(date: string | number): string {
 }
 
 /** Stored git links only. Raw plan metadata never crosses the public share boundary. */
-function SharedPlanGitLinks({
-  planId,
-  token,
-}: {
-  planId: SharedPlanDto['_id'];
-  token: string;
-}) {
+function SharedPlanGitLinks({ planId, token }: { planId: SharedPlanDto['_id']; token: string }) {
   const links = useQuery(api.planLinks.getLinks, { planId, token });
 
   const chips = (links ?? []).map((link) => ({
