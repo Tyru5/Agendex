@@ -22,6 +22,12 @@ crons.interval(
 );
 
 crons.interval(
+  'backfill plan download lookup keys',
+  { hours: 1 },
+  internal.cli.backfillPlanDownloadLookupKeys,
+);
+
+crons.interval(
   'recover overdue internal trial expirations',
   { minutes: 5 },
   internal.subscriptions.expireOverdueInternalTrials,

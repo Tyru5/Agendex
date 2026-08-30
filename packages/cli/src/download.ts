@@ -2,6 +2,7 @@ import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { loadConfig, looksLikePlanAgent, parsePlanDownloadQuery } from '@agendex/shared';
 import {
   type CloudPlanDownloadMatch,
+  type CloudPlanDownloadPagination,
   type FetchCloudPlanResult,
   fetchCloudPlan as defaultFetchCloudPlan,
 } from './api.ts';
@@ -100,14 +101,23 @@ function formatQuickSelectList(matches: CloudPlanDownloadMatch[]): string[] {
   ]);
 }
 
-function formatAmbiguousMatches(matches: CloudPlanDownloadMatch[]): string {
-  if (matches.length === 0) {
-    return '[agendex] multiple plans matched; pick a number or retry with a plan id';
+function formatAmbiguousMatches(
+  matches: CloudPlanDownloadMatch[],
+  pagination: CloudPlanDownloadPagination,
+): string {
+  const lines =
+    matches.length === 0
+      ? ['[agendex] multiple plans matched; retry with an exact plan id']
+      : [
+          '[agendex] multiple plans matched — pick one without retyping the title:',
+          ...formatQuickSelectList(matches),
+        ];
+  if (pagination.hasMore) {
+    lines.push(
+      `[agendex] showing up to ${pagination.pageSize} matches; more exact-title matches exist. Refine with --agent or use an exact plan id.`,
+    );
   }
-  return [
-    '[agendex] multiple plans matched — pick one without retyping the title:',
-    ...formatQuickSelectList(matches),
-  ].join('\n');
+  return lines.join('\n');
 }
 
 function formatNotFound(
@@ -240,7 +250,7 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
     error(
       result.kind === 'not_found'
         ? formatNotFound(query, agent, result.suggestions)
-        : formatAmbiguousMatches(result.matches),
+        : formatAmbiguousMatches(result.matches, result.pagination),
     );
     if (choices.length === 0 || !canPrompt()) return 1;
 
