@@ -189,10 +189,7 @@ export const addPlanToCollection = mutation({
     const existing = await ctx.db
       .query('collectionPlans')
       .withIndex('by_owner_and_collection_and_plan', (q) =>
-        q
-          .eq('ownerId', user._id)
-          .eq('collectionId', args.collectionId)
-          .eq('planId', args.planId),
+        q.eq('ownerId', user._id).eq('collectionId', args.collectionId).eq('planId', args.planId),
       )
       .first();
 
@@ -226,10 +223,7 @@ export const removePlanFromCollection = mutation({
     const row = await ctx.db
       .query('collectionPlans')
       .withIndex('by_owner_and_collection_and_plan', (q) =>
-        q
-          .eq('ownerId', user._id)
-          .eq('collectionId', args.collectionId)
-          .eq('planId', args.planId),
+        q.eq('ownerId', user._id).eq('collectionId', args.collectionId).eq('planId', args.planId),
       )
       .first();
 
@@ -250,9 +244,7 @@ export const getCollectionsForPlan = query({
 
     const rows = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_owner_and_plan', (q) =>
-        q.eq('ownerId', user._id).eq('planId', args.planId),
-      )
+      .withIndex('by_owner_and_plan', (q) => q.eq('ownerId', user._id).eq('planId', args.planId))
       .take(MAX_COLLECTION_MEMBERSHIPS);
     const collections = await Promise.all(rows.map((row) => ctx.db.get(row.collectionId)));
     const collectionIds: Id<'collections'>[] = [];

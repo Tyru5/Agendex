@@ -111,12 +111,7 @@ function plan(id: string, ownerId: string): TestDocument {
   };
 }
 
-function junction(
-  id: string,
-  ownerId: string,
-  collectionId: string,
-  planId: string,
-): TestDocument {
+function junction(id: string, ownerId: string, collectionId: string, planId: string): TestDocument {
   return {
     _id: id,
     _creationTime: 1,
@@ -154,10 +149,7 @@ function createContext({
       return id;
     },
     query: (table: string) => ({
-      withIndex: (
-        indexName: string,
-        configure: (range: TestIndexRange) => unknown,
-      ) => {
+      withIndex: (indexName: string, configure: (range: TestIndexRange) => unknown) => {
         indexes.push(indexName);
         const equalities = new Map<string, unknown>();
         const range = {
@@ -182,7 +174,11 @@ function createContext({
   return {
     db,
     scheduler: {
-      runAfter: async (delay: number, _functionReference: unknown, args: Record<string, unknown>) => {
+      runAfter: async (
+        delay: number,
+        _functionReference: unknown,
+        args: Record<string, unknown>,
+      ) => {
         scheduled.push({ delay, args });
       },
     },
@@ -258,9 +254,10 @@ test('forged junction ownership and foreign parents are excluded from reads and 
     collections.getPlansInCollection,
   )(ctx, { collectionId: 'collection-a' });
   await expect(
-    handlerOf<{ collectionId: string; planId: string }, null>(
-      collections.removePlanFromCollection,
-    )(ctx, { collectionId: 'collection-a', planId: 'plan-a' }),
+    handlerOf<{ collectionId: string; planId: string }, null>(collections.removePlanFromCollection)(
+      ctx,
+      { collectionId: 'collection-a', planId: 'plan-a' },
+    ),
   ).rejects.toThrow('Plan not in collection');
 
   expect(collectionIds).toEqual([]);
