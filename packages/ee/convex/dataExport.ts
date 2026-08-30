@@ -58,6 +58,7 @@ const accountSectionValidator = v.union(
   v.literal('agentAvatars'),
   v.literal('pendingUploads'),
   v.literal('uploadReservations'),
+  v.literal('avatarUploadReservations'),
 );
 
 const planSectionValidator = v.union(
@@ -384,6 +385,13 @@ export const listAccountSectionPage = internalQuery({
           await ctx.db
             .query('commentUploadReservations')
             .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'avatarUploadReservations':
+        return serializePage(
+          await ctx.db
+            .query('agentAvatarUploadReservations')
+            .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
             .paginate(paginationOpts),
         );
     }

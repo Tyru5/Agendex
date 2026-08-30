@@ -39,7 +39,8 @@ type AccountSection =
   | 'planPreferences'
   | 'agentAvatars'
   | 'pendingUploads'
-  | 'uploadReservations';
+  | 'uploadReservations'
+  | 'avatarUploadReservations';
 
 type PlanSection =
   | 'versions'
@@ -404,6 +405,10 @@ export const buildDataExport = internalAction({
         jsonObjectOfArraysStream([
           ['pendingUploads', accountPageFetcher(ctx, ownerId, 'pendingUploads')],
           ['uploadReservations', accountPageFetcher(ctx, ownerId, 'uploadReservations')],
+          [
+            'avatarUploadReservations',
+            accountPageFetcher(ctx, ownerId, 'avatarUploadReservations'),
+          ],
         ]),
       );
 

@@ -238,6 +238,7 @@ test('export inventory covers tables touched by purgeUserData and planDeletion',
     'daemonHeartbeats',
     'plannotatorWritebacks',
     'agentAvatars',
+    'agentAvatarUploadReservations',
   ] as const;
 
   for (const table of required) {
@@ -246,5 +247,8 @@ test('export inventory covers tables touched by purgeUserData and planDeletion',
   }
 
   const exportSource = readFileSync(join(import.meta.dir, 'dataExport.ts'), 'utf8');
+  const actionSource = readFileSync(join(import.meta.dir, 'dataExportActions.ts'), 'utf8');
   expect(exportSource).toContain("query('commentAttachmentClaims')");
+  expect(exportSource).toContain("query('agentAvatarUploadReservations')");
+  expect(actionSource).toContain("'avatarUploadReservations'");
 });

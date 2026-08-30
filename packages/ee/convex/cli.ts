@@ -36,6 +36,7 @@ import {
 import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { stripLocalIpFromMetadata } from './privacy';
 import { resolvePublishedPlansOwnerId } from './plans';
+import { hasActiveSubscriptionForUserId } from './subscriptions';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
@@ -137,6 +138,9 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
     if (!rawSummary.buckets.every(isUsageBucket)) return undefined;
     if (!rawSummary.agents.every(isUsageAgentEntry)) return undefined;
     if (!rawSummary.models.every(isUsageModelEntry)) return undefined;
+    if (rawSummary.cloudFormatVersion !== undefined && rawSummary.cloudFormatVersion !== 2) {
+      return undefined;
+    }
     if (rawSummary.dedupeKeys !== undefined) {
       if (
         !Array.isArray(rawSummary.dedupeKeys) ||
@@ -176,7 +180,7 @@ export function normalizeUsageSnapshots(value: unknown): Record<string, unknown>
       sources: [],
       scanDurationMs: 0,
       ...(Array.isArray(rawSummary.dedupeKeys)
-        ? { dedupeKeys: rawSummary.dedupeKeys.slice(0, 20_000) }
+        ? { dedupeKeys: rawSummary.dedupeKeys.slice(0, 8_192) }
         : {}),
       ...(Array.isArray(rawSummary.events) ? { events: rawSummary.events.slice(0, 400) } : {}),
     };
@@ -190,6 +194,14 @@ function isUsageCloudEvent(value: unknown): boolean {
   if (typeof value.key !== 'string' || value.key.length === 0 || value.key.length > 256) {
     return false;
   }
+  if (
+    value.ownershipKey !== undefined &&
+    (typeof value.ownershipKey !== 'string' ||
+      value.ownershipKey.length === 0 ||
+      value.ownershipKey.length > 256)
+  ) {
+    return false;
+  }
   if (typeof value.agent !== 'string' || value.agent.length === 0 || value.agent.length > 64) {
     return false;
   }
@@ -200,6 +212,14 @@ function isUsageCloudEvent(value: unknown): boolean {
     typeof value.sessionId !== 'string' ||
     value.sessionId.length === 0 ||
     value.sessionId.length > 256
+  ) {
+    return false;
+  }
+  if (
+    value.ownershipSessionId !== undefined &&
+    (typeof value.ownershipSessionId !== 'string' ||
+      value.ownershipSessionId.length === 0 ||
+      value.ownershipSessionId.length > 256)
   ) {
     return false;
   }
@@ -299,7 +319,11 @@ function aggregateUsageEvents(
     agent.costUsd += event.costUsd as number;
     agent.records++;
     if (event.unpriced) agent.unpricedRecords++;
-    agent.sessionIds.add(event.sessionId as string);
+    agent.sessionIds.add(
+      typeof event.ownershipSessionId === 'string'
+        ? event.ownershipSessionId
+        : (event.sessionId as string),
+    );
 
     const modelKey = `${event.agent}\u0000${event.model}`;
     let model = models.get(modelKey);
@@ -361,8 +385,8 @@ function aggregateUsageEvents(
     }))
     .sort(
       (a, b) =>
-        (b.costUsd as number) - (a.costUsd as number) ||
-        (b.totalTokens as number) - (a.totalTokens as number),
+        Number((b as Record<string, unknown>).costUsd) -
+          Number((a as Record<string, unknown>).costUsd) || b.totalTokens - a.totalTokens,
     );
 
   return {
@@ -385,6 +409,23 @@ function aggregateUsageEvents(
     scanDurationMs: 0,
   };
 }
+function stripUsageMergeMetadata(summary: Record<string, unknown>): Record<string, unknown> {
+  const clean = { ...summary };
+  delete clean.cloudFormatVersion;
+  delete clean.dedupeKeys;
+  delete clean.events;
+  return clean;
+}
+
+function usageEventContentIdentity(event: Record<string, unknown>): string {
+  return JSON.stringify([
+    event.agent,
+    event.sessionId,
+    event.timestampMs,
+    event.model,
+    event.totals,
+  ]);
+}
 
 /** Merge per-device usage windows so multi-machine accounts see combined totals. */
 export function mergeUsageSummaries(
@@ -395,19 +436,22 @@ export function mergeUsageSummaries(
     (summary) => isRecord(summary) && summary.days === days && isUsageTokenTotals(summary.totals),
   );
   if (valid.length === 0) return null;
-  if (valid.length === 1) {
-    const only = { ...valid[0]! };
-    delete only.dedupeKeys;
-    delete only.events;
-    return only;
-  }
+  const nonEmpty = valid.filter((summary) => summary.records !== 0);
+  const candidates = nonEmpty.length > 0 ? nonEmpty : valid;
+  if (candidates.length === 1) return stripUsageMergeMetadata(candidates[0]!);
 
   const byEventKey = new Map<string, Record<string, unknown>>();
   const claimedKeys = new Set<string>();
   let generatedAt = '';
   const withoutEvents: Array<Record<string, unknown>> = [];
+  let hasIndependentEvents = false;
+  const eventCandidates: Array<{
+    event: Record<string, unknown>;
+    isV2: boolean;
+    includeInMerge: boolean;
+  }> = [];
 
-  for (const summary of valid) {
+  for (const summary of candidates) {
     if (typeof summary.generatedAt === 'string' && summary.generatedAt > generatedAt) {
       generatedAt = summary.generatedAt;
     }
@@ -421,39 +465,125 @@ export function mergeUsageSummaries(
         ? summary.records
         : null;
     const eventsComplete = events.length > 0 && records !== null && events.length === records;
+    const ownershipComplete = records !== null && dedupeKeys.length === records;
+    const isV2Partial = !eventsComplete && events.length > 0 && summary.cloudFormatVersion === 2;
+    if (!eventsComplete && events.length > 0 && ownershipComplete) {
+      // Format v2 dual-writes a legacy event prefix for older backends. Complete
+      // ownership keys let this backend use the full aggregate instead.
+      const aggregateOnly = { ...summary };
+      delete aggregateOnly.events;
+      delete aggregateOnly.cloudFormatVersion;
+      withoutEvents.push(aggregateOnly);
+      for (const event of events) {
+        if (isUsageCloudEvent(event)) {
+          eventCandidates.push({
+            event,
+            isV2: summary.cloudFormatVersion === 2,
+            includeInMerge: false,
+          });
+        }
+      }
+      continue;
+    }
+    if (isV2Partial) {
+      // Keep both forms until the merge context is known: the aggregate is the
+      // best fallback alone, while its event prefix can merge with exact peers.
+      const aggregateOnly = { ...summary };
+      delete aggregateOnly.events;
+      delete aggregateOnly.cloudFormatVersion;
+      withoutEvents.push(aggregateOnly);
+    }
 
-    // Always keep unique events, even from a capped prefix, so partial overlap
-    // does not drop the other device's novel records.
+    // Retain the source format until every candidate is known. Updated clients
+    // dual-write legacy event keys plus stable ownership keys so this backend
+    // can reconcile them without breaking independently deployed older backends.
     for (const event of events) {
       if (!isUsageCloudEvent(event)) continue;
-      const key = event.key as string;
-      if (!byEventKey.has(key)) byEventKey.set(key, event);
-      claimedKeys.add(key);
+      eventCandidates.push({
+        event,
+        isV2: summary.cloudFormatVersion === 2,
+        includeInMerge: true,
+      });
     }
-    for (const key of dedupeKeys) claimedKeys.add(key);
+    if (events.length > 0 && !isV2Partial) hasIndependentEvents = true;
 
-    if (eventsComplete || events.length > 0) continue;
+    if (eventsComplete || events.length > 0) {
+      // Complete summaries are represented exactly by their events. Partial
+      // summaries contribute their emitted events, but still reserve every
+      // known key so a key-only aggregate cannot recount their unseen tail.
+      for (const key of dedupeKeys) claimedKeys.add(key);
+      continue;
+    }
     withoutEvents.push(summary);
+  }
+
+  const v2ContentByLegacyKey = new Map<string, Set<string>>();
+  for (const { event, isV2 } of eventCandidates) {
+    if (!isV2 || typeof event.ownershipKey !== 'string') continue;
+    const legacyKey = event.key as string;
+    const identities = v2ContentByLegacyKey.get(legacyKey) ?? new Set<string>();
+    identities.add(usageEventContentIdentity(event));
+    v2ContentByLegacyKey.set(legacyKey, identities);
+  }
+  for (const { event, isV2, includeInMerge } of eventCandidates) {
+    const legacyKey = event.key as string;
+    if (!isV2 && v2ContentByLegacyKey.get(legacyKey)?.has(usageEventContentIdentity(event))) {
+      continue;
+    }
+    if (!includeInMerge) continue;
+    const key = isV2 && typeof event.ownershipKey === 'string' ? event.ownershipKey : legacyKey;
+    if (!byEventKey.has(key)) byEventKey.set(key, event);
+    claimedKeys.add(key);
   }
 
   withoutEvents.sort((a, b) => {
     const aAt = typeof a.generatedAt === 'string' ? a.generatedAt : '';
     const bAt = typeof b.generatedAt === 'string' ? b.generatedAt : '';
-    return bAt.localeCompare(aAt);
+    const byGeneratedAt = bAt.localeCompare(aAt);
+    if (byGeneratedAt !== 0) return byGeneratedAt;
+    const aRecords = typeof a.records === 'number' ? a.records : 0;
+    const bRecords = typeof b.records === 'number' ? b.records : 0;
+    if (bRecords !== aRecords) return bRecords - aRecords;
+    const aTokens = typeof a.totalTokens === 'number' ? a.totalTokens : 0;
+    const bTokens = typeof b.totalTokens === 'number' ? b.totalTokens : 0;
+    if (bTokens !== aTokens) return bTokens - aTokens;
+    const aCost = typeof a.costUsd === 'number' ? a.costUsd : 0;
+    const bCost = typeof b.costUsd === 'number' ? b.costUsd : 0;
+    return bCost - aCost;
   });
 
   const extras: Array<Record<string, unknown>> = [];
+  let incompleteOwnershipFallback: Record<string, unknown> | undefined;
+  let emptyFallback: Record<string, unknown> | undefined;
   for (const summary of withoutEvents) {
     const keys = Array.isArray(summary.dedupeKeys)
       ? summary.dedupeKeys.filter((key): key is string => typeof key === 'string')
       : [];
-    if (keys.length > 0) {
-      // Without events we cannot surgically drop shared records. Skip the whole
-      // device when any fingerprint was already claimed so totals never inflate.
-      if (keys.some((key) => claimedKeys.has(key))) continue;
-      for (const key of keys) claimedKeys.add(key);
+    const records =
+      typeof summary.records === 'number' && Number.isFinite(summary.records)
+        ? summary.records
+        : null;
+    if (records === 0) {
+      emptyFallback ??= summary;
+      continue;
     }
+    if (records === null || keys.length !== records) {
+      incompleteOwnershipFallback ??= summary;
+      continue;
+    }
+    // Complete key sets prove that disjoint aggregates have no shared records.
+    // Any overlap still rejects the whole aggregate because individual record
+    // totals are unavailable once events have been omitted.
+    if (keys.some((key) => claimedKeys.has(key))) continue;
+    for (const key of keys) claimedKeys.add(key);
     extras.push(summary);
+  }
+  if (!hasIndependentEvents && extras.length === 0 && incompleteOwnershipFallback) {
+    return stripUsageMergeMetadata(incompleteOwnershipFallback);
+  }
+  if (byEventKey.size === 0 && extras.length === 0) {
+    const fallback = incompleteOwnershipFallback ?? emptyFallback;
+    if (fallback) extras.push(fallback);
   }
 
   if (byEventKey.size > 0 && extras.length === 0) {
@@ -466,7 +596,7 @@ export function mergeUsageSummaries(
   }
   parts.push(...extras);
   if (parts.length === 0) return null;
-  if (parts.length === 1) return parts[0]!;
+  if (parts.length === 1) return stripUsageMergeMetadata(parts[0]!);
   return sumUsageAggregates(parts, days, generatedAt);
 }
 
@@ -900,7 +1030,11 @@ export const patchPlanSyncIdentity = internalMutation({
     workspace: v.optional(v.string()),
     updatedAt: v.optional(v.number()),
   },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
+    if (!(await hasActiveSubscriptionForUserId(ctx, args.ownerId))) {
+      throw new ConvexError('Cloud Pro subscription required');
+    }
     const plan = await ctx.db.get(args.planId);
     if (!plan || plan.ownerId !== args.ownerId) return false;
 
@@ -942,7 +1076,11 @@ export const upsertPlan = internalMutation({
     existingId: v.optional(v.id('plans')),
     existingVersion: v.optional(v.number()),
   },
+  returns: v.id('plans'),
   handler: async (ctx, args) => {
+    if (!(await hasActiveSubscriptionForUserId(ctx, args.ownerId))) {
+      throw new ConvexError('Cloud Pro subscription required');
+    }
     const now = Date.now();
     const continuityKey = plannotatorContinuityKey(args.metadata, args.filePath);
     const updatedAt = args.updatedAt ?? now;
@@ -1091,7 +1229,11 @@ export const deleteSyncedPlan = internalMutation({
     ownerId: v.string(),
     planId: v.id('plans'),
   },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
+    if (!(await hasActiveSubscriptionForUserId(ctx, args.ownerId))) {
+      throw new ConvexError('Cloud Pro subscription required');
+    }
     const plan = await ctx.db.get(args.planId);
     if (!plan || plan.ownerId !== args.ownerId) return false;
 
@@ -1103,20 +1245,9 @@ export const deleteSyncedPlan = internalMutation({
 
 export const hasUserSubscription = internalQuery({
   args: { userId: v.string() },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
-    const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
-    if (bypassIds.includes(args.userId)) return true;
-
-    const sub = await ctx.db
-      .query('subscriptions')
-      .withIndex('by_user', (q) => q.eq('userId', args.userId))
-      .first();
-    if (!sub) return false;
-    const validStatus = sub.status === 'active' || sub.status === 'trialing';
-    return validStatus && sub.currentPeriodEnd > Date.now();
+    return hasActiveSubscriptionForUserId(ctx, args.userId);
   },
 });
 

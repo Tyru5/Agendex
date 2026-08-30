@@ -33,10 +33,15 @@ This directory contains the Convex backend for Agendex Cloud / EE. It powers aut
 ### Auth and site configuration
 
 - `SITE_URL`
+- `APP_URL`
+- `BETTER_AUTH_ENVIRONMENT` (`production` or explicit local `development`)
+- `BETTER_AUTH_TRUSTED_ORIGINS` (required in production; comma-separated exact owned origins, never wildcards)
 - `CONVEX_SITE_URL`
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
 - `BETTER_AUTH_SECRET`
+
+`SITE_URL` and `APP_URL` are canonical origins and are trusted exactly as configured. Production additionally requires `BETTER_AUTH_TRUSTED_ORIGINS`; use it for other owned frontends or exact preview origins. Localhost, loopback, and `*.localhost` origins are accepted only when `BETTER_AUTH_ENVIRONMENT=development`, and only for the fixed port-5174 development origins defined in `auth.ts`.
 
 ### EE client configuration
 
