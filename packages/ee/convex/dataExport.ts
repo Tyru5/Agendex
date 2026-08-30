@@ -283,6 +283,11 @@ export const collectAccountBundle = internalQuery({
       .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', ownerId))
       .collect();
 
+    const avatarUploadReservations = await ctx.db
+      .query('agentAvatarUploadReservations')
+      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+      .collect();
+
     const attachmentBlobs: Array<{
       storageId: Id<'_storage'>;
       fileName: string | null;
@@ -335,6 +340,7 @@ export const collectAccountBundle = internalQuery({
       agentAvatars,
       pendingUploads,
       uploadReservations,
+      avatarUploadReservations,
       attachmentBlobs,
     };
   },
