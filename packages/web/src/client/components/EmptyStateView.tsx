@@ -435,19 +435,22 @@ function useUsageSummary(
   enabled: boolean,
   initialSummary: UsageSummary | null | undefined,
   loadUsage: UsageLoader,
-): UsageSummary | null {
+): { summary: UsageSummary | null; loading: boolean } {
   const [summary, setSummary] = useState<UsageSummary | null>(initialSummary ?? null);
+  const [loading, setLoading] = useState(initialSummary === undefined);
   const sourceRef = useRef(loadUsage);
 
   // Reset during render so a local→cloud switch never paints the prior source.
   if (sourceRef.current !== loadUsage) {
     sourceRef.current = loadUsage;
     setSummary(initialSummary ?? null);
+    setLoading(initialSummary === undefined);
   }
 
   useEffect(() => {
     if (initialSummary !== undefined) {
       setSummary(initialSummary);
+      setLoading(false);
       return;
     }
     setSummary(null);
@@ -456,19 +459,45 @@ function useUsageSummary(
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    setLoading(true);
     loadUsage()
       .then((result) => {
         if (!cancelled) setSummary(result);
       })
       .catch(() => {
         if (!cancelled) setSummary(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, [enabled, loadUsage]);
 
-  return summary;
+  return { summary, loading };
+}
+
+function UsageLedgerLoading() {
+  return (
+    <section
+      className="empty-state-ledger empty-state-usage empty-state-usage--loading"
+      aria-label="Agent usage"
+      aria-busy="true"
+      role="status"
+    >
+      <div className="empty-state-ledger-head">
+        <h3 className="empty-state-ledger-title">Agent usage</h3>
+        <span className="empty-state-ledger-total">Aggregating usage stats…</span>
+      </div>
+      <div className="empty-state-usage-loading-row" aria-hidden="true">
+        <span className="empty-state-usage-loading-icon skeleton-pulse" />
+        <span className="empty-state-usage-loading-name skeleton-pulse" />
+        <span className="empty-state-usage-loading-bar skeleton-pulse" />
+        <span className="empty-state-usage-loading-count skeleton-pulse" />
+      </div>
+    </section>
+  );
 }
 
 function UsageLedger({ usage, onOpen }: { usage: UsageSummary; onOpen: () => void }) {
@@ -1058,9 +1087,14 @@ export function EmptyStateView({
   const browsingUsage = viewingUsage && !triviaActive;
   const browsing = browsingAgent || browsingUsage;
   const showLedger = hasPlans && !triviaActive && agentCount > 0 && !browsing;
-  const usage = useUsageSummary(true, usageSummary, usageLoader);
+  const { summary: usage, loading: usageLoading } = useUsageSummary(
+    true,
+    usageSummary,
+    usageLoader,
+  );
   const showUsage =
     usage !== null && usage.records > 0 && usage.agents.length > 0 && !triviaActive && !browsing;
+  const showUsageLoading = usageLoading && usage === null && !triviaActive && !browsing;
   const searchShortcut = '/';
 
   const heading = hasPlans ? 'Choose a plan to review' : 'No plans indexed yet';
@@ -1153,8 +1187,10 @@ export function EmptyStateView({
 
         {showUsage && usage && <UsageLedger usage={usage} onOpen={() => setViewingUsage(true)} />}
 
+        {showUsageLoading && <UsageLedgerLoading />}
+
         <footer
-          className={`empty-state-foot${showLedger || showUsage || browsing ? ' empty-state-foot--divided' : ''}`}
+          className={`empty-state-foot${showLedger || showUsage || showUsageLoading || browsing ? ' empty-state-foot--divided' : ''}`}
         >
           {shortcuts.map((shortcut) => {
             const keys = shortcutDisplayKeys(shortcut);

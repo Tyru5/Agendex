@@ -389,6 +389,7 @@ Common environment variables:
 - EE backend/auth:
   - `SITE_URL`
   - `APP_URL`
+  - `BETTER_AUTH_BASE_URL` - optional public auth origin override for proxied/tunneled deployments
   - `BETTER_AUTH_SECRET`
   - `BETTER_AUTH_ENVIRONMENT=production|development` - defaults to production; local origins are enabled only by the explicit `development` value
   - `BETTER_AUTH_TRUSTED_ORIGINS` - required in production; comma-separated exact owned origins with no wildcards, paths, queries, or hashes
@@ -398,6 +399,9 @@ Common environment variables:
   - `GOOGLE_CLIENT_SECRET`
 
 `CONVEX_SITE_URL` is provided by Convex. Read it in backend code, but do not try to set it with `convex env set`.
+When the local Convex site is exposed through a stable same-origin proxy, set
+`BETTER_AUTH_BASE_URL` to that public application origin so OAuth callbacks do
+not point at Convex's private loopback URL.
 
 - EE billing:
   - `STRIPE_SECRET_KEY`

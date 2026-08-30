@@ -1,5 +1,21 @@
 import { expect, test } from 'bun:test';
-import { LOCAL_DEVELOPMENT_AUTH_ORIGINS, resolveAuthTrustedOrigins } from './auth';
+import {
+  LOCAL_DEVELOPMENT_AUTH_ORIGINS,
+  resolveAuthBaseUrl,
+  resolveAuthTrustedOrigins,
+} from './auth';
+
+test('public auth base URL overrides the private Convex site URL', () => {
+  expect(
+    resolveAuthBaseUrl({
+      BETTER_AUTH_BASE_URL: 'https://agendex-ee--tiru5.onamp.dev',
+      CONVEX_SITE_URL: 'http://127.0.0.1:3211',
+    }),
+  ).toBe('https://agendex-ee--tiru5.onamp.dev');
+  expect(resolveAuthBaseUrl({ CONVEX_SITE_URL: 'http://127.0.0.1:3211' })).toBe(
+    'http://127.0.0.1:3211',
+  );
+});
 
 test('production resolves only canonical and explicitly configured exact origins', () => {
   const origins = resolveAuthTrustedOrigins({

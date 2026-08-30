@@ -1,0 +1,27 @@
+services:
+  agendex-api:
+    command: bun run dev
+    port: 4890
+    health: /api/v1/health
+
+  agendex-convex:
+    command: ./scripts/dev-ee-convex-orb.sh
+    port: 3210
+    health: /
+
+  agendex-ee:
+    command: >-
+      VITE_APP_URL="$AGENDEX_EE_PUBLIC_URL"
+      VITE_AUTH_PROVIDERS="google"
+      VITE_AUTH_OPEN_EXTERNALLY="true"
+      VITE_AUTH_USE_NATIVE_CREDENTIALS="true"
+      VITE_CONVEX_URL="$AGENDEX_EE_PUBLIC_URL"
+      VITE_CONVEX_SITE_URL="$AGENDEX_EE_PUBLIC_URL"
+      node ./packages/ee/node_modules/vite/bin/vite.js ./packages/ee
+      --host 0.0.0.0 --port "$PORT"
+    port: 5174
+    health: /
+    portal:
+      title: Agendex EE
+      description: Google OAuth callback is /api/auth/callback/google.
+    agent: observe

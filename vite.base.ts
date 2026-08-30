@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Plugin } from 'vite';
+import type { Plugin, ProxyOptions } from 'vite';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AgendexViteConfig = {
@@ -12,8 +12,9 @@ type AgendexViteConfig = {
   root?: string;
   server?: {
     host?: string;
-    allowedHosts?: string[];
+    allowedHosts?: string[] | true;
     port?: number;
+    proxy?: Record<string, string | ProxyOptions>;
   };
 };
 

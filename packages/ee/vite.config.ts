@@ -17,7 +17,26 @@ export default defineConfig(
     server: {
       port: 5174,
       host: 'agendex.localhost',
-      allowedHosts: ['agendex.localhost', 'app.agendex.localhost'],
+      allowedHosts: process.env.AMP_ORB ? true : ['agendex.localhost', 'app.agendex.localhost'],
+      ...(process.env.AMP_ORB
+        ? {
+            proxy: {
+              '/api/auth': {
+                target: 'http://127.0.0.1:3211',
+                changeOrigin: true,
+              },
+              '/api/v1': {
+                target: 'http://127.0.0.1:4890',
+                changeOrigin: true,
+              },
+              '/api': {
+                target: 'http://127.0.0.1:3210',
+                changeOrigin: true,
+                ws: true,
+              },
+            },
+          }
+        : {}),
     },
   }),
 );

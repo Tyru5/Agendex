@@ -7985,6 +7985,48 @@ a.plan-git-chip-link:focus-visible {
   cursor: default;
 }
 
+.empty-state-usage--loading {
+  color: var(--tertiary);
+}
+
+.empty-state-usage-loading-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) minmax(56px, 120px) 52px;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+}
+
+.empty-state-usage-loading-icon,
+.empty-state-usage-loading-name,
+.empty-state-usage-loading-bar,
+.empty-state-usage-loading-count {
+  display: block;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--text) 10%, transparent);
+}
+
+.empty-state-usage-loading-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.empty-state-usage-loading-name {
+  width: min(110px, 70%);
+  height: 8px;
+}
+
+.empty-state-usage-loading-bar {
+  width: 100%;
+  height: 3px;
+}
+
+.empty-state-usage-loading-count {
+  width: 42px;
+  height: 8px;
+  justify-self: end;
+}
+
 .empty-state-usage-cost {
   margin-right: 10px;
   color: var(--text);

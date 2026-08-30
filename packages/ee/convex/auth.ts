@@ -5,7 +5,7 @@ import { v } from 'convex/values';
 import { bearer } from 'better-auth/plugins';
 import { components } from './_generated/api';
 import type { DataModel } from './_generated/dataModel';
-import { query } from './_generated/server';
+import { env, query } from './_generated/server';
 import authConfig from './auth.config';
 import { authUserValidator } from './validators';
 
@@ -27,6 +27,11 @@ type AuthOriginEnvironment = {
   BETTER_AUTH_ENVIRONMENT?: string;
   BETTER_AUTH_TRUSTED_ORIGINS?: string;
   SITE_URL?: string;
+};
+
+type AuthBaseUrlEnvironment = {
+  BETTER_AUTH_BASE_URL?: string;
+  CONVEX_SITE_URL?: string;
 };
 
 function parseExactOrigin(value: string, source: string): string {
@@ -122,22 +127,28 @@ export function resolveAuthTrustedOrigins(env: AuthOriginEnvironment): string[] 
   return [...new Set(origins)];
 }
 
+export function resolveAuthBaseUrl(env: AuthBaseUrlEnvironment): string {
+  const publicBaseUrl = env.BETTER_AUTH_BASE_URL?.trim();
+  if (publicBaseUrl) return parseExactOrigin(publicBaseUrl, 'BETTER_AUTH_BASE_URL');
+  return env.CONVEX_SITE_URL?.trim() ?? '';
+}
+
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
-  const siteUrl = process.env.SITE_URL ?? '';
-  const appUrl = process.env.APP_URL ?? '';
+  const siteUrl = env.SITE_URL ?? '';
+  const appUrl = env.APP_URL ?? '';
   if (!appUrl && siteUrl) {
     console.warn('APP_URL not set — crossDomain plugin falling back to SITE_URL');
   }
-  const convexSiteUrl = process.env.CONVEX_SITE_URL ?? '';
-  const githubClientId = process.env.GITHUB_CLIENT_ID;
-  const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
-  const googleClientId = process.env.GOOGLE_CLIENT_ID;
-  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const authBaseUrl = resolveAuthBaseUrl(env);
+  const githubClientId = env.GITHUB_CLIENT_ID;
+  const githubClientSecret = env.GITHUB_CLIENT_SECRET;
+  const googleClientId = env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = env.GOOGLE_CLIENT_SECRET;
 
   return betterAuth({
-    baseURL: convexSiteUrl,
-    secret: process.env.BETTER_AUTH_SECRET,
-    trustedOrigins: resolveAuthTrustedOrigins(process.env),
+    baseURL: authBaseUrl,
+    secret: env.BETTER_AUTH_SECRET,
+    trustedOrigins: resolveAuthTrustedOrigins(env),
     database: authComponent.adapter(ctx),
     socialProviders: {
       ...(githubClientId && githubClientSecret
