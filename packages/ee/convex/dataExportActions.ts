@@ -243,10 +243,7 @@ function commentClaimsStream(
   );
 }
 
-function commentsAndClaimsStream(
-  fetchCommentsPage: JsonPageFetcher,
-  claims: Readable,
-): Readable {
+function commentsAndClaimsStream(fetchCommentsPage: JsonPageFetcher, claims: Readable): Readable {
   return Readable.from(
     (async function* () {
       yield '{\n"comments": ';
@@ -306,9 +303,13 @@ export const buildDataExport = internalAction({
     });
     if (!claim.acquired) {
       if (claim.retryAfterMs != null) {
-        await ctx.scheduler.runAfter(claim.retryAfterMs, internal.dataExportActions.buildDataExport, {
-          exportId,
-        });
+        await ctx.scheduler.runAfter(
+          claim.retryAfterMs,
+          internal.dataExportActions.buildDataExport,
+          {
+            exportId,
+          },
+        );
       }
       return null;
     }
@@ -346,9 +347,7 @@ export const buildDataExport = internalAction({
           rowsJson: JSON.stringify(
             page.page.map((account) =>
               redactConnectedAccount(
-                account && typeof account === 'object'
-                  ? (account as Record<string, unknown>)
-                  : {},
+                account && typeof account === 'object' ? (account as Record<string, unknown>) : {},
               ),
             ),
           ),

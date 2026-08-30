@@ -70,11 +70,7 @@ const planSectionValidator = v.union(
   v.literal('planTags'),
 );
 
-function serializePage(result: {
-  page: unknown[];
-  isDone: boolean;
-  continueCursor: string;
-}) {
+function serializePage(result: { page: unknown[]; isDone: boolean; continueCursor: string }) {
   return {
     rowsJson: JSON.stringify(result.page),
     isDone: result.isDone,
