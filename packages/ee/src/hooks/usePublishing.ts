@@ -1,5 +1,6 @@
 import { api } from '@convex/_generated/api';
 import { useMutation } from 'convex/react';
+import { toPlanMetadataDto } from '../../convex/planMetadata';
 
 export function usePublishing() {
   const publishPlan = useMutation(api.plans.publishPlan);
@@ -20,7 +21,7 @@ export function usePublishing() {
         agent: plan.agent,
         title: plan.title,
         content: plan.content,
-        format: plan.format,
+        metadata: toPlanMetadataDto(plan.metadata),
         filePath: plan.filePath,
         workspace: plan.workspace,
         metadata: plan.metadata,

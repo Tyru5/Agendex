@@ -17,6 +17,26 @@ const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_COMMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_TRACKED_UPLOAD_AGE_MS = 5 * 60 * 1000;
 const STALE_COMMENT_UPLOAD_AGE_MS = 15 * 60 * 1000;
+const commentDtoValidator = v.object({
+  _id: v.id('comments'),
+  _creationTime: v.number(),
+  planId: v.id('plans'),
+  authorId: v.string(),
+  authorName: v.string(),
+  authorAvatar: v.optional(v.string()),
+  body: v.string(),
+  attachments: v.array(
+    v.object({
+      storageId: v.id('_storage'),
+      fileName: v.optional(v.string()),
+      contentType: v.string(),
+      size: v.number(),
+      url: v.string(),
+    }),
+  ),
+  createdAt: v.number(),
+  updatedAt: v.optional(v.number()),
+});
 
 type CommentStorageCtx = Pick<MutationCtx, 'db' | 'storage'>;
 
@@ -196,6 +216,7 @@ export async function deleteCommentWithAttachments(
 
 export const getComments = query({
   args: { planId: v.id('plans'), token: v.optional(v.string()) },
+  returns: v.array(commentDtoValidator),
   handler: async (ctx, args) => {
     await validateCommentAccess(ctx, args.planId, args.token);
 
@@ -207,14 +228,30 @@ export const getComments = query({
 
     return await Promise.all(
       comments.map(async (comment) => ({
-        ...comment,
-        attachments: await Promise.all(
-          (comment.attachments ?? []).map(async (attachment) => {
-            const url = await ctx.storage.getUrl(attachment.storageId);
-            if (!url) return null;
-            return { ...attachment, url };
-          }),
-        ).then((results) => results.filter((a) => a !== null)),
+        _id: comment._id,
+        _creationTime: comment._creationTime,
+        planId: comment.planId,
+        authorId: comment.authorId,
+        authorName: comment.authorName,
+        ...(comment.authorAvatar !== undefined && { authorAvatar: comment.authorAvatar }),
+        body: comment.body,
+        attachments: (
+          await Promise.all(
+            (comment.attachments ?? []).map(async (attachment) => {
+              const url = await ctx.storage.getUrl(attachment.storageId);
+              if (!url) return null;
+              return {
+                storageId: attachment.storageId,
+                ...(attachment.fileName !== undefined && { fileName: attachment.fileName }),
+                contentType: attachment.contentType,
+                size: attachment.size,
+                url,
+              };
+            }),
+          )
+        ).filter((attachment) => attachment !== null),
+        createdAt: comment.createdAt,
+        ...(comment.updatedAt !== undefined && { updatedAt: comment.updatedAt }),
       })),
     );
   },
@@ -226,6 +263,7 @@ export const generateCommentImageUploadUrl = mutation({
     token: v.optional(v.string()),
     clientUploadId: v.optional(v.string()),
   },
+  returns: v.string(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -258,6 +296,10 @@ export const trackPendingUpload = mutation({
     token: v.optional(v.string()),
     clientUploadId: v.optional(v.string()),
   },
+  returns: v.union(
+    v.object({ success: v.literal(true) }),
+    v.object({ success: v.literal(false), error: v.string() }),
+  ),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -348,6 +390,7 @@ export const addComment = mutation({
     ),
     token: v.optional(v.string()),
   },
+  returns: v.id('comments'),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -444,6 +487,7 @@ export const addComment = mutation({
 
 export const deleteOrphanedUpload = mutation({
   args: { storageId: v.id('_storage') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -460,6 +504,7 @@ export const deleteOrphanedUpload = mutation({
     }
 
     await deletePendingUploadRecord(ctx, pending);
+    return null;
   },
 });
 
@@ -469,6 +514,7 @@ export const editComment = mutation({
     body: v.string(),
     token: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -500,17 +546,19 @@ export const editComment = mutation({
     const trimmed = args.body.trim();
     const hasAttachments = (comment.attachments ?? []).length > 0;
     if (!trimmed && !hasAttachments) throw new ConvexError('Comment body cannot be empty');
-    if (trimmed === comment.body) return;
+    if (trimmed === comment.body) return null;
 
     await ctx.db.patch(args.commentId, {
       body: trimmed,
       updatedAt: Date.now(),
     });
+    return null;
   },
 });
 
 export const deleteComment = mutation({
   args: { commentId: v.id('comments'), token: v.optional(v.string()) },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -542,6 +590,7 @@ export const deleteComment = mutation({
     }
 
     await deleteCommentWithAttachments(ctx, comment);
+    return null;
   },
 });
 

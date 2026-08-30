@@ -4,11 +4,19 @@ import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
+import { workspaceInviteValidator, workspaceMemberValidator } from './validators';
 
 const SEAT_LIMIT = 5;
 
 export const listWorkspaceMembers = query({
   args: {},
+  returns: v.object({
+    members: v.array(workspaceMemberValidator),
+    pendingInvites: v.array(workspaceInviteValidator),
+    seatLimit: v.number(),
+    usedSeats: v.number(),
+    remainingSeats: v.number(),
+  }),
   handler: async (ctx) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -41,6 +49,7 @@ export const listWorkspaceMembers = query({
 
 export const inviteWorkspaceMember = mutation({
   args: { email: v.string() },
+  returns: v.object({ token: v.string() }),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -109,6 +118,7 @@ export const inviteWorkspaceMember = mutation({
 
 export const revokeWorkspaceInvite = mutation({
   args: { inviteId: v.id('workspaceInvites') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -123,11 +133,13 @@ export const revokeWorkspaceInvite = mutation({
     }
 
     await ctx.db.patch(args.inviteId, { revokedAt: Date.now() });
+    return null;
   },
 });
 
 export const removeWorkspaceMember = mutation({
   args: { membershipId: v.id('workspaceMembers') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -146,11 +158,22 @@ export const removeWorkspaceMember = mutation({
     }
 
     await ctx.db.delete(args.membershipId);
+    return null;
   },
 });
 
 export const getWorkspaceInviteByToken = query({
   args: { token: v.string() },
+  returns: v.union(
+    v.object({ status: v.literal('not_found') }),
+    v.object({ status: v.literal('revoked') }),
+    v.object({ status: v.literal('accepted') }),
+    v.object({
+      status: v.literal('valid'),
+      email: v.string(),
+      workspaceOwnerId: v.string(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const invite = await ctx.db
       .query('workspaceInvites')
@@ -179,6 +202,7 @@ export const getWorkspaceInviteByToken = query({
 
 export const acceptWorkspaceInvite = mutation({
   args: { token: v.string() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -236,5 +260,6 @@ export const acceptWorkspaceInvite = mutation({
     });
 
     await ctx.db.patch(invite._id, { acceptedAt: Date.now() });
+    return null;
   },
 });

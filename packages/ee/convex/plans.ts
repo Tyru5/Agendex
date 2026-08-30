@@ -16,6 +16,13 @@ import {
 } from './planVisibility';
 import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
+import {
+  planListItemValidator,
+  planMetadataValidator,
+  planValidator,
+  toPlanDto,
+  toPlanListItemDto,
+} from './validators';
 
 export const publishPlan = mutation({
   args: {
@@ -26,8 +33,9 @@ export const publishPlan = mutation({
     format: v.string(),
     filePath: v.optional(v.string()),
     workspace: v.optional(v.string()),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(planMetadataValidator),
   },
+  returns: v.id('plans'),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -152,6 +160,15 @@ export async function resolvePublishedPlansOwnerId(ctx: QueryCtx, userId: string
 
 export const getMyPublishedPlans = query({
   args: { paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    page: v.array(planListItemValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+    splitCursor: v.optional(v.union(v.string(), v.null())),
+    pageStatus: v.optional(
+      v.union(v.literal('SplitRecommended'), v.literal('SplitRequired'), v.null()),
+    ),
+  }),
   handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) {
@@ -180,9 +197,7 @@ export const getMyPublishedPlans = query({
     // above still counts full document bytes against the transaction limit.
     return {
       ...result,
-      page: dedupeVisiblePlans(filterVisiblePlans(result.page)).map(
-        ({ content: _content, ...plan }) => plan,
-      ),
+      page: dedupeVisiblePlans(filterVisiblePlans(result.page)).map(toPlanListItemDto),
     };
   },
 });
@@ -195,6 +210,7 @@ export const getMyPublishedPlans = query({
 // URL when switching to cloud mode) can't fail argument validation.
 export const getMyPlanContent = query({
   args: { planId: v.string() },
+  returns: v.union(v.object({ content: v.string() }), v.null()),
   handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return null;
@@ -234,6 +250,7 @@ const CONTENT_SEARCH_MAX_RESULTS = 25;
 // match it; instead it unions these ids into its metadata-search results.
 export const searchMyPlans = query({
   args: { searchTerm: v.string() },
+  returns: v.array(v.id('plans')),
   handler: async (ctx, args) => {
     const term = args.searchTerm.trim();
     if (!term) return [];
@@ -254,6 +271,7 @@ export const searchMyPlans = query({
 
 export const getPlan = query({
   args: { planId: v.id('plans') },
+  returns: planValidator,
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -287,12 +305,13 @@ export const getPlan = query({
       throw new ConvexError('Plan not found');
     }
 
-    return plan;
+    return toPlanDto(plan);
   },
 });
 
 export const getPlanByShareToken = query({
   args: { token: v.string() },
+  returns: v.union(v.object({ passwordRequired: v.literal(true) }), planValidator),
   handler: async (ctx, args) => {
     const shareLink = await ctx.db
       .query('shareLinks')
@@ -312,7 +331,7 @@ export const getPlanByShareToken = query({
       return { passwordRequired: true as const };
     }
 
-    return plan;
+    return toPlanDto(plan);
   },
 });
 
@@ -321,6 +340,7 @@ export const renamePlan = mutation({
     planId: v.id('plans'),
     title: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -344,13 +364,14 @@ export const renamePlan = mutation({
     }
 
     if (plan.title === title) {
-      return;
+      return null;
     }
 
     await ctx.db.patch(args.planId, {
       title,
       updatedAt: Date.now(),
     });
+    return null;
   },
 });
 
@@ -360,6 +381,7 @@ export const updatePlanContent = mutation({
     title: v.string(),
     content: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -378,7 +400,7 @@ export const updatePlanContent = mutation({
     }
 
     if (!planContentChanged(plan, args)) {
-      return;
+      return null;
     }
 
     await ensureBaselinePlanVersion(ctx, {
@@ -427,10 +449,12 @@ export const updatePlanContent = mutation({
       source: 'editor',
       createdAt: now,
     });
+    return null;
   },
 });
 export const deletePlan = mutation({
   args: { planId: v.id('plans') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -451,6 +475,7 @@ export const deletePlan = mutation({
     await deletePlanRelatedData(ctx, { planId: args.planId, ownerId: user._id });
 
     await ctx.db.delete(args.planId);
+    return null;
   },
 });
 
@@ -468,6 +493,7 @@ const DELETE_SOURCE_BATCH_SIZE = 25;
  */
 export const deleteMyPlansBySource = mutation({
   args: { customDir: v.string() },
+  returns: v.object({ deleted: v.number(), done: v.boolean() }),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {

@@ -10,6 +10,7 @@ import {
 } from './_generated/server';
 import { authComponent } from './auth';
 import { stripe } from './stripe';
+import { subscriptionValidator } from './validators';
 
 function isProBypassUserId(userId: string): boolean {
   const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
@@ -20,6 +21,8 @@ function isProBypassUserId(userId: string): boolean {
 }
 
 export const getMySubscriptionQuery = query({
+  args: {},
+  returns: v.union(subscriptionValidator, v.null()),
   handler: async (ctx) => {
     let user;
     try {
@@ -65,12 +68,16 @@ export async function hasActiveSubscription(ctx: DbCtx): Promise<boolean> {
 }
 
 export const isProUser = query({
+  args: {},
+  returns: v.boolean(),
   handler: async (ctx) => {
     return hasActiveSubscription(ctx);
   },
 });
 
 export const hasCompletedOnboarding = query({
+  args: {},
+  returns: v.boolean(),
   handler: async (ctx) => {
     let user;
     try {
@@ -127,12 +134,14 @@ export const startTrial = internalMutation({
 });
 
 export const startTrialAction = action({
+  args: {},
+  returns: v.object({ ok: v.literal(true) }),
   handler: async (ctx) => {
     const user = await ctx.runQuery(api.auth.getCurrentUser);
     if (!user) throw new ConvexError('Not authenticated');
 
     await ctx.runMutation(internal.subscriptions.startTrial, { userId: user._id });
-    return { ok: true };
+    return { ok: true as const };
   },
 });
 
@@ -161,17 +170,20 @@ export const skipTrial = internalMutation({
 });
 
 export const skipTrialAction = action({
+  args: {},
+  returns: v.object({ ok: v.literal(true) }),
   handler: async (ctx) => {
     const user = await ctx.runQuery(api.auth.getCurrentUser);
     if (!user) throw new ConvexError('Not authenticated');
 
     await ctx.runMutation(internal.subscriptions.skipTrial, { userId: user._id });
-    return { ok: true };
+    return { ok: true as const };
   },
 });
 
 export const createCheckoutSession = action({
   args: { plan: v.union(v.literal('monthly'), v.literal('yearly')) },
+  returns: v.object({ url: v.string() }),
   handler: async (ctx, { plan }) => {
     const user = await ctx.runQuery(api.auth.getCurrentUser);
     if (!user) throw new ConvexError('Not authenticated');
@@ -198,12 +210,15 @@ export const createCheckoutSession = action({
       metadata: { userId: user._id, plan },
       subscriptionMetadata: { userId: user._id, plan },
     });
+    if (!session.url) throw new ConvexError('Checkout session URL unavailable');
 
     return { url: session.url };
   },
 });
 
 export const reactivateSubscription = action({
+  args: {},
+  returns: v.object({ ok: v.literal(true) }),
   handler: async (ctx) => {
     const user = await ctx.runQuery(api.auth.getCurrentUser);
     if (!user) throw new ConvexError('Not authenticated');
@@ -224,11 +239,13 @@ export const reactivateSubscription = action({
       cancelAtPeriodEnd: false,
     });
 
-    return { ok: true };
+    return { ok: true as const };
   },
 });
 
 export const createPortalSession = action({
+  args: {},
+  returns: v.object({ url: v.string() }),
   handler: async (ctx) => {
     const user = await ctx.runQuery(api.auth.getCurrentUser);
     if (!user) throw new ConvexError('Not authenticated');

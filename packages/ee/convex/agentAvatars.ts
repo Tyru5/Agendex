@@ -87,6 +87,7 @@ export async function deleteAllAgentAvatarsForOwner(
 
 export const listMyAgentAvatars = query({
   args: {},
+  returns: v.record(v.string(), v.string()),
   handler: async (ctx) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return {} as Record<string, string>;
@@ -96,6 +97,7 @@ export const listMyAgentAvatars = query({
 
 export const listAgentAvatarsForShare = query({
   args: { token: v.string() },
+  returns: v.record(v.string(), v.string()),
   handler: async (ctx, args) => {
     const shareLink = await ctx.db
       .query('shareLinks')
@@ -110,6 +112,7 @@ export const listAgentAvatarsForShare = query({
 
 export const generateAgentAvatarUploadUrl = mutation({
   args: {},
+  returns: v.string(),
   handler: async (ctx) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -122,6 +125,7 @@ export const setAgentAvatar = mutation({
     agent: v.string(),
     storageId: v.id('_storage'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -165,20 +169,23 @@ export const setAgentAvatar = mutation({
         updatedAt: Date.now(),
       });
     }
+    return null;
   },
 });
 
 export const removeAgentAvatar = mutation({
   args: { agent: v.string() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
     const agent = normalizeAgent(args.agent);
     const existing = await findAvatar(ctx, user._id, agent);
-    if (!existing) return;
+    if (!existing) return null;
 
     await deleteStorageFile(ctx, existing.storageId);
     await ctx.db.delete(existing._id);
+    return null;
   },
 });

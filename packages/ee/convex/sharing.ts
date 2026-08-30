@@ -1,11 +1,12 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import { api, internal } from './_generated/api';
-import type { Doc } from './_generated/dataModel';
+import type { PlanDto } from './validators';
 import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { isVisiblePlan } from './planVisibility';
+import { planValidator, toPlanDto } from './validators';
 
 // Random salt via Web Crypto — only safe from actions, not from deterministic mutations/queries (Convex runtimes docs).
 async function hashPassword(password: string): Promise<string> {
@@ -143,6 +144,10 @@ export const createShareLink = action({
     planId: v.id('plans'),
     protectWithPassword: v.optional(v.boolean()),
   },
+  returns: v.union(
+    v.object({ token: v.string() }),
+    v.object({ token: v.string(), password: v.string() }),
+  ),
   handler: async (ctx, args) => {
     const user = await ctx.runQuery(api.auth.getCurrentUser);
     if (!user) {
@@ -206,6 +211,7 @@ export const createShareLinkInternal = internalMutation({
 
 export const revokeShareLink = mutation({
   args: { shareLinkId: v.id('shareLinks') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -225,11 +231,20 @@ export const revokeShareLink = mutation({
     }
 
     await ctx.db.delete(args.shareLinkId);
+    return null;
   },
 });
 
 export const getShareLinks = query({
   args: { planId: v.id('plans') },
+  returns: v.array(
+    v.object({
+      _id: v.id('shareLinks'),
+      token: v.string(),
+      createdAt: v.number(),
+      hasPassword: v.boolean(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -280,7 +295,8 @@ export const getShareLinkAndPlanInternal = internalQuery({
 
 export const getSharedPlanWithPassword = action({
   args: { token: v.string(), password: v.string() },
-  handler: async (ctx, args): Promise<Doc<'plans'>> => {
+  returns: planValidator,
+  handler: async (ctx, args): Promise<PlanDto> => {
     const result = await ctx.runQuery(internal.sharing.getShareLinkAndPlanInternal, {
       token: args.token,
     });
@@ -292,7 +308,7 @@ export const getSharedPlanWithPassword = action({
     const { shareLink, plan } = result;
 
     if (!shareLink.passwordHash) {
-      return plan;
+      return toPlanDto(plan);
     }
 
     const valid = await verifyPassword(args.password, shareLink.passwordHash);
@@ -300,6 +316,6 @@ export const getSharedPlanWithPassword = action({
       throw new ConvexError('Incorrect password');
     }
 
-    return plan;
+    return toPlanDto(plan);
   },
 });

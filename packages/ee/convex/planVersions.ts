@@ -5,9 +5,26 @@ import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { assessPlanForVisibility, metadataWithPlanValueAssessment } from './planVisibility';
 import { recordPlanVersion } from './planVersioning';
+import { planVersionValidator, toPlanVersionDto } from './validators';
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
+  returns: v.array(
+    v.object({
+      _id: v.id('planVersions'),
+      version: v.number(),
+      title: v.string(),
+      source: v.optional(
+        v.union(
+          v.literal('cli_sync'),
+          v.literal('editor'),
+          v.literal('restore'),
+          v.literal('backfill'),
+        ),
+      ),
+      createdAt: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -46,6 +63,7 @@ export const listForPlan = query({
 
 export const getVersion = query({
   args: { planId: v.id('plans'), version: v.number() },
+  returns: planVersionValidator,
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -73,12 +91,13 @@ export const getVersion = query({
       throw new ConvexError('Version not found');
     }
 
-    return snapshot;
+    return toPlanVersionDto(snapshot);
   },
 });
 
 export const restore = mutation({
   args: { planId: v.id('plans'), version: v.number() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -148,5 +167,6 @@ export const restore = mutation({
       source: 'restore',
       createdAt: now,
     });
+    return null;
   },
 });

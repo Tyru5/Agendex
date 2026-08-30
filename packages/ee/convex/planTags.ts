@@ -1,12 +1,14 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import type { Doc } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
+import { tagValidator } from './validators';
 
 export const getTagsForPlans = query({
   args: { planIds: v.array(v.id('plans')) },
+  returns: v.record(v.id('plans'), v.array(tagValidator)),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -30,7 +32,7 @@ export const getTagsForPlans = query({
       uniqueTagIds.map((id, i) => [id, tagDocs[i]] as const).filter(([, doc]) => doc),
     );
 
-    const result: Record<string, Doc<'tags'>[]> = {};
+    const result: Record<Id<'plans'>, Doc<'tags'>[]> = {};
     for (const planId of args.planIds) result[planId] = [];
     for (const row of allPlanTagRows) {
       const tag = tagMap.get(row.tagId);
@@ -43,6 +45,7 @@ export const getTagsForPlans = query({
 
 export const addTag = mutation({
   args: { planId: v.id('plans'), tagId: v.id('tags') },
+  returns: v.id('planTags'),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -70,6 +73,7 @@ export const addTag = mutation({
 
 export const removeTag = mutation({
   args: { planId: v.id('plans'), tagId: v.id('tags') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -85,11 +89,13 @@ export const removeTag = mutation({
     if (row.ownerId !== user._id) throw new ConvexError('Access denied');
 
     await ctx.db.delete(row._id);
+    return null;
   },
 });
 
 export const setTagsForPlan = mutation({
   args: { planId: v.id('plans'), tagIds: v.array(v.id('tags')) },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -121,5 +127,6 @@ export const setTagsForPlan = mutation({
         });
       }
     }
+    return null;
   },
 });

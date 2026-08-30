@@ -1,11 +1,13 @@
 import { createClient, type GenericCtx } from '@convex-dev/better-auth';
 import { convex, crossDomain } from '@convex-dev/better-auth/plugins';
 import { betterAuth } from 'better-auth/minimal';
+import { v } from 'convex/values';
 import { bearer } from 'better-auth/plugins';
 import { components } from './_generated/api';
 import type { DataModel } from './_generated/dataModel';
 import { query } from './_generated/server';
 import authConfig from './auth.config';
+import { authUserValidator } from './validators';
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
@@ -68,7 +70,8 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 
 export const getCurrentUser = query({
   args: {},
+  returns: v.union(authUserValidator, v.null()),
   handler: async (ctx) => {
-    return authComponent.safeGetAuthUser(ctx);
+    return (await authComponent.safeGetAuthUser(ctx)) ?? null;
   },
 });
