@@ -181,11 +181,7 @@ export async function expireInternalTrialIfCurrent(
   const subscription = await ctx.db.get(args.subscriptionId);
   if (!subscription) return false;
 
-  const patch = internalTrialExpiryPatch(
-    subscription,
-    args.expectedCurrentPeriodEnd,
-    args.now,
-  );
+  const patch = internalTrialExpiryPatch(subscription, args.expectedCurrentPeriodEnd, args.now);
   if (!patch) return false;
 
   await ctx.db.patch(args.subscriptionId, patch);
@@ -213,10 +209,7 @@ export const expireOverdueInternalTrials = internalMutation({
     const overdue = await ctx.db
       .query('subscriptions')
       .withIndex('by_status_and_stripeSubscriptionId_and_currentPeriodEnd', (q) =>
-        q
-          .eq('status', 'trialing')
-          .eq('stripeSubscriptionId', '')
-          .lte('currentPeriodEnd', now),
+        q.eq('status', 'trialing').eq('stripeSubscriptionId', '').lte('currentPeriodEnd', now),
       )
       .take(EXPIRY_SWEEP_BATCH_SIZE);
 
