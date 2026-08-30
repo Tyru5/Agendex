@@ -1,11 +1,11 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import { api, internal } from './_generated/api';
-import type { Doc } from './_generated/dataModel';
 import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { isVisiblePlan } from './planVisibility';
+import { sharedPlanDtoValidator, toSharedPlanDto } from './sharedPlanDto';
 
 // Random salt via Web Crypto — only safe from actions, not from deterministic mutations/queries (Convex runtimes docs).
 async function hashPassword(password: string): Promise<string> {
@@ -263,6 +263,13 @@ export const getShareLinks = query({
 
 export const getShareLinkAndPlanInternal = internalQuery({
   args: { token: v.string() },
+  returns: v.union(
+    v.object({
+      plan: sharedPlanDtoValidator,
+      passwordHash: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
     const shareLink = await ctx.db
       .query('shareLinks')
@@ -274,13 +281,17 @@ export const getShareLinkAndPlanInternal = internalQuery({
     const plan = await ctx.db.get(shareLink.planId);
     if (!plan || !isVisiblePlan(plan)) return null;
 
-    return { shareLink, plan };
+    return {
+      plan: toSharedPlanDto(plan),
+      ...(shareLink.passwordHash !== undefined && { passwordHash: shareLink.passwordHash }),
+    };
   },
 });
 
 export const getSharedPlanWithPassword = action({
   args: { token: v.string(), password: v.string() },
-  handler: async (ctx, args): Promise<Doc<'plans'>> => {
+  returns: sharedPlanDtoValidator,
+  handler: async (ctx, args) => {
     const result = await ctx.runQuery(internal.sharing.getShareLinkAndPlanInternal, {
       token: args.token,
     });
@@ -289,13 +300,13 @@ export const getSharedPlanWithPassword = action({
       throw new ConvexError('Invalid or revoked share link');
     }
 
-    const { shareLink, plan } = result;
+    const { passwordHash, plan } = result;
 
-    if (!shareLink.passwordHash) {
+    if (!passwordHash) {
       return plan;
     }
 
-    const valid = await verifyPassword(args.password, shareLink.passwordHash);
+    const valid = await verifyPassword(args.password, passwordHash);
     if (!valid) {
       throw new ConvexError('Incorrect password');
     }

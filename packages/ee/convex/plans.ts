@@ -16,6 +16,7 @@ import {
 } from './planVisibility';
 import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from './planVersioning';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
+import { sharedPlanDtoValidator, toSharedPlanDto } from './sharedPlanDto';
 
 export const publishPlan = mutation({
   args: {
@@ -293,6 +294,12 @@ export const getPlan = query({
 
 export const getPlanByShareToken = query({
   args: { token: v.string() },
+  returns: v.union(
+    sharedPlanDtoValidator,
+    v.object({
+      passwordRequired: v.literal(true),
+    }),
+  ),
   handler: async (ctx, args) => {
     const shareLink = await ctx.db
       .query('shareLinks')
@@ -312,7 +319,7 @@ export const getPlanByShareToken = query({
       return { passwordRequired: true as const };
     }
 
-    return plan;
+    return toSharedPlanDto(plan);
   },
 });
 
