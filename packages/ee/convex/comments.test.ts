@@ -1,9 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { Id } from './_generated/dataModel';
-import {
-  cleanupExpiredCommentUploads,
-  COMMENT_UPLOAD_CLEANUP_BATCH_SIZE,
-} from './comments';
+import { cleanupExpiredCommentUploads, COMMENT_UPLOAD_CLEANUP_BATCH_SIZE } from './comments';
 
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -62,9 +59,7 @@ function createCleanupFixture(options: {
   const deletedStorageIds: StorageId[] = [];
   let scannedGlobalStorage = false;
 
-  function rowsFor(
-    table: string,
-  ): Array<ReservationRow | PendingUploadRow | AttachmentClaimRow> {
+  function rowsFor(table: string): Array<ReservationRow | PendingUploadRow | AttachmentClaimRow> {
     if (table === 'commentUploadReservations') return reservations;
     if (table === 'pendingUploads') return pendingUploads;
     if (table === 'commentAttachmentClaims') return attachmentClaims;
@@ -187,9 +182,7 @@ test('comment cleanup preserves a ready seven-day export and unrelated storage o
         storageId: freshCommentUpload,
       },
     ],
-    attachmentClaims: [
-      { _id: 'attachment-claim', storageId: referencedCommentUpload },
-    ],
+    attachmentClaims: [{ _id: 'attachment-claim', storageId: referencedCommentUpload }],
     storedObjects: [
       { storageId: orphanedCommentUpload, createdAt: staleCreatedAt },
       { storageId: referencedCommentUpload, createdAt: staleCreatedAt },

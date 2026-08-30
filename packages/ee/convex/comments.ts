@@ -62,7 +62,6 @@ async function isCommentReferencedStorageId(
   return claim !== null;
 }
 
-
 async function createCommentAttachmentClaims(
   ctx: Pick<MutationCtx, 'db'>,
   commentId: Id<'comments'>,
