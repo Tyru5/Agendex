@@ -70,9 +70,7 @@ export function canonicalSubscriptionSnapshot(
   return {
     userId,
     stripeCustomerId:
-      typeof subscription.customer === 'string'
-        ? subscription.customer
-        : subscription.customer.id,
+      typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
     stripeSubscriptionId: subscription.id,
     status: subscription.status,
     plan: resolveSubscriptionPlan(subscription, prices),
@@ -361,9 +359,7 @@ export const syncCanonicalSubscription = internalMutation({
       existingBySubscription ??
       (await ctx.db
         .query('subscriptions')
-        .withIndex('by_stripe_customer', (q) =>
-          q.eq('stripeCustomerId', args.stripeCustomerId),
-        )
+        .withIndex('by_stripe_customer', (q) => q.eq('stripeCustomerId', args.stripeCustomerId))
         .first());
 
     let existing = existingByCustomer;
