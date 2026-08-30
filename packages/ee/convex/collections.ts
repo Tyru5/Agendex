@@ -1,10 +1,52 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
+import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { collectionValidator } from './validators';
+
+const collectionValidator = v.object({
+  _id: v.id('collections'),
+  _creationTime: v.number(),
+  ownerId: v.string(),
+  name: v.string(),
+  nameLc: v.string(),
+  description: v.optional(v.string()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+});
+
+const MAX_COLLECTION_RESULTS = 1000;
+const MAX_COLLECTION_MEMBERSHIPS = 1000;
+
+function requireOwnedCollection(
+  collection: Doc<'collections'> | null,
+  ownerId: string,
+): Doc<'collections'> {
+  if (!collection || collection.ownerId !== ownerId) {
+    throw new ConvexError('Collection not found');
+  }
+  return collection;
+}
+
+function requireOwnedPlan(plan: Doc<'plans'> | null, ownerId: string): Doc<'plans'> {
+  if (!plan || plan.ownerId !== ownerId) {
+    throw new ConvexError('Plan not found');
+  }
+  return plan;
+}
+
+function requireOwnedCollectionPlan(
+  collectionPlan: Doc<'collectionPlans'> | null,
+  ownerId: string,
+): Doc<'collectionPlans'> {
+  if (!collectionPlan || collectionPlan.ownerId !== ownerId) {
+    throw new ConvexError('Plan not in collection');
+  }
+  return collectionPlan;
+}
 
 export const listMyCollections = query({
   args: {},
@@ -18,7 +60,7 @@ export const listMyCollections = query({
     return await ctx.db
       .query('collections')
       .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
-      .collect();
+      .take(MAX_COLLECTION_RESULTS);
   },
 });
 
@@ -62,10 +104,7 @@ export const renameCollection = mutation({
 
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
 
-    const collection = await ctx.db.get(args.collectionId);
-    if (!collection || collection.ownerId !== user._id) {
-      throw new ConvexError('Collection not found');
-    }
+    requireOwnedCollection(await ctx.db.get(args.collectionId), user._id);
 
     const nameLc = args.name.trim().toLowerCase();
     if (!nameLc) throw new ConvexError('Collection name cannot be empty');
@@ -97,36 +136,38 @@ export const deleteCollection = mutation({
 
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
 
-    const collection = await ctx.db.get(args.collectionId);
-    if (!collection || collection.ownerId !== user._id) {
-      throw new ConvexError('Collection not found');
-    }
+    requireOwnedCollection(await ctx.db.get(args.collectionId), user._id);
 
     await ctx.db.delete(args.collectionId);
     await ctx.scheduler.runAfter(0, internal.collections.cleanupCollectionPlans, {
       collectionId: args.collectionId,
+      ownerId: user._id,
     });
     return null;
   },
 });
 
 export const cleanupCollectionPlans = internalMutation({
-  args: { collectionId: v.id('collections') },
+  args: { collectionId: v.id('collections'), ownerId: v.string() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const batch = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_collection', (q) => q.eq('collectionId', args.collectionId))
+      .withIndex('by_owner_and_collection', (q) =>
+        q.eq('ownerId', args.ownerId).eq('collectionId', args.collectionId),
+      )
       .take(500);
 
-    for (const cp of batch) {
-      await ctx.db.delete(cp._id);
+    for (const collectionPlan of batch) {
+      if (collectionPlan.ownerId === args.ownerId) {
+        await ctx.db.delete(collectionPlan._id);
+      }
     }
 
     if (batch.length === 500) {
-      await ctx.scheduler.runAfter(0, internal.collections.cleanupCollectionPlans, {
-        collectionId: args.collectionId,
-      });
+      await ctx.scheduler.runAfter(0, internal.collections.cleanupCollectionPlans, args);
     }
+    return null;
   },
 });
 
@@ -139,19 +180,21 @@ export const addPlanToCollection = mutation({
 
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
 
-    const collection = await ctx.db.get(args.collectionId);
-    if (!collection || collection.ownerId !== user._id) {
-      throw new ConvexError('Collection not found');
-    }
+    const [collection, plan] = await Promise.all([
+      ctx.db.get(args.collectionId),
+      ctx.db.get(args.planId),
+    ]);
+    requireOwnedCollection(collection, user._id);
+    requireOwnedPlan(plan, user._id);
 
     const existing = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_collection_plan', (q) =>
-        q.eq('collectionId', args.collectionId).eq('planId', args.planId),
+      .withIndex('by_owner_and_collection_and_plan', (q) =>
+        q.eq('ownerId', user._id).eq('collectionId', args.collectionId).eq('planId', args.planId),
       )
       .first();
 
-    if (existing) return existing._id;
+    if (existing) return requireOwnedCollectionPlan(existing, user._id)._id;
 
     return await ctx.db.insert('collectionPlans', {
       ownerId: user._id,
@@ -171,17 +214,21 @@ export const removePlanFromCollection = mutation({
 
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
 
+    const [collection, plan] = await Promise.all([
+      ctx.db.get(args.collectionId),
+      ctx.db.get(args.planId),
+    ]);
+    requireOwnedCollection(collection, user._id);
+    requireOwnedPlan(plan, user._id);
+
     const row = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_collection_plan', (q) =>
-        q.eq('collectionId', args.collectionId).eq('planId', args.planId),
+      .withIndex('by_owner_and_collection_and_plan', (q) =>
+        q.eq('ownerId', user._id).eq('collectionId', args.collectionId).eq('planId', args.planId),
       )
       .first();
 
-    if (!row) throw new ConvexError('Plan not in collection');
-    if (row.ownerId !== user._id) throw new ConvexError('Access denied');
-
-    await ctx.db.delete(row._id);
+    await ctx.db.delete(requireOwnedCollectionPlan(row, user._id)._id);
     return null;
   },
 });
@@ -194,13 +241,23 @@ export const getCollectionsForPlan = query({
     if (!user) throw new ConvexError('Unauthenticated');
 
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
+    requireOwnedPlan(await ctx.db.get(args.planId), user._id);
 
     const rows = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
-      .collect();
+      .withIndex('by_owner_and_plan', (q) => q.eq('ownerId', user._id).eq('planId', args.planId))
+      .take(MAX_COLLECTION_MEMBERSHIPS);
+    const collections = await Promise.all(rows.map((row) => ctx.db.get(row.collectionId)));
+    const collectionIds: Id<'collections'>[] = [];
 
-    return rows.map((r) => r.collectionId);
+    for (const [index, row] of rows.entries()) {
+      const collection = collections[index];
+      if (row.ownerId === user._id && collection?.ownerId === user._id) {
+        collectionIds.push(collection._id);
+      }
+    }
+
+    return collectionIds;
   },
 });
 
@@ -212,17 +269,24 @@ export const getPlansInCollection = query({
     if (!user) throw new ConvexError('Unauthenticated');
 
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
-
-    const collection = await ctx.db.get(args.collectionId);
-    if (!collection || collection.ownerId !== user._id) {
-      throw new ConvexError('Collection not found');
-    }
+    requireOwnedCollection(await ctx.db.get(args.collectionId), user._id);
 
     const rows = await ctx.db
       .query('collectionPlans')
-      .withIndex('by_collection', (q) => q.eq('collectionId', args.collectionId))
-      .collect();
+      .withIndex('by_owner_and_collection', (q) =>
+        q.eq('ownerId', user._id).eq('collectionId', args.collectionId),
+      )
+      .take(MAX_COLLECTION_MEMBERSHIPS);
+    const plans = await Promise.all(rows.map((row) => ctx.db.get(row.planId)));
+    const planIds: Id<'plans'>[] = [];
 
-    return rows.map((r) => r.planId);
+    for (const [index, row] of rows.entries()) {
+      const plan = plans[index];
+      if (row.ownerId === user._id && plan?.ownerId === user._id) {
+        planIds.push(plan._id);
+      }
+    }
+
+    return planIds;
   },
 });

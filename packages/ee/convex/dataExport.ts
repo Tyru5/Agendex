@@ -1,7 +1,5 @@
-import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
-import type { Id } from './_generated/dataModel';
 import {
   internalMutation,
   internalQuery,
@@ -12,10 +10,14 @@ import {
 import { authComponent } from './auth';
 import {
   DATA_EXPORT_TTL_MS,
+  decideExportBuildClaim,
   isExportDownloadAvailable,
   redactShareLink,
   type ShareLinkForExport,
 } from './dataExportRedaction';
+
+const EXPORT_PAGE_SIZE = 50;
+const EXPORT_BUILD_LEASE_MS = 10 * 60 * 1000;
 
 const dataExportStatusValidator = v.union(
   v.literal('pending'),
@@ -35,6 +37,47 @@ const dataExportSummaryValidator = v.object({
   fileName: v.union(v.string(), v.null()),
   downloadUrl: v.union(v.string(), v.null()),
 });
+
+const serializedPageValidator = v.object({
+  rowsJson: v.string(),
+  isDone: v.boolean(),
+  continueCursor: v.string(),
+});
+
+const accountSectionValidator = v.union(
+  v.literal('preferences'),
+  v.literal('subscriptions'),
+  v.literal('workspaceMembersAsOwner'),
+  v.literal('workspaceMembersAsMember'),
+  v.literal('workspaceInvites'),
+  v.literal('heartbeats'),
+  v.literal('tags'),
+  v.literal('collections'),
+  v.literal('collectionPlans'),
+  v.literal('planPreferences'),
+  v.literal('agentAvatars'),
+  v.literal('pendingUploads'),
+  v.literal('uploadReservations'),
+  v.literal('avatarUploadReservations'),
+);
+
+const planSectionValidator = v.union(
+  v.literal('versions'),
+  v.literal('annotations'),
+  v.literal('comments'),
+  v.literal('shareLinks'),
+  v.literal('planLinks'),
+  v.literal('writebacks'),
+  v.literal('planTags'),
+);
+
+function serializePage(result: { page: unknown[]; isDone: boolean; continueCursor: string }) {
+  return {
+    rowsJson: JSON.stringify(result.page),
+    isDone: result.isDone,
+    continueCursor: result.continueCursor,
+  };
+}
 
 async function requireAuthUser(ctx: QueryCtx) {
   const user = await authComponent.safeGetAuthUser(ctx);
@@ -59,11 +102,16 @@ export const requestDataExport = mutation({
   handler: async (ctx) => {
     const user = await requireAuthUser(ctx);
     const ownerId = String(user._id);
+    const deletionJob = await ctx.db
+      .query('accountDeletionJobs')
+      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+      .first();
+    if (deletionJob) {
+      throw new ConvexError('Account deletion is already in progress');
+    }
 
     const active = await findActiveExport(ctx, ownerId);
-    if (active) {
-      throw new ConvexError('A data export is already in progress');
-    }
+    if (active) return { exportId: active._id };
 
     const now = Date.now();
     const exportId = await ctx.db.insert('dataExports', {
@@ -74,10 +122,7 @@ export const requestDataExport = mutation({
       expiresAt: now + DATA_EXPORT_TTL_MS,
     });
 
-    await ctx.scheduler.runAfter(0, internal.dataExportActions.buildDataExport, {
-      exportId,
-    });
-
+    await ctx.scheduler.runAfter(0, internal.dataExportActions.buildDataExport, { exportId });
     return { exportId };
   },
 });
@@ -95,7 +140,6 @@ export const getMyDataExport = query({
       .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
       .order('desc')
       .first();
-
     if (!latest) return null;
 
     let downloadUrl: string | null = null;
@@ -151,35 +195,66 @@ export const getExportJob = internalQuery({
   },
 });
 
-export const markExportBuilding = internalMutation({
-  args: { exportId: v.id('dataExports') },
-  returns: v.null(),
-  handler: async (ctx, { exportId }) => {
+export const claimExportBuild = internalMutation({
+  args: {
+    exportId: v.id('dataExports'),
+    buildToken: v.string(),
+  },
+  returns: v.object({
+    acquired: v.boolean(),
+    retryAfterMs: v.union(v.number(), v.null()),
+  }),
+  handler: async (ctx, { exportId, buildToken }) => {
     const job = await ctx.db.get(exportId);
-    if (!job) return null;
-    if (job.status !== 'pending' && job.status !== 'building') return null;
-    await ctx.db.patch(exportId, { status: 'building', updatedAt: Date.now() });
-    return null;
+    if (!job) return { acquired: false, retryAfterMs: null };
+
+    const now = Date.now();
+    const decision = decideExportBuildClaim({
+      status: job.status,
+      currentToken: job.buildToken,
+      leaseExpiresAt: job.buildLeaseExpiresAt,
+      proposedToken: buildToken,
+      now,
+    });
+    if (decision === 'terminal') return { acquired: false, retryAfterMs: null };
+    if (decision === 'retry') {
+      return {
+        acquired: false,
+        retryAfterMs: Math.max(1_000, (job.buildLeaseExpiresAt ?? now) - now + 1_000),
+      };
+    }
+
+    await ctx.db.patch(exportId, {
+      status: 'building',
+      buildToken,
+      buildLeaseExpiresAt: now + EXPORT_BUILD_LEASE_MS,
+      error: undefined,
+      updatedAt: now,
+    });
+    return { acquired: true, retryAfterMs: null };
   },
 });
 
 export const markExportReady = internalMutation({
   args: {
     exportId: v.id('dataExports'),
+    buildToken: v.string(),
     storageId: v.id('_storage'),
     byteSize: v.number(),
     fileName: v.string(),
   },
-  returns: v.null(),
+  returns: v.boolean(),
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.exportId);
-    if (!job) return null;
+    if (!job || job.status !== 'building' || job.buildToken !== args.buildToken) {
+      const metadata = await ctx.db.system.get(args.storageId);
+      if (metadata) await ctx.storage.delete(args.storageId);
+      return false;
+    }
+
     if (job.storageId && job.storageId !== args.storageId) {
-      try {
-        await ctx.storage.delete(job.storageId);
-      } catch {
-        // Previous blob may already be gone.
-      }
+      const metadata = await ctx.db.system.get(job.storageId);
+      if (metadata) await ctx.storage.delete(job.storageId);
     }
     await ctx.db.patch(args.exportId, {
       status: 'ready',
@@ -187,328 +262,303 @@ export const markExportReady = internalMutation({
       byteSize: args.byteSize,
       fileName: args.fileName,
       error: undefined,
+      buildToken: undefined,
+      buildLeaseExpiresAt: undefined,
       updatedAt: Date.now(),
     });
-    return null;
+    return true;
   },
 });
 
 export const markExportFailed = internalMutation({
   args: {
     exportId: v.id('dataExports'),
+    buildToken: v.string(),
     error: v.string(),
   },
   returns: v.null(),
-  handler: async (ctx, { exportId, error }) => {
+  handler: async (ctx, { exportId, buildToken, error }) => {
     const job = await ctx.db.get(exportId);
-    if (!job) return null;
+    if (!job || job.status !== 'building' || job.buildToken !== buildToken) return null;
     await ctx.db.patch(exportId, {
       status: 'failed',
       error,
+      buildToken: undefined,
+      buildLeaseExpiresAt: undefined,
       updatedAt: Date.now(),
     });
     return null;
   },
 });
 
-export const collectAccountBundle = internalQuery({
-  args: { ownerId: v.string() },
-  handler: async (ctx, { ownerId }) => {
-    const preferences = await ctx.db
-      .query('accountPreferences')
-      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
-      .collect();
-
-    const subscriptions = await ctx.db
-      .query('subscriptions')
-      .withIndex('by_user', (q) => q.eq('userId', ownerId))
-      .collect();
-
-    const workspaceMembersAsOwner = await ctx.db
-      .query('workspaceMembers')
-      .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', ownerId))
-      .collect();
-
-    const workspaceMembersAsMember = await ctx.db
-      .query('workspaceMembers')
-      .withIndex('by_member', (q) => q.eq('memberId', ownerId))
-      .collect();
-
-    const workspaceInvites = await ctx.db
-      .query('workspaceInvites')
-      .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', ownerId))
-      .collect();
-
-    const heartbeats = await ctx.db
-      .query('daemonHeartbeats')
-      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
-      .collect();
-
-    const tags = await ctx.db
-      .query('tags')
-      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
-      .collect();
-
-    const collections = await ctx.db
-      .query('collections')
-      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
-      .collect();
-
-    const collectionsWithPlans = [];
-    for (const collection of collections) {
-      const plans = await ctx.db
-        .query('collectionPlans')
-        .withIndex('by_collection', (q) => q.eq('collectionId', collection._id))
-        .collect();
-      collectionsWithPlans.push({ ...collection, plans });
+export const listAccountSectionPage = internalQuery({
+  args: {
+    ownerId: v.string(),
+    section: accountSectionValidator,
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: serializedPageValidator,
+  handler: async (ctx, { ownerId, section, cursor }) => {
+    const paginationOpts = { cursor, numItems: EXPORT_PAGE_SIZE };
+    switch (section) {
+      case 'preferences':
+        return serializePage(
+          await ctx.db
+            .query('accountPreferences')
+            .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'subscriptions':
+        return serializePage(
+          await ctx.db
+            .query('subscriptions')
+            .withIndex('by_user', (q) => q.eq('userId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'workspaceMembersAsOwner':
+        return serializePage(
+          await ctx.db
+            .query('workspaceMembers')
+            .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'workspaceMembersAsMember':
+        return serializePage(
+          await ctx.db
+            .query('workspaceMembers')
+            .withIndex('by_member', (q) => q.eq('memberId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'workspaceInvites':
+        return serializePage(
+          await ctx.db
+            .query('workspaceInvites')
+            .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'heartbeats':
+        return serializePage(
+          await ctx.db
+            .query('daemonHeartbeats')
+            .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'tags':
+        return serializePage(
+          await ctx.db
+            .query('tags')
+            .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'collections':
+        return serializePage(
+          await ctx.db
+            .query('collections')
+            .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'collectionPlans':
+        return serializePage(
+          await ctx.db
+            .query('collectionPlans')
+            .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'planPreferences':
+        return serializePage(
+          await ctx.db
+            .query('planPreferences')
+            .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'agentAvatars':
+        return serializePage(
+          await ctx.db
+            .query('agentAvatars')
+            .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'pendingUploads':
+        return serializePage(
+          await ctx.db
+            .query('pendingUploads')
+            .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'uploadReservations':
+        return serializePage(
+          await ctx.db
+            .query('commentUploadReservations')
+            .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', ownerId))
+            .paginate(paginationOpts),
+        );
+      case 'avatarUploadReservations':
+        return serializePage(
+          await ctx.db
+            .query('agentAvatarUploadReservations')
+            .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+            .paginate(paginationOpts),
+        );
     }
-
-    const planPreferences = await ctx.db
-      .query('planPreferences')
-      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
-      .collect();
-
-    const agentAvatars = await ctx.db
-      .query('agentAvatars')
-      .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
-      .collect();
-
-    const pendingUploads = await ctx.db
-      .query('pendingUploads')
-      .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', ownerId))
-      .collect();
-
-    const uploadReservations = await ctx.db
-      .query('commentUploadReservations')
-      .withIndex('by_uploadedBy', (q) => q.eq('uploadedBy', ownerId))
-      .collect();
-
-    const attachmentBlobs: Array<{
-      storageId: Id<'_storage'>;
-      fileName: string | null;
-      contentType: string;
-      size: number;
-      planId: Id<'plans'> | null;
-      commentId: Id<'comments'> | null;
-      kind: 'comment' | 'avatar' | 'pending';
-      agent: string | null;
-    }> = [];
-
-    for (const avatar of agentAvatars) {
-      attachmentBlobs.push({
-        storageId: avatar.storageId,
-        fileName: avatar.agent,
-        contentType: 'application/octet-stream',
-        size: 0,
-        planId: null,
-        commentId: null,
-        kind: 'avatar',
-        agent: avatar.agent,
-      });
-    }
-
-    for (const pending of pendingUploads) {
-      attachmentBlobs.push({
-        storageId: pending.storageId,
-        fileName: null,
-        contentType: 'application/octet-stream',
-        size: 0,
-        planId: pending.planId,
-        commentId: null,
-        kind: 'pending',
-        agent: null,
-      });
-    }
-
-    return {
-      preferences,
-      subscriptions,
-      workspaceMembers: {
-        asOwner: workspaceMembersAsOwner,
-        asMember: workspaceMembersAsMember,
-      },
-      workspaceInvites,
-      heartbeats,
-      tags,
-      collections: collectionsWithPlans,
-      planPreferences,
-      agentAvatars,
-      pendingUploads,
-      uploadReservations,
-      attachmentBlobs,
-    };
   },
 });
 
 export const listOwnedPlansPage = internalQuery({
   args: {
     ownerId: v.string(),
-    paginationOpts: paginationOptsValidator,
+    cursor: v.union(v.string(), v.null()),
   },
-  handler: async (ctx, { ownerId, paginationOpts }) => {
-    return await ctx.db
+  returns: v.object({
+    planIds: v.array(v.id('plans')),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, { ownerId, cursor }) => {
+    const result = await ctx.db
       .query('plans')
       .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
       .order('asc')
-      .paginate(paginationOpts);
-  },
-});
-
-export const collectPlanBundle = internalQuery({
-  args: {
-    ownerId: v.string(),
-    planId: v.id('plans'),
-  },
-  handler: async (ctx, { ownerId, planId }) => {
-    const plan = await ctx.db.get(planId);
-    if (!plan || plan.ownerId !== ownerId) return null;
-
-    const versions = await ctx.db
-      .query('planVersions')
-      .withIndex('by_plan', (q) => q.eq('planId', planId))
-      .collect();
-
-    const annotations = await ctx.db
-      .query('planAnnotations')
-      .withIndex('by_plan', (q) => q.eq('planId', planId))
-      .collect();
-
-    const comments = await ctx.db
-      .query('comments')
-      .withIndex('by_plan', (q) => q.eq('planId', planId))
-      .collect();
-
-    const shareLinksRaw = await ctx.db
-      .query('shareLinks')
-      .withIndex('by_plan', (q) => q.eq('planId', planId))
-      .collect();
-
-    const shareLinks = shareLinksRaw.map((link) =>
-      redactShareLink({
-        _id: link._id,
-        planId: link.planId,
-        token: link.token,
-        createdBy: link.createdBy,
-        createdAt: link.createdAt,
-        passwordHash: link.passwordHash,
-      } satisfies ShareLinkForExport),
-    );
-
-    const planLinks = await ctx.db
-      .query('planLinks')
-      .withIndex('by_plan', (q) => q.eq('planId', planId))
-      .collect();
-
-    const writebacks = await ctx.db
-      .query('plannotatorWritebacks')
-      .withIndex('by_plan', (q) => q.eq('planId', planId))
-      .collect();
-
-    const planTags = await ctx.db
-      .query('planTags')
-      .withIndex('by_plan', (q) => q.eq('planId', planId))
-      .collect();
-
-    const attachmentClaims = [];
-    const attachmentBlobs: Array<{
-      storageId: Id<'_storage'>;
-      fileName: string | null;
-      contentType: string;
-      size: number;
-      planId: Id<'plans'>;
-      commentId: Id<'comments'>;
-      kind: 'comment';
-      agent: null;
-    }> = [];
-
-    for (const comment of comments) {
-      const claims = await ctx.db
-        .query('commentAttachmentClaims')
-        .withIndex('by_comment', (q) => q.eq('commentId', comment._id))
-        .collect();
-      attachmentClaims.push(...claims);
-
-      for (const attachment of comment.attachments ?? []) {
-        attachmentBlobs.push({
-          storageId: attachment.storageId,
-          fileName: attachment.fileName ?? null,
-          contentType: attachment.contentType,
-          size: attachment.size,
-          planId,
-          commentId: comment._id,
-          kind: 'comment',
-          agent: null,
-        });
-      }
-    }
-
+      .paginate({ cursor, numItems: EXPORT_PAGE_SIZE });
     return {
-      plan,
-      versions,
-      annotations,
-      comments,
-      attachmentClaims,
-      shareLinks,
-      planLinks,
-      writebacks,
-      planTags,
-      attachmentBlobs,
+      planIds: result.page.map((plan) => plan._id),
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
     };
   },
 });
 
-export const collectAuthoredElsewhereComments = internalQuery({
+export const getOwnedPlanJson = internalQuery({
   args: {
     ownerId: v.string(),
+    planId: v.id('plans'),
   },
-  handler: async (ctx, { ownerId }) => {
-    // Comments have no by_author index; same approach as purgeUserData.
-    const authored = await ctx.db
-      .query('comments')
-      .filter((q) => q.eq(q.field('authorId'), ownerId))
-      .collect();
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, { ownerId, planId }) => {
+    const plan = await ctx.db.get(planId);
+    if (!plan || plan.ownerId !== ownerId) return null;
+    return JSON.stringify(plan);
+  },
+});
 
-    const elsewhere = [];
-    for (const comment of authored) {
-      const plan = await ctx.db.get(comment.planId);
-      if (!plan || plan.ownerId === ownerId) continue;
-      elsewhere.push(comment);
-    }
+export const listPlanSectionPage = internalQuery({
+  args: {
+    ownerId: v.string(),
+    planId: v.id('plans'),
+    section: planSectionValidator,
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: v.union(serializedPageValidator, v.null()),
+  handler: async (ctx, { ownerId, planId, section, cursor }) => {
+    const plan = await ctx.db.get(planId);
+    if (!plan || plan.ownerId !== ownerId) return null;
+    const paginationOpts = { cursor, numItems: EXPORT_PAGE_SIZE };
 
-    const attachmentClaims = [];
-    const attachmentBlobs: Array<{
-      storageId: Id<'_storage'>;
-      fileName: string | null;
-      contentType: string;
-      size: number;
-      planId: Id<'plans'>;
-      commentId: Id<'comments'>;
-      kind: 'comment';
-      agent: null;
-    }> = [];
-
-    for (const comment of elsewhere) {
-      const claims = await ctx.db
-        .query('commentAttachmentClaims')
-        .withIndex('by_comment', (q) => q.eq('commentId', comment._id))
-        .collect();
-      attachmentClaims.push(...claims);
-
-      for (const attachment of comment.attachments ?? []) {
-        attachmentBlobs.push({
-          storageId: attachment.storageId,
-          fileName: attachment.fileName ?? null,
-          contentType: attachment.contentType,
-          size: attachment.size,
-          planId: comment.planId,
-          commentId: comment._id,
-          kind: 'comment',
-          agent: null,
-        });
+    switch (section) {
+      case 'versions':
+        return serializePage(
+          await ctx.db
+            .query('planVersions')
+            .withIndex('by_plan', (q) => q.eq('planId', planId))
+            .paginate(paginationOpts),
+        );
+      case 'annotations':
+        return serializePage(
+          await ctx.db
+            .query('planAnnotations')
+            .withIndex('by_plan', (q) => q.eq('planId', planId))
+            .paginate(paginationOpts),
+        );
+      case 'comments':
+        return serializePage(
+          await ctx.db
+            .query('comments')
+            .withIndex('by_plan', (q) => q.eq('planId', planId))
+            .paginate(paginationOpts),
+        );
+      case 'shareLinks': {
+        const result = await ctx.db
+          .query('shareLinks')
+          .withIndex('by_plan', (q) => q.eq('planId', planId))
+          .paginate(paginationOpts);
+        const page = result.page.map((link) =>
+          redactShareLink({
+            _id: link._id,
+            planId: link.planId,
+            token: link.token,
+            createdBy: link.createdBy,
+            createdAt: link.createdAt,
+            passwordHash: link.passwordHash,
+          } satisfies ShareLinkForExport),
+        );
+        return serializePage({ ...result, page });
       }
+      case 'planLinks':
+        return serializePage(
+          await ctx.db
+            .query('planLinks')
+            .withIndex('by_plan', (q) => q.eq('planId', planId))
+            .paginate(paginationOpts),
+        );
+      case 'writebacks':
+        return serializePage(
+          await ctx.db
+            .query('plannotatorWritebacks')
+            .withIndex('by_plan', (q) => q.eq('planId', planId))
+            .paginate(paginationOpts),
+        );
+      case 'planTags':
+        return serializePage(
+          await ctx.db
+            .query('planTags')
+            .withIndex('by_plan', (q) => q.eq('planId', planId))
+            .paginate(paginationOpts),
+        );
+    }
+  },
+});
+
+export const listAuthoredElsewhereCommentsPage = internalQuery({
+  args: {
+    ownerId: v.string(),
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: serializedPageValidator,
+  handler: async (ctx, { ownerId, cursor }) => {
+    const result = await ctx.db
+      .query('comments')
+      .withIndex('by_author', (q) => q.eq('authorId', ownerId))
+      .paginate({ cursor, numItems: EXPORT_PAGE_SIZE });
+
+    const page = [];
+    for (const comment of result.page) {
+      const plan = await ctx.db.get(comment.planId);
+      if (plan && plan.ownerId !== ownerId) page.push(comment);
+    }
+    return serializePage({ ...result, page });
+  },
+});
+
+export const listCommentClaimsPage = internalQuery({
+  args: {
+    ownerId: v.string(),
+    commentId: v.id('comments'),
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: serializedPageValidator,
+  handler: async (ctx, { ownerId, commentId, cursor }) => {
+    const comment = await ctx.db.get(commentId);
+    if (!comment) return { rowsJson: '[]', isDone: true, continueCursor: cursor ?? '' };
+    const plan = await ctx.db.get(comment.planId);
+    if (comment.authorId !== ownerId && plan?.ownerId !== ownerId) {
+      return { rowsJson: '[]', isDone: true, continueCursor: cursor ?? '' };
     }
 
-    return { comments: elsewhere, attachmentClaims, attachmentBlobs };
+    return serializePage(
+      await ctx.db
+        .query('commentAttachmentClaims')
+        .withIndex('by_comment', (q) => q.eq('commentId', commentId))
+        .paginate({ cursor, numItems: EXPORT_PAGE_SIZE }),
+    );
   },
 });
 
@@ -537,11 +587,9 @@ export const deleteExpiredDataExports = internalMutation({
       deleted += 1;
     }
 
-    // Continue until the expired set is drained (batch size is a mutation budget).
     if (deleted === EXPIRED_EXPORT_DELETE_BATCH) {
       await ctx.scheduler.runAfter(0, internal.dataExport.deleteExpiredDataExports, {});
     }
-
     return { deleted };
   },
 });

@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
+import { accountDeletionPhaseValidator } from './accountDeletionState';
 
 const plannotatorPlanAnnotation = v.object({
   id: v.optional(v.string()),
@@ -76,6 +77,8 @@ export default defineSchema({
     localPlanId: v.optional(v.string()),
     agent: v.string(),
     title: v.string(),
+    titleNormalized: v.optional(v.string()),
+    agentNormalized: v.optional(v.string()),
     content: v.string(),
     format: v.string(),
     filePath: v.optional(v.string()),
@@ -96,13 +99,21 @@ export default defineSchema({
     .index('by_owner_plannotatorContinuityKey', ['ownerId', 'plannotatorContinuityKey'])
     .index('by_owner_syncIdentityKey', ['ownerId', 'syncIdentityKey'])
     .index('by_owner_contentHash', ['ownerId', 'contentHash'])
+    // Transitional missing-key index used by the bounded lookup-key backfill.
+    .index('by_titleNormalized', ['titleNormalized'])
+    .index('by_owner_and_titleNormalized_and_agentNormalized', [
+      'ownerId',
+      'titleNormalized',
+      'agentNormalized',
+    ])
     // Server-side content search for the plan list. The list query no longer
     // ships `content` to clients, so full-text matching has to happen here.
     .searchIndex('search_content', {
       searchField: 'content',
       filterFields: ['ownerId', 'agent'],
     })
-    // Title search for CLI download lookup (id / name / name+agent).
+    // Bounded fuzzy suggestions for CLI download misses. Exact titles use the
+    // normalized compound index above.
     .searchIndex('search_title', {
       searchField: 'title',
       filterFields: ['ownerId', 'agent'],
@@ -116,7 +127,14 @@ export default defineSchema({
     passwordHash: v.optional(v.string()),
   })
     .index('by_token', ['token'])
-    .index('by_plan', ['planId']),
+    .index('by_plan', ['planId'])
+    .index('by_createdBy', ['createdBy']),
+
+  shareAccessProofs: defineTable({
+    shareLinkId: v.id('shareLinks'),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  }),
 
   planAnnotations: defineTable({
     planId: v.id('plans'),
@@ -156,7 +174,9 @@ export default defineSchema({
     ),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-  }).index('by_plan', ['planId']),
+  })
+    .index('by_plan', ['planId'])
+    .index('by_author', ['authorId']),
 
   planLinks: defineTable({
     ownerId: v.string(),
@@ -222,7 +242,12 @@ export default defineSchema({
   })
     .index('by_user', ['userId'])
     .index('by_stripe_customer', ['stripeCustomerId'])
-    .index('by_stripe_subscription', ['stripeSubscriptionId']),
+    .index('by_stripe_subscription', ['stripeSubscriptionId'])
+    .index('by_status_and_stripeSubscriptionId_and_currentPeriodEnd', [
+      'status',
+      'stripeSubscriptionId',
+      'currentPeriodEnd',
+    ]),
 
   workspaceMembers: defineTable({
     workspaceOwnerId: v.string(),
@@ -293,8 +318,8 @@ export default defineSchema({
   })
     .index('by_plan', ['planId'])
     .index('by_tag', ['tagId'])
-    .index('by_plan_tag', ['planId', 'tagId'])
-    .index('by_owner_plan', ['ownerId', 'planId']),
+    .index('by_owner_plan', ['ownerId', 'planId'])
+    .index('by_owner_plan_tag', ['ownerId', 'planId', 'tagId']),
 
   collections: defineTable({
     ownerId: v.string(),
@@ -314,9 +339,14 @@ export default defineSchema({
     position: v.optional(v.number()),
     createdAt: v.number(),
   })
+    .index('by_owner', ['ownerId'])
     .index('by_collection', ['collectionId'])
     .index('by_plan', ['planId'])
-    .index('by_collection_plan', ['collectionId', 'planId']),
+    .index('by_collection_plan', ['collectionId', 'planId'])
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_and_collection', ['ownerId', 'collectionId'])
+    .index('by_owner_and_plan', ['ownerId', 'planId'])
+    .index('by_owner_and_collection_and_plan', ['ownerId', 'collectionId', 'planId']),
 
   planPreferences: defineTable({
     ownerId: v.string(),
@@ -328,7 +358,8 @@ export default defineSchema({
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_plan', ['ownerId', 'planId'])
-    .index('by_owner_pinned', ['ownerId', 'pinned']),
+    .index('by_owner_pinned', ['ownerId', 'pinned'])
+    .index('by_plan', ['planId']),
 
   agentAvatars: defineTable({
     ownerId: v.string(),
@@ -339,6 +370,45 @@ export default defineSchema({
     .index('by_owner', ['ownerId'])
     .index('by_owner_agent', ['ownerId', 'agent'])
     .index('by_storage', ['storageId']),
+
+  accountDeletionJobs: defineTable({
+    ownerId: v.string(),
+    status: v.literal('deleting'),
+    phase: accountDeletionPhaseValidator,
+    activeSubscriptionId: v.optional(v.id('subscriptions')),
+    stripeSubscriptionId: v.optional(v.string()),
+    stripeCancellationRequired: v.optional(v.boolean()),
+    stripeCanceledAt: v.optional(v.number()),
+    activePlanId: v.optional(v.id('plans')),
+    planPhase: v.optional(
+      v.union(
+        v.literal('shareLinks'),
+        v.literal('comments'),
+        v.literal('pendingUploads'),
+        v.literal('commentUploadReservations'),
+        v.literal('planVersions'),
+        v.literal('planAnnotations'),
+        v.literal('plannotatorWritebacks'),
+        v.literal('planTags'),
+        v.literal('planLinks'),
+        v.literal('collectionPlans'),
+        v.literal('planPreferences'),
+      ),
+    ),
+    attempt: v.number(),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_owner', ['ownerId']),
+  agentAvatarUploadReservations: defineTable({
+    ownerId: v.string(),
+    agent: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_agent', ['ownerId', 'agent'])
+    .index('by_expiresAt', ['expiresAt']),
 
   accountPreferences: defineTable({
     ownerId: v.string(),
@@ -407,8 +477,11 @@ export default defineSchema({
     error: v.optional(v.string()),
     byteSize: v.optional(v.number()),
     fileName: v.optional(v.string()),
+    buildToken: v.optional(v.string()),
+    buildLeaseExpiresAt: v.optional(v.number()),
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_status', ['ownerId', 'status'])
-    .index('by_expiresAt', ['expiresAt']),
+    .index('by_expiresAt', ['expiresAt'])
+    .index('by_storage', ['storageId']),
 });

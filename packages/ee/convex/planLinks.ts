@@ -9,6 +9,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature, requireFeatureForUserId } from './entitlements';
+import { requireSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 
 const MAX_LINKS_PER_PLAN = 20;
 
@@ -25,27 +26,17 @@ const planGitLinkDoc = v.object({
   createdAt: v.number(),
 });
 
-async function validateShareToken(ctx: QueryCtx, planId: string, token: string): Promise<void> {
-  const shareLink = await ctx.db
-    .query('shareLinks')
-    .withIndex('by_token', (q) => q.eq('token', token))
-    .first();
-
-  if (!shareLink || shareLink.planId !== planId) {
-    throw new ConvexError('Invalid or revoked share token');
-  }
-}
-
 /**
  * Read access for git links:
  * - plan owner with GIT_LINKS entitlement
  * - workspace member of an owner with an active subscription (dashboard)
- * - valid share token (public shared plan view)
+ * - authorized share access (public shared plan view)
  */
 async function validatePlanLinkReadAccess(
   ctx: QueryCtx,
   planId: Id<'plans'>,
   token: string | undefined,
+  accessProof: Id<'shareAccessProofs'> | undefined,
 ): Promise<void> {
   const plan = await ctx.db.get(planId);
   if (!plan) throw new ConvexError('Plan not found');
@@ -70,7 +61,11 @@ async function validatePlanLinkReadAccess(
   }
 
   if (!token) throw new ConvexError('Share token required');
-  await validateShareToken(ctx, planId, token);
+  await requireSharedPlanAccess(ctx, {
+    planId,
+    token,
+    ...(accessProof ? { accessProof } : {}),
+  });
 }
 
 /** Only the plan owner (with an active subscription) may add or remove links. */
@@ -91,10 +86,14 @@ function planRepoInfo(plan: Doc<'plans'>): GitRepoInfo | undefined {
 }
 
 export const getLinks = query({
-  args: { planId: v.id('plans'), token: v.optional(v.string()) },
+  args: {
+    planId: v.id('plans'),
+    token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
+  },
   returns: v.array(planGitLinkDoc),
   handler: async (ctx, args) => {
-    await validatePlanLinkReadAccess(ctx, args.planId, args.token);
+    await validatePlanLinkReadAccess(ctx, args.planId, args.token, args.accessProof);
 
     return await ctx.db
       .query('planLinks')

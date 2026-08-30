@@ -74,6 +74,22 @@ test('usage snapshot validation strips local sources and rejects malformed windo
     '30': { days: 30, sources: [], scanDurationMs: 0 },
   });
   expect(normalizeUsageSnapshots({ '30': { ...valid, days: 7 } })).toBeUndefined();
+  expect(normalizeUsageSnapshots({ '30': { ...valid, cloudFormatVersion: 3 } })).toBeUndefined();
+  const legacyOversized = normalizeUsageSnapshots({
+    '30': {
+      ...valid,
+      dedupeKeys: Array.from({ length: 8_193 }, (_, index) => `key-${index}`),
+    },
+  })?.['30'] as { dedupeKeys?: string[] } | undefined;
+  expect(legacyOversized?.dedupeKeys).toHaveLength(8_192);
+  expect(
+    normalizeUsageSnapshots({
+      '30': {
+        ...valid,
+        dedupeKeys: Array.from({ length: 20_001 }, (_, index) => `key-${index}`),
+      },
+    }),
+  ).toBeUndefined();
   expect(
     normalizeUsageSnapshots({ '30': { ...valid, extra: 'x'.repeat(512_000) } }),
   ).toBeUndefined();
@@ -213,6 +229,206 @@ test('mergeUsageSummaries keeps unique events from partial device overlap', () =
   });
 });
 
+test('mergeUsageSummaries reconciles legacy collision events by content', () => {
+  const legacyKey = 'claude-code:shared-session:1787918400000:claude-sonnet';
+  const event = (inputTokens: number, ownershipKey?: string) => ({
+    key: legacyKey,
+    ...(ownershipKey ? { ownershipKey } : {}),
+    agent: 'claude-code',
+    model: 'claude-sonnet',
+    timestampMs: Date.parse('2026-08-28T12:00:00.000Z'),
+    bucketStart: '2026-08-28',
+    sessionId: 'shared-session',
+    totals: { ...emptyTotals, uncachedInputTokens: inputTokens },
+    costUsd: inputTokens,
+    cacheSavingsUsd: 0,
+    unpriced: false,
+  });
+  const legacyB = summary({
+    records: 1,
+    events: [event(200)],
+    agents: [],
+    models: [],
+  });
+  const legacyA = summary({
+    records: 1,
+    events: [event(100)],
+    agents: [],
+    models: [],
+  });
+  const v2A = summary({
+    cloudFormatVersion: 2,
+    records: 1,
+    dedupeKeys: ['fingerprint-a'],
+    events: [event(100, 'fingerprint-a')],
+    agents: [],
+    models: [],
+  });
+  const v2AB = summary({
+    cloudFormatVersion: 2,
+    records: 2,
+    dedupeKeys: ['fingerprint-a', 'fingerprint-b'],
+    events: [event(100, 'fingerprint-a'), event(200, 'fingerprint-b')],
+    agents: [],
+    models: [],
+  });
+  const v2Partial = summary({
+    cloudFormatVersion: 2,
+    records: 2,
+    totals: { ...emptyTotals, uncachedInputTokens: 300 },
+    totalTokens: 300,
+    costUsd: 300,
+    dedupeKeys: ['fingerprint-a', 'fingerprint-b'],
+    events: [event(100, 'fingerprint-a')],
+    agents: [],
+    models: [],
+  });
+
+  expect(mergeUsageSummaries([legacyB, v2A], 30)).toMatchObject({
+    records: 2,
+    totalTokens: 300,
+  });
+  expect(mergeUsageSummaries([legacyB, v2AB], 30)).toMatchObject({
+    records: 2,
+    totalTokens: 300,
+  });
+  expect(mergeUsageSummaries([legacyA, v2Partial], 30)).toMatchObject({
+    records: 2,
+    totalTokens: 300,
+  });
+});
+
+test('mergeUsageSummaries uses complete keys instead of a legacy partial event prefix', () => {
+  const event = (key: string) => ({
+    key,
+    agent: 'codex-cli',
+    model: 'gpt-5',
+    timestampMs: Date.parse('2026-08-28T12:00:00.000Z'),
+    bucketStart: '2026-08-28',
+    sessionId: `s-${key}`,
+    totals: { ...emptyTotals, outputTokens: 1 },
+    costUsd: 1,
+    cacheSavingsUsd: 0,
+    unpriced: false,
+  });
+  const left = summary({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    records: 3,
+    totals: { ...emptyTotals, outputTokens: 3 },
+    totalTokens: 3,
+    costUsd: 3,
+    dedupeKeys: ['a', 'b', 'c'],
+    events: [event('a')],
+    agents: [],
+    models: [],
+  });
+  const right = summary({
+    generatedAt: '2026-08-29T17:00:00.000Z',
+    records: 2,
+    totals: { ...emptyTotals, outputTokens: 2 },
+    totalTokens: 2,
+    costUsd: 2,
+    dedupeKeys: ['d', 'e'],
+    events: [event('d')],
+    agents: [],
+    models: [],
+  });
+
+  expect(mergeUsageSummaries([left, right], 30)).toMatchObject({
+    records: 5,
+    totalTokens: 5,
+    costUsd: 5,
+  });
+});
+
+test('mergeUsageSummaries uses the newest v2 aggregate when ownership keys are truncated', () => {
+  const partial = (generatedAt: string, costUsd: number, key: string) =>
+    summary({
+      generatedAt,
+      cloudFormatVersion: 2,
+      records: 1_000,
+      totals: { ...emptyTotals, outputTokens: costUsd },
+      totalTokens: costUsd,
+      costUsd,
+      dedupeKeys: [key],
+      events: [
+        {
+          key,
+          agent: 'codex-cli',
+          model: 'gpt-5',
+          timestampMs: Date.parse('2026-08-28T12:00:00.000Z'),
+          bucketStart: '2026-08-28',
+          sessionId: `s-${key}`,
+          totals: { ...emptyTotals, outputTokens: 1 },
+          costUsd: 1,
+          cacheSavingsUsd: 0,
+          unpriced: false,
+        },
+      ],
+      agents: [],
+      models: [],
+    });
+
+  const merged = mergeUsageSummaries(
+    [
+      partial('2026-08-29T18:00:00.000Z', 50, 'newest'),
+      partial('2026-08-29T17:00:00.000Z', 40, 'older'),
+    ],
+    30,
+  );
+  expect(merged).toMatchObject({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    records: 1_000,
+    totalTokens: 50,
+    costUsd: 50,
+  });
+  expect(merged).not.toHaveProperty('cloudFormatVersion');
+  expect(merged).not.toHaveProperty('dedupeKeys');
+  expect(merged).not.toHaveProperty('events');
+});
+
+test('mergeUsageSummaries keeps truncated v2 events when an exact peer exists', () => {
+  const event = (key: string, costUsd: number) => ({
+    key,
+    agent: 'codex-cli',
+    model: 'gpt-5',
+    timestampMs: Date.parse('2026-08-28T12:00:00.000Z'),
+    bucketStart: '2026-08-28',
+    sessionId: `s-${key}`,
+    totals: { ...emptyTotals, outputTokens: costUsd },
+    costUsd,
+    cacheSavingsUsd: 0,
+    unpriced: false,
+  });
+  const truncated = summary({
+    cloudFormatVersion: 2,
+    records: 1_000,
+    totals: { ...emptyTotals, outputTokens: 50 },
+    totalTokens: 50,
+    costUsd: 50,
+    dedupeKeys: ['partial'],
+    events: [event('partial', 1)],
+    agents: [],
+    models: [],
+  });
+  const exact = summary({
+    records: 1,
+    totals: { ...emptyTotals, outputTokens: 7 },
+    totalTokens: 7,
+    costUsd: 7,
+    dedupeKeys: ['exact'],
+    events: [event('exact', 7)],
+    agents: [],
+    models: [],
+  });
+
+  expect(mergeUsageSummaries([truncated, exact], 30)).toMatchObject({
+    records: 2,
+    totalTokens: 8,
+    costUsd: 8,
+  });
+});
+
 test('mergeUsageSummaries skips key-only devices that overlap eventful ones', () => {
   const eventful = summary({
     generatedAt: '2026-08-29T18:00:00.000Z',
@@ -251,7 +467,151 @@ test('mergeUsageSummaries skips key-only devices that overlap eventful ones', ()
   });
 });
 
-test('mergeUsageSummaries keeps unique events when one device is capped', () => {
+test('mergeUsageSummaries claims key-only summaries only after accepting them', () => {
+  const newest = summary({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    costUsd: 2,
+    totals: { ...emptyTotals, outputTokens: 2 },
+    totalTokens: 2,
+    dedupeKeys: ['shared'],
+    events: [],
+  });
+  const disjoint = summary({
+    generatedAt: '2026-08-29T17:00:00.000Z',
+    costUsd: 3,
+    totals: { ...emptyTotals, outputTokens: 3 },
+    totalTokens: 3,
+    dedupeKeys: ['disjoint'],
+    events: [],
+  });
+  const overlappingOlder = summary({
+    generatedAt: '2026-08-29T16:00:00.000Z',
+    costUsd: 99,
+    records: 9,
+    sessions: 9,
+    totals: { ...emptyTotals, outputTokens: 99 },
+    totalTokens: 99,
+    dedupeKeys: ['shared', 'older-only'],
+    events: [],
+  });
+
+  expect(mergeUsageSummaries([newest], 30)).toMatchObject({
+    costUsd: 2,
+    records: 1,
+    sessions: 1,
+  });
+  expect(mergeUsageSummaries([disjoint, newest], 30)).toMatchObject({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    costUsd: 5,
+    records: 2,
+    sessions: 2,
+    totalTokens: 5,
+  });
+  expect(mergeUsageSummaries([overlappingOlder, disjoint, newest], 30)).toMatchObject({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    costUsd: 5,
+    records: 2,
+    sessions: 2,
+    totalTokens: 5,
+  });
+});
+
+test('mergeUsageSummaries never sums aggregates without ownership keys', () => {
+  const newestKeyless = summary({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    costUsd: 2,
+    totals: { ...emptyTotals, outputTokens: 2 },
+    totalTokens: 2,
+    dedupeKeys: [],
+    events: [],
+  });
+  const olderKeyless = summary({
+    generatedAt: '2026-08-29T17:00:00.000Z',
+    costUsd: 99,
+    records: 9,
+    totals: { ...emptyTotals, outputTokens: 99 },
+    totalTokens: 99,
+    dedupeKeys: [],
+    events: [],
+  });
+  const owned = summary({
+    generatedAt: '2026-08-29T16:00:00.000Z',
+    costUsd: 3,
+    totals: { ...emptyTotals, outputTokens: 3 },
+    totalTokens: 3,
+    dedupeKeys: ['owned'],
+    events: [],
+  });
+
+  expect(mergeUsageSummaries([olderKeyless, newestKeyless], 30)).toMatchObject({
+    costUsd: 2,
+    records: 1,
+    totalTokens: 2,
+  });
+  expect(mergeUsageSummaries([newestKeyless, owned], 30)).toMatchObject({
+    costUsd: 3,
+    records: 1,
+    totalTokens: 3,
+  });
+});
+
+test('mergeUsageSummaries never sums truncated ownership samples', () => {
+  const newest = summary({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    costUsd: 2,
+    records: 2,
+    totals: { ...emptyTotals, outputTokens: 2 },
+    totalTokens: 2,
+    dedupeKeys: ['newest-sample'],
+    events: [],
+  });
+  const older = summary({
+    generatedAt: '2026-08-29T17:00:00.000Z',
+    costUsd: 3,
+    records: 2,
+    totals: { ...emptyTotals, outputTokens: 3 },
+    totalTokens: 3,
+    dedupeKeys: ['older-sample'],
+    events: [],
+  });
+  const idle = summary({
+    generatedAt: '2026-08-29T19:00:00.000Z',
+    costUsd: 0,
+    records: 0,
+    sessions: 0,
+    totals: emptyTotals,
+    totalTokens: 0,
+    dedupeKeys: [],
+    events: [],
+  });
+
+  expect(mergeUsageSummaries([older, newest], 30)).toMatchObject({
+    costUsd: 2,
+    records: 2,
+    totalTokens: 2,
+  });
+  expect(mergeUsageSummaries([newest, idle], 30)).toMatchObject({
+    generatedAt: '2026-08-29T18:00:00.000Z',
+    costUsd: 2,
+    records: 2,
+    totalTokens: 2,
+  });
+  expect(mergeUsageSummaries([idle], 30)).toMatchObject({
+    generatedAt: '2026-08-29T19:00:00.000Z',
+    costUsd: 0,
+    records: 0,
+    totalTokens: 0,
+  });
+  expect(
+    mergeUsageSummaries([idle, { ...idle, generatedAt: '2026-08-29T18:00:00.000Z' }], 30),
+  ).toMatchObject({
+    costUsd: 0,
+    records: 0,
+    totalTokens: 0,
+  });
+});
+
+test('mergeUsageSummaries uses a capped aggregate when keys cover every record', () => {
   const capped = summary({
     generatedAt: '2026-08-29T18:00:00.000Z',
     costUsd: 50,
@@ -303,8 +663,8 @@ test('mergeUsageSummaries keeps unique events when one device is capped', () => 
   });
 
   expect(mergeUsageSummaries([capped, other], 30)).toMatchObject({
-    costUsd: 8,
-    records: 2,
-    sessions: 2,
+    costUsd: 57,
+    records: 3,
+    sessions: 3,
   });
 });

@@ -1,13 +1,76 @@
 'use node';
 
+import { createWriteStream, openAsBlob } from 'node:fs';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { randomUUID } from 'node:crypto';
 import { v } from 'convex/values';
 import JSZip from 'jszip';
 import { components, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import type { ActionCtx } from './_generated/server';
 import { internalAction } from './_generated/server';
-import { buildExportManifest, redactConnectedAccount } from './dataExportRedaction';
+import {
+  buildExportManifest,
+  redactConnectedAccount,
+  walkCursorPages,
+  type CursorPage,
+} from './dataExportRedaction';
 
-const PLAN_PAGE_SIZE = 20;
+type SerializedPage = {
+  rowsJson: string;
+  isDone: boolean;
+  continueCursor: string;
+};
+
+type AccountSection =
+  | 'preferences'
+  | 'subscriptions'
+  | 'workspaceMembersAsOwner'
+  | 'workspaceMembersAsMember'
+  | 'workspaceInvites'
+  | 'heartbeats'
+  | 'tags'
+  | 'collections'
+  | 'collectionPlans'
+  | 'planPreferences'
+  | 'agentAvatars'
+  | 'pendingUploads'
+  | 'uploadReservations'
+  | 'avatarUploadReservations';
+
+type PlanSection =
+  | 'versions'
+  | 'annotations'
+  | 'comments'
+  | 'shareLinks'
+  | 'planLinks'
+  | 'writebacks'
+  | 'planTags';
+
+type ExportComment = {
+  _id: Id<'comments'>;
+  planId: Id<'plans'>;
+  attachments?: Array<{
+    storageId: Id<'_storage'>;
+    fileName?: string;
+    contentType: string;
+    size: number;
+  }>;
+};
+
+type AgentAvatar = {
+  storageId: Id<'_storage'>;
+  agent: string;
+};
+
+type PendingUpload = {
+  storageId: Id<'_storage'>;
+  planId: Id<'plans'>;
+};
 
 type AttachmentBlob = {
   storageId: Id<'_storage'>;
@@ -20,14 +83,15 @@ type AttachmentBlob = {
   agent: string | null;
 };
 
+type JsonPageFetcher = (cursor: string | null) => Promise<SerializedPage>;
+
 function sanitizePathSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120) || 'file';
 }
 
 function attachmentZipPath(root: string, blob: AttachmentBlob): string {
   if (blob.kind === 'avatar') {
-    const agent = sanitizePathSegment(blob.agent ?? 'agent');
-    return `${root}/agent-avatars/${agent}`;
+    return `${root}/agent-avatars/${sanitizePathSegment(blob.agent ?? 'agent')}`;
   }
   if (blob.kind === 'pending') {
     const planId = blob.planId ? String(blob.planId) : 'unknown-plan';
@@ -38,16 +102,221 @@ function attachmentZipPath(root: string, blob: AttachmentBlob): string {
   return `${root}/plans/${planId}/attachments/${blob.storageId}-${fileName}`;
 }
 
+function parseRows<T>(rowsJson: string): T[] {
+  const parsed: unknown = JSON.parse(rowsJson);
+  if (!Array.isArray(parsed)) throw new Error('Export page was not an array');
+  return parsed as T[];
+}
+
+function jsonArrayStream(fetchPage: JsonPageFetcher): Readable {
+  return Readable.from(
+    (async function* () {
+      yield '[\n';
+      let cursor: string | null = null;
+      let isDone = false;
+      let first = true;
+      while (!isDone) {
+        const result = await fetchPage(cursor);
+        for (const row of parseRows<unknown>(result.rowsJson)) {
+          if (!first) yield ',\n';
+          yield JSON.stringify(row, null, 2);
+          first = false;
+        }
+        cursor = result.continueCursor;
+        isDone = result.isDone;
+      }
+      yield '\n]\n';
+    })(),
+  );
+}
+
+function jsonObjectOfArraysStream(fields: Array<[string, JsonPageFetcher]>): Readable {
+  return Readable.from(
+    (async function* () {
+      yield '{\n';
+      for (let index = 0; index < fields.length; index += 1) {
+        const [name, fetchPage] = fields[index];
+        if (index > 0) yield ',\n';
+        yield `${JSON.stringify(name)}: `;
+        for await (const chunk of jsonArrayStream(fetchPage)) yield chunk;
+      }
+      yield '}\n';
+    })(),
+  );
+}
+
+function storedBlobStream(ctx: ActionCtx, storageId: Id<'_storage'>): Readable {
+  return Readable.from(
+    (async function* () {
+      const blob = await ctx.storage.get(storageId);
+      if (!blob) return;
+      for await (const chunk of blob.stream()) yield chunk;
+    })(),
+  );
+}
+
+function addAttachmentEntry(
+  zip: JSZip,
+  ctx: ActionCtx,
+  root: string,
+  attachment: AttachmentBlob,
+): void {
+  zip.file(attachmentZipPath(root, attachment), storedBlobStream(ctx, attachment.storageId), {
+    binary: true,
+  });
+}
+
+function accountPageFetcher(
+  ctx: ActionCtx,
+  ownerId: string,
+  section: AccountSection,
+): JsonPageFetcher {
+  return async (cursor) =>
+    await ctx.runQuery(internal.dataExport.listAccountSectionPage, {
+      ownerId,
+      section,
+      cursor,
+    });
+}
+
+function planPageFetcher(
+  ctx: ActionCtx,
+  ownerId: string,
+  planId: Id<'plans'>,
+  section: PlanSection,
+): JsonPageFetcher {
+  return async (cursor) => {
+    const page = await ctx.runQuery(internal.dataExport.listPlanSectionPage, {
+      ownerId,
+      planId,
+      section,
+      cursor,
+    });
+    return page ?? { rowsJson: '[]', isDone: true, continueCursor: cursor ?? '' };
+  };
+}
+
+function claimPageFetcher(
+  ctx: ActionCtx,
+  ownerId: string,
+  commentId: Id<'comments'>,
+): JsonPageFetcher {
+  return async (cursor) =>
+    await ctx.runQuery(internal.dataExport.listCommentClaimsPage, {
+      ownerId,
+      commentId,
+      cursor,
+    });
+}
+
+function commentClaimsStream(
+  ctx: ActionCtx,
+  ownerId: string,
+  fetchCommentsPage: JsonPageFetcher,
+): Readable {
+  return Readable.from(
+    (async function* () {
+      yield '[\n';
+      let first = true;
+      let commentCursor: string | null = null;
+      let commentsDone = false;
+      while (!commentsDone) {
+        const commentsPage = await fetchCommentsPage(commentCursor);
+        for (const comment of parseRows<ExportComment>(commentsPage.rowsJson)) {
+          let claimCursor: string | null = null;
+          let claimsDone = false;
+          while (!claimsDone) {
+            const claimsPage = await claimPageFetcher(ctx, ownerId, comment._id)(claimCursor);
+            for (const claim of parseRows<unknown>(claimsPage.rowsJson)) {
+              if (!first) yield ',\n';
+              yield JSON.stringify(claim, null, 2);
+              first = false;
+            }
+            claimCursor = claimsPage.continueCursor;
+            claimsDone = claimsPage.isDone;
+          }
+        }
+        commentCursor = commentsPage.continueCursor;
+        commentsDone = commentsPage.isDone;
+      }
+      yield '\n]\n';
+    })(),
+  );
+}
+
+function commentsAndClaimsStream(fetchCommentsPage: JsonPageFetcher, claims: Readable): Readable {
+  return Readable.from(
+    (async function* () {
+      yield '{\n"comments": ';
+      for await (const chunk of jsonArrayStream(fetchCommentsPage)) yield chunk;
+      yield ',\n"attachmentClaims": ';
+      for await (const chunk of claims) yield chunk;
+      yield '}\n';
+    })(),
+  );
+}
+
+async function discoverCommentAttachments(args: {
+  zip: JSZip;
+  ctx: ActionCtx;
+  root: string;
+  fetchCommentsPage: JsonPageFetcher;
+}): Promise<void> {
+  await walkCursorPages(
+    async (cursor): Promise<CursorPage<ExportComment>> => {
+      const page = await args.fetchCommentsPage(cursor);
+      return {
+        page: parseRows<ExportComment>(page.rowsJson),
+        isDone: page.isDone,
+        continueCursor: page.continueCursor,
+      };
+    },
+    (comments) => {
+      for (const comment of comments) {
+        for (const attachment of comment.attachments ?? []) {
+          addAttachmentEntry(args.zip, args.ctx, args.root, {
+            storageId: attachment.storageId,
+            fileName: attachment.fileName ?? null,
+            contentType: attachment.contentType,
+            size: attachment.size,
+            planId: comment.planId,
+            commentId: comment._id,
+            kind: 'comment',
+            agent: null,
+          });
+        }
+      }
+    },
+  );
+}
+
 export const buildDataExport = internalAction({
   args: { exportId: v.id('dataExports') },
   returns: v.null(),
   handler: async (ctx, { exportId }) => {
     const job = await ctx.runQuery(internal.dataExport.getExportJob, { exportId });
-    if (!job) return null;
-    if (job.status !== 'pending' && job.status !== 'building') return null;
+    if (!job || job.status === 'ready' || job.status === 'failed') return null;
 
-    await ctx.runMutation(internal.dataExport.markExportBuilding, { exportId });
+    const buildToken = randomUUID();
+    const claim = await ctx.runMutation(internal.dataExport.claimExportBuild, {
+      exportId,
+      buildToken,
+    });
+    if (!claim.acquired) {
+      if (claim.retryAfterMs != null) {
+        await ctx.scheduler.runAfter(
+          claim.retryAfterMs,
+          internal.dataExportActions.buildDataExport,
+          {
+            exportId,
+          },
+        );
+      }
+      return null;
+    }
 
+    let tempDirectory: string | null = null;
+    let generatedStorageId: Id<'_storage'> | null = null;
     try {
       const ownerId = job.ownerId;
       const createdAt = job.createdAt;
@@ -63,176 +332,239 @@ export const buildDataExport = internalAction({
         model: 'user',
         where: [{ field: '_id', value: ownerId }],
       });
-
-      const accountsPage = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-        model: 'account',
-        where: [{ field: 'userId', value: ownerId }],
-        paginationOpts: { cursor: null, numItems: 100 },
-      });
-
       const profile =
         profileDoc && typeof profileDoc === 'object'
           ? redactConnectedAccount(profileDoc as Record<string, unknown>)
           : null;
-      const accountRows: unknown[] = accountsPage.page;
-      const connectedAccounts = accountRows.map((account) =>
-        redactConnectedAccount(
-          account && typeof account === 'object' ? (account as Record<string, unknown>) : {},
-        ),
-      );
+      zip.file(`${root}/account/profile.json`, `${JSON.stringify(profile, null, 2)}\n`);
 
-      zip.file(`${root}/account/profile.json`, JSON.stringify(profile, null, 2) + '\n');
+      const connectedAccountsFetcher: JsonPageFetcher = async (cursor) => {
+        const page = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+          model: 'account',
+          where: [{ field: 'userId', value: ownerId }],
+          paginationOpts: { cursor, numItems: 50 },
+        });
+        return {
+          rowsJson: JSON.stringify(
+            page.page.map((account) =>
+              redactConnectedAccount(
+                account && typeof account === 'object' ? (account as Record<string, unknown>) : {},
+              ),
+            ),
+          ),
+          isDone: page.isDone,
+          continueCursor: page.continueCursor,
+        };
+      };
       zip.file(
         `${root}/account/connected-accounts.json`,
-        JSON.stringify(connectedAccounts, null, 2) + '\n',
+        jsonArrayStream(connectedAccountsFetcher),
       );
-
-      const accountBundle = await ctx.runQuery(internal.dataExport.collectAccountBundle, {
-        ownerId,
-      });
 
       zip.file(
         `${root}/account/preferences.json`,
-        JSON.stringify(accountBundle.preferences, null, 2) + '\n',
+        jsonArrayStream(accountPageFetcher(ctx, ownerId, 'preferences')),
       );
       zip.file(
         `${root}/account/subscription.json`,
-        JSON.stringify(accountBundle.subscriptions, null, 2) + '\n',
+        jsonArrayStream(accountPageFetcher(ctx, ownerId, 'subscriptions')),
       );
       zip.file(
         `${root}/account/workspace-members.json`,
-        JSON.stringify(accountBundle.workspaceMembers, null, 2) + '\n',
+        jsonObjectOfArraysStream([
+          ['asOwner', accountPageFetcher(ctx, ownerId, 'workspaceMembersAsOwner')],
+          ['asMember', accountPageFetcher(ctx, ownerId, 'workspaceMembersAsMember')],
+        ]),
       );
       zip.file(
         `${root}/account/workspace-invites.json`,
-        JSON.stringify(accountBundle.workspaceInvites, null, 2) + '\n',
+        jsonArrayStream(accountPageFetcher(ctx, ownerId, 'workspaceInvites')),
       );
       zip.file(
         `${root}/devices/heartbeats.json`,
-        JSON.stringify(accountBundle.heartbeats, null, 2) + '\n',
+        jsonArrayStream(accountPageFetcher(ctx, ownerId, 'heartbeats')),
       );
-      zip.file(`${root}/tags.json`, JSON.stringify(accountBundle.tags, null, 2) + '\n');
+      zip.file(`${root}/tags.json`, jsonArrayStream(accountPageFetcher(ctx, ownerId, 'tags')));
       zip.file(
         `${root}/collections.json`,
-        JSON.stringify(accountBundle.collections, null, 2) + '\n',
+        jsonObjectOfArraysStream([
+          ['collections', accountPageFetcher(ctx, ownerId, 'collections')],
+          ['collectionPlans', accountPageFetcher(ctx, ownerId, 'collectionPlans')],
+        ]),
       );
       zip.file(
         `${root}/plan-preferences.json`,
-        JSON.stringify(accountBundle.planPreferences, null, 2) + '\n',
+        jsonArrayStream(accountPageFetcher(ctx, ownerId, 'planPreferences')),
       );
       zip.file(
         `${root}/agent-avatars.json`,
-        JSON.stringify(accountBundle.agentAvatars, null, 2) + '\n',
+        jsonArrayStream(accountPageFetcher(ctx, ownerId, 'agentAvatars')),
       );
       zip.file(
         `${root}/pending-uploads.json`,
-        JSON.stringify(
-          {
-            pendingUploads: accountBundle.pendingUploads,
-            uploadReservations: accountBundle.uploadReservations,
-          },
-          null,
-          2,
-        ) + '\n',
+        jsonObjectOfArraysStream([
+          ['pendingUploads', accountPageFetcher(ctx, ownerId, 'pendingUploads')],
+          ['uploadReservations', accountPageFetcher(ctx, ownerId, 'uploadReservations')],
+          [
+            'avatarUploadReservations',
+            accountPageFetcher(ctx, ownerId, 'avatarUploadReservations'),
+          ],
+        ]),
       );
 
-      const attachmentBlobs: AttachmentBlob[] = [...accountBundle.attachmentBlobs];
+      await walkCursorPages(
+        async (cursor): Promise<CursorPage<AgentAvatar>> => {
+          const page = await accountPageFetcher(ctx, ownerId, 'agentAvatars')(cursor);
+          return {
+            page: parseRows<AgentAvatar>(page.rowsJson),
+            isDone: page.isDone,
+            continueCursor: page.continueCursor,
+          };
+        },
+        (avatars) => {
+          for (const avatar of avatars) {
+            addAttachmentEntry(zip, ctx, root, {
+              storageId: avatar.storageId,
+              fileName: avatar.agent,
+              contentType: 'application/octet-stream',
+              size: 0,
+              planId: null,
+              commentId: null,
+              kind: 'avatar',
+              agent: avatar.agent,
+            });
+          }
+        },
+      );
 
-      let cursor: string | null = null;
-      let isDone = false;
-      while (!isDone) {
-        const plansPage: {
-          page: Array<{ _id: Id<'plans'> }>;
-          isDone: boolean;
-          continueCursor: string;
-        } = await ctx.runQuery(internal.dataExport.listOwnedPlansPage, {
+      await walkCursorPages(
+        async (cursor): Promise<CursorPage<PendingUpload>> => {
+          const page = await accountPageFetcher(ctx, ownerId, 'pendingUploads')(cursor);
+          return {
+            page: parseRows<PendingUpload>(page.rowsJson),
+            isDone: page.isDone,
+            continueCursor: page.continueCursor,
+          };
+        },
+        (pendingUploads) => {
+          for (const pending of pendingUploads) {
+            addAttachmentEntry(zip, ctx, root, {
+              storageId: pending.storageId,
+              fileName: null,
+              contentType: 'application/octet-stream',
+              size: 0,
+              planId: pending.planId,
+              commentId: null,
+              kind: 'pending',
+              agent: null,
+            });
+          }
+        },
+      );
+
+      let plansCursor: string | null = null;
+      let plansDone = false;
+      while (!plansDone) {
+        const plansPage = await ctx.runQuery(internal.dataExport.listOwnedPlansPage, {
           ownerId,
-          paginationOpts: { numItems: PLAN_PAGE_SIZE, cursor },
+          cursor: plansCursor,
         });
-
-        for (const planSummary of plansPage.page) {
-          const bundle = await ctx.runQuery(internal.dataExport.collectPlanBundle, {
-            ownerId,
-            planId: planSummary._id,
-          });
-          if (!bundle) continue;
-
-          const planDir = `${root}/plans/${planSummary._id}`;
-          zip.file(`${planDir}/plan.json`, JSON.stringify(bundle.plan, null, 2) + '\n');
-          zip.file(`${planDir}/versions.json`, JSON.stringify(bundle.versions, null, 2) + '\n');
+        for (const planId of plansPage.planIds) {
+          const planDir = `${root}/plans/${planId}`;
           zip.file(
-            `${planDir}/annotations.json`,
-            JSON.stringify(bundle.annotations, null, 2) + '\n',
+            `${planDir}/plan.json`,
+            Readable.from(
+              (async function* () {
+                const json = await ctx.runQuery(internal.dataExport.getOwnedPlanJson, {
+                  ownerId,
+                  planId,
+                });
+                yield `${json ?? 'null'}\n`;
+              })(),
+            ),
           );
-          zip.file(`${planDir}/comments.json`, JSON.stringify(bundle.comments, null, 2) + '\n');
+
+          const commentsFetcher = planPageFetcher(ctx, ownerId, planId, 'comments');
+          const sectionFiles: Array<[PlanSection, string]> = [
+            ['versions', 'versions.json'],
+            ['annotations', 'annotations.json'],
+            ['comments', 'comments.json'],
+            ['shareLinks', 'share-links.json'],
+            ['planLinks', 'plan-links.json'],
+            ['writebacks', 'writebacks.json'],
+            ['planTags', 'plan-tags.json'],
+          ];
+          for (const [section, fileName] of sectionFiles) {
+            zip.file(
+              `${planDir}/${fileName}`,
+              jsonArrayStream(planPageFetcher(ctx, ownerId, planId, section)),
+            );
+          }
           zip.file(
             `${planDir}/attachment-claims.json`,
-            JSON.stringify(bundle.attachmentClaims, null, 2) + '\n',
+            commentClaimsStream(ctx, ownerId, commentsFetcher),
           );
-          zip.file(
-            `${planDir}/share-links.json`,
-            JSON.stringify(bundle.shareLinks, null, 2) + '\n',
-          );
-          zip.file(`${planDir}/plan-links.json`, JSON.stringify(bundle.planLinks, null, 2) + '\n');
-          zip.file(`${planDir}/writebacks.json`, JSON.stringify(bundle.writebacks, null, 2) + '\n');
-          zip.file(`${planDir}/plan-tags.json`, JSON.stringify(bundle.planTags, null, 2) + '\n');
-          attachmentBlobs.push(...bundle.attachmentBlobs);
+          await discoverCommentAttachments({ zip, ctx, root, fetchCommentsPage: commentsFetcher });
         }
-
-        isDone = plansPage.isDone;
-        cursor = plansPage.continueCursor;
+        plansCursor = plansPage.continueCursor;
+        plansDone = plansPage.isDone;
       }
 
-      const elsewhere = await ctx.runQuery(internal.dataExport.collectAuthoredElsewhereComments, {
-        ownerId,
-      });
+      const elsewhereFetcher: JsonPageFetcher = async (cursor) =>
+        await ctx.runQuery(internal.dataExport.listAuthoredElsewhereCommentsPage, {
+          ownerId,
+          cursor,
+        });
       zip.file(
         `${root}/comments-authored-elsewhere.json`,
-        JSON.stringify(
-          {
-            comments: elsewhere.comments,
-            attachmentClaims: elsewhere.attachmentClaims,
-          },
-          null,
-          2,
-        ) + '\n',
+        commentsAndClaimsStream(
+          elsewhereFetcher,
+          commentClaimsStream(ctx, ownerId, elsewhereFetcher),
+        ),
       );
-      attachmentBlobs.push(...elsewhere.attachmentBlobs);
+      await discoverCommentAttachments({ zip, ctx, root, fetchCommentsPage: elsewhereFetcher });
 
-      const seenStorage = new Set<string>();
-      for (const blob of attachmentBlobs) {
-        const key = String(blob.storageId);
-        if (seenStorage.has(key)) continue;
-        seenStorage.add(key);
-
-        const bytes = await ctx.storage.get(blob.storageId);
-        if (!bytes) continue;
-        const path = attachmentZipPath(root, blob);
-        zip.file(path, Buffer.from(await bytes.arrayBuffer()));
-      }
-
-      const zipArrayBuffer = await zip.generateAsync({
-        type: 'arraybuffer',
-        compression: 'DEFLATE',
-      });
+      tempDirectory = await mkdtemp(join(tmpdir(), 'agendex-export-'));
       const fileName = `${root}.zip`;
-      const storageId = await ctx.storage.store(
-        new Blob([zipArrayBuffer], { type: 'application/zip' }),
+      const archivePath = join(tempDirectory, fileName);
+      await pipeline(
+        zip.generateNodeStream({
+          type: 'nodebuffer',
+          compression: 'DEFLATE',
+          streamFiles: true,
+        }),
+        createWriteStream(archivePath),
       );
 
-      await ctx.runMutation(internal.dataExport.markExportReady, {
+      const archiveStat = await stat(archivePath);
+      const archiveBlob = await openAsBlob(archivePath, { type: 'application/zip' });
+      generatedStorageId = await ctx.storage.store(archiveBlob);
+      const accepted = await ctx.runMutation(internal.dataExport.markExportReady, {
         exportId,
-        storageId,
-        byteSize: zipArrayBuffer.byteLength,
+        buildToken,
+        storageId: generatedStorageId,
+        byteSize: archiveStat.size,
         fileName,
       });
+      generatedStorageId = null;
+      if (!accepted) return null;
     } catch (error) {
+      if (generatedStorageId) {
+        try {
+          await ctx.storage.delete(generatedStorageId);
+        } catch {
+          // The claim-aware ready mutation may already have removed it.
+        }
+      }
       const message = error instanceof Error ? error.message : 'Failed to build data export';
       console.error('data export failed', { exportId, message });
       await ctx.runMutation(internal.dataExport.markExportFailed, {
         exportId,
+        buildToken,
         error: message,
       });
+    } finally {
+      if (tempDirectory) await rm(tempDirectory, { recursive: true, force: true });
     }
 
     return null;

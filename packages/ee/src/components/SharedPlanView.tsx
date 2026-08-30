@@ -14,15 +14,15 @@ import {
   useFullscreen,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
+import type { Id } from '@convex/_generated/dataModel';
 import { useAction, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useHotkey } from '@tanstack/react-hotkeys';
 import Markdown from 'react-markdown';
-import { extractPlanGitContext, planGitLinkUrl, shortCommit } from '@agendex/shared/git-forge';
+import { planGitLinkUrl, shortCommit } from '@agendex/shared/git-forge';
 import { PlanGitSection } from '@agendex/web';
-import type { Id } from '@convex/_generated/dataModel';
-import { buildDetectedGitChips } from './CloudPlanGitLinks.tsx';
+import type { SharedPlanDto } from '@convex/sharedPlanDto';
 import { CommentThread } from './CommentThread.tsx';
 import { OUTLINE_PREF_STORAGE_KEY } from '../outlinePref.ts';
 import { CommandPalette } from './command-palette/CommandPalette.tsx';
@@ -42,40 +42,29 @@ function timeAgo(date: string | number): string {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
-type UnlockedPlan = {
-  _id: string;
-  agent: string;
-  title: string;
-  content: string;
-  format: string;
-  filePath?: string;
-  createdAt: number;
-  metadata?: unknown;
-};
-
-/** Read-only git chips on the public shared view: detected workspace context plus stored links. */
+/** Stored git links only. Raw plan metadata never crosses the public share boundary. */
 function SharedPlanGitLinks({
   planId,
-  metadata,
   token,
+  accessProof,
 }: {
-  planId: string;
-  metadata: unknown;
+  planId: SharedPlanDto['_id'];
   token: string;
+  accessProof?: Id<'shareAccessProofs'>;
 }) {
-  const links = useQuery(api.planLinks.getLinks, { planId: planId as Id<'plans'>, token });
-  const repo = extractPlanGitContext(metadata)?.repo;
+  const links = useQuery(api.planLinks.getLinks, {
+    planId,
+    token,
+    ...(accessProof ? { accessProof } : {}),
+  });
 
-  const chips = [
-    ...buildDetectedGitChips(metadata),
-    ...(links ?? []).map((link) => ({
-      key: link._id,
-      kind: link.type,
-      label: link.type === 'commit' ? shortCommit(link.value) : link.value,
-      url: planGitLinkUrl(link, repo),
-      title: link.type === 'commit' ? link.value : undefined,
-    })),
-  ];
+  const chips = (links ?? []).map((link) => ({
+    key: link._id,
+    kind: link.type,
+    label: link.type === 'commit' ? shortCommit(link.value) : link.value,
+    url: planGitLinkUrl(link),
+    title: link.type === 'commit' ? link.value : undefined,
+  }));
 
   if (chips.length === 0) return null;
   return (
@@ -90,7 +79,7 @@ function PasswordGate({
   onUnlock,
 }: {
   token: string;
-  onUnlock: (plan: UnlockedPlan) => void;
+  onUnlock: (accessProof: Id<'shareAccessProofs'>) => void;
 }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -109,8 +98,8 @@ function PasswordGate({
       setSubmitting(true);
       setError('');
       try {
-        const plan = await unlock({ token, password });
-        onUnlock(plan as UnlockedPlan);
+        const result = await unlock({ token, password });
+        onUnlock(result.accessProof);
       } catch (err) {
         const message =
           err instanceof ConvexError
@@ -204,20 +193,39 @@ function PasswordGate({
 }
 
 export function SharedPlanView({ token }: { token: string }) {
-  const sharedAvatars = useQuery(api.agentAvatars.listAgentAvatarsForShare, { token });
+  const [accessProof, setAccessProof] = useState<Id<'shareAccessProofs'> | null>(null);
+  const sharedAvatars = useQuery(api.agentAvatars.listAgentAvatarsForShare, {
+    token,
+    ...(accessProof ? { accessProof } : {}),
+  });
   return (
     <AgentAvatarProvider avatars={sharedAvatars ?? {}}>
-      <SharedPlanViewInner token={token} />
+      <SharedPlanViewInner
+        token={token}
+        accessProof={accessProof}
+        onAccessProofChange={setAccessProof}
+      />
     </AgentAvatarProvider>
   );
 }
 
-function SharedPlanViewInner({ token }: { token: string }) {
-  const queryResult = useQuery(api.plans.getPlanByShareToken, { token });
+function SharedPlanViewInner({
+  token,
+  accessProof,
+  onAccessProofChange,
+}: {
+  token: string;
+  accessProof: Id<'shareAccessProofs'> | null;
+  onAccessProofChange: (accessProof: Id<'shareAccessProofs'> | null) => void;
+}) {
+  const queryResult = useQuery(api.plans.getPlanByShareToken, {
+    token,
+    ...(accessProof ? { accessProof } : {}),
+  });
   const fullscreen = useFullscreen<HTMLDivElement>();
   const [, navigate] = useLocation();
   const [paletteSearch, setPaletteSearch] = useState('');
-  const [unlockedPlan, setUnlockedPlan] = useState<UnlockedPlan | null>(null);
+
   const [outlineHidden, setOutlineHidden] = useState(() => {
     if (typeof window === 'undefined') return false;
 
@@ -241,15 +249,13 @@ function SharedPlanViewInner({ token }: { token: string }) {
   }, [outlineHidden]);
 
   // must reset when navigating to another shared link
-  // oxlint-disable-next-line react/exhaustive-deps
   useEffect(() => {
-    setUnlockedPlan(null);
-  }, [token]);
+    onAccessProofChange(null);
+  }, [token, onAccessProofChange]);
 
   const needsPassword =
     queryResult && 'passwordRequired' in queryResult && queryResult.passwordRequired;
-
-  const plan = needsPassword ? unlockedPlan : (queryResult as UnlockedPlan | null | undefined);
+  const plan = queryResult && !('passwordRequired' in queryResult) ? queryResult : null;
 
   const outline = useMemo(
     () =>
@@ -257,7 +263,7 @@ function SharedPlanViewInner({ token }: { token: string }) {
         ? buildPlanOutline({
             title: plan.title,
             content: plan.content,
-            filePath: String(plan.filePath ?? ''),
+            filePath: '',
             format: plan.format,
           })
         : null,
@@ -276,8 +282,8 @@ function SharedPlanViewInner({ token }: { token: string }) {
         </div>
       </div>
     );
-  } else if (needsPassword && !unlockedPlan) {
-    body = <PasswordGate token={token} onUnlock={setUnlockedPlan} />;
+  } else if (needsPassword) {
+    body = <PasswordGate token={token} onUnlock={onAccessProofChange} />;
   } else if (!plan || !outline) {
     body = (
       <div className="min-h-screen flex items-center justify-center bg-bg p-4">
@@ -341,7 +347,11 @@ function SharedPlanViewInner({ token }: { token: string }) {
                 </span>
               </div>
 
-              <SharedPlanGitLinks planId={plan._id} metadata={plan.metadata} token={token} />
+              <SharedPlanGitLinks
+                planId={plan._id}
+                token={token}
+                accessProof={accessProof ?? undefined}
+              />
 
               <div className="flex items-center gap-2 mt-4">
                 <button
@@ -377,7 +387,11 @@ function SharedPlanViewInner({ token }: { token: string }) {
             )}
 
             {/* Comments */}
-            <CommentThread planId={plan._id} shareToken={token} />
+            <CommentThread
+              planId={plan._id}
+              shareToken={token}
+              shareAccessProof={accessProof ?? undefined}
+            />
           </div>
         </div>
       </div>

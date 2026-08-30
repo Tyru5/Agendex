@@ -8,13 +8,14 @@ import {
   dedupePlanDownloadCandidates,
   isExactPlanDownloadIdHit,
   looksLikePlanIdQuery,
+  normalizePlanLookupText,
   parsePlanDownloadQuery,
   planAgentLookupValues,
   planAgentsMatch,
   planBrowseDedupeKeys,
-  scanPlanDownloadFallback,
   scorePlanTitleSimilarity,
   selectPlanDownloadMatches,
+  selectPlanDownloadTitlePage,
   filterPlanBrowseMatches,
   suggestClosestPlans,
   type PlanDownloadLookupCandidate,
@@ -78,6 +79,10 @@ test('plan-download-lookup stays Convex-safe and does not import the Node adapte
   expect(source).not.toContain('adapters/catalog.ts');
   expect(source).toContain('adapters/agent-ids');
   expect(source).not.toContain('adapters/agent-ids.ts');
+});
+
+test('normalized title keys collapse case and repeated whitespace', () => {
+  expect(normalizePlanLookupText('  Add   AUTH\nFlow  ')).toBe('add auth flow');
 });
 
 test('canonicalPlanAgent maps adapter aliases', () => {
@@ -331,45 +336,39 @@ test('suggestClosestPlans prefers the requested agent when titles are equally cl
   ]);
 });
 
-test('scanPlanDownloadFallback finds an older exact title beyond the first 25 plans', async () => {
-  const newest = Array.from({ length: 25 }, (_, index) =>
+test('an indexed title page stays bounded for large accounts', () => {
+  const firstPage = Array.from({ length: 8 }, (_, index) =>
     plan({
-      id: `recent-${index}`,
-      title: `Recent ${index}`,
+      id: `match-${index}`,
+      title: 'Add auth',
       updatedAt: 2000 + index,
     }),
   );
-  const older = plan({ id: 'old-exact', title: 'Add auth', updatedAt: 1 });
-  const pages = [newest, [older]];
-  let pageIndex = 0;
 
-  const result = await scanPlanDownloadFallback('Add auth', undefined, async () => {
-    const page = pages[pageIndex] ?? [];
-    pageIndex += 1;
-    return { plans: page, done: pageIndex >= pages.length };
-  });
-
-  expect(result.selection).toEqual({ kind: 'one', plan: older });
-  expect(pageIndex).toBe(2);
+  const result = selectPlanDownloadTitlePage(firstPage, false);
+  expect(result.kind).toBe('many');
+  if (result.kind !== 'many') throw new Error('expected many');
+  expect(result.plans).toHaveLength(8);
+  expect(result.hasMore).toBe(true);
 });
 
-test('scanPlanDownloadFallback keeps scanning after a unique hit so later duplicates are ambiguous', async () => {
+test('duplicate exact titles are explicit when the indexed page is complete', () => {
   const first = plan({ id: 'first', title: 'Add auth', updatedAt: 3 });
-  const filler = Array.from({ length: 8 }, (_, index) =>
-    plan({ id: `other-${index}`, title: `Other ${index}`, updatedAt: 2 }),
-  );
   const duplicate = plan({ id: 'second', title: 'Add auth', updatedAt: 1 });
-  const pages = [[first, ...filler], [duplicate]];
-  let pageIndex = 0;
 
-  const result = await scanPlanDownloadFallback('Add auth', undefined, async () => {
-    const page = pages[pageIndex] ?? [];
-    pageIndex += 1;
-    return { plans: page, done: pageIndex >= pages.length };
+  expect(selectPlanDownloadTitlePage([first, duplicate], true)).toEqual({
+    kind: 'many',
+    plans: [first, duplicate],
+    hasMore: false,
   });
+});
 
-  expect(result.selection.kind).toBe('many');
-  if (result.selection.kind !== 'many') throw new Error('expected many');
-  expect(result.selection.plans.map((item) => item.id).toSorted()).toEqual(['first', 'second']);
-  expect(pageIndex).toBe(2);
+test('a single exact-title match is selected only after the indexed page is complete', () => {
+  const match = plan({ id: 'only', title: 'Add auth' });
+  expect(selectPlanDownloadTitlePage([match], false)).toEqual({
+    kind: 'many',
+    plans: [match],
+    hasMore: true,
+  });
+  expect(selectPlanDownloadTitlePage([match], true)).toEqual({ kind: 'one', plan: match });
 });

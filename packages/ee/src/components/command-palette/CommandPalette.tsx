@@ -622,307 +622,314 @@ export function CommandPalette({
             if (e.target === e.currentTarget) closeModal();
           }}
         >
-          <div
-            className="agendex-popover w-[min(620px,100%)] h-fit rounded-[14px] overflow-hidden flex flex-col"
-            style={{
-              opacity: open ? 1 : 0,
-              transform: open ? 'translateY(0px) scale(1)' : 'translateY(-10px) scale(0.98)',
-              transition: 'opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
-              willChange: open ? 'opacity, transform' : undefined,
-              maxHeight: 'min(640px, 84vh)',
-            }}
-            role="document"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 py-3 px-3.5 border-b border-border shrink-0">
-              {view === 'filters' ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setView('commands');
-                  }}
-                  aria-label="Back to search results"
-                  title="Back to search results"
-                  className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-secondary hover:text-text hover:bg-hover cursor-pointer border-none bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
-                >
-                  <ChevronLeftIcon />
-                </button>
-              ) : (
-                <SearchIcon />
-              )}
-              {view === 'filters' ? (
-                <div className="flex-1 min-w-0">
-                  <div className="text-[14px] leading-tight font-semibold text-text">
-                    Filter plans
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-tertiary">
-                    Narrow by source, workspace, or activity
-                  </div>
-                </div>
-              ) : (
-                <input
-                  ref={inputRef}
-                  type="search"
-                  value={search}
-                  onChange={(e) => {
-                    setVisiblePlanCount(INITIAL_PLAN_BATCH_SIZE);
-                    onSearch(e.target.value);
-                    resetFocus();
-                  }}
-                  onKeyDown={onCommandKeyDown}
-                  placeholder="Search plans or type a command..."
-                  aria-label="Search plans and commands"
-                  className="flex-1 min-w-0 outline-none bg-transparent border-none font-[inherit] text-[14px] text-text placeholder:text-tertiary"
-                />
-              )}
-              {view === 'commands' && filters && (
-                <button
-                  type="button"
-                  onClick={() => setView('filters')}
-                  aria-label={`Filters${activeFilterChips.length > 0 ? `, ${activeFilterChips.length} active` : ''}`}
-                  className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[11.5px] font-medium cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
-                    activeFilterChips.length > 0
-                      ? 'border-[var(--accent)] bg-active text-text'
-                      : 'border-border bg-transparent text-secondary hover:bg-hover hover:text-text'
-                  }`}
-                >
-                  <FilterIcon />
-                  <span className="hidden sm:inline">Filters</span>
-                  {activeFilterChips.length > 0 && (
-                    <span className="min-w-4 tabular-nums text-[11.5px] text-[var(--accent)]">
-                      {activeFilterChips.length}
-                    </span>
-                  )}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={closeModal}
-                aria-label="Close command palette"
-                className="font-[inherit] text-[11px] text-tertiary border border-border bg-hover rounded-[6px] py-1 px-2 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
-              >
-                Esc
-              </button>
-            </div>
-
-            {view === 'commands' && activeFilterChips.length > 0 && filters && (
-              <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border px-3.5 py-2 shrink-0">
-                <span className="mr-0.5 text-[11.5px] font-medium text-tertiary shrink-0">
-                  Active
-                </span>
-                {activeFilterChips.map((chip) => (
+          <div className="relative w-[min(620px,100%)] h-fit">
+            {open && <PaletteArrows />}
+            <div
+              className="agendex-popover relative z-[1] w-full h-fit rounded-[14px] overflow-hidden flex flex-col"
+              style={{
+                opacity: open ? 1 : 0,
+                transform: open ? 'translateY(0px) scale(1)' : 'translateY(-10px) scale(0.98)',
+                transition: 'opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
+                willChange: open ? 'opacity, transform' : undefined,
+                maxHeight: 'min(640px, 84vh)',
+              }}
+              role="document"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 py-3 px-3.5 border-b border-border shrink-0">
+                {view === 'filters' ? (
                   <button
-                    key={chip.key}
                     type="button"
-                    onClick={() => removeFilterChip(chip)}
-                    title={`Remove ${chip.label} filter`}
-                    className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border bg-hover px-2 text-[11.5px] font-medium text-secondary hover:text-text cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                    onClick={() => {
+                      setView('commands');
+                    }}
+                    aria-label="Back to search results"
+                    title="Back to search results"
+                    className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-secondary hover:text-text hover:bg-hover cursor-pointer border-none bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
                   >
-                    <span className="max-w-28 truncate">{chip.label}</span>
-                    <CloseIcon />
+                    <ChevronLeftIcon />
                   </button>
-                ))}
+                ) : (
+                  <SearchIcon />
+                )}
+                {view === 'filters' ? (
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[14px] leading-tight font-semibold text-text">
+                      Filter plans
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-tertiary">
+                      Narrow by source, workspace, or activity
+                    </div>
+                  </div>
+                ) : (
+                  <input
+                    ref={inputRef}
+                    type="search"
+                    value={search}
+                    onChange={(e) => {
+                      setVisiblePlanCount(INITIAL_PLAN_BATCH_SIZE);
+                      onSearch(e.target.value);
+                      resetFocus();
+                    }}
+                    onKeyDown={onCommandKeyDown}
+                    placeholder="Search plans or type a command..."
+                    aria-label="Search plans and commands"
+                    className="flex-1 min-w-0 outline-none bg-transparent border-none font-[inherit] text-[14px] text-text placeholder:text-tertiary"
+                  />
+                )}
+                {view === 'commands' && filters && (
+                  <button
+                    type="button"
+                    onClick={() => setView('filters')}
+                    aria-label={`Filters${activeFilterChips.length > 0 ? `, ${activeFilterChips.length} active` : ''}`}
+                    className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2 text-[11.5px] font-medium cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
+                      activeFilterChips.length > 0
+                        ? 'border-[var(--accent)] bg-active text-text'
+                        : 'border-border bg-transparent text-secondary hover:bg-hover hover:text-text'
+                    }`}
+                  >
+                    <FilterIcon />
+                    <span className="hidden sm:inline">Filters</span>
+                    {activeFilterChips.length > 0 && (
+                      <span className="min-w-4 tabular-nums text-[11.5px] text-[var(--accent)]">
+                        {activeFilterChips.length}
+                      </span>
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={filters.onClearAll}
-                  className="ml-auto shrink-0 border-0 bg-transparent px-1.5 py-1 text-[11.5px] font-medium text-tertiary hover:text-text cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                  onClick={closeModal}
+                  aria-label="Close command palette"
+                  className="font-[inherit] text-[11px] text-tertiary border border-border bg-hover rounded-[6px] py-1 px-2 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
                 >
-                  Clear all
+                  Esc
                 </button>
               </div>
-            )}
 
-            <div
-              ref={scrollRef}
-              onScroll={handleResultsScroll}
-              className={`flex-1 overflow-y-auto ${view === 'filters' ? 'p-0' : 'p-2'}`}
-            >
-              {view === 'filters' && filters ? (
-                <PlanFiltersView filters={filters} />
-              ) : flatItems.length === 0 ? (
-                <div className="p-3 text-[12px] text-tertiary text-center">No results</div>
-              ) : (
-                <>
-                  {flatItems.map((item) => {
-                    if (item.type === 'group-header') {
-                      return (
-                        <div
-                          key={`gh-${item.groupLabel}`}
-                          className="text-[11px] font-medium text-tertiary tracking-[0.04em] uppercase px-2 pt-3 pb-1.5"
-                        >
-                          {item.groupLabel}
-                        </div>
-                      );
-                    }
+              {view === 'commands' && activeFilterChips.length > 0 && filters && (
+                <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border px-3.5 py-2 shrink-0">
+                  <span className="mr-0.5 text-[11.5px] font-medium text-tertiary shrink-0">
+                    Active
+                  </span>
+                  {activeFilterChips.map((chip) => (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      onClick={() => removeFilterChip(chip)}
+                      title={`Remove ${chip.label} filter`}
+                      className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border bg-hover px-2 text-[11.5px] font-medium text-secondary hover:text-text cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                    >
+                      <span className="max-w-28 truncate">{chip.label}</span>
+                      <CloseIcon />
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={filters.onClearAll}
+                    className="ml-auto shrink-0 border-0 bg-transparent px-1.5 py-1 text-[11.5px] font-medium text-tertiary hover:text-text cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
 
-                    if (item.type === 'command' && item.command) {
-                      const cmd = item.command;
-                      const fi = getFocusableIndex(item);
-                      const focused = fi === focusedIndex;
-                      const gated = cmd.proOnly && !isPro;
+              <div
+                ref={scrollRef}
+                onScroll={handleResultsScroll}
+                className={`flex-1 overflow-y-auto ${view === 'filters' ? 'p-0' : 'p-2'}`}
+              >
+                {view === 'filters' && filters ? (
+                  <PlanFiltersView filters={filters} />
+                ) : flatItems.length === 0 ? (
+                  <div className="p-3 text-[12px] text-tertiary text-center">No results</div>
+                ) : (
+                  <>
+                    {flatItems.map((item) => {
+                      if (item.type === 'group-header') {
+                        return (
+                          <div
+                            key={`gh-${item.groupLabel}`}
+                            className="text-[11px] font-medium text-tertiary tracking-[0.04em] uppercase px-2 pt-3 pb-1.5"
+                          >
+                            {item.groupLabel}
+                          </div>
+                        );
+                      }
 
-                      return (
-                        <button
-                          key={cmd.id}
-                          type="button"
-                          data-focused={focused || undefined}
-                          className="w-full text-left flex items-center gap-2.5 py-2 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
-                          style={{
-                            background: focused ? 'var(--hover)' : 'transparent',
-                            opacity: gated ? 0.5 : 1,
-                          }}
-                          onClick={() => {
-                            executeItem(item);
-                          }}
-                          onMouseEnter={() => setFocusedIndex(fi)}
-                        >
-                          <span className="shrink-0 text-secondary w-[18px] h-[18px] flex items-center justify-center">
-                            {cmd.icon}
-                          </span>
-                          <span className="flex-1 text-[13px] text-text font-medium">
-                            {cmd.label}
-                          </span>
-                          {gated && (
-                            <span className="text-[11.5px] font-semibold text-tertiary border border-border rounded px-1.5 py-0.5 uppercase tracking-wider">
-                              Pro
-                            </span>
-                          )}
-                        </button>
-                      );
-                    }
+                      if (item.type === 'command' && item.command) {
+                        const cmd = item.command;
+                        const fi = getFocusableIndex(item);
+                        const focused = fi === focusedIndex;
+                        const gated = cmd.proOnly && !isPro;
 
-                    if (item.type === 'plan' && item.plan) {
-                      const plan = item.plan;
-                      const fi = getFocusableIndex(item);
-                      const focused = fi === focusedIndex;
-                      const unseen =
-                        planState.isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId;
-
-                      return (
-                        <div
-                          key={plan.id}
-                          className="flex items-stretch gap-1"
-                          data-focused={focused || undefined}
-                        >
+                        return (
                           <button
+                            key={cmd.id}
                             type="button"
-                            className="flex-1 min-w-0 text-left block py-2.5 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
+                            data-focused={focused || undefined}
+                            className="w-full text-left flex items-center gap-2.5 py-2 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
                             style={{
-                              background: focused
-                                ? 'var(--hover)'
-                                : plan.id === selectedId
-                                  ? 'var(--active)'
-                                  : 'transparent',
+                              background: focused ? 'var(--hover)' : 'transparent',
+                              opacity: gated ? 0.5 : 1,
                             }}
                             onClick={() => {
-                              planState.markSeen(plan.id, plan.updatedAt);
-                              onSelectPlan(plan);
-                              closeModal();
+                              executeItem(item);
                             }}
                             onMouseEnter={() => setFocusedIndex(fi)}
                           >
-                            <div
-                              className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[0] overflow-hidden line-clamp-2"
-                              style={{ paddingLeft: unseen ? '14px' : undefined }}
-                            >
-                              {unseen && (
-                                <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
-                              )}
-                              {plan.title}
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
-                              <AgentIcon agent={plan.agent} size={11} />
-                              <span>{getAgentLabel(plan.agent)}</span>
-                              <span>&middot;</span>
-                              <span>{timeAgo(plan.updatedAt)}</span>
-                            </div>
+                            <span className="shrink-0 text-secondary w-[18px] h-[18px] flex items-center justify-center">
+                              {cmd.icon}
+                            </span>
+                            <span className="flex-1 text-[13px] text-text font-medium">
+                              {cmd.label}
+                            </span>
+                            {gated && (
+                              <span className="text-[11.5px] font-semibold text-tertiary border border-border rounded px-1.5 py-0.5 uppercase tracking-wider">
+                                Pro
+                              </span>
+                            )}
                           </button>
-                          {onOpenInSplitView && (
+                        );
+                      }
+
+                      if (item.type === 'plan' && item.plan) {
+                        const plan = item.plan;
+                        const fi = getFocusableIndex(item);
+                        const focused = fi === focusedIndex;
+                        const unseen =
+                          planState.isUnseen(plan.id, plan.updatedAt) && plan.id !== selectedId;
+
+                        return (
+                          <div
+                            key={plan.id}
+                            className="flex items-stretch gap-1"
+                            data-focused={focused || undefined}
+                          >
                             <button
                               type="button"
+                              className="flex-1 min-w-0 text-left block py-2.5 px-2.5 rounded-lg cursor-pointer border-none font-[inherit] transition-colors duration-75"
+                              style={{
+                                background: focused
+                                  ? 'var(--hover)'
+                                  : plan.id === selectedId
+                                    ? 'var(--active)'
+                                    : 'transparent',
+                              }}
                               onClick={() => {
                                 planState.markSeen(plan.id, plan.updatedAt);
-                                onOpenInSplitView(plan);
+                                onSelectPlan(plan);
                                 closeModal();
                               }}
-                              disabled={plan.id === selectedId || plan.id === splitPlanId}
-                              aria-label={`Open ${plan.title} in split view`}
-                              title="Open in split view"
-                              className="shrink-0 flex items-center justify-center w-9 cursor-pointer"
-                              style={{
-                                color:
-                                  plan.id === selectedId || plan.id === splitPlanId
-                                    ? 'var(--tertiary)'
-                                    : 'var(--secondary)',
-                                opacity:
-                                  plan.id === selectedId || plan.id === splitPlanId ? 0.4 : 0.6,
-                                cursor:
-                                  plan.id === selectedId || plan.id === splitPlanId
-                                    ? 'not-allowed'
-                                    : 'pointer',
-                              }}
-                              onMouseEnter={(e) => {
-                                if (plan.id !== selectedId && plan.id !== splitPlanId) {
-                                  e.currentTarget.style.opacity = '0.9';
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.opacity =
-                                  plan.id === selectedId || plan.id === splitPlanId ? '0.4' : '0.6';
-                              }}
+                              onMouseEnter={() => setFocusedIndex(fi)}
                             >
-                              <svg
-                                aria-hidden="true"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth={1.5}
-                                stroke="currentColor"
-                                className="w-3.5 h-3.5"
+                              <div
+                                className="relative font-medium text-[13px] leading-[1.35] text-text tracking-[0] overflow-hidden line-clamp-2"
+                                style={{ paddingLeft: unseen ? '14px' : undefined }}
                               >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5Z"
-                                />
-                              </svg>
+                                {unseen && (
+                                  <span className="absolute left-0.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
+                                )}
+                                {plan.title}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-tertiary">
+                                <AgentIcon agent={plan.agent} size={11} />
+                                <span>{getAgentLabel(plan.agent)}</span>
+                                <span>&middot;</span>
+                                <span>{timeAgo(plan.updatedAt)}</span>
+                              </div>
                             </button>
-                          )}
-                        </div>
-                      );
-                    }
+                            {onOpenInSplitView && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  planState.markSeen(plan.id, plan.updatedAt);
+                                  onOpenInSplitView(plan);
+                                  closeModal();
+                                }}
+                                disabled={plan.id === selectedId || plan.id === splitPlanId}
+                                aria-label={`Open ${plan.title} in split view`}
+                                title="Open in split view"
+                                className="shrink-0 flex items-center justify-center w-9 cursor-pointer"
+                                style={{
+                                  color:
+                                    plan.id === selectedId || plan.id === splitPlanId
+                                      ? 'var(--tertiary)'
+                                      : 'var(--secondary)',
+                                  opacity:
+                                    plan.id === selectedId || plan.id === splitPlanId ? 0.4 : 0.6,
+                                  cursor:
+                                    plan.id === selectedId || plan.id === splitPlanId
+                                      ? 'not-allowed'
+                                      : 'pointer',
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (plan.id !== selectedId && plan.id !== splitPlanId) {
+                                    e.currentTarget.style.opacity = '0.9';
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.opacity =
+                                    plan.id === selectedId || plan.id === splitPlanId
+                                      ? '0.4'
+                                      : '0.6';
+                                }}
+                              >
+                                <svg
+                                  aria-hidden="true"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  strokeWidth={1.5}
+                                  stroke="currentColor"
+                                  className="w-3.5 h-3.5"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5Z"
+                                  />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }
 
-                    return null;
-                  })}
-                  {hasMorePlans && (
-                    <div className="px-2.5 pt-2 pb-1 text-[11px] text-tertiary">
-                      Showing {renderedPlanCount} of {filteredPlansCount} plans, scroll to load
-                      more.
-                    </div>
-                  )}
-                </>
-              )}
+                      return null;
+                    })}
+                    {hasMorePlans && (
+                      <div className="px-2.5 pt-2 pb-1 text-[11px] text-tertiary">
+                        Showing {renderedPlanCount} of {filteredPlansCount} plans, scroll to load
+                        more.
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {footerHint && view === 'filters' ? (
+                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 border-t border-border shrink-0">
+                  <span className="min-w-0 truncate text-[11.5px] text-secondary">
+                    {footerHint}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setView('commands')}
+                    className="shrink-0 rounded-md border border-border bg-hover px-2.5 py-1.5 text-[11.5px] font-medium text-text hover:border-[var(--tertiary)] cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                  >
+                    View results
+                  </button>
+                </div>
+              ) : footerHint ? (
+                <div className="flex items-center gap-2 px-3.5 py-2.5 border-t border-border shrink-0">
+                  <kbd className="text-[11px] text-tertiary border border-border rounded-[4px] py-0.5 px-1.5 bg-hover leading-none">
+                    &#x23CE;
+                  </kbd>
+                  <span className="text-[12px] text-secondary">{footerHint}</span>
+                </div>
+              ) : null}
             </div>
-
-            {footerHint && view === 'filters' ? (
-              <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 border-t border-border shrink-0">
-                <span className="min-w-0 truncate text-[11.5px] text-secondary">{footerHint}</span>
-                <button
-                  type="button"
-                  onClick={() => setView('commands')}
-                  className="shrink-0 rounded-md border border-border bg-hover px-2.5 py-1.5 text-[11.5px] font-medium text-text hover:border-[var(--tertiary)] cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
-                >
-                  View results
-                </button>
-              </div>
-            ) : footerHint ? (
-              <div className="flex items-center gap-2 px-3.5 py-2.5 border-t border-border shrink-0">
-                <kbd className="text-[11px] text-tertiary border border-border rounded-[4px] py-0.5 px-1.5 bg-hover leading-none">
-                  &#x23CE;
-                </kbd>
-                <span className="text-[12px] text-secondary">{footerHint}</span>
-              </div>
-            ) : null}
           </div>
         </div>
       )}
@@ -1281,6 +1288,28 @@ function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
   return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
+}
+
+function PaletteArrows() {
+  return (
+    <div className="command-palette-arrows" aria-hidden="true">
+      {Array.from({ length: 6 }, (_, index) => (
+        <svg
+          key={index}
+          data-arrow={index + 1}
+          viewBox="0 0 96 52"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path pathLength="1" d="M5 15C25 8 47 13 72 30C77 33 82 35 88 36" />
+          <path pathLength="1" d="M75 22C79 29 83 33 88 36C82 38 76 42 72 47" />
+        </svg>
+      ))}
+    </div>
+  );
 }
 
 function FilterIcon() {

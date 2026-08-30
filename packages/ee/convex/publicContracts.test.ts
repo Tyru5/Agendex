@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { deleteAccount, getMyPrivacyPreferences } from './account';
 import { getCurrentUser } from './auth';
 import { toPlanMetadataDto } from './planMetadata';
-import { getMyPublishedPlans, getPlan, publishPlan } from './plans';
+import { getMyPublishedPlans, getPlan, getPlanByShareToken, publishPlan } from './plans';
 import { createShareLink, getShareLinks, getSharedPlanWithPassword } from './sharing';
 import {
   createCheckoutSession,
@@ -58,7 +58,7 @@ test('auth and account functions publish exact empty args and response DTOs', ()
 
   const deletion = expectExplicitContract(deleteAccount);
   expect(deletion.args).toEqual({ type: 'object', value: {} });
-  expect(deletion.returns).toEqual({ type: 'null' });
+  expect(JSON.stringify(deletion.returns)).toContain('deleting');
 });
 
 test('plan functions validate metadata and expose bounded plan DTOs', () => {
@@ -119,8 +119,15 @@ test('sharing functions expose public link DTOs without password hashes', () => 
   expect(serializedLinks).toContain('hasPassword');
   expect(serializedLinks).not.toContain('passwordHash');
 
-  const unlockedPlan = expectExplicitContract(getSharedPlanWithPassword);
-  expect(JSON.stringify(unlockedPlan.args)).toContain('password');
-  expect(JSON.stringify(unlockedPlan.returns)).toContain('content');
-  expect(JSON.stringify(unlockedPlan.returns)).not.toContain('passwordHash');
+  const unlock = expectExplicitContract(getSharedPlanWithPassword);
+  expect(JSON.stringify(unlock.args)).toContain('password');
+  expect(JSON.stringify(unlock.returns)).toContain('accessProof');
+  expect(JSON.stringify(unlock.returns)).toContain('expiresAt');
+  expect(JSON.stringify(unlock.returns)).not.toContain('passwordHash');
+
+  const sharedPlan = expectExplicitContract(getPlanByShareToken);
+  expect(JSON.stringify(sharedPlan.args)).toContain('accessProof');
+  expect(JSON.stringify(sharedPlan.returns)).toContain('content');
+  expect(JSON.stringify(sharedPlan.returns)).not.toContain('metadata');
+  expect(JSON.stringify(sharedPlan.returns)).not.toContain('passwordHash');
 });
