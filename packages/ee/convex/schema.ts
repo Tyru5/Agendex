@@ -222,7 +222,12 @@ export default defineSchema({
   })
     .index('by_user', ['userId'])
     .index('by_stripe_customer', ['stripeCustomerId'])
-    .index('by_stripe_subscription', ['stripeSubscriptionId']),
+    .index('by_stripe_subscription', ['stripeSubscriptionId'])
+    .index('by_status_and_stripeSubscriptionId_and_currentPeriodEnd', [
+      'status',
+      'stripeSubscriptionId',
+      'currentPeriodEnd',
+    ]),
 
   workspaceMembers: defineTable({
     workspaceOwnerId: v.string(),

@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import Stripe from 'stripe';
 import { api, internal } from './_generated/api';
+import type { Doc, Id } from './_generated/dataModel';
 import {
   action,
   internalMutation,
@@ -96,6 +97,41 @@ function isProBypassUserId(userId: string): boolean {
   return bypassIds.includes(userId);
 }
 
+export type SubscriptionAccessState = Pick<Doc<'subscriptions'>, 'status'>;
+
+type InternalTrialExpiryState = Pick<
+  Doc<'subscriptions'>,
+  'status' | 'stripeSubscriptionId' | 'currentPeriodEnd'
+>;
+
+/**
+ * Entitlements depend only on stored state so Convex can cache queries safely.
+ * Trial expiry jobs transition that state and invalidate dependent queries.
+ */
+export function subscriptionStateGrantsPro(
+  subscription: SubscriptionAccessState | null | undefined,
+): boolean {
+  return subscription?.status === 'active' || subscription?.status === 'trialing';
+}
+
+/** Returns a patch only when the job still targets the same internal trial generation. */
+export function internalTrialExpiryPatch(
+  subscription: InternalTrialExpiryState,
+  expectedCurrentPeriodEnd: number,
+  now: number,
+): { status: 'canceled'; updatedAt: number } | null {
+  if (
+    subscription.status !== 'trialing' ||
+    subscription.stripeSubscriptionId !== '' ||
+    subscription.currentPeriodEnd !== expectedCurrentPeriodEnd ||
+    subscription.currentPeriodEnd > now
+  ) {
+    return null;
+  }
+
+  return { status: 'canceled', updatedAt: now };
+}
+
 export const getMySubscriptionQuery = query({
   handler: async (ctx) => {
     let user;
@@ -124,9 +160,7 @@ export async function hasActiveSubscriptionForUserId(ctx: DbCtx, userId: string)
     .withIndex('by_user', (q) => q.eq('userId', userId))
     .first();
 
-  if (!sub) return false;
-  const valid = sub.currentPeriodEnd > Date.now();
-  return valid && (sub.status === 'active' || sub.status === 'trialing');
+  return subscriptionStateGrantsPro(sub);
 }
 
 export async function hasActiveSubscription(ctx: DbCtx): Promise<boolean> {
@@ -142,6 +176,8 @@ export async function hasActiveSubscription(ctx: DbCtx): Promise<boolean> {
 }
 
 export const isProUser = query({
+  args: {},
+  returns: v.boolean(),
   handler: async (ctx) => {
     return hasActiveSubscription(ctx);
   },
@@ -178,18 +214,20 @@ export const hasCompletedOnboarding = query({
 
 export const startTrial = internalMutation({
   args: { userId: v.string() },
+  returns: v.null(),
   handler: async (ctx, { userId }) => {
     const existing = await ctx.db
       .query('subscriptions')
       .withIndex('by_user', (q) => q.eq('userId', userId))
       .first();
 
-    if (existing) return;
+    if (existing) return null;
 
     const TRIAL_DAYS = 7;
-    const trialEnd = Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const trialEnd = now + TRIAL_DAYS * 24 * 60 * 60 * 1000;
 
-    await ctx.db.insert('subscriptions', {
+    const subscriptionId = await ctx.db.insert('subscriptions', {
       userId,
       stripeCustomerId: '',
       stripeSubscriptionId: '',
@@ -197,9 +235,74 @@ export const startTrial = internalMutation({
       plan: 'monthly',
       currentPeriodEnd: trialEnd,
       cancelAtPeriodEnd: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     });
+
+    await ctx.scheduler.runAt(trialEnd, internal.subscriptions.expireInternalTrial, {
+      subscriptionId,
+      expectedCurrentPeriodEnd: trialEnd,
+    });
+    return null;
+  },
+});
+
+export async function expireInternalTrialIfCurrent(
+  ctx: MutationCtx,
+  args: {
+    subscriptionId: Id<'subscriptions'>;
+    expectedCurrentPeriodEnd: number;
+    now: number;
+  },
+): Promise<boolean> {
+  const subscription = await ctx.db.get(args.subscriptionId);
+  if (!subscription) return false;
+
+  const patch = internalTrialExpiryPatch(subscription, args.expectedCurrentPeriodEnd, args.now);
+  if (!patch) return false;
+
+  await ctx.db.patch(args.subscriptionId, patch);
+  return true;
+}
+
+export const expireInternalTrial = internalMutation({
+  args: {
+    subscriptionId: v.id('subscriptions'),
+    expectedCurrentPeriodEnd: v.number(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    return expireInternalTrialIfCurrent(ctx, { ...args, now: Date.now() });
+  },
+});
+
+const EXPIRY_SWEEP_BATCH_SIZE = 100;
+
+export const expireOverdueInternalTrials = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx): Promise<number> => {
+    const now = Date.now();
+    const overdue = await ctx.db
+      .query('subscriptions')
+      .withIndex('by_status_and_stripeSubscriptionId_and_currentPeriodEnd', (q) =>
+        q.eq('status', 'trialing').eq('stripeSubscriptionId', '').lte('currentPeriodEnd', now),
+      )
+      .take(EXPIRY_SWEEP_BATCH_SIZE);
+
+    let expired = 0;
+    for (const subscription of overdue) {
+      const patch = internalTrialExpiryPatch(subscription, subscription.currentPeriodEnd, now);
+      if (!patch) continue;
+      await ctx.db.patch(subscription._id, patch);
+      expired += 1;
+    }
+
+    if (overdue.length === EXPIRY_SWEEP_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.subscriptions.expireOverdueInternalTrials, {});
+    }
+
+    return expired;
   },
 });
 
