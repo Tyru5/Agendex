@@ -22,10 +22,7 @@ test('every account deletion phase is restart-safe and advances only after it dr
       continue;
     }
 
-    const interrupted = accountDeletionPhaseAfterBatch(
-      phase,
-      ACCOUNT_DELETION_BATCH_SIZE,
-    );
+    const interrupted = accountDeletionPhaseAfterBatch(phase, ACCOUNT_DELETION_BATCH_SIZE);
     expect(interrupted).toBe(phase);
 
     const retriedWithRemainingRows = accountDeletionPhaseAfterBatch(interrupted, 1);

@@ -275,11 +275,7 @@ async function findAccountDeletionJob(
     .first();
 }
 
-async function scheduleAccountDeletionResume(
-  ctx: MutationCtx,
-  ownerId: string,
-  delayMs = 0,
-) {
+async function scheduleAccountDeletionResume(ctx: MutationCtx, ownerId: string, delayMs = 0) {
   await ctx.scheduler.runAfter(delayMs, internal.account.resumeAccountDeletion, { ownerId });
 }
 

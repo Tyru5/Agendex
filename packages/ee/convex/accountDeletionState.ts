@@ -63,9 +63,7 @@ export const accountDeletionPhaseValidator = v.union(
   v.literal('authUser'),
 );
 
-export function nextAccountDeletionPhase(
-  phase: AccountDeletionPhase,
-): AccountDeletionPhase | null {
+export function nextAccountDeletionPhase(phase: AccountDeletionPhase): AccountDeletionPhase | null {
   const index = ACCOUNT_DELETION_PHASES.indexOf(phase);
   return ACCOUNT_DELETION_PHASES[index + 1] ?? null;
 }
