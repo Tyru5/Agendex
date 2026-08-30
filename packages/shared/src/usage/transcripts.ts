@@ -13,6 +13,7 @@
  * - Grok Build reports usage on `turn_completed` updates with integer cost
  *   ticks (1 USD = 1e10 ticks) and an optional per-model breakdown.
  */
+import { createHash } from 'node:crypto';
 import type { UsageAgent, UsageRecord, UsageTokenTotals } from './types.ts';
 
 const GROK_TICKS_PER_USD = 10_000_000_000;
@@ -221,7 +222,28 @@ function isGrokTurnCompleted(value: unknown): value is Record<string, unknown> {
   return value.type === 'turn_completed' || value.sessionUpdate === 'turn_completed';
 }
 
-export function parseGrokLine(line: string, fallbackSessionId: string): UsageRecord[] {
+function grokDedupeKey(
+  line: string,
+  model: string,
+  sessionId: string,
+  sourcePosition: string,
+): string {
+  return `grok:${createHash('sha256')
+    .update(line)
+    .update('\0')
+    .update(model)
+    .update('\0')
+    .update(sessionId)
+    .update('\0')
+    .update(sourcePosition)
+    .digest('hex')}`;
+}
+
+export function parseGrokLine(
+  line: string,
+  fallbackSessionId: string,
+  sourcePosition = '',
+): UsageRecord[] {
   const row = tryParseJson(line);
   if (!row) return [];
 
@@ -242,8 +264,8 @@ export function parseGrokLine(line: string, fallbackSessionId: string): UsageRec
   const usage = isRecord(update.usage) ? update.usage : undefined;
   if (!usage) return [];
 
-  const timestampMs =
-    parseTimestampMs(update.timestamp) ?? parseTimestampMs(row.timestamp) ?? Date.now();
+  const explicitTimestampMs = parseTimestampMs(update.timestamp) ?? parseTimestampMs(row.timestamp);
+  const timestampMs = explicitTimestampMs ?? Date.now();
   const sessionId =
     asString(update.sessionId) ??
     asString(row.sessionId) ??
@@ -268,15 +290,17 @@ export function parseGrokLine(line: string, fallbackSessionId: string): UsageRec
 
   if (perModel.length === 0) {
     const totals = grokTotals(usage);
+    const model = asString(update.model) ?? 'grok';
     return [
       {
         agent: 'grok',
         timestampMs,
-        model: asString(update.model) ?? 'grok',
+        model,
         sessionId,
         totals,
         reportedCostUsd: turnCostUsd,
-        dedupeKey: null,
+        dedupeKey: grokDedupeKey(line, model, sessionId, sourcePosition),
+        ...(explicitTimestampMs === undefined ? {} : { preserveLegacyCloudKey: true }),
       },
     ];
   }
@@ -301,7 +325,8 @@ export function parseGrokLine(line: string, fallbackSessionId: string): UsageRec
       sessionId,
       totals: m.totals,
       reportedCostUsd: costUsd,
-      dedupeKey: null,
+      dedupeKey: grokDedupeKey(line, m.model, sessionId, sourcePosition),
+      ...(explicitTimestampMs === undefined ? {} : { preserveLegacyCloudKey: true }),
     };
   });
 }

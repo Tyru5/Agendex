@@ -643,6 +643,13 @@ export const runAccountDeletionBatch = internalMutation({
         await ctx.db.delete(row._id);
       }
       deleted = rows.length;
+    } else if (job.phase === 'agentAvatarUploadReservations') {
+      const rows = await ctx.db
+        .query('agentAvatarUploadReservations')
+        .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+        .take(ACCOUNT_DELETION_BATCH_SIZE);
+      for (const row of rows) await ctx.db.delete(row._id);
+      deleted = rows.length;
     } else if (job.phase === 'dataExports') {
       const rows = await ctx.db
         .query('dataExports')

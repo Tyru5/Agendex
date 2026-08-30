@@ -226,7 +226,12 @@ export default defineSchema({
   })
     .index('by_user', ['userId'])
     .index('by_stripe_customer', ['stripeCustomerId'])
-    .index('by_stripe_subscription', ['stripeSubscriptionId']),
+    .index('by_stripe_subscription', ['stripeSubscriptionId'])
+    .index('by_status_and_stripeSubscriptionId_and_currentPeriodEnd', [
+      'status',
+      'stripeSubscriptionId',
+      'currentPeriodEnd',
+    ]),
 
   workspaceMembers: defineTable({
     workspaceOwnerId: v.string(),
@@ -297,8 +302,8 @@ export default defineSchema({
   })
     .index('by_plan', ['planId'])
     .index('by_tag', ['tagId'])
-    .index('by_plan_tag', ['planId', 'tagId'])
-    .index('by_owner_plan', ['ownerId', 'planId']),
+    .index('by_owner_plan', ['ownerId', 'planId'])
+    .index('by_owner_plan_tag', ['ownerId', 'planId', 'tagId']),
 
   collections: defineTable({
     ownerId: v.string(),
@@ -318,10 +323,14 @@ export default defineSchema({
     position: v.optional(v.number()),
     createdAt: v.number(),
   })
+    .index('by_owner', ['ownerId'])
     .index('by_collection', ['collectionId'])
     .index('by_plan', ['planId'])
     .index('by_collection_plan', ['collectionId', 'planId'])
-    .index('by_owner', ['ownerId']),
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_and_collection', ['ownerId', 'collectionId'])
+    .index('by_owner_and_plan', ['ownerId', 'planId'])
+    .index('by_owner_and_collection_and_plan', ['ownerId', 'collectionId', 'planId']),
 
   planPreferences: defineTable({
     ownerId: v.string(),
@@ -375,6 +384,15 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_owner', ['ownerId']),
+  agentAvatarUploadReservations: defineTable({
+    ownerId: v.string(),
+    agent: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_agent', ['ownerId', 'agent'])
+    .index('by_expiresAt', ['expiresAt']),
 
   accountPreferences: defineTable({
     ownerId: v.string(),
@@ -443,8 +461,11 @@ export default defineSchema({
     error: v.optional(v.string()),
     byteSize: v.optional(v.number()),
     fileName: v.optional(v.string()),
+    buildToken: v.optional(v.string()),
+    buildLeaseExpiresAt: v.optional(v.number()),
   })
     .index('by_owner', ['ownerId'])
     .index('by_owner_status', ['ownerId', 'status'])
-    .index('by_expiresAt', ['expiresAt']),
+    .index('by_expiresAt', ['expiresAt'])
+    .index('by_storage', ['storageId']),
 });

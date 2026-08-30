@@ -106,6 +106,7 @@ test('account deletion batches all owned storage-backed and relational data', ()
     'pendingUploads',
     'commentUploadReservations',
     'agentAvatars',
+    'agentAvatarUploadReservations',
     'dataExports',
     'workspaceMembers',
     'workspaceInvites',
@@ -130,7 +131,8 @@ test('in-flight exports cannot recreate a blob after their deletion job is remov
   expect(exportInsert).toBeGreaterThan(deletionGuard);
 
   const missingJobCleanup = source.slice(source.indexOf('export const markExportReady'));
-  expect(missingJobCleanup).toContain('if (!job)');
+  expect(missingJobCleanup).toContain("job.status !== 'building'");
+  expect(missingJobCleanup).toContain('job.buildToken !== args.buildToken');
   expect(missingJobCleanup).toContain('ctx.db.system.get(args.storageId)');
   expect(missingJobCleanup).toContain('ctx.storage.delete(args.storageId)');
 });
