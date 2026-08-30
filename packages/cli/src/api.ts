@@ -169,7 +169,6 @@ export interface CloudPlanDownloadPagination {
   pageSize: number;
 }
 
-
 export type FetchCloudPlanResult =
   | { kind: 'found'; plan: CloudPlanDownload }
   | {

@@ -617,7 +617,6 @@ function sumUsageAggregates(
   };
 }
 
-
 function validIdentityStrength(value: unknown): 'strong' | 'path' | 'content' | undefined {
   return value === 'strong' || value === 'path' || value === 'content' ? value : undefined;
 }
@@ -1815,7 +1814,6 @@ function serializeDownloadPlan(plan: Doc<'plans'>): SerializedDownloadPlan {
   };
 }
 
-
 function toLookupCandidate(plan: Doc<'plans'>): PlanDownloadLookupCandidate {
   return {
     id: plan._id,
@@ -2003,10 +2001,7 @@ export const lookupPlanForDownload = internalQuery({
         },
       };
     }
-    const titleSelection = selectPlanDownloadTitlePage(
-      visibleTitleCandidates,
-      titlePage.isDone,
-    );
+    const titleSelection = selectPlanDownloadTitlePage(visibleTitleCandidates, titlePage.isDone);
 
     if (titleSelection.kind === 'one') {
       const plan = titlePage.page.find((row) => row._id === titleSelection.plan.id);
@@ -2089,15 +2084,12 @@ export const downloadPlan = httpAction(async (ctx, request) => {
     return jsonResponse({ error: 'query is required' }, 400);
   }
 
-  const result: DownloadLookupResult = await ctx.runQuery(
-    internal.cli.lookupPlanForDownload,
-    {
-      userId,
-      query,
-      agent,
-      titleCursor,
-    },
-  );
+  const result: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
+    userId,
+    query,
+    agent,
+    titleCursor,
+  });
 
   if (result.status === 'invalid') {
     return jsonResponse({ error: 'query is required' }, 400);
@@ -2115,10 +2107,7 @@ export const downloadPlan = httpAction(async (ctx, request) => {
       409,
     );
   }
-  return jsonResponse(
-    { status: 'not_found', suggestions: result.suggestions },
-    404,
-  );
+  return jsonResponse({ status: 'not_found', suggestions: result.suggestions }, 404);
 });
 
 const browsePlanMatchValidator = v.object({

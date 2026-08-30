@@ -1,8 +1,5 @@
 import { ProFeature } from '@agendex/shared/types';
-import {
-  canonicalPlanAgent,
-  normalizePlanLookupText,
-} from '@agendex/shared/plan-download-lookup';
+import { canonicalPlanAgent, normalizePlanLookupText } from '@agendex/shared/plan-download-lookup';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
