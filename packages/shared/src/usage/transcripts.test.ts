@@ -156,6 +156,7 @@ test('parseGrokLine converts cost ticks and handles nested update envelope', () 
   expect(record?.totals.uncachedInputTokens).toBe(300);
   expect(record?.reportedCostUsd).toBeCloseTo(2.5);
   expect(record?.sessionId).toBe('grok:session-x');
+  expect(record?.preserveLegacyCloudKey).toBe(true);
 });
 
 test('parseGrokLine accepts native ACP sessionUpdate envelope', () => {
@@ -225,6 +226,27 @@ test('parseGrokLine allocates remaining cost across unticked models by tokens', 
   expect(byModel.get('grok-4-fast')).toBeCloseTo(1);
   expect(byModel.get('grok-4')).toBeCloseTo(2); // 600/900 of remaining $3
   expect(byModel.get('grok-3-mini')).toBeCloseTo(1); // 300/900 of remaining $3
+});
+
+test('parseGrokLine creates bounded stable keys without a timestamp or session id', () => {
+  const line = JSON.stringify({
+    update: {
+      type: 'turn_completed',
+      usage: { inputTokens: 2, outputTokens: 1 },
+    },
+  });
+
+  const firstRecord = parseGrokLine(line, 'grok:session-a', '1')[0];
+  const first = firstRecord?.dedupeKey;
+  const repeated = parseGrokLine(line, 'grok:session-a', '1')[0]?.dedupeKey;
+  const otherSession = parseGrokLine(line, 'grok:session-b', '1')[0]?.dedupeKey;
+  const otherOccurrence = parseGrokLine(line, 'grok:session-a', '2')[0]?.dedupeKey;
+
+  expect(first).toBe(repeated);
+  expect(first).not.toBe(otherSession);
+  expect(first).not.toBe(otherOccurrence);
+  expect(first?.length).toBeLessThanOrEqual(256);
+  expect(firstRecord?.preserveLegacyCloudKey).toBeUndefined();
 });
 
 // ---------------------------------------------------------------------------
