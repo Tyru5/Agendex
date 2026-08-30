@@ -24,7 +24,10 @@ export type PlanMetadataDto = Infer<typeof planMetadataValidator>;
 
 type MetadataScalar = string | number | boolean | null;
 type MetadataArray = MetadataScalar[];
-type MetadataLevelOne = MetadataScalar | MetadataArray | Record<string, MetadataScalar | MetadataArray>;
+type MetadataLevelOne =
+  | MetadataScalar
+  | MetadataArray
+  | Record<string, MetadataScalar | MetadataArray>;
 type MetadataLevelTwo = MetadataScalar | MetadataArray | Record<string, MetadataLevelOne>;
 
 function isMetadataScalar(value: unknown): value is MetadataScalar {

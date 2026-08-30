@@ -65,10 +65,7 @@ const usageSummaryValidator = v.object({
       start: v.string(),
       costUsd: v.number(),
       totalTokens: v.number(),
-      byAgent: v.record(
-        v.string(),
-        v.object({ costUsd: v.number(), totalTokens: v.number() }),
-      ),
+      byAgent: v.record(v.string(), v.object({ costUsd: v.number(), totalTokens: v.number() })),
     }),
   ),
   totals: usageTokenTotalsValidator,

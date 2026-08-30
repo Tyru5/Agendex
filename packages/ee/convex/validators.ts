@@ -1,9 +1,6 @@
 import { v, type Infer } from 'convex/values';
 import type { Doc } from './_generated/dataModel';
-import {
-  planMetadataValidator,
-  toPlanMetadataDto,
-} from './planMetadata';
+import { planMetadataValidator, toPlanMetadataDto } from './planMetadata';
 export { planMetadataValidator, toPlanMetadataDto, type PlanMetadataDto } from './planMetadata';
 
 const planFields = {
