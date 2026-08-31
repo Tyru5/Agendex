@@ -18,8 +18,12 @@
 
  ---
 
- EXCEPTION: The contents of the `packages/ee/` directory are NOT licensed
- under the AGPL-3.0. They are licensed under the Agendex Enterprise License
- found at `packages/ee/LICENSE`.
+ EXCEPTION: All content that resides under the `packages/ee/` directory of
+ this repository, if that directory exists, is NOT licensed under the
+ AGPL-3.0. It is licensed under the license defined in `packages/ee/LICENSE`.
+
+ All third party components incorporated into the Agendex Software are
+ licensed under the original license provided by the owner of the applicable
+ component.
 
  All other code in this repository is licensed under the AGPL-3.0.

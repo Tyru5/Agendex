@@ -21,6 +21,12 @@ export { APP_SHORTCUTS, getAppShortcuts, shortcutDisplayKeys } from './client/li
 export { ExitFullscreenIcon, FullscreenIcon } from './client/components/FullscreenIcons.tsx';
 export type { LandingPageProps } from './client/components/LandingPage.tsx';
 export { LandingPage } from './client/components/LandingPage.tsx';
+export type { LegalPageKind, LegalPageProps } from './client/components/LegalPage.tsx';
+export {
+  LegalPage,
+  PrivacyPolicyPage,
+  TermsOfServicePage,
+} from './client/components/LegalPage.tsx';
 export { default as dinoShadow } from './client/components/landing/dino-shadow.png';
 export { default as dinoVitaIdleStrip } from './client/components/landing/dino-vita-idle-strip.png';
 export { useLandingContext } from './client/components/landing/LandingContext.tsx';

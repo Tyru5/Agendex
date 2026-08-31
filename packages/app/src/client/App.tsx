@@ -3,6 +3,8 @@ import {
   DocsPage,
   DownloadPage,
   EmptyStateView,
+  PrivacyPolicyPage,
+  TermsOfServicePage,
   applyPlanFilters,
   focusPlanSearchField,
   getAppShortcuts,
@@ -542,6 +544,30 @@ export default function App() {
   if (typeof window !== 'undefined' && window.location.pathname === '/tools') {
     return (
       <ToolsUsedPage
+        onBack={() => {
+          startViewTransition(() => {
+            window.location.href = '/';
+          });
+        }}
+      />
+    );
+  }
+
+  if (typeof window !== 'undefined' && window.location.pathname === '/terms') {
+    return (
+      <TermsOfServicePage
+        onBack={() => {
+          startViewTransition(() => {
+            window.location.href = '/';
+          });
+        }}
+      />
+    );
+  }
+
+  if (typeof window !== 'undefined' && window.location.pathname === '/privacy') {
+    return (
+      <PrivacyPolicyPage
         onBack={() => {
           startViewTransition(() => {
             window.location.href = '/';

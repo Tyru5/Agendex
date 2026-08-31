@@ -6,6 +6,8 @@ import {
   DocsPage,
   DownloadPage,
   EmptyStateView,
+  PrivacyPolicyPage,
+  TermsOfServicePage,
   ToolsUsedPage,
   applyPlanFilters,
   focusPlanSearchField,
@@ -2915,6 +2917,16 @@ function ToolsUsedRoute() {
   return <ToolsUsedPage onBack={() => startViewTransition(() => navigate('/'))} />;
 }
 
+function TermsRoute() {
+  const [, navigate] = useLocation();
+  return <TermsOfServicePage onBack={() => startViewTransition(() => navigate('/'))} />;
+}
+
+function PrivacyRoute() {
+  const [, navigate] = useLocation();
+  return <PrivacyPolicyPage onBack={() => startViewTransition(() => navigate('/'))} />;
+}
+
 function CliAuthRoute() {
   const callback = new URLSearchParams(window.location.search).get('callback');
   if (!callback) return <Redirect to="/" />;
@@ -3202,6 +3214,8 @@ export default function App() {
       <Route path="/docs" component={DocsRoute} />
       <Route path="/download" component={DownloadRoute} />
       <Route path="/tools" component={ToolsUsedRoute} />
+      <Route path="/terms" component={TermsRoute} />
+      <Route path="/privacy" component={PrivacyRoute} />
       <Route path="/welcome">
         <AuthRuntime>
           <OnboardingRoute>
