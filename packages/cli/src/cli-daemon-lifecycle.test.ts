@@ -46,6 +46,22 @@ async function waitForProcessExit(pid: number, timeoutMs = 2_000): Promise<void>
   if (isRunning(pid)) throw new Error(`Process ${pid} did not exit`);
 }
 
+async function cleanupTempRoot(tempRoot: string, pids: Array<number | undefined>): Promise<void> {
+  for (const pid of pids) {
+    if (!pid || !isRunning(pid)) continue;
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {}
+  }
+  for (const pid of pids) {
+    if (!pid) continue;
+    try {
+      await waitForProcessExit(pid);
+    } catch {}
+  }
+  rmSync(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+}
+
 async function waitForPidInfo(
   path: string,
   predicate: (info: DaemonPidInfo) => boolean,
@@ -96,13 +112,7 @@ test('CLI start and stop terminate both supervisor and worker', async () => {
     expect(supervisorPid !== undefined && isRunning(supervisorPid)).toBe(false);
     expect(workerPid !== undefined && isRunning(workerPid)).toBe(false);
   } finally {
-    for (const pid of [workerPid, supervisorPid]) {
-      if (!pid || !isRunning(pid)) continue;
-      try {
-        process.kill(pid, 'SIGKILL');
-      } catch {}
-    }
-    rmSync(tempRoot, { recursive: true, force: true });
+    await cleanupTempRoot(tempRoot, [workerPid, supervisorPid]);
   }
 }, 15_000);
 
@@ -144,13 +154,7 @@ test('CLI start remains singleton while a ready worker is restarting', async () 
     expect((await runCli(['stop'], tempRoot, env)).code).toBe(0);
     expect(supervisorPid !== undefined && isRunning(supervisorPid)).toBe(false);
   } finally {
-    for (const pid of [workerPid, supervisorPid]) {
-      if (!pid || !isRunning(pid)) continue;
-      try {
-        process.kill(pid, 'SIGKILL');
-      } catch {}
-    }
-    rmSync(tempRoot, { recursive: true, force: true });
+    await cleanupTempRoot(tempRoot, [workerPid, supervisorPid]);
   }
 }, 15_000);
 
@@ -200,18 +204,12 @@ test('initial startup drains an orphaned worker before a replacement starts', as
 
     expect((await runCli(['stop'], tempRoot, env)).code).toBe(0);
   } finally {
-    for (const pid of [
+    await cleanupTempRoot(tempRoot, [
       oldWorkerPid,
       oldSupervisorPid,
       replacementWorkerPid,
       replacementSupervisorPid,
-    ]) {
-      if (!pid || !isRunning(pid)) continue;
-      try {
-        process.kill(pid, 'SIGKILL');
-      } catch {}
-    }
-    rmSync(tempRoot, { recursive: true, force: true });
+    ]);
   }
 }, 15_000);
 
@@ -247,12 +245,6 @@ test('CLI stop drains a worker orphaned by a crashed supervisor', async () => {
     expect(workerPid !== undefined && isRunning(workerPid)).toBe(false);
     expect(existsSync(pidPath)).toBe(false);
   } finally {
-    for (const pid of [workerPid, supervisorPid]) {
-      if (!pid || !isRunning(pid)) continue;
-      try {
-        process.kill(pid, 'SIGKILL');
-      } catch {}
-    }
-    rmSync(tempRoot, { recursive: true, force: true });
+    await cleanupTempRoot(tempRoot, [workerPid, supervisorPid]);
   }
 }, 15_000);
