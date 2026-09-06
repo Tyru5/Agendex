@@ -47,6 +47,15 @@ jobs:
         id: version
         run: |
           LOCAL_VERSION=$(node -p "JSON.parse(require('node:fs').readFileSync('./packages/cli/package.json', 'utf8')).version")
+          echo "local=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
+          # The release tag is created only after publish succeeds. npm metadata
+          # can lag behind that success and make a subsequent push publish twice.
+          RELEASE_TAG=$(git ls-remote --tags origin "refs/tags/v$LOCAL_VERSION")
+          if [ -n "$RELEASE_TAG" ]; then
+            echo "Release v$LOCAL_VERSION already tagged, skipping publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           NPM_VIEW_ERR=$(mktemp)
           if PUBLISHED_VERSION=$(npm view agendex-cli version 2>"$NPM_VIEW_ERR"); then
             :
@@ -58,7 +67,6 @@ jobs:
             exit 1
           fi
           rm -f "$NPM_VIEW_ERR"
-          echo "local=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
           echo "published=$PUBLISHED_VERSION" >> "$GITHUB_OUTPUT"
           if [ "$LOCAL_VERSION" = "$PUBLISHED_VERSION" ]; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
