@@ -240,6 +240,23 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
             >
               {copy.switchCta}
             </Link>
+            <p className="mt-3 mb-0 text-[11.5px] leading-[1.55] text-[oklch(67%_0.025_165_/_0.75)]">
+              By continuing, you agree to our{' '}
+              <a
+                href="/terms"
+                className="font-semibold text-[oklch(67%_0.025_165)] underline underline-offset-2 hover:text-[oklch(90%_0.22_129)]"
+              >
+                Terms of Service
+              </a>{' '}
+              and{' '}
+              <a
+                href="/privacy"
+                className="font-semibold text-[oklch(67%_0.025_165)] underline underline-offset-2 hover:text-[oklch(90%_0.22_129)]"
+              >
+                Privacy Policy
+              </a>
+              .
+            </p>
           </div>
         </div>
       </section>

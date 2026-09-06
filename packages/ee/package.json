@@ -1,6 +1,7 @@
 {
   "name": "@agendex/ee",
   "private": true,
+  "license": "LicenseRef-Agendex-Enterprise",
   "type": "module",
   "scripts": {
     "dev:client": "bunx --bun vite",

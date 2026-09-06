@@ -1,34 +1,41 @@
-Agendex Enterprise License
-
+The Agendex Enterprise License (the "Enterprise License")
 Copyright (c) 2025 Agendex
 
-All content in the `packages/ee/` directory is proprietary and source-available
-under the following terms:
+With regard to the Agendex Software:
 
-1. GRANT OF LICENSE
-   You may view, copy, and modify the source code in this directory solely for
-   the purposes of:
-   (a) evaluation,
-   (b) local development and testing, and
-   (c) contributing improvements back to Agendex.
+This software and associated documentation files (the "Software") may only be
+used in production, if you (and any entity that you represent) have agreed to,
+and are in compliance with, the Agendex Subscription Terms of Service,
+available at https://agendex.dev/terms (the "Enterprise Terms"), or other
+agreement governing the use of the Software, as agreed by you and Agendex,
+and otherwise have a valid Agendex Cloud Pro subscription for the correct
+number of user seats, as defined in Section 3 of the Enterprise Terms.
+Subject to the foregoing sentence, you are free to
+modify this Software and publish patches to the Software. All such
+modifications and/or patches may only be used, copied, modified, displayed,
+distributed, or otherwise exploited with a valid Agendex Cloud Pro
+subscription for the correct number of user seats. Notwithstanding the
+foregoing, you may copy and modify the Software for development and testing
+purposes, without requiring a subscription. Agendex and its licensors retain
+ownership of the Software they provide. You retain ownership of your original
+modifications and patches, subject to the rights in the underlying Software
+and the restrictions of this Enterprise License. Contributions submitted to
+Agendex are governed by CLA.md; that agreement grants licenses to Agendex
+without transferring your ownership. You are not granted any other rights
+beyond what is expressly stated herein. Subject to the foregoing, it is forbidden to copy,
+merge, publish, distribute, sublicense, and/or sell the Software.
 
-2. RESTRICTIONS
-   You may NOT use any code in this directory in a production environment,
-   whether self-hosted or otherwise, without a valid Agendex Cloud Pro
-   subscription. "Production environment" means any deployment that serves
-   end users, whether internal or external.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
-3. NO REDISTRIBUTION
-   You may NOT redistribute, sublicense, or sell copies of this code, modified
-   or unmodified, as part of a competing product or service.
+For all third party components incorporated into the Agendex Software, those
+components are licensed under the original license provided by the owner of
+the applicable component.
 
-4. TERMINATION
-   This license terminates automatically if you breach any of its terms.
-   Upon termination, you must cease all use of the code in this directory.
-
-5. WARRANTY DISCLAIMER
-   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-   IMPLIED. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR
-   OTHER LIABILITY ARISING FROM THE USE OF THIS SOFTWARE.
-
-For questions about commercial licensing, contact the Agendex team.
+For questions about commercial licensing, contact the Agendex team via
+https://agendex.dev.

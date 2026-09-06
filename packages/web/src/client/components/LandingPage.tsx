@@ -1226,6 +1226,8 @@ function LandingFooter({
         <LandingAnchor href="/tools" onClick={landingNavClickHandler('/tools', navHandlers)}>
           Stack
         </LandingAnchor>
+        <LandingAnchor href="/terms">Terms</LandingAnchor>
+        <LandingAnchor href="/privacy">Privacy</LandingAnchor>
         <LandingAnchor
           href="https://github.com/tyru5/agendex"
           target="_blank"
