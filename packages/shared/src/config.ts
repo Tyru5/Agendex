@@ -75,6 +75,17 @@ const ADAPTER_ENABLE_MIGRATIONS: Array<{ toVersion: number; enable: AdapterId[] 
   { toVersion: 7, enable: ['omp'] },
 ];
 
+/** Last successful `agendex download` run, shown by `agendex status`. */
+export interface PlanDownloadRecord {
+  /** Epoch ms when the download completed. */
+  at: number;
+  title: string;
+  agent: string;
+  format: 'md' | 'html';
+  /** Absolute file path, or null when written to stdout. */
+  destination: string | null;
+}
+
 export interface AgendexConfig {
   configVersion: number;
   token?: string;
@@ -87,6 +98,7 @@ export interface AgendexConfig {
   collectLocalIpAddress?: boolean;
   enabledAdapters: AdapterId[];
   customPlanDirs: string[];
+  lastPlanDownload?: PlanDownloadRecord;
 }
 
 interface StoredConfig {
@@ -100,6 +112,18 @@ interface StoredConfig {
   collectLocalIpAddress?: unknown;
   enabledAdapters?: unknown;
   customPlanDirs?: unknown;
+  lastPlanDownload?: unknown;
+}
+
+function normalizePlanDownloadRecord(raw: unknown): PlanDownloadRecord | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.at !== 'number' || !Number.isFinite(r.at) || r.at <= 0) return undefined;
+  if (typeof r.title !== 'string' || typeof r.agent !== 'string') return undefined;
+  if (r.format !== 'md' && r.format !== 'html') return undefined;
+  const destination =
+    typeof r.destination === 'string' && r.destination.trim() ? r.destination : null;
+  return { at: r.at, title: r.title, agent: r.agent, format: r.format, destination };
 }
 
 function ensureConfigDir() {
@@ -310,6 +334,7 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     collectLocalIpAddress,
     enabledAdapters: migrated.adapters,
     customPlanDirs: normalizeCustomPlanDirs(raw.customPlanDirs),
+    lastPlanDownload: normalizePlanDownloadRecord(raw.lastPlanDownload),
   };
 }
 
@@ -341,6 +366,7 @@ function normalizedConfigForWrite(config: AgendexConfig): AgendexConfig {
     collectLocalIpAddress: config.collectLocalIpAddress,
     enabledAdapters: migrated.adapters,
     customPlanDirs: normalizeCustomPlanDirs(config.customPlanDirs),
+    lastPlanDownload: normalizePlanDownloadRecord(config.lastPlanDownload),
   };
 }
 

@@ -72,6 +72,59 @@ test('renders grouped status with daemon, cloud, and source summaries', () => {
   expect(output).toContain('claude-code, codex');
   expect(output).toContain('/plans/team');
   expect(output).toContain('agendex cleanup --stale');
+  expect(output).toContain('Plan download');
+  expect(output).toContain('• never used');
+  expect(output).toContain('agendex download <query>');
+});
+
+test('renders the last plan download when the CLI download command was used', () => {
+  const output = renderStatus({
+    config: config({
+      lastPlanDownload: {
+        at: NOW - 3_900_000,
+        title: 'Add auth\u001b[31m',
+        agent: 'claude-code',
+        format: 'md',
+        destination: '/plans/Add auth.md',
+      },
+    }),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: null,
+    running: false,
+    cliVersion: '2.0.0',
+    devices: [],
+    now: NOW,
+    color: false,
+  });
+
+  expect(output).toContain('✓ used 1h 5m ago');
+  expect(output).toContain('"Add auth" (claude-code) → /plans/Add auth.md');
+  expect(output).not.toContain('\u001b[31m');
+  expect(output).not.toContain('agendex download <query>');
+});
+
+test('renders stdout plan downloads without a file destination', () => {
+  const output = renderStatus({
+    config: config({
+      lastPlanDownload: {
+        at: NOW - 15_000,
+        title: 'Deploy',
+        agent: 'codex',
+        format: 'html',
+        destination: null,
+      },
+    }),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: null,
+    running: false,
+    cliVersion: '2.0.0',
+    devices: [],
+    now: NOW,
+    color: false,
+  });
+
+  expect(output).toContain('✓ used 15s ago');
+  expect(output).toContain('"Deploy" (codex) → stdout');
 });
 
 test('renders desktop spawn origin for Electron-launched daemons', () => {
@@ -117,4 +170,7 @@ test('renders actionable setup guidance when config is missing', () => {
   expect(output).toContain('agendex login');
   expect(output).toContain('agendex configure');
   expect(output).toContain('agendex open');
+  expect(output).toContain('• never used');
+  expect(output).toContain('log in, then run `agendex download <query>`');
+  expect(output).not.toContain('agendex download <query>  ');
 });

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { saveConfig } from '@agendex/shared';
+import { loadConfig, saveConfig } from '@agendex/shared';
 import type { CloudPlanDownload, FetchCloudPlanResult } from './api.ts';
 import { isUsableLaunchPath, runDownload } from './download.ts';
 
@@ -688,4 +688,38 @@ test('surfaces expired auth and generic cloud errors', async () => {
     ),
   ).toBe(1);
   expect(failed.errors.join('\n')).toContain('boom');
+});
+
+test('records the last successful download in config for agendex status', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan();
+  const deps = { ...makeDeps({ kind: 'found', plan }, cap), now: () => 1_700_000_000_000 };
+  expect(await runDownload(['download', plan.id, '--format', 'html'], deps)).toBe(0);
+  expect(loadConfig()?.lastPlanDownload).toEqual({
+    at: 1_700_000_000_000,
+    title: 'Add auth',
+    agent: 'claude-code',
+    format: 'html',
+    destination: join(dir, 'Add auth.html'),
+  });
+  expect(loadConfig()?.cloudToken).toBe('tok');
+});
+
+test('records stdout downloads with a null destination', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan();
+  const deps = { ...makeDeps({ kind: 'found', plan }, cap), now: () => 42 };
+  expect(await runDownload(['download', plan.id, '--out', '-'], deps)).toBe(0);
+  expect(loadConfig()?.lastPlanDownload).toMatchObject({ at: 42, destination: null });
+});
+
+test('does not record a download that failed to write', async () => {
+  writeLoggedInConfig();
+  const cap = newCapture();
+  const plan = samplePlan();
+  const deps = makeDeps({ kind: 'found', plan }, cap, [], {}, [join(dir, 'Add auth.md')]);
+  expect(await runDownload(['download', plan.id], deps)).toBe(1);
+  expect(loadConfig()?.lastPlanDownload).toBeUndefined();
 });

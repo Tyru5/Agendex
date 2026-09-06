@@ -1,5 +1,10 @@
 import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { loadConfig, looksLikePlanAgent, parsePlanDownloadQuery } from '@agendex/shared';
+import {
+  loadConfig,
+  looksLikePlanAgent,
+  parsePlanDownloadQuery,
+  updateConfig,
+} from '@agendex/shared';
 import {
   type CloudPlanDownloadMatch,
   type CloudPlanDownloadPagination,
@@ -31,6 +36,22 @@ export interface DownloadDeps {
   stat: typeof stat;
   canPrompt: () => boolean;
   promptSelect: (matches: CloudPlanDownloadMatch[], message: string) => Promise<string | null>;
+  now: () => number;
+}
+
+/** Best-effort: remember the last successful download so `agendex status` can show it. */
+function recordPlanDownload(record: {
+  at: number;
+  title: string;
+  agent: string;
+  format: PlanDownloadFormat;
+  destination: string | null;
+}): void {
+  try {
+    updateConfig((current) => (current ? { ...current, lastPlanDownload: record } : null));
+  } catch {
+    // Status bookkeeping must never fail an otherwise successful download.
+  }
 }
 
 type FlagParse = { kind: 'ok'; value?: string } | { kind: 'missing'; flag: string };
@@ -151,6 +172,7 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
   const statFn = deps?.stat ?? stat;
   const canPrompt = deps?.canPrompt ?? canPromptForPlanDownload;
   const promptSelect = deps?.promptSelect ?? promptForPlanDownload;
+  const now = deps?.now ?? Date.now;
 
   const agentFlag = flagValue(args, '--agent');
   if (agentFlag.kind === 'missing') {
@@ -291,5 +313,13 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
     mkdir: mkdirFn,
     stat: statFn,
   });
-  return written.ok ? 0 : 1;
+  if (!written.ok) return 1;
+  recordPlanDownload({
+    at: now(),
+    title: result.plan.title,
+    agent: result.plan.agent,
+    format,
+    destination: written.destination,
+  });
+  return 0;
 }

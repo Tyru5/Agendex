@@ -8,7 +8,7 @@ export {
   sanitizeEnabledAdapterIds,
   setActiveAdapters,
 } from './adapters/registry.ts';
-export type { AgendexConfig, InitConfigOptions } from './config.ts';
+export type { AgendexConfig, InitConfigOptions, PlanDownloadRecord } from './config.ts';
 export {
   CURRENT_CONFIG_VERSION,
   getConfigDir,
