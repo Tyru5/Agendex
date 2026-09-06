@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.7.3
+
+### Patch Changes
+
+- d6d28ba: Update 'status' command to show more info
+
 ## 5.7.2
 
 ### Patch Changes
