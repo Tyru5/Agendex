@@ -27,7 +27,9 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
+
+      - name: Setup npm for trusted publishing
+        run: npm install --global npm@11
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -67,8 +69,6 @@ jobs:
       - name: Publish package
         if: steps.version.outputs.publish == 'true'
         run: npm publish ./packages/cli/.release --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Tag release
         if: steps.version.outputs.publish == 'true'
