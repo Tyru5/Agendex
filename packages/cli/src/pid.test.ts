@@ -19,6 +19,7 @@ import {
   isDaemonPidInfoCurrent,
   isDaemonPidInfoRunning,
   readPidInfo,
+  readDarwinBootIdentities,
   readWindowsDesktopDaemonInfoFromWsl,
 } from './pid.ts';
 
@@ -173,6 +174,136 @@ test('daemon PID metadata rejects records from another host or OS boot', () => {
       { currentHostname: 'current-host', currentBootIds: [] },
     ),
   ).toBe(false);
+});
+
+test('macOS boot microsecond drift preserves a live daemon record', () => {
+  const bootId = 'darwin:{ sec = 1788278233, usec = 971069 } Tue Sep 1 09:57:13 2026';
+  const runtime = {
+    currentHostname: 'current-host',
+    currentBootIds: ['darwin:{ sec = 1788278233, usec = 900798 } Tue Sep 1 09:57:13 2026'],
+    processRunning: true,
+    processCommand: '/usr/local/bin/agendex start --daemon',
+  };
+  for (const metadata of [{ bootId }, { bootIds: [bootId] }, { bootId, bootIds: [bootId] }]) {
+    const info = { pid: 123, hostname: 'current-host', launcher: 'cli' as const, ...metadata };
+    expect(isDaemonPidInfoCurrent(info, runtime)).toBe(true);
+    expect(isDaemonPidInfoRunning(info, runtime)).toBe(true);
+    expect(isDaemonPidInfoRunning(info, { ...runtime, processRunning: false })).toBe(false);
+    expect(isDaemonPidInfoRunning(info, { ...runtime, processCommand: 'unrelated --daemon' })).toBe(
+      false,
+    );
+    expect(isDaemonPidInfoCurrent(info, { ...runtime, currentHostname: 'other-host' })).toBe(false);
+  }
+});
+
+test('macOS UUIDs are authoritative over legacy boot timestamps', () => {
+  const uuid = 'darwin:bootsessionuuid:4858dfb0-58f3-4a95-9238-dc5553baadf9';
+  const otherUuid = 'darwin:bootsessionuuid:5858dfb0-58f3-4a95-9238-dc5553baadf9';
+  const legacy = 'darwin:{ sec = 1788278233, usec = 971069 }';
+  const drifted = 'darwin:{ sec = 1788278233, usec = 900798 }';
+  for (const [stored, current, expected] of [
+    [[uuid, legacy], [uuid, 'darwin:{ sec = 1788278000, usec = 0 }'], true],
+    [[uuid, legacy], [otherUuid, legacy], false],
+    [[uuid], [otherUuid], false],
+    [
+      [uuid],
+      [uuid.toUpperCase().replace('DARWIN:BOOTSESSIONUUID:', 'darwin:bootsessionuuid:')],
+      true,
+    ],
+    [[legacy], [uuid, drifted], true],
+    [[uuid, legacy], [drifted], true],
+    [[uuid], [legacy], false],
+    [[legacy], [uuid], false],
+    [['linux:boot-a'], ['linux:boot-a'], true],
+    [['linux:boot-a'], ['linux:boot-b'], false],
+  ] as const) {
+    expect(
+      isDaemonPidInfoCurrent(
+        { pid: 123, bootId: stored[0], bootIds: [...stored] },
+        {
+          currentBootIds: [...current],
+        },
+      ),
+    ).toBe(expected);
+  }
+});
+
+test('macOS legacy boot drift is bounded to one second with validated timestamps', () => {
+  const legacy = 'darwin:{ sec = 1788278233, usec = 900798 }';
+  for (const [currentBootId, expected] of [
+    ['darwin:{ sec = 1788278234, usec = 900798 }', true],
+    ['darwin:{ sec = 1788278234, usec = 900799 }', false],
+    ['darwin:{ sec = 1788278232, usec = 900798 }', true],
+    ['darwin:{ sec = 1788278232, usec = 900797 }', false],
+    ['darwin:{ sec = 1788278234, usec = 1 }', true],
+    ['darwin: {sec=1788278233,usec=900798} different date formatting', true],
+    ['darwin:{ sec = 01788278233, usec = 0900798 }', true],
+    ['darwin:{ sec = 1788000000, usec = 900798 }', false],
+    ['darwin:{ sec = 1788278233, usec = 1000000 }', false],
+    ['darwin:{ sec = 1788278233, usec = -1 }', false],
+    ['darwin:{ sec = 1788278233.5, usec = 0 }', false],
+    ['darwin:{ sec = -1788278233, usec = 0 }', false],
+    ['darwin:{ sec = 1788278233, usec = 900798.0 }', false],
+    ['darwin:{ sec = 1788278233 }', false],
+    ['darwin:{ usec = 900798 }', false],
+    ['darwin:{ sec = 99999999999999999, usec = 0 }', false],
+    ['darwin:bootsessionuuid:invalid', false],
+    ['darwin:garbage', false],
+    [null, false],
+  ] as const) {
+    expect(isDaemonPidInfoCurrent({ pid: 123, bootId: legacy }, { currentBootId })).toBe(expected);
+  }
+  for (const bootId of [
+    'darwin:garbage',
+    'darwin:bootsessionuuid:invalid',
+    'darwin:{ sec = 1, usec = 1000000 }',
+  ]) {
+    expect(isDaemonPidInfoCurrent({ pid: 123, bootId }, { currentBootId: bootId })).toBe(false);
+  }
+});
+
+test('macOS boot probes collect validated identities independently and prefer UUIDs', () => {
+  const uuid = '4858DFB0-58F3-4A95-9238-DC5553BAADF9';
+  const legacy = '{ sec = 1788278233, usec = 900798 }';
+  const uuidId = `darwin:bootsessionuuid:${uuid.toLowerCase()}`;
+  for (const [uuidResult, timeResult, expected] of [
+    [uuid, legacy, [uuidId, `darwin:${legacy}`]],
+    [null, legacy, [`darwin:${legacy}`]],
+    [uuid, null, [uuidId]],
+    ['invalid', legacy, [`darwin:${legacy}`]],
+    [uuid, 'invalid', [uuidId]],
+    [uuid, '{ sec = 1788278233, usec = 1000000 }', [uuidId]],
+    ['', '', []],
+    [null, null, []],
+  ] as const) {
+    const calls: string[] = [];
+    expect(
+      readDarwinBootIdentities({
+        readSysctl: (name) => {
+          calls.push(name);
+          const value = name === 'kern.bootsessionuuid' ? uuidResult : timeResult;
+          if (value === null) throw new Error('sysctl unavailable');
+          return ` ${value}\n`;
+        },
+      }),
+    ).toEqual([...expected]);
+    expect(calls).toEqual(['kern.bootsessionuuid', 'kern.boottime']);
+  }
+});
+
+test('missing macOS boot evidence cannot use the Windows timestamp fallback', () => {
+  for (const bootId of [
+    'darwin:{ sec = 1788278233, usec = 900798 }',
+    'darwin:bootsessionuuid:4858dfb0-58f3-4a95-9238-dc5553baadf9',
+    'darwin:garbage',
+  ]) {
+    expect(
+      isDaemonPidInfoCurrent(
+        { pid: 123, bootId, startedAtMs: 2_000 },
+        { currentBootId: null, currentBootTimeMs: 1_000 },
+      ),
+    ).toBe(false);
+  }
 });
 
 test('daemon PID ownership accepts only CLI or marked desktop daemon commands', () => {
