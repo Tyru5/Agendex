@@ -3,7 +3,13 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
-import { acquireDaemonStartLock, getDaemonBootId } from '@agendex/daemon-runtime';
+import {
+  acquireDaemonStartLock,
+  getDaemonBootId,
+  isRunning,
+  readPidInfo,
+} from '@agendex/daemon-runtime';
+import { readDarwinBootIdentities } from '../../../cli/src/pid.ts';
 
 const { DesktopDaemonManager } = await import('./desktop-daemon-manager.ts');
 
@@ -206,6 +212,50 @@ test('tracks readiness for a live external daemon without taking ownership', asy
   await manager.stop();
   expect(forks).toBe(0);
 });
+
+test.skipIf(process.platform !== 'darwin')(
+  'reuses a macOS external daemon with legacy boot drift without taking ownership',
+  async () => {
+    useTempConfigDir();
+    const configDir = process.env.AGENDEX_CONFIG_DIR as string;
+    mkdirSync(configDir, { recursive: true });
+    const pidPath = join(configDir, 'daemon.pid');
+    const legacy = readDarwinBootIdentities().find((id) => id.startsWith('darwin:{'));
+    if (!legacy) throw new Error('Missing legacy boot timestamp');
+    const bootId = legacy.replace(
+      /usec = (\d+)/,
+      (_match, value) =>
+        `usec = ${Number(value) > 500_000 ? Number(value) - 100_000 : Number(value) + 100_000}`,
+    );
+    const record = { pid: process.pid, launcher: 'cli', bootId, bootIds: [bootId], ready: false };
+    writeFileSync(pidPath, JSON.stringify(record));
+    let forks = 0;
+    const manager = new DesktopDaemonManager({
+      isDev: false,
+      forkWorker: (() => {
+        forks += 1;
+        throw new Error('Must reuse the external daemon');
+      }) as never,
+      isDaemonProcess: (pid) => pid === process.pid,
+      timings: testTimings(),
+      rotateCloudToken: () => null,
+      onAuthExpired: () => undefined,
+      log: () => undefined,
+    });
+    try {
+      expect(await manager.ensureRunning(credentials())).toBe('already-running');
+      expect(manager.getState().status).toBe('indexing');
+      writeFileSync(pidPath, JSON.stringify({ ...record, ready: true }));
+      await waitFor(() => manager.getState().status === 'ready');
+      expect(forks).toBe(0);
+    } finally {
+      await manager.stop();
+    }
+    expect(isRunning(process.pid)).toBe(true);
+    expect(readPidInfo({ configDir })?.pid).toBe(process.pid);
+    expect(forks).toBe(0);
+  },
+);
 
 // If an external CLI dies while indexing, the signed-in desktop should take over synchronization.
 test('replaces an external daemon that stops before becoming ready', async () => {

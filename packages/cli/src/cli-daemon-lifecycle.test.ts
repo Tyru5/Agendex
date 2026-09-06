@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -115,6 +115,78 @@ test('CLI start and stop terminate both supervisor and worker', async () => {
     await cleanupTempRoot(tempRoot, [workerPid, supervisorPid]);
   }
 }, 15_000);
+
+test.skipIf(process.platform !== 'darwin')(
+  'macOS legacy boot drift preserves status, singleton start, and stop',
+  async () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), 'agendex cli boot drift '));
+    const configDir = join(tempRoot, '.agendex');
+    const pidPath = join(configDir, 'daemon.pid');
+    const env = {
+      ...process.env,
+      AGENDEX_CONFIG_DIR: configDir,
+      AGENDEX_HOME: tempRoot,
+      AGENDEX_DISABLE_LOCAL_IP: '1',
+      AGENDEX_HTTP_TIMEOUT_MS: '250',
+      AGENDEX_LIVE_SESSION_POLL_MS: '0',
+      AGENDEX_PLANNOTATOR_SYNC: '0',
+      AGENDEX_SYNC_RESCAN_INTERVAL_MS: '0',
+      AGENDEX_WATCHER_REFRESH_INTERVAL_MS: '0',
+      HOME: tempRoot,
+      USERPROFILE: tempRoot,
+    };
+    let supervisorPid: number | undefined;
+    let workerPid: number | undefined;
+    try {
+      expect((await runCli(['start'], tempRoot, env)).code).toBe(0);
+      const info = await waitForPidInfo(pidPath, (record) => record.ready === true);
+      supervisorPid = info.pid;
+      workerPid = info.workerPid;
+      expect(isRunning(supervisorPid)).toBe(true);
+      expect(workerPid !== undefined && isRunning(workerPid)).toBe(true);
+      expect(info.bootId).toMatch(/^darwin:bootsessionuuid:[\da-f-]{36}$/);
+      expect(info.bootIds?.[0]).toBe(info.bootId);
+      const normalStatus = await runCli(['status'], tempRoot, env);
+      expect(normalStatus.code).toBe(0);
+      expect(normalStatus.stdout).toContain(`PID ${supervisorPid}`);
+      expect(normalStatus.stdout).toContain('via CLI');
+      const legacy = info.bootIds?.find((id) => id.startsWith('darwin:{'));
+      if (!legacy) throw new Error('Missing legacy boot timestamp');
+      const drifted = legacy.replace(
+        /usec = (\d+)/,
+        (_match, value) =>
+          `usec = ${Number(value) > 500_000 ? Number(value) - 100_000 : Number(value) + 100_000}`,
+      );
+      expect(drifted).not.toBe(legacy);
+      const legacyRecord = JSON.stringify({ ...info, bootId: drifted, bootIds: [drifted] });
+      writeFileSync(pidPath, legacyRecord);
+      const status = await runCli(['status'], tempRoot, env);
+      expect(status.code).toBe(0);
+      expect(status.stdout).toContain(`PID ${supervisorPid}`);
+      expect(status.stdout).toContain('via CLI');
+      expect(readFileSync(pidPath, 'utf8')).toBe(legacyRecord);
+      const secondStart = await runCli(['start'], tempRoot, env);
+      expect(secondStart.code).toBe(0);
+      expect(secondStart.stdout).toContain(`daemon already running (PID ${supervisorPid})`);
+      expect(readPidInfo(pidPath)?.pid).toBe(supervisorPid);
+      expect(readPidInfo(pidPath)?.workerPid).toBe(workerPid);
+      expect(readFileSync(pidPath, 'utf8')).toBe(legacyRecord);
+      expect((await runCli(['stop'], tempRoot, env)).code).toBe(0);
+      expect(isRunning(supervisorPid)).toBe(false);
+      expect(workerPid !== undefined && isRunning(workerPid)).toBe(false);
+      expect(existsSync(pidPath)).toBe(false);
+    } finally {
+      const remaining = readPidInfo(pidPath);
+      await cleanupTempRoot(tempRoot, [
+        workerPid,
+        supervisorPid,
+        remaining?.workerPid,
+        remaining?.pid,
+      ]);
+    }
+  },
+  15_000,
+);
 
 test('CLI start remains singleton while a ready worker is restarting', async () => {
   const tempRoot = mkdtempSync(join(tmpdir(), 'agendex cli restart '));

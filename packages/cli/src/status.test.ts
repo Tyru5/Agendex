@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import type { AgendexConfig } from '@agendex/shared';
 import type { DeviceInfo } from './api.ts';
 import { formatDuration, renderStatus } from './status.ts';
+import { isDaemonPidInfoRunning } from './pid.ts';
 
 const NOW = 1_700_000_000_000;
 
@@ -94,6 +95,51 @@ test('renders desktop spawn origin for Electron-launched daemons', () => {
 
   expect(output).toContain('✓ running');
   expect(output).toContain('PID 456 • up 30s • host workstation • via desktop app');
+});
+
+test('renders detected CLI and desktop origins despite macOS boot timestamp drift', () => {
+  for (const launcher of ['cli', 'desktop'] as const) {
+    const pidInfo = {
+      pid: 456,
+      launcher,
+      parentPid: 100,
+      hostname: 'workstation',
+      bootId: 'darwin:{ sec = 1788278233, usec = 971069 }',
+    };
+    for (const validBoot of [true, false]) {
+      const running = isDaemonPidInfoRunning(pidInfo, {
+        currentHostname: 'workstation',
+        currentBootId: validBoot
+          ? 'darwin:{ sec = 1788278233, usec = 900798 }'
+          : 'darwin:{ sec = 1788278000, usec = 900798 }',
+        processRunning: true,
+        parentProcessRunning: true,
+        processCommand:
+          launcher === 'cli'
+            ? 'agendex start --daemon'
+            : 'Agendex Helper --utility-sub-type=node.mojom.NodeService',
+      });
+      const output = renderStatus({
+        config: config(),
+        configPath: '/config.json',
+        pidInfo,
+        running,
+        cliVersion: '5.7.1',
+        devices: [],
+        now: NOW,
+        color: false,
+      });
+      const origin = launcher === 'cli' ? 'via CLI' : 'via desktop app';
+      if (validBoot) {
+        expect(output).toContain('✓ running');
+        expect(output).toContain('PID 456');
+        expect(output).toContain(origin);
+      } else {
+        expect(output).toContain('! not running');
+        expect(output).not.toContain(origin);
+      }
+    }
+  }
 });
 
 test('renders actionable setup guidance when config is missing', () => {
