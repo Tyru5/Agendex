@@ -9,18 +9,20 @@ and are in compliance with, the Agendex Subscription Terms of Service,
 available at https://agendex.dev/terms (the "Enterprise Terms"), or other
 agreement governing the use of the Software, as agreed by you and Agendex,
 and otherwise have a valid Agendex Cloud Pro subscription for the correct
-number of user seats. Subject to the foregoing sentence, you are free to
-modify this Software and publish patches to the Software. You agree that
-Agendex and/or its licensors (as applicable) retain all right, title and
-interest in and to all such modifications and/or patches, and all such
+number of user seats, as defined in Section 3 of the Enterprise Terms.
+Subject to the foregoing sentence, you are free to
+modify this Software and publish patches to the Software. All such
 modifications and/or patches may only be used, copied, modified, displayed,
 distributed, or otherwise exploited with a valid Agendex Cloud Pro
 subscription for the correct number of user seats. Notwithstanding the
 foregoing, you may copy and modify the Software for development and testing
-purposes, without requiring a subscription. You agree that Agendex and/or
-its licensors (as applicable) retain all right, title and interest in and to
-all such modifications. You are not granted any other rights beyond what is
-expressly stated herein. Subject to the foregoing, it is forbidden to copy,
+purposes, without requiring a subscription. Agendex and its licensors retain
+ownership of the Software they provide. You retain ownership of your original
+modifications and patches, subject to the rights in the underlying Software
+and the restrictions of this Enterprise License. Contributions submitted to
+Agendex are governed by CLA.md; that agreement grants licenses to Agendex
+without transferring your ownership. You are not granted any other rights
+beyond what is expressly stated herein. Subject to the foregoing, it is forbidden to copy,
 merge, publish, distribute, sublicense, and/or sell the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR

@@ -19,7 +19,7 @@ const COPY: Record<LegalPageKind, { title: string; intro: string }> = {
   terms: {
     title: 'Terms of Service',
     intro:
-      'These terms govern your use of the Agendex cloud service — the Cloud Pro dashboard, plan sync, sharing, and collaboration features.',
+      'These terms govern your use of the Agendex cloud service and subscriptions required for production use of the self-hosted Enterprise Edition.',
   },
   privacy: {
     title: 'Privacy Policy',
@@ -178,18 +178,22 @@ function TermsContent() {
           These Terms of Service ("Terms") form a binding agreement between you and Agendex
           governing your use of the Agendex cloud service — the Cloud Pro dashboard, plan sync,
           shareable links, comments, collections, and related collaboration features (the
-          "Service").
+          "Service"), and the Cloud Pro subscriptions required for production use of the self-hosted
+          Enterprise Edition ("EE"). These are the Agendex Subscription Terms of Service referenced
+          by the Enterprise License.
         </Body>
         <Callout>
-          The free, self-hosted Agendex software is not covered by these Terms. Your use of the open
-          source code is governed by its license — AGPL-3.0 for most of the repository and the
-          Agendex Enterprise License for <code>packages/ee/</code> (see{' '}
-          <TextLink href={GITHUB_URL}>GitHub</TextLink>).
+          The free OSS local app is governed by AGPL-3.0 and does not require a subscription or
+          acceptance of these Terms. Code in <code>packages/ee/</code> is governed by the Agendex
+          Enterprise License (see <TextLink href={GITHUB_URL}>GitHub</TextLink>). These Terms
+          supplement that license for production subscriptions; they do not expand the rights it
+          grants. Provisions about hosted operations and cloud data apply only to the Service
+          operated by Agendex, not to infrastructure or data you host yourself.
         </Callout>
         <Body>
-          By creating an account or using the Service, you accept these Terms. If you use the
-          Service on behalf of an organization, you represent that you are authorized to bind that
-          organization.
+          By creating an account, using the Service, or using EE in production under a Cloud Pro
+          subscription, you accept these Terms. If you use the Service on behalf of an organization,
+          you represent that you are authorized to bind that organization.
         </Body>
       </Section>
 
@@ -228,6 +232,23 @@ function TermsContent() {
             ],
           ]}
         />
+        <Body>
+          Production use of self-hosted EE requires a valid Agendex Cloud Pro subscription for each
+          individual user authorized to access EE features, including internal and external users.
+          Each seat covers one individual, not a shared account or concurrent connection; the same
+          individual counts once across your deployments. Anonymous recipients who only view public
+          share links do not require seats. Unless otherwise agreed in writing with Agendex, each
+          such user must maintain their own Cloud Pro subscription with Agendex. Payments collected
+          through your own Stripe deployment do not satisfy this requirement.
+        </Body>
+        <Body>
+          Copying and modifying EE solely for development and testing does not require a
+          subscription, as permitted by the Enterprise License. Production use means a deployment
+          serving end users, whether internal or external. If the required subscription expires or
+          terminates, production use for the affected users must stop; cancelling renewal alone does
+          not end access before the paid period expires. You are responsible for operating your
+          self-hosted infrastructure and handling the data it stores.
+        </Body>
       </Section>
 
       <Section id="content" title="4. Your content">
