@@ -453,5 +453,8 @@ For self-hosting, production auth setup, and maintainer-level EE billing notes, 
 
 ## License
 
-- All code except `packages/ee/` is licensed under [AGPL-3.0](./LICENSE).
-- Code in `packages/ee/` is licensed under the [Agendex Enterprise License](./packages/ee/LICENSE) (source-available for evaluation and development; production use requires Cloud Pro).
+This repo is available under the [AGPL-3.0](./LICENSE) license, except for the `packages/ee` directory (which has its license [here](./packages/ee/LICENSE)), if applicable.
+
+- Code in `packages/ee/` may be copied and modified freely for development and testing purposes without a subscription.
+- Production use of `packages/ee/` — any deployment that serves end users, whether internal or external — requires a valid Agendex Cloud Pro subscription under the [Agendex Enterprise License](./packages/ee/LICENSE).
+- Contributions are subject to the [Contributor License Agreement](./CLA.md).

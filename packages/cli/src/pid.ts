@@ -50,7 +50,7 @@ export interface DaemonPidInfo {
   ready?: boolean;
   /** Preferred boot identity (first of `bootIds` when present). */
   bootId?: string;
-  /** All boot identities observed at write time (win32 may include registry + ticks). */
+  /** All boot identities observed at write time, preferred identity first. */
   bootIds?: string[];
 }
 
@@ -206,6 +206,49 @@ function isWin32RegistryId(id: string): boolean {
   return /^win32:0x[\da-f]+$/i.test(id);
 }
 
+// kern.boottime can drift as the wall clock adjusts. Allow at most 1,000 ms for
+// old records without a boot-session UUID. This migration heuristic cannot prove
+// reboot identity across coincident timestamps or clock rollback; UUIDs can.
+const DARWIN_LEGACY_BOOT_DRIFT_US = 1_000_000n;
+const DARWIN_BOOT_UUID_PREFIX = 'darwin:bootsessionuuid:';
+
+function darwinBootUuid(id: string): string | null {
+  if (!id.startsWith(DARWIN_BOOT_UUID_PREFIX)) return null;
+  const uuid = id.slice(DARWIN_BOOT_UUID_PREFIX.length);
+  return /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(uuid) ? uuid.toLowerCase() : null;
+}
+
+function darwinBootTimeUs(id: string): bigint | null {
+  const match = /^darwin:\s*\{\s*sec\s*=\s*(\d+)\s*,\s*usec\s*=\s*(\d+)\s*\}(?:\s.*)?$/.exec(id);
+  if (!match) return null;
+  const seconds = Number(match[1]);
+  const microseconds = Number(match[2]);
+  if (!Number.isSafeInteger(seconds) || !Number.isSafeInteger(microseconds)) return null;
+  if (microseconds > 999_999) return null;
+  return BigInt(seconds) * 1_000_000n + BigInt(microseconds);
+}
+
+/** Probe independently so older systems or a failed sysctl retain usable evidence. */
+export function readDarwinBootIdentities(
+  options: { readSysctl?: (name: string) => string } = {},
+): string[] {
+  const readSysctl =
+    options.readSysctl ??
+    ((name: string) =>
+      execFileSync('/usr/sbin/sysctl', ['-n', name], { encoding: 'utf8', timeout: 1_000 }));
+  const ids: string[] = [];
+  try {
+    const id = `${DARWIN_BOOT_UUID_PREFIX}${readSysctl('kern.bootsessionuuid').trim()}`;
+    const uuid = darwinBootUuid(id);
+    if (uuid) ids.push(`${DARWIN_BOOT_UUID_PREFIX}${uuid}`);
+  } catch {}
+  try {
+    const id = `darwin:${readSysctl('kern.boottime').trim()}`;
+    if (darwinBootTimeUs(id) !== null) ids.push(id);
+  } catch {}
+  return ids;
+}
+
 function recordWrittenAfterBoot(info: DaemonPidInfo, options: DaemonPidFreshnessOptions): boolean {
   return (
     Number.isFinite(info.startedAtMs) &&
@@ -224,8 +267,6 @@ function bootIdentitiesAgree(
   stored: string[],
   current: string[],
 ): 'match' | 'conflict' | 'inconclusive' {
-  if (stored.length === 0 || current.length === 0) return 'inconclusive';
-
   const storedTicks = stored.filter(isWin32TicksId);
   const currentTicks = current.filter(isWin32TicksId);
   if (storedTicks.length > 0 && currentTicks.length > 0) {
@@ -237,6 +278,30 @@ function bootIdentitiesAgree(
   if (storedReg.length > 0 && currentReg.length > 0) {
     return storedReg.some((id) => currentReg.includes(id)) ? 'match' : 'conflict';
   }
+
+  const storedDarwin = stored.filter((id) => id.startsWith('darwin:'));
+  const currentDarwin = current.filter((id) => id.startsWith('darwin:'));
+  if (storedDarwin.length > 0 || currentDarwin.length > 0) {
+    const storedUuids = storedDarwin.map(darwinBootUuid).filter((id) => id !== null);
+    const currentUuids = currentDarwin.map(darwinBootUuid).filter((id) => id !== null);
+    if (storedUuids.length > 0 && currentUuids.length > 0) {
+      return storedUuids.some((id) => currentUuids.includes(id)) ? 'match' : 'conflict';
+    }
+    const storedTimes = storedDarwin.map(darwinBootTimeUs).filter((time) => time !== null);
+    const currentTimes = currentDarwin.map(darwinBootTimeUs).filter((time) => time !== null);
+    return storedTimes.some((storedTime) =>
+      currentTimes.some((currentTime) => {
+        const difference = storedTime - currentTime;
+        return (
+          difference >= -DARWIN_LEGACY_BOOT_DRIFT_US && difference <= DARWIN_LEGACY_BOOT_DRIFT_US
+        );
+      }),
+    )
+      ? 'match'
+      : 'conflict';
+  }
+
+  if (stored.length === 0 || current.length === 0) return 'inconclusive';
 
   const storedOther = stored.filter((id) => !isWin32TicksId(id) && !isWin32RegistryId(id));
   const currentOther = current.filter((id) => !isWin32TicksId(id) && !isWin32RegistryId(id));
@@ -444,12 +509,7 @@ function getSystemBootIds(): string[] {
     if (process.platform === 'linux') {
       cachedBootIds = [`linux:${readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim()}`];
     } else if (process.platform === 'darwin') {
-      cachedBootIds = [
-        `darwin:${execFileSync('/usr/sbin/sysctl', ['-n', 'kern.boottime'], {
-          encoding: 'utf8',
-          timeout: 1_000,
-        }).trim()}`,
-      ];
+      cachedBootIds = readDarwinBootIdentities();
     } else if (process.platform === 'win32') {
       cachedBootIds = readWindowsBootIdentities();
     } else {

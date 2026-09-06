@@ -4,6 +4,8 @@ This guide is for running the Agendex EE stack yourself with your own Convex dep
 
 Self-hosting the EE stack is for the cloud features: authentication, CLI sync, sharing, comments, plan history, onboarding, and paid subscription flows.
 
+> **Licensing note.** The EE stack lives in `packages/ee/`, which is **not** licensed under the repository's AGPL-3.0 license. You may copy and modify it for development and testing purposes — including the fully local development setup described in the root [README](../README.md) — without a subscription. **Production use**, meaning any deployment that serves end users (internal or external), requires a valid Agendex Cloud Pro subscription and compliance with the Agendex Subscription Terms. See [packages/ee/LICENSE](../packages/ee/LICENSE) for the full terms.
+
 ## Prerequisites
 
 - [Bun](https://bun.sh)
@@ -70,7 +72,7 @@ For a production deployment whose only public application is `https://agendex.yo
 | `STRIPE_MONTHLY_PRICE_ID` | Stripe price ID for monthly plans       |
 | `STRIPE_YEARLY_PRICE_ID`  | Stripe price ID for yearly plans        |
 
-Stripe is only required once you want checkout, customer portal, or paid subscription renewals. You can defer these while bringing up auth and the EE UI locally, but Cloud Pro usage beyond the built-in trial flow depends on subscription state being configured correctly.
+Stripe is only required once you want checkout, customer portal, or paid subscription renewals. You can defer these while bringing up auth and the EE UI locally, but Cloud Pro usage beyond the built-in trial flow depends on subscription state being configured correctly. Note that a self-configured Stripe deployment does not replace the licensing requirement above: production use of `packages/ee/` still requires a valid Agendex Cloud Pro subscription under the [Agendex Enterprise License](../packages/ee/LICENSE).
 
 ## 5. Configure EE client environment variables
 
@@ -107,6 +109,8 @@ bun run build
 Serve `dist/` as a static site.
 
 ## 7. Deploy Convex to production
+
+> **Reminder.** Everything in this section and the previous one deploys `packages/ee/` code. Production use of that code requires a valid Agendex Cloud Pro subscription — see the licensing note at the top of this guide and the full terms in [packages/ee/LICENSE](../packages/ee/LICENSE).
 
 From `packages/ee`:
 

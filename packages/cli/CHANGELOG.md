@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.7.2
+
+### Patch Changes
+
+- c582062: Keep live CLI daemons recognized when macOS reports small boot-time timestamp drift.
+
 ## 5.7.1
 
 ### Patch Changes
