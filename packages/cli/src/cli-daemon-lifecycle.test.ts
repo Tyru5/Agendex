@@ -50,10 +50,19 @@ async function waitForProcessExit(pid: number, timeoutMs = 2_000): Promise<void>
   if (isRunning(pid)) throw new Error(`Process ${pid} did not exit`);
 }
 
+/**
+ * Kills every daemon process the test knows about and removes the temp root.
+ *
+ * When the test body passed (`bodyPassed`), a leaked process or an undeletable temp root
+ * fails the test so leaks surface instead of bleeding into later tests. When the body
+ * already failed, cleanup problems are only logged so they do not replace the original
+ * assertion/timeout error.
+ */
 async function cleanupTempRoot(
   tempRoot: string,
   pidPath: string,
   pids: Array<number | undefined>,
+  bodyPassed: boolean,
 ): Promise<void> {
   // A start that the harness timed out may have left a supervisor/worker the test never
   // captured; the PID file is the only place they are recorded.
@@ -63,23 +72,31 @@ async function cleanupTempRoot(
       (pid): pid is number => Number.isInteger(pid) && (pid as number) > 0,
     ),
   );
+  const failures: string[] = [];
   for (const pid of targets) {
     if (!isRunning(pid)) continue;
     try {
       process.kill(pid, 'SIGKILL');
-    } catch {}
+    } catch (error) {
+      failures.push(`failed to kill ${pid}: ${String(error)}`);
+    }
   }
   for (const pid of targets) {
     try {
       await waitForProcessExit(pid);
-    } catch {}
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+    }
   }
   try {
     rmSync(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   } catch (error) {
-    // Do not let a cleanup failure replace the assertion/timeout error from the test body.
-    console.error(`[cli-daemon-lifecycle] failed to remove ${tempRoot}:`, error);
+    failures.push(`failed to remove ${tempRoot}: ${String(error)}`);
   }
+  if (failures.length === 0) return;
+  const message = `[cli-daemon-lifecycle] cleanup failed:\n${failures.join('\n')}`;
+  if (bodyPassed) throw new Error(message);
+  console.error(message);
 }
 
 async function waitForPidInfo(
@@ -115,6 +132,7 @@ test('CLI start and stop terminate both supervisor and worker', async () => {
   let supervisorPid: number | undefined;
   let workerPid: number | undefined;
 
+  let bodyPassed = false;
   try {
     const started = await runCli(['start'], tempRoot, env);
     expect(started.code).toBe(0);
@@ -131,8 +149,9 @@ test('CLI start and stop terminate both supervisor and worker', async () => {
     expect(existsSync(pidPath)).toBe(false);
     expect(supervisorPid !== undefined && isRunning(supervisorPid)).toBe(false);
     expect(workerPid !== undefined && isRunning(workerPid)).toBe(false);
+    bodyPassed = true;
   } finally {
-    await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid]);
+    await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid], bodyPassed);
   }
 }, 120_000);
 
@@ -157,6 +176,7 @@ test.skipIf(process.platform !== 'darwin')(
     };
     let supervisorPid: number | undefined;
     let workerPid: number | undefined;
+    let bodyPassed = false;
     try {
       expect((await runCli(['start'], tempRoot, env)).code).toBe(0);
       const info = await waitForPidInfo(pidPath, (record) => record.ready === true);
@@ -195,8 +215,9 @@ test.skipIf(process.platform !== 'darwin')(
       expect(isRunning(supervisorPid)).toBe(false);
       expect(workerPid !== undefined && isRunning(workerPid)).toBe(false);
       expect(existsSync(pidPath)).toBe(false);
+      bodyPassed = true;
     } finally {
-      await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid]);
+      await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid], bodyPassed);
     }
   },
   120_000,
@@ -221,6 +242,7 @@ test('CLI start remains singleton while a ready worker is restarting', async () 
   let supervisorPid: number | undefined;
   let workerPid: number | undefined;
 
+  let bodyPassed = false;
   try {
     expect((await runCli(['start'], tempRoot, env)).code).toBe(0);
     const first = readPidInfo(pidPath);
@@ -239,8 +261,9 @@ test('CLI start remains singleton while a ready worker is restarting', async () 
 
     expect((await runCli(['stop'], tempRoot, env)).code).toBe(0);
     expect(supervisorPid !== undefined && isRunning(supervisorPid)).toBe(false);
+    bodyPassed = true;
   } finally {
-    await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid]);
+    await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid], bodyPassed);
   }
 }, 120_000);
 
@@ -265,6 +288,7 @@ test('initial startup drains an orphaned worker before a replacement starts', as
   let replacementSupervisorPid: number | undefined;
   let replacementWorkerPid: number | undefined;
 
+  let bodyPassed = false;
   try {
     const firstStart = runCli(['start'], tempRoot, {
       ...env,
@@ -289,13 +313,14 @@ test('initial startup drains an orphaned worker before a replacement starts', as
     expect(replacementWorkerPid).not.toBe(oldWorkerPid);
 
     expect((await runCli(['stop'], tempRoot, env)).code).toBe(0);
+    bodyPassed = true;
   } finally {
-    await cleanupTempRoot(tempRoot, pidPath, [
-      oldWorkerPid,
-      oldSupervisorPid,
-      replacementWorkerPid,
-      replacementSupervisorPid,
-    ]);
+    await cleanupTempRoot(
+      tempRoot,
+      pidPath,
+      [oldWorkerPid, oldSupervisorPid, replacementWorkerPid, replacementSupervisorPid],
+      bodyPassed,
+    );
   }
 }, 120_000);
 
@@ -318,6 +343,7 @@ test('CLI stop drains a worker orphaned by a crashed supervisor', async () => {
   let supervisorPid: number | undefined;
   let workerPid: number | undefined;
 
+  let bodyPassed = false;
   try {
     expect((await runCli(['start'], tempRoot, env)).code).toBe(0);
     const running = await waitForPidInfo(pidPath, (info) => info.ready === true);
@@ -330,7 +356,8 @@ test('CLI stop drains a worker orphaned by a crashed supervisor', async () => {
     expect(stopped.code).toBe(0);
     expect(workerPid !== undefined && isRunning(workerPid)).toBe(false);
     expect(existsSync(pidPath)).toBe(false);
+    bodyPassed = true;
   } finally {
-    await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid]);
+    await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid], bodyPassed);
   }
 }, 120_000);

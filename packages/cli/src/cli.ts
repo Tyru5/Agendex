@@ -582,14 +582,21 @@ async function runCleanupCommand(commandArgs: string[]): Promise<number> {
     if (staleIds.length + recordIds.length === 0) {
       return 1;
     }
+    const requested = staleIds.length + recordIds.length;
     const result = await deleteDaemons(staleIds, recordIds);
-    if (result.ok) {
-      writeStdout(`[agendex] removed ${result.deleted} stale daemon(s)`);
-    } else {
+    if (!result.ok) {
       writeStderr('[agendex] failed to remove stale daemons');
       return 1;
     }
-    return staleIds.length + recordIds.length < staleDevices.length ? 1 : 0;
+    if (result.deleted < requested) {
+      // An older backend ignores recordIds, so a mixed request deletes only legacy rows.
+      writeStderr(
+        `[agendex] removed ${result.deleted} of ${requested} stale daemon(s); upgrade the cloud backend to remove the rest`,
+      );
+      return 1;
+    }
+    writeStdout(`[agendex] removed ${result.deleted} stale daemon(s)`);
+    return requested < staleDevices.length ? 1 : 0;
   }
 
   // Interactive mode: use @clack/prompts multiselect (same pattern as configure)
@@ -624,18 +631,25 @@ async function runCleanupCommand(commandArgs: string[]): Promise<number> {
   if (!selected) return 0;
 
   const selectedDevices = allDevices.filter((_, index) => selected.includes(String(index)));
-  const result = await deleteDaemons(
-    selectedDevices.flatMap((device) =>
-      device.recordId || device.deviceId === null ? [] : [device.deviceId],
-    ),
-    selectedDevices.flatMap((device) => (device.recordId ? [device.recordId] : [])),
+  const selectedIds = selectedDevices.flatMap((device) =>
+    device.recordId || device.deviceId === null ? [] : [device.deviceId],
   );
-  if (result.ok) {
-    writeStdout(`[agendex] removed ${result.deleted} daemon(s)`);
-  } else {
+  const selectedRecordIds = selectedDevices.flatMap((device) =>
+    device.recordId ? [device.recordId] : [],
+  );
+  const requested = selectedIds.length + selectedRecordIds.length;
+  const result = await deleteDaemons(selectedIds, selectedRecordIds);
+  if (!result.ok) {
     writeStderr('[agendex] failed to remove daemons');
     return 1;
   }
+  if (result.deleted < requested) {
+    writeStderr(
+      `[agendex] removed ${result.deleted} of ${requested} daemon(s); upgrade the cloud backend to remove the rest`,
+    );
+    return 1;
+  }
+  writeStdout(`[agendex] removed ${result.deleted} daemon(s)`);
   return 0;
 }
 
