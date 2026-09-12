@@ -20,12 +20,15 @@ import {
   setToken,
   Sidebar,
   startViewTransition,
+  TOUR_TARGET,
   ToolsUsedPage,
   Topbar,
   useAgents,
   useBackendStatus,
   useCustomPlanSources,
+  useLocalProductTourState,
   usePlans,
+  useProductTour,
   useSidebarWidth,
   workspacesFromPlans,
 } from '@agendex/web';
@@ -39,6 +42,7 @@ import {
   useQueryStates,
 } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { buildLocalWorkspaceTourSteps } from './tour.ts';
 
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
 const OUTLINE_PREF_KEY = 'agendex_outline_hidden';
@@ -294,6 +298,19 @@ function Dashboard() {
   useHotkey('Mod+B', toggleSidebar);
   useHotkey('Mod+Shift+O', toggleOutline);
 
+  const tourSteps = useMemo(() => buildLocalWorkspaceTourSteps(), []);
+  const tourState = useLocalProductTourState();
+  const { replay: replayTour } = useProductTour({
+    steps: tourSteps,
+    state: tourState,
+    ready: !loading && backendStatus === 'online',
+    onBeforeStart: () => {
+      clearHoverCloseTimer();
+      setSidebarPeek(false);
+      setSidebarHidden(false);
+    },
+  });
+
   return (
     <div
       className="agendex-app-shell h-screen grid overflow-clip"
@@ -316,12 +333,36 @@ function Dashboard() {
         height={TOPBAR_HEIGHT}
         sidebarWidth={expandedWidth}
         actions={
-          IS_LOCAL_WORKSPACE_SHELL ? (
+          <>
+            {IS_LOCAL_WORKSPACE_SHELL && (
+              <button
+                type="button"
+                onClick={() => setSourcesOpen(true)}
+                aria-label="Manage plan sources"
+                title="Manage plan sources"
+                data-tour={TOUR_TARGET.planSources}
+                className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setSourcesOpen(true)}
-              aria-label="Manage plan sources"
-              title="Manage plan sources"
+              onClick={replayTour}
+              aria-label="Replay product tour"
+              title="Replay product tour"
+              data-tour={TOUR_TARGET.replayTour}
               className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
             >
               <svg
@@ -333,11 +374,14 @@ function Dashboard() {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <path d="M12 17h.01" />
               </svg>
             </button>
-          ) : undefined
+          </>
         }
       />
 
@@ -398,6 +442,7 @@ function Dashboard() {
 
       <div
         className="agendex-main-pane"
+        data-tour={TOUR_TARGET.mainPane}
         style={{
           gridColumn: '2 / 3',
           gridRow: '2 / 3',
