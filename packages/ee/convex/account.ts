@@ -132,6 +132,50 @@ export const updatePlanViewPreference = mutation({
   },
 });
 
+/** Highest product-tour version the user has completed, or null if never. */
+export const getMyProductTourCompletedVersion = query({
+  args: {},
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return null;
+
+    const prefs = await findAccountPreferences(ctx, String(user._id));
+    return prefs?.productTourCompletedVersion ?? null;
+  },
+});
+
+/** `null` clears the record so the tour auto-starts on the next dashboard visit. */
+export const updateProductTourCompletedVersion = mutation({
+  args: {
+    completedVersion: v.union(v.number(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { completedVersion }) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) throw new ConvexError('Not authenticated');
+
+    const ownerId = String(user._id);
+    const existing = await findAccountPreferences(ctx, ownerId);
+    const now = Date.now();
+    const productTourCompletedVersion = completedVersion ?? undefined;
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { productTourCompletedVersion, updatedAt: now });
+    } else if (productTourCompletedVersion !== undefined) {
+      await ctx.db.insert('accountPreferences', {
+        ownerId,
+        collectLocalIpAddress: DEFAULT_COLLECT_LOCAL_IP_ADDRESS,
+        productTourCompletedVersion,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return null;
+  },
+});
+
 export const updatePrivacyPreferences = mutation({
   args: {
     collectLocalIpAddress: v.optional(v.boolean()),

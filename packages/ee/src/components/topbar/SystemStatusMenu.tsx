@@ -1,3 +1,4 @@
+import { TOUR_TARGET } from '@agendex/web';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { DaemonDeviceInfo } from '../../hooks/useDaemonStatus';
@@ -163,7 +164,7 @@ export function SystemStatusMenu({
           : backendIndicator.label;
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative" ref={ref} data-tour={TOUR_TARGET.systemStatus}>
       <button
         type="button"
         onClick={() => setOpen(!open)}

@@ -1,7 +1,9 @@
 import { api } from '@convex/_generated/api';
+import { PRODUCT_TOUR_VERSION, startViewTransition } from '@agendex/web';
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { createPortal as createReactPortal } from 'react-dom';
+import { useLocation } from 'wouter';
 import type { DaemonDeviceInfo } from '../../hooks/useDaemonStatus';
 import type { Subscription } from '../../hooks/useSubscription';
 import { formatRelativeTime, formatUptime } from '../../lib/formatTime';
@@ -246,6 +248,60 @@ function PlanViewerSettingsSection() {
             {error}
           </div>
         )}
+      </div>
+    </section>
+  );
+}
+
+function ProductTourSettingsSection() {
+  const completedVersion = useQuery(api.account.getMyProductTourCompletedVersion, {});
+  const updateCompletedVersion = useMutation(api.account.updateProductTourCompletedVersion);
+  const [, navigate] = useLocation();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const loading = completedVersion === undefined;
+  const seen = (completedVersion ?? 0) >= PRODUCT_TOUR_VERSION;
+
+  async function replayTour() {
+    if (loading || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updateCompletedVersion({ completedVersion: null });
+      startViewTransition(() => navigate('/dashboard'));
+    } catch {
+      setError('Unable to reset the tour. Try again.');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section>
+      <SectionHeading>Product Tour</SectionHeading>
+      <div className="rounded-2xl border border-border bg-surface p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="text-[14px] font-medium text-text">Guided walkthrough</div>
+            <p className="mt-1 max-w-[640px] text-[13px] leading-relaxed text-secondary">
+              A short tour of the dashboard — search, plan list, collaboration tools, sync status,
+              and settings. It runs once for new accounts
+              {seen ? ' and has already been completed on this account.' : ' and is still pending.'}
+            </p>
+            {error && (
+              <div className="mt-2 text-[12px] text-red-400" role="alert">
+                {error}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => void replayTour()}
+            disabled={loading || saving}
+            className="text-[13px] px-3.5 py-1.5 rounded-xl border border-border bg-transparent text-text cursor-pointer font-medium transition-colors duration-150 hover:bg-hover disabled:opacity-50 disabled:cursor-default shrink-0"
+          >
+            {saving ? 'Opening…' : seen ? 'Replay tour' : 'Start tour'}
+          </button>
+        </div>
       </div>
     </section>
   );
@@ -608,6 +664,9 @@ export function AccountTab({
 
       {/* Plan Viewer */}
       <PlanViewerSettingsSection />
+
+      {/* Product Tour */}
+      <ProductTourSettingsSection />
 
       {/* Agent Avatars */}
       <AgentAvatarsSection />

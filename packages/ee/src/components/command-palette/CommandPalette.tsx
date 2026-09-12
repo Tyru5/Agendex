@@ -10,6 +10,7 @@ import {
   type PlanFilterChip,
   type PlanState,
   type SidebarSortBy,
+  TOUR_TARGET,
   usePlanState,
   useTheme,
 } from '@agendex/web';
@@ -594,6 +595,7 @@ export function CommandPalette({
           type="button"
           onClick={openModal}
           aria-label="Search and filter plans"
+          data-tour={TOUR_TARGET.commandPalette}
           className="agendex-topbar-button flex h-[30px] items-center gap-2 rounded-lg border border-border px-2.5 min-w-0 w-auto sm:w-full sm:max-w-[168px] overflow-hidden cursor-pointer"
         >
           <SearchIcon />

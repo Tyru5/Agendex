@@ -121,6 +121,17 @@ export {
   setPreferredOpenInApp,
   useValidatedPlanPaths,
 } from './client/hooks/useValidatedPlanPaths.ts';
+export type { ProductTourState, ProductTourStep, TourTarget } from './client/tour/productTour.ts';
+export {
+  isProductTourPending,
+  PRODUCT_TOUR_VERSION,
+  startProductTour,
+  TOUR_TARGET,
+  tourTargetSelector,
+} from './client/tour/productTour.ts';
+export { useLocalProductTourState } from './client/tour/useLocalProductTourState.ts';
+export type { UseProductTourOptions } from './client/tour/useProductTour.ts';
+export { useProductTour } from './client/tour/useProductTour.ts';
 
 export {
   AGENT_IDS,

@@ -32,12 +32,14 @@ import {
   SkeletonBlock,
   resolveMorningBriefSince,
   startViewTransition,
+  TOUR_TARGET,
   useAgents,
   useBackendStatus,
   useCustomPlanSources,
   usePlanFolders,
   usePlanState,
   usePlans,
+  useProductTour,
   useSidebarWidth,
   workspacesFromPlans,
 } from '@agendex/web';
@@ -117,9 +119,11 @@ import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useCloudPlanSearch } from './hooks/useCloudPlanSearch.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useDesktopDaemonState } from './hooks/useDesktopDaemonState.ts';
+import { useProductTourState } from './hooks/useProductTourState.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
+import { buildDashboardTourSteps } from './tour.ts';
 import { authClient, normalizeLocalDevUrl } from './lib/auth-client.ts';
 import { parseCliAuthCallback } from './lib/cli-auth-callback.ts';
 import { findCloudCustomPlanSource, isConfiguredPlanSourcePath } from './lib/cloud-plan-sources.ts';
@@ -1330,6 +1334,7 @@ function useDashboardMain({
     return (
       <div
         className="agendex-main-pane overflow-auto main-scroll col-start-2 row-start-2 bg-transparent"
+        data-tour={TOUR_TARGET.mainPane}
         style={{ viewTransitionName: 'main-content' }}
       >
         <BootLoadingView fullscreen={false} />
@@ -1349,6 +1354,7 @@ function useDashboardMain({
     return (
       <div
         className="agendex-main-pane col-start-2 row-start-2 bg-transparent grid overflow-hidden"
+        data-tour={TOUR_TARGET.mainPane}
         style={{
           gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
           gridTemplateRows: 'auto 1fr',
@@ -1474,6 +1480,7 @@ function useDashboardMain({
   return (
     <div
       className="agendex-main-pane overflow-auto main-scroll col-start-2 row-start-2 bg-transparent"
+      data-tour={TOUR_TARGET.mainPane}
       style={{ viewTransitionName: 'main-content' }}
     >
       {mode === 'cloud' && backendStatus !== 'offline' && (
@@ -1814,6 +1821,7 @@ function useDashboardSidebar({
       <div
         ref={scrollViewportRef}
         className="flex-1 overflow-auto sidebar-scroll sidebar-content-list"
+        data-tour={TOUR_TARGET.planList}
         onScroll={(event) => updateScrollTopVisibility(event.currentTarget)}
         style={
           backendStatus === 'offline'
@@ -1963,7 +1971,14 @@ function dashReducer(s: DashState, a: DashAction): DashState {
   }
 }
 
-function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
+function useDashboard({
+  autoMode,
+  authPending,
+}: {
+  autoMode: DashboardMode;
+  /** Route is still settling the cloud session; see `useProductTourState`. */
+  authPending: boolean;
+}) {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
   const planViewPreference = useQuery(
@@ -2655,6 +2670,27 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     window.dispatchEvent(new Event('agendex:plan-layout-change'));
   }
 
+  const tourSteps = useMemo(
+    () =>
+      buildDashboardTourSteps({
+        mode,
+        canManagePlanSources: canShowPlanSourcesAction,
+        canSwitchMode,
+        hasAccountMenu: isAuthenticated,
+      }),
+    [canShowPlanSourcesAction, canSwitchMode, isAuthenticated, mode],
+  );
+  const tourState = useProductTourState({ authPending });
+  useProductTour({
+    steps: tourSteps,
+    state: tourState,
+    ready: !loading && backendStatus !== 'offline' && !isWorkspaceAccessLoading,
+    onBeforeStart: () => {
+      setSidebarPeek(false);
+      setSidebarHidden(false);
+    },
+  });
+
   return (
     <div
       className="agendex-app-shell h-screen grid overflow-clip relative"
@@ -2733,6 +2769,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
               aria-label={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
               aria-pressed={briefOpen}
               title={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
+              data-tour={TOUR_TARGET.activityBrief}
               className="agendex-topbar-button agendex-brief-trigger shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
               data-active={briefOpen ? 'true' : undefined}
             >
@@ -2748,6 +2785,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
                 onClick={() => setSourcesOpen(true)}
                 aria-label="Manage plan sources"
                 title="Manage plan sources"
+                data-tour={TOUR_TARGET.planSources}
                 className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
               >
                 <svg
@@ -3011,8 +3049,14 @@ function LandingRoute() {
   );
 }
 
-function DashboardView({ autoMode }: { autoMode: DashboardMode }) {
-  return useDashboard({ autoMode });
+function DashboardView({
+  autoMode,
+  authPending,
+}: {
+  autoMode: DashboardMode;
+  authPending: boolean;
+}) {
+  return useDashboard({ autoMode, authPending });
 }
 
 function DashboardRoute() {
@@ -3060,9 +3104,9 @@ function DashboardRoute() {
     skip: desktop || hasCachedToken,
   });
 
-  const renderDashboard = (autoMode: DashboardMode) => (
+  const renderDashboard = (autoMode: DashboardMode, authPending = false) => (
     <AgentAvatarProvider avatars={avatars ?? {}}>
-      <DashboardView autoMode={autoMode} />
+      <DashboardView autoMode={autoMode} authPending={authPending} />
     </AgentAvatarProvider>
   );
 
@@ -3088,7 +3132,13 @@ function DashboardRoute() {
   }
 
   if (hasCachedToken) {
-    return renderDashboard(isAuthenticated && onboardingResolved ? 'cloud' : 'local');
+    // The dashboard renders in local mode while the cloud session is still
+    // resolving (initial fetch, OAuth `ott` callback); account-scoped state
+    // such as the product tour must wait for that to settle.
+    return renderDashboard(
+      isAuthenticated && onboardingResolved ? 'cloud' : 'local',
+      !isAuthenticated && (isLoading || processingOtt),
+    );
   }
 
   if (isAuthenticated) {

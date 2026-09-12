@@ -23,6 +23,7 @@ Agendex is a Bun workspaces monorepo:
 - Agent and workspace filtering with read-only plan viewing
 - Local API with token-based auth
 - Adapter selection, rescanning, and custom plan source directories
+- Guided product tour on first visit, replayable from the `?` button in the top bar
 - No Convex or Stripe required for local-only usage
 
 ### Cloud Pro / EE
@@ -35,6 +36,7 @@ Agendex is a Bun workspaces monorepo:
 - Dashboard plan creation, uploads, and editing
 - Pro Plannotator sync and daemon-mediated request-changes write-back
 - Trial and subscription flows
+- Guided product tour on first visit, tracked per account and replayable from Settings → Account
 
 The Electron app starts its cloud sync worker automatically after desktop sign-in when no
 CLI daemon is already running. The worker uses the encrypted desktop session, requires no
