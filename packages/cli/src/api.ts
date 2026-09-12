@@ -870,6 +870,7 @@ export async function reportPlannotatorWriteback(
 }
 
 export interface DeviceInfo {
+  recordId?: string;
   deviceId: string | null;
   hostname: string | null;
   ipAddress: string | null;
@@ -925,6 +926,7 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
 
 export async function deleteDaemons(
   deviceIds: string[],
+  recordIds: string[] = [],
 ): Promise<{ ok: boolean; deleted: number }> {
   const { token, convexUrl } = getCloudConfig();
   const url = `${convexUrl}/api/cli/devices`;
@@ -937,7 +939,7 @@ export async function deleteDaemons(
       Connection: 'close',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ deviceIds }),
+    body: JSON.stringify({ deviceIds, ...(recordIds.length > 0 && { recordIds }) }),
   });
 
   if (isAuthenticationFailure(res.status)) {
@@ -951,7 +953,7 @@ export async function deleteDaemons(
           Connection: 'close',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ deviceIds }),
+        body: JSON.stringify({ deviceIds, ...(recordIds.length > 0 && { recordIds }) }),
       });
     } else {
       reportRefreshRejection(refreshed, activeToken);
