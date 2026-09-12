@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.7.4
+
+### Patch Changes
+
+- a9e0324: Handle cleaning up stale daemons
+
 ## 5.7.3
 
 ### Patch Changes
