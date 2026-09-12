@@ -1111,7 +1111,7 @@ export function EmptyStateView({
     : 'waiting for the first plan';
 
   return (
-    <div className={`h-full empty-state-shell${browsing ? ' empty-state-shell--browser' : ''}`}>
+    <div className={`empty-state-shell${browsing ? ' empty-state-shell--browser' : ''}`}>
       <div className={`empty-state-frame${browsing ? ' empty-state-frame--browser' : ''}`}>
         <FrameRule ticks />
 
