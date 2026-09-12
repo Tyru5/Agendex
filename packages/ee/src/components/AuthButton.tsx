@@ -4,6 +4,7 @@ import {
   Skeleton,
   startViewTransition,
   type ThemePreference,
+  TOUR_TARGET,
   useTheme,
 } from '@agendex/web';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -201,7 +202,7 @@ export function AuthButton() {
 
   return (
     <>
-      <div className="relative" ref={ref}>
+      <div className="relative" ref={ref} data-tour={TOUR_TARGET.accountMenu}>
         <button
           type="button"
           onClick={() => setOpen(!open)}

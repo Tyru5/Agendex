@@ -414,6 +414,7 @@ export default defineSchema({
     collectLocalIpAddress: v.boolean(),
     emptyStatePlanView: v.optional(v.union(v.literal('list'), v.literal('card'))),
     localIpDisclosureAcknowledgedAt: v.optional(v.number()),
+    productTourCompletedVersion: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_owner', ['ownerId']),

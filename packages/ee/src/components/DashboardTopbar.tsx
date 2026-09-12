@@ -1,4 +1,4 @@
-import { type Plan, type PlanState } from '@agendex/web';
+import { type Plan, type PlanState, TOUR_TARGET } from '@agendex/web';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
@@ -181,6 +181,7 @@ export function DashboardTopbar({
           <div
             role="group"
             aria-label="Plan source"
+            data-tour={TOUR_TARGET.planSourceMode}
             className="flex items-center rounded-lg border border-border p-0.5 mr-0.5"
           >
             {(['cloud', 'local'] as const).map((value) => (
