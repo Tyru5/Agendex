@@ -108,6 +108,7 @@ const usageSummaryValidator = v.object({
   scanDurationMs: v.number(),
 });
 const heartbeatDeviceValidator = v.object({
+  recordId: v.id('daemonHeartbeats'),
   lastSeenAt: v.number(),
   deviceId: v.union(v.string(), v.null()),
   hostname: v.union(v.string(), v.null()),
@@ -1003,6 +1004,7 @@ async function authenticateRequest(
 }
 
 interface HeartbeatDevice {
+  recordId: Id<'daemonHeartbeats'>;
   lastSeenAt: number;
   deviceId: string | null;
   hostname: string | null;
@@ -1013,6 +1015,7 @@ interface HeartbeatDevice {
 
 function collectDevices(
   heartbeats: Array<{
+    _id: Id<'daemonHeartbeats'>;
     lastSeenAt: number;
     deviceId?: string;
     hostname?: string;
@@ -1025,6 +1028,7 @@ function collectDevices(
   return heartbeats
     .filter((hb) => hb.lastSeenAt >= cutoff)
     .map((hb) => ({
+      recordId: hb._id,
       lastSeenAt: hb.lastSeenAt,
       deviceId: hb.deviceId ?? null,
       hostname: hb.hostname ?? null,
@@ -1652,9 +1656,18 @@ export const deleteDaemons = internalMutation({
   args: {
     ownerId: v.string(),
     deviceIds: v.array(v.string()),
+    recordIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     let deleted = 0;
+    for (const recordId of args.recordIds ?? []) {
+      const id = ctx.db.normalizeId('daemonHeartbeats', recordId);
+      const row = id ? await ctx.db.get(id) : null;
+      if (row?.ownerId === args.ownerId) {
+        await ctx.db.delete(row._id);
+        deleted++;
+      }
+    }
     for (const deviceId of args.deviceIds) {
       const row = await ctx.db
         .query('daemonHeartbeats')
@@ -1685,17 +1698,21 @@ export const deleteDaemonsHttp = httpAction(async (ctx, request) => {
     return jsonResponse({ error: 'Invalid JSON body' }, 400);
   }
 
+  const deviceIds = body.deviceIds ?? [];
+  const recordIds = body.recordIds ?? [];
   if (
-    !Array.isArray(body.deviceIds) ||
-    body.deviceIds.length === 0 ||
-    !body.deviceIds.every((id: unknown) => typeof id === 'string')
+    !Array.isArray(deviceIds) ||
+    !Array.isArray(recordIds) ||
+    deviceIds.length + recordIds.length === 0 ||
+    ![...deviceIds, ...recordIds].every((id: unknown) => typeof id === 'string')
   ) {
-    return jsonResponse({ error: 'deviceIds must be a non-empty array of strings' }, 400);
+    return jsonResponse({ error: 'deviceIds or recordIds must contain strings' }, 400);
   }
 
   const result = await ctx.runMutation(internal.cli.deleteDaemons, {
     ownerId,
-    deviceIds: body.deviceIds as string[],
+    deviceIds: deviceIds as string[],
+    recordIds: recordIds as string[],
   });
 
   return jsonResponse({ ok: true, deleted: result.deleted });

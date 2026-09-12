@@ -571,20 +571,25 @@ async function runCleanupCommand(commandArgs: string[]): Promise<number> {
       return 0;
     }
     const staleIds = staleDevices.flatMap((device) =>
-      device.deviceId === null ? [] : [device.deviceId],
+      device.recordId || device.deviceId === null ? [] : [device.deviceId],
     );
-    if (staleIds.length === 0) {
-      writeStdout('[agendex] stale daemons have no device IDs and cannot be removed');
-      return 0;
+    const recordIds = staleDevices.flatMap((device) => (device.recordId ? [device.recordId] : []));
+    if (staleIds.length + recordIds.length < staleDevices.length) {
+      writeStderr(
+        '[agendex] some stale records have no identifiers; upgrade the cloud backend to remove them',
+      );
     }
-    const result = await deleteDaemons(staleIds);
+    if (staleIds.length + recordIds.length === 0) {
+      return 1;
+    }
+    const result = await deleteDaemons(staleIds, recordIds);
     if (result.ok) {
       writeStdout(`[agendex] removed ${result.deleted} stale daemon(s)`);
     } else {
       writeStderr('[agendex] failed to remove stale daemons');
       return 1;
     }
-    return 0;
+    return staleIds.length + recordIds.length < staleDevices.length ? 1 : 0;
   }
 
   // Interactive mode: use @clack/prompts multiselect (same pattern as configure)
@@ -596,13 +601,13 @@ async function runCleanupCommand(commandArgs: string[]): Promise<number> {
   }
 
   const { promptForDaemonCleanup } = await import('./cleanup.ts');
-  const deviceIds = allDevices.flatMap((device) => {
-    if (device.deviceId === null) return [];
+  const deviceIds = allDevices.flatMap((device, index) => {
+    if (!device.recordId && device.deviceId === null) return [];
     const age = device.lastSeenAt !== null ? now - device.lastSeenAt : Number.POSITIVE_INFINITY;
     const status = age < CLI_DAEMON_STALE_AFTER_MS ? 'alive' : 'stale';
     return [
       {
-        deviceId: device.deviceId,
+        deviceId: String(index),
         hostname: device.hostname ?? 'unknown',
         pid: device.pid,
         status: status as 'alive' | 'stale',
@@ -611,14 +616,20 @@ async function runCleanupCommand(commandArgs: string[]): Promise<number> {
   });
 
   if (deviceIds.length === 0) {
-    writeStdout('[agendex] no daemons with device IDs to remove');
-    return 0;
+    writeStderr('[agendex] records have no identifiers; upgrade the cloud backend to remove them');
+    return 1;
   }
 
   const selected = await promptForDaemonCleanup(deviceIds);
   if (!selected) return 0;
 
-  const result = await deleteDaemons(selected);
+  const selectedDevices = allDevices.filter((_, index) => selected.includes(String(index)));
+  const result = await deleteDaemons(
+    selectedDevices.flatMap((device) =>
+      device.recordId || device.deviceId === null ? [] : [device.deviceId],
+    ),
+    selectedDevices.flatMap((device) => (device.recordId ? [device.recordId] : [])),
+  );
   if (result.ok) {
     writeStdout(`[agendex] removed ${result.deleted} daemon(s)`);
   } else {

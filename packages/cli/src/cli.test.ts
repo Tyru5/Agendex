@@ -180,3 +180,57 @@ test('sync --help renders help without running sync', async () => {
   expect(stdout).not.toContain('[agendex] Scanning local plans...');
   expect(await Bun.file(join(configDir, 'config.json')).exists()).toBe(false);
 });
+
+test('cleanup --stale removes anonymous records and legacy devices, but not live daemons', async () => {
+  tempRoot = await mkdtemp(join(tmpdir(), 'agendex-cleanup-'));
+  const requests: unknown[] = [];
+  const server = createServer(async (req, res) => {
+    expect(req.headers.authorization).toBe('Bearer test-token');
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'GET') {
+      res.end(
+        JSON.stringify({
+          devices: [
+            { recordId: 'anonymous-row', deviceId: null, lastSeenAt: Date.now() - 300_000 },
+            { deviceId: 'old-server-device', lastSeenAt: Date.now() - 300_000 },
+            { recordId: 'live-row', deviceId: 'live-device', lastSeenAt: Date.now() },
+          ],
+        }),
+      );
+    } else {
+      requests.push(JSON.parse(await requestBody(req)));
+      res.end(JSON.stringify({ ok: true, deleted: 2 }));
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing TCP address');
+    await writeFile(
+      join(tempRoot, 'config.json'),
+      JSON.stringify({
+        configVersion: 7,
+        cloudToken: 'test-token',
+        convexUrl: `http://127.0.0.1:${address.port}`,
+        enabledAdapters: [],
+      }),
+    );
+    const proc = Bun.spawn({
+      cmd: ['bun', 'packages/cli/src/cli.ts', 'cleanup', '--stale'],
+      env: { ...process.env, AGENDEX_CONFIG_DIR: tempRoot },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const [code, stdout, stderr] = await Promise.all([
+      proc.exited,
+      Bun.readableStreamToText(proc.stdout),
+      Bun.readableStreamToText(proc.stderr),
+    ]);
+    expect(code).toBe(0);
+    expect(stderr).toBe('');
+    expect(stdout).toContain('removed 2 stale daemon(s)');
+    expect(requests).toEqual([{ deviceIds: ['old-server-device'], recordIds: ['anonymous-row'] }]);
+  } finally {
+    server.close();
+  }
+});
