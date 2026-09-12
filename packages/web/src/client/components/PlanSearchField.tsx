@@ -1,3 +1,4 @@
+import { TOUR_TARGET } from '../tour/productTour.ts';
 import { useEffect, useRef } from 'react';
 
 export const FOCUS_PLAN_SEARCH_EVENT = 'agendex:focus-plan-search';
@@ -51,7 +52,7 @@ export function PlanSearchField({
   }, [onFocusRequest]);
 
   return (
-    <div className="sidebar-control-block">
+    <div className="sidebar-control-block" data-tour={TOUR_TARGET.search}>
       <div className="sidebar-control-header">
         <span className="sidebar-control-label">Search</span>
         <kbd className="sidebar-shortcut-key">{shortcutLabel}</kbd>

@@ -1,3 +1,4 @@
+import { TOUR_TARGET } from '../tour/productTour.ts';
 import { useEffect, useRef, useState } from 'react';
 
 export function WorkspaceStatus({
@@ -32,7 +33,7 @@ export function WorkspaceStatus({
   }, [open]);
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative" ref={ref} data-tour={TOUR_TARGET.workspaceStatus}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
