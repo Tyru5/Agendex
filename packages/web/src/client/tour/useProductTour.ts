@@ -25,41 +25,62 @@ export interface UseProductTourOptions {
  * the current version has not been completed, and exposes `replay` for
  * on-demand runs. Completion (finish or dismiss) is persisted via
  * `state.markCompleted`.
+ *
+ * At most one tour is ever live: a new `replay` cancels a start that is still
+ * waiting on its delay and tears down a running driver before scheduling.
  */
 export function useProductTour({ steps, state, ready, onBeforeStart }: UseProductTourOptions) {
   const driverRef = useRef<Driver | null>(null);
+  const startTimerRef = useRef<number | null>(null);
   const autoStartedRef = useRef(false);
   const latest = useRef({ steps, state, onBeforeStart });
   latest.current = { steps, state, onBeforeStart };
 
+  const cancelPendingStart = useCallback(() => {
+    if (startTimerRef.current === null) return;
+    window.clearTimeout(startTimerRef.current);
+    startTimerRef.current = null;
+  }, []);
+
   const start = useCallback(() => {
+    cancelPendingStart();
     driverRef.current?.destroy();
     driverRef.current = null;
     latest.current.onBeforeStart?.();
-    const timer = window.setTimeout(() => {
+    startTimerRef.current = window.setTimeout(() => {
+      startTimerRef.current = null;
       driverRef.current = startProductTour(latest.current.steps, {
         onFinish: () => {
           driverRef.current = null;
-          void latest.current.state.markCompleted(PRODUCT_TOUR_VERSION);
+          // `markCompleted` may hit the network (account-scoped state). A
+          // failure must not surface as an unhandled rejection; the tour simply
+          // shows again next visit, and the console explains why.
+          Promise.resolve()
+            .then(() => latest.current.state.markCompleted(PRODUCT_TOUR_VERSION))
+            .catch((error: unknown) => {
+              console.error('Failed to persist product tour completion', error);
+            });
         },
       });
     }, START_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, []);
+  }, [cancelPendingStart]);
 
   const pending = isProductTourPending(state);
   useEffect(() => {
     if (autoStartedRef.current || !ready || !pending) return;
     autoStartedRef.current = true;
-    return start();
+    start();
   }, [pending, ready, start]);
 
   useEffect(
     () => () => {
+      cancelPendingStart();
+      // Public `destroy()` bypasses `onDestroyStarted`, so unmounting mid-tour
+      // does not record completion (see `startProductTour`).
       driverRef.current?.destroy();
       driverRef.current = null;
     },
-    [],
+    [cancelPendingStart],
   );
 
   return { replay: start };

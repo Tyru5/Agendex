@@ -1971,7 +1971,14 @@ function dashReducer(s: DashState, a: DashAction): DashState {
   }
 }
 
-function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
+function useDashboard({
+  autoMode,
+  authPending,
+}: {
+  autoMode: DashboardMode;
+  /** Route is still settling the cloud session; see `useProductTourState`. */
+  authPending: boolean;
+}) {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
   const planViewPreference = useQuery(
@@ -2673,7 +2680,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       }),
     [canShowPlanSourcesAction, canSwitchMode, isAuthenticated, mode],
   );
-  const tourState = useProductTourState();
+  const tourState = useProductTourState({ authPending });
   useProductTour({
     steps: tourSteps,
     state: tourState,
@@ -3042,8 +3049,14 @@ function LandingRoute() {
   );
 }
 
-function DashboardView({ autoMode }: { autoMode: DashboardMode }) {
-  return useDashboard({ autoMode });
+function DashboardView({
+  autoMode,
+  authPending,
+}: {
+  autoMode: DashboardMode;
+  authPending: boolean;
+}) {
+  return useDashboard({ autoMode, authPending });
 }
 
 function DashboardRoute() {
@@ -3091,9 +3104,9 @@ function DashboardRoute() {
     skip: desktop || hasCachedToken,
   });
 
-  const renderDashboard = (autoMode: DashboardMode) => (
+  const renderDashboard = (autoMode: DashboardMode, authPending = false) => (
     <AgentAvatarProvider avatars={avatars ?? {}}>
-      <DashboardView autoMode={autoMode} />
+      <DashboardView autoMode={autoMode} authPending={authPending} />
     </AgentAvatarProvider>
   );
 
@@ -3119,7 +3132,13 @@ function DashboardRoute() {
   }
 
   if (hasCachedToken) {
-    return renderDashboard(isAuthenticated && onboardingResolved ? 'cloud' : 'local');
+    // The dashboard renders in local mode while the cloud session is still
+    // resolving (initial fetch, OAuth `ott` callback); account-scoped state
+    // such as the product tour must wait for that to settle.
+    return renderDashboard(
+      isAuthenticated && onboardingResolved ? 'cloud' : 'local',
+      !isAuthenticated && (isLoading || processingOtt),
+    );
   }
 
   if (isAuthenticated) {

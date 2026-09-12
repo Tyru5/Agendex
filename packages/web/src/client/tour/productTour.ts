@@ -96,6 +96,12 @@ export function startProductTour(
     // `onDestroyed` is skipped by driver.js when teardown happens mid-transition
     // (e.g. Escape during the first fade-in); `onDestroyStarted` always runs for
     // user-initiated teardown, so completion is recorded there.
+    //
+    // This hook only fires for driver-internal teardown (Finish/Done, close
+    // button, Escape, overlay click). The public `Driver.destroy()` calls the
+    // internal destroy with the hook disabled, which is also how `active.destroy()`
+    // below avoids re-entering this callback. A programmatic `destroy()` from the
+    // shell therefore never records completion.
     onDestroyStarted: (_element, _step, { driver: active }) => {
       onFinish();
       active.destroy();

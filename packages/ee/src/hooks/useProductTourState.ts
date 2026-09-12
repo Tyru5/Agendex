@@ -4,14 +4,28 @@ import { useMutation, useQuery } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 import { useAuth } from './useAuth';
 
+export interface UseProductTourStateOptions {
+  /**
+   * True while the route is still settling the cloud session (initial session
+   * fetch, OAuth `ott` callback). The dashboard can already be on screen in
+   * local mode at that point; reporting "loading" keeps the tour from starting
+   * or recording completion against browser-local state for a user who is
+   * about to become signed in.
+   */
+  authPending?: boolean;
+}
+
 /**
  * Tour completion state for the EE shell. Signed-in users persist it on their
  * account (`accountPreferences`), so it follows them across browsers and the
  * desktop app; a local-only session (OSS token without cloud auth) falls back
  * to browser storage.
  */
-export function useProductTourState(): ProductTourState & { reset: () => Promise<void> } {
-  const { isAuthenticated } = useAuth();
+export function useProductTourState({
+  authPending = false,
+}: UseProductTourStateOptions = {}): ProductTourState & { reset: () => Promise<void> } {
+  const { isAuthenticated, isLoading } = useAuth();
+  const authSettling = authPending || isLoading;
   const cloudCompletedVersion = useQuery(
     api.account.getMyProductTourCompletedVersion,
     isAuthenticated ? {} : 'skip',
@@ -38,12 +52,14 @@ export function useProductTourState(): ProductTourState & { reset: () => Promise
     await updateCloud({ completedVersion: null });
   }, [isAuthenticated, local, updateCloud]);
 
+  const completedVersion = authSettling
+    ? undefined
+    : isAuthenticated
+      ? cloudCompletedVersion
+      : local.completedVersion;
+
   return useMemo(
-    () => ({
-      completedVersion: isAuthenticated ? cloudCompletedVersion : local.completedVersion,
-      markCompleted,
-      reset,
-    }),
-    [cloudCompletedVersion, isAuthenticated, local.completedVersion, markCompleted, reset],
+    () => ({ completedVersion, markCompleted, reset }),
+    [completedVersion, markCompleted, reset],
   );
 }
