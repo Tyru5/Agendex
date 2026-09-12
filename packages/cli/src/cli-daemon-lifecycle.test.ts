@@ -6,6 +6,10 @@ import { expect, test } from 'bun:test';
 import { isRunning, type DaemonPidInfo } from './pid.ts';
 
 const cliEntry = fileURLToPath(new URL('./cli.ts', import.meta.url));
+// Must exceed DAEMON_START_TIMEOUT_MS in cli.ts so a slow Windows runner lets the CLI
+// finish (or fail) its own start sequence instead of being killed mid-spawn and leaking
+// a detached supervisor whose cwd pins the temp root (EBUSY on cleanup).
+const CLI_TIMEOUT_MS = 40_000;
 
 async function runCli(
   args: string[],
@@ -18,7 +22,7 @@ async function runCli(
     stdout: 'pipe',
     stderr: 'pipe',
   });
-  const code = await Promise.race([child.exited, Bun.sleep(10_000).then(() => null)]);
+  const code = await Promise.race([child.exited, Bun.sleep(CLI_TIMEOUT_MS).then(() => null)]);
   if (code === null) {
     child.kill();
     await child.exited;
@@ -46,20 +50,36 @@ async function waitForProcessExit(pid: number, timeoutMs = 2_000): Promise<void>
   if (isRunning(pid)) throw new Error(`Process ${pid} did not exit`);
 }
 
-async function cleanupTempRoot(tempRoot: string, pids: Array<number | undefined>): Promise<void> {
-  for (const pid of pids) {
-    if (!pid || !isRunning(pid)) continue;
+async function cleanupTempRoot(
+  tempRoot: string,
+  pidPath: string,
+  pids: Array<number | undefined>,
+): Promise<void> {
+  // A start that the harness timed out may have left a supervisor/worker the test never
+  // captured; the PID file is the only place they are recorded.
+  const recorded = readPidInfo(pidPath);
+  const targets = new Set(
+    [...pids, recorded?.pid, recorded?.workerPid].filter(
+      (pid): pid is number => Number.isInteger(pid) && (pid as number) > 0,
+    ),
+  );
+  for (const pid of targets) {
+    if (!isRunning(pid)) continue;
     try {
       process.kill(pid, 'SIGKILL');
     } catch {}
   }
-  for (const pid of pids) {
-    if (!pid) continue;
+  for (const pid of targets) {
     try {
       await waitForProcessExit(pid);
     } catch {}
   }
-  rmSync(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  try {
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  } catch (error) {
+    // Do not let a cleanup failure replace the assertion/timeout error from the test body.
+    console.error(`[cli-daemon-lifecycle] failed to remove ${tempRoot}:`, error);
+  }
 }
 
 async function waitForPidInfo(
@@ -112,9 +132,9 @@ test('CLI start and stop terminate both supervisor and worker', async () => {
     expect(supervisorPid !== undefined && isRunning(supervisorPid)).toBe(false);
     expect(workerPid !== undefined && isRunning(workerPid)).toBe(false);
   } finally {
-    await cleanupTempRoot(tempRoot, [workerPid, supervisorPid]);
+    await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid]);
   }
-}, 15_000);
+}, 120_000);
 
 test.skipIf(process.platform !== 'darwin')(
   'macOS legacy boot drift preserves status, singleton start, and stop',
@@ -176,16 +196,10 @@ test.skipIf(process.platform !== 'darwin')(
       expect(workerPid !== undefined && isRunning(workerPid)).toBe(false);
       expect(existsSync(pidPath)).toBe(false);
     } finally {
-      const remaining = readPidInfo(pidPath);
-      await cleanupTempRoot(tempRoot, [
-        workerPid,
-        supervisorPid,
-        remaining?.workerPid,
-        remaining?.pid,
-      ]);
+      await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid]);
     }
   },
-  15_000,
+  120_000,
 );
 
 test('CLI start remains singleton while a ready worker is restarting', async () => {
@@ -226,9 +240,9 @@ test('CLI start remains singleton while a ready worker is restarting', async () 
     expect((await runCli(['stop'], tempRoot, env)).code).toBe(0);
     expect(supervisorPid !== undefined && isRunning(supervisorPid)).toBe(false);
   } finally {
-    await cleanupTempRoot(tempRoot, [workerPid, supervisorPid]);
+    await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid]);
   }
-}, 15_000);
+}, 120_000);
 
 test('initial startup drains an orphaned worker before a replacement starts', async () => {
   const tempRoot = mkdtempSync(join(tmpdir(), 'agendex cli initial crash '));
@@ -276,14 +290,14 @@ test('initial startup drains an orphaned worker before a replacement starts', as
 
     expect((await runCli(['stop'], tempRoot, env)).code).toBe(0);
   } finally {
-    await cleanupTempRoot(tempRoot, [
+    await cleanupTempRoot(tempRoot, pidPath, [
       oldWorkerPid,
       oldSupervisorPid,
       replacementWorkerPid,
       replacementSupervisorPid,
     ]);
   }
-}, 15_000);
+}, 120_000);
 
 test('CLI stop drains a worker orphaned by a crashed supervisor', async () => {
   const tempRoot = mkdtempSync(join(tmpdir(), 'agendex cli stop orphan '));
@@ -317,6 +331,6 @@ test('CLI stop drains a worker orphaned by a crashed supervisor', async () => {
     expect(workerPid !== undefined && isRunning(workerPid)).toBe(false);
     expect(existsSync(pidPath)).toBe(false);
   } finally {
-    await cleanupTempRoot(tempRoot, [workerPid, supervisorPid]);
+    await cleanupTempRoot(tempRoot, pidPath, [workerPid, supervisorPid]);
   }
-}, 15_000);
+}, 120_000);
