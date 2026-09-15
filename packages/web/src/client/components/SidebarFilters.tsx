@@ -1,3 +1,4 @@
+import { TOUR_TARGET } from '../tour/productTour.ts';
 import { useMemo, type SelectHTMLAttributes } from 'react';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { AgentStats } from '../lib/api.ts';
@@ -201,62 +202,64 @@ export function SidebarFilters({
 
       <AgentFilter agents={agents} selected={selectedAgents} onChange={onAgentsChange} />
 
-      <div className="sidebar-control-block">
-        <div className="sidebar-control-header">
-          <span className="sidebar-control-label">Workspace</span>
+      <div className="sidebar-control-group" data-tour={TOUR_TARGET.filters}>
+        <div className="sidebar-control-block">
+          <div className="sidebar-control-header">
+            <span className="sidebar-control-label">Workspace</span>
+          </div>
+          <SidebarSelect
+            value={workspace ?? ''}
+            onChange={(event) => onWorkspaceChange?.(event.target.value || undefined)}
+            aria-label="Workspace"
+            disabled={!onWorkspaceChange}
+          >
+            <option value="">All workspaces</option>
+            {workspace && !workspaces.includes(workspace) && (
+              <option value={workspace}>{workspace}</option>
+            )}
+            {workspaces.map((workspaceOption) => (
+              <option key={workspaceOption} value={workspaceOption}>
+                {workspaceOption}
+              </option>
+            ))}
+          </SidebarSelect>
         </div>
-        <SidebarSelect
-          value={workspace ?? ''}
-          onChange={(event) => onWorkspaceChange?.(event.target.value || undefined)}
-          aria-label="Workspace"
-          disabled={!onWorkspaceChange}
-        >
-          <option value="">All workspaces</option>
-          {workspace && !workspaces.includes(workspace) && (
-            <option value={workspace}>{workspace}</option>
-          )}
-          {workspaces.map((workspaceOption) => (
-            <option key={workspaceOption} value={workspaceOption}>
-              {workspaceOption}
-            </option>
-          ))}
-        </SidebarSelect>
-      </div>
 
-      <div className="sidebar-control-block">
-        <div className="sidebar-control-header">
-          <span className="sidebar-control-label">Date</span>
+        <div className="sidebar-control-block">
+          <div className="sidebar-control-header">
+            <span className="sidebar-control-label">Date</span>
+          </div>
+          <fieldset className="sidebar-segmented" aria-label="Date range">
+            {DATE_OPTIONS.map((option) => (
+              <button
+                type="button"
+                key={option.value}
+                onClick={() => onDateBucketChange(option.value)}
+                className={`sidebar-segment${dateBucket === option.value ? ' sidebar-segment--active' : ''}`}
+                aria-pressed={dateBucket === option.value}
+              >
+                {option.label}
+              </button>
+            ))}
+          </fieldset>
         </div>
-        <fieldset className="sidebar-segmented" aria-label="Date range">
-          {DATE_OPTIONS.map((option) => (
-            <button
-              type="button"
-              key={option.value}
-              onClick={() => onDateBucketChange(option.value)}
-              className={`sidebar-segment${dateBucket === option.value ? ' sidebar-segment--active' : ''}`}
-              aria-pressed={dateBucket === option.value}
-            >
-              {option.label}
-            </button>
-          ))}
-        </fieldset>
-      </div>
 
-      <div className="sidebar-control-block">
-        <div className="sidebar-control-header">
-          <span className="sidebar-control-label">Sort</span>
+        <div className="sidebar-control-block">
+          <div className="sidebar-control-header">
+            <span className="sidebar-control-label">Sort</span>
+          </div>
+          <SidebarSelect
+            value={sortBy}
+            onChange={(event) => onSortChange(event.target.value as SidebarSortBy)}
+            aria-label="Sort plans"
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </SidebarSelect>
         </div>
-        <SidebarSelect
-          value={sortBy}
-          onChange={(event) => onSortChange(event.target.value as SidebarSortBy)}
-          aria-label="Sort plans"
-        >
-          {SORT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </SidebarSelect>
       </div>
 
       {showMoreFilters && (

@@ -9,7 +9,7 @@ export {
   sanitizeEnabledAdapterIds,
   setActiveAdapters,
 } from './adapters/registry.ts';
-export type { AgendexConfig, InitConfigOptions } from './config.ts';
+export type { AgendexConfig, InitConfigOptions, PlanDownloadRecord } from './config.ts';
 export {
   CURRENT_CONFIG_VERSION,
   getConfigDir,
@@ -129,9 +129,9 @@ export {
 export { isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
 export type {
   PlanBrowseDedupeResult,
-  PlanDownloadFallbackPage,
   PlanDownloadLookupCandidate,
   PlanDownloadLookupSelection,
+  PlanDownloadTitlePageSelection,
 } from './services/plan-download-lookup.ts';
 export {
   canonicalPlanAgent,
@@ -142,13 +142,11 @@ export {
   parsePlanDownloadQuery,
   planAgentLookupValues,
   planAgentsMatch,
-  PLAN_DOWNLOAD_FALLBACK_MAX_PLANS,
-  PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
-  scanPlanDownloadFallback,
   scorePlanTitleSimilarity,
   dedupePlanBrowseCandidates,
   planBrowseDedupeKeys,
   selectPlanDownloadMatches,
+  selectPlanDownloadTitlePage,
   filterPlanBrowseMatches,
   suggestClosestPlans,
 } from './services/plan-download-lookup.ts';
@@ -162,6 +160,18 @@ export {
   relativeSyncPath,
 } from './services/plan-sync-identity.ts';
 export { collectWatchPaths, startWatching, stopWatchingForShutdown } from './services/watcher.ts';
+export type {
+  AgentUsageTotals,
+  ModelUsageTotals,
+  UsageAgent,
+  UsageBucket,
+  UsageCloudEvent,
+  UsageRecord,
+  UsageSourceStatus,
+  UsageSummary,
+  UsageTokenTotals,
+} from './usage/types.ts';
+export { DEFAULT_USAGE_DAYS, getUsageSummaries, getUsageSummary } from './usage/service.ts';
 export { canPromptForAdapters, promptForAdapterSelection } from './setup/adapter-selection.ts';
 export type {
   AgentAdapter,

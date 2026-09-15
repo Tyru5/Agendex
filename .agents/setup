@@ -35,6 +35,9 @@ if ((node_major < 20)); then
   sudo apt-get install -y --no-install-recommends nodejs
 fi
 
+echo "==> Caching Node.js 24 for local Convex actions"
+npx -y -p node@24 -c 'node --version' >/dev/null
+
 echo "==> Installing workspace dependencies"
 bun install --frozen-lockfile
 

@@ -308,3 +308,32 @@ test('removeCustomPlanDir removes a stored real path alias when removing the sym
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('lastPlanDownload round-trips through save/load and drops malformed entries', async () => {
+  await useTempConfigDir();
+  const record = {
+    at: 1_700_000_000_000,
+    title: 'Add auth',
+    agent: 'claude-code',
+    format: 'md' as const,
+    destination: '/plans/Add auth.md',
+  };
+  saveConfig({
+    configVersion: CURRENT_CONFIG_VERSION,
+    enabledAdapters: [],
+    customPlanDirs: [],
+    lastPlanDownload: record,
+  });
+  expect(loadConfig()?.lastPlanDownload).toEqual(record);
+
+  writeFileSync(
+    getConfigPath(),
+    JSON.stringify({
+      configVersion: CURRENT_CONFIG_VERSION,
+      enabledAdapters: [],
+      customPlanDirs: [],
+      lastPlanDownload: { at: 'yesterday', title: 'x', agent: 'y', format: 'md' },
+    }),
+  );
+  expect(loadConfig()?.lastPlanDownload).toBeUndefined();
+});

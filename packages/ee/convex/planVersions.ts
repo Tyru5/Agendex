@@ -1,4 +1,5 @@
 import { ProFeature } from '@agendex/shared/types';
+import { canonicalPlanAgent, normalizePlanLookupText } from '@agendex/shared/plan-download-lookup';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
@@ -7,9 +8,29 @@ import { assessPlanForVisibility, metadataWithPlanValueAssessment } from './plan
 import { recordPlanVersion } from './planVersioning';
 import { cryptoEnvelopeV1 } from './schema';
 import { resolveWorkspaceCryptoPolicy, validateEncryptedWrite } from './workspaceCrypto';
+import { planVersionValidator, toPlanVersionDto } from './validators';
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
+  returns: v.array(
+    v.object({
+      _id: v.id('planVersions'),
+      version: v.number(),
+      title: v.string(),
+      source: v.optional(
+        v.union(
+          v.literal('cli_sync'),
+          v.literal('editor'),
+          v.literal('restore'),
+          v.literal('backfill'),
+        ),
+      ),
+      createdAt: v.number(),
+      stableCryptoId: v.optional(v.string()),
+      keyEpoch: v.optional(v.number()),
+      encryptedSummary: v.optional(cryptoEnvelopeV1),
+    }),
+  ),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -51,6 +72,7 @@ export const listForPlan = query({
 
 export const getVersion = query({
   args: { planId: v.id('plans'), version: v.number() },
+  returns: planVersionValidator,
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -78,7 +100,7 @@ export const getVersion = query({
       throw new ConvexError('Version not found');
     }
 
-    return snapshot;
+    return toPlanVersionDto(snapshot);
   },
 });
 
@@ -96,6 +118,7 @@ export const restore = mutation({
     contentToken: v.optional(v.string()),
     lowValue: v.optional(v.boolean()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -141,7 +164,7 @@ export const restore = mutation({
       });
       if (
         !plan.stableCryptoId ||
-        args.keyEpoch === undefined ||
+        args.keyEpoch !== policy.activeKeyEpoch ||
         !args.encryptedSummary ||
         !args.encryptedBody ||
         !args.versionStableCryptoId ||
@@ -156,7 +179,9 @@ export const restore = mutation({
       const now = Date.now();
       await ctx.db.patch(args.planId, {
         title: '',
+        titleNormalized: '',
         content: '',
+        format: snapshot.format,
         filePath: undefined,
         workspace: undefined,
         metadata: undefined,
@@ -182,7 +207,7 @@ export const restore = mutation({
         encryptedSummary: args.encryptedVersionSummary,
         encryptedBody: args.encryptedVersionBody,
       });
-      return;
+      return null;
     }
 
     const restoredAssessment = assessPlanForVisibility({
@@ -212,6 +237,8 @@ export const restore = mutation({
 
     await ctx.db.patch(args.planId, {
       ...restoredSnapshot,
+      titleNormalized: normalizePlanLookupText(snapshot.title),
+      agentNormalized: canonicalPlanAgent(plan.agent),
       version: newVersion,
       updatedAt: now,
     });
@@ -224,5 +251,6 @@ export const restore = mutation({
       source: 'restore',
       createdAt: now,
     });
+    return null;
   },
 });

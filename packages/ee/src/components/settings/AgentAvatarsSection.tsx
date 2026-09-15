@@ -138,7 +138,10 @@ export function AgentAvatarsSection() {
             keyEpoch: cryptoStatus.settings.activeKeyEpoch,
           })
         : null;
-      const uploadUrl = await generateUploadUrl(encrypted ? { clientCryptoProtocol: 1 } : {});
+      const { uploadUrl, reservationId } = await generateUploadUrl({
+        agent,
+        ...(encrypted ? { clientCryptoProtocol: 1 } : {}),
+      });
       const uploadRes = await fetch(uploadUrl, {
         method: 'POST',
         headers: { 'Content-Type': encrypted ? 'application/octet-stream' : file.type },
@@ -151,6 +154,7 @@ export function AgentAvatarsSection() {
       await setAgentAvatar({
         agent,
         storageId,
+        reservationId,
         ...(encrypted
           ? {
               clientCryptoProtocol: 1,

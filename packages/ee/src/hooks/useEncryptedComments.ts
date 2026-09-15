@@ -58,18 +58,25 @@ export async function encryptCommentUpload(args: {
 }): Promise<EncryptedUpload> {
   const stableCryptoId = generateStableCryptoId();
   const plaintext = new Uint8Array(await args.file.arrayBuffer());
-  const packed = withWorkspaceKey(args.workspaceOwnerId, (_workspaceKey, derivedKeys) =>
-    packEncryptedBlob(
-      sealBytes(derivedKeys.contentKey, plaintext, {
-        workspaceOwnerId: args.workspaceOwnerId,
-        table: 'commentAttachments',
-        stableCryptoId,
-        slot: 'attachment',
-        keyEpoch: args.keyEpoch,
-      }),
-    ),
-  );
-  plaintext.fill(0);
+  let packed: Uint8Array;
+  try {
+    packed = withWorkspaceKey(
+      args.workspaceOwnerId,
+      (_workspaceKey, derivedKeys) =>
+        packEncryptedBlob(
+          sealBytes(derivedKeys.contentKey, plaintext, {
+            workspaceOwnerId: args.workspaceOwnerId,
+            table: 'commentAttachments',
+            stableCryptoId,
+            slot: 'attachment',
+            keyEpoch: args.keyEpoch,
+          }),
+        ),
+      args.keyEpoch,
+    );
+  } finally {
+    plaintext.fill(0);
+  }
   return {
     body: new Blob([packed.slice().buffer as ArrayBuffer], { type: 'application/octet-stream' }),
     stableCryptoId,
@@ -88,47 +95,56 @@ export function buildEncryptedCommentWrite(args: {
   attachments: PrivateAttachment[];
   stableCryptoId?: string;
 }) {
-  return withWorkspaceKey(args.workspaceOwnerId, (workspaceKey) => {
-    const comment = encryptWorkspaceValue({
-      workspaceKey,
-      workspaceOwnerId: args.workspaceOwnerId,
-      keyEpoch: args.keyEpoch,
-      table: 'comments',
-      slot: 'comment',
-      stableCryptoId: args.stableCryptoId,
-      value: {
-        body: args.body,
-        authorName: args.authorName,
-        ...(args.authorAvatar ? { authorAvatar: args.authorAvatar } : {}),
-      } satisfies PrivateComment,
-    });
-    const encryptedAttachments =
-      args.attachments.length > 0
-        ? encryptWorkspaceValue({
-            workspaceKey,
-            workspaceOwnerId: args.workspaceOwnerId,
-            keyEpoch: args.keyEpoch,
-            table: 'comments',
-            slot: 'attachment',
-            stableCryptoId: comment.stableCryptoId,
-            value: args.attachments,
-          }).envelope
-        : undefined;
-    return {
-      body: '',
-      clientCryptoProtocol: 1 as const,
-      stableCryptoId: comment.stableCryptoId,
-      keyEpoch: comment.keyEpoch,
-      encryptedComment: comment.envelope,
-      encryptedAttachments,
-    };
-  });
+  return withWorkspaceKey(
+    args.workspaceOwnerId,
+    (workspaceKey) => {
+      const comment = encryptWorkspaceValue({
+        workspaceKey,
+        workspaceOwnerId: args.workspaceOwnerId,
+        keyEpoch: args.keyEpoch,
+        table: 'comments',
+        slot: 'comment',
+        stableCryptoId: args.stableCryptoId,
+        value: {
+          body: args.body,
+          authorName: args.authorName,
+          ...(args.authorAvatar ? { authorAvatar: args.authorAvatar } : {}),
+        } satisfies PrivateComment,
+      });
+      const encryptedAttachments =
+        args.attachments.length > 0
+          ? encryptWorkspaceValue({
+              workspaceKey,
+              workspaceOwnerId: args.workspaceOwnerId,
+              keyEpoch: args.keyEpoch,
+              table: 'comments',
+              slot: 'attachment',
+              stableCryptoId: comment.stableCryptoId,
+              value: args.attachments,
+            }).envelope
+          : undefined;
+      return {
+        body: '',
+        clientCryptoProtocol: 1 as const,
+        stableCryptoId: comment.stableCryptoId,
+        keyEpoch: comment.keyEpoch,
+        encryptedComment: comment.envelope,
+        encryptedAttachments,
+      };
+    },
+    args.keyEpoch,
+  );
 }
 
-export function useEncryptedComments(planId: string, shareToken?: string) {
+export function useEncryptedComments(
+  planId: string,
+  shareToken?: string,
+  accessProof?: Id<'shareAccessProofs'>,
+) {
   const rows = useQuery(api.comments.getComments, {
     planId: planId as Id<'plans'>,
     ...(shareToken ? { token: shareToken } : {}),
+    ...(accessProof ? { accessProof } : {}),
   }) as CommentRow[] | undefined;
   const status = useWorkspaceCryptoStatus();
   const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
@@ -235,15 +251,20 @@ export function useEncryptedComments(planId: string, shareToken?: string) {
                     }),
                   )
                 : [];
-              const match = metadata.find(
-                (candidate) => candidate.stableCryptoId === attachment.stableCryptoId,
-              );
+              const match =
+                metadata.find(
+                  (candidate) => candidate.stableCryptoId === attachment.stableCryptoId,
+                ) ?? metadata[(row.attachments ?? []).indexOf(attachment)];
               const url = URL.createObjectURL(
                 new Blob([bytes.slice().buffer as ArrayBuffer], {
                   type: match?.contentType ?? 'application/octet-stream',
                 }),
               );
               bytes.fill(0);
+              if (cancelled) {
+                URL.revokeObjectURL(url);
+                return [attachment.storageId, ''] as const;
+              }
               created.push(url);
               return [attachment.storageId, url] as const;
             })(),

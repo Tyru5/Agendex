@@ -6,13 +6,18 @@ import {
   DocsPage,
   DownloadPage,
   EmptyStateView,
+  PrivacyPolicyPage,
+  TermsOfServicePage,
   ToolsUsedPage,
   applyPlanFilters,
   focusPlanSearchField,
   getAppShortcuts,
+  hasMorningBriefUpdates,
   hasToken,
   LandingPage,
   MAX_FOLDERS,
+  MorningBrief,
+  MorningBriefIcon,
   normalizeFilterValues,
   OfflineView,
   type Plan,
@@ -21,25 +26,35 @@ import {
   PlanActionButton,
   PlanSourcesDialog,
   type PlanState,
+  PlanCompareView,
   PlanViewer,
-  SidebarFilters,
   SidebarResizeHandle,
   SkeletonBlock,
+  resolveMorningBriefSince,
   startViewTransition,
+  TOUR_TARGET,
   useAgents,
   useBackendStatus,
   useCustomPlanSources,
   usePlanFolders,
   usePlanState,
   usePlans,
+  useProductTour,
   useSidebarWidth,
   workspacesFromPlans,
 } from '@agendex/web';
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { api } from '@convex/_generated/api';
-import type { Doc, Id } from '@convex/_generated/dataModel';
-import { useHotkey } from '@tanstack/react-hotkeys';
-import { ConvexProviderWithAuth, useConvexAuth, useMutation, useQuery } from 'convex/react';
+import type { Id } from '@convex/_generated/dataModel';
+import type { UsageSummary } from '@agendex/shared';
+import { formatForDisplay, useHotkey } from '@tanstack/react-hotkeys';
+import {
+  ConvexProviderWithAuth,
+  useConvex,
+  useConvexAuth,
+  useMutation,
+  useQuery,
+} from 'convex/react';
 import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react';
 import {
   parseAsNativeArrayOf,
@@ -70,6 +85,7 @@ import { AuthPage } from './components/AuthPage.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
 import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
+import { useCloudPlanEdits } from './hooks/useCloudPlanEdits';
 import {
   CloudPlanAnnotationsPanel,
   useCloudPlanAnnotations,
@@ -110,15 +126,19 @@ import {
 } from './hooks/useCloudMetadataCrypto.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useDesktopDaemonState } from './hooks/useDesktopDaemonState.ts';
+import { useProductTourState } from './hooks/useProductTourState.ts';
+import { cloudUsageUnavailableReason } from './lib/cloud-usage-policy.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
+import { buildDashboardTourSteps } from './tour.ts';
 import { authClient, normalizeLocalDevUrl } from './lib/auth-client.ts';
 import { parseCliAuthCallback } from './lib/cli-auth-callback.ts';
 import { findCloudCustomPlanSource, isConfiguredPlanSourcePath } from './lib/cloud-plan-sources.ts';
 import {
   canManageCustomPlanSources,
   canUseCloudPlanMetadata,
+  canUseTechDependencyChart,
   shouldQueryCloudPlanTags,
 } from './lib/cloud-query-mode.ts';
 import { convex } from './lib/convex-client.ts';
@@ -156,6 +176,7 @@ const PlanHistoryDrawer = lazy(() =>
 );
 
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
+const BRIEF_LAST_READ_PREF_KEY = 'agendex_brief_last_read_at';
 const SIDEBAR_HOVER_ZONE_WIDTH = 14;
 const TOPBAR_HEIGHT = 70;
 const DASHBOARD_PATH = '/dashboard';
@@ -166,9 +187,14 @@ type DashboardMode = 'local' | 'cloud';
 
 const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
 const dateOptions = ['all', 'today', '7d', '30d'] as const;
+const workspaceViewOptions = ['brief'] as const;
 
-type TagRecord = Doc<'tags'>;
-type CollectionRecord = Doc<'collections'>;
+function readBriefLastReadAt(): number | null {
+  const value = localStorage.getItem(BRIEF_LAST_READ_PREF_KEY);
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
 
 function BootLoadingView({
   message = 'Loading your dashboard...',
@@ -878,6 +904,7 @@ function CloudPlanReviewWorkspace({
   chartHidden,
   allPlans,
   onSelectRelatedPlan,
+  onComparePlan,
   onEdit,
   onHistory,
   onShare,
@@ -894,10 +921,11 @@ function CloudPlanReviewWorkspace({
   chartHidden?: boolean;
   allPlans?: readonly Plan[];
   onSelectRelatedPlan?: (plan: Plan) => void;
+  onComparePlan?: (plan: Plan) => void;
   onEdit: () => void;
   onHistory: () => void;
   onShare: () => void;
-  onChartWideChange: (wide: boolean) => void;
+  onChartWideChange?: (wide: boolean) => void;
   onToggleChart?: () => void;
 }) {
   const { mode, isPro } = planContext;
@@ -1010,6 +1038,7 @@ function CloudPlanReviewWorkspace({
             plan={plan}
             allPlans={allPlans}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            onComparePlan={onComparePlan}
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
             onToggleChart={onToggleChart}
@@ -1144,6 +1173,12 @@ function useDashboardMain({
   isWorkspaceAccessLoading,
   backendStatus,
   cloudSyncPaused,
+  briefOpen,
+  briefSince,
+  briefUntil,
+  briefMarkedRead,
+  briefLoading,
+  briefError,
   uploading,
   creating,
   editing,
@@ -1154,6 +1189,14 @@ function useDashboardMain({
   selectedPlan,
   allPlans,
   onSelectRelatedPlan,
+  comparePlan,
+  compareBodiesLoading,
+  compareBodiesMissing,
+  onComparePlan,
+  onCloseCompare,
+  onSwapCompare,
+  onMarkBriefRead,
+  onRetryBrief,
   onClose,
   onSaved,
   onCreated,
@@ -1179,6 +1222,12 @@ function useDashboardMain({
   isWorkspaceAccessLoading: boolean;
   backendStatus: string;
   cloudSyncPaused: boolean;
+  briefOpen: boolean;
+  briefSince: number;
+  briefUntil: number;
+  briefMarkedRead: boolean;
+  briefLoading: boolean;
+  briefError: string | null;
   uploading: boolean;
   creating: boolean;
   editing: boolean;
@@ -1189,6 +1238,16 @@ function useDashboardMain({
   selectedPlan: Plan | undefined;
   allPlans: readonly Plan[];
   onSelectRelatedPlan: (plan: Plan) => void;
+  comparePlan?: Plan;
+  /** True while either compare pane's cloud body is still hydrating. */
+  compareBodiesLoading?: boolean;
+  /** True when either compare pane's cloud body is inaccessible. */
+  compareBodiesMissing?: boolean;
+  onComparePlan?: (plan: Plan) => void;
+  onCloseCompare?: () => void;
+  onSwapCompare?: () => void;
+  onMarkBriefRead: () => void;
+  onRetryBrief: () => void;
   onClose: () => void;
   onSaved: () => void;
   onCreated: (plan: Plan) => void;
@@ -1196,7 +1255,7 @@ function useDashboardMain({
   onHistory: () => void;
   onShare: () => void;
   onCloseShare: () => void;
-  onChartWideChange: (wide: boolean) => void;
+  onChartWideChange?: (wide: boolean) => void;
   onToggleChart?: () => void;
   onSearch: () => void;
   isSplitView?: boolean;
@@ -1211,6 +1270,25 @@ function useDashboardMain({
 }) {
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const convex = useConvex();
+  const usageCryptoStatus = useQuery(
+    api.workspaceCrypto.getWorkspaceCryptoStatus,
+    mode === 'cloud' ? {} : 'skip',
+  );
+  const usageUnavailableReason =
+    mode === 'cloud' ? cloudUsageUnavailableReason(usageCryptoStatus) : undefined;
+  const cloudUsage = useQuery(
+    api.cli.getUsage,
+    mode === 'cloud' && !usageUnavailableReason ? { days: 30 } : 'skip',
+  ) as UsageSummary | null | undefined;
+  const loadCloudUsage = useCallback(
+    async (days = 30) => {
+      if (usageUnavailableReason) return null;
+      const usageDays = days === 1 || days === 7 || days === 30 || days === 90 ? days : 30;
+      return (await convex.query(api.cli.getUsage, { days: usageDays })) as UsageSummary | null;
+    },
+    [convex, usageUnavailableReason],
+  );
   const selectedAnnotationState = useCloudPlanAnnotations({
     plan: selectedPlan,
     enabled: mode === 'cloud' && isPro && Boolean(selectedPlan),
@@ -1265,6 +1343,7 @@ function useDashboardMain({
     return (
       <div
         className="agendex-main-pane overflow-auto main-scroll col-start-2 row-start-2 bg-transparent"
+        data-tour={TOUR_TARGET.mainPane}
         style={{ viewTransitionName: 'main-content' }}
       >
         <BootLoadingView fullscreen={false} />
@@ -1284,6 +1363,7 @@ function useDashboardMain({
     return (
       <div
         className="agendex-main-pane col-start-2 row-start-2 bg-transparent grid overflow-hidden"
+        data-tour={TOUR_TARGET.mainPane}
         style={{
           gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
           gridTemplateRows: 'auto 1fr',
@@ -1409,6 +1489,7 @@ function useDashboardMain({
   return (
     <div
       className="agendex-main-pane overflow-auto main-scroll col-start-2 row-start-2 bg-transparent"
+      data-tour={TOUR_TARGET.mainPane}
       style={{ viewTransitionName: 'main-content' }}
     >
       {mode === 'cloud' && backendStatus !== 'offline' && (
@@ -1421,6 +1502,18 @@ function useDashboardMain({
         <BootLoadingView message="Connecting to cloud..." fullscreen={false} />
       ) : backendStatus === 'offline' ? (
         <OfflineView />
+      ) : briefOpen ? (
+        <MorningBrief
+          plans={allPlans}
+          since={briefSince}
+          until={briefUntil}
+          loading={briefLoading}
+          error={briefError}
+          markedRead={briefMarkedRead}
+          onMarkRead={onMarkBriefRead}
+          onSelectPlan={onSelectRelatedPlan}
+          onRetry={onRetryBrief}
+        />
       ) : uploading ? (
         <Suspense
           fallback={
@@ -1476,6 +1569,31 @@ function useDashboardMain({
           >
             <PlanHistoryDrawer planId={selectedPlan.id} onClose={onClose} />
           </Suspense>
+        ) : comparePlan && onCloseCompare ? (
+          compareBodiesLoading ? (
+            <div className="p-4">
+              <SkeletonBlock lines={8} />
+            </div>
+          ) : compareBodiesMissing ? (
+            <div className="flex h-full flex-col items-start gap-3 p-6 text-[13px] text-tertiary">
+              <p>One of the plans is no longer available to compare.</p>
+              <button
+                type="button"
+                className="text-text underline underline-offset-2"
+                onClick={onCloseCompare}
+              >
+                Close compare
+              </button>
+            </div>
+          ) : (
+            <PlanCompareView
+              basePlan={comparePlan}
+              targetPlan={selectedPlan}
+              onClose={onCloseCompare}
+              onSwap={onSwapCompare ?? (() => {})}
+              onOpenPlan={onSelectRelatedPlan}
+            />
+          )
         ) : (
           <>
             {isPro && mode === 'cloud' ? (
@@ -1494,6 +1612,7 @@ function useDashboardMain({
                 chartHidden={chartHidden}
                 allPlans={allPlans}
                 onSelectRelatedPlan={onSelectRelatedPlan}
+                onComparePlan={onComparePlan}
                 onEdit={onEdit}
                 onHistory={onHistory}
                 onShare={onShare}
@@ -1505,6 +1624,7 @@ function useDashboardMain({
                 plan={selectedPlan}
                 allPlans={allPlans}
                 onSelectRelatedPlan={onSelectRelatedPlan}
+                onComparePlan={onComparePlan}
                 onEdit={onEdit}
                 onChartWideChange={onChartWideChange}
                 onToggleChart={onToggleChart}
@@ -1536,19 +1656,24 @@ function useDashboardMain({
           agents={agents}
           plans={allPlans}
           onSelectPlan={onSelectRelatedPlan}
-          shortcuts={getAppShortcuts({ ee: true })}
+          shortcuts={getAppShortcuts({ ee: true }).filter(
+            (shortcut) => onToggleChart || shortcut.id !== 'chart',
+          )}
           planViewMode={planViewMode}
+          usageSummary={mode === 'cloud' ? cloudUsage : undefined}
+          usageLoader={mode === 'cloud' ? loadCloudUsage : undefined}
+          usageUnavailableReason={usageUnavailableReason}
         />
       )}
     </div>
   );
 }
 
-function DashboardMainView(props: Parameters<typeof renderDashboardMain>[0]) {
+function DashboardMainView(props: Parameters<typeof useDashboardMain>[0]) {
   return useDashboardMain(props);
 }
 
-function DashboardSidebarView(props: Parameters<typeof renderDashboardSidebar>[0]) {
+function DashboardSidebarView(props: Parameters<typeof useDashboardSidebar>[0]) {
   return useDashboardSidebar(props);
 }
 
@@ -1591,32 +1716,18 @@ function useDashboardSidebar({
   loading,
   error,
   search,
-  onSearch,
   sortBy,
   dateBucket,
-  agents,
   selectedAgents,
   workspace,
-  workspaces,
-  allTags,
   selectedTags,
-  allCollections,
   selectedCollection,
   filteredPlans,
   selectedPlan,
   onRevealHover,
   onScheduleClose,
-  onRevealSearch,
-  onSortChange,
-  onDateBucketChange,
-  onAgentsChange,
-  onWorkspaceChange,
-  onTagSelect,
-  onCollectionSelect,
   onClearFilters,
   onSelectPlan,
-  onNewPlan,
-  onUpload,
   splitPlanId,
   onOpenInSplitView,
   planState,
@@ -1637,32 +1748,18 @@ function useDashboardSidebar({
   loading: boolean;
   error: string | null | undefined;
   search: string;
-  onSearch: (v: string) => void;
   sortBy: 'updatedAt' | 'createdAt' | 'title';
   dateBucket: 'all' | 'today' | '7d' | '30d';
-  agents: AgentStats[];
   selectedAgents: readonly string[];
   workspace: string | undefined;
-  workspaces: readonly string[];
-  allTags: TagRecord[] | undefined;
   selectedTags: string[];
-  allCollections: CollectionRecord[] | undefined;
   selectedCollection: string | undefined;
   filteredPlans: Plan[];
   selectedPlan: Plan | undefined;
   onRevealHover: () => void;
   onScheduleClose: () => void;
-  onRevealSearch: () => void;
-  onSortChange: (v: 'updatedAt' | 'createdAt' | 'title') => void;
-  onDateBucketChange: (v: 'all' | 'today' | '7d' | '30d') => void;
-  onAgentsChange: (v: string[]) => void;
-  onWorkspaceChange: (v: string | undefined) => void;
-  onTagSelect: (v: string[]) => void;
-  onCollectionSelect: (v: string | undefined) => void;
   onClearFilters: () => void;
   onSelectPlan: (plan: Plan | undefined) => void;
-  onNewPlan: () => void;
-  onUpload: () => void;
   splitPlanId?: string;
   onOpenInSplitView?: (plan: Plan) => void;
   planState: PlanState;
@@ -1732,91 +1829,9 @@ function useDashboardSidebar({
     >
       {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
       <div
-        className="sidebar-command-zone"
-        style={
-          backendStatus === 'offline'
-            ? {
-                opacity: 0.35,
-                filter: 'blur(1.5px)',
-                pointerEvents: 'none',
-                transition: 'opacity 0.3s, filter 0.3s',
-              }
-            : { transition: 'opacity 0.3s, filter 0.3s' }
-        }
-      >
-        {(mode === 'local' || (mode === 'cloud' && isPro)) && (
-          <div className="sidebar-command-strip">
-            <button
-              type="button"
-              onClick={onNewPlan}
-              className="sidebar-primary-action flex-1 px-3 text-[12px] font-semibold tracking-[0] cursor-pointer flex items-center justify-center gap-1.5 border-none"
-            >
-              <svg
-                aria-hidden="true"
-                width="11"
-                height="11"
-                viewBox="0 0 12 12"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              >
-                <path d="M6 1v10M1 6h10" />
-              </svg>
-              New plan
-            </button>
-            <button
-              type="button"
-              onClick={onUpload}
-              aria-label="Upload plan"
-              title="Upload plan"
-              className="sidebar-icon-action"
-            >
-              <svg
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                className="size-3.5"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13"
-                />
-              </svg>
-            </button>
-          </div>
-        )}
-        <SidebarFilters
-          search={search}
-          onSearch={onSearch}
-          sortBy={sortBy}
-          onSortChange={onSortChange}
-          dateBucket={dateBucket}
-          onDateBucketChange={onDateBucketChange}
-          agents={agents}
-          selectedAgents={selectedAgents}
-          onAgentsChange={onAgentsChange}
-          workspace={workspace}
-          onWorkspaceChange={onWorkspaceChange}
-          workspaces={workspaces}
-          tags={allTags}
-          selectedTags={selectedTags}
-          onTagSelect={onTagSelect}
-          collections={allCollections}
-          selectedCollection={selectedCollection}
-          onCollectionSelect={onCollectionSelect}
-          onClearAll={onClearFilters}
-          onSearchFocusRequest={onRevealSearch}
-        />
-      </div>
-
-      <div
         ref={scrollViewportRef}
         className="flex-1 overflow-auto sidebar-scroll sidebar-content-list"
+        data-tour={TOUR_TARGET.planList}
         onScroll={(event) => updateScrollTopVisibility(event.currentTarget)}
         style={
           backendStatus === 'offline'
@@ -1966,7 +1981,14 @@ function dashReducer(s: DashState, a: DashAction): DashState {
   }
 }
 
-function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
+function useDashboard({
+  autoMode,
+  authPending,
+}: {
+  autoMode: DashboardMode;
+  /** Route is still settling the cloud session; see `useProductTourState`. */
+  authPending: boolean;
+}) {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
   const planViewPreference = useQuery(
@@ -2010,6 +2032,17 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   const [splitPlanId, setSplitPlanId] = useQueryState(
     'split',
     parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
+  );
+  const [comparePlanId, setComparePlanId] = useQueryState(
+    'compare',
+    parseAsString.withOptions({ history: 'push', clearOnDefault: true }),
+  );
+  const [workspaceView, setWorkspaceView] = useQueryState(
+    'view',
+    parseAsStringLiteral(workspaceViewOptions).withOptions({
+      history: 'push',
+      clearOnDefault: true,
+    }),
   );
 
   const workspaceFilter = workspaceFilterRaw ?? undefined;
@@ -2064,6 +2097,12 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   });
   const mode = canSwitchMode ? (modeOverride ?? autoMode) : autoMode;
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [briefReadAt, setBriefReadAt] = useState<number | null>(() => readBriefLastReadAt());
+  const [briefSince, setBriefSince] = useState(() =>
+    resolveMorningBriefSince(readBriefLastReadAt()),
+  );
+  const [briefUntil, setBriefUntil] = useState(() => Date.now());
+  const [briefMarkedRead, setBriefMarkedRead] = useState(false);
   const setSelectedTags = useCallback(
     (tags: string[]) => setFilters({ tags: normalizeFilterValues(tags) }),
     [setFilters],
@@ -2142,6 +2181,19 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     cloudPlanState,
   );
 
+  const briefOpen = workspaceView === 'brief';
+  const briefHasUpdates = useMemo(
+    () => hasMorningBriefUpdates(plans, resolveMorningBriefSince(briefReadAt)),
+    [briefReadAt, plans],
+  );
+  const briefShortcutLabel = formatForDisplay('Mod+Shift+B');
+
+  useEffect(() => {
+    if (!briefOpen || !hasMorningBriefUpdates(plans, briefUntil)) return;
+    setBriefUntil(Date.now());
+    setBriefMarkedRead(false);
+  }, [briefOpen, briefUntil, plans]);
+
   const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
 
   const { customPlanDirs, removeCustomDir, refreshCustomPlanDirs } = useCustomPlanSources(
@@ -2213,7 +2265,11 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   // any plan open in the viewer (selected + split pane) before it fans out to
   // editor/share/plannotator consumers. Plans that already carry content (local
   // mode, optimistic copies from the editor) skip the fetch.
-  const selectedPlan = useHydratedCloudPlan(mode, selectedPlanBase);
+  const {
+    plan: selectedPlan,
+    contentLoading: selectedContentLoading,
+    contentMissing: selectedContentMissing,
+  } = useHydratedCloudPlan(mode, selectedPlanBase);
 
   // Auto-follow a live replacement only for a session that ended *while the user
   // was viewing it* (it got superseded while open). Deliberately opening an
@@ -2256,7 +2312,20 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     if (!splitPlanId) return undefined;
     return plansById.get(splitPlanId) ?? plans.find((p) => p.id === splitPlanId);
   }, [plansById, plans, splitPlanId]);
-  const splitPlan = useHydratedCloudPlan(mode, splitPlanBase);
+  const { plan: splitPlan } = useHydratedCloudPlan(mode, splitPlanBase);
+
+  const comparePlanBase = useMemo(() => {
+    if (!comparePlanId) return undefined;
+    return plansById.get(comparePlanId) ?? plans.find((p) => p.id === comparePlanId);
+  }, [plansById, plans, comparePlanId]);
+  const {
+    plan: comparePlan,
+    contentLoading: compareContentLoading,
+    contentMissing: compareContentMissing,
+  } = useHydratedCloudPlan(mode, comparePlanBase);
+  // Avoid false diffs / similarity stats while either cloud body is empty or gone.
+  const compareBodiesLoading = selectedContentLoading || compareContentLoading;
+  const compareBodiesMissing = selectedContentMissing || compareContentMissing;
 
   const isSplitView = !!selectedPlan && !!splitPlan && selectedPlan.id !== splitPlan.id;
   const selectedPlanOutsideFilters = Boolean(
@@ -2285,7 +2354,8 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       workspaceFilter,
     ],
   );
-  const effectiveChartHidden = !isPro && !isWorkspaceAccessLoading ? false : chartHidden;
+  const techChartEnabled = canUseTechDependencyChart(mode, isPro);
+  const effectiveChartHidden = techChartEnabled ? chartHidden : true;
 
   const setSelectedPlan = useCallback(
     (plan: Plan | undefined) => {
@@ -2293,12 +2363,83 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       setLocalAutoSelectSuppressed(!plan);
       setOptimisticSelectedPlan(plan);
       setSelectedPlanId(plan?.id ?? null);
+      setComparePlanId(null);
+      setWorkspaceView(null);
       if (!plan || splitPlanId === plan.id) {
         setSplitPlanId(null);
       }
     },
-    [setActivePanel, setSelectedPlanId, splitPlanId, setSplitPlanId],
+    [
+      setActivePanel,
+      setComparePlanId,
+      setSelectedPlanId,
+      setWorkspaceView,
+      splitPlanId,
+      setSplitPlanId,
+    ],
   );
+
+  const startCompare = useCallback(
+    (plan: Plan) => {
+      setComparePlanId(plan.id);
+    },
+    [setComparePlanId],
+  );
+
+  const closeCompare = useCallback(() => {
+    setComparePlanId(null);
+  }, [setComparePlanId]);
+
+  const swapCompare = useCallback(() => {
+    if (!selectedPlan || !comparePlan) return;
+    setOptimisticSelectedPlan(undefined);
+    setSelectedPlanId(comparePlan.id);
+    setComparePlanId(selectedPlan.id);
+  }, [comparePlan, selectedPlan, setComparePlanId, setSelectedPlanId]);
+
+  useEffect(() => {
+    if (!comparePlanId || loading) return;
+    const exists =
+      plans.some((plan) => plan.id === comparePlanId) ||
+      optimisticSelectedPlan?.id === comparePlanId;
+    if (!exists) void setComparePlanId(null);
+  }, [comparePlanId, loading, optimisticSelectedPlan, plans, setComparePlanId]);
+
+  const openBrief = useCallback(() => {
+    const openedAt = Date.now();
+    setBriefSince(resolveMorningBriefSince(briefReadAt, openedAt));
+    setBriefUntil(openedAt);
+    setBriefMarkedRead(false);
+    setActivePanel(null);
+    setLocalAutoSelectSuppressed(true);
+    setOptimisticSelectedPlan(undefined);
+    setSelectedPlanId(null);
+    setSplitPlanId(null);
+    setComparePlanId(null);
+    setWorkspaceView('brief');
+  }, [
+    briefReadAt,
+    setActivePanel,
+    setComparePlanId,
+    setSelectedPlanId,
+    setSplitPlanId,
+    setWorkspaceView,
+  ]);
+
+  const toggleBrief = useCallback(() => {
+    if (briefOpen) {
+      setWorkspaceView(null);
+      return;
+    }
+    openBrief();
+  }, [briefOpen, openBrief, setWorkspaceView]);
+
+  const markBriefRead = useCallback(() => {
+    const readAt = briefUntil;
+    localStorage.setItem(BRIEF_LAST_READ_PREF_KEY, String(readAt));
+    setBriefReadAt(readAt);
+    setBriefMarkedRead(true);
+  }, [briefUntil]);
 
   const planStateReady = mode === 'cloud' ? cloudPlanState.isReady : true;
   useUnseenPlanToasts({
@@ -2332,6 +2473,8 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       setLocalAutoSelectSuppressed(false);
       setSelectedPlanId(null);
       setSplitPlanId(null);
+      setComparePlanId(null);
+      setWorkspaceView(null);
 
       if (isDesktop()) {
         await setDesktopModePref(next);
@@ -2350,8 +2493,10 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
       autoMode,
       modeOverride,
       setActivePanel,
+      setComparePlanId,
       setSelectedPlanId,
       setSplitPlanId,
+      setWorkspaceView,
       setSearch,
       setFilters,
     ],
@@ -2410,13 +2555,6 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     dsd({ type: 'TOGGLE_SIDEBAR' });
   }
 
-  const clearPeekTimer = peek.clear;
-  const revealSidebarForSearch = useCallback(() => {
-    clearPeekTimer();
-    setSidebarPeek(false);
-    setSidebarHidden(false);
-  }, [clearPeekTimer, setSidebarPeek, setSidebarHidden]);
-
   function toggleOutline() {
     dsd({ type: 'TOGGLE_OUTLINE' });
   }
@@ -2427,7 +2565,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   }
 
   function toggleChart() {
-    if (!isPro) return;
+    if (!techChartEnabled) return;
     if (!chartHidden && sidebarBeforeWide.current !== null) {
       restoreSidebarAfterWide();
     }
@@ -2438,6 +2576,7 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
   useHotkey('Mod+B', toggleSidebar);
   useHotkey('Mod+Shift+O', toggleOutline);
   useHotkey('Mod+Shift+G', toggleChart);
+  useHotkey('Mod+Shift+B', toggleBrief);
 
   function handleNewPlan() {
     if (isPro) {
@@ -2451,11 +2590,11 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     startViewTransition(() => setActivePanel('uploading'));
   }
 
-  const renamePlanMutation = useMutation(api.plans.renamePlan);
+  const { rename: renamePlanMutation } = useCloudPlanEdits();
   const handleRenamePlan = useCallback(
     async (planId: string, newTitle: string) => {
       if (mode !== 'cloud' || !isPro) return;
-      await renamePlanMutation({ planId: planId as Id<'plans'>, title: newTitle });
+      await renamePlanMutation(planId as Id<'plans'>, newTitle);
     },
     [mode, isPro, renamePlanMutation],
   );
@@ -2541,10 +2680,32 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
     window.dispatchEvent(new Event('agendex:plan-layout-change'));
   }
 
+  const tourSteps = useMemo(
+    () =>
+      buildDashboardTourSteps({
+        mode,
+        canManagePlanSources: canShowPlanSourcesAction,
+        canSwitchMode,
+        hasAccountMenu: isAuthenticated,
+      }),
+    [canShowPlanSourcesAction, canSwitchMode, isAuthenticated, mode],
+  );
+  const tourState = useProductTourState({ authPending });
+  useProductTour({
+    steps: tourSteps,
+    state: tourState,
+    ready: !loading && backendStatus !== 'offline' && !isWorkspaceAccessLoading,
+    onBeforeStart: () => {
+      setSidebarPeek(false);
+      setSidebarHidden(false);
+    },
+  });
+
   return (
     <div
       className="agendex-app-shell h-screen grid overflow-clip relative"
       data-plan-open={selectedPlan ? 'true' : undefined}
+      data-brief-open={briefOpen ? 'true' : undefined}
       style={{
         gridTemplateColumns: `${sidebarWidth}px 1fr`,
         gridTemplateRows: `${TOPBAR_HEIGHT}px 1fr`,
@@ -2562,6 +2723,26 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         activeAgents={activeAgents}
         search={search}
         plans={plans}
+        filteredPlans={filteredPlans}
+        filters={{
+          sortBy,
+          onSortChange: setSortBy,
+          dateBucket,
+          onDateBucketChange: setDateBucket,
+          agents,
+          selectedAgents,
+          onAgentsChange: setSelectedAgents,
+          workspace: workspaceFilter,
+          onWorkspaceChange: setWorkspaceFilter,
+          workspaces,
+          tags: allTags ?? undefined,
+          selectedTags,
+          onTagSelect: setSelectedTags,
+          collections: allCollections ?? undefined,
+          selectedCollection,
+          onCollectionSelect: setSelectedCollection,
+          onClearAll: clearFilters,
+        }}
         selectedPlan={selectedPlan}
         height={TOPBAR_HEIGHT}
         onToggleSidebar={toggleSidebar}
@@ -2584,35 +2765,55 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         onCloseSplit={splitPlanId ? closeSplitView : undefined}
         planState={planState}
         onToggleOutline={toggleOutline}
-        onToggleChart={isPro ? toggleChart : undefined}
+        onToggleChart={techChartEnabled ? toggleChart : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
         onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
         onSwitchMode={canSwitchMode ? switchMode : undefined}
         sidebarWidth={expandedWidth}
         hasUnseenPlans={hasUnseenPlans}
         actions={
-          canShowPlanSourcesAction ? (
+          <>
             <button
               type="button"
-              onClick={() => setSourcesOpen(true)}
-              aria-label="Manage plan sources"
-              title="Manage plan sources"
-              className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+              onClick={toggleBrief}
+              aria-label={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
+              aria-pressed={briefOpen}
+              title={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
+              data-tour={TOUR_TARGET.activityBrief}
+              className="agendex-topbar-button agendex-brief-trigger shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+              data-active={briefOpen ? 'true' : undefined}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
+              <MorningBriefIcon size={14} />
+              <span>Brief</span>
+              {briefHasUpdates && !briefOpen && (
+                <span className="agendex-brief-unread" aria-hidden="true" />
+              )}
             </button>
-          ) : undefined
+            {canShowPlanSourcesAction && (
+              <button
+                type="button"
+                onClick={() => setSourcesOpen(true)}
+                aria-label="Manage plan sources"
+                title="Manage plan sources"
+                data-tour={TOUR_TARGET.planSources}
+                className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
+            )}
+          </>
         }
       />
 
@@ -2658,32 +2859,18 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         loading={loading}
         error={error}
         search={search}
-        onSearch={setSearch}
         sortBy={sortBy}
         dateBucket={dateBucket}
-        agents={agents}
         selectedAgents={selectedAgents}
         workspace={workspaceFilter}
-        workspaces={workspaces}
-        allTags={allTags ?? undefined}
         selectedTags={selectedTags}
-        allCollections={allCollections ?? undefined}
         selectedCollection={selectedCollection}
         filteredPlans={filteredPlans}
         selectedPlan={selectedPlan}
         onRevealHover={peek.reveal}
         onScheduleClose={peek.scheduleClose}
-        onRevealSearch={revealSidebarForSearch}
-        onSortChange={setSortBy}
-        onDateBucketChange={setDateBucket}
-        onAgentsChange={setSelectedAgents}
-        onWorkspaceChange={setWorkspaceFilter}
-        onTagSelect={setSelectedTags}
-        onCollectionSelect={setSelectedCollection}
         onClearFilters={clearFilters}
         onSelectPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
-        onNewPlan={handleNewPlan}
-        onUpload={handleUpload}
         splitPlanId={splitPlanId ?? undefined}
         onOpenInSplitView={(plan: Plan) => startViewTransition(() => openPlanInSplitView(plan))}
         planState={planState}
@@ -2701,6 +2888,12 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         isWorkspaceAccessLoading={isWorkspaceAccessLoading}
         backendStatus={backendStatus}
         cloudSyncPaused={cloudSyncPaused}
+        briefOpen={briefOpen}
+        briefSince={briefSince}
+        briefUntil={briefUntil}
+        briefMarkedRead={briefMarkedRead}
+        briefLoading={loading}
+        briefError={error}
         uploading={uploading}
         creating={creating}
         editing={editing}
@@ -2711,6 +2904,8 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         selectedPlan={selectedPlan}
         allPlans={plans}
         onSelectRelatedPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
+        onMarkBriefRead={markBriefRead}
+        onRetryBrief={() => void refresh()}
         onClose={() => startViewTransition(() => setActivePanel(null))}
         onSaved={handleSaved}
         onCreated={(plan) => {
@@ -2724,15 +2919,18 @@ function useDashboard({ autoMode }: { autoMode: DashboardMode }) {
         onHistory={() => startViewTransition(() => setActivePanel('history'))}
         onShare={() => setActivePanel('sharing')}
         onCloseShare={() => setActivePanel(null)}
-        onChartWideChange={handleChartWideChange}
-        onToggleChart={isPro ? toggleChart : undefined}
-        onSearch={() => {
-          revealSidebarForSearch();
-          focusPlanSearchField();
-        }}
+        onChartWideChange={techChartEnabled ? handleChartWideChange : undefined}
+        onToggleChart={techChartEnabled ? toggleChart : undefined}
+        onSearch={focusPlanSearchField}
         isSplitView={isSplitView}
         splitPlan={splitPlan}
         onCloseSplit={closeSplitView}
+        comparePlan={comparePlan}
+        compareBodiesLoading={compareBodiesLoading}
+        compareBodiesMissing={compareBodiesMissing}
+        onComparePlan={startCompare}
+        onCloseCompare={closeCompare}
+        onSwapCompare={swapCompare}
         outlineHidden={outlineHidden}
         chartHidden={effectiveChartHidden}
         selectedPlanOutsideFilters={selectedPlanOutsideFilters}
@@ -2765,6 +2963,16 @@ function DownloadRoute() {
 function ToolsUsedRoute() {
   const [, navigate] = useLocation();
   return <ToolsUsedPage onBack={() => startViewTransition(() => navigate('/'))} />;
+}
+
+function TermsRoute() {
+  const [, navigate] = useLocation();
+  return <TermsOfServicePage onBack={() => startViewTransition(() => navigate('/'))} />;
+}
+
+function PrivacyRoute() {
+  const [, navigate] = useLocation();
+  return <PrivacyPolicyPage onBack={() => startViewTransition(() => navigate('/'))} />;
 }
 
 function CliAuthRoute() {
@@ -2851,8 +3059,14 @@ function LandingRoute() {
   );
 }
 
-function DashboardView({ autoMode }: { autoMode: DashboardMode }) {
-  return useDashboard({ autoMode });
+function DashboardView({
+  autoMode,
+  authPending,
+}: {
+  autoMode: DashboardMode;
+  authPending: boolean;
+}) {
+  return useDashboard({ autoMode, authPending });
 }
 
 function DashboardRoute() {
@@ -2900,9 +3114,9 @@ function DashboardRoute() {
     skip: desktop || hasCachedToken,
   });
 
-  const renderDashboard = (autoMode: DashboardMode) => (
+  const renderDashboard = (autoMode: DashboardMode, authPending = false) => (
     <AgentAvatarProvider avatars={avatars ?? {}}>
-      <DashboardView autoMode={autoMode} />
+      <DashboardView autoMode={autoMode} authPending={authPending} />
     </AgentAvatarProvider>
   );
 
@@ -2928,7 +3142,13 @@ function DashboardRoute() {
   }
 
   if (hasCachedToken) {
-    return renderDashboard(isAuthenticated && onboardingResolved ? 'cloud' : 'local');
+    // The dashboard renders in local mode while the cloud session is still
+    // resolving (initial fetch, OAuth `ott` callback); account-scoped state
+    // such as the product tour must wait for that to settle.
+    return renderDashboard(
+      isAuthenticated && onboardingResolved ? 'cloud' : 'local',
+      !isAuthenticated && (isLoading || processingOtt),
+    );
   }
 
   if (isAuthenticated) {
@@ -2941,6 +3161,24 @@ function DashboardRoute() {
   return <Redirect to="/login" />;
 }
 
+// @convex-dev/better-auth 0.12.5 constructs its provider client type from
+// BetterAuthClientPlugin instead of client options; with better-auth 1.6.30
+// this incorrectly makes useSession().data `never`. Check the methods actually
+// consumed by the provider before asserting that single dependency boundary.
+const providerAuthClient = authClient satisfies {
+  useSession(): { data: { session: { id: string } } | null; isPending: boolean };
+  convex: {
+    token(options: { fetchOptions: { throw: false } }): Promise<{ data: { token: string } | null }>;
+  };
+  crossDomain: {
+    oneTimeToken: {
+      verify(input: { token: string }): Promise<{ data: { session: { token: string } } | null }>;
+    };
+  };
+  getSession(options: { fetchOptions: { headers: { Authorization: string } } }): Promise<unknown>;
+  updateSession(): void;
+};
+
 function AuthRuntime({ children }: { children: ReactNode }) {
   if (isDesktop() && getDesktopCloudToken()) {
     return (
@@ -2951,7 +3189,14 @@ function AuthRuntime({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    <ConvexBetterAuthProvider
+      client={convex}
+      authClient={
+        providerAuthClient as unknown as Parameters<
+          typeof ConvexBetterAuthProvider
+        >[0]['authClient']
+      }
+    >
       {children}
     </ConvexBetterAuthProvider>
   );
@@ -3054,6 +3299,8 @@ export default function App() {
       <Route path="/docs" component={DocsRoute} />
       <Route path="/download" component={DownloadRoute} />
       <Route path="/tools" component={ToolsUsedRoute} />
+      <Route path="/terms" component={TermsRoute} />
+      <Route path="/privacy" component={PrivacyRoute} />
       <Route path="/welcome">
         <AuthRuntime>
           <OnboardingRoute>

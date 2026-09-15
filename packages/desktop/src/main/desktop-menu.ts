@@ -1,13 +1,15 @@
 import { Menu } from 'electron';
+import type { PageZoomShortcut } from './desktop-zoom.ts';
 
 export interface BuildMenuOptions {
+  onPageZoom: (shortcut: PageZoomShortcut) => void;
   /** Shown as "Check for Updates…" when the build supports self-update. */
   onCheckForUpdates?: () => void;
 }
 
-export function buildMenu(options: BuildMenuOptions = {}): void {
+export function buildMenu(options: BuildMenuOptions): void {
   const isMac = process.platform === 'darwin';
-  const { onCheckForUpdates } = options;
+  const { onCheckForUpdates, onPageZoom } = options;
 
   const updateItems: Electron.MenuItemConstructorOptions[] = onCheckForUpdates
     ? [{ label: 'Check for Updates…', click: () => onCheckForUpdates() }, { type: 'separator' }]
@@ -35,7 +37,32 @@ export function buildMenu(options: BuildMenuOptions = {}): void {
       : []),
     { role: 'fileMenu' },
     { role: 'editMenu' },
-    { role: 'viewMenu' },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        {
+          label: 'Actual Size',
+          accelerator: 'CommandOrControl+0',
+          click: () => onPageZoom('reset'),
+        },
+        {
+          label: 'Zoom In',
+          accelerator: 'CommandOrControl+Plus',
+          click: () => onPageZoom('in'),
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: 'CommandOrControl+-',
+          click: () => onPageZoom('out'),
+        },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
     { role: 'windowMenu' },
     ...(!isMac && onCheckForUpdates
       ? [

@@ -1,4 +1,5 @@
 import { useCloudPlanPublisher } from './useCloudPlanPublisher';
+import { toPlanMetadataDto } from '../../convex/planMetadata';
 
 export function usePublishing() {
   const publishPlan = useCloudPlanPublisher();
@@ -20,9 +21,9 @@ export function usePublishing() {
         title: plan.title,
         content: plan.content,
         format: plan.format,
+        metadata: toPlanMetadataDto(plan.metadata),
         filePath: plan.filePath,
         workspace: plan.workspace,
-        metadata: plan.metadata,
       });
     },
   };

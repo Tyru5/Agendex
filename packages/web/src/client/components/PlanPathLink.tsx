@@ -49,7 +49,13 @@ export function PlanPathCode({
   }
 
   return (
-    <PlanPathLink context={context} parsed={parsed} result={result} remote={remote} display={text}>
+    <PlanPathLink
+      context={context}
+      parsed={parsed}
+      result={hasLocalTarget ? result : undefined}
+      remote={remote}
+      display={text}
+    >
       {children}
     </PlanPathLink>
   );

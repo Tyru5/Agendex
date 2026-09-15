@@ -1,4 +1,4 @@
-// @amp-plugin from https://ampcode.com/@amp/plugins/fable-mode.ts
+// @amp-plugin updated automatically from https://ampcode.com/@amp/plugins/fable-mode.ts
 // @amp-agent-mode {"key":"claude-fable-5","label":"Claude Fable 5"}
 // @amp-agent-mode {"key":"claude-fable-low","label":"Claude Fable low"}
 // @amp-agent-mode {"key":"claude-fable-med","label":"Claude Fable med"}

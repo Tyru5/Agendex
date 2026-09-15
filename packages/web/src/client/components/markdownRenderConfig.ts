@@ -1,4 +1,4 @@
-import type { Components } from 'react-markdown';
+import type { Components, Options } from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
@@ -59,4 +59,8 @@ function remarkPlanPathMentions() {
 
 export const planMarkdownRemarkPlugins = [remarkGfm, remarkPlanPathMentions];
 
-export const planMarkdownRehypePlugins = [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug];
+export const planMarkdownRehypePlugins: NonNullable<Options['rehypePlugins']> = [
+  rehypeRaw,
+  [rehypeSanitize, sanitizeSchema],
+  rehypeSlug,
+];

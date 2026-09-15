@@ -56,7 +56,7 @@ describe('resolveSpawnInvocation', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     const argv = ['C:\\Editors\\code.exe', '-g', 'C:\\file.ts:1'];
     const result = resolveSpawnInvocation(argv);
-    expect(result.command).toBe(argv[0]);
+    expect(result.command).toBe('C:\\Editors\\code.exe');
     expect(result.args).toEqual(argv.slice(1));
     expect(result.options.windowsVerbatimArguments).toBeUndefined();
     expect(result.options.env).toBeUndefined();

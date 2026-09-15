@@ -2,7 +2,7 @@
   "name": "@agendex/desktop",
   "version": "0.0.0",
   "private": true,
-  "description": "Agendex desktop app (Electron)",
+  "description": "Agendex desktop app (Electron). Bundles code from packages/ee (Agendex Enterprise License, see packages/ee/LICENSE) and AGPL-3.0 code.",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "concurrently -k -n vite,electron -c green,cyan \"bun run --cwd ../ee dev:client\" \"cross-env AGENDEX_RENDERER_URL=http://app.agendex.localhost:5174/dashboard electron-vite dev --watch\"",
@@ -18,10 +18,10 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "electron-updater": "^6.8.9",
-    "tar": "^7.5.7"
+    "tar": "^7.5.22"
   },
   "devDependencies": {
-    "concurrently": "^9.0.3",
+    "concurrently": "^9.2.4",
     "cross-env": "^10.1.0",
     "electron": "^42.5.0",
     "electron-builder": "^26.15.3",

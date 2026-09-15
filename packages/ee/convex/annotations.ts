@@ -10,6 +10,7 @@ import {
   resolveWorkspaceCryptoPolicy,
   validateEncryptedWrite,
 } from './workspaceCrypto';
+import { planAnnotationValidator } from './validators';
 
 const annotationType = v.union(
   v.literal('comment'),
@@ -116,6 +117,7 @@ function validateAnnotationInput(args: {
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
+  returns: v.array(planAnnotationValidator),
   handler: async (ctx, args) => {
     await requirePlanReadAccess(ctx, args.planId);
 
@@ -141,6 +143,7 @@ export const createAnnotation = mutation({
     keyEpoch: v.optional(v.number()),
     encryptedAnnotation: v.optional(cryptoEnvelopeV1),
   },
+  returns: v.id('planAnnotations'),
   handler: async (ctx, args) => {
     const user = await requirePlanOwnerWriteAccess(ctx, args.planId);
     const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
@@ -162,7 +165,7 @@ export const createAnnotation = mutation({
     });
     if (
       policy.requiresEncryption &&
-      (!args.stableCryptoId || args.keyEpoch === undefined || !args.encryptedAnnotation)
+      (!args.stableCryptoId || args.keyEpoch !== policy.activeKeyEpoch || !args.encryptedAnnotation)
     ) {
       throw new ConvexError('Encrypted annotation metadata is required');
     }
@@ -212,6 +215,7 @@ export const updateAnnotation = mutation({
     keyEpoch: v.optional(v.number()),
     encryptedAnnotation: v.optional(cryptoEnvelopeV1),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const annotation = await ctx.db.get(args.annotationId);
     if (!annotation) throw new ConvexError('Annotation not found');
@@ -221,7 +225,10 @@ export const updateAnnotation = mutation({
     requireSupportedCryptoClient(policy, args.clientCryptoProtocol);
     if (
       policy.requiresEncryption &&
-      (args.body !== undefined || args.replacementText !== undefined)
+      (args.body !== undefined ||
+        args.replacementText !== undefined ||
+        args.encryptedAnnotation !== undefined ||
+        args.keyEpoch !== undefined)
     ) {
       validateEncryptedWrite({
         policy,
@@ -229,6 +236,9 @@ export const updateAnnotation = mutation({
         envelopes: args.encryptedAnnotation ? [args.encryptedAnnotation] : [],
         plaintext: { body: args.body, replacementText: args.replacementText },
       });
+      if (!annotation.stableCryptoId || args.keyEpoch !== policy.activeKeyEpoch) {
+        throw new ConvexError('Encrypted annotation metadata is required');
+      }
     }
 
     const now = Date.now();
@@ -259,6 +269,7 @@ export const updateAnnotation = mutation({
     }
 
     await ctx.db.replace(args.annotationId, nextAnnotation);
+    return null;
   },
 });
 
@@ -267,6 +278,7 @@ export const markSubmitted = mutation({
     annotationIds: v.array(v.id('planAnnotations')),
     writebackId: v.id('plannotatorWritebacks'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const now = Date.now();
     const writeback = await ctx.db.get(args.writebackId);
@@ -314,16 +326,19 @@ export const markSubmitted = mutation({
         writebackId: args.writebackId,
       });
     }
+    return null;
   },
 });
 
 export const deleteAnnotation = mutation({
   args: { annotationId: v.id('planAnnotations') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const annotation = await ctx.db.get(args.annotationId);
     if (!annotation) throw new ConvexError('Annotation not found');
 
     await requirePlanOwnerWriteAccess(ctx, annotation.planId);
     await ctx.db.delete(args.annotationId);
+    return null;
   },
 });

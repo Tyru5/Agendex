@@ -117,7 +117,9 @@ export function sealText(
   plaintext: string,
   context: CryptoContext,
 ): CryptoEnvelopeV1 {
-  return sealBytes(key, utf8(plaintext), context);
+  // Payloads include file paths and source content; Unicode normalization would
+  // change their bytes and make decryption return a different document.
+  return sealBytes(key, new TextEncoder().encode(plaintext), context);
 }
 
 export function openText(key: Uint8Array, envelope: unknown, context: CryptoContext): string {

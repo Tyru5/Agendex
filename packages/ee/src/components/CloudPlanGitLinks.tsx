@@ -130,19 +130,23 @@ export function CloudPlanGitLinks({ planId, metadata }: { planId: string; metada
 
   const handleAddLink = async (input: string): Promise<string | null> => {
     try {
+      if (!cryptoStatus) throw new Error('Cloud privacy status is unavailable');
       if (cryptoStatus?.settings) {
         const settings = cryptoStatus.settings;
         const normalized = normalizePlanGitLink(input, repo);
         if (!normalized.ok) return normalized.error;
-        const encrypted = withWorkspaceKey(cryptoStatus.workspaceOwnerId, (workspaceKey) =>
-          encryptWorkspaceValue({
-            workspaceKey,
-            workspaceOwnerId: cryptoStatus.workspaceOwnerId,
-            keyEpoch: settings.activeKeyEpoch,
-            table: 'planLinks',
-            slot: 'link',
-            value: { value: normalized.link.value, url: normalized.link.url },
-          }),
+        const encrypted = withWorkspaceKey(
+          cryptoStatus.workspaceOwnerId,
+          (workspaceKey) =>
+            encryptWorkspaceValue({
+              workspaceKey,
+              workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+              keyEpoch: settings.activeKeyEpoch,
+              table: 'planLinks',
+              slot: 'link',
+              value: { value: normalized.link.value, url: normalized.link.url },
+            }),
+          settings.activeKeyEpoch,
         );
         await addLink({
           planId: planId as Id<'plans'>,

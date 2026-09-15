@@ -157,7 +157,10 @@ export function decryptPlanSummary(args: {
   if (typeof summary.title !== 'string') {
     throw new CryptoFormatError('Encrypted plan summary is missing its title');
   }
-  if (typeof summary.localPlanId !== 'string') {
+  if (
+    typeof summary.localPlanId !== 'string' &&
+    !(args.table === 'planVersions' && summary.localPlanId === undefined)
+  ) {
     throw new CryptoFormatError('Encrypted plan summary is missing its local identity');
   }
   if (summary.filePath !== undefined && typeof summary.filePath !== 'string') {
@@ -167,7 +170,7 @@ export function decryptPlanSummary(args: {
     throw new CryptoFormatError('Encrypted plan summary has an invalid workspace');
   }
   return {
-    localPlanId: summary.localPlanId,
+    localPlanId: typeof summary.localPlanId === 'string' ? summary.localPlanId : '',
     title: summary.title,
     ...(summary.filePath !== undefined ? { filePath: summary.filePath } : {}),
     ...(summary.workspace !== undefined ? { workspace: summary.workspace } : {}),

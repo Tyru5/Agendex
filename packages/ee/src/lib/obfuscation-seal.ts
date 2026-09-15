@@ -264,7 +264,7 @@ function rotateRows(
             stableCryptoId: stableId(row),
             keyEpoch,
             encryptedName: sealValue(row, 'tags', 'name', { name }),
-            nameToken: computeOpaqueToken(indexKey, 'tag-name', [name]),
+            nameToken: computeOpaqueToken(indexKey, 'tag-name', [name.toLowerCase()]),
           };
         });
       case 'collections':
@@ -309,7 +309,7 @@ function rotateRows(
                   }),
                 }
               : {}),
-            nameToken: computeOpaqueToken(indexKey, 'collection-name', [name]),
+            nameToken: computeOpaqueToken(indexKey, 'collection-name', [name.toLowerCase()]),
           };
         });
       case 'plannotatorWritebacks':
@@ -476,7 +476,7 @@ async function commitBatch(
   }
 }
 
-function encryptRows(
+export function encryptRows(
   phase: SealPhase,
   rows: SealRow[],
   workspaceKey: Uint8Array,
@@ -485,7 +485,18 @@ function encryptRows(
   sourceWorkspaceKey?: Uint8Array,
 ): Record<string, unknown>[] {
   if (sourceWorkspaceKey) {
-    return rotateRows(phase, rows, sourceWorkspaceKey, workspaceKey, workspaceOwnerId, keyEpoch);
+    // New writes already use the active epoch during rotation. Authenticate
+    // those rows with the active key rather than trying the retired key.
+    return rows.flatMap((row) =>
+      rotateRows(
+        phase,
+        [row],
+        row.keyEpoch === keyEpoch ? workspaceKey : sourceWorkspaceKey,
+        workspaceKey,
+        workspaceOwnerId,
+        keyEpoch,
+      ),
+    );
   }
   const { contentKey, indexKey } = deriveWorkspaceKeys(workspaceKey);
   switch (phase) {
@@ -623,7 +634,7 @@ function encryptRows(
                     workspaceKey,
                     workspaceOwnerId,
                     keyEpoch,
-                    'commentAttachments',
+                    'comments',
                     rowStableId,
                     'attachment',
                     attachments.map((attachment) => {
@@ -666,12 +677,8 @@ function encryptRows(
           keyEpoch,
           encryptedName:
             envelope(row.encryptedName) ??
-            sealText(contentKey, name, {
-              workspaceOwnerId,
-              table: 'tags',
-              stableCryptoId: rowStableId,
-              slot: 'name',
-              keyEpoch,
+            sealJson(workspaceKey, workspaceOwnerId, keyEpoch, 'tags', rowStableId, 'name', {
+              name,
             }),
           nameToken:
             optionalString(row.nameToken) ??
@@ -689,24 +696,22 @@ function encryptRows(
           keyEpoch,
           encryptedName:
             envelope(row.encryptedName) ??
-            sealText(contentKey, name, {
-              workspaceOwnerId,
-              table: 'collections',
-              stableCryptoId: rowStableId,
-              slot: 'name',
-              keyEpoch,
+            sealJson(workspaceKey, workspaceOwnerId, keyEpoch, 'collections', rowStableId, 'name', {
+              name,
             }),
-          ...(description !== undefined
+          ...(description !== undefined || envelope(row.encryptedDescription)
             ? {
                 encryptedDescription:
                   envelope(row.encryptedDescription) ??
-                  sealText(contentKey, description, {
+                  sealJson(
+                    workspaceKey,
                     workspaceOwnerId,
-                    table: 'collections',
-                    stableCryptoId: rowStableId,
-                    slot: 'description',
                     keyEpoch,
-                  }),
+                    'collections',
+                    rowStableId,
+                    'description',
+                    { description },
+                  ),
               }
             : {}),
           nameToken:
@@ -752,11 +757,11 @@ function encryptRows(
           id: id(row),
           stableCryptoId: rowStableId,
           keyEpoch,
-          ...(hostname
+          ...(hostname || envelope(row.encryptedHostname)
             ? {
                 encryptedHostname:
                   envelope(row.encryptedHostname) ??
-                  sealText(contentKey, hostname, {
+                  sealText(contentKey, hostname ?? '', {
                     workspaceOwnerId,
                     table: 'daemonHeartbeats',
                     stableCryptoId: rowStableId,
@@ -765,11 +770,11 @@ function encryptRows(
                   }),
               }
             : {}),
-          ...(ipAddress
+          ...(ipAddress || envelope(row.encryptedIpAddress)
             ? {
                 encryptedIpAddress:
                   envelope(row.encryptedIpAddress) ??
-                  sealText(contentKey, ipAddress, {
+                  sealText(contentKey, ipAddress ?? '', {
                     workspaceOwnerId,
                     table: 'daemonHeartbeats',
                     stableCryptoId: rowStableId,
@@ -826,22 +831,26 @@ async function uploadEncryptedBlob(args: {
         }
       })()
     : sourceBytes;
-  const packed = withWorkspaceKey(args.workspaceOwnerId, (workspaceKey) => {
-    const { contentKey } = deriveWorkspaceKeys(workspaceKey);
-    try {
-      return packEncryptedBlob(
-        sealBytes(contentKey, plaintext, {
-          workspaceOwnerId: args.workspaceOwnerId,
-          table: args.table,
-          stableCryptoId: args.stableCryptoId,
-          slot: args.slot,
-          keyEpoch: args.keyEpoch,
-        }),
-      );
-    } finally {
-      clearBytes(contentKey);
-    }
-  });
+  const packed = withWorkspaceKey(
+    args.workspaceOwnerId,
+    (workspaceKey) => {
+      const { contentKey } = deriveWorkspaceKeys(workspaceKey);
+      try {
+        return packEncryptedBlob(
+          sealBytes(contentKey, plaintext, {
+            workspaceOwnerId: args.workspaceOwnerId,
+            table: args.table,
+            stableCryptoId: args.stableCryptoId,
+            slot: args.slot,
+            keyEpoch: args.keyEpoch,
+          }),
+        );
+      } finally {
+        clearBytes(contentKey);
+      }
+    },
+    args.keyEpoch,
+  );
   plaintext.fill(0);
   const uploadUrl = await args.convex.mutation(api.workspaceCryptoSeal.generateSealUploadUrl, {
     phase: args.phase,
@@ -859,7 +868,7 @@ async function uploadEncryptedBlob(args: {
   return { storageId: result.storageId, encryptedSize: packed.byteLength };
 }
 
-async function sealBlobRows(args: {
+export async function sealBlobRows(args: {
   convex: ConvexReactClient;
   phase: 'attachments' | 'avatars';
   leaseId: string;
@@ -874,7 +883,9 @@ async function sealBlobRows(args: {
       const attachments = Array.isArray(comment.attachments) ? comment.attachments : [];
       for (const rawAttachment of attachments) {
         const attachment = rawAttachment as Record<string, unknown>;
-        if (attachment.encrypted === true && !args.sourceWorkspaceKey) continue;
+        // Blob commits precede the page checkpoint. A resumed page can contain
+        // blobs already encrypted with the target key alongside older blobs.
+        if (attachment.encrypted === true && attachment.keyEpoch === args.keyEpoch) continue;
         const sourceUrl = optionalString(attachment.url);
         const oldStorageId = optionalString(attachment.storageId);
         const attachmentIndex = Number(attachment.index);
@@ -914,7 +925,7 @@ async function sealBlobRows(args: {
   }
 
   for (const avatar of args.rows) {
-    if (avatar.encrypted === true && !args.sourceWorkspaceKey) continue;
+    if (avatar.encrypted === true && avatar.keyEpoch === args.keyEpoch) continue;
     const sourceUrl = optionalString(avatar.url);
     const oldStorageId = optionalString(avatar.storageId);
     if (!sourceUrl || !oldStorageId)
@@ -955,87 +966,124 @@ export async function runWorkspaceSeal(args: {
   onProgress?: (processed: number, phase: SealPhase) => void;
   signal?: AbortSignal;
   sourceWorkspaceKey?: Uint8Array;
+  /** Lease generated by this client when starting the operation, never a queried lease. */
+  localLeaseId?: string;
 }): Promise<'sealed' | 'aborted'> {
   let phase = args.operation.phase as SealPhase;
   let cursor = args.operation.cursor ?? null;
-  const leaseId = args.operation.leaseId ?? crypto.randomUUID();
+  const leaseId = args.localLeaseId ?? crypto.randomUUID();
 
   await args.convex.mutation(api.workspaceCrypto.claimWorkspaceCryptoLease, {
     operationId: args.operation.id,
     leaseId,
   });
 
-  while (true) {
-    if (args.signal?.aborted) return 'aborted';
-    if (phase === 'audit') {
-      const audit = await args.convex.mutation(api.workspaceCryptoSeal.runWorkspaceAuditBatch, {
+  let leaseFailure: Error | undefined;
+  let renewing = false;
+  const heartbeat = setInterval(() => {
+    if (renewing || args.signal?.aborted || leaseFailure) return;
+    renewing = true;
+    void args.convex
+      .mutation(api.workspaceCrypto.heartbeatWorkspaceCryptoLease, {
+        operationId: args.operation.id,
         leaseId,
+      })
+      .catch((error: unknown) => {
+        leaseFailure = error instanceof Error ? error : new Error('Obfuscation lease was lost');
+      })
+      .finally(() => {
+        renewing = false;
       });
-      if (audit.violations.length > 0) {
-        throw new Error(
-          `Obfuscation audit found ${audit.violations[0]?.category ?? 'encrypted residue'}`,
-        );
+  }, 10_000);
+
+  try {
+    while (true) {
+      if (leaseFailure) throw leaseFailure;
+      if (args.signal?.aborted) return 'aborted';
+      if (phase === 'audit') {
+        const audit = await args.convex.mutation(api.workspaceCryptoSeal.runWorkspaceAuditBatch, {
+          leaseId,
+        });
+        if (audit.violations.length > 0) {
+          throw new Error(
+            `Obfuscation audit found ${audit.violations[0]?.category ?? 'encrypted residue'}`,
+          );
+        }
+        if (audit.done) return 'sealed';
+        continue;
       }
-      if (audit.done) return 'sealed';
-      continue;
-    }
-    const batch = await args.convex.query(api.workspaceCryptoSeal.getWorkspaceSealBatch, {
-      phase,
-      paginationOpts: { cursor, numItems: 20 },
-    });
-    const rows = batch.page as unknown as SealRow[];
-    const progress = {
-      leaseId,
-      continueCursor: batch.continueCursor,
-      isDone: batch.isDone,
-    };
+      const batch = await args.convex.query(api.workspaceCryptoSeal.getWorkspaceSealBatch, {
+        phase,
+        paginationOpts: { cursor, numItems: 10 },
+      });
+      const rows = batch.page as unknown as SealRow[];
+      if (leaseFailure) throw leaseFailure;
+      if (args.signal?.aborted) return 'aborted';
+      const progress = {
+        leaseId,
+        continueCursor: batch.continueCursor,
+        isDone: batch.isDone,
+      };
 
-    if (phase === 'attachments' || phase === 'avatars') {
-      const processed = await sealBlobRows({
-        convex: args.convex,
-        phase,
-        leaseId,
-        rows,
-        workspaceOwnerId: args.workspaceOwnerId,
-        keyEpoch: args.keyEpoch,
-        sourceWorkspaceKey: args.sourceWorkspaceKey,
-      });
-      await args.convex.mutation(api.workspaceCryptoSeal.advanceBlobSealBatch, {
-        phase,
-        ...progress,
-        processed,
-      });
-    } else if (phase === 'pendingUploads') {
-      await args.convex.mutation(api.workspaceCryptoSeal.cleanupPendingUploadsBatch, {
-        leaseId,
-        ids: rows.map(id) as never,
-      });
-    } else if (phase === 'exports') {
-      await args.convex.mutation(api.workspaceCryptoSeal.cleanupExportsBatch, {
-        leaseId,
-        ids: rows.map(id) as never,
-      });
-    } else if (phase === 'shares') {
-      await commitBatch(args.convex, phase, { ...progress, ids: rows.map(id) });
-    } else {
-      const items = withWorkspaceKey(args.workspaceOwnerId, (workspaceKey) =>
-        encryptRows(
+      if (phase === 'attachments' || phase === 'avatars') {
+        const processed = await sealBlobRows({
+          convex: args.convex,
           phase,
+          leaseId,
           rows,
-          workspaceKey,
+          workspaceOwnerId: args.workspaceOwnerId,
+          keyEpoch: args.keyEpoch,
+          sourceWorkspaceKey: args.sourceWorkspaceKey,
+        });
+        await args.convex.mutation(api.workspaceCryptoSeal.advanceBlobSealBatch, {
+          phase,
+          ...progress,
+          processed,
+        });
+      } else if (phase === 'pendingUploads') {
+        await args.convex.mutation(api.workspaceCryptoSeal.cleanupPendingUploadsBatch, {
+          leaseId,
+          ids: rows.map(id) as never,
+        });
+      } else if (phase === 'exports') {
+        await args.convex.mutation(api.workspaceCryptoSeal.cleanupExportsBatch, {
+          leaseId,
+          ids: rows.map(id) as never,
+        });
+      } else if (phase === 'shares') {
+        await commitBatch(args.convex, phase, { ...progress, ids: rows.map(id) });
+      } else {
+        const items = withWorkspaceKey(
           args.workspaceOwnerId,
+          (workspaceKey) =>
+            encryptRows(
+              phase,
+              rows,
+              workspaceKey,
+              args.workspaceOwnerId,
+              args.keyEpoch,
+              args.sourceWorkspaceKey,
+            ),
           args.keyEpoch,
-          args.sourceWorkspaceKey,
-        ),
-      );
-      await commitBatch(args.convex, phase, { ...progress, items });
-    }
+        );
+        const sourceById = new Map(rows.map((row) => [row._id, row]));
+        await commitBatch(args.convex, phase, {
+          ...progress,
+          items: items.map((item) => ({
+            ...item,
+            expectedSnapshotDigest: sourceById.get(String(item.id))?.expectedSnapshotDigest,
+          })),
+        });
+      }
 
-    args.onProgress?.(rows.length, phase);
-    const status = await args.convex.query(api.workspaceCrypto.getWorkspaceCryptoStatus, {});
-    const nextOperation = status?.settings?.operation;
-    if (!nextOperation) return 'sealed';
-    phase = nextOperation.phase as SealPhase;
-    cursor = nextOperation.cursor ?? null;
+      args.onProgress?.(rows.length, phase);
+      const status = await args.convex.query(api.workspaceCrypto.getWorkspaceCryptoStatus, {});
+      const nextOperation = status?.settings?.operation;
+      if (!nextOperation) return 'sealed';
+      phase = nextOperation.phase as SealPhase;
+      cursor = nextOperation.cursor ?? null;
+    }
+  } finally {
+    clearInterval(heartbeat);
   }
 }

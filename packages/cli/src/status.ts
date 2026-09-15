@@ -1,6 +1,7 @@
 import type { AgendexConfig } from '@agendex/shared';
 import { CLI_DAEMON_STALE_AFTER_MS } from '@agendex/shared/daemon-status';
 import type { DeviceInfo } from './api.ts';
+import { sanitizeTerminalText } from './download-prompt.ts';
 import type { DaemonPidInfo } from './pid.ts';
 
 export interface CloudDaemonStatusError {
@@ -142,6 +143,29 @@ function localDaemonDetail(options: RenderStatusOptions, now: number): string {
   const origin = formatLauncherOrigin(options.pidInfo?.launcher);
   if (origin) parts.push(origin);
   return parts.join(' • ');
+}
+
+function planDownloadRow(styles: StatusStyles, options: RenderStatusOptions, now: number): string {
+  const last = options.config?.lastPlanDownload;
+  const cloudReady = Boolean(options.config?.cloudToken && options.config.convexUrl);
+  if (!last) {
+    return row(
+      styles,
+      'Plan download',
+      badge(styles, 'info', 'never used'),
+      cloudReady
+        ? 'run `agendex download <query>` to save a cloud plan locally'
+        : 'log in, then run `agendex download <query>`',
+    );
+  }
+  const ago = formatDuration(Math.max(0, now - last.at));
+  const target = last.destination ? sanitizeTerminalText(last.destination) : 'stdout';
+  return row(
+    styles,
+    'Plan download',
+    badge(styles, 'success', `used ${ago} ago`),
+    `"${sanitizeTerminalText(last.title)}" (${sanitizeTerminalText(last.agent)}) → ${target}`,
+  );
 }
 
 function isDeviceAlive(device: DeviceInfo, now: number): boolean {
@@ -291,6 +315,12 @@ function nextActions(
       description: 'Run a one-shot scan and cloud sync now',
     });
   }
+  if (cloudReady && !config?.lastPlanDownload) {
+    actions.push({
+      command: 'agendex download <query>',
+      description: 'Save a cloud plan to disk as md or html',
+    });
+  }
   actions.push({ command: 'agendex open', description: 'Open the Agendex dashboard' });
 
   const seen = new Set<string>();
@@ -369,6 +399,7 @@ export function renderStatus(options: RenderStatusOptions): string {
     ),
   );
   addCloudDaemonLines({ lines, styles, options, cloudReady, now });
+  lines.push(planDownloadRow(styles, options, now));
   lines.push('');
 
   lines.push(styles.section('Plan sources:'));

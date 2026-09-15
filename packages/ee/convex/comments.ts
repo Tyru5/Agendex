@@ -1,5 +1,6 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
+import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import {
   internalMutation,
@@ -8,53 +9,93 @@ import {
   type QueryCtx,
   query,
 } from './_generated/server';
-import { isAgentAvatarStorageId } from './agentAvatars';
 import { authComponent } from './auth';
-import { requireFeature } from './entitlements';
+import { requireFeature, requireFeatureForUserId } from './entitlements';
 import { cryptoEnvelopeV1 } from './schema';
 import {
   resolveWorkspaceCryptoPolicy,
   requireSupportedCryptoClient,
   validateEncryptedWrite,
 } from './workspaceCrypto';
+import { requireSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 
 const MAX_COMMENT_IMAGE_COUNT = 4;
 const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 const MAX_ENCRYPTED_COMMENT_IMAGE_BYTES = MAX_COMMENT_IMAGE_BYTES + 64;
 const ALLOWED_COMMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_TRACKED_UPLOAD_AGE_MS = 5 * 60 * 1000;
+export const COMMENT_UPLOAD_CLEANUP_BATCH_SIZE = 500;
 const STALE_COMMENT_UPLOAD_AGE_MS = 15 * 60 * 1000;
+const commentAttachmentWithUrlValidator = v.object({
+  storageId: v.id('_storage'),
+  fileName: v.optional(v.string()),
+  contentType: v.string(),
+  size: v.number(),
+  url: v.string(),
+  encrypted: v.optional(v.boolean()),
+  stableCryptoId: v.optional(v.string()),
+  keyEpoch: v.optional(v.number()),
+});
+
+const commentWithAttachmentUrlsValidator = v.object({
+  _id: v.id('comments'),
+  _creationTime: v.number(),
+  planId: v.id('plans'),
+  authorId: v.string(),
+  authorName: v.string(),
+  authorAvatar: v.optional(v.string()),
+  body: v.string(),
+  ownerId: v.optional(v.string()),
+  stableCryptoId: v.optional(v.string()),
+  keyEpoch: v.optional(v.number()),
+  encryptedComment: v.optional(cryptoEnvelopeV1),
+  encryptedAttachments: v.optional(cryptoEnvelopeV1),
+  attachments: v.array(commentAttachmentWithUrlValidator),
+  createdAt: v.number(),
+  updatedAt: v.optional(v.number()),
+});
+
+const trackPendingUploadResultValidator = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({ success: v.literal(false), error: v.string() }),
+);
 
 type CommentStorageCtx = Pick<MutationCtx, 'db' | 'storage'>;
-
-async function validateShareToken(ctx: QueryCtx, planId: string, token: string): Promise<void> {
-  const shareLink = await ctx.db
-    .query('shareLinks')
-    .withIndex('by_token', (q) => q.eq('token', token))
-    .first();
-
-  if (!shareLink || shareLink.planId !== planId) {
-    throw new ConvexError('Invalid or revoked share token');
-  }
-}
 
 async function validateCommentAccess(
   ctx: QueryCtx,
   planId: Id<'plans'>,
   token: string | undefined,
+  accessProof: Id<'shareAccessProofs'> | undefined,
+  authenticatedUserId?: string,
 ): Promise<void> {
   const plan = await ctx.db.get(planId);
   if (!plan) throw new ConvexError('Plan not found');
 
-  const user = await authComponent.safeGetAuthUser(ctx);
-  const isOwner = user && plan.ownerId === user._id;
-
-  if (isOwner) {
+  const userId = authenticatedUserId ?? (await authComponent.safeGetAuthUser(ctx))?._id;
+  if (userId === plan.ownerId) {
     await requireFeature(ctx, ProFeature.COMMENTS);
-  } else {
-    if (!token) throw new ConvexError('Share token required');
-    await validateShareToken(ctx, planId, token);
+    return;
   }
+  if (userId) {
+    const membership = await ctx.db
+      .query('workspaceMembers')
+      .withIndex('by_workspace_member', (q) =>
+        q.eq('workspaceOwnerId', plan.ownerId).eq('memberId', userId),
+      )
+      .first();
+    if (membership) {
+      await requireFeatureForUserId(ctx, plan.ownerId, ProFeature.COMMENTS);
+      return;
+    }
+  }
+
+  if (!token) throw new ConvexError('Share token required');
+  await requireSharedPlanAccess(ctx, {
+    planId,
+    token,
+    ...(accessProof ? { accessProof } : {}),
+  });
 }
 
 async function isCommentReferencedStorageId(
@@ -66,17 +107,6 @@ async function isCommentReferencedStorageId(
     .withIndex('by_storage', (q) => q.eq('storageId', storageId))
     .first();
   return claim !== null;
-}
-
-async function isPendingUploadStorageId(
-  ctx: Pick<QueryCtx, 'db'>,
-  storageId: Id<'_storage'>,
-): Promise<boolean> {
-  const pendingUpload = await ctx.db
-    .query('pendingUploads')
-    .withIndex('by_storage', (q) => q.eq('storageId', storageId))
-    .first();
-  return pendingUpload !== null;
 }
 
 async function createCommentAttachmentClaims(
@@ -167,14 +197,13 @@ async function reserveCommentUpload(
 }
 
 async function deleteStorageFile(
-  ctx: Pick<MutationCtx, 'storage'>,
+  ctx: Pick<MutationCtx, 'db' | 'storage'>,
   storageId: Id<'_storage'>,
-): Promise<void> {
-  try {
-    await ctx.storage.delete(storageId);
-  } catch {
-    // File may already be deleted; continue cleanup
-  }
+): Promise<boolean> {
+  const metadata = await ctx.db.system.get(storageId);
+  if (!metadata) return false;
+  await ctx.storage.delete(storageId);
+  return true;
 }
 
 export async function deletePendingUploadRecord(
@@ -202,9 +231,14 @@ export async function deleteCommentWithAttachments(
 }
 
 export const getComments = query({
-  args: { planId: v.id('plans'), token: v.optional(v.string()) },
+  args: {
+    planId: v.id('plans'),
+    token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
+  },
+  returns: v.array(commentWithAttachmentUrlsValidator),
   handler: async (ctx, args) => {
-    await validateCommentAccess(ctx, args.planId, args.token);
+    await validateCommentAccess(ctx, args.planId, args.token, args.accessProof);
 
     const comments = await ctx.db
       .query('comments')
@@ -214,14 +248,38 @@ export const getComments = query({
 
     return await Promise.all(
       comments.map(async (comment) => ({
-        ...comment,
-        attachments: await Promise.all(
-          (comment.attachments ?? []).map(async (attachment) => {
-            const url = await ctx.storage.getUrl(attachment.storageId);
-            if (!url) return null;
-            return { ...attachment, url };
-          }),
-        ).then((results) => results.filter((a) => a !== null)),
+        _id: comment._id,
+        _creationTime: comment._creationTime,
+        planId: comment.planId,
+        authorId: comment.authorId,
+        authorName: comment.authorName,
+        ...(comment.authorAvatar !== undefined && { authorAvatar: comment.authorAvatar }),
+        body: comment.body,
+        ownerId: comment.ownerId,
+        stableCryptoId: comment.stableCryptoId,
+        keyEpoch: comment.keyEpoch,
+        encryptedComment: comment.encryptedComment,
+        encryptedAttachments: comment.encryptedAttachments,
+        attachments: (
+          await Promise.all(
+            (comment.attachments ?? []).map(async (attachment) => {
+              const url = await ctx.storage.getUrl(attachment.storageId);
+              if (!url) return null;
+              return {
+                storageId: attachment.storageId,
+                ...(attachment.fileName !== undefined && { fileName: attachment.fileName }),
+                contentType: attachment.contentType,
+                size: attachment.size,
+                encrypted: attachment.encrypted,
+                stableCryptoId: attachment.stableCryptoId,
+                keyEpoch: attachment.keyEpoch,
+                url,
+              };
+            }),
+          )
+        ).filter((attachment) => attachment !== null),
+        createdAt: comment.createdAt,
+        ...(comment.updatedAt !== undefined && { updatedAt: comment.updatedAt }),
       })),
     );
   },
@@ -231,9 +289,11 @@ export const generateCommentImageUploadUrl = mutation({
   args: {
     planId: v.id('plans'),
     token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
     clientUploadId: v.optional(v.string()),
     clientCryptoProtocol: v.optional(v.number()),
   },
+  returns: v.string(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -241,17 +301,11 @@ export const generateCommentImageUploadUrl = mutation({
     const plan = await ctx.db.get(args.planId);
     if (!plan) throw new ConvexError('Plan not found');
 
-    const isOwner = plan.ownerId === user._id;
     const policy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
     if (policy.requiresEncryption) {
       requireSupportedCryptoClient(policy, args.clientCryptoProtocol);
     }
-    if (isOwner) {
-      await requireFeature(ctx, ProFeature.COMMENTS);
-    } else {
-      if (!args.token) throw new ConvexError('Share token required');
-      await validateShareToken(ctx, args.planId, args.token);
-    }
+    await validateCommentAccess(ctx, args.planId, args.token, args.accessProof, user._id);
 
     await reserveCommentUpload(ctx, {
       uploadedBy: user._id,
@@ -268,10 +322,12 @@ export const trackPendingUpload = mutation({
     storageId: v.id('_storage'),
     planId: v.id('plans'),
     token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
     clientUploadId: v.optional(v.string()),
     clientCryptoProtocol: v.optional(v.number()),
     encrypted: v.optional(v.boolean()),
   },
+  returns: trackPendingUploadResultValidator,
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -279,7 +335,6 @@ export const trackPendingUpload = mutation({
     const plan = await ctx.db.get(args.planId);
     if (!plan) throw new ConvexError('Plan not found');
 
-    const isOwner = plan.ownerId === user._id;
     const policy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
     if (policy.requiresEncryption) {
       if (!args.encrypted) throw new ConvexError('Encrypted attachment is required');
@@ -287,12 +342,7 @@ export const trackPendingUpload = mutation({
     } else if (args.encrypted) {
       throw new ConvexError('Encrypted attachment metadata is not expected');
     }
-    if (isOwner) {
-      await requireFeature(ctx, ProFeature.COMMENTS);
-    } else {
-      if (!args.token) throw new ConvexError('Share token required');
-      await validateShareToken(ctx, args.planId, args.token);
-    }
+    await validateCommentAccess(ctx, args.planId, args.token, args.accessProof, user._id);
 
     const reservation = await findUploadReservation(ctx, {
       uploadedBy: user._id,
@@ -383,7 +433,9 @@ export const addComment = mutation({
     keyEpoch: v.optional(v.number()),
     encryptedComment: v.optional(cryptoEnvelopeV1),
     encryptedAttachments: v.optional(cryptoEnvelopeV1),
+    accessProof: v.optional(shareAccessProofIdValidator),
   },
+  returns: v.id('comments'),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -395,14 +447,8 @@ export const addComment = mutation({
       throw new ConvexError('Plan not found');
     }
 
-    const isOwner = plan.ownerId === user._id;
     const policy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
-    if (isOwner) {
-      await requireFeature(ctx, ProFeature.COMMENTS);
-    } else {
-      if (!args.token) throw new ConvexError('Share token required');
-      await validateShareToken(ctx, args.planId, args.token);
-    }
+    await validateCommentAccess(ctx, args.planId, args.token, args.accessProof, user._id);
 
     const trimmedBody = args.body.trim();
     const incomingAttachments = args.attachments ?? [];
@@ -414,7 +460,7 @@ export const addComment = mutation({
     });
     if (
       policy.requiresEncryption &&
-      (!args.stableCryptoId || args.keyEpoch === undefined || !args.encryptedComment)
+      (!args.stableCryptoId || args.keyEpoch !== policy.activeKeyEpoch || !args.encryptedComment)
     ) {
       throw new ConvexError('Encrypted comment metadata is required');
     }
@@ -527,6 +573,7 @@ export const addComment = mutation({
 
 export const deleteOrphanedUpload = mutation({
   args: { storageId: v.id('_storage') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -543,6 +590,7 @@ export const deleteOrphanedUpload = mutation({
     }
 
     await deletePendingUploadRecord(ctx, pending);
+    return null;
   },
 });
 
@@ -554,7 +602,9 @@ export const editComment = mutation({
     clientCryptoProtocol: v.optional(v.number()),
     keyEpoch: v.optional(v.number()),
     encryptedComment: v.optional(cryptoEnvelopeV1),
+    accessProof: v.optional(shareAccessProofIdValidator),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -575,14 +625,8 @@ export const editComment = mutation({
       throw new ConvexError('Plan not found');
     }
 
-    const isOwner = plan.ownerId === user._id;
     const policy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
-    if (isOwner) {
-      await requireFeature(ctx, ProFeature.COMMENTS);
-    } else {
-      if (!args.token) throw new ConvexError('Share token required');
-      await validateShareToken(ctx, comment.planId, args.token);
-    }
+    await validateCommentAccess(ctx, comment.planId, args.token, args.accessProof, user._id);
 
     const trimmed = args.body.trim();
     const hasAttachments = (comment.attachments ?? []).length > 0;
@@ -592,13 +636,19 @@ export const editComment = mutation({
       envelopes: args.encryptedComment ? [args.encryptedComment] : [],
       plaintext: { body: args.body },
     });
-    if (policy.requiresEncryption && (!comment.stableCryptoId || !args.encryptedComment)) {
+    if (
+      policy.requiresEncryption &&
+      (!comment.stableCryptoId || !args.encryptedComment || args.keyEpoch !== policy.activeKeyEpoch)
+    ) {
       throw new ConvexError('Encrypted comment metadata is required');
+    }
+    if (policy.requiresEncryption && comment.keyEpoch !== policy.activeKeyEpoch) {
+      throw new ConvexError('Wait for comment key rotation to complete before editing');
     }
     if (!policy.requiresEncryption && !trimmed && !hasAttachments) {
       throw new ConvexError('Comment body cannot be empty');
     }
-    if (!policy.requiresEncryption && trimmed === comment.body) return;
+    if (!policy.requiresEncryption && trimmed === comment.body) return null;
 
     await ctx.db.patch(args.commentId, {
       body: policy.requiresEncryption ? '' : trimmed,
@@ -607,11 +657,17 @@ export const editComment = mutation({
         : {}),
       updatedAt: Date.now(),
     });
+    return null;
   },
 });
 
 export const deleteComment = mutation({
-  args: { commentId: v.id('comments'), token: v.optional(v.string()) },
+  args: {
+    commentId: v.id('comments'),
+    token: v.optional(v.string()),
+    accessProof: v.optional(shareAccessProofIdValidator),
+  },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -638,64 +694,78 @@ export const deleteComment = mutation({
     }
 
     if (!isOwner) {
-      if (!args.token) throw new ConvexError('Share token required');
-      await validateShareToken(ctx, comment.planId, args.token);
+      await validateCommentAccess(ctx, comment.planId, args.token, args.accessProof, user._id);
     }
 
     await deleteCommentWithAttachments(ctx, comment);
+    return null;
   },
 });
 
+export async function cleanupExpiredCommentUploads(
+  ctx: CommentStorageCtx,
+  now = Date.now(),
+): Promise<{
+  deletedReservations: number;
+  deletedPendingUploads: number;
+  deletedStorageFiles: number;
+  hasMore: boolean;
+}> {
+  const cutoff = now - STALE_COMMENT_UPLOAD_AGE_MS;
+  let deletedReservations = 0;
+  let deletedPendingUploads = 0;
+  let deletedStorageFiles = 0;
+
+  const staleReservations = await ctx.db
+    .query('commentUploadReservations')
+    .withIndex('by_createdAt', (q) => q.lt('createdAt', cutoff))
+    .take(COMMENT_UPLOAD_CLEANUP_BATCH_SIZE);
+
+  for (const reservation of staleReservations) {
+    await ctx.db.delete(reservation._id);
+    deletedReservations++;
+  }
+
+  const stalePendingUploads = await ctx.db
+    .query('pendingUploads')
+    .withIndex('by_createdAt', (q) => q.lt('createdAt', cutoff))
+    .take(COMMENT_UPLOAD_CLEANUP_BATCH_SIZE);
+
+  for (const pendingUpload of stalePendingUploads) {
+    if (
+      !(await isCommentReferencedStorageId(ctx, pendingUpload.storageId)) &&
+      (await deleteStorageFile(ctx, pendingUpload.storageId))
+    ) {
+      deletedStorageFiles++;
+    }
+
+    await ctx.db.delete(pendingUpload._id);
+    deletedPendingUploads++;
+  }
+
+  return {
+    deletedReservations,
+    deletedPendingUploads,
+    deletedStorageFiles,
+    hasMore:
+      staleReservations.length === COMMENT_UPLOAD_CLEANUP_BATCH_SIZE ||
+      stalePendingUploads.length === COMMENT_UPLOAD_CLEANUP_BATCH_SIZE,
+  };
+}
+
 export const cleanupStalePendingUploads = internalMutation({
   args: {},
+  returns: v.object({
+    deletedReservations: v.number(),
+    deletedPendingUploads: v.number(),
+    deletedStorageFiles: v.number(),
+    hasMore: v.boolean(),
+  }),
   handler: async (ctx) => {
-    const cutoff = Date.now() - STALE_COMMENT_UPLOAD_AGE_MS;
-    let deletedReservations = 0;
-    let deletedPendingUploads = 0;
-    let deletedUntrackedFiles = 0;
-
-    const staleReservations = await ctx.db
-      .query('commentUploadReservations')
-      .withIndex('by_createdAt', (q) => q.lt('createdAt', cutoff))
-      .take(500);
-
-    for (const reservation of staleReservations) {
-      await ctx.db.delete(reservation._id);
-      deletedReservations++;
+    const result = await cleanupExpiredCommentUploads(ctx);
+    if (result.hasMore) {
+      await ctx.scheduler.runAfter(0, internal.comments.cleanupStalePendingUploads, {});
     }
-
-    // Pass 1: clean up stale tracked uploads and their storage files.
-    const stale = await ctx.db
-      .query('pendingUploads')
-      .withIndex('by_createdAt', (q) => q.lt('createdAt', cutoff))
-      .take(500);
-
-    for (const record of stale) {
-      if (
-        !(await isCommentReferencedStorageId(ctx, record.storageId)) &&
-        !(await isAgentAvatarStorageId(ctx, record.storageId))
-      ) {
-        await deleteStorageFile(ctx, record.storageId);
-      }
-      await ctx.db.delete(record._id);
-      deletedPendingUploads++;
-    }
-
-    // Pass 2: delete stale untracked blobs that are not referenced anywhere.
-    const staleStorageObjects = await ctx.db.system
-      .query('_storage')
-      .withIndex('by_creation_time', (q) => q.lt('_creationTime', cutoff))
-      .take(500);
-
-    for (const storageObject of staleStorageObjects) {
-      if (await isCommentReferencedStorageId(ctx, storageObject._id)) continue;
-      if (await isPendingUploadStorageId(ctx, storageObject._id)) continue;
-      if (await isAgentAvatarStorageId(ctx, storageObject._id)) continue;
-
-      await deleteStorageFile(ctx, storageObject._id);
-      deletedUntrackedFiles++;
-    }
-
-    return { deletedReservations, deletedPendingUploads, deletedUntrackedFiles };
+    return result;
   },
 });

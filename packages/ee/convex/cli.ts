@@ -1,14 +1,12 @@
 import {
-  dedupePlanDownloadCandidates,
-  isExactPlanDownloadIdHit,
-  looksLikePlanAgent,
-  parsePlanDownloadQuery,
-  planAgentLookupValues,
-  planAgentsMatch,
-  PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
+  canonicalPlanAgent,
   dedupePlanBrowseCandidates,
-  selectPlanDownloadMatches,
+  dedupePlanDownloadCandidates,
   filterPlanBrowseMatches,
+  normalizePlanLookupText,
+  parsePlanDownloadQuery,
+  planAgentsMatch,
+  selectPlanDownloadTitlePage,
   suggestClosestPlans,
   type PlanDownloadLookupCandidate,
 } from '@agendex/shared/plan-download-lookup';
@@ -18,6 +16,7 @@ import {
   deserializeCryptoEnvelope,
   serializeCryptoEnvelope,
 } from '@agendex/shared/crypto';
+import type { UsageSummary } from '@agendex/shared';
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
@@ -43,19 +42,791 @@ import { stripLocalIpFromMetadata } from './privacy';
 import { resolvePublishedPlansOwnerId } from './plans';
 import { cryptoEnvelopeV1 } from './schema';
 import { resolveWorkspaceCryptoPolicy, validateEncryptedWrite } from './workspaceCrypto';
+import { hasActiveSubscriptionForUserId } from './subscriptions';
 
 const DAEMON_HEARTBEAT_RETENTION_MS = 7 * 86_400_000;
 const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
+const MAX_USAGE_SNAPSHOT_BYTES = 512_000;
+const USAGE_WINDOW_KEYS = new Set(['1', '7', '30', '90']);
 const MAX_SUPERSEDE_SCAN = 2_000;
 
+const usageAgentValidator = v.union(
+  v.literal('claude-code'),
+  v.literal('codex-cli'),
+  v.literal('grok'),
+);
+const usageTokenTotalsValidator = v.object({
+  uncachedInputTokens: v.number(),
+  cachedInputTokens: v.number(),
+  cacheCreationTokens: v.number(),
+  outputTokens: v.number(),
+  reasoningTokens: v.number(),
+});
+const usageSummaryValidator = v.object({
+  generatedAt: v.string(),
+  days: v.number(),
+  resolution: v.union(v.literal('day'), v.literal('hour')),
+  buckets: v.array(
+    v.object({
+      start: v.string(),
+      costUsd: v.number(),
+      totalTokens: v.number(),
+      byAgent: v.record(v.string(), v.object({ costUsd: v.number(), totalTokens: v.number() })),
+    }),
+  ),
+  totals: usageTokenTotalsValidator,
+  totalTokens: v.number(),
+  costUsd: v.number(),
+  cacheSavingsUsd: v.number(),
+  records: v.number(),
+  unpricedRecords: v.number(),
+  sessions: v.number(),
+  agents: v.array(
+    v.object({
+      agent: usageAgentValidator,
+      totals: usageTokenTotalsValidator,
+      totalTokens: v.number(),
+      costUsd: v.number(),
+      records: v.number(),
+      unpricedRecords: v.number(),
+      sessions: v.number(),
+    }),
+  ),
+  models: v.array(
+    v.object({
+      agent: usageAgentValidator,
+      model: v.string(),
+      totals: usageTokenTotalsValidator,
+      totalTokens: v.number(),
+      costUsd: v.number(),
+      records: v.number(),
+      unpricedRecords: v.number(),
+    }),
+  ),
+  sources: v.array(
+    v.object({
+      agent: usageAgentValidator,
+      path: v.string(),
+      status: v.union(v.literal('scanned'), v.literal('missing'), v.literal('error')),
+      files: v.number(),
+      message: v.optional(v.string()),
+    }),
+  ),
+  scanDurationMs: v.number(),
+});
+const heartbeatDeviceValidator = v.object({
+  recordId: v.id('daemonHeartbeats'),
+  lastSeenAt: v.number(),
+  deviceId: v.union(v.string(), v.null()),
+  hostname: v.union(v.string(), v.null()),
+  ipAddress: v.union(v.string(), v.null()),
+  startedAtMs: v.union(v.number(), v.null()),
+  pid: v.union(v.number(), v.null()),
+});
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function normalizedTitle(title: string): string {
-  return title.replace(/\s+/g, ' ').trim().toLowerCase();
+function isNonNegFinite(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isUsageTokenTotals(value: unknown): value is UsageSummary['totals'] {
+  if (!isRecord(value)) return false;
+  for (const field of [
+    'uncachedInputTokens',
+    'cachedInputTokens',
+    'cacheCreationTokens',
+    'outputTokens',
+    'reasoningTokens',
+  ]) {
+    if (!isNonNegFinite(value[field])) return false;
+  }
+  return true;
+}
+
+function isUsageBucket(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.start !== 'string' || value.start.length === 0 || value.start.length > 64) {
+    return false;
+  }
+  if (!isNonNegFinite(value.costUsd) || !isNonNegFinite(value.totalTokens)) return false;
+  if (!isRecord(value.byAgent)) return false;
+  for (const entry of Object.values(value.byAgent)) {
+    if (!isRecord(entry)) return false;
+    if (!isNonNegFinite(entry.costUsd) || !isNonNegFinite(entry.totalTokens)) return false;
+  }
+  return true;
+}
+
+function isUsageAgentEntry(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.agent !== 'string' || value.agent.length === 0 || value.agent.length > 64) {
+    return false;
+  }
+  if (!isUsageTokenTotals(value.totals)) return false;
+  for (const field of ['totalTokens', 'costUsd', 'records', 'unpricedRecords', 'sessions']) {
+    if (!isNonNegFinite(value[field])) return false;
+  }
+  return true;
+}
+
+function isUsageModelEntry(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.agent !== 'string' || value.agent.length === 0 || value.agent.length > 64) {
+    return false;
+  }
+  if (typeof value.model !== 'string' || value.model.length === 0 || value.model.length > 256) {
+    return false;
+  }
+  if (!isUsageTokenTotals(value.totals)) return false;
+  for (const field of ['totalTokens', 'costUsd', 'records', 'unpricedRecords']) {
+    if (!isNonNegFinite(value[field])) return false;
+  }
+  return true;
+}
+
+export function normalizeUsageSnapshots(value: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(value)) return undefined;
+
+  try {
+    const encoded = new TextEncoder().encode(JSON.stringify(value));
+    if (encoded.byteLength > MAX_USAGE_SNAPSHOT_BYTES) return undefined;
+  } catch {
+    return undefined;
+  }
+
+  const snapshots: Record<string, unknown> = {};
+  for (const [key, rawSummary] of Object.entries(value)) {
+    if (!USAGE_WINDOW_KEYS.has(key)) continue;
+    if (!isRecord(rawSummary)) return undefined;
+    if (rawSummary.days !== Number(key)) return undefined;
+    if (
+      typeof rawSummary.generatedAt !== 'string' ||
+      Number.isNaN(Date.parse(rawSummary.generatedAt))
+    ) {
+      return undefined;
+    }
+    if (rawSummary.resolution !== 'day' && rawSummary.resolution !== 'hour') return undefined;
+    if (!Array.isArray(rawSummary.buckets) || rawSummary.buckets.length > 366) return undefined;
+    if (!Array.isArray(rawSummary.agents) || rawSummary.agents.length > 20) return undefined;
+    if (!Array.isArray(rawSummary.models) || rawSummary.models.length > 500) return undefined;
+    if (!isUsageTokenTotals(rawSummary.totals)) return undefined;
+    if (!rawSummary.buckets.every(isUsageBucket)) return undefined;
+    if (!rawSummary.agents.every(isUsageAgentEntry)) return undefined;
+    if (!rawSummary.models.every(isUsageModelEntry)) return undefined;
+    if (rawSummary.cloudFormatVersion !== undefined && rawSummary.cloudFormatVersion !== 2) {
+      return undefined;
+    }
+    if (rawSummary.dedupeKeys !== undefined) {
+      if (
+        !Array.isArray(rawSummary.dedupeKeys) ||
+        rawSummary.dedupeKeys.length > 20_000 ||
+        !rawSummary.dedupeKeys.every(
+          (key) => typeof key === 'string' && key.length > 0 && key.length <= 256,
+        )
+      ) {
+        return undefined;
+      }
+    }
+    if (rawSummary.events !== undefined) {
+      if (
+        !Array.isArray(rawSummary.events) ||
+        rawSummary.events.length > 400 ||
+        !rawSummary.events.every(isUsageCloudEvent)
+      ) {
+        return undefined;
+      }
+    }
+
+    for (const field of [
+      'totalTokens',
+      'costUsd',
+      'cacheSavingsUsd',
+      'records',
+      'unpricedRecords',
+      'sessions',
+    ]) {
+      const fieldValue = rawSummary[field];
+      if (!isNonNegFinite(fieldValue)) return undefined;
+    }
+
+    snapshots[key] = {
+      ...rawSummary,
+      // Defense in depth: the cloud copy never retains local transcript paths.
+      sources: [],
+      scanDurationMs: 0,
+      ...(Array.isArray(rawSummary.dedupeKeys)
+        ? { dedupeKeys: rawSummary.dedupeKeys.slice(0, 8_192) }
+        : {}),
+      ...(Array.isArray(rawSummary.events) ? { events: rawSummary.events.slice(0, 400) } : {}),
+    };
+  }
+
+  return Object.keys(snapshots).length > 0 ? snapshots : undefined;
+}
+
+function isUsageCloudEvent(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.key !== 'string' || value.key.length === 0 || value.key.length > 256) {
+    return false;
+  }
+  if (
+    value.ownershipKey !== undefined &&
+    (typeof value.ownershipKey !== 'string' ||
+      value.ownershipKey.length === 0 ||
+      value.ownershipKey.length > 256)
+  ) {
+    return false;
+  }
+  if (typeof value.agent !== 'string' || value.agent.length === 0 || value.agent.length > 64) {
+    return false;
+  }
+  if (typeof value.model !== 'string' || value.model.length === 0 || value.model.length > 256) {
+    return false;
+  }
+  if (
+    typeof value.sessionId !== 'string' ||
+    value.sessionId.length === 0 ||
+    value.sessionId.length > 256
+  ) {
+    return false;
+  }
+  if (
+    value.ownershipSessionId !== undefined &&
+    (typeof value.ownershipSessionId !== 'string' ||
+      value.ownershipSessionId.length === 0 ||
+      value.ownershipSessionId.length > 256)
+  ) {
+    return false;
+  }
+  if (
+    typeof value.bucketStart !== 'string' ||
+    value.bucketStart.length === 0 ||
+    value.bucketStart.length > 64
+  ) {
+    return false;
+  }
+  if (!isNonNegFinite(value.timestampMs) || !isNonNegFinite(value.costUsd)) return false;
+  if (!isNonNegFinite(value.cacheSavingsUsd)) return false;
+  if (typeof value.unpriced !== 'boolean') return false;
+  return isUsageTokenTotals(value.totals);
+}
+
+function addUsageTokenTotals(into: Record<string, number>, from: Record<string, unknown>): void {
+  for (const field of [
+    'uncachedInputTokens',
+    'cachedInputTokens',
+    'cacheCreationTokens',
+    'outputTokens',
+    'reasoningTokens',
+  ]) {
+    into[field] = (into[field] ?? 0) + (from[field] as number);
+  }
+}
+
+function tokenTotalOf(totals: Record<string, number>): number {
+  if (!isUsageTokenTotals(totals)) throw new Error('Invalid usage token totals');
+  return (
+    totals.uncachedInputTokens +
+    totals.cachedInputTokens +
+    totals.cacheCreationTokens +
+    totals.outputTokens
+  );
+}
+
+function aggregateUsageEvents(
+  events: Array<Record<string, unknown>>,
+  days: number,
+  generatedAt: string,
+): Record<string, unknown> {
+  const resolution: 'day' | 'hour' = days === 1 ? 'hour' : 'day';
+  const totals = {
+    uncachedInputTokens: 0,
+    cachedInputTokens: 0,
+    cacheCreationTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+  };
+  let costUsd = 0;
+  let cacheSavingsUsd = 0;
+  let unpricedRecords = 0;
+  const agents = new Map<
+    string,
+    {
+      agent: string;
+      totals: Record<string, number>;
+      totalTokens: number;
+      costUsd: number;
+      records: number;
+      unpricedRecords: number;
+      sessionIds: Set<string>;
+    }
+  >();
+  const models = new Map<string, Record<string, unknown>>();
+  const buckets = new Map<string, Record<string, unknown>>();
+
+  for (const event of events) {
+    const eventTotals = event.totals as Record<string, number>;
+    addUsageTokenTotals(totals, eventTotals);
+    costUsd += event.costUsd as number;
+    cacheSavingsUsd += event.cacheSavingsUsd as number;
+    if (event.unpriced) unpricedRecords++;
+
+    const agentId = event.agent as string;
+    let agent = agents.get(agentId);
+    if (!agent) {
+      agent = {
+        agent: agentId,
+        totals: {
+          uncachedInputTokens: 0,
+          cachedInputTokens: 0,
+          cacheCreationTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+        },
+        totalTokens: 0,
+        costUsd: 0,
+        records: 0,
+        unpricedRecords: 0,
+        sessionIds: new Set(),
+      };
+      agents.set(agentId, agent);
+    }
+    addUsageTokenTotals(agent.totals, eventTotals);
+    agent.costUsd += event.costUsd as number;
+    agent.records++;
+    if (event.unpriced) agent.unpricedRecords++;
+    agent.sessionIds.add(
+      typeof event.ownershipSessionId === 'string'
+        ? event.ownershipSessionId
+        : (event.sessionId as string),
+    );
+
+    const modelKey = `${event.agent}\u0000${event.model}`;
+    let model = models.get(modelKey);
+    if (!model) {
+      model = {
+        agent: event.agent,
+        model: event.model,
+        totals: {
+          uncachedInputTokens: 0,
+          cachedInputTokens: 0,
+          cacheCreationTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+        },
+        totalTokens: 0,
+        costUsd: 0,
+        records: 0,
+        unpricedRecords: 0,
+      };
+      models.set(modelKey, model);
+    }
+    addUsageTokenTotals(model.totals as Record<string, number>, eventTotals);
+    model.costUsd = (model.costUsd as number) + (event.costUsd as number);
+    model.records = (model.records as number) + 1;
+    if (event.unpriced) model.unpricedRecords = (model.unpricedRecords as number) + 1;
+
+    const start =
+      typeof event.bucketStart === 'string' && event.bucketStart.length > 0
+        ? event.bucketStart
+        : String(event.timestampMs);
+    let bucket = buckets.get(start);
+    if (!bucket) {
+      bucket = { start, costUsd: 0, totalTokens: 0, byAgent: {} };
+      buckets.set(start, bucket);
+    }
+    const eventTokens = tokenTotalOf(eventTotals);
+    bucket.costUsd = (bucket.costUsd as number) + (event.costUsd as number);
+    bucket.totalTokens = (bucket.totalTokens as number) + eventTokens;
+    const byAgent = bucket.byAgent as Record<string, { costUsd: number; totalTokens: number }>;
+    const bucketAgent = byAgent[agentId] ?? { costUsd: 0, totalTokens: 0 };
+    bucketAgent.costUsd += event.costUsd as number;
+    bucketAgent.totalTokens += eventTokens;
+    byAgent[agentId] = bucketAgent;
+  }
+
+  const agentList = Array.from(agents.values())
+    .map(({ sessionIds, totals: agentTotals, ...rest }) => ({
+      ...rest,
+      totals: agentTotals,
+      totalTokens: tokenTotalOf(agentTotals),
+      sessions: sessionIds.size,
+    }))
+    .sort((a, b) => b.costUsd - a.costUsd || b.totalTokens - a.totalTokens);
+
+  const modelList = Array.from(models.values())
+    .map((model) => ({
+      ...model,
+      totalTokens: tokenTotalOf(model.totals as Record<string, number>),
+    }))
+    .sort(
+      (a, b) =>
+        Number((b as Record<string, unknown>).costUsd) -
+          Number((a as Record<string, unknown>).costUsd) || b.totalTokens - a.totalTokens,
+    );
+
+  return {
+    generatedAt,
+    days,
+    resolution,
+    buckets: Array.from(buckets.values()).sort((a, b) =>
+      (a.start as string).localeCompare(b.start as string),
+    ),
+    totals,
+    totalTokens: tokenTotalOf(totals),
+    costUsd,
+    cacheSavingsUsd,
+    records: events.length,
+    unpricedRecords,
+    sessions: agentList.reduce((sum, agent) => sum + agent.sessions, 0),
+    agents: agentList,
+    models: modelList,
+    sources: [],
+    scanDurationMs: 0,
+  };
+}
+function stripUsageMergeMetadata(summary: Record<string, unknown>): Record<string, unknown> {
+  const clean = { ...summary };
+  delete clean.cloudFormatVersion;
+  delete clean.dedupeKeys;
+  delete clean.events;
+  return clean;
+}
+
+function usageEventContentIdentity(event: Record<string, unknown>): string {
+  return JSON.stringify([
+    event.agent,
+    event.sessionId,
+    event.timestampMs,
+    event.model,
+    event.totals,
+  ]);
+}
+
+/** Merge per-device usage windows so multi-machine accounts see combined totals. */
+export function mergeUsageSummaries(
+  summaries: Array<Record<string, unknown>>,
+  days: number,
+): Record<string, unknown> | null {
+  const valid = summaries.filter(
+    (summary) => isRecord(summary) && summary.days === days && isUsageTokenTotals(summary.totals),
+  );
+  if (valid.length === 0) return null;
+  const nonEmpty = valid.filter((summary) => summary.records !== 0);
+  const candidates = nonEmpty.length > 0 ? nonEmpty : valid;
+  if (candidates.length === 1) return stripUsageMergeMetadata(candidates[0]!);
+
+  const byEventKey = new Map<string, Record<string, unknown>>();
+  const claimedKeys = new Set<string>();
+  let generatedAt = '';
+  const withoutEvents: Array<Record<string, unknown>> = [];
+  let hasIndependentEvents = false;
+  const eventCandidates: Array<{
+    event: Record<string, unknown>;
+    isV2: boolean;
+    includeInMerge: boolean;
+  }> = [];
+
+  for (const summary of candidates) {
+    if (typeof summary.generatedAt === 'string' && summary.generatedAt > generatedAt) {
+      generatedAt = summary.generatedAt;
+    }
+
+    const events = Array.isArray(summary.events) ? summary.events : [];
+    const dedupeKeys = Array.isArray(summary.dedupeKeys)
+      ? summary.dedupeKeys.filter((key): key is string => typeof key === 'string')
+      : [];
+    const records =
+      typeof summary.records === 'number' && Number.isFinite(summary.records)
+        ? summary.records
+        : null;
+    const eventsComplete = events.length > 0 && records !== null && events.length === records;
+    const ownershipComplete = records !== null && dedupeKeys.length === records;
+    const isV2Partial = !eventsComplete && events.length > 0 && summary.cloudFormatVersion === 2;
+    if (!eventsComplete && events.length > 0 && ownershipComplete) {
+      // Format v2 dual-writes a legacy event prefix for older backends. Complete
+      // ownership keys let this backend use the full aggregate instead.
+      const aggregateOnly = { ...summary };
+      delete aggregateOnly.events;
+      delete aggregateOnly.cloudFormatVersion;
+      withoutEvents.push(aggregateOnly);
+      for (const event of events) {
+        if (isUsageCloudEvent(event)) {
+          eventCandidates.push({
+            event,
+            isV2: summary.cloudFormatVersion === 2,
+            includeInMerge: false,
+          });
+        }
+      }
+      continue;
+    }
+    if (isV2Partial) {
+      // Keep both forms until the merge context is known: the aggregate is the
+      // best fallback alone, while its event prefix can merge with exact peers.
+      const aggregateOnly = { ...summary };
+      delete aggregateOnly.events;
+      delete aggregateOnly.cloudFormatVersion;
+      withoutEvents.push(aggregateOnly);
+    }
+
+    // Retain the source format until every candidate is known. Updated clients
+    // dual-write legacy event keys plus stable ownership keys so this backend
+    // can reconcile them without breaking independently deployed older backends.
+    for (const event of events) {
+      if (!isUsageCloudEvent(event)) continue;
+      eventCandidates.push({
+        event,
+        isV2: summary.cloudFormatVersion === 2,
+        includeInMerge: true,
+      });
+    }
+    if (events.length > 0 && !isV2Partial) hasIndependentEvents = true;
+
+    if (eventsComplete || events.length > 0) {
+      // Complete summaries are represented exactly by their events. Partial
+      // summaries contribute their emitted events, but still reserve every
+      // known key so a key-only aggregate cannot recount their unseen tail.
+      for (const key of dedupeKeys) claimedKeys.add(key);
+      continue;
+    }
+    withoutEvents.push(summary);
+  }
+
+  const v2ContentByLegacyKey = new Map<string, Set<string>>();
+  for (const { event, isV2 } of eventCandidates) {
+    if (!isV2 || typeof event.ownershipKey !== 'string') continue;
+    const legacyKey = event.key as string;
+    const identities = v2ContentByLegacyKey.get(legacyKey) ?? new Set<string>();
+    identities.add(usageEventContentIdentity(event));
+    v2ContentByLegacyKey.set(legacyKey, identities);
+  }
+  for (const { event, isV2, includeInMerge } of eventCandidates) {
+    const legacyKey = event.key as string;
+    if (!isV2 && v2ContentByLegacyKey.get(legacyKey)?.has(usageEventContentIdentity(event))) {
+      continue;
+    }
+    if (!includeInMerge) continue;
+    const key = isV2 && typeof event.ownershipKey === 'string' ? event.ownershipKey : legacyKey;
+    if (!byEventKey.has(key)) byEventKey.set(key, event);
+    claimedKeys.add(key);
+  }
+
+  withoutEvents.sort((a, b) => {
+    const aAt = typeof a.generatedAt === 'string' ? a.generatedAt : '';
+    const bAt = typeof b.generatedAt === 'string' ? b.generatedAt : '';
+    const byGeneratedAt = bAt.localeCompare(aAt);
+    if (byGeneratedAt !== 0) return byGeneratedAt;
+    const aRecords = typeof a.records === 'number' ? a.records : 0;
+    const bRecords = typeof b.records === 'number' ? b.records : 0;
+    if (bRecords !== aRecords) return bRecords - aRecords;
+    const aTokens = typeof a.totalTokens === 'number' ? a.totalTokens : 0;
+    const bTokens = typeof b.totalTokens === 'number' ? b.totalTokens : 0;
+    if (bTokens !== aTokens) return bTokens - aTokens;
+    const aCost = typeof a.costUsd === 'number' ? a.costUsd : 0;
+    const bCost = typeof b.costUsd === 'number' ? b.costUsd : 0;
+    return bCost - aCost;
+  });
+
+  const extras: Array<Record<string, unknown>> = [];
+  let incompleteOwnershipFallback: Record<string, unknown> | undefined;
+  let emptyFallback: Record<string, unknown> | undefined;
+  for (const summary of withoutEvents) {
+    const keys = Array.isArray(summary.dedupeKeys)
+      ? summary.dedupeKeys.filter((key): key is string => typeof key === 'string')
+      : [];
+    const records =
+      typeof summary.records === 'number' && Number.isFinite(summary.records)
+        ? summary.records
+        : null;
+    if (records === 0) {
+      emptyFallback ??= summary;
+      continue;
+    }
+    if (records === null || keys.length !== records) {
+      incompleteOwnershipFallback ??= summary;
+      continue;
+    }
+    // Complete key sets prove that disjoint aggregates have no shared records.
+    // Any overlap still rejects the whole aggregate because individual record
+    // totals are unavailable once events have been omitted.
+    if (keys.some((key) => claimedKeys.has(key))) continue;
+    for (const key of keys) claimedKeys.add(key);
+    extras.push(summary);
+  }
+  if (!hasIndependentEvents && extras.length === 0 && incompleteOwnershipFallback) {
+    return stripUsageMergeMetadata(incompleteOwnershipFallback);
+  }
+  if (byEventKey.size === 0 && extras.length === 0) {
+    const fallback = incompleteOwnershipFallback ?? emptyFallback;
+    if (fallback) extras.push(fallback);
+  }
+
+  if (byEventKey.size > 0 && extras.length === 0) {
+    return aggregateUsageEvents(Array.from(byEventKey.values()), days, generatedAt);
+  }
+
+  const parts: Array<Record<string, unknown>> = [];
+  if (byEventKey.size > 0) {
+    parts.push(aggregateUsageEvents(Array.from(byEventKey.values()), days, generatedAt));
+  }
+  parts.push(...extras);
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return stripUsageMergeMetadata(parts[0]!);
+  return sumUsageAggregates(parts, days, generatedAt);
+}
+
+function sumUsageAggregates(
+  summaries: Array<Record<string, unknown>>,
+  days: number,
+  generatedAt: string,
+): Record<string, unknown> {
+  const resolution = summaries[0]!.resolution === 'hour' ? 'hour' : 'day';
+  const totals = {
+    uncachedInputTokens: 0,
+    cachedInputTokens: 0,
+    cacheCreationTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+  };
+  let costUsd = 0;
+  let cacheSavingsUsd = 0;
+  let records = 0;
+  let unpricedRecords = 0;
+  let sessions = 0;
+  let latestGeneratedAt = generatedAt;
+  const agents = new Map<string, Record<string, unknown>>();
+  const models = new Map<string, Record<string, unknown>>();
+  const buckets = new Map<string, Record<string, unknown>>();
+
+  for (const summary of summaries) {
+    if (typeof summary.generatedAt === 'string' && summary.generatedAt > latestGeneratedAt) {
+      latestGeneratedAt = summary.generatedAt;
+    }
+    addUsageTokenTotals(totals, summary.totals as Record<string, unknown>);
+    costUsd += summary.costUsd as number;
+    cacheSavingsUsd += summary.cacheSavingsUsd as number;
+    records += summary.records as number;
+    unpricedRecords += summary.unpricedRecords as number;
+    sessions += summary.sessions as number;
+
+    if (Array.isArray(summary.agents)) {
+      for (const rawAgent of summary.agents) {
+        if (!isUsageAgentEntry(rawAgent)) continue;
+        const existing = agents.get(rawAgent.agent as string);
+        if (!existing) {
+          agents.set(rawAgent.agent as string, {
+            ...rawAgent,
+            totals: { ...(rawAgent.totals as Record<string, number>) },
+          });
+          continue;
+        }
+        addUsageTokenTotals(
+          existing.totals as Record<string, number>,
+          rawAgent.totals as Record<string, unknown>,
+        );
+        existing.totalTokens = (existing.totalTokens as number) + (rawAgent.totalTokens as number);
+        existing.costUsd = (existing.costUsd as number) + (rawAgent.costUsd as number);
+        existing.records = (existing.records as number) + (rawAgent.records as number);
+        existing.unpricedRecords =
+          (existing.unpricedRecords as number) + (rawAgent.unpricedRecords as number);
+        existing.sessions = (existing.sessions as number) + (rawAgent.sessions as number);
+      }
+    }
+
+    if (Array.isArray(summary.models)) {
+      for (const rawModel of summary.models) {
+        if (!isUsageModelEntry(rawModel)) continue;
+        const key = `${rawModel.agent}\u0000${rawModel.model}`;
+        const existing = models.get(key);
+        if (!existing) {
+          models.set(key, {
+            ...rawModel,
+            totals: { ...(rawModel.totals as Record<string, number>) },
+          });
+          continue;
+        }
+        addUsageTokenTotals(
+          existing.totals as Record<string, number>,
+          rawModel.totals as Record<string, unknown>,
+        );
+        existing.totalTokens = (existing.totalTokens as number) + (rawModel.totalTokens as number);
+        existing.costUsd = (existing.costUsd as number) + (rawModel.costUsd as number);
+        existing.records = (existing.records as number) + (rawModel.records as number);
+        existing.unpricedRecords =
+          (existing.unpricedRecords as number) + (rawModel.unpricedRecords as number);
+      }
+    }
+
+    if (Array.isArray(summary.buckets)) {
+      for (const rawBucket of summary.buckets) {
+        if (!isUsageBucket(rawBucket)) continue;
+        const start = rawBucket.start as string;
+        const existing = buckets.get(start);
+        if (!existing) {
+          const byAgent: Record<string, { costUsd: number; totalTokens: number }> = {};
+          for (const [agent, entry] of Object.entries(
+            rawBucket.byAgent as Record<string, { costUsd: number; totalTokens: number }>,
+          )) {
+            byAgent[agent] = { ...entry };
+          }
+          buckets.set(start, {
+            start,
+            costUsd: rawBucket.costUsd,
+            totalTokens: rawBucket.totalTokens,
+            byAgent,
+          });
+          continue;
+        }
+        existing.costUsd = (existing.costUsd as number) + (rawBucket.costUsd as number);
+        existing.totalTokens = (existing.totalTokens as number) + (rawBucket.totalTokens as number);
+        const byAgent = existing.byAgent as Record<
+          string,
+          { costUsd: number; totalTokens: number }
+        >;
+        for (const [agent, entry] of Object.entries(
+          rawBucket.byAgent as Record<string, { costUsd: number; totalTokens: number }>,
+        )) {
+          const current = byAgent[agent] ?? { costUsd: 0, totalTokens: 0 };
+          current.costUsd += entry.costUsd;
+          current.totalTokens += entry.totalTokens;
+          byAgent[agent] = current;
+        }
+      }
+    }
+  }
+
+  return {
+    generatedAt: latestGeneratedAt || new Date(0).toISOString(),
+    days,
+    resolution,
+    buckets: Array.from(buckets.values()).sort((a, b) =>
+      (a.start as string).localeCompare(b.start as string),
+    ),
+    totals,
+    totalTokens: tokenTotalOf(totals),
+    costUsd,
+    cacheSavingsUsd,
+    records,
+    unpricedRecords,
+    sessions,
+    agents: Array.from(agents.values()).sort(
+      (a, b) =>
+        (b.costUsd as number) - (a.costUsd as number) ||
+        (b.totalTokens as number) - (a.totalTokens as number),
+    ),
+    models: Array.from(models.values()).sort(
+      (a, b) =>
+        (b.costUsd as number) - (a.costUsd as number) ||
+        (b.totalTokens as number) - (a.totalTokens as number),
+    ),
+    sources: [],
+    scanDurationMs: 0,
+  };
 }
 
 function validIdentityStrength(value: unknown): 'strong' | 'path' | 'content' | undefined {
@@ -241,6 +1012,7 @@ async function authenticateRequest(
 }
 
 interface HeartbeatDevice {
+  recordId: Id<'daemonHeartbeats'>;
   lastSeenAt: number;
   deviceId: string | null;
   hostname: string | null;
@@ -252,6 +1024,7 @@ interface HeartbeatDevice {
 
 function collectDevices(
   heartbeats: Array<{
+    _id: Id<'daemonHeartbeats'>;
     lastSeenAt: number;
     deviceId?: string;
     hostname?: string;
@@ -265,6 +1038,7 @@ function collectDevices(
   return heartbeats
     .filter((hb) => hb.lastSeenAt >= cutoff)
     .map((hb) => ({
+      recordId: hb._id,
       lastSeenAt: hb.lastSeenAt,
       deviceId: hb.deviceId ?? null,
       hostname: hb.hostname ?? null,
@@ -349,7 +1123,11 @@ export const patchPlanSyncIdentity = internalMutation({
     workspace: v.optional(v.string()),
     updatedAt: v.optional(v.number()),
   },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
+    if (!(await hasActiveSubscriptionForUserId(ctx, args.ownerId))) {
+      throw new ConvexError('Cloud Pro subscription required');
+    }
     const plan = await ctx.db.get(args.planId);
     if (!plan || plan.ownerId !== args.ownerId) return false;
 
@@ -391,7 +1169,11 @@ export const upsertPlan = internalMutation({
     existingId: v.optional(v.id('plans')),
     existingVersion: v.optional(v.number()),
   },
+  returns: v.id('plans'),
   handler: async (ctx, args) => {
+    if (!(await hasActiveSubscriptionForUserId(ctx, args.ownerId))) {
+      throw new ConvexError('Cloud Pro subscription required');
+    }
     const now = Date.now();
     const continuityKey = plannotatorContinuityKey(args.metadata, args.filePath);
     const updatedAt = args.updatedAt ?? now;
@@ -405,6 +1187,8 @@ export const upsertPlan = internalMutation({
       if (!contentChanged) {
         await ctx.db.patch(args.existingId, {
           agent: args.agent,
+          titleNormalized: normalizePlanLookupText(args.title),
+          agentNormalized: canonicalPlanAgent(args.agent),
           title: args.title,
           content: args.content,
           format: args.format,
@@ -457,6 +1241,8 @@ export const upsertPlan = internalMutation({
       };
       await ctx.db.patch(args.existingId, {
         agent: args.agent,
+        titleNormalized: normalizePlanLookupText(args.title),
+        agentNormalized: canonicalPlanAgent(args.agent),
         ...snapshot,
         ...(continuityKey ? { plannotatorContinuityKey: continuityKey } : {}),
         syncIdentityKey: args.syncIdentityKey,
@@ -491,6 +1277,8 @@ export const upsertPlan = internalMutation({
       localPlanId: args.localPlanId,
       agent: args.agent,
       title: args.title,
+      titleNormalized: normalizePlanLookupText(args.title),
+      agentNormalized: canonicalPlanAgent(args.agent),
       content: args.content,
       format: args.format,
       filePath: args.filePath,
@@ -614,6 +1402,8 @@ export const upsertEncryptedPlan = internalMutation({
         localPlanId: undefined,
         agent: args.agent,
         title: '',
+        titleNormalized: '',
+        agentNormalized: canonicalPlanAgent(args.agent),
         content: '',
         format: args.format,
         filePath: undefined,
@@ -652,6 +1442,8 @@ export const upsertEncryptedPlan = internalMutation({
       ownerId: args.ownerId,
       agent: args.agent,
       title: '',
+      titleNormalized: '',
+      agentNormalized: canonicalPlanAgent(args.agent),
       content: '',
       format: args.format,
       stableCryptoId: args.stableCryptoId,
@@ -686,7 +1478,11 @@ export const deleteSyncedPlan = internalMutation({
     ownerId: v.string(),
     planId: v.id('plans'),
   },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
+    if (!(await hasActiveSubscriptionForUserId(ctx, args.ownerId))) {
+      throw new ConvexError('Cloud Pro subscription required');
+    }
     const plan = await ctx.db.get(args.planId);
     if (!plan || plan.ownerId !== args.ownerId) return false;
 
@@ -698,20 +1494,9 @@ export const deleteSyncedPlan = internalMutation({
 
 export const hasUserSubscription = internalQuery({
   args: { userId: v.string() },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
-    const bypassIds = (process.env.PRO_BYPASS_USER_IDS ?? '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean);
-    if (bypassIds.includes(args.userId)) return true;
-
-    const sub = await ctx.db
-      .query('subscriptions')
-      .withIndex('by_user', (q) => q.eq('userId', args.userId))
-      .first();
-    if (!sub) return false;
-    const validStatus = sub.status === 'active' || sub.status === 'trialing';
-    return validStatus && sub.currentPeriodEnd > Date.now();
+    return hasActiveSubscriptionForUserId(ctx, args.userId);
   },
 });
 
@@ -1023,7 +1808,7 @@ export const sync = httpAction(async (ctx, request) => {
       const exactDuplicate =
         (existing.contentHash === identity.contentHash &&
           existing.agent === body.agent &&
-          normalizedTitle(existing.title) === normalizedTitle(body.title)) ||
+          normalizePlanLookupText(existing.title) === normalizePlanLookupText(body.title)) ||
         (existing.title === body.title &&
           existing.content === body.content &&
           existing.format === body.format);
@@ -1118,11 +1903,15 @@ export const upsertHeartbeat = internalMutation({
     keyEpoch: v.optional(v.number()),
     encryptedHostname: v.optional(cryptoEnvelopeV1),
     encryptedIpAddress: v.optional(cryptoEnvelopeV1),
+    usageSnapshots: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
     const cryptoPolicy = await resolveWorkspaceCryptoPolicy(ctx, args.ownerId);
     if (cryptoPolicy.requiresEncryption) {
+      if (args.usageSnapshots !== undefined) {
+        throw new ConvexError('Cloud usage sync is unavailable with Obfuscation');
+      }
       if (args.hostname !== undefined || args.ipAddress !== undefined) {
         throw new ConvexError('Plaintext heartbeat metadata is not allowed');
       }
@@ -1141,6 +1930,9 @@ export const upsertHeartbeat = internalMutation({
             envelopes: [value],
             plaintext: {},
           });
+      }
+      if (args.encryptedIpAddress && !args.encryptedHostname) {
+        throw new ConvexError('Encrypted hostname is required with heartbeat metadata');
       }
     }
 
@@ -1197,12 +1989,22 @@ export const upsertHeartbeat = internalMutation({
     if (args.pid !== undefined) patch.pid = args.pid;
     if (args.cryptoUnlocked !== undefined) patch.cryptoUnlocked = args.cryptoUnlocked;
     if (cryptoPolicy.requiresEncryption) {
-      patch.hostname = undefined;
-      patch.ipAddress = undefined;
-      patch.stableCryptoId = args.stableCryptoId;
-      patch.keyEpoch = args.keyEpoch;
-      if (args.encryptedHostname) patch.encryptedHostname = args.encryptedHostname;
-      if (args.encryptedIpAddress) patch.encryptedIpAddress = args.encryptedIpAddress;
+      // Locked clients only update liveness. Retained ciphertext keeps the epoch
+      // and AAD identity it was actually encrypted with until the seal rotates it.
+      if (args.encryptedHostname) {
+        patch.hostname = undefined;
+        patch.ipAddress = undefined;
+        patch.stableCryptoId = args.stableCryptoId;
+        patch.keyEpoch = args.keyEpoch;
+        patch.encryptedHostname = args.encryptedHostname;
+        patch.encryptedIpAddress = args.encryptedIpAddress;
+      }
+      patch.usageSnapshots = undefined;
+      patch.usageUpdatedAt = undefined;
+    }
+    if (args.usageSnapshots !== undefined) {
+      patch.usageSnapshots = args.usageSnapshots;
+      patch.usageUpdatedAt = now;
     }
 
     if (existing) {
@@ -1224,6 +2026,10 @@ export const upsertHeartbeat = internalMutation({
           encryptedHostname: args.encryptedHostname,
           encryptedIpAddress: args.encryptedIpAddress,
         }),
+        ...(args.usageSnapshots !== undefined && {
+          usageSnapshots: args.usageSnapshots,
+          usageUpdatedAt: now,
+        }),
       });
     }
   },
@@ -1233,9 +2039,18 @@ export const deleteDaemons = internalMutation({
   args: {
     ownerId: v.string(),
     deviceIds: v.array(v.string()),
+    recordIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     let deleted = 0;
+    for (const recordId of args.recordIds ?? []) {
+      const id = ctx.db.normalizeId('daemonHeartbeats', recordId);
+      const row = id ? await ctx.db.get(id) : null;
+      if (row?.ownerId === args.ownerId) {
+        await ctx.db.delete(row._id);
+        deleted++;
+      }
+    }
     for (const deviceId of args.deviceIds) {
       const row = await ctx.db
         .query('daemonHeartbeats')
@@ -1266,23 +2081,29 @@ export const deleteDaemonsHttp = httpAction(async (ctx, request) => {
     return jsonResponse({ error: 'Invalid JSON body' }, 400);
   }
 
+  const deviceIds = body.deviceIds ?? [];
+  const recordIds = body.recordIds ?? [];
   if (
-    !Array.isArray(body.deviceIds) ||
-    body.deviceIds.length === 0 ||
-    !body.deviceIds.every((id: unknown) => typeof id === 'string')
+    !Array.isArray(deviceIds) ||
+    !Array.isArray(recordIds) ||
+    deviceIds.length + recordIds.length === 0 ||
+    ![...deviceIds, ...recordIds].every((id: unknown) => typeof id === 'string')
   ) {
-    return jsonResponse({ error: 'deviceIds must be a non-empty array of strings' }, 400);
+    return jsonResponse({ error: 'deviceIds or recordIds must contain strings' }, 400);
   }
 
   const result = await ctx.runMutation(internal.cli.deleteDaemons, {
     ownerId,
-    deviceIds: body.deviceIds as string[],
+    deviceIds: deviceIds as string[],
+    recordIds: recordIds as string[],
   });
 
   return jsonResponse({ ok: true, deleted: result.deleted });
 });
 
 export const getDaemonStatus = query({
+  args: {},
+  returns: v.object({ devices: v.array(heartbeatDeviceValidator) }),
   handler: async (ctx) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return { devices: [] as HeartbeatDevice[] };
@@ -1295,8 +2116,37 @@ export const getDaemonStatus = query({
   },
 });
 
+export const getUsage = query({
+  args: {
+    days: v.union(v.literal(1), v.literal(7), v.literal(30), v.literal(90)),
+  },
+  returns: v.union(usageSummaryValidator, v.null()),
+  handler: async (ctx, args) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return null;
+    if ((await resolveWorkspaceCryptoPolicy(ctx, String(user._id))).requiresEncryption) return null;
+
+    const heartbeats = await ctx.db
+      .query('daemonHeartbeats')
+      .withIndex('by_owner', (q) => q.eq('ownerId', String(user._id)))
+      .collect();
+
+    const windowSummaries: Array<Record<string, unknown>> = [];
+    for (const heartbeat of heartbeats) {
+      if (!isRecord(heartbeat.usageSnapshots)) continue;
+      const summary = heartbeat.usageSnapshots[String(args.days)];
+      if (isRecord(summary) && summary.days === args.days) {
+        windowSummaries.push(summary);
+      }
+    }
+
+    return mergeUsageSummaries(windowSummaries, args.days) as UsageSummary | null;
+  },
+});
+
 export const removeDaemon = mutation({
   args: { deviceId: v.string() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) throw new Error('Unauthorized');
@@ -1308,6 +2158,7 @@ export const removeDaemon = mutation({
     if (row) {
       await ctx.db.delete(row._id);
     }
+    return null;
   },
 });
 
@@ -1354,6 +2205,12 @@ export const heartbeat = httpAction(async (ctx, request) => {
   ) {
     return jsonResponse({ error: 'Upgrade required for encrypted heartbeat metadata' }, 426);
   }
+  const usageSnapshots =
+    body.usageSnapshots === undefined ? undefined : normalizeUsageSnapshots(body.usageSnapshots);
+
+  if (body.usageSnapshots !== undefined && !usageSnapshots) {
+    return jsonResponse({ error: 'Invalid usageSnapshots payload' }, 400);
+  }
 
   if (!deviceId) {
     console.warn('[heartbeat] received heartbeat without deviceId — upgrade CLI to latest version');
@@ -1378,6 +2235,7 @@ export const heartbeat = httpAction(async (ctx, request) => {
       body.encryptedIpAddress !== undefined
         ? deserializeCryptoEnvelope(body.encryptedIpAddress)
         : undefined,
+    usageSnapshots,
   });
 
   return jsonResponse({ ok: true });
@@ -1549,11 +2407,44 @@ export const convexToken = httpAction(async (ctx, request) => {
   }
 });
 
+// A download request never scans an owner's corpus. It performs at most one
+// direct id read, one local-id index read capped at 2 rows, and one exact-title
+// index page capped at 8 rows. Only when the exact-title page is empty does it
+// ask the search index for up to 8 suggestions.
+const PLAN_DOWNLOAD_TITLE_PAGE_SIZE = 8;
+const PLAN_DOWNLOAD_LOCAL_ID_READ_LIMIT = 2;
 const PLAN_DOWNLOAD_SEARCH_MAX_RESULTS = 8;
+const PLAN_DOWNLOAD_LOOKUP_KEY_BACKFILL_BATCH_SIZE = 8;
 const PLAN_BROWSE_PAGE_SIZE = 50;
 const PLAN_BROWSE_SEARCH_MAX_RESULTS = 50;
 
-function serializeDownloadPlan(plan: Doc<'plans'>) {
+interface SerializedDownloadPlan {
+  id: string;
+  ownerId: string;
+  stableCryptoId?: string;
+  keyEpoch?: number;
+  encryptedSummary?: ReturnType<typeof serializeCryptoEnvelope>;
+  encryptedBody?: ReturnType<typeof serializeCryptoEnvelope>;
+  localPlanId?: string;
+  agent: string;
+  title: string;
+  content: string;
+  format: string;
+  filePath: string;
+  workspace?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SerializedDownloadMatch {
+  id: string;
+  localPlanId?: string;
+  agent: string;
+  title: string;
+  updatedAt: string;
+}
+
+function serializeDownloadPlan(plan: Doc<'plans'>): SerializedDownloadPlan {
   return {
     id: plan._id,
     ownerId: plan.ownerId,
@@ -1586,7 +2477,6 @@ function serializeDownloadMatch(plan: Doc<'plans'>) {
     }),
   };
 }
-
 function toLookupCandidate(plan: Doc<'plans'>): PlanDownloadLookupCandidate {
   return {
     id: plan._id,
@@ -1605,15 +2495,103 @@ function uniqueLookupCandidates(plans: Doc<'plans'>[]): PlanDownloadLookupCandid
   return dedupePlanDownloadCandidates(plans.map(toLookupCandidate));
 }
 
+function serializeDownloadMatchFromCandidate(
+  plan: PlanDownloadLookupCandidate,
+): SerializedDownloadMatch {
+  return {
+    id: plan.id,
+    ...(typeof plan.localPlanId === 'string' && { localPlanId: plan.localPlanId }),
+    agent: plan.agent,
+    title: plan.title,
+    updatedAt: new Date(plan.updatedAt).toISOString(),
+  };
+}
+
+const serializedDownloadPlanValidator = v.object({
+  id: v.string(),
+  localPlanId: v.optional(v.string()),
+  agent: v.string(),
+  title: v.string(),
+  content: v.string(),
+  format: v.string(),
+  filePath: v.string(),
+  workspace: v.optional(v.string()),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+});
+
+const serializedDownloadMatchValidator = v.object({
+  id: v.string(),
+  localPlanId: v.optional(v.string()),
+  agent: v.string(),
+  title: v.string(),
+  updatedAt: v.string(),
+});
+
+const downloadLookupPaginationValidator = v.object({
+  nextCursor: v.union(v.string(), v.null()),
+  hasMore: v.boolean(),
+  pageSize: v.number(),
+});
+
+const downloadLookupResultValidator = v.union(
+  v.object({ status: v.literal('invalid') }),
+  v.object({ status: v.literal('found'), plan: serializedDownloadPlanValidator }),
+  v.object({
+    status: v.literal('ambiguous'),
+    matches: v.array(serializedDownloadMatchValidator),
+    pagination: downloadLookupPaginationValidator,
+  }),
+  v.object({
+    status: v.literal('not_found'),
+    suggestions: v.array(serializedDownloadMatchValidator),
+  }),
+);
+
+interface PlanLookupBackfillResult {
+  updated: number;
+  isDone: boolean;
+}
+/**
+ * Transitional schema backfill. Missing lookup keys are indexed under
+ * `undefined`, so each batch reads and writes at most 8 rows and then
+ * immediately schedules the next bounded batch.
+ */
+export const backfillPlanDownloadLookupKeys = internalMutation({
+  args: {},
+  returns: v.object({
+    updated: v.number(),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx): Promise<PlanLookupBackfillResult> => {
+    const plans = await ctx.db
+      .query('plans')
+      .withIndex('by_titleNormalized', (q) => q.eq('titleNormalized', undefined))
+      .take(PLAN_DOWNLOAD_LOOKUP_KEY_BACKFILL_BATCH_SIZE);
+
+    for (const plan of plans) {
+      await ctx.db.patch(plan._id, {
+        titleNormalized: normalizePlanLookupText(plan.title),
+        agentNormalized: canonicalPlanAgent(plan.agent),
+      });
+    }
+
+    const isDone = plans.length < PLAN_DOWNLOAD_LOOKUP_KEY_BACKFILL_BATCH_SIZE;
+    if (!isDone) {
+      await ctx.scheduler.runAfter(0, internal.cli.backfillPlanDownloadLookupKeys, {});
+    }
+    return { updated: plans.length, isDone };
+  },
+});
+
 export const lookupPlanForDownload = internalQuery({
   args: {
     userId: v.string(),
     query: v.string(),
     agent: v.optional(v.string()),
-    mode: v.optional(v.union(v.literal('lookup'), v.literal('fallback'))),
-    fallbackCursor: v.optional(v.union(v.string(), v.null())),
-    fallbackAgentIndex: v.optional(v.number()),
+    titleCursor: v.optional(v.union(v.string(), v.null())),
   },
+  returns: downloadLookupResultValidator,
   handler: async (ctx, args) => {
     const parsed = args.agent?.trim()
       ? { query: args.query.trim(), agent: args.agent.trim() }
@@ -1640,152 +2618,111 @@ export const lookupPlanForDownload = internalQuery({
     const byLocalId = await ctx.db
       .query('plans')
       .withIndex('by_owner_localPlanId', (q) => q.eq('ownerId', ownerId).eq('localPlanId', query))
-      .take(16);
+      .order('desc')
+      .take(PLAN_DOWNLOAD_LOCAL_ID_READ_LIMIT);
     const localMatches = uniqueLookupCandidates(
       byLocalId.filter(
         (plan) => isVisiblePlan(plan) && (!agent || planAgentsMatch(plan.agent, agent)),
       ),
     );
-    if (localMatches.length > 0) {
-      const winner = [...localMatches].sort((left, right) => right.updatedAt - left.updatedAt)[0];
-      const plan = byLocalId.find((row) => row._id === winner?.id);
+    const localWinner = localMatches[0];
+    if (localWinner) {
+      const plan = byLocalId.find((row) => row._id === localWinner.id);
       if (plan) return { status: 'found' as const, plan: serializeDownloadPlan(plan) };
     }
 
-    const seen = new Set<string>();
-    const candidates: Doc<'plans'>[] = [];
-    const agentValues = agent && looksLikePlanAgent(agent) ? planAgentLookupValues(agent) : [];
-    const addHits = (hits: Doc<'plans'>[]) => {
-      for (const plan of filterVisiblePlans(hits)) {
-        if (plan.ownerId !== ownerId || seen.has(plan._id)) continue;
-        if (agent && !planAgentsMatch(plan.agent, agent)) continue;
-        seen.add(plan._id);
-        candidates.push(plan);
-      }
-    };
-
-    const searchDownloadPlans = async (
-      index: 'search_title' | 'search_content',
-      field: 'title' | 'content',
-      term: string,
-    ) => {
-      try {
-        addHits(
-          await ctx.db
-            .query('plans')
-            .withSearchIndex(index, (q) => q.search(field, term).eq('ownerId', ownerId))
-            .take(PLAN_DOWNLOAD_SEARCH_MAX_RESULTS),
-        );
-      } catch {
-        // Search indexes reject some short / punctuation-only terms.
-      }
-    };
-
-    const readFallbackPage = async (cursor: string | null, agentIndex: number) => {
-      if (agentValues.length > 0) {
-        if (agentIndex >= agentValues.length) {
-          return {
-            plans: [] as PlanDownloadLookupCandidate[],
-            isDone: true,
-            cursor: null,
-            agentIndex,
-          };
-        }
-        const agentValue = agentValues[agentIndex];
-        if (!agentValue) {
-          return {
-            plans: [] as PlanDownloadLookupCandidate[],
-            isDone: true,
-            cursor: null,
-            agentIndex,
-          };
-        }
-        const result = await ctx.db
+    const titleNormalized = normalizePlanLookupText(query);
+    const agentNormalized = agent ? canonicalPlanAgent(agent) : undefined;
+    const indexedTitleQuery = agentNormalized
+      ? ctx.db
           .query('plans')
-          .withIndex('by_owner_and_agent', (q) => q.eq('ownerId', ownerId).eq('agent', agentValue))
-          .order('desc')
-          .paginate({
-            cursor,
-            numItems: PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
-          });
-        const beforeCount = candidates.length;
-        addHits(result.page);
-        const nextAgentIndex = result.isDone ? agentIndex + 1 : agentIndex;
-        return {
-          plans: uniqueLookupCandidates(candidates.slice(beforeCount)),
-          isDone: result.isDone && nextAgentIndex >= agentValues.length,
-          cursor: result.isDone ? null : result.continueCursor,
-          agentIndex: nextAgentIndex,
-        };
-      }
-
-      const result = await ctx.db
-        .query('plans')
-        .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
-        .order('desc')
-        .paginate({
-          cursor,
-          numItems: PLAN_DOWNLOAD_FALLBACK_PAGE_SIZE,
-        });
-      const beforeCount = candidates.length;
-      addHits(result.page);
+          .withIndex('by_owner_and_titleNormalized_and_agentNormalized', (q) =>
+            q
+              .eq('ownerId', ownerId)
+              .eq('titleNormalized', titleNormalized)
+              .eq('agentNormalized', agentNormalized),
+          )
+      : ctx.db
+          .query('plans')
+          .withIndex('by_owner_and_titleNormalized_and_agentNormalized', (q) =>
+            q.eq('ownerId', ownerId).eq('titleNormalized', titleNormalized),
+          );
+    const titlePage = await indexedTitleQuery.order('desc').paginate({
+      cursor: args.titleCursor ?? null,
+      numItems: PLAN_DOWNLOAD_TITLE_PAGE_SIZE,
+    });
+    const visibleTitleCandidates = filterVisiblePlans(titlePage.page).map(toLookupCandidate);
+    if (args.titleCursor) {
       return {
-        plans: uniqueLookupCandidates(candidates.slice(beforeCount)),
-        isDone: result.isDone,
-        cursor: result.isDone ? null : result.continueCursor,
-        agentIndex,
-      };
-    };
-
-    if (args.mode === 'fallback') {
-      const page = await readFallbackPage(
-        args.fallbackCursor ?? null,
-        args.fallbackAgentIndex ?? 0,
-      );
-      return {
-        status: 'page' as const,
-        candidates: page.plans,
-        isDone: page.isDone,
-        fallbackCursor: page.cursor,
-        fallbackAgentIndex: page.agentIndex,
+        status: 'ambiguous' as const,
+        matches: dedupePlanDownloadCandidates(visibleTitleCandidates).map(
+          serializeDownloadMatchFromCandidate,
+        ),
+        pagination: {
+          nextCursor: titlePage.isDone ? null : titlePage.continueCursor,
+          hasMore: !titlePage.isDone,
+          pageSize: PLAN_DOWNLOAD_TITLE_PAGE_SIZE,
+        },
       };
     }
+    const titleSelection = selectPlanDownloadTitlePage(visibleTitleCandidates, titlePage.isDone);
 
-    await searchDownloadPlans('search_title', 'title', query);
-
-    const unique = uniqueLookupCandidates(candidates);
-    const selected = selectPlanDownloadMatches(unique, query, agent);
-    if (selected.kind === 'one' && isExactPlanDownloadIdHit(selected.plan, query)) {
-      const selectedId = selected.plan.id;
-      const plan = candidates.find((candidate) => candidate._id === selectedId);
+    if (titleSelection.kind === 'one') {
+      const plan = titlePage.page.find((row) => row._id === titleSelection.plan.id);
       if (plan) return { status: 'found' as const, plan: serializeDownloadPlan(plan) };
     }
+    if (titleSelection.kind === 'many') {
+      return {
+        status: 'ambiguous' as const,
+        matches: titleSelection.plans.map(serializeDownloadMatchFromCandidate),
+        pagination: {
+          nextCursor: titleSelection.hasMore ? titlePage.continueCursor : null,
+          hasMore: titleSelection.hasMore,
+          pageSize: PLAN_DOWNLOAD_TITLE_PAGE_SIZE,
+        },
+      };
+    }
 
-    return { status: 'continue' as const, candidates: unique };
+    let searchMatches: Doc<'plans'>[] = [];
+    try {
+      searchMatches = await ctx.db
+        .query('plans')
+        .withSearchIndex('search_title', (q) => q.search('title', query).eq('ownerId', ownerId))
+        .take(PLAN_DOWNLOAD_SEARCH_MAX_RESULTS);
+    } catch {
+      // Search indexes reject some short / punctuation-only terms.
+    }
+    const suggestions = suggestClosestPlans(
+      uniqueLookupCandidates(
+        filterVisiblePlans(searchMatches).filter(
+          (plan) => !agent || planAgentsMatch(plan.agent, agent),
+        ),
+      ),
+      query,
+      agent,
+    );
+    return {
+      status: 'not_found' as const,
+      suggestions: suggestions.map(serializeDownloadMatchFromCandidate),
+    };
   },
 });
 
-function serializeDownloadMatchFromCandidate(plan: PlanDownloadLookupCandidate) {
-  return {
-    id: plan.id,
-    ...(typeof plan.localPlanId === 'string' && { localPlanId: plan.localPlanId }),
-    agent: plan.agent,
-    title: plan.title,
-    updatedAt: new Date(plan.updatedAt).toISOString(),
-  };
-}
-
 type DownloadLookupResult =
   | { status: 'invalid' }
-  | { status: 'found'; plan: ReturnType<typeof serializeDownloadPlan> }
-  | { status: 'ambiguous'; matches: ReturnType<typeof serializeDownloadMatchFromCandidate>[] }
-  | { status: 'continue'; candidates: PlanDownloadLookupCandidate[] }
+  | { status: 'found'; plan: SerializedDownloadPlan }
   | {
-      status: 'page';
-      candidates: PlanDownloadLookupCandidate[];
-      isDone: boolean;
-      fallbackCursor: string | null;
-      fallbackAgentIndex: number;
+      status: 'ambiguous';
+      matches: SerializedDownloadMatch[];
+      pagination: {
+        nextCursor: string | null;
+        hasMore: boolean;
+        pageSize: number;
+      };
+    }
+  | {
+      status: 'not_found';
+      suggestions: SerializedDownloadMatch[];
     };
 
 export const downloadPlan = httpAction(async (ctx, request) => {
@@ -1806,107 +2743,35 @@ export const downloadPlan = httpAction(async (ctx, request) => {
 
   const query = url.searchParams.get('q')?.trim() ?? '';
   const agent = url.searchParams.get('agent')?.trim() || undefined;
+  const titleCursor = url.searchParams.get('cursor')?.trim() || undefined;
   if (!query) {
     return jsonResponse({ error: 'query is required' }, 400);
   }
 
-  const first: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
+  const result: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
     userId,
     query,
     agent,
-    mode: 'lookup',
+    titleCursor,
   });
 
-  if (first.status === 'invalid') {
+  if (result.status === 'invalid') {
     return jsonResponse({ error: 'query is required' }, 400);
   }
-  if (first.status === 'found') {
-    return jsonResponse({ status: 'found', plan: first.plan });
+  if (result.status === 'found') {
+    return jsonResponse({ status: 'found', plan: result.plan });
   }
-  if (first.status !== 'continue') {
-    return jsonResponse({ status: 'not_found', suggestions: [] }, 404);
-  }
-
-  let pool = first.candidates;
-  let fallbackCursor: string | null = null;
-  let fallbackAgentIndex = 0;
-  let pages = 0;
-  let truncated = true;
-  const maxPages = 250;
-
-  while (pages < maxPages) {
-    const page: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
-      userId,
-      query,
-      agent,
-      mode: 'fallback',
-      fallbackCursor,
-      fallbackAgentIndex,
-    });
-    if (page.status !== 'page') {
-      if (page.status === 'found') return jsonResponse({ status: 'found', plan: page.plan });
-      break;
-    }
-
-    pool = dedupePlanDownloadCandidates([...pool, ...page.candidates]);
-
-    pages += 1;
-    if (page.isDone) {
-      truncated = false;
-      break;
-    }
-    fallbackCursor = page.fallbackCursor ?? null;
-    fallbackAgentIndex = page.fallbackAgentIndex ?? 0;
-  }
-
-  if (truncated) {
+  if (result.status === 'ambiguous') {
     return jsonResponse(
       {
-        error: 'Title lookup did not finish scanning all plans. Retry with a plan id.',
+        status: 'ambiguous',
+        matches: result.matches,
+        pagination: result.pagination,
       },
       409,
     );
   }
-
-  const selected = selectPlanDownloadMatches(pool, query, agent);
-  if (selected.kind === 'one') {
-    const full: DownloadLookupResult = await ctx.runQuery(internal.cli.lookupPlanForDownload, {
-      userId,
-      query: selected.plan.id,
-      agent,
-      mode: 'lookup',
-    });
-    if (full.status === 'found') {
-      const stillMatches = selectPlanDownloadMatches(
-        [
-          {
-            id: full.plan.id,
-            localPlanId: full.plan.localPlanId,
-            agent: full.plan.agent,
-            title: full.plan.title,
-            updatedAt: Date.parse(full.plan.updatedAt) || 0,
-          },
-        ],
-        query,
-        agent,
-      );
-      if (stillMatches.kind === 'one') {
-        return jsonResponse({ status: 'found', plan: full.plan });
-      }
-    }
-  }
-  if (selected.kind === 'many') {
-    return jsonResponse(
-      { status: 'ambiguous', matches: selected.plans.map(serializeDownloadMatchFromCandidate) },
-      409,
-    );
-  }
-
-  const suggestions = suggestClosestPlans(pool, query, agent);
-  return jsonResponse(
-    { status: 'not_found', suggestions: suggestions.map(serializeDownloadMatchFromCandidate) },
-    404,
-  );
+  return jsonResponse({ status: 'not_found', suggestions: result.suggestions }, 404);
 });
 
 const browsePlanMatchValidator = v.object({

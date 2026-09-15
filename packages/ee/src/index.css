@@ -19,6 +19,80 @@
 
 @import "../../web/src/client/index.css";
 
+@keyframes command-palette-arrow-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.command-palette-arrows {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: color-mix(in oklch, var(--text) 78%, transparent);
+}
+
+.command-palette-arrows svg {
+  position: absolute;
+  width: 84px;
+  overflow: visible;
+}
+
+.command-palette-arrows path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: command-palette-arrow-draw 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.command-palette-arrows path + path {
+  animation-delay: 120ms;
+}
+
+.command-palette-arrows [data-arrow='1'] {
+  top: 7%;
+  left: -112px;
+  transform: rotate(8deg);
+}
+
+.command-palette-arrows [data-arrow='2'] {
+  top: 45%;
+  left: -126px;
+  transform: rotate(-7deg) scale(1.08);
+}
+
+.command-palette-arrows [data-arrow='3'] {
+  bottom: 3%;
+  left: -108px;
+  transform: rotate(-18deg);
+}
+
+.command-palette-arrows [data-arrow='4'] {
+  top: 4%;
+  right: -111px;
+  transform: scaleX(-1) rotate(10deg);
+}
+
+.command-palette-arrows [data-arrow='5'] {
+  top: 43%;
+  right: -127px;
+  transform: scaleX(-1) rotate(-5deg) scale(1.08);
+}
+
+.command-palette-arrows [data-arrow='6'] {
+  right: -109px;
+  bottom: 2%;
+  transform: scaleX(-1) rotate(-20deg);
+}
+
+@media (max-width: 899px) {
+  .command-palette-arrows {
+    display: none;
+  }
+}
+
 @keyframes statusPopoverIn {
   from {
     opacity: 0;
@@ -716,10 +790,12 @@ html[data-agendex-desktop='true'] .desktop-signin-shell :is(button, a, input) {
   .local-ip-disclosure,
   .desktop-signin-content,
   .desktop-signin-spinner,
-  .plannotator-live-dot {
+  .plannotator-live-dot,
+  .command-palette-arrows path {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
+    stroke-dashoffset: 0 !important;
   }
 
   .plannotator-annotation-card,

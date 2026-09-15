@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { desktopAuthFetch } from './auth-client.ts';
+import { desktopAuthFetch, isSameOriginAuth, sameOriginAuthFetch } from './auth-client.ts';
 import {
   authorizationFromFetchArgs,
   bodyFromFetchArgs,
@@ -10,6 +10,34 @@ import {
 
 afterEach(() => {
   uninstallDesktopWindow();
+});
+
+test('same-origin auth uses native browser credentials', () => {
+  expect(
+    isSameOriginAuth('https://agendex-ee--tiru5.onamp.dev', 'https://agendex-ee--tiru5.onamp.dev'),
+  ).toBe(true);
+  expect(
+    isSameOriginAuth('https://example.convex.site', 'https://agendex-ee--tiru5.onamp.dev'),
+  ).toBe(false);
+});
+
+test('same-origin auth fetch includes portal credentials', async () => {
+  const originalFetch = globalThis.fetch;
+  let credentials: RequestCredentials | undefined;
+  globalThis.fetch = createTestFetch(async (_input, init) => {
+    credentials = init?.credentials;
+    return new Response(null, { status: 200 });
+  });
+
+  try {
+    const response = await sameOriginAuthFetch('/api/auth/get-session', {
+      credentials: 'omit',
+    });
+    expect(response.status).toBe(200);
+    expect(credentials).toBe('include');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('desktopAuthFetch does not reload on 401 when there is no stored cloud token', async () => {

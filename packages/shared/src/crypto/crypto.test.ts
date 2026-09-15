@@ -81,6 +81,17 @@ test('opens the version 1 cross-runtime known-answer vector', () => {
   expect(decodeUtf8(plaintext)).toBe('Agendex known answer');
 });
 
+test('encrypted payloads preserve decomposed Unicode content and file paths exactly', () => {
+  const key = deriveWorkspaceKeys(new Uint8Array(32).fill(9)).contentKey;
+  for (const plaintext of [
+    '# Cafe\u0301\nDifferent Unicode bytes must survive sealing.',
+    JSON.stringify({ filePath: '/workspace/Cafe\u0301/plan.md', title: 'A\u030Angstrom' }),
+  ]) {
+    expect(plaintext).not.toBe(plaintext.normalize('NFC'));
+    expect(openText(key, sealText(key, plaintext, context), context)).toBe(plaintext);
+  }
+});
+
 test('rejects corrupted ciphertext instead of returning empty content', () => {
   const key = deriveWorkspaceKeys(new Uint8Array(32).fill(4)).contentKey;
   const envelope = sealText(key, 'do not erase me', context);

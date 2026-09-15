@@ -3,6 +3,18 @@ import { type AgentStats, api, type Plan } from '../lib/api.ts';
 import { seedSeen } from './useSeenPlans.ts';
 import { useSocketEvent } from './useSocket.ts';
 
+type PlanRefreshReason = 'manual' | 'realtime';
+
+export function getPlanRefreshPresentation(
+  hasLoaded: boolean,
+  reason: PlanRefreshReason,
+): { loading: boolean; refreshing: boolean } {
+  return {
+    loading: !hasLoaded,
+    refreshing: hasLoaded && reason === 'manual',
+  };
+}
+
 export function usePlans(
   filters: { agent?: string; q?: string; sort?: string },
   enabled = true,
@@ -15,37 +27,42 @@ export function usePlans(
   const initialLoadDone = useRef(false);
   const { agent, q, sort } = filters;
 
-  const refresh = useCallback(async () => {
-    if (!enabled) return;
-    if (initialLoadDone.current) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError(null);
-    try {
-      const res = await api.getPlans({ agent, q, sort });
-      seedSeen(res.plans);
-      setPlans(res.plans);
-    } catch (e) {
-      console.error('failed to fetch plans', e);
-      setError(e instanceof Error ? e.message : 'unknown error');
-    } finally {
-      if (initialLoadDone.current) {
-        setRefreshing(false);
-      } else {
-        setLoading(false);
-        initialLoadDone.current = true;
+  const refreshPlans = useCallback(
+    async (reason: PlanRefreshReason) => {
+      if (!enabled) return;
+      const presentation = getPlanRefreshPresentation(initialLoadDone.current, reason);
+      if (presentation.refreshing) setRefreshing(true);
+      if (presentation.loading) setLoading(true);
+      setError(null);
+      try {
+        const res = await api.getPlans({ agent, q, sort });
+        seedSeen(res.plans);
+        setPlans(res.plans);
+      } catch (e) {
+        console.error('failed to fetch plans', e);
+        setError(e instanceof Error ? e.message : 'unknown error');
+      } finally {
+        if (presentation.refreshing) setRefreshing(false);
+        if (presentation.loading) {
+          setLoading(false);
+          initialLoadDone.current = true;
+        }
       }
-    }
-  }, [agent, q, sort, enabled]);
+    },
+    [agent, enabled, q, sort],
+  );
+
+  const refresh = useCallback(() => refreshPlans('manual'), [refreshPlans]);
+  const refreshFromRealtime = useCallback(() => {
+    void refreshPlans('realtime');
+  }, [refreshPlans]);
 
   useEffect(() => {
     if (enabled) refresh();
   }, [refresh, enabled]);
 
-  useSocketEvent('plan:updated', refresh, enabled && realtime);
-  useSocketEvent('connection', refresh, enabled && realtime);
+  useSocketEvent('plan:updated', refreshFromRealtime, enabled && realtime);
+  useSocketEvent('connection', refreshFromRealtime, enabled && realtime);
 
   return { plans, loading, refreshing, error, refresh };
 }

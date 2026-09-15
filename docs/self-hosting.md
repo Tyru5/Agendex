@@ -4,6 +4,8 @@ This guide is for running the Agendex EE stack yourself with your own Convex dep
 
 Self-hosting the EE stack is for the cloud features: authentication, CLI sync, sharing, comments, plan history, onboarding, and paid subscription flows.
 
+> **Licensing note.** The EE stack lives in `packages/ee/`, which is **not** licensed under the repository's AGPL-3.0 license. You may copy and modify it for development and testing purposes — including the fully local development setup described in the root [README](../README.md) — without a subscription. **Production use**, meaning any deployment that serves end users (internal or external), requires a valid Agendex Cloud Pro subscription and compliance with the Agendex Subscription Terms. See [packages/ee/LICENSE](../packages/ee/LICENSE) for the full terms.
+
 ## Prerequisites
 
 - [Bun](https://bun.sh)
@@ -48,14 +50,17 @@ In the [Convex dashboard](https://dashboard.convex.dev), configure these variabl
 
 ### Backend and auth
 
-| Variable               | Value                                                                 |
-| ---------------------- | --------------------------------------------------------------------- |
-| ---------------------- | --------------------------------------------------------------------- |
-| `SITE_URL`             | Public EE dashboard URL, for example `https://agendex.yourdomain.com` |
-| `APP_URL`              | Same public EE dashboard URL used by auth callbacks                   |
-| `GITHUB_CLIENT_ID`     | GitHub OAuth app client ID                                            |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret                                        |
-| `BETTER_AUTH_SECRET`   | Generate with `openssl rand -base64 32`                               |
+| Variable                      | Value                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `SITE_URL`                    | Public EE dashboard URL, for example `https://agendex.yourdomain.com`                       |
+| `APP_URL`                     | Canonical application URL, normally the same public dashboard URL                           |
+| `BETTER_AUTH_ENVIRONMENT`     | `production` for a hosted deployment; use `development` only for the documented local stack |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | Comma-separated exact owned origins; required in production                                 |
+| `GITHUB_CLIENT_ID`            | GitHub OAuth app client ID                                                                  |
+| `GITHUB_CLIENT_SECRET`        | GitHub OAuth app client secret                                                              |
+| `BETTER_AUTH_SECRET`          | Generate with `openssl rand -base64 32`                                                     |
+
+For a production deployment whose only public application is `https://agendex.yourdomain.com`, set `BETTER_AUTH_TRUSTED_ORIGINS=https://agendex.yourdomain.com`. Add other owned applications or preview deployments as exact origins separated by commas. Wildcards such as `https://*.vercel.app`, URL paths, and localhost origins are rejected in production. A Vercel preview must be added by its full exact origin; unrelated Vercel projects are never trusted automatically.
 
 `CONVEX_SITE_URL` is provided by Convex and must not be set as a deployment environment variable.
 
@@ -69,7 +74,7 @@ In the [Convex dashboard](https://dashboard.convex.dev), configure these variabl
 | `STRIPE_MONTHLY_PRICE_ID` | Stripe price ID for monthly plans       |
 | `STRIPE_YEARLY_PRICE_ID`  | Stripe price ID for yearly plans        |
 
-Stripe is only required once you want checkout, customer portal, or paid subscription renewals. You can defer these while bringing up auth and the EE UI locally, but Cloud Pro usage beyond the built-in trial flow depends on subscription state being configured correctly.
+Stripe is only required once you want checkout, customer portal, or paid subscription renewals. You can defer these while bringing up auth and the EE UI locally, but Cloud Pro usage beyond the built-in trial flow depends on subscription state being configured correctly. Note that a self-configured Stripe deployment does not replace the licensing requirement above: production use of `packages/ee/` still requires a valid Agendex Cloud Pro subscription under the [Agendex Enterprise License](../packages/ee/LICENSE).
 
 ### Obfuscation rollout
 
@@ -114,6 +119,8 @@ bun run build
 Serve `dist/` as a static site.
 
 ## 7. Deploy Convex to production
+
+> **Reminder.** Everything in this section and the previous one deploys `packages/ee/` code. Production use of that code requires a valid Agendex Cloud Pro subscription — see the licensing note at the top of this guide and the full terms in [packages/ee/LICENSE](../packages/ee/LICENSE).
 
 From `packages/ee`:
 

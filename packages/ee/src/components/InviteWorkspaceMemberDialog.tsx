@@ -38,6 +38,7 @@ export function InviteWorkspaceMemberDialog({ onClose }: InviteWorkspaceMemberDi
     setInviting(true);
     setError(null);
     try {
+      if (!cryptoStatus) throw new Error('Cloud privacy status is unavailable');
       let cryptoArgs = {};
       if (cryptoStatus?.settings) {
         const settings = cryptoStatus.settings;
@@ -57,6 +58,7 @@ export function InviteWorkspaceMemberDialog({ onClose }: InviteWorkspaceMemberDi
               keyEpoch: settings.activeKeyEpoch,
             }),
           }),
+          settings.activeKeyEpoch,
         );
         setInviteSecret(bytesToBase64Url(secret));
         secret.fill(0);

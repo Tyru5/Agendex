@@ -7,6 +7,7 @@ import {
   loadOrCreateDeviceId,
   type PlannotatorFeedbackAnnotation,
   type PlannotatorWritebackAction,
+  type UsageSummary,
   updateConfig,
 } from '@agendex/shared';
 import { readPidInfo } from './pid.ts';
@@ -267,10 +268,19 @@ export interface CloudPlanDownloadMatch {
   keyEpoch?: number;
   encryptedSummary?: SerializedCliEnvelope;
 }
+export interface CloudPlanDownloadPagination {
+  nextCursor: string | null;
+  hasMore: boolean;
+  pageSize: number;
+}
 
 export type FetchCloudPlanResult =
   | { kind: 'found'; plan: CloudPlanDownload }
-  | { kind: 'ambiguous'; matches: CloudPlanDownloadMatch[] }
+  | {
+      kind: 'ambiguous';
+      matches: CloudPlanDownloadMatch[];
+      pagination: CloudPlanDownloadPagination;
+    }
   | { kind: 'not_found'; suggestions: CloudPlanDownloadMatch[] }
   | { kind: 'auth-expired' }
   | { kind: 'error'; status: number; message: string };
@@ -372,10 +382,42 @@ function parseCloudPlanDownloadMatch(value: unknown): CloudPlanDownloadMatch | n
   };
 }
 
-export async function fetchCloudPlan(query: string, agent?: string): Promise<FetchCloudPlanResult> {
+function parseCloudPlanDownloadPagination(value: unknown): CloudPlanDownloadPagination | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const pagination = value as Record<string, unknown>;
+  const nextCursor =
+    pagination.nextCursor === null
+      ? null
+      : typeof pagination.nextCursor === 'string' && pagination.nextCursor.length > 0
+        ? pagination.nextCursor
+        : undefined;
+  if (
+    nextCursor === undefined ||
+    typeof pagination.hasMore !== 'boolean' ||
+    typeof pagination.pageSize !== 'number' ||
+    !Number.isInteger(pagination.pageSize) ||
+    pagination.pageSize < 1 ||
+    pagination.pageSize > 100 ||
+    (pagination.hasMore && nextCursor === null)
+  ) {
+    return null;
+  }
+  return {
+    nextCursor,
+    hasMore: pagination.hasMore,
+    pageSize: pagination.pageSize,
+  };
+}
+
+export async function fetchCloudPlan(
+  query: string,
+  agent?: string,
+  cursor?: string,
+): Promise<FetchCloudPlanResult> {
   const { token, convexUrl } = getCloudConfig();
   const params = new URLSearchParams({ q: query });
   if (agent) params.set('agent', agent);
+  if (cursor) params.set('cursor', cursor);
   const url = `${convexUrl}/api/cli/plan?${params.toString()}`;
   let activeToken = token;
 
@@ -440,7 +482,15 @@ export async function fetchCloudPlan(query: string, agent?: string): Promise<Fet
           return match ? [match] : [];
         })
       : [];
-    return { kind: 'ambiguous', matches };
+    const pagination = parseCloudPlanDownloadPagination(body.pagination);
+    if (!pagination) {
+      return {
+        kind: 'error',
+        status: res.status,
+        message: 'Cloud returned invalid ambiguity pagination',
+      };
+    }
+    return { kind: 'ambiguous', matches, pagination };
   }
 
   if (res.status >= 200 && res.status < 300 && body?.status === 'found') {
@@ -588,7 +638,12 @@ async function lookupEncryptedPlanClientSide(
     if (selected.id.toLowerCase() === normalized) return null;
     return fetchCloudPlan(selected.id);
   }
-  if (exact.length > 1) return { kind: 'ambiguous', matches: exact };
+  if (exact.length > 1)
+    return {
+      kind: 'ambiguous',
+      matches: exact,
+      pagination: { nextCursor: null, hasMore: false, pageSize: exact.length },
+    };
   return { kind: 'not_found', suggestions: plans.slice(0, 5) };
 }
 
@@ -687,7 +742,12 @@ export async function refreshCurrentDaemonToken(): Promise<boolean> {
   return refreshed.kind === 'refreshed';
 }
 
-export async function sendHeartbeat(ipAddress?: string): Promise<void> {
+export async function sendHeartbeat(
+  ipAddress?: string,
+  usageSnapshots?: Readonly<Record<string, UsageSummary>>,
+): Promise<void> {
+  if (!hasDaemonCloudCredentials()) return;
+
   try {
     const { token, convexUrl } = getCloudConfig();
     const pidInfo = readPidInfo();
@@ -698,10 +758,19 @@ export async function sendHeartbeat(ipAddress?: string): Promise<void> {
       startedAtMs: pidInfo?.startedAtMs,
       pid: pidInfo?.pid,
       ipAddress: ipAddress ?? null,
+      ...(usageSnapshots && { usageSnapshots }),
     };
     const cryptoStatus = await fetchWorkspaceCryptoStatus();
-    if (!cryptoStatus) return;
+    if (!cryptoStatus) {
+      if (usageSnapshots) throw new Error('Cloud encryption status is unavailable');
+      return;
+    }
     if (cryptoStatus.enabled) {
+      if (usageSnapshots) {
+        throw new Error(
+          'Cloud usage sync is unavailable with Obfuscation; local usage remains available',
+        );
+      }
       heartbeatPayload = {
         deviceId: cachedDeviceId,
         startedAtMs: pidInfo?.startedAtMs,
@@ -762,6 +831,16 @@ export async function sendHeartbeat(ipAddress?: string): Promise<void> {
       const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
       if (refreshed.kind !== 'refreshed') {
         reportRefreshRejection(refreshed, activeToken);
+        if (usageSnapshots) {
+          const status = refreshed.kind === 'auth-rejected' ? 401 : 503;
+          const detail =
+            refreshed.kind === 'auth-rejected'
+              ? 'Cloud authentication rejected'
+              : refreshed.kind === 'credentials-changed'
+                ? 'Cloud credentials changed during refresh'
+                : 'Cloud session refresh unavailable';
+          throw new Error(`Cloud rejected usage heartbeat (${status}): ${detail}`);
+        }
         return;
       }
 
@@ -777,12 +856,20 @@ export async function sendHeartbeat(ipAddress?: string): Promise<void> {
       });
     }
 
-    if (isAuthenticationFailure(res.status)) {
-      reportAuthExpired(res.status, activeToken);
+    if (res.status < 200 || res.status >= 300) {
+      const authenticationFailure = isAuthenticationFailure(res.status);
+      if (authenticationFailure) reportAuthExpired(res.status, activeToken);
+      if (usageSnapshots) {
+        const detail = authenticationFailure
+          ? 'authentication failed after refresh'
+          : 'request failed';
+        throw new Error(`Cloud rejected usage heartbeat (${res.status}): ${detail}`);
+      }
       return;
     }
-  } catch {
-    // best-effort, don't crash the daemon
+  } catch (error) {
+    if (usageSnapshots) throw error;
+    // Plain liveness heartbeats remain best-effort.
   }
 }
 
@@ -1144,6 +1231,7 @@ export async function reportPlannotatorWriteback(
 }
 
 export interface DeviceInfo {
+  recordId?: string;
   deviceId: string | null;
   hostname: string | null;
   ipAddress: string | null;
@@ -1199,6 +1287,7 @@ export async function fetchDevices(): Promise<DeviceInfo[]> {
 
 export async function deleteDaemons(
   deviceIds: string[],
+  recordIds: string[] = [],
 ): Promise<{ ok: boolean; deleted: number }> {
   const { token, convexUrl } = getCloudConfig();
   const url = `${convexUrl}/api/cli/devices`;
@@ -1211,7 +1300,7 @@ export async function deleteDaemons(
       Connection: 'close',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ deviceIds }),
+    body: JSON.stringify({ deviceIds, ...(recordIds.length > 0 && { recordIds }) }),
   });
 
   if (isAuthenticationFailure(res.status)) {
@@ -1225,7 +1314,7 @@ export async function deleteDaemons(
           Connection: 'close',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ deviceIds }),
+        body: JSON.stringify({ deviceIds, ...(recordIds.length > 0 && { recordIds }) }),
       });
     } else {
       reportRefreshRejection(refreshed, activeToken);

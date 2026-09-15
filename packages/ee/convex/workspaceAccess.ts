@@ -1,3 +1,4 @@
+import { v } from 'convex/values';
 import { query } from './_generated/server';
 import { authComponent } from './auth';
 import { type DbCtx, hasActiveSubscription, hasActiveSubscriptionForUserId } from './subscriptions';
@@ -55,5 +56,10 @@ export async function hasProEntitlement(ctx: DbCtx): Promise<boolean> {
 /** Client hook should use this query so `canAccessCloud` matches server checks (incl. owner subscription for members). */
 export const getWorkspaceContext = query({
   args: {},
+  returns: v.object({
+    role: v.union(v.literal('owner'), v.literal('member'), v.literal('none')),
+    workspaceOwnerId: v.union(v.string(), v.null()),
+    canAccessCloud: v.boolean(),
+  }),
   handler: async (ctx) => resolveWorkspaceContext(ctx),
 });

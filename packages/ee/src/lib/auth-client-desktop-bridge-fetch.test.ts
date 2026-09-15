@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from 'bun:test';
 import { desktopAuthFetch } from './auth-client.ts';
 import type { AgendexDesktopBridge, DesktopAuthFetchInit } from './desktop.ts';
+import { desktopUpdateTestDefaults } from './auth-client-desktop-test-helpers.ts';
 
 type AuthFetchCall = {
   readonly url: string;
@@ -17,6 +18,7 @@ function createTestFetch(
 
 function installDesktopWindow() {
   const desktop: AgendexDesktopBridge = {
+    ...desktopUpdateTestDefaults,
     isDesktop: true,
     cloudToken: 'desktop-cloud-token',
     convexSiteUrl: 'https://example.convex.site',
@@ -102,6 +104,7 @@ test('desktopAuthFetch preserves POST bodies when the desktop bridge disappears 
   // Given
   let bridgeReads = 0;
   const desktop: AgendexDesktopBridge = {
+    ...desktopUpdateTestDefaults,
     isDesktop: true,
     cloudToken: 'desktop-cloud-token',
     convexSiteUrl: 'https://example.convex.site',

@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import type { AgendexConfig } from '@agendex/shared';
 import type { DeviceInfo } from './api.ts';
 import { formatDuration, renderStatus } from './status.ts';
+import { isDaemonPidInfoRunning } from './pid.ts';
 
 const NOW = 1_700_000_000_000;
 
@@ -72,6 +73,59 @@ test('renders grouped status with daemon, cloud, and source summaries', () => {
   expect(output).toContain('claude-code, codex');
   expect(output).toContain('/plans/team');
   expect(output).toContain('agendex cleanup --stale');
+  expect(output).toContain('Plan download');
+  expect(output).toContain('• never used');
+  expect(output).toContain('agendex download <query>');
+});
+
+test('renders the last plan download when the CLI download command was used', () => {
+  const output = renderStatus({
+    config: config({
+      lastPlanDownload: {
+        at: NOW - 3_900_000,
+        title: 'Add auth\u001b[31m',
+        agent: 'claude-code',
+        format: 'md',
+        destination: '/plans/Add auth.md',
+      },
+    }),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: null,
+    running: false,
+    cliVersion: '2.0.0',
+    devices: [],
+    now: NOW,
+    color: false,
+  });
+
+  expect(output).toContain('✓ used 1h 5m ago');
+  expect(output).toContain('"Add auth" (claude-code) → /plans/Add auth.md');
+  expect(output).not.toContain('\u001b[31m');
+  expect(output).not.toContain('agendex download <query>');
+});
+
+test('renders stdout plan downloads without a file destination', () => {
+  const output = renderStatus({
+    config: config({
+      lastPlanDownload: {
+        at: NOW - 15_000,
+        title: 'Deploy',
+        agent: 'codex',
+        format: 'html',
+        destination: null,
+      },
+    }),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: null,
+    running: false,
+    cliVersion: '2.0.0',
+    devices: [],
+    now: NOW,
+    color: false,
+  });
+
+  expect(output).toContain('✓ used 15s ago');
+  expect(output).toContain('"Deploy" (codex) → stdout');
 });
 
 test('renders desktop spawn origin for Electron-launched daemons', () => {
@@ -96,6 +150,51 @@ test('renders desktop spawn origin for Electron-launched daemons', () => {
   expect(output).toContain('PID 456 • up 30s • host workstation • via desktop app');
 });
 
+test('renders detected CLI and desktop origins despite macOS boot timestamp drift', () => {
+  for (const launcher of ['cli', 'desktop'] as const) {
+    const pidInfo = {
+      pid: 456,
+      launcher,
+      parentPid: 100,
+      hostname: 'workstation',
+      bootId: 'darwin:{ sec = 1788278233, usec = 971069 }',
+    };
+    for (const validBoot of [true, false]) {
+      const running = isDaemonPidInfoRunning(pidInfo, {
+        currentHostname: 'workstation',
+        currentBootId: validBoot
+          ? 'darwin:{ sec = 1788278233, usec = 900798 }'
+          : 'darwin:{ sec = 1788278000, usec = 900798 }',
+        processRunning: true,
+        parentProcessRunning: true,
+        processCommand:
+          launcher === 'cli'
+            ? 'agendex start --daemon'
+            : 'Agendex Helper --utility-sub-type=node.mojom.NodeService',
+      });
+      const output = renderStatus({
+        config: config(),
+        configPath: '/config.json',
+        pidInfo,
+        running,
+        cliVersion: '5.7.1',
+        devices: [],
+        now: NOW,
+        color: false,
+      });
+      const origin = launcher === 'cli' ? 'via CLI' : 'via desktop app';
+      if (validBoot) {
+        expect(output).toContain('✓ running');
+        expect(output).toContain('PID 456');
+        expect(output).toContain(origin);
+      } else {
+        expect(output).toContain('! not running');
+        expect(output).not.toContain(origin);
+      }
+    }
+  }
+});
+
 test('renders actionable setup guidance when config is missing', () => {
   const output = renderStatus({
     config: null,
@@ -117,4 +216,7 @@ test('renders actionable setup guidance when config is missing', () => {
   expect(output).toContain('agendex login');
   expect(output).toContain('agendex configure');
   expect(output).toContain('agendex open');
+  expect(output).toContain('• never used');
+  expect(output).toContain('log in, then run `agendex download <query>`');
+  expect(output).not.toContain('agendex download <query>  ');
 });

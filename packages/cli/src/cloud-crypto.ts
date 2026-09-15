@@ -326,7 +326,12 @@ export async function runUnlockCommand(args: string[] = []): Promise<number> {
 
 export async function runLockCommand(): Promise<number> {
   const status = await fetchWorkspaceCryptoStatus();
-  if (!status?.enabled) {
+  if (!status) {
+    throw new Error(
+      'Unable to verify the workspace encryption state; stored keys were not removed',
+    );
+  }
+  if (!status.enabled) {
     console.log('[agendex] This workspace does not use Obfuscation.');
     return 0;
   }
@@ -335,7 +340,13 @@ export async function runLockCommand(): Promise<number> {
   if (session) clearBytes(session);
   sessionKeys.delete(secretId);
   const store = createSecretStore();
-  if (await store.available()) await store.delete(secretId);
+  if (await store.available()) {
+    await store.delete(secretId);
+  } else if (store.backend !== 'unavailable') {
+    throw new Error(
+      'Secure storage is unavailable; persisted Obfuscation keys could not be removed',
+    );
+  }
   console.log('[agendex] Obfuscation locked.');
   return 0;
 }

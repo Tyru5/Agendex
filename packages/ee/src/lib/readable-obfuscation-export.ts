@@ -4,6 +4,7 @@ import {
   decryptPlanSummary,
   decryptWorkspaceValue,
   openBytes,
+  openText,
   unpackEncryptedBlob,
 } from '@agendex/shared/crypto';
 import { api } from '@convex/_generated/api';
@@ -124,7 +125,10 @@ async function createExportSink(fileName: string): Promise<ExportSink> {
   };
 }
 
-async function writeZipArchive(fileName: string, build: (zip: Zip) => Promise<void>) {
+async function writeZipArchive(
+  fileName: string,
+  build: (zip: Zip, flush: () => Promise<void>) => Promise<void>,
+) {
   const sink = await createExportSink(fileName);
   let finish!: () => void;
   let fail!: (error: Error) => void;
@@ -136,11 +140,14 @@ async function writeZipArchive(fileName: string, build: (zip: Zip) => Promise<vo
   const zip = new Zip((error, chunk, final) => {
     if (error) return fail(error);
     writes = writes.then(() => sink.write(chunk));
+    // Keep failures handled while an asynchronous record is being prepared.
+    // The producer observes the same failure at its next flush.
+    void writes.catch(() => {});
     if (final) writes.then(finish, fail);
   });
 
   try {
-    await build(zip);
+    await build(zip, () => writes);
     zip.end();
     await done;
     await sink.finish();
@@ -218,7 +225,7 @@ function decryptJson<T>(args: {
   );
 }
 
-async function decryptRecord(
+export async function decryptRecord(
   table: ReadableExportTable,
   record: ExportRecord,
   ownerId: string,
@@ -330,15 +337,15 @@ async function decryptRecord(
     ] as const) {
       if (record[field]) {
         const identity = requireIdentity();
-        const value = decryptJson<string | { value: string }>({
-          ownerId,
-          keyEpoch: identity.keyEpoch,
-          table: 'daemonHeartbeats',
-          slot,
-          stableCryptoId: identity.stableCryptoId,
-          envelope: record[field],
-        });
-        base[output] = typeof value === 'string' ? value : value.value;
+        base[output] = withWorkspaceKey(ownerId, (_workspaceKey, derivedKeys) =>
+          openText(derivedKeys.contentKey, record[field], {
+            workspaceOwnerId: ownerId,
+            keyEpoch: identity.keyEpoch,
+            table: 'daemonHeartbeats',
+            slot,
+            stableCryptoId: identity.stableCryptoId,
+          }),
+        );
       }
     }
   }
@@ -414,7 +421,7 @@ export async function downloadReadableObfuscationExport(args: {
   workspaceOwnerId: string;
 }) {
   const fileName = `agendex-readable-export-${new Date().toISOString().slice(0, 10)}.zip`;
-  await writeZipArchive(fileName, async (zip) => {
+  await writeZipArchive(fileName, async (zip, flush) => {
     const account = await args.convex.query(api.workspaceCryptoExport.accountSnapshot, {});
     addZipFile(zip, 'account.json', strToU8(`${JSON.stringify(account, null, 2)}\n`));
     for (const table of READABLE_TABLES) {
@@ -431,6 +438,7 @@ export async function downloadReadableObfuscationExport(args: {
             `records/${table}/${record._id}.json`,
             strToU8(`${JSON.stringify(readable, null, 2)}\n`),
           );
+          await flush();
         }
         cursor = result.isDone ? null : result.continueCursor;
       } while (cursor);
@@ -480,7 +488,7 @@ export async function downloadEncryptedObfuscationBackup(args: {
 }) {
   const exportedAt = new Date();
   const fileName = `agendex-encrypted-backup-${exportedAt.toISOString().slice(0, 10)}.zip`;
-  await writeZipArchive(fileName, async (zip) => {
+  await writeZipArchive(fileName, async (zip, flush) => {
     const account = await args.convex.query(api.workspaceCryptoExport.accountSnapshot, {});
     const manifest = {
       format: 'agendex-obfuscation-backup-v1',
@@ -511,6 +519,7 @@ export async function downloadEncryptedObfuscationBackup(args: {
             `records/${table}/${safeExportPathSegment(record._id)}.json`,
             strToU8(`${JSON.stringify(toBackupJsonValue(backup), null, 2)}\n`),
           );
+          await flush();
         }
         cursor = result.isDone ? null : result.continueCursor;
       } while (cursor);

@@ -23,6 +23,7 @@ Agendex is a Bun workspaces monorepo:
 - Agent and workspace filtering with read-only plan viewing
 - Local API with token-based auth
 - Adapter selection, rescanning, and custom plan source directories
+- Guided product tour on first visit, replayable from the `?` button in the top bar
 - No Convex or Stripe required for local-only usage
 
 ### Cloud Pro / EE
@@ -36,6 +37,7 @@ Agendex is a Bun workspaces monorepo:
 - Pro Plannotator sync and daemon-mediated request-changes write-back
 - Trial and subscription flows
 - Optional irreversible **Obfuscation** mode: client-side zero-access encryption for cloud content, recovery kits, member key grants, resumable sealing/rotation, and client-side readable export. See [`docs/obfuscation.md`](./docs/obfuscation.md).
+- Guided product tour on first visit, tracked per account and replayable from Settings → Account
 
 The Electron app starts its cloud sync worker automatically after desktop sign-in when no
 CLI daemon is already running. The worker uses the encrypted desktop session, requires no
@@ -44,7 +46,7 @@ independently owned and are never stopped by desktop logout or shutdown.
 
 ## Adapter Status
 
-Agendex currently has **21 implemented adapters**. Twenty use durable plan artifacts or
+Agendex currently has **22 implemented adapters**. Twenty-one use durable plan artifacts or
 explicit Plan-mode session state; Continue is retained as an experimental session adapter:
 
 - `antigravity`
@@ -62,6 +64,7 @@ explicit Plan-mode session state; Continue is retained as an experimental sessio
 - `kimi-cli`
 - `kiro-cli`
 - `mux`
+- `omp` (oh-my-pi)
 - `opencode`
 - `oh-my-opencode`
 - `plannotator`
@@ -74,6 +77,10 @@ explicit Plan-mode session state; Continue is retained as an experimental sessio
 Unsupported catalog entries are retained for ecosystem tracking but are hidden from adapter selection
 and cannot be enabled. Stock OpenCode session plans and Oh My OpenCode Markdown plans are separate
 adapters.
+
+The `omp` adapter indexes [omp (oh-my-pi)](https://omp.sh/docs/plan) Plan-mode draft artifacts stored
+inside omp session directories (`~/.omp/agent/sessions/**/local/*-plan.md`), honoring omp's
+`PI_CODING_AGENT_SESSION_DIR`, `PI_CODING_AGENT_DIR`, and `XDG_DATA_HOME` overrides.
 
 File adapters honor the agents' documented roots and these optional path-list overrides (use the
 platform path delimiter): `AGENDEX_ANTIGRAVITY_PLAN_DIRS`, `AGENDEX_CODEBUDDY_PLAN_DIRS`,
@@ -385,13 +392,19 @@ Common environment variables:
 - EE backend/auth:
   - `SITE_URL`
   - `APP_URL`
+  - `BETTER_AUTH_BASE_URL` - optional public auth origin override for proxied/tunneled deployments
   - `BETTER_AUTH_SECRET`
+  - `BETTER_AUTH_ENVIRONMENT=production|development` - defaults to production; local origins are enabled only by the explicit `development` value
+  - `BETTER_AUTH_TRUSTED_ORIGINS` - required in production; comma-separated exact owned origins with no wildcards, paths, queries, or hashes
   - `GITHUB_CLIENT_ID`
   - `GITHUB_CLIENT_SECRET`
   - `GOOGLE_CLIENT_ID`
   - `GOOGLE_CLIENT_SECRET`
 
 `CONVEX_SITE_URL` is provided by Convex. Read it in backend code, but do not try to set it with `convex env set`.
+When the local Convex site is exposed through a stable same-origin proxy, set
+`BETTER_AUTH_BASE_URL` to that public application origin so OAuth callbacks do
+not point at Convex's private loopback URL.
 
 - EE billing:
   - `STRIPE_SECRET_KEY`
@@ -415,6 +428,8 @@ cd packages/ee
 CONVEX_AGENT_MODE=anonymous npx convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
 CONVEX_AGENT_MODE=anonymous npx convex env set SITE_URL http://agendex.localhost:5174
 CONVEX_AGENT_MODE=anonymous npx convex env set APP_URL http://agendex.localhost:5174
+CONVEX_AGENT_MODE=anonymous npx convex env set BETTER_AUTH_ENVIRONMENT development
+CONVEX_AGENT_MODE=anonymous npx convex env set BETTER_AUTH_TRUSTED_ORIGINS http://agendex.localhost:5174,http://app.agendex.localhost:5174
 ```
 
 Then start the OSS API and EE client in separate terminals from the repo root:
@@ -441,5 +456,8 @@ For self-hosting, production auth setup, and maintainer-level EE billing notes, 
 
 ## License
 
-- All code except `packages/ee/` is licensed under [AGPL-3.0](./LICENSE).
-- Code in `packages/ee/` is licensed under the [Agendex Enterprise License](./packages/ee/LICENSE) (source-available for evaluation and development; production use requires Cloud Pro).
+This repo is available under the [AGPL-3.0](./LICENSE) license, except for the `packages/ee` directory (which has its license [here](./packages/ee/LICENSE)), if applicable.
+
+- Code in `packages/ee/` may be copied and modified freely for development and testing purposes without a subscription.
+- Production use of `packages/ee/` — any deployment that serves end users, whether internal or external — requires a valid Agendex Cloud Pro subscription under the [Agendex Enterprise License](./packages/ee/LICENSE).
+- Contributions are subject to the [Contributor License Agreement](./CLA.md).

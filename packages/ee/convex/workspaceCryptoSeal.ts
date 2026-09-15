@@ -1,8 +1,9 @@
 import { paginationOptsValidator } from 'convex/server';
-import { ConvexError, v } from 'convex/values';
+import { ConvexError, convexToJson, v, type Value } from 'convex/values';
 import type { Doc } from './_generated/dataModel';
 import { mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
 import { authComponent } from './auth';
+import { assertAccountActive } from './accountDeletionState';
 import { cryptoEnvelopeV1 } from './schema';
 import { WORKSPACE_CRYPTO_LEASE_MS, validateEnvelopeStructure } from './workspaceCrypto';
 
@@ -28,12 +29,29 @@ export type WorkspaceSealPhase = (typeof WORKSPACE_SEAL_PHASES)[number];
 
 const sealPhase = v.union(...WORKSPACE_SEAL_PHASES.map((phase) => v.literal(phase)));
 
+/** Convex serialization sorts object keys and preserves bytes, bigint, and special numbers. */
+export async function workspaceSealSnapshotDigest(row: Record<string, unknown>): Promise<string> {
+  const serialized = JSON.stringify(convexToJson(row as Value));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(serialized));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function requireUnchangedSnapshot(
+  row: Record<string, unknown>,
+  expectedSnapshotDigest: string,
+): Promise<void> {
+  if ((await workspaceSealSnapshotDigest(row)) !== expectedSnapshotDigest) {
+    throw new ConvexError('Record changed while it was being sealed; refresh and retry');
+  }
+}
+
 async function requireOperation(
   ctx: QueryCtx | MutationCtx,
   args: { phase: WorkspaceSealPhase; leaseId?: string },
 ) {
   const user = await authComponent.getAuthUser(ctx);
   if (!user) throw new ConvexError('Unauthenticated');
+  await assertAccountActive(ctx, user._id);
   const settings = await ctx.db
     .query('workspaceCryptoSettings')
     .withIndex('by_owner', (lookup) => lookup.eq('ownerId', user._id))
@@ -59,108 +77,124 @@ export const getWorkspaceSealBatch = query({
   args: { phase: sealPhase, paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
     const { user } = await requireOperation(ctx, { phase: args.phase });
-    if (args.paginationOpts.numItems > 20) throw new ConvexError('Seal batch is too large');
+    if (args.paginationOpts.numItems > 10) throw new ConvexError('Seal batch is too large');
     const ownerId = user._id;
-    switch (args.phase) {
-      case 'plans':
-        return ctx.db
-          .query('plans')
-          .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'planVersions':
-        return ctx.db
-          .query('planVersions')
-          .withIndex('by_owner_createdAt', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'planAnnotations':
-        return ctx.db
-          .query('planAnnotations')
-          .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'comments':
-        return ctx.db
-          .query('comments')
-          .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'attachments': {
-        const result = await ctx.db
-          .query('comments')
-          .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-        return {
-          ...result,
-          page: await Promise.all(
-            result.page.map(async (comment) => ({
-              ...comment,
-              attachments: await Promise.all(
-                (comment.attachments ?? []).map(async (attachment, index) => ({
-                  ...attachment,
-                  index,
-                  url: await ctx.storage.getUrl(attachment.storageId),
-                })),
-              ),
-            })),
-          ),
-        };
+    const result = await (async () => {
+      switch (args.phase) {
+        case 'plans':
+          return ctx.db
+            .query('plans')
+            .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'planVersions':
+          return ctx.db
+            .query('planVersions')
+            .withIndex('by_owner_createdAt', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'planAnnotations':
+          return ctx.db
+            .query('planAnnotations')
+            .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'comments':
+          return ctx.db
+            .query('comments')
+            .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'attachments': {
+          const result = await ctx.db
+            .query('comments')
+            .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+          return {
+            ...result,
+            page: await Promise.all(
+              result.page.map(async (comment) => ({
+                ...comment,
+                expectedSnapshotDigest: await workspaceSealSnapshotDigest(comment),
+                attachments: await Promise.all(
+                  (comment.attachments ?? []).map(async (attachment, index) => ({
+                    ...attachment,
+                    index,
+                    url: await ctx.storage.getUrl(attachment.storageId),
+                  })),
+                ),
+              })),
+            ),
+          };
+        }
+        case 'planLinks':
+          return ctx.db
+            .query('planLinks')
+            .withIndex('by_owner_plan', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'tags':
+          return ctx.db
+            .query('tags')
+            .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'collections':
+          return ctx.db
+            .query('collections')
+            .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'plannotatorWritebacks':
+          return ctx.db
+            .query('plannotatorWritebacks')
+            .withIndex('by_owner_status', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'daemonHeartbeats':
+          return ctx.db
+            .query('daemonHeartbeats')
+            .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'avatars': {
+          const result = await ctx.db
+            .query('agentAvatars')
+            .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+          return {
+            ...result,
+            page: await Promise.all(
+              result.page.map(async (avatar) => ({
+                ...avatar,
+                expectedSnapshotDigest: await workspaceSealSnapshotDigest(avatar),
+                url: await ctx.storage.getUrl(avatar.storageId),
+              })),
+            ),
+          };
+        }
+        case 'pendingUploads':
+          return ctx.db
+            .query('pendingUploads')
+            .withIndex('by_uploadedBy', (lookup) => lookup.eq('uploadedBy', ownerId))
+            .paginate(args.paginationOpts);
+        case 'exports':
+          return ctx.db
+            .query('dataExports')
+            .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'shares':
+          return ctx.db
+            .query('shareLinks')
+            .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
+            .paginate(args.paginationOpts);
+        case 'audit':
+          return { page: [], isDone: true, continueCursor: '' };
       }
-      case 'planLinks':
-        return ctx.db
-          .query('planLinks')
-          .withIndex('by_owner_plan', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'tags':
-        return ctx.db
-          .query('tags')
-          .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'collections':
-        return ctx.db
-          .query('collections')
-          .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'plannotatorWritebacks':
-        return ctx.db
-          .query('plannotatorWritebacks')
-          .withIndex('by_owner_status', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'daemonHeartbeats':
-        return ctx.db
-          .query('daemonHeartbeats')
-          .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'avatars': {
-        const result = await ctx.db
-          .query('agentAvatars')
-          .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-        return {
-          ...result,
-          page: await Promise.all(
-            result.page.map(async (avatar) => ({
-              ...avatar,
-              url: await ctx.storage.getUrl(avatar.storageId),
-            })),
-          ),
-        };
-      }
-      case 'pendingUploads':
-        return ctx.db
-          .query('pendingUploads')
-          .withIndex('by_uploadedBy', (lookup) => lookup.eq('uploadedBy', ownerId))
-          .paginate(args.paginationOpts);
-      case 'exports':
-        return ctx.db
-          .query('dataExports')
-          .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'shares':
-        return ctx.db
-          .query('shareLinks')
-          .withIndex('by_owner', (lookup) => lookup.eq('ownerId', ownerId))
-          .paginate(args.paginationOpts);
-      case 'audit':
-        return { page: [], isDone: true, continueCursor: '' };
-    }
+    })();
+    return {
+      ...result,
+      page: await Promise.all(
+        result.page.map(async (row) => ({
+          ...row,
+          expectedSnapshotDigest:
+            'expectedSnapshotDigest' in row && typeof row.expectedSnapshotDigest === 'string'
+              ? row.expectedSnapshotDigest
+              : await workspaceSealSnapshotDigest(row),
+        })),
+      ),
+    };
   },
 });
 
@@ -209,7 +243,7 @@ const progressArgs = {
 };
 
 function validateBatchLength(items: readonly unknown[]): void {
-  if (items.length > 20) throw new ConvexError('Seal batch is too large');
+  if (items.length > 10) throw new ConvexError('Seal batch is too large');
 }
 
 function validateCurrentEnvelope(envelope: unknown, epoch: number): void {
@@ -223,6 +257,7 @@ export const sealPlansBatch = mutation({
       v.object({
         id: v.id('plans'),
         expectedUpdatedAt: v.number(),
+        expectedSnapshotDigest: v.string(),
         stableCryptoId: v.string(),
         keyEpoch: v.number(),
         encryptedSummary: cryptoEnvelopeV1,
@@ -244,6 +279,7 @@ export const sealPlansBatch = mutation({
     for (const item of args.items) {
       const plan = await ctx.db.get(item.id);
       if (!plan || plan.ownerId !== user._id) throw new ConvexError('Plan not found');
+      await requireUnchangedSnapshot(plan, item.expectedSnapshotDigest);
       if (plan.updatedAt !== item.expectedUpdatedAt) {
         throw new ConvexError('Plan changed while it was being sealed');
       }
@@ -252,6 +288,7 @@ export const sealPlansBatch = mutation({
       await ctx.db.patch(item.id, {
         localPlanId: undefined,
         title: '',
+        titleNormalized: '',
         content: '',
         filePath: undefined,
         workspace: undefined,
@@ -282,6 +319,7 @@ export const sealPlansBatch = mutation({
 });
 
 const basicEncryptedItem = {
+  expectedSnapshotDigest: v.string(),
   stableCryptoId: v.string(),
   keyEpoch: v.number(),
 };
@@ -307,6 +345,7 @@ export const sealPlanVersionsBatch = mutation({
     for (const item of args.items) {
       const version = await ctx.db.get(item.id);
       if (!version || version.ownerId !== user._id) throw new ConvexError('Version not found');
+      await requireUnchangedSnapshot(version, item.expectedSnapshotDigest);
       validateCurrentEnvelope(item.encryptedSummary, settings.activeKeyEpoch);
       validateCurrentEnvelope(item.encryptedBody, settings.activeKeyEpoch);
       await ctx.db.patch(item.id, {
@@ -353,6 +392,7 @@ export const sealAnnotationsBatch = mutation({
       const annotation = await ctx.db.get(item.id);
       if (!annotation || annotation.ownerId !== user._id)
         throw new ConvexError('Annotation not found');
+      await requireUnchangedSnapshot(annotation, item.expectedSnapshotDigest);
       validateCurrentEnvelope(item.encryptedAnnotation, settings.activeKeyEpoch);
       await ctx.db.patch(item.id, {
         authorName: '',
@@ -396,6 +436,7 @@ export const sealCommentsBatch = mutation({
     for (const item of args.items) {
       const comment = await ctx.db.get(item.id);
       if (!comment || comment.ownerId !== user._id) throw new ConvexError('Comment not found');
+      await requireUnchangedSnapshot(comment, item.expectedSnapshotDigest);
       validateCurrentEnvelope(item.encryptedComment, settings.activeKeyEpoch);
       if (item.encryptedAttachments) {
         validateCurrentEnvelope(item.encryptedAttachments, settings.activeKeyEpoch);
@@ -408,6 +449,11 @@ export const sealCommentsBatch = mutation({
           storageId: attachment.storageId,
           contentType: 'application/octet-stream',
           size: attachment.size,
+          ...(attachment.encrypted !== undefined && { encrypted: attachment.encrypted }),
+          ...(attachment.keyEpoch !== undefined && { keyEpoch: attachment.keyEpoch }),
+          ...(attachment.stableCryptoId !== undefined && {
+            stableCryptoId: attachment.stableCryptoId,
+          }),
         })),
         stableCryptoId: item.stableCryptoId,
         keyEpoch: item.keyEpoch,
@@ -442,6 +488,7 @@ export const sealLinksBatch = mutation({
     for (const item of args.items) {
       const link = await ctx.db.get(item.id);
       if (!link || link.ownerId !== user._id) throw new ConvexError('Link not found');
+      await requireUnchangedSnapshot(link, item.expectedSnapshotDigest);
       validateCurrentEnvelope(item.encryptedLink, settings.activeKeyEpoch);
       await ctx.db.patch(item.id, {
         value: '',
@@ -483,6 +530,7 @@ export const sealTagsBatch = mutation({
     for (const item of args.items) {
       const tag = await ctx.db.get(item.id);
       if (!tag || tag.ownerId !== user._id) throw new ConvexError('Tag not found');
+      await requireUnchangedSnapshot(tag, item.expectedSnapshotDigest);
       validateCurrentEnvelope(item.encryptedName, settings.activeKeyEpoch);
       await ctx.db.patch(item.id, {
         name: '',
@@ -528,6 +576,7 @@ export const sealCollectionsBatch = mutation({
       if (!collection || collection.ownerId !== user._id) {
         throw new ConvexError('Collection not found');
       }
+      await requireUnchangedSnapshot(collection, item.expectedSnapshotDigest);
       validateCurrentEnvelope(item.encryptedName, settings.activeKeyEpoch);
       if (item.encryptedDescription) {
         validateCurrentEnvelope(item.encryptedDescription, settings.activeKeyEpoch);
@@ -576,6 +625,7 @@ export const sealWritebacksBatch = mutation({
       const writeback = await ctx.db.get(item.id);
       if (!writeback || writeback.ownerId !== user._id)
         throw new ConvexError('Writeback not found');
+      await requireUnchangedSnapshot(writeback, item.expectedSnapshotDigest);
       validateCurrentEnvelope(item.encryptedWriteback, settings.activeKeyEpoch);
       await ctx.db.patch(item.id, {
         localPlanId: '',
@@ -622,6 +672,7 @@ export const sealHeartbeatsBatch = mutation({
       const heartbeat = await ctx.db.get(item.id);
       if (!heartbeat || heartbeat.ownerId !== user._id)
         throw new ConvexError('Heartbeat not found');
+      await requireUnchangedSnapshot(heartbeat, item.expectedSnapshotDigest);
       if (item.encryptedHostname) {
         validateCurrentEnvelope(item.encryptedHostname, settings.activeKeyEpoch);
       }
@@ -631,6 +682,8 @@ export const sealHeartbeatsBatch = mutation({
       await ctx.db.patch(item.id, {
         hostname: undefined,
         ipAddress: undefined,
+        usageSnapshots: undefined,
+        usageUpdatedAt: undefined,
         stableCryptoId: item.stableCryptoId,
         keyEpoch: item.keyEpoch,
         encryptedHostname: item.encryptedHostname,
@@ -864,6 +917,7 @@ export function isLegacyPlaintextPresent(
     case 'plans':
       return Boolean(
         row.title ||
+        row.titleNormalized ||
         row.content ||
         row.localPlanId ||
         row.filePath ||
@@ -899,7 +953,7 @@ export function isLegacyPlaintextPresent(
     case 'plannotatorWritebacks':
       return Boolean(row.localPlanId || row.feedback || row.revisedContent || row.annotations);
     case 'daemonHeartbeats':
-      return Boolean(row.hostname || row.ipAddress);
+      return Boolean(row.hostname || row.ipAddress || row.usageSnapshots !== undefined);
     case 'avatars':
       return row.encrypted !== true;
     case 'pendingUploads':
@@ -963,6 +1017,16 @@ export function auditWorkspaceCryptoRow(
   for (const field of requiredEnvelopes[table] ?? []) {
     if (!auditEnvelope(row[field], epoch)) violations.push(`invalid_${field}`);
   }
+  const optionalEnvelopes: Partial<Record<AuditTable, readonly string[]>> = {
+    collections: ['encryptedDescription'],
+    comments: ['encryptedAttachments'],
+    daemonHeartbeats: ['encryptedHostname', 'encryptedIpAddress'],
+  };
+  for (const field of optionalEnvelopes[table] ?? []) {
+    if (row[field] !== undefined && !auditEnvelope(row[field], epoch)) {
+      violations.push(`invalid_${field}`);
+    }
+  }
   if (table === 'plans') {
     for (const token of ['contentToken', 'localPlanToken']) {
       if (typeof row[token] !== 'string' || row[token].length === 0)
@@ -983,7 +1047,7 @@ export function auditWorkspaceCryptoRow(
     ) {
       violations.push('plaintext_attachment');
     }
-    if (attachments.length > 0 && !auditEnvelope(row.encryptedAttachments, epoch)) {
+    if (attachments.length > 0 && row.encryptedAttachments === undefined) {
       violations.push('invalid_encryptedAttachments');
     }
   }
@@ -1004,7 +1068,7 @@ export const runWorkspaceAuditBatch = mutation({
     });
     const table = (operation.auditTable as AuditTable | undefined) ?? AUDIT_TABLES[0];
     if (!AUDIT_TABLES.includes(table)) throw new ConvexError('Invalid audit table');
-    const paginationOpts = { cursor: operation.cursor ?? null, numItems: 20 };
+    const paginationOpts = { cursor: operation.cursor ?? null, numItems: 10 };
     const ownerId = user._id;
     let result: { page: unknown[]; isDone: boolean; continueCursor: string };
     switch (table) {

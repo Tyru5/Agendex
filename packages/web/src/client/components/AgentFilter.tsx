@@ -1,3 +1,4 @@
+import { TOUR_TARGET } from '../tour/productTour.ts';
 import { useMemo, useState } from 'react';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { AgentStats } from '../lib/api.ts';
@@ -43,7 +44,7 @@ export function AgentFilter({
   }
 
   return (
-    <div className="sidebar-control-block">
+    <div className="sidebar-control-block" data-tour={TOUR_TARGET.agentFilter}>
       <div className="sidebar-control-header">
         <span className="sidebar-control-label">Agents</span>
         {selected.length > 0 && <span className="sidebar-count-pill">{selected.length}</span>}

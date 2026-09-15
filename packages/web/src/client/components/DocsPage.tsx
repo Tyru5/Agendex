@@ -94,6 +94,7 @@ const IMPLEMENTED_ADAPTERS = [
   'Kimi Code',
   'Kiro',
   'Mux',
+  'omp (oh-my-pi)',
   'OpenCode',
   'Oh My OpenCode',
   'Plannotator',
@@ -488,7 +489,7 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
           <DocSection id="plan-sources" title="Plan sources">
             <Body>
               Adapters teach Agendex where each agent keeps its plans and how to parse them. Agendex
-              has 20 automatic integrations backed by durable artifacts or explicit plan-session
+              has 21 automatic integrations backed by durable artifacts or explicit plan-session
               evidence, plus the experimental Continue adapter:
             </Body>
             <ul className="m-0 flex max-w-[68ch] list-none flex-wrap gap-2 p-0">

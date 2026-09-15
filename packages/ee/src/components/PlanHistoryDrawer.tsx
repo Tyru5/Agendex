@@ -150,28 +150,35 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
       if (cryptoStatus?.settings && planCryptoRecord?.stableCryptoId && readableFromSnapshot) {
         const { workspaceOwnerId, settings } = cryptoStatus;
         const stableCryptoId = planCryptoRecord.stableCryptoId;
-        const encrypted = withWorkspaceKey(workspaceOwnerId, (workspaceKey) =>
-          encryptPlanWrite({
-            workspaceKey,
-            workspaceOwnerId,
-            keyEpoch: settings.activeKeyEpoch,
-            stableCryptoId,
-            plan: {
-              localPlanId:
-                'localPlanId' in readableFromSnapshot &&
-                typeof readableFromSnapshot.localPlanId === 'string'
-                  ? readableFromSnapshot.localPlanId
-                  : '',
-              agent: planCryptoRecord.agent,
-              title: readableFromSnapshot.title,
-              content: readableFromSnapshot.content,
-              format: readableFromSnapshot.format,
-              filePath: readableFromSnapshot.filePath,
-              workspace: readableFromSnapshot.workspace,
-              metadata: readableFromSnapshot.metadata,
-              lowValue: planCryptoRecord.lowValue,
-            },
-          }),
+        const currentKeyEpoch = planCryptoRecord.keyEpoch;
+        if (!currentKeyEpoch) throw new Error('Current plan encryption epoch is missing');
+        const encrypted = withWorkspaceKey(
+          workspaceOwnerId,
+          (workspaceKey) =>
+            encryptPlanWrite({
+              workspaceKey,
+              workspaceOwnerId,
+              keyEpoch: settings.activeKeyEpoch,
+              stableCryptoId,
+              plan: {
+                localPlanId: decryptPlanSummary({
+                  workspaceKey,
+                  workspaceOwnerId,
+                  stableCryptoId,
+                  keyEpoch: currentKeyEpoch,
+                  envelope: planCryptoRecord.encryptedSummary,
+                }).localPlanId,
+                agent: planCryptoRecord.agent,
+                title: readableFromSnapshot.title,
+                content: readableFromSnapshot.content,
+                format: readableFromSnapshot.format,
+                filePath: readableFromSnapshot.filePath,
+                workspace: readableFromSnapshot.workspace,
+                metadata: readableFromSnapshot.metadata,
+                lowValue: planCryptoRecord.lowValue,
+              },
+            }),
+          settings.activeKeyEpoch,
         );
         await restoreMutation({
           planId: planId as Id<'plans'>,

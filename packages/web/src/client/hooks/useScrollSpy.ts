@@ -26,7 +26,8 @@ export function useScrollSpy(headingIds: string[]): string | null {
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
 
         if (visible.length > 0 && visible[0]) {
-          setActiveId(visible[0].target.id);
+          const target = visible[0].target;
+          setActiveId(target.getAttribute('data-agendex-anchor') ?? target.id);
         }
       },
       { root: observerRoot, rootMargin: '0px 0px -80% 0px', threshold: 0 },

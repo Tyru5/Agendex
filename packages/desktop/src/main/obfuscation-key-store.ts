@@ -3,6 +3,14 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { app, safeStorage } from 'electron';
 
+function isSecureObfuscationStorageAvailable(): boolean {
+  if (!safeStorage.isEncryptionAvailable()) return false;
+  if (process.platform !== 'linux') return true;
+  // Electron's basic_text backend encrypts with a hardcoded password.
+  const backend = safeStorage.getSelectedStorageBackend();
+  return backend !== 'basic_text' && backend !== 'unknown';
+}
+
 function keyPath(workspaceOwnerId: string, keyEpoch: number): string {
   const scope = createHash('sha256').update(`${workspaceOwnerId}\0${keyEpoch}`).digest('hex');
   return join(app.getPath('userData'), 'obfuscation-keys', `${scope}.json`);
@@ -18,7 +26,7 @@ export function storeObfuscationKey(
     !Number.isSafeInteger(keyEpoch) ||
     keyEpoch < 1 ||
     !/^[A-Za-z0-9+/]{43}=$/.test(keyBase64) ||
-    !safeStorage.isEncryptionAvailable()
+    !isSecureObfuscationStorageAvailable()
   ) {
     return false;
   }
@@ -35,7 +43,7 @@ export function storeObfuscationKey(
 export function loadObfuscationKey(workspaceOwnerId: string, keyEpoch: number): string | null {
   try {
     const path = keyPath(workspaceOwnerId, keyEpoch);
-    if (!existsSync(path) || !safeStorage.isEncryptionAvailable()) return null;
+    if (!existsSync(path) || !isSecureObfuscationStorageAvailable()) return null;
     const value = JSON.parse(readFileSync(path, 'utf8')) as {
       v?: number;
       ciphertext?: string;

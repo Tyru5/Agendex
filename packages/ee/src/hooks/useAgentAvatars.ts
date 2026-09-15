@@ -18,16 +18,19 @@ export async function encryptAgentAvatar(args: {
 }) {
   const stableCryptoId = generateStableCryptoId();
   const plaintext = new Uint8Array(await args.file.arrayBuffer());
-  const packed = withWorkspaceKey(args.workspaceOwnerId, (_workspaceKey, derivedKeys) =>
-    packEncryptedBlob(
-      sealBytes(derivedKeys.contentKey, plaintext, {
-        workspaceOwnerId: args.workspaceOwnerId,
-        table: 'agentAvatars',
-        stableCryptoId,
-        slot: 'avatar',
-        keyEpoch: args.keyEpoch,
-      }),
-    ),
+  const packed = withWorkspaceKey(
+    args.workspaceOwnerId,
+    (_workspaceKey, derivedKeys) =>
+      packEncryptedBlob(
+        sealBytes(derivedKeys.contentKey, plaintext, {
+          workspaceOwnerId: args.workspaceOwnerId,
+          table: 'agentAvatars',
+          stableCryptoId,
+          slot: 'avatar',
+          keyEpoch: args.keyEpoch,
+        }),
+      ),
+    args.keyEpoch,
   );
   plaintext.fill(0);
   return {

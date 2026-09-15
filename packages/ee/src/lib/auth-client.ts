@@ -141,11 +141,41 @@ export async function desktopAuthFetch(
 export const AUTH_BASE_URL =
   desktopConvexSiteUrl || ((import.meta.env.VITE_CONVEX_SITE_URL as string) ?? '');
 
+export function isSameOriginAuth(authBaseUrl: string, currentOrigin: string | undefined): boolean {
+  if (!currentOrigin) return false;
+  try {
+    return new URL(authBaseUrl, currentOrigin).origin === currentOrigin;
+  } catch {
+    return false;
+  }
+}
+
+const sameOriginAuth =
+  isSameOriginAuth(
+    AUTH_BASE_URL,
+    typeof window !== 'undefined' ? window.location.origin : undefined,
+  ) && import.meta.env.VITE_AUTH_USE_NATIVE_CREDENTIALS === 'true';
+
+export function sameOriginAuthFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  return fetch(input, { ...init, credentials: 'include' });
+}
+
 export const authClient = createAuthClient({
   baseURL: AUTH_BASE_URL,
+  // The cross-domain plugin deliberately omits browser credentials and carries
+  // Better Auth cookies through localStorage instead. Keep the plugin because
+  // Convex uses its local updateSession action. Orb services explicitly restore
+  // native credentials so Amp's portal cookie reaches the same-origin proxy.
   plugins: [convexClient(), crossDomainClient({ disableCache: true })],
   // `customFetchImpl` (not a top-level `fetch` key) is how better-auth accepts
   // a fetch override; it routes every auth request (get-session, list-accounts,
   // ...) through the Bearer-token wrapper so desktop sessions resolve a user.
-  ...(isDesktop() ? { fetchOptions: { customFetchImpl: desktopAuthFetch } } : {}),
+  ...(isDesktop()
+    ? { fetchOptions: { customFetchImpl: desktopAuthFetch } }
+    : sameOriginAuth
+      ? { fetchOptions: { customFetchImpl: sameOriginAuthFetch } }
+      : {}),
 });

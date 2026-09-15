@@ -70,24 +70,51 @@ function macosSecretStore(run: SecretCommandRunner): SecretStore {
       return result.code === 0 ? result.stdout.replace(/\r?\n$/, '') : null;
     },
     set: async (key, secret) => {
-      const result = await run(
-        'security',
-        ['add-generic-password', '-a', key, '-s', SERVICE, '-U', '-w'],
-        secret,
-      );
+      // `-w` without an argument prompts twice on the controlling terminal.
+      // Interactive command mode instead reads the complete command from stdin,
+      // keeping the secret out of the operating-system process argument list.
+      const command = ['add-generic-password', '-a', key, '-s', SERVICE, '-U', '-w', secret]
+        .map(quoteSecurityArgument)
+        .join(' ');
+      if (Buffer.byteLength(command, 'utf8') >= 4095) {
+        throw new SecretStoreUnavailableError('macOS Keychain input is too long');
+      }
+      const result = await run('security', ['-i', '-q'], `${command}\n`);
       if (result.code !== 0)
         throw new SecretStoreUnavailableError('macOS Keychain rejected the key');
     },
     delete: async (key) => {
-      await run('security', ['delete-generic-password', '-a', key, '-s', SERVICE]);
+      const result = await run('security', ['delete-generic-password', '-a', key, '-s', SERVICE]);
+      // errSecItemNotFound (-25300) is exit status 44; deletion is idempotent.
+      if (result.code !== 0 && result.code !== 44) {
+        throw new SecretStoreUnavailableError('macOS Keychain could not remove the key');
+      }
     },
   };
+}
+
+function quoteSecurityArgument(value: string): string {
+  // security's line parser supports quoted arguments with backslash escapes,
+  // but line breaks and NUL must never be accepted as command input.
+  if (/[\r\n]/.test(value) || value.includes('\0')) {
+    throw new SecretStoreUnavailableError('Invalid macOS Keychain input');
+  }
+  return `"${value.replace(/[\\"]/g, '\\$&')}"`;
 }
 
 function linuxSecretStore(run: SecretCommandRunner): SecretStore {
   return {
     backend: 'linux-secret-service',
-    available: () => commandIsAvailable(run, 'secret-tool', ['--version']),
+    // secret-tool has no --version command. A search with no matching item
+    // still exits successfully and also checks that Secret Service is reachable.
+    available: () =>
+      commandIsAvailable(run, 'secret-tool', [
+        'search',
+        'service',
+        SERVICE,
+        'account',
+        '__availability_probe__',
+      ]),
     get: async (key) => {
       const result = await run('secret-tool', ['lookup', 'service', SERVICE, 'account', key]);
       return result.code === 0 ? result.stdout.replace(/\r?\n$/, '') : null;
@@ -103,7 +130,11 @@ function linuxSecretStore(run: SecretCommandRunner): SecretStore {
       }
     },
     delete: async (key) => {
-      await run('secret-tool', ['clear', 'service', SERVICE, 'account', key]);
+      const result = await run('secret-tool', ['clear', 'service', SERVICE, 'account', key]);
+      // An unmatched clear returns 1 without an error; service failures include stderr.
+      if (result.code !== 0 && !(result.code === 1 && result.stderr.trim() === '')) {
+        throw new SecretStoreUnavailableError('Secret Service could not remove the key');
+      }
     },
   };
 }

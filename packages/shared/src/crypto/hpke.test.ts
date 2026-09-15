@@ -56,7 +56,7 @@ describe('RFC 9180 workspace key grants', () => {
         keyEpoch: 1,
       }),
     ).rejects.toBeInstanceOf(CryptoCorruptionError);
-    grant.ciphertext[0] ^= 1;
+    grant.ciphertext[0] = grant.ciphertext[0]! ^ 1;
     await expect(
       openWorkspaceKeyGrant({
         grant,

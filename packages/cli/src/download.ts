@@ -1,7 +1,13 @@
 import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { loadConfig, looksLikePlanAgent, parsePlanDownloadQuery } from '@agendex/shared';
+import {
+  loadConfig,
+  looksLikePlanAgent,
+  parsePlanDownloadQuery,
+  updateConfig,
+} from '@agendex/shared';
 import {
   type CloudPlanDownloadMatch,
+  type CloudPlanDownloadPagination,
   type FetchCloudPlanResult,
   fetchCloudPlan as defaultFetchCloudPlan,
 } from './api.ts';
@@ -27,9 +33,25 @@ export interface DownloadDeps {
   writeStdout: (content: string) => void;
   writeFile: (path: string, content: string) => Promise<void>;
   mkdir: (path: string) => Promise<void>;
-  stat: typeof stat;
+  stat: (path: string) => Promise<{ isDirectory: () => boolean }>;
   canPrompt: () => boolean;
   promptSelect: (matches: CloudPlanDownloadMatch[], message: string) => Promise<string | null>;
+  now: () => number;
+}
+
+/** Best-effort: remember the last successful download so `agendex status` can show it. */
+function recordPlanDownload(record: {
+  at: number;
+  title: string;
+  agent: string;
+  format: PlanDownloadFormat;
+  destination: string | null;
+}): void {
+  try {
+    updateConfig((current) => (current ? { ...current, lastPlanDownload: record } : null));
+  } catch {
+    // Status bookkeeping must never fail an otherwise successful download.
+  }
 }
 
 type FlagParse = { kind: 'ok'; value?: string } | { kind: 'missing'; flag: string };
@@ -100,14 +122,23 @@ function formatQuickSelectList(matches: CloudPlanDownloadMatch[]): string[] {
   ]);
 }
 
-function formatAmbiguousMatches(matches: CloudPlanDownloadMatch[]): string {
-  if (matches.length === 0) {
-    return '[agendex] multiple plans matched; pick a number or retry with a plan id';
+function formatAmbiguousMatches(
+  matches: CloudPlanDownloadMatch[],
+  pagination: CloudPlanDownloadPagination,
+): string {
+  const lines =
+    matches.length === 0
+      ? ['[agendex] multiple plans matched; retry with an exact plan id']
+      : [
+          '[agendex] multiple plans matched — pick one without retyping the title:',
+          ...formatQuickSelectList(matches),
+        ];
+  if (pagination.hasMore) {
+    lines.push(
+      `[agendex] showing up to ${pagination.pageSize} matches; more exact-title matches exist. Refine with --agent or use an exact plan id.`,
+    );
   }
-  return [
-    '[agendex] multiple plans matched — pick one without retyping the title:',
-    ...formatQuickSelectList(matches),
-  ].join('\n');
+  return lines.join('\n');
 }
 
 function formatNotFound(
@@ -141,6 +172,7 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
   const statFn = deps?.stat ?? stat;
   const canPrompt = deps?.canPrompt ?? canPromptForPlanDownload;
   const promptSelect = deps?.promptSelect ?? promptForPlanDownload;
+  const now = deps?.now ?? Date.now;
 
   const agentFlag = flagValue(args, '--agent');
   if (agentFlag.kind === 'missing') {
@@ -240,7 +272,7 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
     error(
       result.kind === 'not_found'
         ? formatNotFound(query, agent, result.suggestions)
-        : formatAmbiguousMatches(result.matches),
+        : formatAmbiguousMatches(result.matches, result.pagination),
     );
     if (choices.length === 0 || !canPrompt()) return 1;
 
@@ -281,5 +313,13 @@ export async function runDownload(args: string[], deps?: Partial<DownloadDeps>):
     mkdir: mkdirFn,
     stat: statFn,
   });
-  return written.ok ? 0 : 1;
+  if (!written.ok) return 1;
+  recordPlanDownload({
+    at: now(),
+    title: result.plan.title,
+    agent: result.plan.agent,
+    format,
+    destination: written.destination,
+  });
+  return 0;
 }

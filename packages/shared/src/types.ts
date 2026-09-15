@@ -109,6 +109,7 @@ export interface AgentAdapter {
   agent: string;
   getSearchPaths(): string[];
   getWatchPaths(): string[];
+  getCreatePath?(slug: string, timestamp: number): string;
   getSourcePath?(filePath: string): string;
   matches(filePath: string, scanRoot?: string): boolean;
   parse(filePath: string, scanRoot?: string): Promise<Plan[]>;

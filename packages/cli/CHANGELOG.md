@@ -1,5 +1,41 @@
 # agendex-cli
 
+## 5.7.4
+
+### Patch Changes
+
+- a9e0324: Handle cleaning up stale daemons
+
+## 5.7.3
+
+### Patch Changes
+
+- d6d28ba: Update 'status' command to show more info
+
+## 5.7.2
+
+### Patch Changes
+
+- c582062: Keep live CLI daemons recognized when macOS reports small boot-time timestamp drift.
+
+## 5.7.1
+
+### Patch Changes
+
+- c3526f9: Keep cloud usage heartbeats under the server payload limit, surface failed syncs, and avoid double-counting multi-device usage.
+
+## 5.7.0
+
+### Minor Changes
+
+- 21b78ca: Add an omp (oh-my-pi) adapter that indexes Plan-mode draft artifacts from omp session directories (`~/.omp/agent/sessions/**/local/*-plan.md`), with session metadata (workspace, session id, title) read from the session JSONL header. The adapter is default-enabled; existing installs pick it up via a v7 config migration. Landing page and agent color catalog now list omp.
+
+## 5.6.0
+
+### Minor Changes
+
+- 92f63a1: Usage stats
+
 ## 5.5.0
 
 ### Minor Changes

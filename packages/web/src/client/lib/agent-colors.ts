@@ -3,6 +3,7 @@ import { siCursor, siWindsurf } from 'simple-icons';
 import commandcodeIcon from '../assets/agent-icons/icon-commandcode.png';
 import droidIcon from '../assets/agent-icons/icon-droid.png';
 import geminiIcon from '../assets/agent-icons/icon-gemini.png';
+import ompIcon from '../assets/agent-icons/icon-omp.svg';
 import plannotatorIcon from '../assets/agent-icons/icon-plannotator.png';
 
 interface AgentIconPath {
@@ -93,6 +94,10 @@ const DROID_ICON: AgentIcon = {
 const GEMINI_ICON: AgentIcon = {
   hex: '1E88E5',
   imageSrc: geminiIcon,
+};
+const OMP_ICON: AgentIcon = {
+  hex: '9B4DFF',
+  imageSrc: ompIcon,
 };
 const PLANNOTATOR_ICON: AgentIcon = {
   hex: 'F5822A',
@@ -328,6 +333,11 @@ const AGENT_BRANDING: Record<string, AgentBranding> = {
     label: 'Windsurf / Devin Desktop',
     color: '#14b8a6',
     icon: siWindsurf,
+  },
+  omp: {
+    label: 'omp (oh-my-pi)',
+    color: '#f59e0b',
+    icon: OMP_ICON,
   },
   opencode: {
     label: 'OpenCode',

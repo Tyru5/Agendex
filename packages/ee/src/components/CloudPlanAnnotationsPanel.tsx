@@ -163,6 +163,7 @@ export function useCloudPlanAnnotations({
     }
     setCreateError(undefined);
     try {
+      if (!cryptoStatus) throw new Error('Cloud privacy status is unavailable');
       const base = {
         planId: plan.id as Id<'plans'>,
         type: draft.type,
@@ -174,37 +175,41 @@ export function useCloudPlanAnnotations({
       } as const;
       const cryptoSettings = cryptoStatus?.settings;
       const encrypted = cryptoSettings
-        ? withWorkspaceKey(cryptoStatus.workspaceOwnerId, (workspaceKey) => {
-            const value = encryptWorkspaceValue({
-              workspaceKey,
-              workspaceOwnerId: cryptoStatus.workspaceOwnerId,
-              keyEpoch: cryptoSettings.activeKeyEpoch,
-              table: 'planAnnotations',
-              slot: 'annotation',
-              value: {
-                authorName: user?.name ?? 'Anonymous',
-                source: 'agendex-cloud',
-                body: draft.body,
-                replacementText: draft.replacementText,
-                anchor: draft.anchor,
-              } satisfies PrivateAnnotationValue,
-            });
-            return {
-              planId: base.planId,
-              type: base.type,
-              status: base.status,
-              source: base.source,
-              anchor: {
-                startOffset: draft.anchor.startOffset,
-                endOffset: draft.anchor.endOffset,
-                occurrenceIndex: draft.anchor.occurrenceIndex,
-              },
-              clientCryptoProtocol: 1,
-              stableCryptoId: value.stableCryptoId,
-              keyEpoch: value.keyEpoch,
-              encryptedAnnotation: value.envelope,
-            };
-          })
+        ? withWorkspaceKey(
+            cryptoStatus.workspaceOwnerId,
+            (workspaceKey) => {
+              const value = encryptWorkspaceValue({
+                workspaceKey,
+                workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+                keyEpoch: cryptoSettings.activeKeyEpoch,
+                table: 'planAnnotations',
+                slot: 'annotation',
+                value: {
+                  authorName: user?.name ?? 'Anonymous',
+                  source: 'agendex-cloud',
+                  body: draft.body,
+                  replacementText: draft.replacementText,
+                  anchor: draft.anchor,
+                } satisfies PrivateAnnotationValue,
+              });
+              return {
+                planId: base.planId,
+                type: base.type,
+                status: base.status,
+                source: base.source,
+                anchor: {
+                  startOffset: draft.anchor.startOffset,
+                  endOffset: draft.anchor.endOffset,
+                  occurrenceIndex: draft.anchor.occurrenceIndex,
+                },
+                clientCryptoProtocol: 1,
+                stableCryptoId: value.stableCryptoId,
+                keyEpoch: value.keyEpoch,
+                encryptedAnnotation: value.envelope,
+              };
+            },
+            cryptoSettings.activeKeyEpoch,
+          )
         : base;
       const id = await createAnnotationMutation(encrypted);
       setSelectedAnnotationId(id);
@@ -273,6 +278,7 @@ export function CloudPlanAnnotationsPanel({
     setError(undefined);
     setQueued(false);
     try {
+      if (!cryptoStatus) throw new Error('Cloud privacy status is unavailable');
       const sharedAnnotations = openAnnotations.map(toSharedAnnotation);
       const feedback = formatPlanAnnotationFeedback(sharedAnnotations);
       const writebackAnnotations = toPlannotatorFeedbackAnnotations(sharedAnnotations);

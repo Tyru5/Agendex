@@ -1,4 +1,5 @@
 import { ProFeature } from '@agendex/shared/types';
+import { canonicalPlanAgent, normalizePlanLookupText } from '@agendex/shared/plan-download-lookup';
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
@@ -7,6 +8,7 @@ import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
 import { normalizePlanSourcePath, planMatchesSource } from './planSourcePath';
+import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 import {
   dedupeVisiblePlans,
   dedupeSearchPlans,
@@ -18,6 +20,14 @@ import { ensureBaselinePlanVersion, planContentChanged, recordPlanVersion } from
 import { hasActiveSubscriptionForUserId } from './subscriptions';
 import { cryptoEnvelopeV1 } from './schema';
 import { resolveWorkspaceCryptoPolicy, validateEncryptedWrite } from './workspaceCrypto';
+import {
+  planListItemValidator,
+  planMetadataValidator,
+  planValidator,
+  toPlanDto,
+  toPlanListItemDto,
+} from './validators';
+import { sharedPlanDtoValidator, toSharedPlanDto } from './sharedPlanDto';
 
 export const publishPlan = mutation({
   args: {
@@ -28,7 +38,7 @@ export const publishPlan = mutation({
     format: v.string(),
     filePath: v.optional(v.string()),
     workspace: v.optional(v.string()),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(planMetadataValidator),
     clientCryptoProtocol: v.optional(v.number()),
     stableCryptoId: v.optional(v.string()),
     keyEpoch: v.optional(v.number()),
@@ -43,6 +53,7 @@ export const publishPlan = mutation({
     continuityToken: v.optional(v.string()),
     lowValue: v.optional(v.boolean()),
   },
+  returns: v.id('plans'),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -65,6 +76,7 @@ export const publishPlan = mutation({
         !args.versionStableCryptoId ||
         !args.contentToken ||
         !args.localPlanToken ||
+        args.lowValue === undefined ||
         args.keyEpoch === undefined
       ) {
         throw new ConvexError('Encrypted plan fields are required');
@@ -114,6 +126,9 @@ export const publishPlan = mutation({
           .first();
 
     if (existing) {
+      if (cryptoPolicy.requiresEncryption && existing.stableCryptoId !== args.stableCryptoId) {
+        throw new ConvexError('Encrypted plan identity does not match the existing plan');
+      }
       const contentChanged = cryptoPolicy.requiresEncryption
         ? existing.contentToken !== args.contentToken
         : planContentChanged(existing, args);
@@ -159,7 +174,16 @@ export const publishPlan = mutation({
       };
       await ctx.db.patch(existing._id, {
         agent: args.agent,
+        titleNormalized: normalizePlanLookupText(args.title),
+        agentNormalized: canonicalPlanAgent(args.agent),
         ...snapshot,
+        ...(cryptoPolicy.requiresEncryption
+          ? {
+              stableCryptoId: args.stableCryptoId,
+              encryptedSummary: args.encryptedSummary,
+              encryptedBody: args.encryptedBody,
+            }
+          : {}),
         localPlanId: cryptoPolicy.requiresEncryption ? undefined : args.localPlanId,
         contentToken: args.contentToken,
         localPlanToken: args.localPlanToken,
@@ -192,6 +216,8 @@ export const publishPlan = mutation({
       localPlanId: cryptoPolicy.requiresEncryption ? undefined : args.localPlanId,
       agent: args.agent,
       title: args.title,
+      titleNormalized: normalizePlanLookupText(args.title),
+      agentNormalized: canonicalPlanAgent(args.agent),
       content: args.content,
       format: args.format,
       filePath: args.filePath,
@@ -243,6 +269,14 @@ export const publishPlan = mutation({
 
 export const getPlanCryptoIdentity = query({
   args: { localPlanToken: v.string() },
+  returns: v.union(
+    v.object({
+      stableCryptoId: v.optional(v.string()),
+      keyEpoch: v.optional(v.number()),
+      updatedAt: v.number(),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return null;
@@ -264,6 +298,18 @@ export const getPlanCryptoIdentity = query({
 
 export const getPlanCryptoRecord = query({
   args: { planId: v.id('plans') },
+  returns: v.union(
+    v.object({
+      ownerId: v.string(),
+      stableCryptoId: v.optional(v.string()),
+      keyEpoch: v.optional(v.number()),
+      encryptedSummary: v.optional(cryptoEnvelopeV1),
+      agent: v.string(),
+      format: v.string(),
+      lowValue: v.boolean(),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return null;
@@ -273,6 +319,7 @@ export const getPlanCryptoRecord = query({
       ownerId: plan.ownerId,
       stableCryptoId: plan.stableCryptoId,
       keyEpoch: plan.keyEpoch,
+      encryptedSummary: plan.encryptedSummary,
       agent: plan.agent,
       format: plan.format,
       lowValue: plan.lowValue ?? false,
@@ -300,6 +347,15 @@ export async function resolvePublishedPlansOwnerId(ctx: QueryCtx, userId: string
 
 export const getMyPublishedPlans = query({
   args: { paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    page: v.array(planListItemValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+    splitCursor: v.optional(v.union(v.string(), v.null())),
+    pageStatus: v.optional(
+      v.union(v.literal('SplitRecommended'), v.literal('SplitRequired'), v.null()),
+    ),
+  }),
   handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) {
@@ -328,9 +384,7 @@ export const getMyPublishedPlans = query({
     // above still counts full document bytes against the transaction limit.
     return {
       ...result,
-      page: dedupeVisiblePlans(filterVisiblePlans(result.page)).map(
-        ({ content: _content, encryptedBody: _encryptedBody, ...plan }) => plan,
-      ),
+      page: dedupeVisiblePlans(filterVisiblePlans(result.page)).map(toPlanListItemDto),
     };
   },
 });
@@ -343,6 +397,15 @@ export const getMyPublishedPlans = query({
 // URL when switching to cloud mode) can't fail argument validation.
 export const getMyPlanContent = query({
   args: { planId: v.string() },
+  returns: v.union(
+    v.object({
+      content: v.string(),
+      encryptedBody: v.optional(cryptoEnvelopeV1),
+      stableCryptoId: v.optional(v.string()),
+      keyEpoch: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
     const user = await authComponent.safeGetAuthUser(ctx);
     if (!user) return null;
@@ -387,6 +450,7 @@ const CONTENT_SEARCH_MAX_RESULTS = 25;
 // match it; instead it unions these ids into its metadata-search results.
 export const searchMyPlans = query({
   args: { searchTerm: v.string() },
+  returns: v.array(v.id('plans')),
   handler: async (ctx, args) => {
     const term = args.searchTerm.trim();
     if (!term) return [];
@@ -409,6 +473,7 @@ export const searchMyPlans = query({
 
 export const getPlan = query({
   args: { planId: v.id('plans') },
+  returns: planValidator,
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -442,32 +507,32 @@ export const getPlan = query({
       throw new ConvexError('Plan not found');
     }
 
-    return plan;
+    return toPlanDto(plan);
   },
 });
 
 export const getPlanByShareToken = query({
-  args: { token: v.string() },
+  args: {
+    token: v.string(),
+    accessProof: v.optional(shareAccessProofIdValidator),
+  },
+  returns: v.union(
+    sharedPlanDtoValidator,
+    v.object({
+      passwordRequired: v.literal(true),
+    }),
+  ),
   handler: async (ctx, args) => {
-    const shareLink = await ctx.db
-      .query('shareLinks')
-      .withIndex('by_token', (q) => q.eq('token', args.token))
-      .first();
+    const access = await resolveSharedPlanAccess(ctx, {
+      token: args.token,
+      ...(args.accessProof ? { accessProof: args.accessProof } : {}),
+    });
 
-    if (!shareLink) {
-      throw new ConvexError('Invalid or revoked share link');
-    }
-
-    const plan = await ctx.db.get(shareLink.planId);
-    if (!plan || !isVisiblePlan(plan)) {
-      throw new ConvexError('Plan not found');
-    }
-
-    if (shareLink.passwordHash) {
+    if (access.kind === 'password_required') {
       return { passwordRequired: true as const };
     }
 
-    return plan;
+    return toSharedPlanDto(access.plan);
   },
 });
 
@@ -475,7 +540,12 @@ export const renamePlan = mutation({
   args: {
     planId: v.id('plans'),
     title: v.string(),
+    clientCryptoProtocol: v.optional(v.number()),
+    keyEpoch: v.optional(v.number()),
+    encryptedSummary: v.optional(cryptoEnvelopeV1),
+    contentToken: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -491,6 +561,32 @@ export const renamePlan = mutation({
 
     if (plan.ownerId !== user._id) {
       throw new ConvexError('Access denied');
+    }
+
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
+    if (policy.requiresEncryption) {
+      validateEncryptedWrite({
+        policy,
+        clientProtocol: args.clientCryptoProtocol,
+        envelopes: args.encryptedSummary ? [args.encryptedSummary] : [],
+        plaintext: { title: args.title },
+      });
+      if (
+        !plan.stableCryptoId ||
+        !args.contentToken ||
+        args.keyEpoch !== policy.activeKeyEpoch ||
+        plan.keyEpoch !== args.keyEpoch
+      ) {
+        throw new ConvexError('Encrypted plan metadata is required');
+      }
+      await ctx.db.patch(args.planId, {
+        title: '',
+        titleNormalized: '',
+        encryptedSummary: args.encryptedSummary,
+        contentToken: args.contentToken,
+        updatedAt: Date.now(),
+      });
+      return null;
     }
 
     const title = args.title.trim();
@@ -499,13 +595,16 @@ export const renamePlan = mutation({
     }
 
     if (plan.title === title) {
-      return;
+      return null;
     }
 
     await ctx.db.patch(args.planId, {
       title,
+      titleNormalized: normalizePlanLookupText(title),
+      agentNormalized: canonicalPlanAgent(plan.agent),
       updatedAt: Date.now(),
     });
+    return null;
   },
 });
 
@@ -514,7 +613,17 @@ export const updatePlanContent = mutation({
     planId: v.id('plans'),
     title: v.string(),
     content: v.string(),
+    clientCryptoProtocol: v.optional(v.number()),
+    keyEpoch: v.optional(v.number()),
+    encryptedSummary: v.optional(cryptoEnvelopeV1),
+    encryptedBody: v.optional(cryptoEnvelopeV1),
+    versionStableCryptoId: v.optional(v.string()),
+    encryptedVersionSummary: v.optional(cryptoEnvelopeV1),
+    encryptedVersionBody: v.optional(cryptoEnvelopeV1),
+    contentToken: v.optional(v.string()),
+    lowValue: v.optional(v.boolean()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -532,8 +641,70 @@ export const updatePlanContent = mutation({
       throw new ConvexError('Access denied');
     }
 
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
+    if (policy.requiresEncryption) {
+      validateEncryptedWrite({
+        policy,
+        clientProtocol: args.clientCryptoProtocol,
+        envelopes: [
+          args.encryptedSummary,
+          args.encryptedBody,
+          args.encryptedVersionSummary,
+          args.encryptedVersionBody,
+        ].filter(Boolean),
+        plaintext: { title: args.title, content: args.content },
+      });
+      if (
+        !plan.stableCryptoId ||
+        args.keyEpoch !== policy.activeKeyEpoch ||
+        !args.encryptedSummary ||
+        !args.encryptedBody ||
+        !args.versionStableCryptoId ||
+        !args.encryptedVersionSummary ||
+        !args.encryptedVersionBody ||
+        !args.contentToken ||
+        args.lowValue === undefined
+      ) {
+        throw new ConvexError('Encrypted plan and history fields are required');
+      }
+      const now = Date.now();
+      const newVersion = plan.version + 1;
+      await ctx.db.patch(args.planId, {
+        title: '',
+        titleNormalized: '',
+        content: '',
+        metadata: undefined,
+        filePath: undefined,
+        workspace: undefined,
+        encryptedSummary: args.encryptedSummary,
+        encryptedBody: args.encryptedBody,
+        keyEpoch: args.keyEpoch,
+        contentToken: args.contentToken,
+        lowValue: args.lowValue,
+        version: newVersion,
+        updatedAt: now,
+      });
+      await recordPlanVersion(ctx, {
+        ownerId: user._id,
+        planId: args.planId,
+        version: newVersion,
+        snapshot: {
+          title: '',
+          content: '',
+          format: plan.format,
+          stableCryptoId: args.versionStableCryptoId,
+          keyEpoch: args.keyEpoch,
+          encryptedSummary: args.encryptedVersionSummary,
+          encryptedBody: args.encryptedVersionBody,
+        },
+        source: 'editor',
+        createdAt: now,
+      });
+      return null;
+    }
+
     if (!planContentChanged(plan, args)) {
-      return;
+      return null;
     }
 
     await ensureBaselinePlanVersion(ctx, {
@@ -568,6 +739,8 @@ export const updatePlanContent = mutation({
 
     await ctx.db.patch(args.planId, {
       title: args.title,
+      titleNormalized: normalizePlanLookupText(args.title),
+      agentNormalized: canonicalPlanAgent(plan.agent),
       content: args.content,
       metadata,
       version: newVersion,
@@ -582,10 +755,12 @@ export const updatePlanContent = mutation({
       source: 'editor',
       createdAt: now,
     });
+    return null;
   },
 });
 export const deletePlan = mutation({
   args: { planId: v.id('plans') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -606,6 +781,7 @@ export const deletePlan = mutation({
     await deletePlanRelatedData(ctx, { planId: args.planId, ownerId: user._id });
 
     await ctx.db.delete(args.planId);
+    return null;
   },
 });
 
@@ -623,6 +799,7 @@ const DELETE_SOURCE_BATCH_SIZE = 25;
  */
 export const deleteMyPlansBySource = mutation({
   args: { customDir: v.string() },
+  returns: v.object({ deleted: v.number(), done: v.boolean() }),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {

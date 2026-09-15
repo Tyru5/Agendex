@@ -535,9 +535,10 @@ export async function create(agentName: string, title: string, content: string):
 
   const userPlansDir = getUserPlansDir();
   if (adapter?.writable) {
-    const dir = adapter.getSearchPaths()[0] ?? userPlansDir;
-    await mkdir(dir, { recursive: true });
-    filePath = join(dir, filename);
+    filePath =
+      adapter.getCreatePath?.(slug, timestamp) ??
+      join(adapter.getSearchPaths()[0] ?? userPlansDir, filename);
+    await mkdir(dirname(filePath), { recursive: true });
     fileContent = `# ${title}\n\n${content}`;
   } else {
     await mkdir(userPlansDir, { recursive: true });

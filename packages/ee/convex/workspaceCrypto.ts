@@ -2,6 +2,7 @@ import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
 import { authComponent } from './auth';
+import { assertAccountActive } from './accountDeletionState';
 import { requireFeature } from './entitlements';
 import { cryptoEnvelopeV1, passphraseKdfParamsV1 } from './schema';
 import { hasActiveSubscription } from './subscriptions';
@@ -33,6 +34,7 @@ export async function resolveWorkspaceCryptoPolicy(
   ctx: DbCtx,
   ownerId: string,
 ): Promise<WorkspaceCryptoPolicy> {
+  await assertAccountActive(ctx, ownerId);
   const settings = await ctx.db
     .query('workspaceCryptoSettings')
     .withIndex('by_owner', (query) => query.eq('ownerId', ownerId))
@@ -59,6 +61,7 @@ export async function requireWorkspaceCryptoOwner(ctx: MutationCtx, ownerId?: st
   const user = await authComponent.getAuthUser(ctx);
   if (!user) throw new ConvexError('Unauthenticated');
   if (ownerId !== undefined && user._id !== ownerId) throw new ConvexError('Access denied');
+  await assertAccountActive(ctx, user._id);
   return user;
 }
 

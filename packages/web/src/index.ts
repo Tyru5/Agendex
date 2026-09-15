@@ -21,10 +21,18 @@ export { APP_SHORTCUTS, getAppShortcuts, shortcutDisplayKeys } from './client/li
 export { ExitFullscreenIcon, FullscreenIcon } from './client/components/FullscreenIcons.tsx';
 export type { LandingPageProps } from './client/components/LandingPage.tsx';
 export { LandingPage } from './client/components/LandingPage.tsx';
+export type { LegalPageKind, LegalPageProps } from './client/components/LegalPage.tsx';
+export {
+  LegalPage,
+  PrivacyPolicyPage,
+  TermsOfServicePage,
+} from './client/components/LegalPage.tsx';
 export { default as dinoShadow } from './client/components/landing/dino-shadow.png';
 export { default as dinoVitaIdleStrip } from './client/components/landing/dino-vita-idle-strip.png';
 export { useLandingContext } from './client/components/landing/LandingContext.tsx';
 export { MarkdownCodeBlock } from './client/components/MarkdownCodeBlock.tsx';
+export { MorningBrief, MorningBriefIcon } from './client/components/MorningBrief.tsx';
+export type { MorningBriefProps } from './client/components/MorningBrief.tsx';
 export {
   planMarkdownComponents,
   planMarkdownRehypePlugins,
@@ -64,6 +72,14 @@ export {
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export type { PlanAnnotationCreateDraft } from './client/components/PlanViewer.tsx';
 export { PlanActionButton, PlanViewer } from './client/components/PlanViewer.tsx';
+export type { PlanCompareViewProps } from './client/components/PlanCompareView.tsx';
+export { PlanCompareView } from './client/components/PlanCompareView.tsx';
+export type { PlanComparePickerProps } from './client/components/PlanComparePicker.tsx';
+export { PlanComparePicker } from './client/components/PlanComparePicker.tsx';
+export type { PlanDiffBodyProps, PlanDiffLayout } from './client/components/PlanDiffBody.tsx';
+export { PlanDiffBody } from './client/components/PlanDiffBody.tsx';
+export type { DiffBlock, PlanDiff, PlanDiffStats } from './client/lib/plan-diff.ts';
+export { buildDiffSections, diffPlanContent } from './client/lib/plan-diff.ts';
 export { SearchBar } from './client/components/SearchBar.tsx';
 export { Sidebar } from './client/components/Sidebar.tsx';
 export type { SidebarFiltersProps, SidebarSortBy } from './client/components/SidebarFilters.tsx';
@@ -105,6 +121,17 @@ export {
   setPreferredOpenInApp,
   useValidatedPlanPaths,
 } from './client/hooks/useValidatedPlanPaths.ts';
+export type { ProductTourState, ProductTourStep, TourTarget } from './client/tour/productTour.ts';
+export {
+  isProductTourPending,
+  PRODUCT_TOUR_VERSION,
+  startProductTour,
+  TOUR_TARGET,
+  tourTargetSelector,
+} from './client/tour/productTour.ts';
+export { useLocalProductTourState } from './client/tour/useLocalProductTourState.ts';
+export type { UseProductTourOptions } from './client/tour/useProductTour.ts';
+export { useProductTour } from './client/tour/useProductTour.ts';
 
 export {
   AGENT_IDS,
@@ -157,6 +184,20 @@ export {
 export type { OutlineEntry } from './client/lib/extract-headings.ts';
 export { buildPlanOutline } from './client/lib/extract-headings.ts';
 export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-markdown.ts';
+export type {
+  BriefChecklist,
+  BriefPlanActivity,
+  BriefWorkspaceRelay,
+  MorningBriefSnapshot,
+} from './client/lib/morning-brief.ts';
+export {
+  buildMorningBrief,
+  extractBriefChecklist,
+  hasMorningBriefUpdates,
+  MORNING_BRIEF_DEFAULT_LOOKBACK_MS,
+  MORNING_BRIEF_MAX_LOOKBACK_MS,
+  resolveMorningBriefSince,
+} from './client/lib/morning-brief.ts';
 export { filterPlans } from './client/lib/plan-search.ts';
 export type {
   LineageConfidence,

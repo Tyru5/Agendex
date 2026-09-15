@@ -15,6 +15,7 @@ import { useConvex, useMutation, useQuery } from 'convex/react';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useDaemonStatus } from '../../hooks/useDaemonStatus.ts';
+import { useWorkspaceCryptoStatus } from '../../hooks/useCloudMetadataCrypto.ts';
 import {
   createWorkspaceSetupMaterial,
   getWorkspaceKeyringSnapshot,
@@ -54,7 +55,7 @@ function SetupModal({
   email: string;
   workspaceOwnerId: string;
   onClose: () => void;
-  onStarted: () => void;
+  onStarted: (lease: { operationId: string; leaseId: string }) => void;
 }) {
   const startWorkspaceSeal = useMutation(api.workspaceCrypto.startWorkspaceSeal);
   const [step, setStep] = useState<SetupStep>('consequences');
@@ -142,11 +143,13 @@ function SetupModal({
     setWorking(true);
     setError(null);
     try {
+      const operationId = crypto.randomUUID();
+      const leaseId = crypto.randomUUID();
       await startWorkspaceSeal({
         confirmedEmail: confirmation,
         clientProtocol: 1,
-        operationId: crypto.randomUUID(),
-        leaseId: crypto.randomUUID(),
+        operationId,
+        leaseId,
         ownerKdf: setup.passphraseWrappedKey.kdf,
         ownerPassphraseWrappedKey: setup.passphraseWrappedKey.envelope,
         ownerRecoveryWrappedKey: setup.recoveryEnvelope,
@@ -155,7 +158,7 @@ function SetupModal({
       unlockWorkspaceKey(workspaceOwnerId, 1, setup.workspaceKey);
       clearBytes(setup.workspaceKey);
       setSetup(null);
-      onStarted();
+      onStarted({ operationId, leaseId });
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -331,7 +334,7 @@ function SetupModal({
 
 export function ObfuscationSection({ email }: { email: string }) {
   const convex = useConvex();
-  const status = useQuery(api.workspaceCrypto.getWorkspaceCryptoStatus, {});
+  const status = useWorkspaceCryptoStatus();
   const memberMaterial = useQuery(
     api.workspaceMembers.getMemberCryptoUnlockMaterial,
     status?.role === 'member' ? {} : 'skip',
@@ -341,6 +344,10 @@ export function ObfuscationSection({ email }: { email: string }) {
   const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rotationSourceKey, setRotationSourceKey] = useState<Uint8Array | null>(null);
+  const [sealRetry, setSealRetry] = useState(0);
+  const localLeaseRef = useRef<{ operationId: string; leaseId: string } | null>(null);
+  const latestStatusRef = useRef(status);
+  latestStatusRef.current = status;
   const daemonStatus = useDaemonStatus();
   const workspaceOwnerId = status?.workspaceOwnerId ?? '';
   const keyEpoch = status?.settings?.activeKeyEpoch ?? null;
@@ -349,6 +356,7 @@ export function ObfuscationSection({ email }: { email: string }) {
     () => getWorkspaceKeyringSnapshot(workspaceOwnerId, keyEpoch),
     () => getWorkspaceKeyringSnapshot(workspaceOwnerId, keyEpoch),
   );
+  const sealOperationId = status?.settings?.operation?.id;
 
   const blockerText = useMemo(() => {
     if (!status?.blockers) return null;
@@ -374,26 +382,56 @@ export function ObfuscationSection({ email }: { email: string }) {
     if (
       !operation ||
       !['sealing', 'rotating', 'failed'].includes(status.settings?.state ?? '') ||
-      keyring.status !== 'unlocked' ||
-      operation.phase === 'audit'
+      keyring.status !== 'unlocked'
     ) {
       return;
     }
-    if (operation.kind === 'rotate' && !rotationSourceKey) return;
+    if (operation.kind === 'rotate' && operation.phase !== 'audit' && !rotationSourceKey) return;
     const abortController = new AbortController();
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const localLeaseId =
+      localLeaseRef.current?.operationId === operation.id
+        ? localLeaseRef.current.leaseId
+        : undefined;
+    localLeaseRef.current = null;
+    setError(null);
     void runWorkspaceSeal({
       convex,
       workspaceOwnerId,
       keyEpoch: status.settings?.activeKeyEpoch ?? 1,
       operation,
+      localLeaseId,
       sourceWorkspaceKey:
         operation.kind === 'rotate' ? (rotationSourceKey ?? undefined) : undefined,
       signal: abortController.signal,
     }).catch((caught) => {
-      if (!abortController.signal.aborted) setError(errorMessage(caught));
+      if (abortController.signal.aborted) return;
+      setError(errorMessage(caught));
+      if (errorMessage(caught).includes('Another device is sealing this workspace')) {
+        const expiresAt =
+          latestStatusRef.current?.settings?.operation?.leaseExpiresAt ?? Date.now();
+        retryTimer = setTimeout(
+          () => setSealRetry((value) => value + 1),
+          Math.max(1000, expiresAt - Date.now() + 250),
+        );
+      }
     });
-    return () => abortController.abort();
-  }, [convex, keyring.status, rotationSourceKey, status?.settings, workspaceOwnerId]);
+    return () => {
+      abortController.abort();
+      if (retryTimer !== undefined) clearTimeout(retryTimer);
+    };
+    // The runner reads its own progress. Restarting on every reactive heartbeat
+    // or page checkpoint aborts the active runner and races its replacement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    convex,
+    keyring.status,
+    keyEpoch,
+    rotationSourceKey,
+    sealOperationId,
+    sealRetry,
+    workspaceOwnerId,
+  ]);
 
   useEffect(() => {
     if (status?.settings?.operation || !rotationSourceKey) return;
@@ -402,9 +440,9 @@ export function ObfuscationSection({ email }: { email: string }) {
   }, [rotationSourceKey, status?.settings?.operation]);
 
   useEffect(() => {
-    if (keyring.status !== 'locked' || !workspaceOwnerId || keyEpoch === null) return;
+    if (!workspaceOwnerId || keyEpoch === null) return;
     void restoreWorkspaceKeyFromDevice(workspaceOwnerId, keyEpoch).catch(() => {});
-  }, [keyEpoch, keyring.status, workspaceOwnerId]);
+  }, [keyEpoch, workspaceOwnerId]);
 
   useEffect(() => {
     if (status?.settings && keyring.status === 'locked') void prewarmObfuscationKdf();
@@ -557,12 +595,15 @@ export function ObfuscationSection({ email }: { email: string }) {
   function downloadFreshRecoveryKit() {
     if (!settings || role !== 'owner') return;
     try {
-      const kit = withWorkspaceKey(workspaceOwnerId, (workspaceKey) =>
-        createRecoveryKit({
-          workspaceKey,
-          workspaceOwnerId,
-          keyEpoch: settings.activeKeyEpoch,
-        }),
+      const kit = withWorkspaceKey(
+        workspaceOwnerId,
+        (workspaceKey) =>
+          createRecoveryKit({
+            workspaceKey,
+            workspaceOwnerId,
+            keyEpoch: settings.activeKeyEpoch,
+          }),
+        settings.activeKeyEpoch,
       ).kit;
       const url = URL.createObjectURL(
         new Blob([`${JSON.stringify(kit, null, 2)}\n`], { type: 'application/json' }),
@@ -618,6 +659,15 @@ export function ObfuscationSection({ email }: { email: string }) {
             {error && (
               <div className="mt-2 text-[12px] text-red-400" role="alert">
                 {error}
+                {settings?.operation && keyring.status === 'unlocked' && (
+                  <button
+                    type="button"
+                    onClick={() => setSealRetry((value) => value + 1)}
+                    className="ml-2 underline"
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -704,7 +754,10 @@ export function ObfuscationSection({ email }: { email: string }) {
           email={email}
           workspaceOwnerId={workspaceOwnerId}
           onClose={() => setShowSetup(false)}
-          onStarted={() => setShowSetup(false)}
+          onStarted={(lease) => {
+            localLeaseRef.current = lease;
+            setShowSetup(false);
+          }}
         />
       )}
     </section>

@@ -1,3 +1,4 @@
+import { TOUR_TARGET } from '../tour/productTour.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePlanFolders } from '../hooks/usePlanFolders.ts';
 import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
@@ -166,6 +167,7 @@ export function Sidebar({
       <div
         ref={scrollViewportRef}
         className="flex-1 overflow-auto sidebar-scroll sidebar-content-list"
+        data-tour={TOUR_TARGET.planList}
         onScroll={(event) => updateScrollTopVisibility(event.currentTarget)}
       >
         {loading ? (

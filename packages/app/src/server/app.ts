@@ -12,6 +12,7 @@ import { cors } from 'hono/cors';
 import type { UpgradeWebSocket } from 'hono/ws';
 import { AUTH_TOKEN, authMiddleware } from './auth.ts';
 import { plans, setPlanSourcesWatcherCallback } from './routes/plans.ts';
+import { usage } from './routes/usage.ts';
 import { rebuildIndex } from './services/search.ts';
 
 export interface BuildAgendexAppOptions {
@@ -125,6 +126,7 @@ export function buildAgendexApp(options: BuildAgendexAppOptions): BuiltAgendexAp
   app.get('/api/v1/health', (c) => c.json({ ok: true }));
   app.use('/api/*', authMiddleware);
   app.route('/api/v1', plans);
+  app.route('/api/v1', usage);
 
   if (mountStatic) mountStatic(app);
 

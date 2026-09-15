@@ -40,6 +40,9 @@ jobs:
         if: github.event_name == 'pull_request' && steps.cli-changes.outputs.changed == 'true' && !startsWith(github.head_ref, 'changeset-release/')
         run: bunx changeset status --since=origin/main
 
+      - name: Run Convex regression tests
+        run: bun run --cwd packages/ee test:convex
+
       - name: Check CLI release surfaces
         run: bun run check:cli:release
 

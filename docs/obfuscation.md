@@ -42,8 +42,9 @@ Removing a member immediately deletes membership and revokes that member's grant
 
 - Cloud title, agent, and tag filtering decrypts list data on the client. Cloud body search is disabled.
 - Public share links are disabled; fragment-key share links are not implemented.
+- Cloud usage statistics and usage sync are disabled, including while sealing or rotating. Existing cloud usage snapshots are removed during sealing. Local usage statistics still work; v1 does not upload an encrypted usage format.
 - Server-side LLM processing of encrypted content is impossible by design.
-- Account identity, subscription, ownership, timestamps, agent, `lowValue`, client-computed content hashes, and other documented routing metadata remain plaintext.
+- Account identity, subscription, ownership, timestamps, agent, `lowValue`, and other documented routing metadata remain plaintext. Unkeyed content hashes are removed when sealing.
 - OSS local indexing is unchanged.
 
 See [Obfuscation incident response](./obfuscation-incident-response.md) for rollout and failure procedures.

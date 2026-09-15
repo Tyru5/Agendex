@@ -158,8 +158,10 @@ export function TeamTab({ isActive }: TeamTabProps) {
     let oldWorkspaceKey: Uint8Array | undefined;
     let setup: Awaited<ReturnType<typeof createWorkspaceSetupMaterial>> | undefined;
     try {
-      oldWorkspaceKey = withWorkspaceKey(cryptoStatus.workspaceOwnerId, (workspaceKey) =>
-        workspaceKey.slice(),
+      oldWorkspaceKey = withWorkspaceKey(
+        cryptoStatus.workspaceOwnerId,
+        (workspaceKey) => workspaceKey.slice(),
+        cryptoStatus.settings.activeKeyEpoch,
       );
       if (!cryptoStatus.settings.ownerKdf || !cryptoStatus.settings.ownerPassphraseWrappedKey) {
         throw new Error('Owner key wrapper is unavailable');
@@ -244,6 +246,7 @@ export function TeamTab({ isActive }: TeamTabProps) {
         keyEpoch: nextEpoch,
         sourceWorkspaceKey: oldWorkspaceKey,
         operation: { id: operationId, phase: 'plans', processed: 0, leaseId },
+        localLeaseId: leaseId,
       });
     } catch (caught) {
       setOperationError(
@@ -281,46 +284,50 @@ export function TeamTab({ isActive }: TeamTabProps) {
     const enrollmentProof = invite.enrollmentProof;
     const encryptedInviteSecret = invite.encryptedInviteSecret;
     try {
-      await withWorkspaceKey(workspaceOwnerId, async (workspaceKey, derivedKeys) => {
-        const retainedWorkspaceKey = workspaceKey.slice();
-        const inviteSecret = openBytes(derivedKeys.inviteKey, encryptedInviteSecret, {
-          workspaceOwnerId,
-          table: 'workspaceInvitations',
-          stableCryptoId: invite.token,
-          slot: 'invite-secret',
-          keyEpoch,
-        });
-        const publicKey = toBytes(memberPublicKey, 'member public key');
-        try {
-          if (
-            !verifyInviteEnrollmentProof({
-              inviteSecret,
-              token: invite.token,
-              userId: pendingMemberId,
-              publicKey,
-              proof: enrollmentProof,
-            })
-          ) {
-            throw new Error('Member enrollment proof does not match this invite');
-          }
-          const grant = await sealWorkspaceKeyGrant({
-            workspaceKey: retainedWorkspaceKey,
-            recipientPublicKey: publicKey,
+      await withWorkspaceKey(
+        workspaceOwnerId,
+        async (workspaceKey, derivedKeys) => {
+          const retainedWorkspaceKey = workspaceKey.slice();
+          const inviteSecret = openBytes(derivedKeys.inviteKey, encryptedInviteSecret, {
             workspaceOwnerId,
-            memberId: pendingMemberId,
+            table: 'workspaceInvitations',
+            stableCryptoId: invite.token,
+            slot: 'invite-secret',
             keyEpoch,
           });
-          await approveInvite({
-            inviteId: invite._id as Id<'workspaceInvites'>,
-            keyEpoch,
-            ...grant,
-            encapsulatedKey: grant.encapsulatedKey.buffer as ArrayBuffer,
-            ciphertext: grant.ciphertext.buffer as ArrayBuffer,
-          });
-        } finally {
-          clearBytes(retainedWorkspaceKey, inviteSecret);
-        }
-      });
+          const publicKey = toBytes(memberPublicKey, 'member public key');
+          try {
+            if (
+              !verifyInviteEnrollmentProof({
+                inviteSecret,
+                token: invite.token,
+                userId: pendingMemberId,
+                publicKey,
+                proof: enrollmentProof,
+              })
+            ) {
+              throw new Error('Member enrollment proof does not match this invite');
+            }
+            const grant = await sealWorkspaceKeyGrant({
+              workspaceKey: retainedWorkspaceKey,
+              recipientPublicKey: publicKey,
+              workspaceOwnerId,
+              memberId: pendingMemberId,
+              keyEpoch,
+            });
+            await approveInvite({
+              inviteId: invite._id as Id<'workspaceInvites'>,
+              keyEpoch,
+              ...grant,
+              encapsulatedKey: grant.encapsulatedKey.buffer as ArrayBuffer,
+              ciphertext: grant.ciphertext.buffer as ArrayBuffer,
+            });
+          } finally {
+            clearBytes(retainedWorkspaceKey, inviteSecret);
+          }
+        },
+        keyEpoch,
+      );
     } catch (caught) {
       setOperationError(caught instanceof Error ? caught.message : 'Unable to approve member');
     }

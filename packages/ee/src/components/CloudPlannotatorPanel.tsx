@@ -329,6 +329,7 @@ export function CloudPlannotatorWritebackPanel({
     setError(undefined);
     setQueuedAction(null);
     try {
+      if (!cryptoStatus) throw new Error('Cloud privacy status is unavailable');
       const encrypted = cryptoStatus?.settings
         ? buildEncryptedWriteback({
             workspaceOwnerId: cryptoStatus.workspaceOwnerId,
@@ -358,6 +359,7 @@ export function CloudPlannotatorWritebackPanel({
     setError(undefined);
     setQueuedAction(null);
     try {
+      if (!cryptoStatus) throw new Error('Cloud privacy status is unavailable');
       const requestFeedback = feedback.trim();
       const requestRevision = revisedContent.trim() || undefined;
       const encrypted = cryptoStatus?.settings

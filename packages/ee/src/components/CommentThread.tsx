@@ -33,15 +33,17 @@ export function CommentThread({
   planId,
   isOwner,
   shareToken,
+  shareAccessProof,
   className = 'mt-10',
 }: {
   planId: string;
   isOwner?: boolean;
   shareToken?: string;
+  shareAccessProof?: Id<'shareAccessProofs'>;
   className?: string;
 }) {
   const { user, isAuthenticated, signIn } = useAuth();
-  const { comments, cryptoStatus } = useEncryptedComments(planId, shareToken);
+  const { comments, cryptoStatus } = useEncryptedComments(planId, shareToken, shareAccessProof);
   const addComment = useMutation(api.comments.addComment);
   const editComment = useMutation(api.comments.editComment);
   const deleteComment = useMutation(api.comments.deleteComment);
@@ -126,6 +128,9 @@ export function CommentThread({
     setError(null);
 
     try {
+      if (cryptoStatus === undefined || (!cryptoStatus && !shareToken)) {
+        throw new Error('Obfuscation status unavailable; wait before posting');
+      }
       type UploadResult = {
         storageId?: Id<'_storage'>;
         fileName: string;
@@ -150,6 +155,7 @@ export function CommentThread({
             clientUploadId: pending.clientUploadId,
             ...(encryptedUpload ? { clientCryptoProtocol: 1 } : {}),
             ...(shareToken ? { token: shareToken } : {}),
+            ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
           });
 
           const result = await fetch(uploadUrl, {
@@ -177,6 +183,7 @@ export function CommentThread({
               clientUploadId: pending.clientUploadId,
               ...(encryptedUpload ? { clientCryptoProtocol: 1, encrypted: true } : {}),
               ...(shareToken ? { token: shareToken } : {}),
+              ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
             });
 
             if (trackResult && !trackResult.success) {
@@ -269,6 +276,7 @@ export function CommentThread({
               }
             : {}),
           ...(shareToken ? { token: shareToken } : {}),
+          ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
         });
       } catch (addErr) {
         await Promise.allSettled(
@@ -295,6 +303,7 @@ export function CommentThread({
     trackPendingUpload,
     planId,
     shareToken,
+    shareAccessProof,
     addComment,
     deleteOrphanedUpload,
     cryptoStatus,
@@ -306,6 +315,9 @@ export function CommentThread({
     if ((!trimmed && !hasAttachments) || trimmed === originalBody) return;
     setSaving(true);
     try {
+      if (cryptoStatus === undefined || (!cryptoStatus && !shareToken)) {
+        throw new Error('Obfuscation status unavailable; wait before editing');
+      }
       const comment = comments?.find((candidate) => candidate._id === commentId);
       const encryptedWrite = cryptoStatus?.settings
         ? buildEncryptedCommentWrite({
@@ -322,6 +334,7 @@ export function CommentThread({
         commentId: commentId as Id<'comments'>,
         ...encryptedWrite,
         ...(shareToken ? { token: shareToken } : {}),
+        ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
       });
       let wasEditing = false;
       setEditingId((prev) => {
@@ -343,6 +356,7 @@ export function CommentThread({
       await deleteComment({
         commentId: commentId as Id<'comments'>,
         ...(shareToken ? { token: shareToken } : {}),
+        ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
       });
     } finally {
       setDeletingId(null);

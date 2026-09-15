@@ -6,9 +6,11 @@ import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { cryptoEnvelopeV1 } from './schema';
 import { resolveWorkspaceCryptoPolicy, validateEncryptedWrite } from './workspaceCrypto';
+import { tagValidator } from './validators';
 
 export const listMyTags = query({
   args: {},
+  returns: v.array(tagValidator),
   handler: async (ctx) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -32,6 +34,7 @@ export const createTag = mutation({
     encryptedName: v.optional(cryptoEnvelopeV1),
     nameToken: v.optional(v.string()),
   },
+  returns: v.id('tags'),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -46,7 +49,10 @@ export const createTag = mutation({
       envelopes: args.encryptedName ? [args.encryptedName] : [],
       plaintext: { name: args.name },
     });
-    if (encrypted && (!args.stableCryptoId || !args.nameToken || args.keyEpoch === undefined)) {
+    if (
+      encrypted &&
+      (!args.stableCryptoId || !args.nameToken || args.keyEpoch !== policy.activeKeyEpoch)
+    ) {
       throw new ConvexError('Encrypted tag metadata is required');
     }
 
@@ -91,6 +97,7 @@ export const renameTag = mutation({
     encryptedName: v.optional(cryptoEnvelopeV1),
     nameToken: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -108,7 +115,10 @@ export const renameTag = mutation({
       envelopes: args.encryptedName ? [args.encryptedName] : [],
       plaintext: { name: args.name },
     });
-    if (encrypted && (!tag.stableCryptoId || !args.nameToken || args.keyEpoch === undefined)) {
+    if (
+      encrypted &&
+      (!tag.stableCryptoId || !args.nameToken || args.keyEpoch !== policy.activeKeyEpoch)
+    ) {
       throw new ConvexError('Encrypted tag metadata is required');
     }
 
@@ -139,11 +149,13 @@ export const renameTag = mutation({
           }
         : {}),
     });
+    return null;
   },
 });
 
 export const deleteTag = mutation({
   args: { tagId: v.id('tags') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -155,11 +167,13 @@ export const deleteTag = mutation({
 
     await ctx.db.delete(args.tagId);
     await ctx.scheduler.runAfter(0, internal.tags.cleanupPlanTags, { tagId: args.tagId });
+    return null;
   },
 });
 
 export const cleanupPlanTags = internalMutation({
   args: { tagId: v.id('tags') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const batch = await ctx.db
       .query('planTags')
@@ -173,5 +187,6 @@ export const cleanupPlanTags = internalMutation({
     if (batch.length === 500) {
       await ctx.scheduler.runAfter(0, internal.tags.cleanupPlanTags, { tagId: args.tagId });
     }
+    return null;
   },
 });

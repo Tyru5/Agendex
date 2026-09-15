@@ -82,8 +82,8 @@ describe('remoteTargetForPlanPath', () => {
 });
 
 test('remoteTargetsForPlanPaths keeps distinct line targets for the same path', () => {
-  const first = { path: 'src/App.tsx', line: 10 };
-  const second = { path: 'src/App.tsx', line: 20 };
+  const first = { path: 'src/App.tsx', line: 10, raw: 'src/App.tsx:10' };
+  const second = { path: 'src/App.tsx', line: 20, raw: 'src/App.tsx:20' };
   const targets = remoteTargetsForPlanPaths(cloudPlan(), [first, second]);
   expect(targets[planPathTargetKey(first)]?.url).toEndWith('#L10');
   expect(targets[planPathTargetKey(second)]?.url).toEndWith('#L20');

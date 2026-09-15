@@ -41,6 +41,7 @@ const snapshots = new Map<string, WorkspaceKeyringSnapshot>();
 const listeners = new Set<() => void>();
 const summaryCache = new Map<string, unknown>();
 const persistenceMarkers = new Map<string, symbol>();
+let lockGeneration = 0;
 let kdfWarmup: Promise<void> | null = null;
 let warmedKdfWorker: Worker | null = null;
 
@@ -159,11 +160,16 @@ export async function restoreWorkspaceKeyFromDesktop(
   workspaceOwnerId: string,
   keyEpoch: number,
 ): Promise<boolean> {
-  if (unlocked.has(workspaceOwnerId)) return true;
+  if (unlocked.get(workspaceOwnerId)?.snapshot.keyEpoch === keyEpoch) return true;
+  const marker = persistenceMarkers.get(workspaceOwnerId);
+  const generation = lockGeneration;
   const stored = await loadDesktopObfuscationKey(workspaceOwnerId, keyEpoch);
   if (!stored) return false;
   const workspaceKey = base64ToBytes(stored, 'desktop workspace key');
   try {
+    if (generation !== lockGeneration || marker !== persistenceMarkers.get(workspaceOwnerId)) {
+      return false;
+    }
     unlockWorkspaceKey(workspaceOwnerId, keyEpoch, workspaceKey, false);
     return true;
   } finally {
@@ -176,10 +182,15 @@ export async function restoreWorkspaceKeyFromDevice(
   keyEpoch: number,
 ): Promise<boolean> {
   if (isDesktop()) return restoreWorkspaceKeyFromDesktop(workspaceOwnerId, keyEpoch);
-  if (unlocked.has(workspaceOwnerId)) return true;
+  if (unlocked.get(workspaceOwnerId)?.snapshot.keyEpoch === keyEpoch) return true;
+  const marker = persistenceMarkers.get(workspaceOwnerId);
+  const generation = lockGeneration;
   const workspaceKey = await loadBrowserWorkspaceKey(workspaceOwnerId, keyEpoch);
   if (!workspaceKey) return false;
   try {
+    if (generation !== lockGeneration || marker !== persistenceMarkers.get(workspaceOwnerId)) {
+      return false;
+    }
     unlockWorkspaceKey(workspaceOwnerId, keyEpoch, workspaceKey, false);
     return true;
   } finally {
@@ -337,8 +348,13 @@ export async function unlockWorkspaceWithPassphrase(args: {
   workspaceOwnerId: string;
   keyEpoch: number;
 }): Promise<void> {
+  const marker = persistenceMarkers.get(args.workspaceOwnerId);
+  const generation = lockGeneration;
   const workspaceKey = await unwrapInWorker(args);
   try {
+    if (generation !== lockGeneration || marker !== persistenceMarkers.get(args.workspaceOwnerId)) {
+      throw new Error('Obfuscation unlock cancelled');
+    }
     unlockWorkspaceKey(args.workspaceOwnerId, args.keyEpoch, workspaceKey);
   } finally {
     clearBytes(workspaceKey);
@@ -374,6 +390,7 @@ export function lockWorkspaceKey(
 }
 
 export function lockAllWorkspaceKeys(): void {
+  lockGeneration++;
   for (const workspaceOwnerId of unlocked.keys()) lockWorkspaceKey(workspaceOwnerId, false);
   summaryCache.clear();
   persistenceMarkers.clear();
@@ -384,9 +401,12 @@ export function lockAllWorkspaceKeys(): void {
 export function withWorkspaceKey<T>(
   workspaceOwnerId: string,
   operation: (workspaceKey: Uint8Array, derivedKeys: WorkspaceDerivedKeys) => T,
+  expectedKeyEpoch?: number,
 ): T {
   const entry = unlocked.get(workspaceOwnerId);
-  if (!entry) throw new Error('Obfuscation is locked');
+  if (!entry || (expectedKeyEpoch !== undefined && entry.snapshot.keyEpoch !== expectedKeyEpoch)) {
+    throw new Error('Obfuscation is locked');
+  }
   return operation(entry.workspaceKey, entry.derivedKeys);
 }
 

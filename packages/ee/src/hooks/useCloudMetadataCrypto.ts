@@ -6,9 +6,10 @@ import {
 import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
-import { useMemo, useSyncExternalStore } from 'react';
+import { useLayoutEffect, useMemo, useSyncExternalStore } from 'react';
 import {
   getWorkspaceKeyringSnapshot,
+  lockWorkspaceKey,
   subscribeWorkspaceKeyring,
   withWorkspaceKey,
 } from '../lib/obfuscation-keyring';
@@ -25,12 +26,20 @@ function isEncrypted(status: CryptoStatus | null | undefined): boolean {
 function useCryptoStatus(enabled = true) {
   const status = useQuery(api.workspaceCrypto.getWorkspaceCryptoStatus, enabled ? {} : 'skip');
   const workspaceOwnerId = status?.workspaceOwnerId ?? '';
-  useSyncExternalStore(
+  const keyring = useSyncExternalStore(
     subscribeWorkspaceKeyring,
     () => getWorkspaceKeyringSnapshot(workspaceOwnerId, status?.settings?.activeKeyEpoch ?? null),
     () => getWorkspaceKeyringSnapshot(workspaceOwnerId, status?.settings?.activeKeyEpoch ?? null),
   );
-  return status;
+  useLayoutEffect(() => {
+    const activeEpoch = status?.settings?.activeKeyEpoch;
+    if (activeEpoch && keyring.status === 'unlocked' && keyring.keyEpoch !== activeEpoch) {
+      lockWorkspaceKey(workspaceOwnerId);
+    }
+  }, [keyring, status?.settings?.activeKeyEpoch, workspaceOwnerId]);
+  // Consumers memoize decrypted values by status. Include local key changes so
+  // locking clears plaintext and unlocking retries even when Convex is unchanged.
+  return useMemo(() => (status ? { ...status, keyring } : status), [status, keyring]);
 }
 
 function decryptTag(tag: Doc<'tags'>, status: CryptoStatus | null | undefined): Doc<'tags'> {
@@ -105,29 +114,34 @@ export function buildTagWrite(
   name: string,
   stableCryptoId?: string,
 ) {
+  if (!status) throw new Error('Obfuscation status unavailable');
   if (!isEncrypted(status)) return { name };
   if (!status?.workspaceOwnerId || !status.settings)
     throw new Error('Obfuscation status unavailable');
   const { workspaceOwnerId, settings } = status;
-  return withWorkspaceKey(workspaceOwnerId, (workspaceKey, derivedKeys) => {
-    const encrypted = encryptWorkspaceValue({
-      workspaceKey,
-      workspaceOwnerId,
-      keyEpoch: settings.activeKeyEpoch,
-      table: 'tags',
-      slot: 'name',
-      stableCryptoId,
-      value: { name },
-    });
-    return {
-      name: '',
-      clientCryptoProtocol: 1 as const,
-      stableCryptoId: encrypted.stableCryptoId,
-      keyEpoch: encrypted.keyEpoch,
-      encryptedName: encrypted.envelope,
-      nameToken: computeOpaqueToken(derivedKeys.indexKey, 'tag-name', [name]),
-    };
-  });
+  return withWorkspaceKey(
+    workspaceOwnerId,
+    (workspaceKey, derivedKeys) => {
+      const encrypted = encryptWorkspaceValue({
+        workspaceKey,
+        workspaceOwnerId,
+        keyEpoch: settings.activeKeyEpoch,
+        table: 'tags',
+        slot: 'name',
+        stableCryptoId,
+        value: { name },
+      });
+      return {
+        name: '',
+        clientCryptoProtocol: 1 as const,
+        stableCryptoId: encrypted.stableCryptoId,
+        keyEpoch: encrypted.keyEpoch,
+        encryptedName: encrypted.envelope,
+        nameToken: computeOpaqueToken(derivedKeys.indexKey, 'tag-name', [name.toLowerCase()]),
+      };
+    },
+    settings.activeKeyEpoch,
+  );
 }
 
 export function buildCollectionWrite(
@@ -136,41 +150,48 @@ export function buildCollectionWrite(
   description?: string,
   stableCryptoId?: string,
 ) {
+  if (!status) throw new Error('Obfuscation status unavailable');
   if (!isEncrypted(status)) return { name, ...(description !== undefined ? { description } : {}) };
   if (!status?.workspaceOwnerId || !status.settings)
     throw new Error('Obfuscation status unavailable');
   const { workspaceOwnerId, settings } = status;
-  return withWorkspaceKey(workspaceOwnerId, (workspaceKey, derivedKeys) => {
-    const encryptedName = encryptWorkspaceValue({
-      workspaceKey,
-      workspaceOwnerId,
-      keyEpoch: settings.activeKeyEpoch,
-      table: 'collections',
-      slot: 'name',
-      stableCryptoId,
-      value: { name },
-    });
-    const encryptedDescription = description
-      ? encryptWorkspaceValue({
-          workspaceKey,
-          workspaceOwnerId,
-          keyEpoch: settings.activeKeyEpoch,
-          table: 'collections',
-          slot: 'description',
-          stableCryptoId: encryptedName.stableCryptoId,
-          value: { description },
-        }).envelope
-      : undefined;
-    return {
-      name: '',
-      clientCryptoProtocol: 1 as const,
-      stableCryptoId: encryptedName.stableCryptoId,
-      keyEpoch: encryptedName.keyEpoch,
-      encryptedName: encryptedName.envelope,
-      encryptedDescription,
-      nameToken: computeOpaqueToken(derivedKeys.indexKey, 'collection-name', [name]),
-    };
-  });
+  return withWorkspaceKey(
+    workspaceOwnerId,
+    (workspaceKey, derivedKeys) => {
+      const encryptedName = encryptWorkspaceValue({
+        workspaceKey,
+        workspaceOwnerId,
+        keyEpoch: settings.activeKeyEpoch,
+        table: 'collections',
+        slot: 'name',
+        stableCryptoId,
+        value: { name },
+      });
+      const encryptedDescription = description
+        ? encryptWorkspaceValue({
+            workspaceKey,
+            workspaceOwnerId,
+            keyEpoch: settings.activeKeyEpoch,
+            table: 'collections',
+            slot: 'description',
+            stableCryptoId: encryptedName.stableCryptoId,
+            value: { description },
+          }).envelope
+        : undefined;
+      return {
+        name: '',
+        clientCryptoProtocol: 1 as const,
+        stableCryptoId: encryptedName.stableCryptoId,
+        keyEpoch: encryptedName.keyEpoch,
+        encryptedName: encryptedName.envelope,
+        encryptedDescription,
+        nameToken: computeOpaqueToken(derivedKeys.indexKey, 'collection-name', [
+          name.toLowerCase(),
+        ]),
+      };
+    },
+    settings.activeKeyEpoch,
+  );
 }
 
 export function useCloudTags(enabled = true) {

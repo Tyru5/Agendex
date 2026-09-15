@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import {
   canManageCustomPlanSources,
+  canUseTechDependencyChart,
   canUseCloudPlanMetadata,
   shouldQueryCloudPlanTags,
 } from './cloud-query-mode.ts';
@@ -30,6 +31,13 @@ test('Given cloud mode with Pro tags selected When checking cloud tag query elig
 test('Given local Pro mode When checking cloud metadata eligibility Then cloud-only UI is disabled', () => {
   expect(canUseCloudPlanMetadata('local', true)).toBe(false);
   expect(canUseCloudPlanMetadata('cloud', true)).toBe(true);
+});
+
+test('Given the tech dependency chart When checking availability Then only cloud Pro mode enables it', () => {
+  expect(canUseTechDependencyChart('local', false)).toBe(false);
+  expect(canUseTechDependencyChart('local', true)).toBe(false);
+  expect(canUseTechDependencyChart('cloud', false)).toBe(false);
+  expect(canUseTechDependencyChart('cloud', true)).toBe(true);
 });
 
 test('Given local mode When checking custom source management eligibility Then it is available', () => {

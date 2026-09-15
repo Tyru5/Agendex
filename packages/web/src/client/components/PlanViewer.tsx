@@ -31,6 +31,8 @@ import {
 import { extractSyncOrigin, formatSyncOriginLabel } from '../lib/sync-origin.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { ExitFullscreenIcon, FullscreenIcon } from './FullscreenIcons.tsx';
+import { CompareIcon } from './PlanCompareView.tsx';
+import { PlanComparePicker } from './PlanComparePicker.tsx';
 import {
   planMarkdownComponents,
   planMarkdownRehypePlugins,
@@ -180,10 +182,12 @@ function PlanLineageSection({
   entries,
   confidence,
   onSelectRelatedPlan,
+  onComparePlan,
 }: {
   entries: RelatedPlanEntry[];
   confidence: LineageConfidence | undefined;
   onSelectRelatedPlan?: (plan: Plan) => void;
+  onComparePlan?: (plan: Plan) => void;
 }) {
   return (
     <section className="plan-lineage" aria-label={lineageSectionTitle(confidence)}>
@@ -229,6 +233,17 @@ function PlanLineageSection({
                   {content}
                 </button>
               )}
+              {!isSelf && onComparePlan && (
+                <button
+                  type="button"
+                  className="plan-lineage-item-compare"
+                  onClick={() => onComparePlan(entry.plan)}
+                  aria-label={`Compare "${entry.plan.title}" with the current plan`}
+                  title="Compare with current plan"
+                >
+                  <CompareIcon />
+                </button>
+              )}
             </li>
           );
         })}
@@ -242,6 +257,8 @@ type PlanViewerProps = {
   /** Full indexed plan list used to resolve session lineage. */
   allPlans?: readonly Plan[];
   onSelectRelatedPlan?: (plan: Plan) => void;
+  /** Enables compare affordances; called with the plan to diff against. */
+  onComparePlan?: (plan: Plan) => void;
   headerExtra?: ReactNode;
   actionToolbarExtra?: ReactNode;
   onEdit?: () => void;
@@ -268,6 +285,7 @@ export function PlanViewer({
   plan,
   allPlans,
   onSelectRelatedPlan,
+  onComparePlan,
   headerExtra,
   actionToolbarExtra,
   onEdit,
@@ -308,6 +326,7 @@ export function PlanViewer({
     useState<ActionToolbarDockState>('inline');
   const [actionToolbarDockLeft, setActionToolbarDockLeft] = useState<number | null>(null);
   const [chartWide, setChartWide] = useState(false);
+  const [comparePickerOpen, setComparePickerOpen] = useState(false);
   const fullscreen = useFullscreen<HTMLDivElement>();
   const isSplit = mode === 'split';
 
@@ -445,6 +464,10 @@ export function PlanViewer({
   }, [plan.id, chartHidden]);
 
   useEffect(() => {
+    setComparePickerOpen(false);
+  }, [plan.id]);
+
+  useEffect(() => {
     if (!selectionToolbar) return;
 
     function handleDocumentPointerDown(event: PointerEvent) {
@@ -529,7 +552,7 @@ export function PlanViewer({
       const toolbarRect = actionToolbarRef.current?.getBoundingClientRect();
       const toolbarWidth = toolbarRect?.width ?? 38;
       const scrollParentRect =
-        scrollParent === window ? null : scrollParent.getBoundingClientRect();
+        scrollParent instanceof HTMLElement ? scrollParent.getBoundingClientRect() : null;
       const viewportTop = scrollParentRect?.top ?? 0;
       const viewportLeft = scrollParentRect?.left ?? 0;
       const shouldDock = !isSplit && frameRect.top < viewportTop - 118;
@@ -758,6 +781,15 @@ export function PlanViewer({
         </span>
       </PlanActionButton>
       <PlanDownloadButton plan={plan} />
+      {onComparePlan && allPlans && allPlans.length > 1 && (
+        <PlanActionButton
+          onClick={() => setComparePickerOpen(true)}
+          label="Compare with another plan"
+          tooltip="Compare plans"
+        >
+          <CompareIcon />
+        </PlanActionButton>
+      )}
       {actionToolbarExtra}
       {onEdit && (
         <PlanActionButton onClick={onEdit} label="Edit plan">
@@ -801,7 +833,7 @@ export function PlanViewer({
       className={fullscreen.isFullscreen ? 'main-scroll' : undefined}
       data-chart-wide={chartWide ? 'true' : undefined}
     >
-      {showOutline && !isSplit && <PlanOutline entries={entries} pinned={!outlineHidden} />}
+      {showOutline && !isSplit && <PlanOutline entries={entries} hidden={outlineHidden} />}
       <div
         ref={frameRef}
         className={isSplit ? 'plan-viewer-frame plan-viewer-frame--split' : 'plan-viewer-frame'}
@@ -874,6 +906,7 @@ export function PlanViewer({
                 entries={lineage.items}
                 confidence={lineageConfidence}
                 onSelectRelatedPlan={onSelectRelatedPlan}
+                onComparePlan={onComparePlan}
               />
             )}
           </header>
@@ -1034,6 +1067,22 @@ export function PlanViewer({
           {!isSplit && <ScrollToTop />}
         </div>
       </div>
+
+      {onComparePlan && allPlans && (
+        <PlanComparePicker
+          open={comparePickerOpen}
+          onClose={() => setComparePickerOpen(false)}
+          currentPlan={plan}
+          plans={allPlans}
+          relatedPlans={lineage?.items
+            .filter((entry) => entry.relation !== 'self')
+            .map((entry) => entry.plan)}
+          onPick={(picked) => {
+            setComparePickerOpen(false);
+            onComparePlan(picked);
+          }}
+        />
+      )}
     </div>
   );
 }

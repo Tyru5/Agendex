@@ -2,6 +2,7 @@ import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
+import { assertAccountActive } from './accountDeletionState';
 import { requireFeature } from './entitlements';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
 import { cryptoEnvelopeV1, passphraseKdfParamsV1 } from './schema';
@@ -12,6 +13,7 @@ import {
   validateEnvelopeStructure,
   workspaceCryptoTeamRolloutAllows,
 } from './workspaceCrypto';
+import { workspaceInviteValidator, workspaceMemberValidator } from './validators';
 
 const SEAT_LIMIT = 5;
 
@@ -28,6 +30,14 @@ function equalBytes(left: ArrayBuffer, right: ArrayBuffer): boolean {
 
 export const listWorkspaceMembers = query({
   args: {},
+  returns: v.object({
+    members: v.array(workspaceMemberValidator),
+    pendingInvites: v.array(workspaceInviteValidator),
+    seatLimit: v.number(),
+    usedSeats: v.number(),
+    remainingSeats: v.number(),
+    teamEnrollmentAvailable: v.boolean(),
+  }),
   handler: async (ctx) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -69,6 +79,7 @@ export const inviteWorkspaceMember = mutation({
     inviteSecretCommitment: v.optional(v.string()),
     encryptedInviteSecret: v.optional(cryptoEnvelopeV1),
   },
+  returns: v.object({ token: v.string() }),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -171,6 +182,7 @@ export const inviteWorkspaceMember = mutation({
 
 export const revokeWorkspaceInvite = mutation({
   args: { inviteId: v.id('workspaceInvites') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -193,11 +205,13 @@ export const revokeWorkspaceInvite = mutation({
       if (identity?.inviteId === invite._id) await ctx.db.delete(identity._id);
     }
     await ctx.db.patch(args.inviteId, { revokedAt: Date.now() });
+    return null;
   },
 });
 
 export const removeWorkspaceMember = mutation({
   args: { membershipId: v.id('workspaceMembers') },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -221,11 +235,24 @@ export const removeWorkspaceMember = mutation({
     }
 
     await ctx.db.delete(args.membershipId);
+    return null;
   },
 });
 
 export const getWorkspaceInviteByToken = query({
   args: { token: v.string() },
+  returns: v.union(
+    v.object({ status: v.literal('not_found') }),
+    v.object({ status: v.literal('revoked') }),
+    v.object({ status: v.literal('accepted') }),
+    v.object({
+      status: v.literal('valid'),
+      email: v.string(),
+      workspaceOwnerId: v.string(),
+      encrypted: v.boolean(),
+      cryptoProtocol: v.optional(v.number()),
+    }),
+  ),
   handler: async (ctx, args) => {
     const invite = await ctx.db
       .query('workspaceInvites')
@@ -264,9 +291,11 @@ export const acceptWorkspaceInvite = mutation({
     kdf: v.optional(passphraseKdfParamsV1),
     keyVersion: v.optional(v.number()),
   },
+  returns: v.object({ pendingApproval: v.boolean() }),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
+    await assertAccountActive(ctx, user._id);
 
     const invite = await ctx.db
       .query('workspaceInvites')
@@ -410,6 +439,7 @@ export const approveEncryptedWorkspaceInvite = mutation({
       throw new ConvexError('Invite is not awaiting encrypted approval');
     }
     const pendingMemberId = invite.pendingMemberId;
+    await assertAccountActive(ctx, pendingMemberId);
     const memberPublicKey = invite.memberPublicKey;
     const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
     if (!policy.requiresEncryption || args.keyEpoch !== policy.activeKeyEpoch) {

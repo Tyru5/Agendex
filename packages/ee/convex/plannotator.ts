@@ -17,6 +17,7 @@ import {
   sanitizeWorkspaceCryptoError,
   validateEncryptedWrite,
 } from './workspaceCrypto';
+import { plannotatorWritebackValidator } from './validators';
 
 const WRITEBACK_TTL_MS = 24 * 60 * 60 * 1000;
 const WRITEBACK_EXPIRED_ERROR = 'Write-back expired before a daemon could send it.';
@@ -326,6 +327,7 @@ export const enqueueWriteback = mutation({
     encryptedWriteback: v.optional(cryptoEnvelopeV1),
     localPlanToken: v.optional(v.string()),
   },
+  returns: v.id('plannotatorWritebacks'),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -353,7 +355,7 @@ export const enqueueWriteback = mutation({
     if (
       policy.requiresEncryption &&
       (!args.stableCryptoId ||
-        args.keyEpoch === undefined ||
+        args.keyEpoch !== policy.activeKeyEpoch ||
         !args.encryptedWriteback ||
         !args.localPlanToken ||
         args.localPlanToken !== requestedPlan.localPlanToken)
@@ -484,6 +486,7 @@ export const enqueueWriteback = mutation({
 
 export const listWritebacksForPlan = query({
   args: { planId: v.id('plans') },
+  returns: v.array(plannotatorWritebackValidator),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
@@ -592,6 +595,7 @@ export const pollPendingWritebacks = internalQuery({
     deviceId: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: v.array(plannotatorWritebackValidator),
   handler: async (ctx, args) => {
     const now = Date.now();
     const limit = Math.min(Math.max(args.limit ?? 10, 1), MAX_POLL_LIMIT);
@@ -628,6 +632,7 @@ export const pollPendingWritebacks = internalQuery({
 
 export const markExpiredWritebacks = internalMutation({
   args: { ownerId: v.string(), now: v.number() },
+  returns: v.object({ expired: v.number() }),
   handler: async (ctx, args) => {
     const pending = await ctx.db
       .query('plannotatorWritebacks')
@@ -656,13 +661,14 @@ export const reportWritebackStatus = internalMutation({
     status: v.union(v.literal('sent'), v.literal('failed'), v.literal('expired')),
     error: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.writebackId);
     if (!row || row.ownerId !== args.ownerId) {
       throw new ConvexError('Write-back not found');
     }
     if (row.status !== 'pending') {
-      return;
+      return null;
     }
 
     const now = Date.now();
@@ -696,5 +702,6 @@ export const reportWritebackStatus = internalMutation({
     if (args.status !== 'sent') {
       await reopenWritebackAnnotations(ctx, row.annotationIds, args.writebackId, now);
     }
+    return null;
   },
 });

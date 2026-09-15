@@ -14,7 +14,7 @@ describe('workspace values', () => {
     });
 
     expect(
-      decryptWorkspaceValue({
+      decryptWorkspaceValue<{ body: string; authorName: string }>({
         workspaceKey,
         workspaceOwnerId: 'owner-1',
         keyEpoch: 2,
