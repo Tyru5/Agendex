@@ -4,6 +4,12 @@ import type { Id } from './_generated/dataModel';
 import { type MutationCtx, mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature, requireFeatureForUserId } from './entitlements';
+import { cryptoEnvelopeV1 } from './schema';
+import {
+  requireSupportedCryptoClient,
+  resolveWorkspaceCryptoPolicy,
+  validateEncryptedWrite,
+} from './workspaceCrypto';
 import { planAnnotationValidator } from './validators';
 
 const annotationType = v.union(
@@ -132,29 +138,69 @@ export const createAnnotation = mutation({
     replacementText: v.optional(v.string()),
     anchor: planTextAnchor,
     source: v.optional(v.string()),
+    clientCryptoProtocol: v.optional(v.number()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedAnnotation: v.optional(cryptoEnvelopeV1),
   },
   returns: v.id('planAnnotations'),
   handler: async (ctx, args) => {
     const user = await requirePlanOwnerWriteAccess(ctx, args.planId);
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
     if (args.status === 'submitted') {
       throw new ConvexError('Use a write-back to submit annotations');
     }
-    const validated = validateAnnotationInput(args);
+    validateEncryptedWrite({
+      policy,
+      clientProtocol: args.clientCryptoProtocol,
+      envelopes: args.encryptedAnnotation ? [args.encryptedAnnotation] : [],
+      plaintext: {
+        body: args.body,
+        replacementText: args.replacementText,
+        quote: args.anchor.quote,
+        prefix: args.anchor.prefix,
+        suffix: args.anchor.suffix,
+        contentHash: args.anchor.contentHash,
+      },
+    });
+    if (
+      policy.requiresEncryption &&
+      (!args.stableCryptoId || args.keyEpoch !== policy.activeKeyEpoch || !args.encryptedAnnotation)
+    ) {
+      throw new ConvexError('Encrypted annotation metadata is required');
+    }
+    const validated = policy.requiresEncryption
+      ? { body: undefined, replacementText: undefined }
+      : validateAnnotationInput(args);
     const now = Date.now();
 
     return await ctx.db.insert('planAnnotations', {
       planId: args.planId,
+      ownerId: user._id,
       authorId: user._id,
-      authorName: user.name ?? 'Anonymous',
+      authorName: policy.requiresEncryption ? '' : (user.name ?? 'Anonymous'),
       source: args.source ?? 'agendex-cloud',
       type: args.type,
       status: args.status ?? 'open',
       body: validated.body,
       replacementText: validated.replacementText,
-      anchor: args.anchor,
+      anchor: policy.requiresEncryption
+        ? {
+            startOffset: args.anchor.startOffset,
+            endOffset: args.anchor.endOffset,
+            occurrenceIndex: args.anchor.occurrenceIndex,
+          }
+        : args.anchor,
       createdAt: now,
       updatedAt: now,
       resolvedAt: args.status === 'resolved' ? now : undefined,
+      ...(policy.requiresEncryption
+        ? {
+            stableCryptoId: args.stableCryptoId,
+            keyEpoch: args.keyEpoch,
+            encryptedAnnotation: args.encryptedAnnotation,
+          }
+        : {}),
     });
   },
 });
@@ -165,21 +211,50 @@ export const updateAnnotation = mutation({
     body: v.optional(v.string()),
     replacementText: v.optional(v.string()),
     status: v.optional(annotationStatus),
+    clientCryptoProtocol: v.optional(v.number()),
+    keyEpoch: v.optional(v.number()),
+    encryptedAnnotation: v.optional(cryptoEnvelopeV1),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const annotation = await ctx.db.get(args.annotationId);
     if (!annotation) throw new ConvexError('Annotation not found');
 
-    await requirePlanOwnerWriteAccess(ctx, annotation.planId);
+    const user = await requirePlanOwnerWriteAccess(ctx, annotation.planId);
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
+    requireSupportedCryptoClient(policy, args.clientCryptoProtocol);
+    if (
+      policy.requiresEncryption &&
+      (args.body !== undefined ||
+        args.replacementText !== undefined ||
+        args.encryptedAnnotation !== undefined ||
+        args.keyEpoch !== undefined)
+    ) {
+      validateEncryptedWrite({
+        policy,
+        clientProtocol: args.clientCryptoProtocol,
+        envelopes: args.encryptedAnnotation ? [args.encryptedAnnotation] : [],
+        plaintext: { body: args.body, replacementText: args.replacementText },
+      });
+      if (!annotation.stableCryptoId || args.keyEpoch !== policy.activeKeyEpoch) {
+        throw new ConvexError('Encrypted annotation metadata is required');
+      }
+    }
 
     const now = Date.now();
     const { _id: _ignoredId, _creationTime: _ignoredCreationTime, ...nextAnnotation } = annotation;
     nextAnnotation.updatedAt = now;
 
-    if (args.body !== undefined) nextAnnotation.body = args.body.trim();
+    if (!policy.requiresEncryption && args.body !== undefined)
+      nextAnnotation.body = args.body.trim();
     if (args.replacementText !== undefined)
-      nextAnnotation.replacementText = args.replacementText.trim();
+      nextAnnotation.replacementText = policy.requiresEncryption
+        ? undefined
+        : args.replacementText.trim();
+    if (policy.requiresEncryption && args.encryptedAnnotation) {
+      nextAnnotation.encryptedAnnotation = args.encryptedAnnotation;
+      nextAnnotation.keyEpoch = args.keyEpoch;
+    }
     if (args.status !== undefined) {
       if (args.status === 'submitted') {
         throw new ConvexError('Use a write-back to submit annotations');

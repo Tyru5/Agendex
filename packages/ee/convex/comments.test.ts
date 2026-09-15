@@ -108,6 +108,9 @@ function createCleanupFixture(options: {
       attachmentClaims = attachmentClaims.filter((row) => row._id !== id);
     },
     system: {
+      async get(id: StorageId) {
+        return storedObjects.get(id) ?? null;
+      },
       query() {
         scannedGlobalStorage = true;
         throw new Error('Comment cleanup must not scan global storage');
@@ -243,4 +246,26 @@ test('expired unclaimed comment uploads are deleted in bounded batches', async (
   expect(finalBatch.hasMore).toBe(false);
   expect(fixture.pendingUploadCount()).toBe(0);
   expect(fixture.scannedGlobalStorage()).toBe(false);
+});
+
+test('expired upload records drain when the storage object was already removed', async () => {
+  const now = 10 * DAY_MS;
+  const fixture = createCleanupFixture({
+    pendingUploads: [
+      {
+        _id: 'pending-missing',
+        createdAt: now - 20 * MINUTE_MS,
+        storageId: storageId('already-deleted'),
+      },
+    ],
+  });
+
+  expect(await cleanupExpiredCommentUploads(fixture.ctx, now)).toEqual({
+    deletedReservations: 0,
+    deletedPendingUploads: 1,
+    deletedStorageFiles: 0,
+    hasMore: false,
+  });
+  expect(fixture.pendingUploadCount()).toBe(0);
+  expect(fixture.deletedStorageIds).toEqual([]);
 });

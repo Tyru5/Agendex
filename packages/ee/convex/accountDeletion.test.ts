@@ -24,9 +24,11 @@ test('every account deletion phase is restart-safe and advances only after it dr
 
     const interrupted = accountDeletionPhaseAfterBatch(phase, ACCOUNT_DELETION_BATCH_SIZE);
     expect(interrupted).toBe(phase);
+    if (interrupted === null) throw new Error('Phase unexpectedly ended');
 
     const retriedWithRemainingRows = accountDeletionPhaseAfterBatch(interrupted, 1);
     expect(retriedWithRemainingRows).toBe(phase);
+    if (retriedWithRemainingRows === null) throw new Error('Phase unexpectedly ended');
 
     const drained = accountDeletionPhaseAfterBatch(retriedWithRemainingRows, 0);
     expect(drained).toBe(nextAccountDeletionPhase(phase));
@@ -37,6 +39,7 @@ test('every per-plan phase resumes after interruption before the plan can be del
   for (const phase of PLAN_DELETION_PHASES) {
     const interrupted = planDeletionPhaseAfterBatch(phase, ACCOUNT_DELETION_BATCH_SIZE);
     expect(interrupted).toBe(phase);
+    if (interrupted === null) throw new Error('Phase unexpectedly ended');
     expect(planDeletionPhaseAfterBatch(interrupted, 1)).toBe(phase);
     expect(planDeletionPhaseAfterBatch(interrupted, 0)).toBe(nextPlanDeletionPhase(phase));
   }
@@ -110,6 +113,9 @@ test('account deletion batches all owned storage-backed and relational data', ()
     'dataExports',
     'workspaceMembers',
     'workspaceInvites',
+    'workspaceKeyGrants',
+    'memberCryptoIdentities',
+    'workspaceCryptoSettings',
     'daemonHeartbeats',
     'subscriptions',
     'accountPreferences',

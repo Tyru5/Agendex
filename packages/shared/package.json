@@ -9,6 +9,7 @@
     "./git-forge": "./src/git-forge.ts",
     "./daemon-status": "./src/daemon-status.ts",
     "./desktop-auth-callback": "./src/desktop-auth-callback.ts",
+    "./crypto": "./src/crypto/index.ts",
     "./plan-value": "./src/services/plan-value.ts",
     "./plan-sync-identity": "./src/services/plan-sync-identity.ts",
     "./plan-download-lookup": "./src/services/plan-download-lookup.ts",
@@ -16,7 +17,13 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",
+    "@hpke/chacha20poly1305": "1.8.0",
+    "@hpke/core": "1.9.0",
+    "@hpke/dhkem-x25519": "1.8.0",
+    "@noble/ciphers": "2.3.0",
+    "@noble/hashes": "2.3.0",
     "better-sqlite3": "^12.6.2",
+    "hash-wasm": "4.12.0",
     "proper-lockfile": "^4.1.2"
   },
   "devDependencies": {

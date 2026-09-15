@@ -85,6 +85,7 @@ import { AuthPage } from './components/AuthPage.tsx';
 import { CliAuthPage } from './components/CliAuthPage.tsx';
 import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
 import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
+import { useCloudPlanEdits } from './hooks/useCloudPlanEdits';
 import {
   CloudPlanAnnotationsPanel,
   useCloudPlanAnnotations,
@@ -112,14 +113,21 @@ import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
 import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { useAuth } from './hooks/useAuth.ts';
+import { useAgentAvatars } from './hooks/useAgentAvatars.ts';
 import { useHydratedCloudPlan } from './hooks/useCloudPlanContent.ts';
 import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
 import { useUnseenPlanToasts } from './hooks/useUnseenPlanToasts.ts';
 import { useCloudPlans } from './hooks/useCloudPlans.ts';
 import { useCloudPlanSearch } from './hooks/useCloudPlanSearch.ts';
+import {
+  useCloudCollections,
+  useCloudPlanTags,
+  useCloudTags,
+} from './hooks/useCloudMetadataCrypto.ts';
 import { useDaemonStatus } from './hooks/useDaemonStatus.ts';
 import { useDesktopDaemonState } from './hooks/useDesktopDaemonState.ts';
 import { useProductTourState } from './hooks/useProductTourState.ts';
+import { cloudUsageUnavailableReason } from './lib/cloud-usage-policy.ts';
 import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
@@ -375,11 +383,8 @@ function useDashboardData(
   const backendStatus = mode === 'cloud' ? cloudBackendStatus : localBackendStatus;
   const cloudSyncPaused = mode === 'cloud' && daemonStatus === 'stale';
 
-  const allTags = useQuery(api.tags.listMyTags, cloudPlanMetadataEnabled ? {} : 'skip');
-  const allCollections = useQuery(
-    api.collections.listMyCollections,
-    cloudPlanMetadataEnabled ? {} : 'skip',
-  );
+  const allTags = useCloudTags(cloudPlanMetadataEnabled);
+  const allCollections = useCloudCollections(cloudPlanMetadataEnabled);
   const selectedCollectionId = allCollections?.find(
     (collection) => collection._id === selectedCollection,
   )?._id;
@@ -423,16 +428,14 @@ function useDashboardData(
     [plans, mode, cloudPlanState, localPlanState],
   );
 
-  const planTagsMap = useQuery(
-    api.planTags.getTagsForPlans,
-    shouldQueryCloudPlanTags({
-      mode,
-      isPro,
-      selectedTagCount: selectedTags.length,
-      planCount: plans.length,
-    })
-      ? { planIds: plans.map((p) => p.id) as Array<Id<'plans'>> }
-      : 'skip',
+  const shouldLoadPlanTags = shouldQueryCloudPlanTags({
+    mode,
+    isPro,
+    selectedTagCount: selectedTags.length,
+    planCount: plans.length,
+  });
+  const planTagsMap = useCloudPlanTags(
+    shouldLoadPlanTags ? (plans.map((p) => p.id) as Array<Id<'plans'>>) : null,
   );
 
   const collectionPlanIdSet = useMemo(
@@ -814,7 +817,6 @@ function ToolbarOptionSurface({
 function ToolbarOptionRail({
   side,
   active,
-  onExitComplete,
   children,
 }: {
   side: 'left' | 'right';
@@ -1269,16 +1271,23 @@ function useDashboardMain({
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const convex = useConvex();
-  const cloudUsage = useQuery(api.cli.getUsage, mode === 'cloud' ? { days: 30 } : 'skip') as
-    | UsageSummary
-    | null
-    | undefined;
+  const usageCryptoStatus = useQuery(
+    api.workspaceCrypto.getWorkspaceCryptoStatus,
+    mode === 'cloud' ? {} : 'skip',
+  );
+  const usageUnavailableReason =
+    mode === 'cloud' ? cloudUsageUnavailableReason(usageCryptoStatus) : undefined;
+  const cloudUsage = useQuery(
+    api.cli.getUsage,
+    mode === 'cloud' && !usageUnavailableReason ? { days: 30 } : 'skip',
+  ) as UsageSummary | null | undefined;
   const loadCloudUsage = useCallback(
     async (days = 30) => {
+      if (usageUnavailableReason) return null;
       const usageDays = days === 1 || days === 7 || days === 30 || days === 90 ? days : 30;
       return (await convex.query(api.cli.getUsage, { days: usageDays })) as UsageSummary | null;
     },
-    [convex],
+    [convex, usageUnavailableReason],
   );
   const selectedAnnotationState = useCloudPlanAnnotations({
     plan: selectedPlan,
@@ -1653,17 +1662,18 @@ function useDashboardMain({
           planViewMode={planViewMode}
           usageSummary={mode === 'cloud' ? cloudUsage : undefined}
           usageLoader={mode === 'cloud' ? loadCloudUsage : undefined}
+          usageUnavailableReason={usageUnavailableReason}
         />
       )}
     </div>
   );
 }
 
-function DashboardMainView(props: Parameters<typeof renderDashboardMain>[0]) {
+function DashboardMainView(props: Parameters<typeof useDashboardMain>[0]) {
   return useDashboardMain(props);
 }
 
-function DashboardSidebarView(props: Parameters<typeof renderDashboardSidebar>[0]) {
+function DashboardSidebarView(props: Parameters<typeof useDashboardSidebar>[0]) {
   return useDashboardSidebar(props);
 }
 
@@ -2580,11 +2590,11 @@ function useDashboard({
     startViewTransition(() => setActivePanel('uploading'));
   }
 
-  const renamePlanMutation = useMutation(api.plans.renamePlan);
+  const { rename: renamePlanMutation } = useCloudPlanEdits();
   const handleRenamePlan = useCallback(
     async (planId: string, newTitle: string) => {
       if (mode !== 'cloud' || !isPro) return;
-      await renamePlanMutation({ planId: planId as Id<'plans'>, title: newTitle });
+      await renamePlanMutation(planId as Id<'plans'>, newTitle);
     },
     [mode, isPro, renamePlanMutation],
   );
@@ -3075,7 +3085,7 @@ function DashboardRoute() {
     ? desktopHasCloudToken && convexAuth.isAuthenticated
     : isAuthenticated;
   const routeLoading = desktop ? desktopAuthLoading : isLoading;
-  const avatars = useQuery(api.agentAvatars.listMyAgentAvatars, routeAuthenticated ? {} : 'skip');
+  const avatars = useAgentAvatars(routeAuthenticated);
   const { needsOnboarding, onboardingResolved } = useSubscription({
     enabled: !routeLoading && routeAuthenticated,
   });
@@ -3151,6 +3161,24 @@ function DashboardRoute() {
   return <Redirect to="/login" />;
 }
 
+// @convex-dev/better-auth 0.12.5 constructs its provider client type from
+// BetterAuthClientPlugin instead of client options; with better-auth 1.6.30
+// this incorrectly makes useSession().data `never`. Check the methods actually
+// consumed by the provider before asserting that single dependency boundary.
+const providerAuthClient = authClient satisfies {
+  useSession(): { data: { session: { id: string } } | null; isPending: boolean };
+  convex: {
+    token(options: { fetchOptions: { throw: false } }): Promise<{ data: { token: string } | null }>;
+  };
+  crossDomain: {
+    oneTimeToken: {
+      verify(input: { token: string }): Promise<{ data: { session: { token: string } } | null }>;
+    };
+  };
+  getSession(options: { fetchOptions: { headers: { Authorization: string } } }): Promise<unknown>;
+  updateSession(): void;
+};
+
 function AuthRuntime({ children }: { children: ReactNode }) {
   if (isDesktop() && getDesktopCloudToken()) {
     return (
@@ -3161,7 +3189,14 @@ function AuthRuntime({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    <ConvexBetterAuthProvider
+      client={convex}
+      authClient={
+        providerAuthClient as unknown as Parameters<
+          typeof ConvexBetterAuthProvider
+        >[0]['authClient']
+      }
+    >
       {children}
     </ConvexBetterAuthProvider>
   );

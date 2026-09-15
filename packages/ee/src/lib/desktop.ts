@@ -101,6 +101,13 @@ export interface AgendexDesktopBridge {
   refreshCloudSession: () => Promise<{ token: string; convexSiteUrl: string } | null>;
   getConvexAuthToken: () => Promise<string | null>;
   authFetch: (url: string, init: DesktopAuthFetchInit) => Promise<DesktopAuthFetchResult>;
+  storeObfuscationKey?: (
+    workspaceOwnerId: string,
+    keyEpoch: number,
+    keyBase64: string,
+  ) => Promise<boolean>;
+  loadObfuscationKey?: (workspaceOwnerId: string, keyEpoch: number) => Promise<string | null>;
+  clearObfuscationKey?: (workspaceOwnerId: string, keyEpoch: number) => Promise<boolean>;
   checkForUpdates: () => Promise<void>;
   installUpdate: () => Promise<void>;
   getUpdateState: () => Promise<UpdateState>;
@@ -129,6 +136,28 @@ function getBridge(): AgendexDesktopBridge | undefined {
 
 export function isDesktop(): boolean {
   return getBridge()?.isDesktop === true;
+}
+
+export async function storeDesktopObfuscationKey(
+  workspaceOwnerId: string,
+  keyEpoch: number,
+  keyBase64: string,
+): Promise<boolean> {
+  return (await getBridge()?.storeObfuscationKey?.(workspaceOwnerId, keyEpoch, keyBase64)) ?? false;
+}
+
+export async function loadDesktopObfuscationKey(
+  workspaceOwnerId: string,
+  keyEpoch: number,
+): Promise<string | null> {
+  return (await getBridge()?.loadObfuscationKey?.(workspaceOwnerId, keyEpoch)) ?? null;
+}
+
+export async function clearDesktopObfuscationKey(
+  workspaceOwnerId: string,
+  keyEpoch: number,
+): Promise<void> {
+  await getBridge()?.clearObfuscationKey?.(workspaceOwnerId, keyEpoch);
 }
 
 /** Dispatched by the desktop preload when Electron page zoom changes. */

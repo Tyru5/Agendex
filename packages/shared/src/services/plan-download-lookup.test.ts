@@ -110,7 +110,7 @@ test('selectPlanDownloadMatches prefers an exact id or localPlanId', () => {
   const plans = [
     plan({ id: 'cloud-1', title: 'Add auth', localPlanId: 'local-1' }),
     plan({ id: 'cloud-2', title: 'cloud-1' }),
-  ];
+  ] as const;
 
   expect(selectPlanDownloadMatches(plans, 'cloud-1')).toEqual({
     kind: 'one',
@@ -225,7 +225,7 @@ test('looksLikePlanIdQuery treats ID-shaped titles as ids', () => {
 });
 
 test('selectPlanDownloadMatches finds an ID-shaped title substring', () => {
-  const plans = [plan({ id: '1', title: 'ImplementAuthenticationFlow' })];
+  const plans = [plan({ id: '1', title: 'ImplementAuthenticationFlow' })] as const;
   expect(selectPlanDownloadMatches(plans, 'AuthenticationFlow')).toEqual({
     kind: 'one',
     plan: plans[0],
@@ -233,7 +233,10 @@ test('selectPlanDownloadMatches finds an ID-shaped title substring', () => {
 });
 
 test('selectPlanDownloadMatches finds a unique title case-insensitively', () => {
-  const plans = [plan({ id: '1', title: 'Add Auth Flow' }), plan({ id: '2', title: 'Unrelated' })];
+  const plans = [
+    plan({ id: '1', title: 'Add Auth Flow' }),
+    plan({ id: '2', title: 'Unrelated' }),
+  ] as const;
 
   expect(selectPlanDownloadMatches(plans, 'add auth flow')).toEqual({
     kind: 'one',
@@ -245,7 +248,7 @@ test('selectPlanDownloadMatches uses a unique prefix or substring', () => {
   const plans = [
     plan({ id: '1', title: 'Download cloud plans' }),
     plan({ id: '2', title: 'Unrelated note' }),
-  ];
+  ] as const;
 
   expect(selectPlanDownloadMatches(plans, 'Download')).toEqual({
     kind: 'one',
@@ -261,7 +264,7 @@ test('selectPlanDownloadMatches uses agent to disambiguate the same title', () =
   const plans = [
     plan({ id: '1', title: 'Add auth', agent: 'claude-code', updatedAt: 2 }),
     plan({ id: '2', title: 'Add auth', agent: 'codex-cli', updatedAt: 3 }),
-  ];
+  ] as const;
 
   expect(selectPlanDownloadMatches(plans, 'Add auth')).toEqual({
     kind: 'many',

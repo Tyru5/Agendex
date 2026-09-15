@@ -113,6 +113,7 @@ export const addTag = mutation({
       ctx.db.get(args.tagId),
     ]);
     const plan = requireOwnedDocuments([planDocument], user._id, 'Plan')[0];
+    if (!plan) throw new ConvexError('Plan not found');
     requireOwnedDocuments([tagDocument], plan.ownerId, 'Tag');
 
     const existing = await ctx.db
@@ -150,6 +151,7 @@ export const removeTag = mutation({
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
 
     const plan = requireOwnedDocuments([await ctx.db.get(args.planId)], user._id, 'Plan')[0];
+    if (!plan) throw new ConvexError('Plan not found');
     requireOwnedDocuments([await ctx.db.get(args.tagId)], plan.ownerId, 'Tag');
 
     const row = await ctx.db
@@ -177,6 +179,7 @@ export const setTagsForPlan = mutation({
 
     const tagIds = normalizeBoundedIds(args.tagIds, MAX_TAGS_PER_PLAN, 'tags for a plan');
     const plan = requireOwnedDocuments([await ctx.db.get(args.planId)], user._id, 'Plan')[0];
+    if (!plan) throw new ConvexError('Plan not found');
     requireOwnedDocuments(
       await Promise.all(tagIds.map((tagId) => ctx.db.get(tagId))),
       plan.ownerId,

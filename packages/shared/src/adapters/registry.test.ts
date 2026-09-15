@@ -56,5 +56,5 @@ test('stock OpenCode and Oh My OpenCode are distinct supported adapters', () => 
     'opencode',
     'oh-my-opencode',
   ]);
-  expect(getCatalog().find((entry) => entry.id === 'mcpjam')).toBeUndefined();
+  expect(getCatalog().map((entry) => entry.id)).not.toContain('mcpjam');
 });

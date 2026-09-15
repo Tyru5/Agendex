@@ -124,7 +124,7 @@ export function useUnseenPlanToasts({
       };
 
       const openPlan = () => {
-        // Opening (View / body click) marks this version seen. Dismiss and
+        // Opening via View marks this version seen. Dismiss and
         // auto-close must not — that is why settleToast never calls markSeen.
         planStateRef.current.markSeen(plan.id, plan.updatedAt);
         onSelectPlanRef.current(plan);
@@ -134,7 +134,6 @@ export function useUnseenPlanToasts({
       toast(truncateTitle(plan.title), {
         id: toastId,
         description: getAgentLabel(plan.agent),
-        onClick: openPlan,
         onDismiss: settleToast,
         onAutoClose: settleToast,
         action: {

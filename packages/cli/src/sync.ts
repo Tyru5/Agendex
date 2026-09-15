@@ -1,5 +1,7 @@
 import { hostname as osHostname } from 'node:os';
 import {
+  clearBytes,
+  encryptPlanWrite,
   getAll,
   isIndexablePlan,
   isLowValuePlan,
@@ -8,14 +10,28 @@ import {
   scan,
   setActiveAdapters,
 } from '@agendex/shared';
+import { serializeCryptoEnvelope } from '@agendex/shared/crypto';
 import { resolveCliAdapterIds } from './adapters.ts';
-import { getDaemonCloudScope, syncPlan } from './api.ts';
+import { fetchPlanCryptoIdentity, getDaemonCloudScope, syncPlan } from './api.ts';
 import { getLocalIpAddress } from './network.ts';
 import { planToSyncPayload } from './payload.ts';
 import { computePayloadHash, loadSyncCache, saveSyncCache } from './sync-cache.ts';
 import { shouldIncludeLocalIpAddressInSync } from './sync-privacy.ts';
+import { getCliWorkspaceCryptoContext, type CliWorkspaceCryptoContext } from './cloud-crypto.ts';
 
 export async function syncAll(force = false): Promise<void> {
+  const cryptoContext = await getCliWorkspaceCryptoContext({ promptIfMissing: true });
+  try {
+    await syncAllWithCrypto(force, cryptoContext);
+  } finally {
+    if (cryptoContext) clearBytes(cryptoContext.workspaceKey);
+  }
+}
+
+async function syncAllWithCrypto(
+  force: boolean,
+  cryptoContext: CliWorkspaceCryptoContext | null,
+): Promise<void> {
   const config = await loadOrInitConfig();
   const hostname = osHostname();
   const ipAddress = (await shouldIncludeLocalIpAddressInSync()) ? getLocalIpAddress() : undefined;
@@ -51,15 +67,58 @@ export async function syncAll(force = false): Promise<void> {
     }
     activePlanIds.add(plan.id);
 
-    const payload = planToSyncPayload(plan, config.deviceId, hostname, ipAddress);
+    const plainPayload = planToSyncPayload(plan, config.deviceId, hostname, ipAddress);
 
-    const hash = computePayloadHash(payload);
+    const hash = computePayloadHash(plainPayload);
 
     if (!force && cache[plan.id] === hash) {
       skipped++;
       continue;
     }
 
+    let payload = plainPayload;
+    if (cryptoContext) {
+      const encryptionArgs = {
+        workspaceKey: cryptoContext.workspaceKey,
+        workspaceOwnerId: cryptoContext.status.workspaceOwnerId,
+        keyEpoch: cryptoContext.status.activeKeyEpoch,
+        plan: {
+          localPlanId: plainPayload.localPlanId,
+          agent: plainPayload.agent,
+          title: plainPayload.title,
+          content: plainPayload.content,
+          format: plainPayload.format,
+          filePath: plainPayload.filePath,
+          workspace: plainPayload.workspace,
+          metadata: plainPayload.metadata,
+          syncIdentity: plainPayload.syncIdentityKey,
+          lowValue: isLowValuePlan(plan),
+        },
+      };
+      let encrypted = encryptPlanWrite(encryptionArgs);
+      const existingIdentity = await fetchPlanCryptoIdentity(encrypted.localPlanToken);
+      if (!existingIdentity) {
+        throw new Error('Unable to resolve encrypted plan identity; refusing to sync');
+      }
+      if (existingIdentity.found) {
+        encrypted = encryptPlanWrite({
+          ...encryptionArgs,
+          stableCryptoId: existingIdentity.stableCryptoId,
+        });
+      }
+      payload = {
+        ...encrypted,
+        encryptedSummary: serializeCryptoEnvelope(encrypted.encryptedSummary),
+        encryptedBody: serializeCryptoEnvelope(encrypted.encryptedBody),
+        encryptedVersionSummary: serializeCryptoEnvelope(encrypted.encryptedVersionSummary),
+        encryptedVersionBody: serializeCryptoEnvelope(encrypted.encryptedVersionBody),
+        createdAt: plainPayload.createdAt,
+        updatedAt: plainPayload.updatedAt,
+        identityVersion: plainPayload.identityVersion,
+        identityStrength: plainPayload.identityStrength,
+        cryptoProtocol: 1,
+      };
+    }
     const result = await syncPlan(payload);
     if ((getDaemonCloudScope() ?? 'unconfigured') !== syncCacheScope) {
       throw new Error('Cloud credentials changed during sync. Run `agendex sync` again.');
@@ -74,7 +133,7 @@ export async function syncAll(force = false): Promise<void> {
       cache[plan.id] = hash;
     } else {
       failed++;
-      console.error(`[agendex] Failed to sync "${plan.title}": ${result.error}`);
+      console.error(`[agendex] Failed to sync one plan: ${result.error}`);
     }
   }
 

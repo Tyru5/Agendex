@@ -32,6 +32,7 @@ export interface EmptyStateViewProps {
   planViewMode?: PlanViewMode;
   usageSummary?: UsageSummary | null;
   usageLoader?: UsageLoader;
+  usageUnavailableReason?: string;
 }
 
 export type PlanViewMode = 'list' | 'card';
@@ -835,13 +836,15 @@ function useTriviaGame({ onExit }: { onExit: () => void }) {
   const handleAnswer = useCallback(
     (choiceIndex: number) => {
       if (!currentQuestion || complete || answered) return;
+      const answer = currentQuestion.choices[currentQuestion.answerIndex];
+      if (answer === undefined) return;
 
       dispatch({
         type: 'ANSWER',
         choiceIndex,
         correct: choiceIndex === currentQuestion.answerIndex,
         explanation: currentQuestion.explanation,
-        answer: currentQuestion.choices[currentQuestion.answerIndex],
+        answer,
       });
     },
     [answered, complete, currentQuestion],
@@ -1056,6 +1059,7 @@ export function EmptyStateView({
   planViewMode,
   usageSummary,
   usageLoader = api.getUsage,
+  usageUnavailableReason,
 }: EmptyStateViewProps) {
   const [triviaActive, setTriviaActive] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
@@ -1084,17 +1088,23 @@ export function EmptyStateView({
   const agentCount = activeAgents.length;
   const hasPlans = planCount > 0;
   const browsingAgent = selectedAgent !== null && !triviaActive && !viewingUsage;
-  const browsingUsage = viewingUsage && !triviaActive;
+  const browsingUsage = viewingUsage && !triviaActive && !usageUnavailableReason;
   const browsing = browsingAgent || browsingUsage;
   const showLedger = hasPlans && !triviaActive && agentCount > 0 && !browsing;
   const { summary: usage, loading: usageLoading } = useUsageSummary(
-    true,
-    usageSummary,
+    !usageUnavailableReason,
+    usageUnavailableReason ? null : usageSummary,
     usageLoader,
   );
   const showUsage =
-    usage !== null && usage.records > 0 && usage.agents.length > 0 && !triviaActive && !browsing;
-  const showUsageLoading = usageLoading && usage === null && !triviaActive && !browsing;
+    !usageUnavailableReason &&
+    usage !== null &&
+    usage.records > 0 &&
+    usage.agents.length > 0 &&
+    !triviaActive &&
+    !browsing;
+  const showUsageLoading =
+    !usageUnavailableReason && usageLoading && usage === null && !triviaActive && !browsing;
   const searchShortcut = '/';
 
   const heading = hasPlans ? 'Choose a plan to review' : 'No plans indexed yet';
@@ -1157,6 +1167,11 @@ export function EmptyStateView({
             <>
               <h2 className="empty-state-title">{heading}</h2>
               <p className="empty-state-description">{description}</p>
+              {usageUnavailableReason && (
+                <p className="empty-state-description" role="status">
+                  {usageUnavailableReason}
+                </p>
+              )}
 
               {!hasPlans && <WatchCommand />}
 

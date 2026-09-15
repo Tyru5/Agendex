@@ -11,6 +11,12 @@ export type DesktopDaemonParentMessage =
       parentPid: number;
     }
   | { type: 'credentials-updated'; credentials: DesktopDaemonCredentials }
+  | {
+      type: 'workspace-key-updated';
+      workspaceOwnerId: string;
+      keyEpoch: number;
+      keyBase64: string | null;
+    }
   | { type: 'shutdown' };
 
 export type DesktopDaemonWorkerMessage =
@@ -37,6 +43,23 @@ function parseCredentials(value: unknown): DesktopDaemonCredentials | null {
 export function parseDesktopDaemonParentMessage(value: unknown): DesktopDaemonParentMessage | null {
   if (!isRecord(value) || typeof value.type !== 'string') return null;
   if (value.type === 'shutdown') return { type: 'shutdown' };
+  if (
+    value.type === 'workspace-key-updated' &&
+    typeof value.workspaceOwnerId === 'string' &&
+    value.workspaceOwnerId.trim().length > 0 &&
+    typeof value.keyEpoch === 'number' &&
+    Number.isSafeInteger(value.keyEpoch) &&
+    value.keyEpoch >= 1 &&
+    (value.keyBase64 === null ||
+      (typeof value.keyBase64 === 'string' && /^[A-Za-z0-9+/]{43}=$/.test(value.keyBase64)))
+  ) {
+    return {
+      type: 'workspace-key-updated',
+      workspaceOwnerId: value.workspaceOwnerId,
+      keyEpoch: value.keyEpoch,
+      keyBase64: value.keyBase64,
+    };
+  }
 
   const credentials = parseCredentials(value.credentials);
   if (!credentials) return null;

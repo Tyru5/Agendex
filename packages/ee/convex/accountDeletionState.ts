@@ -1,6 +1,20 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 
-export const ACCOUNT_DELETION_BATCH_SIZE = 50;
+export async function assertAccountActive(
+  ctx: Pick<QueryCtx | MutationCtx, 'db'>,
+  ownerId: string,
+): Promise<void> {
+  const deletion = await ctx.db
+    .query('accountDeletionJobs')
+    .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
+    .first();
+  if (deletion) throw new ConvexError('Account deletion is in progress');
+}
+
+// Content documents can approach Convex's 1 MiB document limit. Keep a batch
+// below its 16 MiB read budget, including related storage and claim records.
+export const ACCOUNT_DELETION_BATCH_SIZE = 10;
 export const AUTH_DELETION_BATCH_SIZE = 100;
 
 export const ACCOUNT_DELETION_PHASES = [
@@ -25,6 +39,11 @@ export const ACCOUNT_DELETION_PHASES = [
   'workspaceMembersOwned',
   'workspaceMembersMemberships',
   'workspaceInvites',
+  'workspaceInvitesPending',
+  'workspaceKeyGrantsOwned',
+  'workspaceKeyGrantsMemberships',
+  'memberCryptoIdentities',
+  'workspaceCryptoSettings',
   'daemonHeartbeats',
   'subscriptions',
   'accountPreferences',
@@ -57,6 +76,11 @@ export const accountDeletionPhaseValidator = v.union(
   v.literal('workspaceMembersOwned'),
   v.literal('workspaceMembersMemberships'),
   v.literal('workspaceInvites'),
+  v.literal('workspaceInvitesPending'),
+  v.literal('workspaceKeyGrantsOwned'),
+  v.literal('workspaceKeyGrantsMemberships'),
+  v.literal('memberCryptoIdentities'),
+  v.literal('workspaceCryptoSettings'),
   v.literal('daemonHeartbeats'),
   v.literal('subscriptions'),
   v.literal('accountPreferences'),

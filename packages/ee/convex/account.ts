@@ -14,6 +14,7 @@ import type { DatabaseReader, DatabaseWriter, MutationCtx } from './_generated/s
 import {
   ACCOUNT_DELETION_BATCH_SIZE,
   AUTH_DELETION_BATCH_SIZE,
+  assertAccountActive,
   accountDeletionPhaseAfterBatch,
   accountDeletionPhaseValidator,
   accountDeletionRetryDelayMs,
@@ -113,6 +114,7 @@ export const updatePlanViewPreference = mutation({
     if (!user) throw new ConvexError('Not authenticated');
 
     const ownerId = String(user._id);
+    await assertAccountActive(ctx, ownerId);
     const existing = await findAccountPreferences(ctx, ownerId);
     const now = Date.now();
 
@@ -156,6 +158,7 @@ export const updateProductTourCompletedVersion = mutation({
     if (!user) throw new ConvexError('Not authenticated');
 
     const ownerId = String(user._id);
+    await assertAccountActive(ctx, ownerId);
     const existing = await findAccountPreferences(ctx, ownerId);
     const now = Date.now();
     const productTourCompletedVersion = completedVersion ?? undefined;
@@ -190,6 +193,7 @@ export const updatePrivacyPreferences = mutation({
     if (!user) throw new ConvexError('Not authenticated');
 
     const ownerId = String(user._id);
+    await assertAccountActive(ctx, ownerId);
     const existing = await findAccountPreferences(ctx, ownerId);
     const now = Date.now();
     const nextCollectLocalIpAddress =
@@ -722,7 +726,20 @@ export const runAccountDeletionBatch = internalMutation({
         .query('workspaceMembers')
         .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', ownerId))
         .take(ACCOUNT_DELETION_BATCH_SIZE);
-      for (const row of rows) await ctx.db.delete(row._id);
+      for (const row of rows) {
+        const identity = await ctx.db
+          .query('memberCryptoIdentities')
+          .withIndex('by_user', (q) => q.eq('userId', row.memberId))
+          .first();
+        if (identity) {
+          const invite = identity.inviteId ? await ctx.db.get(identity.inviteId) : null;
+          // An identity created for a different workspace must survive this deletion.
+          if (!identity.inviteId || invite?.workspaceOwnerId === ownerId) {
+            await ctx.db.delete(identity._id);
+          }
+        }
+        await ctx.db.delete(row._id);
+      }
       deleted = rows.length;
     } else if (job.phase === 'workspaceMembersMemberships') {
       const rows = await ctx.db
@@ -735,6 +752,51 @@ export const runAccountDeletionBatch = internalMutation({
       const rows = await ctx.db
         .query('workspaceInvites')
         .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', ownerId))
+        .take(ACCOUNT_DELETION_BATCH_SIZE);
+      for (const row of rows) {
+        // Pending invitees do not have a workspaceMembers row yet.
+        if (row.pendingMemberId) {
+          const identity = await ctx.db
+            .query('memberCryptoIdentities')
+            .withIndex('by_user', (q) => q.eq('userId', row.pendingMemberId!))
+            .first();
+          if (identity?.inviteId === row._id) await ctx.db.delete(identity._id);
+        }
+        await ctx.db.delete(row._id);
+      }
+      deleted = rows.length;
+    } else if (job.phase === 'workspaceInvitesPending') {
+      const rows = await ctx.db
+        .query('workspaceInvites')
+        .withIndex('by_pendingMemberId', (q) => q.eq('pendingMemberId', ownerId))
+        .take(ACCOUNT_DELETION_BATCH_SIZE);
+      for (const row of rows) await ctx.db.delete(row._id);
+      deleted = rows.length;
+    } else if (job.phase === 'workspaceKeyGrantsOwned') {
+      const rows = await ctx.db
+        .query('workspaceKeyGrants')
+        .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', ownerId))
+        .take(ACCOUNT_DELETION_BATCH_SIZE);
+      for (const row of rows) await ctx.db.delete(row._id);
+      deleted = rows.length;
+    } else if (job.phase === 'workspaceKeyGrantsMemberships') {
+      const rows = await ctx.db
+        .query('workspaceKeyGrants')
+        .withIndex('by_member', (q) => q.eq('memberId', ownerId))
+        .take(ACCOUNT_DELETION_BATCH_SIZE);
+      for (const row of rows) await ctx.db.delete(row._id);
+      deleted = rows.length;
+    } else if (job.phase === 'memberCryptoIdentities') {
+      const rows = await ctx.db
+        .query('memberCryptoIdentities')
+        .withIndex('by_user', (q) => q.eq('userId', ownerId))
+        .take(ACCOUNT_DELETION_BATCH_SIZE);
+      for (const row of rows) await ctx.db.delete(row._id);
+      deleted = rows.length;
+    } else if (job.phase === 'workspaceCryptoSettings') {
+      const rows = await ctx.db
+        .query('workspaceCryptoSettings')
+        .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
         .take(ACCOUNT_DELETION_BATCH_SIZE);
       for (const row of rows) await ctx.db.delete(row._id);
       deleted = rows.length;

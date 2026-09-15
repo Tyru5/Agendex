@@ -14,6 +14,7 @@ export interface DaemonDeviceInfo {
   uptimeMs: number | null;
   lastSeenAt: number | null;
   status: 'alive' | 'stale';
+  cryptoUnlocked: boolean | null;
 }
 
 export interface DaemonStatusResult {
@@ -44,6 +45,7 @@ export function useDaemonStatus(): DaemonStatusResult {
         uptimeMs: d.startedAtMs != null ? now - d.startedAtMs : null,
         lastSeenAt: d.lastSeenAt ?? null,
         status,
+        cryptoUnlocked: d.cryptoUnlocked ?? null,
       };
     });
 

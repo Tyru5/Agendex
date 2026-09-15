@@ -1,10 +1,15 @@
 import { SkeletonBlock } from '@agendex/web';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.ts';
+import {
+  buildEncryptedCommentWrite,
+  encryptCommentUpload,
+  useEncryptedComments,
+} from '../hooks/useEncryptedComments.ts';
 import { timeAgo } from '../lib/formatTime.ts';
 import { ImageLightbox } from './ImageLightbox.tsx';
 
@@ -38,11 +43,7 @@ export function CommentThread({
   className?: string;
 }) {
   const { user, isAuthenticated, signIn } = useAuth();
-  const comments = useQuery(api.comments.getComments, {
-    planId: planId as Id<'plans'>,
-    ...(shareToken ? { token: shareToken } : {}),
-    ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
-  });
+  const { comments, cryptoStatus } = useEncryptedComments(planId, shareToken, shareAccessProof);
   const addComment = useMutation(api.comments.addComment);
   const editComment = useMutation(api.comments.editComment);
   const deleteComment = useMutation(api.comments.deleteComment);
@@ -127,26 +128,42 @@ export function CommentThread({
     setError(null);
 
     try {
+      if (cryptoStatus === undefined || (!cryptoStatus && !shareToken)) {
+        throw new Error('Obfuscation status unavailable; wait before posting');
+      }
       type UploadResult = {
         storageId?: Id<'_storage'>;
         fileName: string;
         tracked: boolean;
         error?: string;
+        stableCryptoId?: string;
+        keyEpoch?: number;
+        contentType?: string;
       };
 
       const results = await Promise.allSettled(
         pendingImages.map(async (pending): Promise<UploadResult> => {
+          const encryptedUpload = cryptoStatus?.settings
+            ? await encryptCommentUpload({
+                file: pending.file,
+                workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+                keyEpoch: cryptoStatus.settings.activeKeyEpoch,
+              })
+            : null;
           const uploadUrl = await generateUploadUrl({
             planId: planId as Id<'plans'>,
             clientUploadId: pending.clientUploadId,
+            ...(encryptedUpload ? { clientCryptoProtocol: 1 } : {}),
             ...(shareToken ? { token: shareToken } : {}),
             ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
           });
 
           const result = await fetch(uploadUrl, {
             method: 'POST',
-            headers: { 'Content-Type': pending.file.type },
-            body: pending.file,
+            headers: {
+              'Content-Type': encryptedUpload ? 'application/octet-stream' : pending.file.type,
+            },
+            body: encryptedUpload?.body ?? pending.file,
           });
 
           if (!result.ok) {
@@ -164,6 +181,7 @@ export function CommentThread({
               storageId,
               planId: planId as Id<'plans'>,
               clientUploadId: pending.clientUploadId,
+              ...(encryptedUpload ? { clientCryptoProtocol: 1, encrypted: true } : {}),
               ...(shareToken ? { token: shareToken } : {}),
               ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
             });
@@ -185,7 +203,14 @@ export function CommentThread({
             };
           }
 
-          return { storageId, fileName: pending.file.name, tracked: true };
+          return {
+            storageId,
+            fileName: pending.file.name,
+            tracked: true,
+            stableCryptoId: encryptedUpload?.stableCryptoId,
+            keyEpoch: encryptedUpload?.keyEpoch,
+            contentType: encryptedUpload?.contentType,
+          };
         }),
       );
 
@@ -216,11 +241,39 @@ export function CommentThread({
       }
 
       try {
+        const privateAttachments = succeeded.flatMap((attachment) =>
+          attachment.stableCryptoId && attachment.contentType
+            ? [
+                {
+                  stableCryptoId: attachment.stableCryptoId,
+                  fileName: attachment.fileName,
+                  contentType: attachment.contentType,
+                },
+              ]
+            : [],
+        );
+        const encryptedWrite = cryptoStatus?.settings
+          ? buildEncryptedCommentWrite({
+              workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+              keyEpoch: cryptoStatus.settings.activeKeyEpoch,
+              body: trimmed,
+              authorName: user?.name ?? 'Anonymous',
+              authorAvatar: user?.image ?? undefined,
+              attachments: privateAttachments,
+            })
+          : { body: trimmed };
         await addComment({
           planId: planId as Id<'plans'>,
-          body: trimmed,
+          ...encryptedWrite,
           ...(succeeded.length > 0
-            ? { attachments: succeeded.map(({ storageId, fileName }) => ({ storageId, fileName })) }
+            ? {
+                attachments: succeeded.map(({ storageId, fileName, stableCryptoId, keyEpoch }) => ({
+                  storageId,
+                  ...(stableCryptoId
+                    ? { encrypted: true, stableCryptoId, keyEpoch }
+                    : { fileName }),
+                })),
+              }
             : {}),
           ...(shareToken ? { token: shareToken } : {}),
           ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
@@ -253,6 +306,8 @@ export function CommentThread({
     shareAccessProof,
     addComment,
     deleteOrphanedUpload,
+    cryptoStatus,
+    user,
   ]);
 
   async function handleSaveEdit(commentId: string, originalBody: string, hasAttachments: boolean) {
@@ -260,9 +315,24 @@ export function CommentThread({
     if ((!trimmed && !hasAttachments) || trimmed === originalBody) return;
     setSaving(true);
     try {
+      if (cryptoStatus === undefined || (!cryptoStatus && !shareToken)) {
+        throw new Error('Obfuscation status unavailable; wait before editing');
+      }
+      const comment = comments?.find((candidate) => candidate._id === commentId);
+      const encryptedWrite = cryptoStatus?.settings
+        ? buildEncryptedCommentWrite({
+            workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+            keyEpoch: cryptoStatus.settings.activeKeyEpoch,
+            body: trimmed,
+            authorName: comment?.authorName ?? user?.name ?? 'Anonymous',
+            authorAvatar: comment?.authorAvatar,
+            attachments: [],
+            stableCryptoId: comment?.stableCryptoId,
+          })
+        : { body: trimmed };
       await editComment({
         commentId: commentId as Id<'comments'>,
-        body: trimmed,
+        ...encryptedWrite,
         ...(shareToken ? { token: shareToken } : {}),
         ...(shareAccessProof ? { accessProof: shareAccessProof } : {}),
       });

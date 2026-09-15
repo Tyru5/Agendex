@@ -1,13 +1,14 @@
 import { api } from '@convex/_generated/api';
 import type { Doc, Id } from '@convex/_generated/dataModel';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { useState } from 'react';
+import { useCloudPlanTags } from '../hooks/useCloudMetadataCrypto.ts';
 import { CollectionPickerPopover } from './CollectionPickerPopover.tsx';
 import { TagChip } from './TagChip.tsx';
 import { TagPickerPopover } from './TagPickerPopover.tsx';
 
 export function PlanTagsBar({ planId }: { planId: string }) {
-  const planTagsMap = useQuery(api.planTags.getTagsForPlans, { planIds: [planId as Id<'plans'>] });
+  const planTagsMap = useCloudPlanTags([planId as Id<'plans'>]);
   const removeTag = useMutation(api.planTags.removeTag);
 
   const [showTagPicker, setShowTagPicker] = useState(false);

@@ -1,4 +1,4 @@
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 
 export type PlanVersionSource = 'cli_sync' | 'editor' | 'restore' | 'backfill';
@@ -10,6 +10,10 @@ export type PlanVersionSnapshot = {
   filePath?: string;
   workspace?: string;
   metadata?: unknown;
+  stableCryptoId?: string;
+  keyEpoch?: number;
+  encryptedSummary?: Doc<'plans'>['encryptedSummary'];
+  encryptedBody?: Doc<'plans'>['encryptedBody'];
 };
 
 type PlanVersionWriteCtx = Pick<MutationCtx, 'db'>;
@@ -44,6 +48,10 @@ export async function recordPlanVersion(
     filePath: args.snapshot.filePath,
     workspace: args.snapshot.workspace,
     metadata: args.snapshot.metadata,
+    stableCryptoId: args.snapshot.stableCryptoId,
+    keyEpoch: args.snapshot.keyEpoch,
+    encryptedSummary: args.snapshot.encryptedSummary,
+    encryptedBody: args.snapshot.encryptedBody,
     ...(args.source ? { source: args.source } : {}),
     createdAt: args.createdAt ?? Date.now(),
   });

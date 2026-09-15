@@ -13,10 +13,12 @@ import {
   validateAvatarStorageClaim,
 } from './avatarUploadPolicy';
 import { authComponent } from './auth';
+import { requireSupportedCryptoClient, resolveWorkspaceCryptoPolicy } from './workspaceCrypto';
 import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 import { hasAnyStorageReference, inspectStorageReferences } from './storageReferences';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_ENCRYPTED_AVATAR_BYTES = MAX_AVATAR_BYTES + 64;
 const ALLOWED_AVATAR_TYPES: Record<string, true> = {
   'image/jpeg': true,
   'image/png': true,
@@ -139,6 +141,21 @@ export const listMyAgentAvatars = query({
   },
 });
 
+export const listMyAgentAvatarRecords = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await authComponent.safeGetAuthUser(ctx);
+    if (!user) return [];
+    const rows = await ctx.db
+      .query('agentAvatars')
+      .withIndex('by_owner', (q) => q.eq('ownerId', user._id))
+      .collect();
+    return await Promise.all(
+      rows.map(async (row) => ({ ...row, url: await ctx.storage.getUrl(row.storageId) })),
+    );
+  },
+});
+
 export const listAgentAvatarsForShare = query({
   args: {
     token: v.string(),
@@ -153,12 +170,14 @@ export const listAgentAvatarsForShare = query({
     if (access.kind === 'password_required') {
       return {};
     }
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, access.plan.ownerId);
+    if (policy.requiresEncryption) return {};
     return await buildAvatarUrlMap(ctx, access.plan.ownerId);
   },
 });
 
 export const generateAgentAvatarUploadUrl = mutation({
-  args: { agent: v.string() },
+  args: { agent: v.string(), clientCryptoProtocol: v.optional(v.number()) },
   returns: v.object({
     uploadUrl: v.string(),
     reservationId: v.id('agentAvatarUploadReservations'),
@@ -168,6 +187,8 @@ export const generateAgentAvatarUploadUrl = mutation({
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
+    requireSupportedCryptoClient(policy, args.clientCryptoProtocol);
     const agent = validateAgent(args.agent);
     const now = Date.now();
     const existing = await ctx.db
@@ -203,6 +224,10 @@ export const setAgentAvatar = mutation({
   args: {
     agent: v.string(),
     storageId: v.id('_storage'),
+    clientCryptoProtocol: v.optional(v.number()),
+    encrypted: v.optional(v.boolean()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
     reservationId: v.id('agentAvatarUploadReservations'),
   },
   returns: v.null(),
@@ -218,6 +243,18 @@ export const setAgentAvatar = mutation({
     }
     if (reservation.agent !== agent) {
       throw new ConvexError('Avatar upload reservation is for another agent');
+    }
+
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, user._id);
+    requireSupportedCryptoClient(policy, args.clientCryptoProtocol);
+    if (
+      policy.requiresEncryption &&
+      (!args.encrypted || !args.stableCryptoId || args.keyEpoch !== policy.activeKeyEpoch)
+    ) {
+      throw new ConvexError('Encrypted avatar metadata is required');
+    }
+    if (!policy.requiresEncryption && args.encrypted) {
+      throw new ConvexError('Encrypted avatar metadata is not expected');
     }
 
     const metadata = await ctx.db.system.get(args.storageId);
@@ -248,12 +285,19 @@ export const setAgentAvatar = mutation({
       throw new ConvexError('Invalid avatar upload reservation');
     }
 
-    if (!metadata.contentType || !ALLOWED_AVATAR_TYPES[metadata.contentType]) {
+    if (
+      policy.requiresEncryption
+        ? metadata.contentType !== 'application/octet-stream'
+        : !metadata.contentType || !ALLOWED_AVATAR_TYPES[metadata.contentType]
+    ) {
       throw new ConvexError(
         `File type "${metadata.contentType ?? 'unknown'}" is not allowed. Use JPEG, PNG, WebP, or GIF.`,
       );
     }
-    if (metadata.size > MAX_AVATAR_BYTES) {
+
+    if (
+      metadata.size > (policy.requiresEncryption ? MAX_ENCRYPTED_AVATAR_BYTES : MAX_AVATAR_BYTES)
+    ) {
       throw new ConvexError('Avatar must be under 2MB');
     }
 
@@ -262,6 +306,13 @@ export const setAgentAvatar = mutation({
       await ctx.db.patch(existing._id, {
         storageId: args.storageId,
         updatedAt: Date.now(),
+        ...(policy.requiresEncryption
+          ? {
+              encrypted: true,
+              stableCryptoId: args.stableCryptoId,
+              keyEpoch: args.keyEpoch,
+            }
+          : { encrypted: undefined, stableCryptoId: undefined, keyEpoch: undefined }),
       });
     } else {
       await ctx.db.insert('agentAvatars', {
@@ -269,6 +320,13 @@ export const setAgentAvatar = mutation({
         agent,
         storageId: args.storageId,
         updatedAt: Date.now(),
+        ...(policy.requiresEncryption
+          ? {
+              encrypted: true,
+              stableCryptoId: args.stableCryptoId,
+              keyEpoch: args.keyEpoch,
+            }
+          : {}),
       });
     }
     await ctx.db.delete(reservation._id);

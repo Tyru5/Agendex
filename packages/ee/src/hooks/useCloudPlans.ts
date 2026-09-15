@@ -1,7 +1,15 @@
 import type { Plan } from '@agendex/web';
+import { decryptPlanSummary, type DecryptedPlanSummary } from '@agendex/shared/crypto';
 import { api } from '@convex/_generated/api';
-import { usePaginatedQuery } from 'convex/react';
-import { useEffect } from 'react';
+import { usePaginatedQuery, useQuery } from 'convex/react';
+import { useEffect, useSyncExternalStore } from 'react';
+import {
+  getCachedDecryptedSummary,
+  getWorkspaceKeyringSnapshot,
+  setCachedDecryptedSummary,
+  subscribeWorkspaceKeyring,
+  withWorkspaceKey,
+} from '../lib/obfuscation-keyring';
 
 // Page size for the paginated `getMyPublishedPlans` query. Deliberately small:
 // even though the query strips `content` from the response, the server still
@@ -23,6 +31,15 @@ export function useCloudPlans(): {
     {},
     { initialNumItems: PLANS_PAGE_SIZE },
   );
+  const cryptoStatus = useQuery(api.workspaceCrypto.getWorkspaceCryptoStatus, {});
+  const workspaceOwnerId = cryptoStatus?.workspaceOwnerId ?? '';
+  useSyncExternalStore(
+    subscribeWorkspaceKeyring,
+    () =>
+      getWorkspaceKeyringSnapshot(workspaceOwnerId, cryptoStatus?.settings?.activeKeyEpoch ?? null),
+    () =>
+      getWorkspaceKeyringSnapshot(workspaceOwnerId, cryptoStatus?.settings?.activeKeyEpoch ?? null),
+  );
 
   // The list UI aggregates and searches over the FULL set (agent counts, tag
   // filters, content search), so eagerly walk every page. Each page is its own
@@ -43,22 +60,56 @@ export function useCloudPlans(): {
   try {
     // Convex query returns untyped documents
     // oxlint-disable-next-line typescript/no-explicit-any
-    const plans: Plan[] = results.map((p: any) => ({
-      id: p._id,
-      localPlanId: p.localPlanId,
-      ownerId: p.ownerId,
-      agent: p.agent,
-      title: p.title,
-      // List items ship without content (see getMyPublishedPlans); selected and
-      // split-view panes hydrate via useHydratedCloudPlan / useCloudPlanContent.
-      content: p.content ?? '',
-      filePath: p.filePath ?? '',
-      format: p.format,
-      createdAt: new Date(p.createdAt).toISOString(),
-      updatedAt: new Date(p.updatedAt).toISOString(),
-      workspace: p.workspace,
-      metadata: (p.metadata as Record<string, unknown>) ?? {},
-    }));
+    const plans: Plan[] = results.map((p: any) => {
+      let summary: DecryptedPlanSummary | undefined;
+      let cryptoError: 'locked' | 'corrupt' | undefined;
+      if (p.encryptedSummary && p.stableCryptoId && p.keyEpoch) {
+        const cacheKey = `${p._id}:${p.updatedAt}:${p.keyEpoch}`;
+        summary = getCachedDecryptedSummary<DecryptedPlanSummary>(p.ownerId, cacheKey);
+        if (!summary) {
+          try {
+            summary = withWorkspaceKey(p.ownerId, (workspaceKey) =>
+              decryptPlanSummary({
+                workspaceKey,
+                workspaceOwnerId: p.ownerId,
+                stableCryptoId: p.stableCryptoId,
+                keyEpoch: p.keyEpoch,
+                envelope: p.encryptedSummary,
+              }),
+            );
+            setCachedDecryptedSummary(p.ownerId, cacheKey, summary);
+          } catch (caught) {
+            cryptoError =
+              caught instanceof Error && caught.message === 'Obfuscation is locked'
+                ? 'locked'
+                : 'corrupt';
+          }
+        }
+      }
+      return {
+        id: p._id,
+        localPlanId: summary?.localPlanId ?? p.localPlanId,
+        ownerId: p.ownerId,
+        agent: p.agent,
+        title:
+          summary?.title ??
+          (cryptoError === 'corrupt'
+            ? 'Corrupt encrypted plan'
+            : cryptoError === 'locked'
+              ? 'Locked plan'
+              : p.title),
+        content: p.content ?? '',
+        filePath: summary?.filePath ?? p.filePath ?? '',
+        format: p.format,
+        createdAt: new Date(p.createdAt).toISOString(),
+        updatedAt: new Date(p.updatedAt).toISOString(),
+        workspace: summary?.workspace ?? p.workspace,
+        metadata:
+          (summary?.metadata as Record<string, unknown> | undefined) ??
+          (p.metadata as Record<string, unknown>) ??
+          {},
+      };
+    });
     return { plans, loading: false, complete, error: null };
   } catch (e) {
     return {

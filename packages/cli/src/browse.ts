@@ -35,7 +35,7 @@ export interface BrowseDeps {
   writeStdout: (content: string) => void;
   writeFile: (path: string, content: string) => Promise<void>;
   mkdir: (path: string) => Promise<void>;
-  stat: typeof stat;
+  stat: (path: string) => Promise<{ isDirectory: () => boolean }>;
   canPrompt: () => boolean;
   promptSelectPlan: (matches: CloudPlanDownloadMatch[]) => Promise<string | null>;
   promptSelectAction: () => Promise<BrowseAction | null>;
@@ -184,7 +184,7 @@ function writeDeps(deps: {
   writeStdout: (content: string) => void;
   writeFile: (path: string, content: string) => Promise<void>;
   mkdir: (path: string) => Promise<void>;
-  stat: typeof stat;
+  stat: BrowseDeps['stat'];
 }) {
   return {
     log: deps.log,

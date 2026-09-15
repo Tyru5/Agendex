@@ -219,6 +219,16 @@ const agendexDesktop = {
   },
   authFetch: (url: string, init: DesktopAuthFetchInit): Promise<DesktopAuthFetchResult> =>
     ipcRenderer.invoke('agendex:auth-fetch', url, init),
+  storeObfuscationKey: (
+    workspaceOwnerId: string,
+    keyEpoch: number,
+    keyBase64: string,
+  ): Promise<boolean> =>
+    ipcRenderer.invoke('agendex:obfuscation:store-key', workspaceOwnerId, keyEpoch, keyBase64),
+  loadObfuscationKey: (workspaceOwnerId: string, keyEpoch: number): Promise<string | null> =>
+    ipcRenderer.invoke('agendex:obfuscation:load-key', workspaceOwnerId, keyEpoch),
+  clearObfuscationKey: (workspaceOwnerId: string, keyEpoch: number): Promise<boolean> =>
+    ipcRenderer.invoke('agendex:obfuscation:clear-key', workspaceOwnerId, keyEpoch),
   checkForUpdates: (): Promise<void> => ipcRenderer.invoke('agendex:update:check'),
   installUpdate: (): Promise<void> => ipcRenderer.invoke('agendex:update:install'),
   getUpdateState: (): Promise<UpdateState> => ipcRenderer.invoke('agendex:update:get-state'),

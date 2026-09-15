@@ -22,6 +22,9 @@ export const EXPORT_INVENTORY_TABLES = [
   'subscriptions',
   'workspaceMembers',
   'workspaceInvites',
+  'workspaceCryptoSettings',
+  'memberCryptoIdentities',
+  'workspaceKeyGrants',
 ] as const;
 
 export const EXPORT_MANIFEST_VERSION = 2;

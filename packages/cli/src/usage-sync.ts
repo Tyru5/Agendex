@@ -1,5 +1,5 @@
 import { getUsageSummaries, type UsageSummary } from '@agendex/shared';
-import { hasDaemonCloudCredentials, sendHeartbeat } from './api.ts';
+import { fetchWorkspaceCryptoStatus, hasDaemonCloudCredentials, sendHeartbeat } from './api.ts';
 
 export const USAGE_SYNC_INTERVAL_MS = 5 * 60_000;
 export const CLOUD_USAGE_WINDOWS = [90, 30, 7, 1] as const;
@@ -22,6 +22,7 @@ type HeartbeatSender = (
   usageSnapshots?: Readonly<Record<string, UsageSummary>>,
 ) => Promise<void>;
 type CloudConfigured = () => boolean;
+type CryptoStatusLoader = () => Promise<{ enabled: boolean } | null>;
 
 export function sanitizeUsageSummary(summary: UsageSummary): CloudUsageSummary {
   const { events: _events, ...summaryWithoutEvents } = summary;
@@ -155,6 +156,7 @@ export function createUsageSync(
   loadSnapshots: UsageSnapshotLoader = collectUsageSnapshots,
   heartbeat: HeartbeatSender = sendHeartbeat,
   cloudConfigured: CloudConfigured = hasDaemonCloudCredentials,
+  loadCryptoStatus: CryptoStatusLoader = fetchWorkspaceCryptoStatus,
 ): (ipAddress?: string) => Promise<void> {
   let syncInFlight: Promise<void> | null = null;
 
@@ -163,6 +165,11 @@ export function createUsageSync(
     if (syncInFlight) return syncInFlight;
 
     syncInFlight = (async () => {
+      // Cloud usage has no encrypted wire format yet. Do not even scan for a
+      // cloud upload until policy is known; local usage remains independent.
+      const cryptoStatus = await loadCryptoStatus();
+      if (!cryptoStatus) throw new Error('Cloud usage sync paused: encryption status unavailable');
+      if (cryptoStatus.enabled) return;
       const snapshots = await loadSnapshots();
       await heartbeat(ipAddress, snapshots);
     })().finally(() => {

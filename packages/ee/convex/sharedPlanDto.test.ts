@@ -29,7 +29,7 @@ test('shared plan DTO returns only the public allowlist', () => {
   const dto = toSharedPlanDto(rawPlan);
   expect(Object.keys(dto).sort()).toEqual(SHARED_PLAN_FIELDS);
   expect(dto).toEqual({
-    _id: 'plan-1',
+    _id: rawPlan._id,
     agent: 'claude-code',
     title: 'Safe plan',
     content: '# Plan\n\nPublic content',

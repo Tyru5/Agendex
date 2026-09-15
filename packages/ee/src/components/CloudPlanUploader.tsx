@@ -6,12 +6,12 @@ import {
   planMarkdownRemarkPlugins,
   type Plan,
 } from '@agendex/web';
-import { api } from '@convex/_generated/api';
-import { useMutation } from 'convex/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
+import { useCloudPlanPublisher } from '../hooks/useCloudPlanPublisher';
 
 interface UploadFile {
+  id: string;
   name: string;
   title: string;
   content: string;
@@ -34,7 +34,12 @@ function readFile(file: File): Promise<UploadFile> {
     const reader = new FileReader();
     reader.onload = () => {
       const text = reader.result as string;
-      resolve({ name: file.name, title: extractTitle(text, file.name), content: text });
+      resolve({
+        id: crypto.randomUUID(),
+        name: file.name,
+        title: extractTitle(text, file.name),
+        content: text,
+      });
     };
     reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
     reader.readAsText(file);
@@ -69,7 +74,7 @@ export function CloudPlanUploader({
   onClose: () => void;
   onCreated: (plan: Plan) => void;
 }) {
-  const publishPlan = useMutation(api.plans.publishPlan);
+  const publishPlan = useCloudPlanPublisher();
   const agentOptions = useMemo(() => getAgentOptions(agents), [agents]);
   const [step, setStep] = useState<Step>('pick');
   const [agent, setAgent] = useState(() => agentOptions[0] ?? '');
@@ -135,8 +140,7 @@ export function CloudPlanUploader({
 
     let firstPlan: Plan | undefined;
     try {
-      for (let i = 0; i < valid.length; i++) {
-        const file = valid[i]!;
+      for (const [i, file] of valid.entries()) {
         const trimmedTitle = file.title.trim();
         const trimmedContent = file.content.trim();
         const planId = await publishPlan({
@@ -170,9 +174,8 @@ export function CloudPlanUploader({
         <div className="upload-noise" />
 
         <div className="upload-content">
-          <div
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
             className={`upload-dropzone${dragOver ? ' upload-dropzone-active' : ''}`}
             onDragOver={(e) => {
               e.preventDefault();
@@ -181,9 +184,6 @@ export function CloudPlanUploader({
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             onClick={() => inputRef.current?.click()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click();
-            }}
           >
             <div className="upload-dropzone-ring">
               <svg
@@ -208,16 +208,15 @@ export function CloudPlanUploader({
             </span>
 
             <span className="upload-dropzone-hint">One or multiple markdown files</span>
-
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".md"
-              multiple
-              onChange={handleInputChange}
-              className="hidden"
-            />
-          </div>
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".md"
+            multiple
+            onChange={handleInputChange}
+            className="hidden"
+          />
 
           {error && <div className="upload-error">{error}</div>}
 
@@ -309,7 +308,7 @@ export function CloudPlanUploader({
                 role="option"
                 aria-selected={i === previewIdx}
                 tabIndex={0}
-                key={`${file.name}-${i}`}
+                key={file.id}
                 className={`upload-file-row${i === previewIdx ? ' upload-file-row-active' : ''}`}
                 onClick={() => setPreviewIdx(i)}
                 onKeyDown={(e) => {

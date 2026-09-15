@@ -9,6 +9,8 @@ import {
   downloadPlan,
   listPlans,
   convexToken,
+  cryptoStatus,
+  cryptoPlanIdentity,
   heartbeat,
   plannotatorWritebackReport,
   plannotatorWritebacks,
@@ -49,7 +51,14 @@ async function syncCanonicalStripeSubscription(
 const http = httpRouter();
 
 authComponent.registerRoutes(http, createAuth, {
-  cors: { allowedOrigins: resolveAuthTrustedOrigins(process.env) },
+  cors: {
+    allowedOrigins: resolveAuthTrustedOrigins({
+      APP_URL: process.env.APP_URL,
+      BETTER_AUTH_ENVIRONMENT: process.env.BETTER_AUTH_ENVIRONMENT,
+      BETTER_AUTH_TRUSTED_ORIGINS: process.env.BETTER_AUTH_TRUSTED_ORIGINS,
+      SITE_URL: process.env.SITE_URL,
+    }),
+  },
 });
 
 registerRoutes(http, stripeComponent, {
@@ -63,6 +72,8 @@ registerRoutes(http, stripeComponent, {
 
 http.route({ path: '/api/cli/sync', method: 'POST', handler: sync });
 http.route({ path: '/api/cli/preferences', method: 'GET', handler: preferences });
+http.route({ path: '/api/cli/crypto', method: 'GET', handler: cryptoStatus });
+http.route({ path: '/api/cli/crypto/plan', method: 'GET', handler: cryptoPlanIdentity });
 http.route({ path: '/api/cli/refresh', method: 'POST', handler: refresh });
 http.route({ path: '/api/cli/convex-token', method: 'GET', handler: convexToken });
 http.route({ path: '/api/cli/heartbeat', method: 'POST', handler: heartbeat });

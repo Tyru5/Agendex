@@ -56,16 +56,18 @@ In the [Convex dashboard](https://dashboard.convex.dev), configure these variabl
 | `APP_URL`                     | Canonical application URL, normally the same public dashboard URL                           |
 | `BETTER_AUTH_ENVIRONMENT`     | `production` for a hosted deployment; use `development` only for the documented local stack |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | Comma-separated exact owned origins; required in production                                 |
-| `CONVEX_SITE_URL`             | Convex site URL from `.env.local`                                                           |
 | `GITHUB_CLIENT_ID`            | GitHub OAuth app client ID                                                                  |
 | `GITHUB_CLIENT_SECRET`        | GitHub OAuth app client secret                                                              |
 | `BETTER_AUTH_SECRET`          | Generate with `openssl rand -base64 32`                                                     |
 
 For a production deployment whose only public application is `https://agendex.yourdomain.com`, set `BETTER_AUTH_TRUSTED_ORIGINS=https://agendex.yourdomain.com`. Add other owned applications or preview deployments as exact origins separated by commas. Wildcards such as `https://*.vercel.app`, URL paths, and localhost origins are rejected in production. A Vercel preview must be added by its full exact origin; unrelated Vercel projects are never trusted automatically.
 
+`CONVEX_SITE_URL` is provided by Convex and must not be set as a deployment environment variable.
+
 ### Billing
 
 | Variable                  | Value                                   |
+| ------------------------- | --------------------------------------- |
 | ------------------------- | --------------------------------------- |
 | `STRIPE_SECRET_KEY`       | Stripe secret key for the EE deployment |
 | `STRIPE_WEBHOOK_SECRET`   | Webhook secret for `/stripe/webhook`    |
@@ -73,6 +75,14 @@ For a production deployment whose only public application is `https://agendex.yo
 | `STRIPE_YEARLY_PRICE_ID`  | Stripe price ID for yearly plans        |
 
 Stripe is only required once you want checkout, customer portal, or paid subscription renewals. You can defer these while bringing up auth and the EE UI locally, but Cloud Pro usage beyond the built-in trial flow depends on subscription state being configured correctly. Note that a self-configured Stripe deployment does not replace the licensing requirement above: production use of `packages/ee/` still requires a valid Agendex Cloud Pro subscription under the [Agendex Enterprise License](../packages/ee/LICENSE).
+
+### Obfuscation rollout
+
+Obfuscation setup is default-off even when the code is deployed. Set `OBFUSCATION_ROLLOUT` to a comma-separated allowlist of owner IDs for canary workspaces, then to `all` only after the owner-only gates in [`obfuscation-incident-response.md`](./obfuscation-incident-response.md) pass. Set `OBFUSCATION_TEAM_ROLLOUT` separately for encrypted team invitations. These flags gate new enrollment only; never use them to disable access to an existing encrypted workspace.
+
+Every rollback target after the first sealing workspace must support crypto protocol 1. Backups contain ciphertext, not recovery keys. Operators must never request or store an owner's passphrase or recovery kit. See [`obfuscation.md`](./obfuscation.md) for the data model and recovery behavior.
+
+The passphrase KDF runs in a same-origin module Worker and instantiates bundled WebAssembly. If the host adds a restrictive Content Security Policy, allow same-origin workers and WebAssembly compilation (for example, `worker-src 'self'` and `script-src 'self' 'wasm-unsafe-eval'`). Do not load the KDF or any crypto dependency from a CDN.
 
 ## 5. Configure EE client environment variables
 

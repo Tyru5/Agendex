@@ -11,6 +11,15 @@ import {
   updateConfig,
 } from '@agendex/shared';
 import { readPidInfo } from './pid.ts';
+import type { SerializedCryptoEnvelopeV1 } from '@agendex/shared/crypto';
+import {
+  base64ToBytes,
+  clearBytes,
+  deriveWorkspaceKeys,
+  sealText,
+  serializeCryptoEnvelope,
+} from '@agendex/shared/crypto';
+import { createSecretStore, workspaceSecretKey } from './secret-store.ts';
 
 export class AuthExpiredError extends Error {
   constructor() {
@@ -124,6 +133,19 @@ export interface SyncPlanPayload {
   contentHash?: string;
   identityVersion?: number;
   identityStrength?: 'strong' | 'path' | 'content';
+  cryptoProtocol?: 1;
+  stableCryptoId?: string;
+  keyEpoch?: number;
+  encryptedSummary?: SerializedCryptoEnvelopeV1;
+  encryptedBody?: SerializedCryptoEnvelopeV1;
+  versionStableCryptoId?: string;
+  encryptedVersionSummary?: SerializedCryptoEnvelopeV1;
+  encryptedVersionBody?: SerializedCryptoEnvelopeV1;
+  contentToken?: string;
+  localPlanToken?: string;
+  syncIdentityToken?: string;
+  continuityToken?: string;
+  lowValue?: boolean;
 }
 
 export interface SyncPlanResult {
@@ -140,8 +162,75 @@ export interface CliPreferences {
   collectLocalIpAddress: boolean;
 }
 
+export type CliWorkspaceCryptoStatus =
+  | { enabled: false }
+  | ({
+      enabled: true;
+      role: 'owner';
+      workspaceOwnerId: string;
+      state: 'preparing' | 'sealing' | 'sealed' | 'rotating' | 'failed';
+      activeKeyEpoch: number;
+      minimumClientProtocol: number;
+      ownerKdf: {
+        v: 1;
+        alg: 'scrypt';
+        salt: string;
+        N: number;
+        r: number;
+        p: number;
+        dkLen: 32;
+        maxmem: number;
+      };
+      ownerPassphraseWrappedKey: {
+        v: 1;
+        alg: 'xchacha20poly1305';
+        keyEpoch: number;
+        nonce: string;
+        ciphertext: string;
+      };
+    } & CliWorkspaceCryptoCommon)
+  | ({
+      enabled: true;
+      role: 'member';
+      workspaceOwnerId: string;
+      memberId: string;
+      memberIdentity: {
+        encryptedPrivateKey: SerializedCliEnvelope;
+        recoveryWrappedPrivateKey: SerializedCliEnvelope;
+        kdf: {
+          v: 1;
+          alg: 'scrypt';
+          salt: string;
+          N: number;
+          r: number;
+          p: number;
+          dkLen: 32;
+          maxmem: number;
+        };
+        keyVersion: number;
+      };
+      grant: {
+        kem: 'DHKEM(X25519, HKDF-SHA256)';
+        kdf: 'HKDF-SHA256';
+        aead: 'ChaCha20Poly1305';
+        encapsulatedKey: string;
+        ciphertext: string;
+      };
+    } & CliWorkspaceCryptoCommon);
+
+interface CliWorkspaceCryptoCommon {
+  state: 'preparing' | 'sealing' | 'sealed' | 'rotating' | 'failed';
+  activeKeyEpoch: number;
+  minimumClientProtocol: number;
+}
+
+export type CliPlanCryptoIdentity =
+  | { found: false }
+  | { found: true; stableCryptoId: string; keyEpoch: number; updatedAt: number };
+
 export interface CloudPlanDownload {
   id: string;
+  ownerId?: string;
   localPlanId?: string;
   agent: string;
   title: string;
@@ -151,10 +240,23 @@ export interface CloudPlanDownload {
   workspace?: string;
   createdAt: string;
   updatedAt: string;
+  stableCryptoId?: string;
+  keyEpoch?: number;
+  encryptedSummary?: SerializedCliEnvelope;
+  encryptedBody?: SerializedCliEnvelope;
+}
+
+export interface SerializedCliEnvelope {
+  v: 1;
+  alg: 'xchacha20poly1305';
+  keyEpoch: number;
+  nonce: string;
+  ciphertext: string;
 }
 
 export interface CloudPlanDownloadMatch {
   id: string;
+  ownerId?: string;
   localPlanId?: string;
   agent: string;
   title: string;
@@ -162,6 +264,9 @@ export interface CloudPlanDownloadMatch {
   createdAt?: string;
   /** Logical duplicate keys from the server; rows sharing any are the same plan. */
   dedupeKeys?: string[];
+  stableCryptoId?: string;
+  keyEpoch?: number;
+  encryptedSummary?: SerializedCliEnvelope;
 }
 export interface CloudPlanDownloadPagination {
   nextCursor: string | null;
@@ -200,6 +305,21 @@ function readOptionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+function parseSerializedEnvelope(value: unknown): SerializedCliEnvelope | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const envelope = value as Record<string, unknown>;
+  if (
+    envelope.v !== 1 ||
+    envelope.alg !== 'xchacha20poly1305' ||
+    typeof envelope.keyEpoch !== 'number' ||
+    typeof envelope.nonce !== 'string' ||
+    typeof envelope.ciphertext !== 'string'
+  ) {
+    return undefined;
+  }
+  return envelope as unknown as SerializedCliEnvelope;
+}
+
 function parseCloudPlanDownload(value: unknown): CloudPlanDownload | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const plan = value as Record<string, unknown>;
@@ -217,6 +337,7 @@ function parseCloudPlanDownload(value: unknown): CloudPlanDownload | null {
   }
   return {
     id: plan.id,
+    ownerId: readOptionalString(plan.ownerId),
     localPlanId: readOptionalString(plan.localPlanId),
     agent: plan.agent,
     title: plan.title,
@@ -226,6 +347,10 @@ function parseCloudPlanDownload(value: unknown): CloudPlanDownload | null {
     workspace: readOptionalString(plan.workspace),
     createdAt: plan.createdAt,
     updatedAt: plan.updatedAt,
+    stableCryptoId: readOptionalString(plan.stableCryptoId),
+    keyEpoch: typeof plan.keyEpoch === 'number' ? plan.keyEpoch : undefined,
+    encryptedSummary: parseSerializedEnvelope(plan.encryptedSummary),
+    encryptedBody: parseSerializedEnvelope(plan.encryptedBody),
   };
 }
 
@@ -242,6 +367,7 @@ function parseCloudPlanDownloadMatch(value: unknown): CloudPlanDownloadMatch | n
   }
   return {
     id: plan.id,
+    ownerId: readOptionalString(plan.ownerId),
     localPlanId: readOptionalString(plan.localPlanId),
     agent: plan.agent,
     title: plan.title,
@@ -250,6 +376,9 @@ function parseCloudPlanDownloadMatch(value: unknown): CloudPlanDownloadMatch | n
     dedupeKeys: Array.isArray(plan.dedupeKeys)
       ? plan.dedupeKeys.filter((key): key is string => typeof key === 'string')
       : undefined,
+    stableCryptoId: readOptionalString(plan.stableCryptoId),
+    keyEpoch: typeof plan.keyEpoch === 'number' ? plan.keyEpoch : undefined,
+    encryptedSummary: parseSerializedEnvelope(plan.encryptedSummary),
   };
 }
 
@@ -327,6 +456,8 @@ export async function fetchCloudPlan(
   const body = parseJsonObject(res.body);
 
   if (body?.status === 'not_found') {
+    const encryptedLookup = await lookupEncryptedPlanClientSide(query, agent);
+    if (encryptedLookup) return encryptedLookup;
     const suggestions = Array.isArray(body?.suggestions)
       ? body.suggestions.flatMap((entry) => {
           const match = parseCloudPlanDownloadMatch(entry);
@@ -364,7 +495,10 @@ export async function fetchCloudPlan(
 
   if (res.status >= 200 && res.status < 300 && body?.status === 'found') {
     const plan = parseCloudPlanDownload(body.plan);
-    if (plan) return { kind: 'found', plan };
+    if (plan) {
+      const { decryptCloudPlanDownload } = await import('./cloud-crypto.ts');
+      return { kind: 'found', plan: await decryptCloudPlanDownload(plan) };
+    }
     return { kind: 'error', status: res.status, message: 'Cloud returned an invalid plan payload' };
   }
 
@@ -430,12 +564,23 @@ export async function listCloudPlans(
   }
 
   if (res.status >= 200 && res.status < 300 && body?.status === 'ok') {
-    const plans = Array.isArray(body.plans)
+    const parsedPlans = Array.isArray(body.plans)
       ? body.plans.flatMap((entry) => {
           const match = parseCloudPlanDownloadMatch(entry);
           return match ? [match] : [];
         })
       : [];
+    const { decryptCloudPlanMatches } = await import('./cloud-crypto.ts');
+    let plans = await decryptCloudPlanMatches(parsedPlans);
+    if (options.query && parsedPlans.some((plan) => plan.encryptedSummary)) {
+      const query = options.query.toLowerCase();
+      plans = plans.filter(
+        (plan) =>
+          plan.id.toLowerCase().includes(query) ||
+          plan.localPlanId?.toLowerCase().includes(query) ||
+          plan.title.toLowerCase().includes(query),
+      );
+    }
     const continueCursor = typeof body.continueCursor === 'string' ? body.continueCursor : null;
     return {
       kind: 'ok',
@@ -450,6 +595,56 @@ export async function listCloudPlans(
       ? body.error
       : `${res.status}: ${res.body || 'unknown error'}`;
   return { kind: 'error', status: res.status, message };
+}
+
+async function lookupEncryptedPlanClientSide(
+  query: string,
+  agent?: string,
+): Promise<FetchCloudPlanResult | null> {
+  const cryptoStatus = await fetchWorkspaceCryptoStatus();
+  if (!cryptoStatus?.enabled) return null;
+  const plans: CloudPlanDownloadMatch[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+  let sawEncryptedPlan = false;
+  while (true) {
+    const page = await listCloudPlans({ query, agent, cursor });
+    if (page.kind === 'auth-expired') return page;
+    if (page.kind === 'error') return sawEncryptedPlan ? page : null;
+    sawEncryptedPlan ||= page.plans.some((plan) => plan.encryptedSummary !== undefined);
+    plans.push(...page.plans);
+    if (page.isDone || !page.continueCursor) break;
+    if (seenCursors.has(page.continueCursor)) {
+      return {
+        kind: 'error',
+        status: 0,
+        message: 'encrypted title lookup pagination did not advance; retry with a plan id',
+      };
+    }
+    seenCursors.add(page.continueCursor);
+    cursor = page.continueCursor;
+  }
+  if (!sawEncryptedPlan) return null;
+  const normalized = query.trim().toLowerCase();
+  const exact = plans.filter(
+    (plan) =>
+      plan.id.toLowerCase() === normalized ||
+      plan.localPlanId?.toLowerCase() === normalized ||
+      plan.title.trim().toLowerCase() === normalized,
+  );
+  if (exact.length === 1) {
+    const selected = exact[0];
+    if (!selected) return null;
+    if (selected.id.toLowerCase() === normalized) return null;
+    return fetchCloudPlan(selected.id);
+  }
+  if (exact.length > 1)
+    return {
+      kind: 'ambiguous',
+      matches: exact,
+      pagination: { nextCursor: null, hasMore: false, pageSize: exact.length },
+    };
+  return { kind: 'not_found', suggestions: plans.slice(0, 5) };
 }
 
 function parseJsonObject(body: string): Record<string, unknown> | null {
@@ -557,14 +752,70 @@ export async function sendHeartbeat(
     const { token, convexUrl } = getCloudConfig();
     const pidInfo = readPidInfo();
     cachedDeviceId ??= loadOrCreateDeviceId();
-    const heartbeatBody = JSON.stringify({
+    let heartbeatPayload: Record<string, unknown> = {
       deviceId: cachedDeviceId,
       hostname: pidInfo?.hostname ?? osHostname(),
       startedAtMs: pidInfo?.startedAtMs,
       pid: pidInfo?.pid,
       ipAddress: ipAddress ?? null,
       ...(usageSnapshots && { usageSnapshots }),
-    });
+    };
+    const cryptoStatus = await fetchWorkspaceCryptoStatus();
+    if (!cryptoStatus) {
+      if (usageSnapshots) throw new Error('Cloud encryption status is unavailable');
+      return;
+    }
+    if (cryptoStatus.enabled) {
+      if (usageSnapshots) {
+        throw new Error(
+          'Cloud usage sync is unavailable with Obfuscation; local usage remains available',
+        );
+      }
+      heartbeatPayload = {
+        deviceId: cachedDeviceId,
+        startedAtMs: pidInfo?.startedAtMs,
+        pid: pidInfo?.pid,
+        cryptoProtocol: 1,
+        keyEpoch: cryptoStatus.activeKeyEpoch,
+        stableCryptoId: cachedDeviceId,
+      };
+      const store = createSecretStore();
+      const stored = (await store.available())
+        ? await store.get(
+            workspaceSecretKey(cryptoStatus.workspaceOwnerId, cryptoStatus.activeKeyEpoch),
+          )
+        : null;
+      const { getInjectedWorkspaceKey } = await import('./cloud-crypto.ts');
+      const workspaceKey = stored
+        ? base64ToBytes(stored, 'stored workspace key')
+        : getInjectedWorkspaceKey(cryptoStatus.workspaceOwnerId, cryptoStatus.activeKeyEpoch);
+      heartbeatPayload.cryptoUnlocked = workspaceKey !== null;
+      if (workspaceKey) {
+        const { contentKey } = deriveWorkspaceKeys(workspaceKey);
+        try {
+          const context = {
+            workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+            table: 'daemonHeartbeats' as const,
+            stableCryptoId: cachedDeviceId,
+            keyEpoch: cryptoStatus.activeKeyEpoch,
+          };
+          heartbeatPayload.encryptedHostname = serializeCryptoEnvelope(
+            sealText(contentKey, pidInfo?.hostname ?? osHostname(), {
+              ...context,
+              slot: 'hostname',
+            }),
+          );
+          if (ipAddress) {
+            heartbeatPayload.encryptedIpAddress = serializeCryptoEnvelope(
+              sealText(contentKey, ipAddress, { ...context, slot: 'ip' }),
+            );
+          }
+        } finally {
+          clearBytes(workspaceKey, contentKey);
+        }
+      }
+    }
+    const heartbeatBody = JSON.stringify(heartbeatPayload);
     let activeToken = token;
     let res = await requestText(`${convexUrl}/api/cli/heartbeat`, {
       method: 'POST',
@@ -712,6 +963,107 @@ export async function fetchCliPreferences(): Promise<CliPreferences | null> {
   }
 }
 
+export async function fetchWorkspaceCryptoStatus(): Promise<CliWorkspaceCryptoStatus | null> {
+  try {
+    const { token, convexUrl } = getCloudConfig();
+    let activeToken = token;
+    let res = await requestText(`${convexUrl}/api/cli/crypto`, {
+      method: 'GET',
+      headers: authHeaders(activeToken),
+    });
+    if (isAuthenticationFailure(res.status)) {
+      const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+      if (refreshed.kind !== 'refreshed') {
+        reportRefreshRejection(refreshed, activeToken);
+        return null;
+      }
+      activeToken = refreshed.credentials.token;
+      res = await requestText(`${convexUrl}/api/cli/crypto`, {
+        method: 'GET',
+        headers: authHeaders(activeToken),
+      });
+    }
+    if (res.status === 404) return { enabled: false };
+    if (res.status < 200 || res.status >= 300) {
+      reportAuthExpired(res.status, activeToken);
+      return null;
+    }
+    const body = parseJsonObject(res.body);
+    if (body?.enabled === false) return { enabled: false };
+    if (
+      body?.enabled !== true ||
+      typeof body.workspaceOwnerId !== 'string' ||
+      typeof body.state !== 'string' ||
+      typeof body.activeKeyEpoch !== 'number' ||
+      typeof body.minimumClientProtocol !== 'number'
+    ) {
+      return null;
+    }
+    if (body.role === 'member') {
+      if (
+        typeof body.memberId !== 'string' ||
+        typeof body.memberIdentity !== 'object' ||
+        body.memberIdentity === null ||
+        typeof body.grant !== 'object' ||
+        body.grant === null
+      ) {
+        return null;
+      }
+      return body as CliWorkspaceCryptoStatus;
+    }
+    if (
+      typeof body.ownerKdf !== 'object' ||
+      body.ownerKdf === null ||
+      typeof body.ownerPassphraseWrappedKey !== 'object' ||
+      body.ownerPassphraseWrappedKey === null
+    ) {
+      return null;
+    }
+    return { ...body, role: 'owner' } as CliWorkspaceCryptoStatus;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchPlanCryptoIdentity(
+  localPlanToken: string,
+): Promise<CliPlanCryptoIdentity | null> {
+  try {
+    const { token, convexUrl } = getCloudConfig();
+    const url = `${convexUrl}/api/cli/crypto/plan?token=${encodeURIComponent(localPlanToken)}`;
+    let activeToken = token;
+    let res = await requestText(url, { method: 'GET', headers: authHeaders(activeToken) });
+    if (isAuthenticationFailure(res.status)) {
+      const refreshed = await refreshStoredToken({ token: activeToken, convexUrl });
+      if (refreshed.kind !== 'refreshed') {
+        reportRefreshRejection(refreshed, activeToken);
+        return null;
+      }
+      activeToken = refreshed.credentials.token;
+      res = await requestText(url, { method: 'GET', headers: authHeaders(activeToken) });
+    }
+    if (res.status < 200 || res.status >= 300) return null;
+    const body = parseJsonObject(res.body);
+    if (body?.found === false) return { found: false };
+    if (
+      body?.found === true &&
+      typeof body.stableCryptoId === 'string' &&
+      typeof body.keyEpoch === 'number' &&
+      typeof body.updatedAt === 'number'
+    ) {
+      return {
+        found: true,
+        stableCryptoId: body.stableCryptoId,
+        keyEpoch: body.keyEpoch,
+        updatedAt: body.updatedAt,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 interface RequestOptions {
   method: string;
   headers?: Record<string, string>;
@@ -788,6 +1140,15 @@ export interface PlannotatorWritebackJob {
   annotations?: PlannotatorFeedbackAnnotation[];
   source: string;
   expiresAt: number;
+  stableCryptoId?: string;
+  keyEpoch?: number;
+  encryptedWriteback?: {
+    v: 1;
+    alg: 'xchacha20poly1305';
+    keyEpoch: number;
+    nonce: string;
+    ciphertext: string;
+  };
 }
 
 function authHeaders(token: string, contentType = false): Record<string, string> {

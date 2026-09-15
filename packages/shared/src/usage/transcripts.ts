@@ -216,7 +216,10 @@ function grokTotals(usage: Record<string, unknown>): UsageTokenTotals {
   };
 }
 
-function isGrokTurnCompleted(value: unknown): value is Record<string, unknown> {
+function isGrokTurnCompleted(
+  value: unknown,
+): value is Record<string, unknown> &
+  ({ type: 'turn_completed' } | { sessionUpdate: 'turn_completed' }) {
   if (!isRecord(value)) return false;
   // Older fixtures used `type`; native Grok Build ACP uses `sessionUpdate`.
   return value.type === 'turn_completed' || value.sessionUpdate === 'turn_completed';

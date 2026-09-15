@@ -552,7 +552,7 @@ export function PlanViewer({
       const toolbarRect = actionToolbarRef.current?.getBoundingClientRect();
       const toolbarWidth = toolbarRect?.width ?? 38;
       const scrollParentRect =
-        scrollParent === window ? null : scrollParent.getBoundingClientRect();
+        scrollParent instanceof HTMLElement ? scrollParent.getBoundingClientRect() : null;
       const viewportTop = scrollParentRect?.top ?? 0;
       const viewportLeft = scrollParentRect?.left ?? 0;
       const shouldDock = !isSplit && frameRect.top < viewportTop - 118;

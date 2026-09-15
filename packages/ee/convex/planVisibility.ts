@@ -7,6 +7,8 @@ type PlanWithMetadata = {
   title?: string;
   content?: string;
   metadata?: unknown;
+  lowValue?: boolean;
+  encryptedSummary?: unknown;
 };
 
 type PlanWithDuplicateIdentity = PlanWithMetadata & {
@@ -16,6 +18,8 @@ type PlanWithDuplicateIdentity = PlanWithMetadata & {
   _creationTime?: number;
   syncIdentityKey?: string;
   contentHash?: string;
+  syncIdentityToken?: string;
+  contentToken?: string;
 };
 
 const LOW_VALUE_METADATA_KEYS = ['lowValue', 'lowValueReasons', 'lowValueSignals'] as const;
@@ -91,6 +95,8 @@ export function isLikelyLowValuePlan(plan: PlanWithMetadata): boolean {
 }
 
 export function isVisiblePlan(plan: PlanWithMetadata): boolean {
+  if (plan.lowValue === true) return false;
+  if (plan.encryptedSummary !== undefined) return true;
   return !hasLowValueMetadata(plan.metadata) && !isLikelyLowValuePlan(plan);
 }
 
@@ -104,10 +110,12 @@ export function isVisiblePlan(plan: PlanWithMetadata): boolean {
 // live check in steady state, without the per-plan cost. Single-doc reads
 // (`isVisiblePlan`) keep the live classifier as a defense-in-depth safety net.
 export function filterVisiblePlans<T extends PlanWithMetadata>(plans: T[]): T[] {
-  return plans.filter((plan) => !hasLowValueMetadata(plan.metadata));
+  return plans.filter((plan) => plan.lowValue !== true && !hasLowValueMetadata(plan.metadata));
 }
 
 function duplicateKey(plan: PlanWithDuplicateIdentity): string | undefined {
+  if (plan.syncIdentityToken) return `sync-token:${plan.syncIdentityToken}`;
+  if (plan.contentToken) return `content-token:${plan.contentToken}`;
   if (plan.syncIdentityKey) return `sync:${plan.syncIdentityKey}`;
   if (plan.contentHash) {
     return `exact:${exactDuplicateKey({
@@ -147,7 +155,8 @@ export function dedupeVisiblePlans<T extends PlanWithDuplicateIdentity>(plans: T
     }
     if (emitted.has(key)) continue;
     emitted.add(key);
-    result.push(winners.get(key)!);
+    const winner = winners.get(key);
+    if (winner) result.push(winner);
   }
 
   return result;

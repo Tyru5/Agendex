@@ -9,6 +9,8 @@ import type { Doc, Id } from './_generated/dataModel';
 import { mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature, requireFeatureForUserId } from './entitlements';
+import { cryptoEnvelopeV1 } from './schema';
+import { resolveWorkspaceCryptoPolicy, validateEncryptedWrite } from './workspaceCrypto';
 import { requireSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 
 const MAX_LINKS_PER_PLAN = 20;
@@ -24,6 +26,9 @@ const planGitLinkDoc = v.object({
   value: v.string(),
   url: v.optional(v.string()),
   createdAt: v.number(),
+  stableCryptoId: v.optional(v.string()),
+  keyEpoch: v.optional(v.number()),
+  encryptedLink: v.optional(cryptoEnvelopeV1),
 });
 
 /**
@@ -104,12 +109,42 @@ export const getLinks = query({
 });
 
 export const addLink = mutation({
-  args: { planId: v.id('plans'), input: v.string() },
+  args: {
+    planId: v.id('plans'),
+    input: v.string(),
+    type: v.optional(planGitLinkType),
+    clientCryptoProtocol: v.optional(v.number()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedLink: v.optional(cryptoEnvelopeV1),
+  },
   returns: planGitLinkDoc,
   handler: async (ctx, args) => {
     const plan = await requireOwnedPlan(ctx, args.planId);
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
+    const linkType = args.type;
+    validateEncryptedWrite({
+      policy,
+      clientProtocol: args.clientCryptoProtocol,
+      envelopes: args.encryptedLink ? [args.encryptedLink] : [],
+      plaintext: { input: args.input },
+    });
+    if (
+      policy.requiresEncryption &&
+      (!linkType ||
+        !args.stableCryptoId ||
+        args.keyEpoch !== policy.activeKeyEpoch ||
+        !args.encryptedLink)
+    ) {
+      throw new ConvexError('Encrypted link metadata is required');
+    }
 
-    const normalized = normalizePlanGitLink(args.input, planRepoInfo(plan));
+    const normalized = policy.requiresEncryption
+      ? (() => {
+          if (!linkType) throw new ConvexError('Encrypted link type is required');
+          return { ok: true as const, link: { type: linkType, value: '', url: undefined } };
+        })()
+      : normalizePlanGitLink(args.input, planRepoInfo(plan));
     if (!normalized.ok) throw new ConvexError(normalized.error);
     const { link } = normalized;
 
@@ -120,9 +155,11 @@ export const addLink = mutation({
     if (existing.length >= MAX_LINKS_PER_PLAN) {
       throw new ConvexError(`A plan can have at most ${MAX_LINKS_PER_PLAN} git links`);
     }
-    const duplicate = existing.find(
-      (candidate) => candidate.type === link.type && candidate.value === link.value,
-    );
+    const duplicate = policy.requiresEncryption
+      ? undefined
+      : existing.find(
+          (candidate) => candidate.type === link.type && candidate.value === link.value,
+        );
     if (duplicate) throw new ConvexError('This link is already attached to the plan');
 
     const linkId = await ctx.db.insert('planLinks', {
@@ -132,6 +169,13 @@ export const addLink = mutation({
       value: link.value,
       ...(link.url && { url: link.url }),
       createdAt: Date.now(),
+      ...(policy.requiresEncryption
+        ? {
+            stableCryptoId: args.stableCryptoId,
+            keyEpoch: args.keyEpoch,
+            encryptedLink: args.encryptedLink,
+          }
+        : {}),
     });
 
     const created = await ctx.db.get(linkId);

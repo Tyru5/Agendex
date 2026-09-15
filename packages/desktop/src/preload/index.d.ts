@@ -57,6 +57,13 @@ interface AgendexDesktopBridge {
   refreshCloudSession: () => Promise<{ token: string; convexSiteUrl: string } | null>;
   getConvexAuthToken: () => Promise<string | null>;
   authFetch: (url: string, init: DesktopAuthFetchInit) => Promise<DesktopAuthFetchResult>;
+  storeObfuscationKey: (
+    workspaceOwnerId: string,
+    keyEpoch: number,
+    keyBase64: string,
+  ) => Promise<boolean>;
+  loadObfuscationKey: (workspaceOwnerId: string, keyEpoch: number) => Promise<string | null>;
+  clearObfuscationKey: (workspaceOwnerId: string, keyEpoch: number) => Promise<boolean>;
   checkForUpdates: () => Promise<void>;
   installUpdate: () => Promise<void>;
   getUpdateState: () => Promise<UpdateState>;

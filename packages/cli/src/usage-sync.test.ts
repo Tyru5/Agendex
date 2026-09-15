@@ -1,6 +1,12 @@
 import { expect, test } from 'bun:test';
 import type { UsageSummary } from '@agendex/shared';
-import { CLOUD_USAGE_WINDOWS, collectUsageSnapshots, createUsageSync } from './usage-sync.ts';
+import {
+  CLOUD_USAGE_WINDOWS,
+  collectUsageSnapshots,
+  createUsageSync,
+  sanitizeUsageSummary,
+  type CloudUsageSnapshots,
+} from './usage-sync.ts';
 
 function summary(days: number): UsageSummary {
   return {
@@ -296,9 +302,13 @@ test('rejects usage summaries whose required fields exceed the cloud budget', as
   ).rejects.toThrow('Usage summaries exceed the cloud heartbeat byte budget');
 });
 
+function cloudSnapshots(): CloudUsageSnapshots {
+  return { '30': sanitizeUsageSummary(summary(30)) };
+}
+
 test('usage sync coalesces overlapping runs and permits a later run', async () => {
-  let resolveFirst!: (snapshots: Record<string, UsageSummary>) => void;
-  const firstSnapshots = new Promise<Record<string, UsageSummary>>((resolve) => {
+  let resolveFirst!: (snapshots: CloudUsageSnapshots) => void;
+  const firstSnapshots = new Promise<CloudUsageSnapshots>((resolve) => {
     resolveFirst = resolve;
   });
   let loads = 0;
@@ -307,20 +317,22 @@ test('usage sync coalesces overlapping runs and permits a later run', async () =
     async () => {
       loads += 1;
       if (loads === 1) return firstSnapshots;
-      return { '30': summary(30) };
+      return cloudSnapshots();
     },
     async (ipAddress, snapshots) => {
       sent.push({ ipAddress, windows: Object.keys(snapshots ?? {}) });
     },
     () => true,
+    async () => ({ enabled: false }),
   );
 
   const first = sync('127.0.0.1');
   const overlapping = sync('ignored-while-running');
   expect(overlapping).toBe(first);
+  await Promise.resolve();
   expect(loads).toBe(1);
 
-  resolveFirst({ '30': summary(30) });
+  resolveFirst(cloudSnapshots());
   await first;
   await sync('127.0.0.2');
 
@@ -337,10 +349,11 @@ test('usage sync clears its in-flight guard after a failed run', async () => {
     async () => {
       loads += 1;
       if (loads === 1) throw new Error('scan failed');
-      return { '30': summary(30) };
+      return cloudSnapshots();
     },
     async () => {},
     () => true,
+    async () => ({ enabled: false }),
   );
 
   await expect(sync()).rejects.toThrow('scan failed');
@@ -352,12 +365,13 @@ test('usage sync clears its in-flight guard after a failed run', async () => {
 test('usage sync propagates heartbeat rejection and permits a retry', async () => {
   let sends = 0;
   const sync = createUsageSync(
-    async () => ({ '30': summary(30) }),
+    async () => cloudSnapshots(),
     async () => {
       sends += 1;
       if (sends === 1) throw new Error('heartbeat rejected');
     },
     () => true,
+    async () => ({ enabled: false }),
   );
 
   await expect(sync()).rejects.toThrow('heartbeat rejected');
@@ -372,7 +386,7 @@ test('usage sync skips snapshot collection without cloud credentials', async () 
   const sync = createUsageSync(
     async () => {
       loads += 1;
-      return { '30': summary(30) };
+      return cloudSnapshots();
     },
     async () => {
       sends += 1;
@@ -384,4 +398,47 @@ test('usage sync skips snapshot collection without cloud credentials', async () 
 
   expect(loads).toBe(0);
   expect(sends).toBe(0);
+});
+
+test('usage sync skips collection and upload in encrypted workspaces', async () => {
+  let loads = 0;
+  let sends = 0;
+  const sync = createUsageSync(
+    async () => {
+      loads += 1;
+      return cloudSnapshots();
+    },
+    async () => {
+      sends += 1;
+    },
+    () => true,
+    async () => ({ enabled: true }),
+  );
+  await sync();
+  expect(loads).toBe(0);
+  expect(sends).toBe(0);
+});
+
+test('usage sync fails closed when crypto policy is unavailable and checks again on retry', async () => {
+  let policyChecks = 0;
+  let loads = 0;
+  let sends = 0;
+  const sync = createUsageSync(
+    async () => {
+      loads += 1;
+      return cloudSnapshots();
+    },
+    async () => {
+      sends += 1;
+    },
+    () => true,
+    async () => (++policyChecks === 1 ? null : { enabled: false }),
+  );
+  await expect(sync()).rejects.toThrow('encryption status unavailable');
+  expect(loads).toBe(0);
+  expect(sends).toBe(0);
+  await sync();
+  expect(policyChecks).toBe(2);
+  expect(loads).toBe(1);
+  expect(sends).toBe(1);
 });

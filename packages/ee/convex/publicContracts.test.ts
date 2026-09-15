@@ -10,11 +10,6 @@ import {
   hasCompletedOnboarding,
 } from './subscriptions';
 
-type RegisteredPublicFunction = {
-  exportArgs(): string;
-  exportReturns(): string;
-};
-
 type ValidatorJson =
   | null
   | boolean
@@ -23,7 +18,19 @@ type ValidatorJson =
   | ValidatorJson[]
   | { [key: string]: ValidatorJson };
 
-function exportedContract(fn: RegisteredPublicFunction) {
+function exportedContract(fn: unknown) {
+  // Convex's registered-function types omit these runtime introspection methods.
+  // Check their presence so SDK changes fail the contract test explicitly.
+  if (
+    (typeof fn !== 'object' && typeof fn !== 'function') ||
+    fn === null ||
+    !('exportArgs' in fn) ||
+    typeof fn.exportArgs !== 'function' ||
+    !('exportReturns' in fn) ||
+    typeof fn.exportReturns !== 'function'
+  ) {
+    throw new Error('Convex function does not expose validator introspection');
+  }
   return {
     args: JSON.parse(fn.exportArgs()) as ValidatorJson,
     returns: JSON.parse(fn.exportReturns()) as ValidatorJson,
@@ -37,7 +44,7 @@ function containsValidatorType(value: ValidatorJson, type: string): boolean {
   return Object.values(value).some((entry) => containsValidatorType(entry, type));
 }
 
-function expectExplicitContract(fn: RegisteredPublicFunction) {
+function expectExplicitContract(fn: unknown) {
   const contract = exportedContract(fn);
   expect(contract.args).not.toBeNull();
   expect(containsValidatorType(contract.args, 'any')).toBe(false);

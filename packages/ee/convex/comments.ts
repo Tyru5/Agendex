@@ -10,42 +10,31 @@ import {
   query,
 } from './_generated/server';
 import { authComponent } from './auth';
-import { requireFeature } from './entitlements';
+import { requireFeature, requireFeatureForUserId } from './entitlements';
+import { cryptoEnvelopeV1 } from './schema';
+import {
+  resolveWorkspaceCryptoPolicy,
+  requireSupportedCryptoClient,
+  validateEncryptedWrite,
+} from './workspaceCrypto';
 import { requireSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 
 const MAX_COMMENT_IMAGE_COUNT = 4;
 const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_ENCRYPTED_COMMENT_IMAGE_BYTES = MAX_COMMENT_IMAGE_BYTES + 64;
 const ALLOWED_COMMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_TRACKED_UPLOAD_AGE_MS = 5 * 60 * 1000;
 export const COMMENT_UPLOAD_CLEANUP_BATCH_SIZE = 500;
 const STALE_COMMENT_UPLOAD_AGE_MS = 15 * 60 * 1000;
-const commentDtoValidator = v.object({
-  _id: v.id('comments'),
-  _creationTime: v.number(),
-  planId: v.id('plans'),
-  authorId: v.string(),
-  authorName: v.string(),
-  authorAvatar: v.optional(v.string()),
-  body: v.string(),
-  attachments: v.array(
-    v.object({
-      storageId: v.id('_storage'),
-      fileName: v.optional(v.string()),
-      contentType: v.string(),
-      size: v.number(),
-      url: v.string(),
-    }),
-  ),
-  createdAt: v.number(),
-  updatedAt: v.optional(v.number()),
-});
-
 const commentAttachmentWithUrlValidator = v.object({
   storageId: v.id('_storage'),
   fileName: v.optional(v.string()),
   contentType: v.string(),
   size: v.number(),
   url: v.string(),
+  encrypted: v.optional(v.boolean()),
+  stableCryptoId: v.optional(v.string()),
+  keyEpoch: v.optional(v.number()),
 });
 
 const commentWithAttachmentUrlsValidator = v.object({
@@ -56,6 +45,11 @@ const commentWithAttachmentUrlsValidator = v.object({
   authorName: v.string(),
   authorAvatar: v.optional(v.string()),
   body: v.string(),
+  ownerId: v.optional(v.string()),
+  stableCryptoId: v.optional(v.string()),
+  keyEpoch: v.optional(v.number()),
+  encryptedComment: v.optional(cryptoEnvelopeV1),
+  encryptedAttachments: v.optional(cryptoEnvelopeV1),
   attachments: v.array(commentAttachmentWithUrlValidator),
   createdAt: v.number(),
   updatedAt: v.optional(v.number()),
@@ -82,6 +76,18 @@ async function validateCommentAccess(
   if (userId === plan.ownerId) {
     await requireFeature(ctx, ProFeature.COMMENTS);
     return;
+  }
+  if (userId) {
+    const membership = await ctx.db
+      .query('workspaceMembers')
+      .withIndex('by_workspace_member', (q) =>
+        q.eq('workspaceOwnerId', plan.ownerId).eq('memberId', userId),
+      )
+      .first();
+    if (membership) {
+      await requireFeatureForUserId(ctx, plan.ownerId, ProFeature.COMMENTS);
+      return;
+    }
   }
 
   if (!token) throw new ConvexError('Share token required');
@@ -193,11 +199,11 @@ async function reserveCommentUpload(
 async function deleteStorageFile(
   ctx: Pick<MutationCtx, 'db' | 'storage'>,
   storageId: Id<'_storage'>,
-): Promise<void> {
+): Promise<boolean> {
   const metadata = await ctx.db.system.get(storageId);
-  if (metadata) {
-    await ctx.storage.delete(storageId);
-  }
+  if (!metadata) return false;
+  await ctx.storage.delete(storageId);
+  return true;
 }
 
 export async function deletePendingUploadRecord(
@@ -249,6 +255,11 @@ export const getComments = query({
         authorName: comment.authorName,
         ...(comment.authorAvatar !== undefined && { authorAvatar: comment.authorAvatar }),
         body: comment.body,
+        ownerId: comment.ownerId,
+        stableCryptoId: comment.stableCryptoId,
+        keyEpoch: comment.keyEpoch,
+        encryptedComment: comment.encryptedComment,
+        encryptedAttachments: comment.encryptedAttachments,
         attachments: (
           await Promise.all(
             (comment.attachments ?? []).map(async (attachment) => {
@@ -259,6 +270,9 @@ export const getComments = query({
                 ...(attachment.fileName !== undefined && { fileName: attachment.fileName }),
                 contentType: attachment.contentType,
                 size: attachment.size,
+                encrypted: attachment.encrypted,
+                stableCryptoId: attachment.stableCryptoId,
+                keyEpoch: attachment.keyEpoch,
                 url,
               };
             }),
@@ -277,12 +291,20 @@ export const generateCommentImageUploadUrl = mutation({
     token: v.optional(v.string()),
     accessProof: v.optional(shareAccessProofIdValidator),
     clientUploadId: v.optional(v.string()),
+    clientCryptoProtocol: v.optional(v.number()),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) throw new ConvexError('Plan not found');
+
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
+    if (policy.requiresEncryption) {
+      requireSupportedCryptoClient(policy, args.clientCryptoProtocol);
+    }
     await validateCommentAccess(ctx, args.planId, args.token, args.accessProof, user._id);
 
     await reserveCommentUpload(ctx, {
@@ -302,12 +324,24 @@ export const trackPendingUpload = mutation({
     token: v.optional(v.string()),
     accessProof: v.optional(shareAccessProofIdValidator),
     clientUploadId: v.optional(v.string()),
+    clientCryptoProtocol: v.optional(v.number()),
+    encrypted: v.optional(v.boolean()),
   },
   returns: trackPendingUploadResultValidator,
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) throw new ConvexError('Unauthenticated');
 
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) throw new ConvexError('Plan not found');
+
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
+    if (policy.requiresEncryption) {
+      if (!args.encrypted) throw new ConvexError('Encrypted attachment is required');
+      requireSupportedCryptoClient(policy, args.clientCryptoProtocol);
+    } else if (args.encrypted) {
+      throw new ConvexError('Encrypted attachment metadata is not expected');
+    }
     await validateCommentAccess(ctx, args.planId, args.token, args.accessProof, user._id);
 
     const reservation = await findUploadReservation(ctx, {
@@ -346,7 +380,11 @@ export const trackPendingUpload = mutation({
       throw new ConvexError('Upload expired');
     }
 
-    if (!metadata.contentType || !ALLOWED_COMMENT_IMAGE_TYPES.has(metadata.contentType)) {
+    if (
+      policy.requiresEncryption
+        ? metadata.contentType !== 'application/octet-stream'
+        : !metadata.contentType || !ALLOWED_COMMENT_IMAGE_TYPES.has(metadata.contentType)
+    ) {
       await deleteStorageFile(ctx, args.storageId);
       await ctx.db.delete(reservation._id);
       return {
@@ -354,7 +392,10 @@ export const trackPendingUpload = mutation({
         error: `File type "${metadata.contentType ?? 'unknown'}" is not allowed. Use JPEG, PNG, WebP, or GIF.`,
       };
     }
-    if (metadata.size > MAX_COMMENT_IMAGE_BYTES) {
+    if (
+      metadata.size >
+      (policy.requiresEncryption ? MAX_ENCRYPTED_COMMENT_IMAGE_BYTES : MAX_COMMENT_IMAGE_BYTES)
+    ) {
       await deleteStorageFile(ctx, args.storageId);
       await ctx.db.delete(reservation._id);
       return { success: false as const, error: 'Image must be under 5MB' };
@@ -380,10 +421,18 @@ export const addComment = mutation({
         v.object({
           storageId: v.id('_storage'),
           fileName: v.optional(v.string()),
+          encrypted: v.optional(v.boolean()),
+          keyEpoch: v.optional(v.number()),
+          stableCryptoId: v.optional(v.string()),
         }),
       ),
     ),
     token: v.optional(v.string()),
+    clientCryptoProtocol: v.optional(v.number()),
+    stableCryptoId: v.optional(v.string()),
+    keyEpoch: v.optional(v.number()),
+    encryptedComment: v.optional(cryptoEnvelopeV1),
+    encryptedAttachments: v.optional(cryptoEnvelopeV1),
     accessProof: v.optional(shareAccessProofIdValidator),
   },
   returns: v.id('comments'),
@@ -393,12 +442,33 @@ export const addComment = mutation({
       throw new ConvexError('Unauthenticated');
     }
 
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) {
+      throw new ConvexError('Plan not found');
+    }
+
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
     await validateCommentAccess(ctx, args.planId, args.token, args.accessProof, user._id);
 
     const trimmedBody = args.body.trim();
     const incomingAttachments = args.attachments ?? [];
+    validateEncryptedWrite({
+      policy,
+      clientProtocol: args.clientCryptoProtocol,
+      envelopes: [args.encryptedComment, args.encryptedAttachments].filter(Boolean),
+      plaintext: { body: args.body },
+    });
+    if (
+      policy.requiresEncryption &&
+      (!args.stableCryptoId || args.keyEpoch !== policy.activeKeyEpoch || !args.encryptedComment)
+    ) {
+      throw new ConvexError('Encrypted comment metadata is required');
+    }
+    if (policy.requiresEncryption && incomingAttachments.length > 0 && !args.encryptedAttachments) {
+      throw new ConvexError('Encrypted attachment metadata is required');
+    }
 
-    if (!trimmedBody && incomingAttachments.length === 0) {
+    if (!policy.requiresEncryption && !trimmedBody && incomingAttachments.length === 0) {
       throw new ConvexError('Comment must have text or at least one image');
     }
 
@@ -426,38 +496,69 @@ export const addComment = mutation({
           throw new ConvexError('Uploaded file not found');
         }
 
-        if (!metadata.contentType || !ALLOWED_COMMENT_IMAGE_TYPES.has(metadata.contentType)) {
+        const contentType = metadata.contentType;
+        if (
+          policy.requiresEncryption
+            ? contentType !== 'application/octet-stream' || !attachment.encrypted
+            : !contentType || !ALLOWED_COMMENT_IMAGE_TYPES.has(contentType)
+        ) {
           throw new ConvexError(
             `File type "${metadata.contentType ?? 'unknown'}" is not allowed. Use JPEG, PNG, WebP, or GIF.`,
           );
         }
 
-        if (metadata.size > MAX_COMMENT_IMAGE_BYTES) {
+        if (
+          metadata.size >
+          (policy.requiresEncryption ? MAX_ENCRYPTED_COMMENT_IMAGE_BYTES : MAX_COMMENT_IMAGE_BYTES)
+        ) {
           throw new ConvexError('Image must be under 5MB');
+        }
+        if (!contentType) throw new ConvexError('Uploaded file type is missing');
+        if (
+          policy.requiresEncryption &&
+          (!attachment.stableCryptoId || attachment.keyEpoch !== policy.activeKeyEpoch)
+        ) {
+          throw new ConvexError('Encrypted attachment metadata is required');
         }
 
         return {
           pendingId: pending._id,
           storageId: attachment.storageId,
-          fileName: attachment.fileName,
-          contentType: metadata.contentType,
+          fileName: policy.requiresEncryption ? undefined : attachment.fileName,
+          contentType,
           size: metadata.size,
+          ...(policy.requiresEncryption
+            ? {
+                encrypted: true,
+                keyEpoch: attachment.keyEpoch,
+                stableCryptoId: attachment.stableCryptoId,
+              }
+            : {}),
         };
       }),
     );
 
     const commentId = await ctx.db.insert('comments', {
+      ownerId: plan.ownerId,
       planId: args.planId,
       authorId: user._id,
-      authorName: user.name ?? 'Anonymous',
-      authorAvatar: user.image ?? undefined,
-      body: trimmedBody,
+      authorName: policy.requiresEncryption ? '' : (user.name ?? 'Anonymous'),
+      authorAvatar: policy.requiresEncryption ? undefined : (user.image ?? undefined),
+      body: policy.requiresEncryption ? '' : trimmedBody,
       ...(validatedAttachments.length > 0
         ? {
             attachments: validatedAttachments.map(({ pendingId: _, ...rest }) => rest),
           }
         : {}),
       createdAt: Date.now(),
+      ...(policy.requiresEncryption
+        ? {
+            stableCryptoId: args.stableCryptoId,
+            keyEpoch: args.keyEpoch,
+            encryptedComment: args.encryptedComment,
+            encryptedAttachments: args.encryptedAttachments,
+          }
+        : {}),
     });
 
     await createCommentAttachmentClaims(ctx, commentId, validatedAttachments);
@@ -498,6 +599,9 @@ export const editComment = mutation({
     commentId: v.id('comments'),
     body: v.string(),
     token: v.optional(v.string()),
+    clientCryptoProtocol: v.optional(v.number()),
+    keyEpoch: v.optional(v.number()),
+    encryptedComment: v.optional(cryptoEnvelopeV1),
     accessProof: v.optional(shareAccessProofIdValidator),
   },
   returns: v.null(),
@@ -516,15 +620,41 @@ export const editComment = mutation({
       throw new ConvexError('Only the comment author can edit');
     }
 
+    const plan = await ctx.db.get(comment.planId);
+    if (!plan) {
+      throw new ConvexError('Plan not found');
+    }
+
+    const policy = await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId);
     await validateCommentAccess(ctx, comment.planId, args.token, args.accessProof, user._id);
 
     const trimmed = args.body.trim();
     const hasAttachments = (comment.attachments ?? []).length > 0;
-    if (!trimmed && !hasAttachments) throw new ConvexError('Comment body cannot be empty');
-    if (trimmed === comment.body) return null;
+    validateEncryptedWrite({
+      policy,
+      clientProtocol: args.clientCryptoProtocol,
+      envelopes: args.encryptedComment ? [args.encryptedComment] : [],
+      plaintext: { body: args.body },
+    });
+    if (
+      policy.requiresEncryption &&
+      (!comment.stableCryptoId || !args.encryptedComment || args.keyEpoch !== policy.activeKeyEpoch)
+    ) {
+      throw new ConvexError('Encrypted comment metadata is required');
+    }
+    if (policy.requiresEncryption && comment.keyEpoch !== policy.activeKeyEpoch) {
+      throw new ConvexError('Wait for comment key rotation to complete before editing');
+    }
+    if (!policy.requiresEncryption && !trimmed && !hasAttachments) {
+      throw new ConvexError('Comment body cannot be empty');
+    }
+    if (!policy.requiresEncryption && trimmed === comment.body) return null;
 
     await ctx.db.patch(args.commentId, {
-      body: trimmed,
+      body: policy.requiresEncryption ? '' : trimmed,
+      ...(policy.requiresEncryption
+        ? { keyEpoch: args.keyEpoch, encryptedComment: args.encryptedComment }
+        : {}),
       updatedAt: Date.now(),
     });
     return null;
@@ -564,12 +694,7 @@ export const deleteComment = mutation({
     }
 
     if (!isOwner) {
-      if (!args.token) throw new ConvexError('Share token required');
-      await requireSharedPlanAccess(ctx, {
-        planId: comment.planId,
-        token: args.token,
-        ...(args.accessProof ? { accessProof: args.accessProof } : {}),
-      });
+      await validateCommentAccess(ctx, comment.planId, args.token, args.accessProof, user._id);
     }
 
     await deleteCommentWithAttachments(ctx, comment);

@@ -33,7 +33,7 @@ export interface DownloadDeps {
   writeStdout: (content: string) => void;
   writeFile: (path: string, content: string) => Promise<void>;
   mkdir: (path: string) => Promise<void>;
-  stat: typeof stat;
+  stat: (path: string) => Promise<{ isDirectory: () => boolean }>;
   canPrompt: () => boolean;
   promptSelect: (matches: CloudPlanDownloadMatch[], message: string) => Promise<string | null>;
   now: () => number;

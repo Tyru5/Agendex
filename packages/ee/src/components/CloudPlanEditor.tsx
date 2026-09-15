@@ -1,8 +1,12 @@
 import type { Plan } from '@agendex/web';
+import { decryptPlanBody } from '@agendex/shared/crypto';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
-import { useMutation } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { useEffect, useState } from 'react';
+import { useCloudPlanEdits } from '../hooks/useCloudPlanEdits';
+import { useWorkspaceCryptoStatus } from '../hooks/useCloudMetadataCrypto';
+import { withWorkspaceKey } from '../lib/obfuscation-keyring';
 
 export function CloudPlanEditor({
   plan,
@@ -13,25 +17,64 @@ export function CloudPlanEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const updatePlanContent = useMutation(api.plans.updatePlanContent);
-  const [content, setContent] = useState(plan.content);
+  const { updateContent } = useCloudPlanEdits();
+  const cryptoStatus = useWorkspaceCryptoStatus();
+  const encryptedPlan = useQuery(
+    api.plans.getPlan,
+    cryptoStatus?.settings ? { planId: plan.id as Id<'plans'> } : 'skip',
+  );
+  const [content, setContent] = useState('');
+  const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
-    setContent(plan.content);
+    setReady(false);
     setError(undefined);
-  }, [plan.id, plan.content]);
+    if (!cryptoStatus) {
+      setContent('');
+      return;
+    }
+    if (!cryptoStatus.settings) {
+      setContent(plan.content);
+      setReady(true);
+      return;
+    }
+    try {
+      if (!encryptedPlan) {
+        setContent('');
+        return;
+      }
+      const { stableCryptoId, keyEpoch, encryptedBody } = encryptedPlan;
+      if (!stableCryptoId || !keyEpoch || !encryptedBody) {
+        throw new Error('Encrypted plan content is unavailable');
+      }
+      const plaintext = withWorkspaceKey(
+        cryptoStatus.workspaceOwnerId,
+        (workspaceKey) =>
+          decryptPlanBody({
+            workspaceKey,
+            workspaceOwnerId: cryptoStatus.workspaceOwnerId,
+            stableCryptoId,
+            keyEpoch,
+            envelope: encryptedBody,
+          }),
+        keyEpoch,
+      );
+      setContent(plaintext);
+      setReady(true);
+    } catch (e) {
+      setContent('');
+      setError(e instanceof Error ? e.message : 'Unable to decrypt this plan');
+    }
+  }, [plan.id, plan.content, cryptoStatus, encryptedPlan]);
 
   async function save() {
+    if (!ready) return;
     setSaving(true);
     setError(undefined);
     try {
-      await updatePlanContent({
-        planId: plan.id as Id<'plans'>,
-        title: plan.title,
-        content,
-      });
+      await updateContent(plan.id as Id<'plans'>, plan.title, content);
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'save failed');
@@ -61,11 +104,11 @@ export function CloudPlanEditor({
           <button
             type="button"
             onClick={save}
-            disabled={saving}
+            disabled={saving || !ready}
             className="py-[5px] px-3 text-[12.5px] font-medium font-[inherit] rounded-[7px] border-0 bg-text text-bg"
             style={{
-              cursor: saving ? 'default' : 'pointer',
-              opacity: saving ? 0.5 : 1,
+              cursor: saving || !ready ? 'default' : 'pointer',
+              opacity: saving || !ready ? 0.5 : 1,
             }}
           >
             {saving ? 'Saving...' : 'Save'}
@@ -75,6 +118,7 @@ export function CloudPlanEditor({
       <div className="flex-1 p-4">
         <textarea
           value={content}
+          disabled={!ready}
           onChange={(e) => setContent(e.target.value)}
           className="h-full w-full resize-none rounded-[10px] border border-border bg-surface px-4 py-3 text-[13px] leading-6 text-text outline-none"
         />

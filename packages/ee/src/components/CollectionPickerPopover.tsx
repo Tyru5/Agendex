@@ -2,6 +2,11 @@ import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
 import { useEffect, useRef, useState } from 'react';
+import {
+  buildCollectionWrite,
+  useCloudCollections,
+  useWorkspaceCryptoStatus,
+} from '../hooks/useCloudMetadataCrypto.ts';
 
 export function CollectionPickerPopover({
   planId,
@@ -10,7 +15,8 @@ export function CollectionPickerPopover({
   planId: string;
   onClose: () => void;
 }) {
-  const collections = useQuery(api.collections.listMyCollections);
+  const collections = useCloudCollections();
+  const cryptoStatus = useWorkspaceCryptoStatus();
   const memberCollectionIds = useQuery(api.collections.getCollectionsForPlan, {
     planId: planId as Id<'plans'>,
   });
@@ -39,7 +45,7 @@ export function CollectionPickerPopover({
     if (!trimmed || creating) return;
     setCreating(true);
     try {
-      const collectionId = await createCollection({ name: trimmed });
+      const collectionId = await createCollection(buildCollectionWrite(cryptoStatus, trimmed));
       await addToCollection({ collectionId, planId: planId as Id<'plans'> });
       setNewName('');
     } finally {
@@ -89,8 +95,11 @@ export function CollectionPickerPopover({
           <div className="p-2 text-[12px] text-tertiary">Type to create your first collection</div>
         ) : (
           collections
-            .filter((c: any) => !newName.trim() || c.nameLc.includes(newName.trim().toLowerCase()))
-            .map((col: any) => (
+            .filter(
+              (collection) =>
+                !newName.trim() || collection.nameLc.includes(newName.trim().toLowerCase()),
+            )
+            .map((col) => (
               <button
                 key={col._id}
                 type="button"

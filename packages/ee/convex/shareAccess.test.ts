@@ -27,10 +27,12 @@ function createShareAccessCtx({
   protectedLink,
   revoked = false,
   proof,
+  encrypted = false,
 }: {
   protectedLink: boolean;
   revoked?: boolean;
   proof?: Doc<'shareAccessProofs'>;
+  encrypted?: boolean;
 }): Pick<QueryCtx, 'db'> {
   const shareLink = revoked
     ? null
@@ -46,9 +48,13 @@ function createShareAccessCtx({
 
   return {
     db: {
-      query: () => ({
+      query: (table: string) => ({
         withIndex: () => ({
-          first: async () => shareLink,
+          first: async () => (table === 'shareLinks' ? shareLink : null),
+          unique: async () =>
+            table === 'workspaceCryptoSettings' && encrypted
+              ? { state: 'preparing', activeKeyEpoch: 1, minimumClientProtocol: 1 }
+              : null,
         }),
       }),
       get: async (id: string) => {
@@ -125,6 +131,14 @@ describe('share access policy', () => {
 });
 
 describe('central shared-resource authorization', () => {
+  test('enabling encryption immediately denies existing share links', async () => {
+    await expect(
+      requireSharedPlanAccess(createShareAccessCtx({ protectedLink: false, encrypted: true }), {
+        token: 'raw-token',
+        planId,
+      }),
+    ).rejects.toThrow('Sharing is unavailable');
+  });
   test('raw tokens continue to authorize unprotected shared resources', async () => {
     const result = await requireSharedPlanAccess(createShareAccessCtx({ protectedLink: false }), {
       token: 'raw-token',

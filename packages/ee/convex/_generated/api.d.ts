@@ -23,6 +23,7 @@ import type * as dataExportActions from "../dataExportActions.js";
 import type * as dataExportRedaction from "../dataExportRedaction.js";
 import type * as entitlements from "../entitlements.js";
 import type * as http from "../http.js";
+import type * as migrations from "../migrations.js";
 import type * as planCleanup from "../planCleanup.js";
 import type * as planDeletion from "../planDeletion.js";
 import type * as planLinks from "../planLinks.js";
@@ -45,6 +46,10 @@ import type * as subscriptions from "../subscriptions.js";
 import type * as tags from "../tags.js";
 import type * as validators from "../validators.js";
 import type * as workspaceAccess from "../workspaceAccess.js";
+import type * as workspaceCrypto from "../workspaceCrypto.js";
+import type * as workspaceCryptoExport from "../workspaceCryptoExport.js";
+import type * as workspaceCryptoInventory from "../workspaceCryptoInventory.js";
+import type * as workspaceCryptoSeal from "../workspaceCryptoSeal.js";
 import type * as workspaceMembers from "../workspaceMembers.js";
 
 import type {
@@ -69,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   dataExportRedaction: typeof dataExportRedaction;
   entitlements: typeof entitlements;
   http: typeof http;
+  migrations: typeof migrations;
   planCleanup: typeof planCleanup;
   planDeletion: typeof planDeletion;
   planLinks: typeof planLinks;
@@ -91,6 +97,10 @@ declare const fullApi: ApiFromModules<{
   tags: typeof tags;
   validators: typeof validators;
   workspaceAccess: typeof workspaceAccess;
+  workspaceCrypto: typeof workspaceCrypto;
+  workspaceCryptoExport: typeof workspaceCryptoExport;
+  workspaceCryptoInventory: typeof workspaceCryptoInventory;
+  workspaceCryptoSeal: typeof workspaceCryptoSeal;
   workspaceMembers: typeof workspaceMembers;
 }>;
 
@@ -122,5 +132,6 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+  migrations: import("@convex-dev/migrations/_generated/component.js").ComponentApi<"migrations">;
   stripe: import("@convex-dev/stripe/_generated/component.js").ComponentApi<"stripe">;
 };

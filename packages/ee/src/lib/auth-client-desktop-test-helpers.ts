@@ -9,12 +9,25 @@ type TestDesktopWindow = {
   readonly location: TestLocation;
 };
 
+export const desktopUpdateTestDefaults: Pick<
+  AgendexDesktopBridge,
+  'checkForUpdates' | 'installUpdate' | 'getUpdateState' | 'getAppVersion' | 'getBuildInfo'
+> = {
+  checkForUpdates: async () => undefined,
+  installUpdate: async () => undefined,
+  getUpdateState: async () => ({ status: 'unsupported' }),
+  getAppVersion: async () => '0.0.0-test',
+  getBuildInfo: async () => ({ platform: 'test', codeSigned: null }),
+};
+
 export function installDesktopWindow(bridge: Partial<AgendexDesktopBridge> = {}) {
   let reloadCount = 0;
   let logoutCount = 0;
   let cloudToken = bridge.cloudToken ?? null;
   let convexSiteUrl = bridge.convexSiteUrl ?? null;
   const desktop: AgendexDesktopBridge = {
+    ...desktopUpdateTestDefaults,
+    ...bridge,
     isDesktop: true,
     get cloudToken() {
       return cloudToken;

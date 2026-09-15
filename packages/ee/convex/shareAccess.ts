@@ -1,4 +1,5 @@
 import { ConvexError, v } from 'convex/values';
+import { resolveWorkspaceCryptoPolicy } from './workspaceCrypto';
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { isVisiblePlan } from './planVisibility';
@@ -101,6 +102,9 @@ export async function resolveSharedPlanAccess(
   const plan = await ctx.db.get(shareLink.planId);
   if (!plan || !isVisiblePlan(plan)) {
     throw new ConvexError('Plan not found');
+  }
+  if ((await resolveWorkspaceCryptoPolicy(ctx, plan.ownerId)).requiresEncryption) {
+    throw new ConvexError('Sharing is unavailable for encrypted workspaces');
   }
 
   const accessProof = args.accessProof ? await ctx.db.get(args.accessProof) : null;

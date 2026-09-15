@@ -312,7 +312,7 @@ function SharedPlanViewInner({
           className={`min-h-screen bg-bg text-text${fullscreen.isFullscreen ? '' : ' main-scroll'}`}
         >
           {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
-            <PlanOutline entries={entries} pinned={!outlineHidden} />
+            <PlanOutline entries={entries} hidden={outlineHidden} />
           )}
           <div
             key={plan._id}

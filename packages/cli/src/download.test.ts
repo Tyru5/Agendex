@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig, saveConfig } from '@agendex/shared';
 import type { CloudPlanDownload, FetchCloudPlanResult } from './api.ts';
-import { isUsableLaunchPath, runDownload } from './download.ts';
+import { isUsableLaunchPath, runDownload, type DownloadDeps } from './download.ts';
 
 let dir: string;
 let prevConfigDir: string | undefined;
@@ -43,7 +43,7 @@ function makeDeps(
     | ((query: string, agent?: string) => FetchCloudPlanResult | Promise<FetchCloudPlanResult>),
   cap: Capture,
   existingDirs: string[] = [],
-  extras: Partial<Pick<Parameters<typeof runDownload>[1], 'canPrompt' | 'promptSelect'>> = {},
+  extras: Partial<Pick<DownloadDeps, 'canPrompt' | 'promptSelect'>> = {},
   existingFiles: string[] = [],
 ) {
   return {
