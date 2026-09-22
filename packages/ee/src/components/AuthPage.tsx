@@ -107,13 +107,8 @@ function AuthProviderButton({
 
 function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="landing-page landing-subpage flex min-h-[100dvh] flex-col">
-      <div className="landing-toolbar">
-        <a href="/" className="landing-toolbar-brand">
-          Agendex<em>.</em>
-        </a>
-      </div>
-      <div className="grid flex-1 place-items-center px-4 py-10">{children}</div>
+    <main className="landing-page landing-subpage grid min-h-[100dvh] place-items-center px-4 py-10">
+      {children}
     </main>
   );
 }
