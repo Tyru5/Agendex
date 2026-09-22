@@ -292,16 +292,20 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             <Body>
               Node.js 20 or newer. Any of the common package managers works for the global install.
             </Body>
-            <div className="grid max-w-[560px] gap-2">
+            <div className="landing-list max-w-[620px]">
+              <div className="landing-list-head">
+                Package managers <span>{INSTALL_COMMANDS.length} options</span>
+              </div>
               {INSTALL_COMMANDS.map(([label, command]) => (
                 <div
                   key={label}
-                  className="grid gap-2 rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_76%,transparent)] p-3 sm:grid-cols-[72px_minmax(0,1fr)] sm:items-center"
+                  className="landing-list-row items-center"
+                  style={{ gridTemplateColumns: '64px minmax(0,1fr)' }}
                 >
-                  <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold text-[var(--landing-muted)]">
-                    {label}
-                  </span>
-                  <CodeBlock>{command}</CodeBlock>
+                  <b>{label}</b>
+                  <code className="font-['JetBrains_Mono','SF_Mono',ui-monospace,monospace] text-[12.5px] text-[var(--landing-text)]">
+                    {command}
+                  </code>
                 </div>
               ))}
             </div>
@@ -348,7 +352,9 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
                       {step.body}
                     </p>
                   </div>
-                  <CodeBlock>{step.command}</CodeBlock>
+                  <code className="font-['JetBrains_Mono','SF_Mono',ui-monospace,monospace] text-[12.5px] text-[var(--landing-text)]">
+                    {step.command}
+                  </code>
                 </article>
               ))}
             </div>
@@ -372,19 +378,23 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               selection, custom plan directories, and auth tokens are stored in a single config
               file.
             </Body>
-            <div className="grid max-w-[560px] gap-2">
-              <div className="grid gap-2 rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_76%,transparent)] p-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-center">
-                <span className="text-[12px] font-semibold text-[var(--landing-text)]">
-                  Config file
-                </span>
-                <CodeBlock>{'~/.agendex/config.json'}</CodeBlock>
-              </div>
-              <div className="grid gap-2 rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_76%,transparent)] p-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-center">
-                <span className="text-[12px] font-semibold text-[var(--landing-text)]">
-                  Override dir
-                </span>
-                <CodeBlock>{'AGENDEX_CONFIG_DIR=/path/to/dir'}</CodeBlock>
-              </div>
+            <div className="landing-list max-w-[620px]">
+              <div className="landing-list-head">Where configuration lives</div>
+              {[
+                ['Config file', '~/.agendex/config.json'],
+                ['Override dir', 'AGENDEX_CONFIG_DIR=/path/to/dir'],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="landing-list-row items-center"
+                  style={{ gridTemplateColumns: '110px minmax(0,1fr)' }}
+                >
+                  <b>{label}</b>
+                  <code className="font-['JetBrains_Mono','SF_Mono',ui-monospace,monospace] text-[12.5px] text-[var(--landing-text)]">
+                    {value}
+                  </code>
+                </div>
+              ))}
             </div>
             <Body>
               Development mode (<InlineCode>AGENDEX_DEV=1</InlineCode> or the{' '}
@@ -399,16 +409,21 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               has 21 automatic integrations backed by durable artifacts or explicit plan-session
               evidence, plus the experimental Continue adapter:
             </Body>
-            <ul className="m-0 flex max-w-[68ch] list-none flex-wrap gap-2 p-0">
-              {IMPLEMENTED_ADAPTERS.map((adapter) => (
-                <li
-                  key={adapter}
-                  className="rounded-[6px] border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-1.5 text-[12.5px] font-semibold text-[var(--landing-text)]"
-                >
-                  {adapter}
-                </li>
-              ))}
-            </ul>
+            <div className="landing-list">
+              <div className="landing-list-head">
+                Implemented adapters <span>{IMPLEMENTED_ADAPTERS.length} items</span>
+              </div>
+              <ul className="m-0 grid list-none p-0 sm:grid-cols-2 lg:grid-cols-3">
+                {IMPLEMENTED_ADAPTERS.map((adapter) => (
+                  <li
+                    key={adapter}
+                    className="border-b border-[var(--landing-border-subtle)] px-[14px] py-2 text-[13px] text-[var(--landing-text)]"
+                  >
+                    {adapter}
+                  </li>
+                ))}
+              </ul>
+            </div>
             <Body>
               Unsupported catalog entries — {CATALOG_ADAPTERS} — stay hidden from selection until
               they have a stable, testable ingestion contract. Custom directories and the hook

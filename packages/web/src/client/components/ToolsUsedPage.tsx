@@ -329,7 +329,7 @@ export function ToolsUsedPage({ onBack, homeHref = '/' }: ToolsUsedPageProps) {
   return (
     <SubpageShell pageClass="tools-page" onBack={onBack} homeHref={homeHref}>
       <SubpageHeader
-        title="Tools, libraries, and packages"
+        title="Stack"
         lede="What Agendex is built with, across local indexing, Cloud Pro, the CLI, and the desktop app. Direct dependencies only; transitive packages are not listed."
       />
 

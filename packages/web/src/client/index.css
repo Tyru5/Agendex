@@ -4705,510 +4705,251 @@ a.plan-git-chip-link:focus-visible {
   height: 0;
 }
 
-/* ─── Landing page ─── */
+/* ─── Landing page: the Column View world ─── */
 
+/*
+ * Marketing routes share one world: a Miller-column file browser played
+ * straight. Cool screen ground, hairline column dividers, document rows, and a
+ * single committed color (ultramarine-violet) for the index column and every
+ * selected state. Light is the primary scene; `.dark` is the browser's own
+ * night mode, not a mood swap. Token names are kept from the previous world so
+ * subpages inherit the new one without touching their markup.
+ */
 .landing-page {
-  --landing-accent: oklch(90% 0.22 129);
-  --landing-orange: oklch(72% 0.18 46);
-  --landing-bg: oklch(10% 0.032 178);
-  --landing-surface: oklch(14.5% 0.035 180);
-  --landing-surface-raised: oklch(19% 0.038 178);
-  --landing-text: oklch(94.5% 0.016 128);
-  --landing-muted: oklch(70% 0.025 166);
-  --landing-faint: oklch(58% 0.025 168);
-  --landing-border: color-mix(in oklch, var(--landing-text) 13%, transparent);
-  --landing-border-strong: color-mix(in oklch, var(--landing-text) 22%, transparent);
-  --landing-border-subtle: color-mix(in oklch, var(--landing-text) 7%, transparent);
-  --landing-grid: color-mix(in oklch, var(--landing-text) 6%, transparent);
-  --landing-command-bg: color-mix(in oklch, var(--landing-bg) 88%, black);
-  color-scheme: dark;
+  --landing-font: 'Schibsted Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
+    sans-serif;
+  --landing-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  --landing-bg: oklch(98.4% 0.004 255);
+  --landing-surface: oklch(99.4% 0.003 255);
+  --landing-surface-raised: oklch(95.5% 0.006 255);
+  --landing-text: oklch(17% 0.014 265);
+  --landing-muted: oklch(42% 0.014 265);
+  --landing-faint: oklch(50% 0.012 265);
+  --landing-border: oklch(87% 0.007 260);
+  --landing-border-strong: oklch(76% 0.01 260);
+  --landing-border-subtle: oklch(92% 0.006 260);
+  --landing-accent: oklch(46% 0.215 285);
+  --landing-accent-ink: oklch(99% 0.008 285);
+  --landing-index-bg: var(--landing-accent);
+  --landing-accent-soft: color-mix(in oklch, var(--landing-accent) 9%, var(--landing-bg));
+  --landing-error: oklch(52% 0.19 30);
+  --landing-row: 34px;
+  --landing-toolbar: 52px;
+  --landing-pathbar: 36px;
+  color-scheme: light;
 
   position: relative;
-  min-height: 100vh;
-  overflow-x: hidden;
-  background:
-    linear-gradient(
-      90deg,
-      transparent calc(50% - 540px),
-      var(--landing-grid) calc(50% - 539px),
-      transparent calc(50% - 538px),
-      transparent calc(50% + 538px),
-      var(--landing-grid) calc(50% + 539px),
-      transparent calc(50% + 540px)
-    ),
-    var(--landing-bg);
+  min-height: 100dvh;
+  overflow-x: clip;
+  background: var(--landing-bg);
   color: var(--landing-text);
-  font-family: var(--font-sans);
+  font-family: var(--landing-font);
   letter-spacing: 0;
 }
 
+.landing-row-meta,
+.landing-col-head span,
+.landing-list-head span,
+.landing-pathbar {
+  font-variant-numeric: tabular-nums;
+}
+
+.dark .landing-page ::selection {
+  background: var(--landing-index-bg);
+}
+
+.dark .landing-page {
+  --landing-bg: oklch(15.5% 0.012 265);
+  --landing-surface: oklch(18.5% 0.012 265);
+  --landing-surface-raised: oklch(23% 0.013 265);
+  --landing-text: oklch(95% 0.008 260);
+  --landing-muted: oklch(73% 0.01 260);
+  --landing-faint: oklch(62% 0.01 260);
+  --landing-border: oklch(28% 0.012 265);
+  --landing-border-strong: oklch(38% 0.014 265);
+  --landing-border-subtle: oklch(23% 0.012 265);
+  --landing-accent: oklch(66% 0.18 285);
+  --landing-accent-ink: oklch(99% 0.008 285);
+  --landing-index-bg: oklch(38% 0.19 285);
+  --landing-error: oklch(70% 0.17 30);
+  color-scheme: dark;
+}
+
+/* Marketing routes paint the document ground too, so nothing off-token shows past the root. */
+body:has(> .landing-page),
+body:has(> * > .landing-page),
+body:has(> * > * > .landing-page) {
+  background: oklch(98.4% 0.004 255);
+}
+
+.dark body:has(> .landing-page),
+.dark body:has(> * > .landing-page),
+.dark body:has(> * > * > .landing-page) {
+  background: oklch(15.5% 0.012 265);
+}
+
 .landing-page ::selection {
-  background: color-mix(in oklch, var(--landing-accent) 70%, var(--landing-bg));
-  color: var(--landing-bg);
+  background: var(--landing-accent);
+  color: var(--landing-accent-ink);
 }
 
-.landing-band {
-  padding-block: clamp(52px, 7vw, 76px);
+.landing-page a,
+.landing-page button {
+  -webkit-tap-highlight-color: transparent;
 }
 
-.landing-h2 {
-  font-size: clamp(26px, 3.4vw, 34px);
-  font-weight: 740;
-  letter-spacing: -0.025em;
-  line-height: 1.08;
+.landing-page a:focus-visible,
+.landing-page button:focus-visible,
+.landing-page input:focus-visible,
+.landing-page [tabindex]:focus-visible {
+  outline: 2px solid var(--landing-accent);
+  outline-offset: 2px;
 }
 
-/*
- * Light landing theme. Follows the `.light` class ThemeProvider sets on <html>.
- * The accent shifts from acid-lime to a lime ink dark enough for 4.5:1 text
- * contrast; solid accent fills keep --landing-bg as their text color, which
- * inverts correctly in both themes.
- */
-.light .landing-page {
-  --landing-accent: oklch(45% 0.145 130);
-  --landing-orange: oklch(56% 0.15 46);
-  --landing-bg: oklch(97.2% 0.012 128);
-  --landing-surface: oklch(99% 0.009 128);
-  --landing-surface-raised: oklch(94% 0.016 128);
-  --landing-text: oklch(17% 0.017 132);
-  --landing-muted: oklch(41% 0.02 145);
-  --landing-faint: oklch(54% 0.016 145);
-  --landing-command-bg: var(--landing-surface);
-  color-scheme: light;
-}
-
-.landing-page::before {
-  content: "";
-  position: fixed;
-  inset: 52px 0 0;
-  z-index: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    transparent calc(50% - 270px),
-    color-mix(in oklch, var(--landing-grid) 42%, transparent) calc(50% - 269px),
-    transparent calc(50% - 268px),
-    transparent calc(50% + 268px),
-    color-mix(in oklch, var(--landing-grid) 42%, transparent) calc(50% + 269px),
-    transparent calc(50% + 270px)
-  );
-}
-
-.landing-price-swap {
-  animation: landing-price-in 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.landing-price-swap--trail {
-  animation-delay: 55ms;
-}
-
-@keyframes landing-price-in {
-  0% {
-    opacity: 0;
-    transform: translateY(0.3em);
-    filter: blur(3px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-
-@keyframes landing-price-in-fade {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .landing-price-swap {
-    animation: landing-price-in-fade 160ms ease both;
-  }
-}
-
-.landing-frame {
-  position: relative;
-  z-index: 1;
-  width: min(100%, 1080px);
-  margin-inline: auto;
-  border-left: 1px solid var(--landing-border-subtle);
-  border-right: 1px solid var(--landing-border-subtle);
-}
-
-/*
- * `overflow-x: hidden` on .landing-page turns it into the nearest scroll
- * container, which disables position: sticky for the docs sidebar. `clip`
- * clips the same overflow without creating a scroll container.
- */
+/* Kept from the previous world for the docs route's sticky sidebar. */
 .docs-page {
   overflow-x: clip;
 }
 
-.landing-hero-shell {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  width: min(100%, 1080px);
-  margin-inline: auto;
-  border-right: 1px solid var(--landing-border-subtle);
-  border-bottom: 1px solid var(--landing-border-subtle);
-  border-left: 1px solid var(--landing-border-subtle);
-}
-
-.landing-hero-content {
-  position: relative;
-  flex: 1;
-  padding: clamp(104px, 12vh, 148px) clamp(18px, 4vw, 40px) 56px;
-}
-
-.landing-hero-notice {
-  display: inline-flex;
-  max-width: 100%;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 22px;
-  color: var(--landing-muted);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.4;
-  text-decoration: none;
-  transition: color 150ms ease;
-}
-
-.landing-hero-notice svg {
-  flex-shrink: 0;
-  color: var(--landing-accent);
-}
-
-.landing-hero-notice:hover {
-  color: var(--landing-text);
-}
-
-.landing-hero-title {
-  max-width: 880px;
-  margin: 0;
-  color: var(--landing-text);
-  font-size: clamp(36px, 6.4vw, 68px);
-  font-weight: 760;
-  letter-spacing: -0.03em;
-  line-height: 1.04;
-}
-
-.landing-hero-copy-block {
-  position: relative;
-  margin-top: 28px;
-}
-
-.landing-hero-copy-block p {
-  max-width: 540px;
-  margin: 0;
-  color: var(--landing-muted);
-  font-size: 18px;
-  font-weight: 450;
-  line-height: 1.6;
-  text-wrap: pretty;
-}
-
-.landing-hero-meta {
-  margin-top: 14px;
-  color: var(--landing-faint);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-}
-
-.landing-hero-meta span {
-  margin-inline: 4px;
-}
-
-.landing-hero-agents-shell {
-  position: relative;
-  max-width: min(100%, 1200px);
-  margin-top: 48px;
-}
-
-.landing-hero-agents {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 0 36px 8px;
-  scrollbar-color: var(--landing-border-strong) transparent;
-  scrollbar-width: thin;
-}
-
-.landing-hero-agents::-webkit-scrollbar {
-  height: 6px;
-}
-
-.landing-hero-agents::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--landing-border-strong);
-}
-
-.landing-hero-agents-control {
-  position: absolute;
-  z-index: 1;
+/* ── Window toolbar ── */
+.landing-toolbar {
+  position: sticky;
   top: 0;
-  display: grid;
-  width: 28px;
-  height: 34px;
-  place-items: center;
-  border: 1px solid var(--landing-border-strong);
-  border-radius: 8px;
+  z-index: 100;
+  display: flex;
+  min-height: var(--landing-toolbar);
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--landing-border);
   background: var(--landing-surface);
-  color: var(--landing-text);
-  cursor: pointer;
+  padding-inline: 16px;
 }
 
-.landing-hero-agents-control:hover,
-.landing-hero-agents-control:focus-visible {
-  border-color: var(--landing-accent);
+.landing-page input {
+  caret-color: var(--landing-accent);
+}
+
+.landing-toolbar-brand {
+  display: inline-flex;
+  align-items: center;
+  color: var(--landing-text);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.landing-toolbar-brand em {
+  color: var(--landing-accent);
+  font-style: normal;
+}
+
+.landing-toolbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.landing-toolbar-link {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border-radius: 6px;
+  padding-inline: 10px;
+  color: var(--landing-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.landing-toolbar-link:hover {
+  background: var(--landing-surface-raised);
+  color: var(--landing-text);
+}
+
+.landing-toolbar-link[aria-current='page'] {
+  background: var(--landing-accent-soft);
   color: var(--landing-accent);
 }
 
-.landing-hero-agents-control svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
+.landing-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.landing-hero-agents-control--previous {
-  left: 0;
+.landing-toolbar .landing-toolbar-menu {
+  display: none;
 }
 
-.landing-hero-agents-control--next {
-  right: 0;
+.landing-mobile-menu {
+  display: none;
+  border-bottom: 1px solid var(--landing-border);
+  background: var(--landing-surface);
+  padding: 8px 12px 12px;
 }
 
-.landing-hero-agent {
+.landing-mobile-menu[data-open='true'] {
+  display: grid;
+  gap: 2px;
+}
+
+.landing-mobile-menu .landing-toolbar-link {
+  min-height: 38px;
+}
+
+@media (max-width: 860px) {
+  .landing-toolbar-nav {
+    display: none;
+  }
+
+  .landing-toolbar .landing-toolbar-menu {
+    display: inline-flex;
+  }
+}
+
+/* ── Buttons: toolbar-sized controls ── */
+.landing-action {
   display: inline-flex;
-  flex: 0 0 auto;
   min-height: 34px;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   border: 1px solid var(--landing-border-strong);
-  border-radius: 7px;
-  padding: 0 10px;
-  background: color-mix(in oklch, var(--landing-surface) 66%, transparent);
-  color: var(--landing-muted);
+  border-radius: 6px;
+  background: var(--landing-surface);
+  padding: 0 14px;
+  color: var(--landing-text);
   font-size: 13px;
   font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.landing-hero-agent-mark {
-  display: inline-flex;
-  width: 20px;
-  height: 20px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 5px;
-  color: var(--landing-text);
-}
-
-.landing-hero-install {
-  max-width: 696px;
-  margin-top: 44px;
-}
-
-.landing-hero-command {
-  display: grid;
-  min-height: 61px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid var(--landing-border-strong);
-  border-radius: 10px;
-  background: var(--landing-command-bg);
-  padding: 0 12px 0 20px;
-  color: var(--landing-text);
-}
-
-.landing-hero-command-prompt {
-  color: var(--landing-accent);
-  font-family: var(--font-mono);
-  font-size: 16px;
-}
-
-.landing-hero-command code {
-  min-width: 0;
-  overflow: hidden;
-  font-family: var(--font-mono);
-  font-size: 16px;
-  letter-spacing: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.landing-hero-copy {
-  display: inline-flex;
-  width: 36px;
-  height: 36px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--landing-border);
-  border-radius: 7px;
-  background: color-mix(in oklch, var(--landing-surface) 70%, transparent);
-  color: var(--landing-accent);
-  transition:
-    border-color 150ms ease,
-    background-color 150ms ease;
-}
-
-.landing-hero-copy:hover {
-  border-color: var(--landing-border-strong);
-  background: var(--landing-surface-raised);
-}
-
-.landing-hero-runbook {
-  margin-top: 12px;
-}
-
-.landing-hero-runbook p {
-  margin: 0 0 8px;
-  color: var(--landing-muted);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.landing-hero-runbook code {
-  display: block;
-  max-width: 618px;
-  margin-top: 6px;
-  overflow: hidden;
-  border: 1px solid var(--landing-border-subtle);
-  border-radius: 5px;
-  background: color-mix(in oklch, var(--landing-surface) 58%, transparent);
-  padding: 7px 10px;
-  color: color-mix(in oklch, var(--landing-muted) 76%, var(--landing-text));
-  font-family: var(--font-mono);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.landing-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-top: 24px;
-}
-
-.landing-hero-actions .landing-action {
-  min-height: 44px;
-  border-radius: 10px;
-  padding-inline: 20px;
-  font-size: 14px;
-}
-
-.landing-hero-actions .landing-action--primary {
-  background: var(--landing-accent);
-  color: var(--landing-bg);
-}
-
-.landing-page .wip-marquee {
-  background: var(--landing-accent);
-  color: var(--landing-bg);
-}
-
-.landing-page > canvas.fixed {
-  opacity: 0.18;
-}
-
-.landing-page a,
-.landing-page button {
-  -webkit-tap-highlight-color: transparent;
-}
-
-.landing-page a:focus-visible,
-.landing-page button:focus-visible,
-.landing-page input:focus-visible {
-  outline: 2px solid color-mix(in oklch, var(--landing-accent) 72%, var(--landing-text));
-  outline-offset: 3px;
-}
-
-.landing-action {
-  min-height: 44px;
-  border-radius: 10px;
-  padding-inline: 20px;
-  font-size: 14px;
-}
-
-.landing-hero-actions .landing-action--primary {
-  background: var(--landing-accent);
-  color: var(--landing-bg);
-}
-
-.landing-page .wip-marquee {
-  background: var(--landing-accent);
-  color: var(--landing-bg);
-}
-
-.landing-page > canvas.fixed {
-  opacity: 0.18;
-}
-
-.landing-page a,
-.landing-page button {
-  -webkit-tap-highlight-color: transparent;
-}
-
-.landing-page a:focus-visible,
-.landing-page button:focus-visible,
-.landing-page input:focus-visible {
-  outline: 2px solid color-mix(in oklch, var(--landing-accent) 72%, var(--landing-text));
-  outline-offset: 3px;
-}
-
-.landing-action {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1px solid var(--landing-border);
-  border-radius: 7px;
-  padding: 0 15px;
-  font-size: 12.5px;
-  font-weight: 700;
   line-height: 1.2;
-  color: var(--landing-text);
   text-decoration: none;
   transition:
-    background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .landing-action--primary {
-  border-color: color-mix(in oklch, var(--landing-accent) 48%, transparent);
-  background: var(--landing-accent);
-  color: var(--landing-bg);
+  border-color: var(--landing-index-bg);
+  background: var(--landing-index-bg);
+  color: var(--landing-accent-ink);
 }
 
 .landing-action--secondary {
-  border-color: var(--landing-border);
-  background: color-mix(in oklch, var(--landing-surface) 92%, transparent);
+  border-color: var(--landing-border-strong);
+  background: var(--landing-surface);
   color: var(--landing-text);
 }
 
 .landing-action--compact {
-  min-height: 34px;
-  padding-inline: 12px;
+  min-height: 30px;
+  padding-inline: 10px;
+  font-size: 12.5px;
 }
 
 .landing-action--full {
@@ -5216,26 +4957,716 @@ a.plan-git-chip-link:focus-visible {
 }
 
 .landing-action:not(:disabled):hover {
-  transform: translateY(-1px);
-}
-
-.landing-action--primary:not(:disabled):hover {
-  border-color: color-mix(in oklch, var(--landing-accent) 64%, transparent);
-  background: color-mix(in oklch, var(--landing-accent) 92%, var(--landing-text));
-}
-
-.landing-action--secondary:not(:disabled):hover {
-  border-color: var(--landing-border-strong);
   background: var(--landing-surface-raised);
 }
 
-.landing-action:not(:disabled):active {
-  transform: translateY(0);
+.landing-action--primary:not(:disabled):hover {
+  background: color-mix(in oklch, var(--landing-index-bg) 88%, var(--landing-text));
+  border-color: color-mix(in oklch, var(--landing-index-bg) 88%, var(--landing-text));
 }
 
 .landing-action:disabled {
   cursor: wait;
   opacity: 0.7;
+}
+
+/* ── The browser: four Miller columns ── */
+.landing-browser {
+  display: grid;
+  height: calc(100svh - var(--landing-toolbar) - var(--landing-pathbar));
+  min-height: 720px;
+  max-height: 1040px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.95fr);
+  border-bottom: 1px solid var(--landing-border);
+}
+
+.landing-col {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-right: 1px solid var(--landing-border);
+  background: var(--landing-surface);
+}
+
+.landing-col-foot {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  border-top: 1px solid var(--landing-border-subtle);
+  padding-inline: 12px;
+  color: var(--landing-faint);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.landing-col:last-child {
+  border-right: 0;
+}
+
+.landing-col-head {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--landing-border);
+  background: var(--landing-surface-raised);
+  padding-inline: 12px;
+  color: var(--landing-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.landing-col-head code {
+  overflow: hidden;
+  font-family: var(--landing-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+.landing-col-head span {
+  flex-shrink: 0;
+  color: var(--landing-faint);
+  font-weight: 500;
+}
+
+.landing-rows {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.landing-row {
+  position: relative;
+  display: grid;
+  min-height: var(--landing-row);
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: var(--landing-text);
+  font-size: 13px;
+  line-height: 1.25;
+  transition: background-color 120ms ease;
+}
+
+.landing-row > svg {
+  color: var(--landing-faint);
+}
+
+.landing-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.landing-row-meta {
+  color: var(--landing-faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.landing-row.is-linked {
+  background: var(--landing-accent-soft);
+}
+
+/* Collation: index rows stay hidden until their FLIP starts; sources dim while it runs. */
+.landing-browser.is-collating [data-index-row] {
+  opacity: 0;
+}
+
+.landing-sources {
+  transition: opacity 400ms ease;
+}
+
+.landing-browser.is-collating .landing-sources {
+  opacity: 0.55;
+}
+
+.landing-row.is-linked > svg,
+.landing-row.is-linked .landing-row-meta {
+  color: var(--landing-accent);
+}
+
+/* The index column is the destination: drenched in the selection color. */
+.landing-col--index {
+  background: var(--landing-index-bg);
+  color: var(--landing-accent-ink);
+}
+
+.landing-col--index .landing-col-head {
+  border-bottom-color: color-mix(in oklch, var(--landing-accent-ink) 22%, transparent);
+  background: color-mix(in oklch, var(--landing-accent-ink) 10%, transparent);
+  color: color-mix(in oklch, var(--landing-accent-ink) 82%, transparent);
+}
+
+.landing-col--index .landing-col-head span {
+  color: color-mix(in oklch, var(--landing-accent-ink) 70%, transparent);
+}
+
+.landing-index-intro {
+  padding: 28px 24px 18px;
+  border-bottom: 1px solid color-mix(in oklch, var(--landing-accent-ink) 22%, transparent);
+}
+
+.landing-index-intro h1 {
+  max-width: 14ch;
+  margin: 0;
+  font-size: clamp(34px, 3.9vw, 58px);
+  font-weight: 750;
+  letter-spacing: -0.028em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+.landing-index-intro p {
+  max-width: 46ch;
+  margin: 16px 0 0;
+  color: color-mix(in oklch, var(--landing-accent-ink) 84%, transparent);
+  font-size: 15px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+/* The install command is the first row of the index. */
+.landing-install {
+  border-bottom: 1px solid color-mix(in oklch, var(--landing-accent-ink) 22%, transparent);
+  padding: 14px 24px 16px;
+}
+
+.landing-install-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.landing-install-tab {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  padding: 4px 8px;
+  color: color-mix(in oklch, var(--landing-accent-ink) 72%, transparent);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.landing-install-tab[aria-selected='true'] {
+  background: color-mix(in oklch, var(--landing-accent-ink) 18%, transparent);
+  color: var(--landing-accent-ink);
+}
+
+.landing-install-cmd {
+  display: grid;
+  min-height: 46px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid color-mix(in oklch, var(--landing-accent-ink) 30%, transparent);
+  border-radius: 7px;
+  background: color-mix(in oklch, var(--landing-accent-ink) 10%, transparent);
+  padding: 0 6px 0 12px;
+}
+
+.landing-install-cmd > span {
+  font-family: var(--landing-mono);
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.landing-install-cmd code {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--landing-mono);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.landing-copy-key {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid color-mix(in oklch, var(--landing-accent-ink) 40%, transparent);
+  border-radius: 5px;
+  background: var(--landing-accent-ink);
+  padding-inline: 10px;
+  color: var(--landing-index-bg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.landing-install-after {
+  margin: 10px 0 0;
+  color: color-mix(in oklch, var(--landing-accent-ink) 72%, transparent);
+  font-size: 12.5px;
+}
+
+.landing-install-after code {
+  font-family: var(--landing-mono);
+  color: var(--landing-accent-ink);
+}
+
+.landing-col--index .landing-rows {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--landing-accent-ink) 35%, transparent) transparent;
+}
+
+.landing-col--index .landing-row {
+  grid-template-columns: 20px minmax(0, 1fr) auto auto;
+  padding-inline: 24px;
+  color: var(--landing-accent-ink);
+}
+
+.landing-col--index .landing-row > svg,
+.landing-col--index .landing-row-meta {
+  color: color-mix(in oklch, var(--landing-accent-ink) 68%, transparent);
+}
+
+.landing-col--index .landing-row.is-linked,
+.landing-col--index .landing-row.is-selected {
+  background: color-mix(in oklch, var(--landing-accent-ink) 16%, transparent);
+}
+
+.landing-col--index .landing-row.is-linked > svg,
+.landing-col--index .landing-row.is-linked .landing-row-meta {
+  color: var(--landing-accent-ink);
+}
+
+.landing-row-ws {
+  border: 1px solid color-mix(in oklch, var(--landing-accent-ink) 34%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.landing-index-links {
+  margin: auto 0 0;
+  border-top: 1px solid color-mix(in oklch, var(--landing-accent-ink) 22%, transparent);
+  padding: 4px 0 6px;
+  list-style: none;
+}
+
+.landing-index-links .landing-row {
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.landing-index-links .landing-row:hover,
+.landing-index-links .landing-row:focus-visible {
+  background: color-mix(in oklch, var(--landing-accent-ink) 16%, transparent);
+}
+
+.landing-index-links .landing-row > svg:last-child {
+  color: color-mix(in oklch, var(--landing-accent-ink) 60%, transparent);
+}
+
+.landing-col--index .landing-action {
+  border-color: color-mix(in oklch, var(--landing-accent-ink) 40%, transparent);
+  background: transparent;
+  color: var(--landing-accent-ink);
+}
+
+.landing-col--index .landing-action--primary {
+  border-color: var(--landing-accent-ink);
+  background: var(--landing-accent-ink);
+  color: var(--landing-index-bg);
+}
+
+.landing-col--index .landing-action:not(:disabled):hover {
+  background: color-mix(in oklch, var(--landing-accent-ink) 16%, transparent);
+}
+
+.landing-col--index .landing-action--primary:not(:disabled):hover {
+  background: color-mix(in oklch, var(--landing-accent-ink) 90%, var(--landing-index-bg));
+}
+
+/* ── Path bar ── */
+.landing-pathbar {
+  display: flex;
+  min-height: var(--landing-pathbar);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--landing-border);
+  background: var(--landing-surface-raised);
+  padding-inline: 12px;
+  color: var(--landing-muted);
+  font-size: 12px;
+}
+
+.landing-pathbar-crumbs {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.landing-pathbar-crumbs b {
+  color: var(--landing-text);
+  font-weight: 600;
+}
+
+.landing-pathbar-crumbs svg {
+  color: var(--landing-faint);
+}
+
+.landing-pathbar-status {
+  flex-shrink: 0;
+  color: var(--landing-faint);
+}
+
+@media (max-width: 640px) {
+  .landing-pathbar-status {
+    display: none;
+  }
+
+  .landing-pathbar-crumbs {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .landing-install-cmd code,
+  .landing-cmd-text {
+    overflow: visible;
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: pre-wrap;
+  }
+
+  .landing-install-cmd {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding-block: 10px;
+  }
+
+  .landing-install-cmd .landing-copy-key {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+/* ── Sections below the first viewport ── */
+.landing-band {
+  padding: clamp(48px, 6vw, 72px) clamp(16px, 4vw, 40px);
+  border-bottom: 1px solid var(--landing-border);
+}
+
+.landing-band-inner {
+  max-width: 1200px;
+  margin-inline: auto;
+}
+
+.landing-h2 {
+  margin: 0;
+  font-size: clamp(26px, 3.1vw, 36px);
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  line-height: 1.06;
+  text-wrap: balance;
+}
+
+.landing-lede {
+  max-width: 60ch;
+  margin: 12px 0 0;
+  color: var(--landing-muted);
+  font-size: 15px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+/* A bordered listing: header bar + rows. The section-level building block. */
+.landing-list {
+  overflow: hidden;
+  border: 1px solid var(--landing-border);
+  border-radius: 8px;
+  background: var(--landing-surface);
+}
+
+.landing-list-head {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--landing-border);
+  background: var(--landing-surface-raised);
+  padding-inline: 14px;
+  color: var(--landing-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.landing-list-head span {
+  color: var(--landing-faint);
+  font-weight: 500;
+}
+
+.landing-list-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+  border-bottom: 1px solid var(--landing-border-subtle);
+  padding: 12px 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.landing-list-row:last-child {
+  border-bottom: 0;
+}
+
+.landing-list-row > svg,
+.landing-list-row > b {
+  color: var(--landing-faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.landing-list-row p {
+  margin: 4px 0 0;
+  color: var(--landing-muted);
+}
+
+.landing-columns {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--landing-border);
+  border-radius: 8px;
+  background: var(--landing-surface);
+}
+
+.landing-columns > * {
+  min-width: 0;
+  border-right: 1px solid var(--landing-border);
+}
+
+.landing-columns > *:last-child {
+  border-right: 0;
+}
+
+/* Preview pane: plan markdown rendered as the browser's Quick Look. */
+.landing-preview {
+  padding: 14px;
+  font-family: var(--landing-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--landing-muted);
+}
+
+.landing-preview .h {
+  color: var(--landing-accent);
+  font-weight: 600;
+}
+
+.landing-preview .t {
+  color: var(--landing-text);
+  font-weight: 700;
+  font-family: var(--landing-font);
+  font-size: 15px;
+}
+
+/* Disclosure rows (FAQ) */
+.landing-disclosure {
+  border-bottom: 1px solid var(--landing-border-subtle);
+}
+
+.landing-disclosure-btn {
+  display: grid;
+  width: 100%;
+  min-height: 48px;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 12px 14px;
+  color: var(--landing-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.landing-disclosure-btn:hover {
+  background: var(--landing-surface-raised);
+}
+
+.landing-disclosure-btn svg {
+  color: var(--landing-faint);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.landing-disclosure-btn[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+  color: var(--landing-accent);
+}
+
+.landing-disclosure-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.landing-disclosure-body[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+
+.landing-disclosure-body > div {
+  overflow: hidden;
+}
+
+.landing-disclosure-body p {
+  max-width: 68ch;
+  margin: 0;
+  padding: 0 14px 16px 40px;
+  color: var(--landing-muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+/* Status-bar footer */
+.landing-statusbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  background: var(--landing-surface-raised);
+  padding: 14px clamp(16px, 4vw, 40px);
+  color: var(--landing-muted);
+  font-size: 12.5px;
+}
+
+.landing-statusbar nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.landing-statusbar a {
+  color: var(--landing-muted);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.landing-statusbar a:hover {
+  color: var(--landing-text);
+}
+
+/* Price swap (kept: it communicates state). */
+.landing-price-swap {
+  animation: landing-price-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-price-swap--trail {
+  animation-delay: 40ms;
+}
+
+@keyframes landing-price-in {
+  0% {
+    opacity: 0;
+    transform: translateY(0.25em);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Responsive: the browser collapses to a stacked list view ── */
+@media (max-width: 960px) {
+  .landing-browser {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    grid-template-columns: 1fr;
+  }
+
+  .landing-col--index .landing-rows {
+    flex: none;
+    max-height: 12.5rem;
+  }
+
+  .landing-col--index {
+    order: -1;
+  }
+
+  .landing-col {
+    border-right: 0;
+    border-bottom: 1px solid var(--landing-border);
+  }
+
+  .landing-sources {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(78vw, 1fr);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .landing-sources::-webkit-scrollbar {
+    display: none;
+  }
+
+  .landing-sources > .landing-col {
+    scroll-snap-align: start;
+    border-right: 1px solid var(--landing-border);
+    border-bottom: 0;
+  }
+
+  .landing-index-intro,
+  .landing-install,
+  .landing-index-links {
+    padding-inline: 18px;
+  }
+
+  .landing-col--index .landing-row {
+    padding-inline: 18px;
+  }
+
+  .landing-columns {
+    grid-template-columns: 1fr !important;
+  }
+
+  .landing-columns > * {
+    border-right: 0;
+    border-bottom: 1px solid var(--landing-border);
+  }
+
+  .landing-columns > *:last-child {
+    border-bottom: 0;
+  }
+}
+
+@media (min-width: 961px) {
+  .landing-sources {
+    display: contents;
+  }
 }
 
 /* ─── Dex mascot micro-interactions (transform-only) ─── */
