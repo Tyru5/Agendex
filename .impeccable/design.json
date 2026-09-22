@@ -1,137 +1,539 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-05-05T09:58:12-06:00",
+  "generatedAt": "2026-09-21T00:00:00-06:00",
   "title": "Design System: Agendex",
   "extensions": {
-    "northStar": "The Agent Plan Room",
-    "visualReferences": [
-      {
-        "name": "Supplied Amp reference set",
-        "takeaways": [
-          "Deep green-black editorial field",
-          "Ivory text on dark tinted surfaces",
-          "Fine column grid and hairline separators",
-          "Sparse lime and orange accent moments",
-          "Dense cards and rows with calm negative space",
-          "Editorial display scale reserved for brand surfaces"
-        ],
-        "translation": "Borrow structure, atmosphere, and restraint. Do not copy Amp branding or move marketing composition into the product dashboard."
-      }
-    ],
+    "scope": "Marketing routes only (/, /docs, /download, /changelog, /tools, /terms, /privacy). Tokens are the --landing-* custom properties on `.landing-page` / `.dark .landing-page` in packages/web/src/client/index.css. The dashboard app keeps its own :root / .dark tokens and is not covered here.",
     "colorMeta": {
-      "deep-grid-bg": {
+      "screen-ground": {
         "role": "neutral",
-        "displayName": "Deep Grid Background",
-        "canonical": "#041f1d",
-        "tonalRamp": ["#031615", "#041f1d", "#082724", "#102f2b"]
+        "displayName": "Screen Ground",
+        "canonical": "oklch(98.4% 0.004 255)",
+        "darkCanonical": "oklch(15.5% 0.012 265)",
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#f8fafc"
+        ]
       },
-      "ivory-text": {
+      "column-surface": {
         "role": "neutral",
-        "displayName": "Ivory Text",
-        "canonical": "#eef4e8",
-        "tonalRamp": ["#879891", "#b7c4bc", "#eef4e8", "#f7f9f3"]
+        "displayName": "Column Surface",
+        "canonical": "oklch(99.4% 0.003 255)",
+        "darkCanonical": "oklch(18.5% 0.012 265)",
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#fcfdff"
+        ]
       },
-      "acid-lime": {
+      "header-surface": {
+        "role": "neutral",
+        "displayName": "Header Surface",
+        "canonical": "oklch(95.5% 0.006 255)",
+        "darkCanonical": "oklch(23% 0.013 265)",
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#edf0f4"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(17% 0.014 265)",
+        "darkCanonical": "oklch(95% 0.008 260)",
+        "tonalRamp": [
+          "#0c0f16",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#eaeff7"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Ink Muted",
+        "canonical": "oklch(42% 0.014 265)",
+        "darkCanonical": "oklch(73% 0.01 260)",
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#494d55",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#eaeff7"
+        ]
+      },
+      "ink-faint": {
+        "role": "neutral",
+        "displayName": "Ink Faint",
+        "canonical": "oklch(50% 0.012 265)",
+        "darkCanonical": "oklch(62% 0.01 260)",
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#60636a",
+          "#9b9ea6",
+          "#caced6",
+          "#eaeff7"
+        ]
+      },
+      "column-divider": {
+        "role": "neutral",
+        "displayName": "Column Divider",
+        "canonical": "oklch(87% 0.007 260)",
+        "darkCanonical": "oklch(28% 0.012 265)",
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#d1d4d9",
+          "#eaeff7"
+        ]
+      },
+      "control-edge": {
+        "role": "neutral",
+        "displayName": "Control Edge",
+        "canonical": "oklch(76% 0.01 260)",
+        "darkCanonical": "oklch(38% 0.014 265)",
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#adb1b8",
+          "#caced6",
+          "#eaeff7"
+        ]
+      },
+      "row-divider": {
+        "role": "neutral",
+        "displayName": "Row Divider",
+        "canonical": "oklch(92% 0.006 260)",
+        "darkCanonical": "oklch(23% 0.012 265)",
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#e2e5e9",
+          "#eaeff7"
+        ]
+      },
+      "ultramarine-violet": {
         "role": "primary",
-        "displayName": "Acid Lime",
-        "canonical": "#c8ff32",
-        "tonalRamp": ["#31420a", "#6e9813", "#c8ff32", "#e5ff94"]
+        "displayName": "Ultramarine Violet",
+        "canonical": "oklch(46% 0.215 285)",
+        "darkCanonical": "text oklch(66% 0.18 285) / fill oklch(38% 0.19 285)",
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#3a1096",
+          "#5532c7",
+          "#6e5bdd",
+          "#8a7bff",
+          "#ada2ff",
+          "#e3daff"
+        ]
       },
-      "signal-orange": {
-        "role": "secondary",
-        "displayName": "Signal Orange",
-        "canonical": "#ff7a2f",
-        "tonalRamp": ["#4f1f0b", "#a34314", "#ff7a2f", "#ffb587"]
+      "ultramarine-pressed": {
+        "role": "primary",
+        "displayName": "Ultramarine Pressed",
+        "canonical": "color-mix(in oklch, var(--landing-index-bg) 88%, var(--landing-text))",
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#3a1096",
+          "#4b2fb0",
+          "#6e5bdd",
+          "#8a7bff",
+          "#ada2ff",
+          "#e3daff"
+        ]
+      },
+      "selection-ink": {
+        "role": "primary",
+        "displayName": "Selection Ink",
+        "canonical": "oklch(99% 0.008 285)",
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#3a1096",
+          "#5532c7",
+          "#6e5bdd",
+          "#8a7bff",
+          "#ada2ff",
+          "#fbfbff"
+        ]
+      },
+      "selection-wash": {
+        "role": "primary",
+        "displayName": "Selection Wash",
+        "canonical": "color-mix(in oklch, var(--landing-accent) 9%, var(--landing-bg))",
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#3a1096",
+          "#5532c7",
+          "#6e5bdd",
+          "#8a7bff",
+          "#ada2ff",
+          "#e8e8f9"
+        ]
+      },
+      "error-red": {
+        "role": "status",
+        "displayName": "Error Red",
+        "canonical": "oklch(52% 0.19 30)",
+        "darkCanonical": "oklch(70% 0.17 30)",
+        "tonalRamp": [
+          "#290000",
+          "#460200",
+          "#7c0000",
+          "#9e170c",
+          "#be2517",
+          "#d95544",
+          "#fd7562",
+          "#ffaf99"
+        ]
+      },
+      "night-ground": {
+        "role": "neutral",
+        "displayName": "Night Ground",
+        "canonical": "oklch(15.5% 0.012 265)",
+        "tonalRamp": [
+          "#0a0c11",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#eaeff7"
+        ]
+      },
+      "night-violet-text": {
+        "role": "primary",
+        "displayName": "Night Violet Text",
+        "canonical": "oklch(66% 0.18 285)",
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#3a1096",
+          "#543bbb",
+          "#6e5bdd",
+          "#8a7dfa",
+          "#ada2ff",
+          "#e3daff"
+        ]
+      },
+      "night-violet-fill": {
+        "role": "primary",
+        "displayName": "Night Violet Fill",
+        "canonical": "oklch(38% 0.19 285)",
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#411ea0",
+          "#543bbb",
+          "#6e5bdd",
+          "#8a7bff",
+          "#ada2ff",
+          "#e3daff"
+        ]
       }
     },
     "typographyMeta": {
       "display": {
-        "displayName": "Editorial Display",
-        "purpose": "Landing, onboarding, empty states, and public shared-plan page titles only."
+        "displayName": "Window Title Display",
+        "purpose": "The one h1 inside the index column, in selection ink, max 14ch."
+      },
+      "headline": {
+        "displayName": "Band Headline",
+        "purpose": "Section h2 on / and the page h1 on subpages."
+      },
+      "title": {
+        "displayName": "Section Title",
+        "purpose": "Subpage section headings on a hairline; 19px when dense."
+      },
+      "lede": {
+        "displayName": "Lede",
+        "purpose": "The one-line paragraph under a headline; muted, 60ch."
       },
       "body": {
-        "displayName": "Dense Product Sans",
-        "purpose": "Primary dashboard, plan list, settings, comments, filters, and all repeated product surfaces."
+        "displayName": "Reading Body",
+        "purpose": "Subpage prose and disclosure answers; muted, 68ch."
+      },
+      "row": {
+        "displayName": "File Row",
+        "purpose": "Browser rows, listing rows, toolbar links; tabular numerals beside it."
+      },
+      "label": {
+        "displayName": "Bar Label",
+        "purpose": "Column heads, listing heads, tabs, form labels. Never uppercase or tracked."
       },
       "mono": {
-        "displayName": "Plan Fragment Mono",
-        "purpose": "Code blocks, CLI snippets, plan fragments, paths, and logs."
+        "displayName": "Real Mono",
+        "purpose": "Only commands, paths, agendex subcommands and rendered plan markdown."
       }
     },
     "shadows": [
       {
-        "name": "ambient-popover",
+        "name": "modal-lift",
         "value": "0 18px 40px rgba(0, 0, 0, 0.24)",
-        "purpose": "Menus, command palettes, status popovers, and temporary overlays."
-      },
-      {
-        "name": "accent-lift",
-        "value": "0 10px 26px rgba(200, 255, 50, 0.14)",
-        "purpose": "Primary action hover only."
-      },
-      {
-        "name": "editor-lift",
-        "value": "0 8px 24px rgba(0, 0, 0, 0.18)",
-        "purpose": "Code blocks, markdown preview surfaces, and editor panels."
+        "purpose": "The connect-to-dashboard modal only; every other surface is flat."
       }
     ],
     "motion": [
       {
-        "name": "state-quick",
-        "value": "150ms cubic-bezier(0.22, 1, 0.36, 1)",
-        "purpose": "Hover, focus, active, selected, and compact feedback transitions."
+        "name": "control-state",
+        "value": "120ms ease",
+        "purpose": "Background, border and color on links, buttons and rows."
       },
       {
-        "name": "reveal-medium",
-        "value": "240ms cubic-bezier(0.22, 1, 0.36, 1)",
-        "purpose": "Popover and panel reveal transitions using opacity and transform."
+        "name": "disclosure-chevron",
+        "value": "180ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Chevron rotation on FAQ rows."
+      },
+      {
+        "name": "disclosure-open",
+        "value": "220ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "grid-template-rows 0fr to 1fr on FAQ answers."
+      },
+      {
+        "name": "price-swap",
+        "value": "260ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Price and period fade-up when billing cadence changes; 40ms trail on the period."
+      },
+      {
+        "name": "sources-dim",
+        "value": "opacity 400ms ease",
+        "purpose": "Source columns drop to 55% while collation runs."
+      },
+      {
+        "name": "collate-flip",
+        "value": "640ms cubic-bezier(0.22, 1, 0.36, 1), 34ms stagger per row",
+        "purpose": "Index rows FLIP from their source twins on first scroll or 1.6s idle; skipped under prefers-reduced-motion and at 960px and below."
       }
     ],
     "breakpoints": [
       {
-        "name": "md",
-        "value": "768px"
+        "name": "phone",
+        "value": "640px",
+        "purpose": "Path-bar status hides; install command wraps, copy key drops under it."
       },
       {
-        "name": "lg",
-        "value": "1024px"
+        "name": "menu",
+        "value": "860px",
+        "purpose": "Toolbar nav folds into the menu button."
       },
       {
-        "name": "xl",
-        "value": "1280px"
+        "name": "stack",
+        "value": "960px",
+        "purpose": "Browser becomes a stacked list view; index first, sources as a snapping strip; columns panel single-column."
       }
     ],
-    "rules": [
-      "Borrow the supplied references for grid, atmosphere, and restraint, not for dashboard composition.",
-      "Keep product controls sans, compact, familiar, and keyboard-first.",
-      "Use lime for primary action and selected state, orange for conversion only.",
-      "Avoid pure black, pure white, gradient text, decorative glass, side-stripe borders, and marketing card grids."
-    ]
+    "focus": {
+      "value": "outline: 2px solid var(--landing-accent); outline-offset: 2px",
+      "purpose": "Every focusable element, both themes."
+    },
+    "textSelection": {
+      "value": "background: var(--landing-accent); color: var(--landing-accent-ink)"
+    },
+    "fonts": {
+      "loadedIn": ["packages/app/src/client/index.html", "packages/ee/index.html"],
+      "families": [
+        "Schibsted Grotesk 400..900 (variable, italic too)",
+        "JetBrains Mono 400/500/600"
+      ]
+    }
   },
   "components": [
     {
-      "name": "Primary Button",
+      "name": "Primary Action",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Rare high-signal action button for primary task completion.",
-      "html": "<button class=\"ds-btn-primary\">Create plan</button>",
-      "css": ".ds-btn-primary { background: #c8ff32; color: #121610; border: 1px solid rgba(200, 255, 50, 0.44); border-radius: 10px; padding: 8px 14px; font: 650 12.5px/1.2 Inter, system-ui, sans-serif; letter-spacing: 0; transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 150ms cubic-bezier(0.22, 1, 0.36, 1), filter 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(200, 255, 50, 0.14); filter: brightness(1.03); }"
+      "description": "Violet fill with selection ink; the CTA in a listing foot or modal.",
+      "html": "<button class=\"ds-btn-primary\">Start free trial</button>",
+      "css": ".ds-btn-primary { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 8px; border: 1px solid #5532c7; border-radius: 6px; background: #5532c7; padding: 0 14px; color: #fbfbff; font: 600 13px/1.2 'Schibsted Grotesk', system-ui, sans-serif; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease; } .ds-btn-primary:hover { background: #4b2fb0; border-color: #4b2fb0; } .ds-btn-primary:focus-visible { outline: 2px solid #5532c7; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: .7; cursor: wait; }"
     },
     {
-      "name": "Plan Panel",
+      "name": "Secondary Action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Column-surface button with a control-edge border; the default action.",
+      "html": "<a class=\"ds-btn-secondary\" href=\"#\">Open docs</a>",
+      "css": ".ds-btn-secondary { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 8px; border: 1px solid #adb1b8; border-radius: 6px; background: #fcfdff; padding: 0 14px; color: #0c0f16; font: 600 13px/1.2 'Schibsted Grotesk', system-ui, sans-serif; text-decoration: none; cursor: pointer; transition: background-color 120ms ease; } .ds-btn-secondary:hover { background: #edf0f4; } .ds-btn-secondary:focus-visible { outline: 2px solid #5532c7; outline-offset: 2px; }"
+    },
+    {
+      "name": "Copy Key",
+      "kind": "button",
+      "refersTo": "copy-key",
+      "description": "The inverted key at the end of the install command inside the index column.",
+      "html": "<div class=\"ds-install\"><span aria-hidden=\"true\">$</span><code>curl -fsSL https://agendex.dev/install.sh | bash</code><button class=\"ds-copy-key\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\" stroke=\"currentColor\" stroke-width=\"1.8\"/><path d=\"M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\"/></svg>Copy</button></div>",
+      "css": ".ds-install { display: grid; min-height: 46px; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 10px; border: 1px solid #7e75dd; border-radius: 7px; background: #614bcf; padding: 0 6px 0 12px; color: #fbfbff; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 13px; } .ds-install > span { opacity: .7; } .ds-install code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; } .ds-copy-key { display: inline-flex; height: 32px; align-items: center; gap: 6px; border: 1px solid #a89ee8; border-radius: 5px; background: #fbfbff; padding: 0 10px; color: #5532c7; font: 700 12px/1 'Schibsted Grotesk', system-ui, sans-serif; cursor: pointer; } .ds-copy-key:hover { background: #ededff; } .ds-copy-key:focus-visible { outline: 2px solid #fbfbff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Window Toolbar",
+      "kind": "nav",
+      "refersTo": "toolbar-link",
+      "description": "Brand as the window title, nav as toolbar buttons; current page takes the selection wash.",
+      "html": "<header class=\"ds-toolbar\"><a class=\"ds-toolbar-brand\" href=\"#\">Agendex<em>.</em></a><nav class=\"ds-toolbar-nav\"><a class=\"ds-toolbar-link\" href=\"#\">Download</a><a class=\"ds-toolbar-link\" href=\"#\" aria-current=\"page\">Docs</a><a class=\"ds-toolbar-link\" href=\"#\">Changelog</a><a class=\"ds-toolbar-link\" href=\"#\">Stack</a></nav></header>",
+      "css": ".ds-toolbar { display: flex; min-height: 52px; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid #d1d4d9; background: #fcfdff; padding: 0 16px; font-family: 'Schibsted Grotesk', system-ui, sans-serif; } .ds-toolbar-brand { color: #0c0f16; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; text-decoration: none; } .ds-toolbar-brand em { color: #5532c7; font-style: normal; } .ds-toolbar-nav { display: flex; gap: 2px; } .ds-toolbar-link { display: inline-flex; min-height: 30px; align-items: center; border-radius: 6px; padding: 0 10px; color: #494d55; font-size: 13px; font-weight: 500; text-decoration: none; transition: background-color 120ms ease, color 120ms ease; } .ds-toolbar-link:hover { background: #edf0f4; color: #0c0f16; } .ds-toolbar-link[aria-current='page'] { background: #e8e8f9; color: #5532c7; } .ds-toolbar-link:focus-visible { outline: 2px solid #5532c7; outline-offset: 2px; }"
+    },
+    {
+      "name": "Miller Column",
+      "kind": "custom",
+      "refersTo": "row",
+      "description": "A source column: head with path and count, 34px document rows, foot with the illustrative label. Hover links a row.",
+      "html": "<div class=\"ds-col\"><div class=\"ds-col-head\"><code>~/.claude/plans</code><span>3 items</span></div><ul class=\"ds-rows\"><li class=\"ds-row ds-row--linked\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 1.5h5l3 3v10H4z\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/><path d=\"M9 1.5v3h3\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/></svg><span class=\"ds-row-name\">rate-limit-rollout.md</span><span class=\"ds-row-meta\">2m</span></li><li class=\"ds-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 1.5h5l3 3v10H4z\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/><path d=\"M9 1.5v3h3\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/></svg><span class=\"ds-row-name\">auth-token-refresh.md</span><span class=\"ds-row-meta\">41m</span></li><li class=\"ds-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 1.5h5l3 3v10H4z\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/><path d=\"M9 1.5v3h3\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/></svg><span class=\"ds-row-name\">search-index-rebuild.md</span><span class=\"ds-row-meta\">2h</span></li></ul><div class=\"ds-col-foot\"><span>Claude Code</span><span>3 items \u00b7 illustrative</span></div></div>",
+      "css": ".ds-col { display: flex; flex-direction: column; width: 280px; border: 1px solid #d1d4d9; background: #fcfdff; color: #0c0f16; font-family: 'Schibsted Grotesk', system-ui, sans-serif; font-variant-numeric: tabular-nums; } .ds-col-head { display: flex; min-height: 30px; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #d1d4d9; background: #edf0f4; padding: 0 12px; color: #494d55; font-size: 12px; font-weight: 600; white-space: nowrap; } .ds-col-head code { overflow: hidden; text-overflow: ellipsis; font: 500 11.5px 'JetBrains Mono', ui-monospace, monospace; } .ds-col-head span { color: #60636a; font-weight: 500; } .ds-rows { margin: 0; padding: 4px 0; list-style: none; } .ds-row { display: grid; min-height: 34px; grid-template-columns: 18px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 0 12px; font-size: 13px; line-height: 1.25; transition: background-color 120ms ease; } .ds-row > svg { color: #60636a; } .ds-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-row-meta { color: #60636a; font-size: 12px; } .ds-row:hover, .ds-row--linked { background: #e8e8f9; } .ds-row:hover > svg, .ds-row:hover .ds-row-meta, .ds-row--linked > svg, .ds-row--linked .ds-row-meta { color: #5532c7; } .ds-col-foot { display: flex; min-height: 28px; align-items: center; justify-content: space-between; margin-top: auto; border-top: 1px solid #e2e5e9; padding: 0 12px; color: #60636a; font-size: 11.5px; }"
+    },
+    {
+      "name": "Index Column Row",
+      "kind": "custom",
+      "refersTo": "workspace-tag",
+      "description": "Rows inside the violet index column: agent glyph, name, workspace tag, date; arrow keys move the selection bar.",
+      "html": "<ul class=\"ds-index\" role=\"listbox\"><li class=\"ds-index-row\" role=\"option\" aria-selected=\"true\"><span class=\"ds-index-glyph\" aria-hidden=\"true\"></span><span class=\"ds-index-name\">rate-limit-rollout.md</span><span class=\"ds-index-ws\">api</span><span class=\"ds-index-meta\">2m</span></li><li class=\"ds-index-row\" role=\"option\" aria-selected=\"false\"><span class=\"ds-index-glyph\" aria-hidden=\"true\"></span><span class=\"ds-index-name\">daemon-retry-backoff.md</span><span class=\"ds-index-ws\">cli</span><span class=\"ds-index-meta\">9m</span></li><li class=\"ds-index-row\" role=\"option\" aria-selected=\"false\"><span class=\"ds-index-glyph\" aria-hidden=\"true\"></span><span class=\"ds-index-name\">pricing-toggle-a11y.md</span><span class=\"ds-index-ws\">web</span><span class=\"ds-index-meta\">18m</span></li></ul>",
+      "css": ".ds-index { width: 360px; margin: 0; padding: 6px 0; list-style: none; background: #5532c7; color: #fbfbff; font-family: 'Schibsted Grotesk', system-ui, sans-serif; font-variant-numeric: tabular-nums; } .ds-index-row { display: grid; min-height: 34px; grid-template-columns: 20px minmax(0,1fr) auto auto; align-items: center; gap: 8px; padding: 0 24px; font-size: 13px; line-height: 1.25; transition: background-color 120ms ease; } .ds-index-glyph { width: 14px; height: 14px; border-radius: 3px; background: #ada2ff; } .ds-index-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-index-ws { border: 1px solid #857be0; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 600; } .ds-index-meta { color: #c4bdf3; font-size: 12px; } .ds-index-row:hover, .ds-index-row[aria-selected='true'] { background: #6a58d3; } .ds-index:focus-visible { outline: 2px solid #fbfbff; outline-offset: -2px; }"
+    },
+    {
+      "name": "Listing",
       "kind": "card",
-      "refersTo": "panel",
-      "description": "Flat tonal container for plan lists, viewers, comments, and settings regions.",
-      "html": "<section class=\"ds-plan-panel\"><h2>Recent plans</h2></section>",
-      "css": ".ds-plan-panel { background: #082724; color: #eef4e8; border: 1px solid #173d38; border-radius: 14px; padding: 16px; box-shadow: none; } .ds-plan-panel h2 { margin: 0; font: 650 14px/1.35 Inter, system-ui, sans-serif; letter-spacing: 0; }"
+      "refersTo": "listing",
+      "description": "The section-level container: bordered 8px box with a header bar and hairline rows; pricing, FAQ, sources and installers are all listings.",
+      "html": "<div class=\"ds-listing\"><div class=\"ds-listing-head\">How it fits together <span>3 steps</span></div><div class=\"ds-listing-row\"><b>1</b><div><span class=\"ds-listing-title\">Use agents normally.</span><p>Agendex scans the plan and session locations its adapters know how to parse.</p></div></div><div class=\"ds-listing-row\"><b>2</b><div><span class=\"ds-listing-title\">Search the local index.</span><p>Filter by agent or workspace and open read-only markdown.</p></div></div></div>",
+      "css": ".ds-listing { width: 420px; overflow: hidden; border: 1px solid #d1d4d9; border-radius: 8px; background: #fcfdff; color: #0c0f16; font-family: 'Schibsted Grotesk', system-ui, sans-serif; } .ds-listing-head { display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #d1d4d9; background: #edf0f4; padding: 0 14px; font-size: 12.5px; font-weight: 600; } .ds-listing-head span { color: #60636a; font-weight: 500; } .ds-listing-row { display: grid; grid-template-columns: 20px minmax(0,1fr); align-items: baseline; gap: 10px; border-bottom: 1px solid #e2e5e9; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; } .ds-listing-row:last-child { border-bottom: 0; } .ds-listing-row > b { color: #60636a; font-size: 12px; font-weight: 600; } .ds-listing-title { font-weight: 600; } .ds-listing-row p { margin: 4px 0 0; color: #494d55; }"
     },
     {
-      "name": "Metadata Chip",
+      "name": "Segmented Toggle",
       "kind": "chip",
-      "refersTo": "chip",
-      "description": "Compact metadata or filter chip that stays quiet until selected.",
-      "html": "<span class=\"ds-chip\">Codex</span>",
-      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 6px; background: #102f2b; color: #879891; border: 1px solid #173d38; border-radius: 5px; padding: 3px 8px; font: 650 11.5px/1.2 Inter, system-ui, sans-serif; letter-spacing: 0; }"
+      "refersTo": "toolbar-link-current",
+      "description": "Billing cadence and package-manager tabs: header-surface tray, active segment takes the violet fill.",
+      "html": "<div class=\"ds-toggle\" aria-label=\"Billing cadence\"><button class=\"ds-toggle-seg\" data-active=\"true\">Monthly</button><button class=\"ds-toggle-seg\">Yearly <span>Save 17%</span></button></div>",
+      "css": ".ds-toggle { display: inline-flex; gap: 2px; border: 1px solid #d1d4d9; border-radius: 7px; background: #edf0f4; padding: 2px; font-family: 'Schibsted Grotesk', system-ui, sans-serif; } .ds-toggle-seg { min-height: 30px; border: 0; border-radius: 5px; background: transparent; padding: 0 12px; color: #494d55; font: 600 12.5px/1 inherit; font-family: inherit; cursor: pointer; transition: background-color 120ms ease, color 120ms ease; } .ds-toggle-seg span { margin-left: 6px; font-weight: 500; opacity: .8; } .ds-toggle-seg:hover { color: #0c0f16; } .ds-toggle-seg[data-active='true'] { background: #5532c7; color: #fbfbff; } .ds-toggle-seg:focus-visible { outline: 2px solid #5532c7; outline-offset: 2px; }"
+    },
+    {
+      "name": "Token Input",
+      "kind": "input",
+      "refersTo": "input-token",
+      "description": "The one text field: CLI auth token in the connect modal. Mono, violet caret, border turns violet on focus.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">CLI auth token</span><input class=\"ds-input\" placeholder=\"agx_...\" /><span class=\"ds-field-hint\">Run <code>agendex login</code> or start the local server to print a fresh token.</span></label>",
+      "css": ".ds-field { display: block; width: 360px; font-family: 'Schibsted Grotesk', system-ui, sans-serif; } .ds-field-label { display: block; margin-bottom: 8px; color: #0c0f16; font-size: 12.5px; font-weight: 600; } .ds-input { width: 100%; box-sizing: border-box; border: 1px solid #adb1b8; border-radius: 6px; background: #f8fafc; padding: 10px 12px; color: #0c0f16; caret-color: #5532c7; font: 400 13px/1.4 'JetBrains Mono', ui-monospace, monospace; outline: none; } .ds-input::placeholder { color: #60636a; } .ds-input:focus { border-color: #5532c7; } .ds-input:focus-visible { outline: 2px solid #5532c7; outline-offset: 2px; } .ds-input[aria-invalid='true'] { border-color: #be2517; } .ds-field-hint { display: block; margin-top: 8px; color: #494d55; font-size: 12px; line-height: 1.55; } .ds-field-hint code { font-family: 'JetBrains Mono', ui-monospace, monospace; }"
+    },
+    {
+      "name": "Disclosure Row",
+      "kind": "custom",
+      "refersTo": "row",
+      "description": "FAQ row: chevron cell, question, header-surface hover; chevron rotates and turns violet when open.",
+      "html": "<div class=\"ds-disclosure\"><button class=\"ds-disclosure-btn\" aria-expanded=\"true\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 2.5 7.5 6 4 9.5\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>Is my data private?</span></button><div class=\"ds-disclosure-body\"><p>Local indexing never leaves the machine. Sync to Cloud Pro is opt-in per plan.</p></div></div>",
+      "css": ".ds-disclosure { width: 420px; border-bottom: 1px solid #e2e5e9; background: #fcfdff; font-family: 'Schibsted Grotesk', system-ui, sans-serif; } .ds-disclosure-btn { display: grid; width: 100%; min-height: 48px; grid-template-columns: 16px minmax(0,1fr); align-items: center; gap: 10px; border: 0; background: transparent; padding: 12px 14px; color: #0c0f16; font: 600 14px/1.3 inherit; font-family: inherit; text-align: left; cursor: pointer; } .ds-disclosure-btn:hover { background: #edf0f4; } .ds-disclosure-btn:focus-visible { outline: 2px solid #5532c7; outline-offset: 2px; } .ds-disclosure-btn svg { color: #60636a; transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-disclosure-btn[aria-expanded='true'] svg { transform: rotate(90deg); color: #5532c7; } .ds-disclosure-body p { max-width: 68ch; margin: 0; padding: 0 14px 16px 40px; color: #494d55; font-size: 13.5px; line-height: 1.7; }"
+    },
+    {
+      "name": "Path Bar",
+      "kind": "nav",
+      "refersTo": "pathbar",
+      "description": "Header-surface breadcrumb strip; on / it carries Dex as the volume icon and the watched-source count.",
+      "html": "<div class=\"ds-pathbar\"><div class=\"ds-pathbar-crumbs\"><span class=\"ds-pathbar-volume\" aria-hidden=\"true\"></span><b>Agendex</b><svg width=\"10\" height=\"10\" viewBox=\"0 0 12 12\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 2.5 7.5 6 4 9.5\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>Local index</span><svg width=\"10\" height=\"10\" viewBox=\"0 0 12 12\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 2.5 7.5 6 4 9.5\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>3 sources watched</span></div><div class=\"ds-pathbar-status\">21 agent integrations \u00b7 local by default</div></div>",
+      "css": ".ds-pathbar { display: flex; min-height: 36px; width: 560px; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #d1d4d9; border-bottom: 1px solid #d1d4d9; background: #edf0f4; padding: 0 12px; color: #494d55; font: 400 12px/1 'Schibsted Grotesk', system-ui, sans-serif; font-variant-numeric: tabular-nums; } .ds-pathbar-crumbs { display: flex; align-items: center; gap: 6px; white-space: nowrap; } .ds-pathbar-volume { width: 20px; height: 20px; border-radius: 5px; background: #5532c7; } .ds-pathbar-crumbs b { color: #0c0f16; font-weight: 600; } .ds-pathbar-crumbs svg { color: #60636a; } .ds-pathbar-status { color: #60636a; }"
     }
-  ]
+  ],
+  "narrative": {
+    "northStar": "The Column View",
+    "overview": "The marketing site is a Miller-column file browser, played straight. Plans are already files in folders; the page shows three real agent directories (`~/.claude/plans`, `~/.codex/tasks`, `.cursor/plans`) collating into one index column, and the visitor recognises their own listings before reading a word of copy. Everything on these routes is drawn from that browser's vocabulary: a window toolbar, column heads with item counts, 34px document rows with a glyph, a name and a right-aligned date, a full-row selection bar, a path bar, and a status-bar footer. There is no hero in the marketing sense; the first viewport is the mechanism.\n\nThe material is a cool near-white screen with near-black ink and hairline column dividers. One color is committed: a saturated ultramarine-violet that drenches the index column and every selected or primary state. Nothing else is tinted. Light is the primary scene; `.dark` is the browser's own night mode (cool near-black ground, the same violet split into a lighter text step and a deeper fill step), not a mood swap. The page is dense in the way a file browser is dense: many rows, short labels, tabular numerals, and enough hairlines to make columns read as architecture.\n\nConfirmed rejections: the dark-plus-neon dev-SaaS ground, hairline-grid wallpaper, the framed-screenshot hero, editorial serif or magazine styling, and mascot-led play. Dex appears exactly once, as the volume icon in the path bar.",
+    "keyCharacteristics": [
+      "Miller-column browser grammar as the whole layout, not a decorative motif.",
+      "Cool near-white ground, near-black ink, hairline dividers at three strengths.",
+      "One committed color (ultramarine-violet) for the index column, selection, current-nav and primary controls; no second accent.",
+      "One face, Schibsted Grotesk, at every scale; JetBrains Mono only for real commands and paths.",
+      "Flat surfaces; depth is column adjacency and tonal header bars, never shadow.",
+      "Illustrative data is always labeled \"illustrative\" in the column head or foot."
+    ],
+    "rules": [
+      {
+        "name": "The One Color Rule",
+        "body": "Ultramarine-violet is the only hue on the page. A new element that needs emphasis takes the violet as text on ground, the violet as a fill with selection ink on top, or nothing. It never takes a second color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Fill Ink Rule",
+        "body": "Anything painted with `--landing-index-bg` sets its text and glyphs to `--landing-accent-ink`, and all inner structure (heads, wells, hover, tags) is selection ink at a translucent percentage. No neutral tokens inside a violet fill.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dark Is Night Mode Rule",
+        "body": "Dark only remaps the neutral scale and splits the violet into text and fill steps. It adds no glow, no gradients, no new hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Face Rule",
+        "body": "Schibsted Grotesk at every scale. Emphasis comes from weight (400 / 500 / 600 / 700 / 750) and size, never from a second family.",
+        "section": "typography"
+      },
+      {
+        "name": "The Real Mono Rule",
+        "body": "JetBrains Mono appears only where a user could copy the text into a shell or a file: install commands, agent paths, `agendex` subcommands, and the preview pane's markdown. A label set in mono is a mistake.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Eyebrow Rule",
+        "body": "Headings stand alone. No kicker, eyebrow or small-caps label sits above an `h1` or `h2`; the column head is the only thing that ever labels a region.",
+        "section": "typography"
+      },
+      {
+        "name": "The Adjacency Rule",
+        "body": "Two regions are separated by a 1px divider, a tonal header bar, or the violet fill, never by a shadow, a gradient or a border thicker than a hairline.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do build every new region from the browser vocabulary: a column head or listing head (header surface, 600 label, faint count), rows at 34px, hairline dividers, a foot or status line.",
+      "Do use ultramarine-violet as text on ground (`--landing-accent`) or as a fill with selection ink (`--landing-index-bg` + `--landing-accent-ink`); nothing else carries emphasis.",
+      "Do keep every surface flat; separate regions with 1px dividers or the header-surface tonal step.",
+      "Do set commands, paths and rendered plan markdown in JetBrains Mono, and label every synthetic listing \"illustrative\" in its head or foot.",
+      "Do keep numerals tabular in rows, heads and the path bar, and keep dates right-aligned.",
+      "Do honour reduced motion: rows appear without the FLIP, and no motion touches layout properties.",
+      "Do show a 2px violet focus ring at 2px offset on every focusable element, in both themes."
+    ],
+    "donts": [
+      "Don't use a dark ground with a neon accent, gradient text, glow or glassmorphism; dark is the browser's night mode, nothing more.",
+      "Don't lay a hairline grid, dot grid or texture behind content; hairlines only divide real columns and rows.",
+      "Don't open a page with a centered headline over a framed product screenshot; the first viewport is the mechanism itself.",
+      "Don't introduce a serif, an editorial display face, or magazine composition (pull quotes, drop caps, kickers).",
+      "Don't put a kicker, eyebrow or small-caps label above a heading; headings stand alone.",
+      "Don't add a second accent, a colored side stripe, or a border thicker than 1px; error red is reserved for the connect modal's error line.",
+      "Don't use unicode characters as icons; every glyph is an inline SVG (document, chevron, check, copy, menu, agent marks).",
+      "Don't let Dex appear anywhere but the path bar, or lead a section with the mascot.",
+      "Don't present illustrative rows, comments or prices as real data without the \"illustrative\" label."
+    ]
+  }
 }

@@ -128,19 +128,19 @@ export function AboutMePage() {
         }
 
         .about-page {
-          --about-bg: oklch(10% 0.032 178);
-          --about-bg-deep: oklch(7% 0.028 178);
-          --about-surface: oklch(14.5% 0.035 180);
-          --about-raised: oklch(19% 0.038 178);
-          --about-text: oklch(94.5% 0.016 128);
-          --about-muted: oklch(70% 0.025 166);
-          --about-faint: oklch(58% 0.025 168);
+          --about-bg: oklch(15.5% 0.012 265);
+          --about-bg-deep: oklch(12% 0.012 265);
+          --about-surface: oklch(18.5% 0.012 265);
+          --about-raised: oklch(23% 0.013 265);
+          --about-text: oklch(95% 0.008 260);
+          --about-muted: oklch(73% 0.01 260);
+          --about-faint: oklch(62% 0.01 260);
           --about-border: color-mix(in oklch, var(--about-text) 13%, transparent);
           --about-border-strong: color-mix(in oklch, var(--about-text) 21%, transparent);
-          --about-grid: color-mix(in oklch, var(--about-text) 7%, transparent);
-          --about-accent: oklch(90% 0.22 129);
+          --about-grid: color-mix(in oklch, var(--about-text) 3.5%, transparent);
+          --about-accent: oklch(66% 0.18 285);
           --about-accent-soft: color-mix(in oklch, var(--about-accent) 12%, transparent);
-          --about-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+          --about-mono: "JetBrains Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
 
           min-height: 100vh;
           position: relative;

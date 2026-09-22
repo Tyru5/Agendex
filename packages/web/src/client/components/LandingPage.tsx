@@ -1,6 +1,5 @@
 import React, { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
-import type { MouseEvent, ReactNode } from 'react';
-import { gsap } from 'gsap';
+import type { ReactNode } from 'react';
 import { startViewTransition } from '../lib/view-transition.ts';
 import {
   FAQ_ITEMS,
@@ -17,14 +16,23 @@ import {
   landingReducer,
 } from './landing/LandingContext.tsx';
 import { DexMascot } from './landing/DexMascot.tsx';
-import { LandingMascot, type LandingMascotProps } from './landing/LandingMascot.tsx';
+import type { LandingMascotProps } from './landing/LandingMascot.tsx';
 import { useTheme } from '../hooks/useTheme.ts';
 import { NavbarAuth, HeroCta, PricingCta } from './landing/LandingSlots.tsx';
 import type { SlotRenderFn, SlotComponent } from './landing/LandingSlots.tsx';
+import {
+  ChevronIcon,
+  DocIcon,
+  GITHUB_URL,
+  LANDING_LINKS,
+  LandingToolbar,
+  landingNavClickHandler,
+  type LandingNavHandlers,
+} from './landing/Toolbar.tsx';
 import { AgentIcon } from './AgentIcon.tsx';
 import { GitHubIcon } from './OAuthIcons.tsx';
 
-function Spinner({ size = 14, color }: { size?: number; color?: string }) {
+function Spinner({ size = 14 }: { size?: number }) {
   return (
     <svg
       width={size}
@@ -35,17 +43,10 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
       style={{ animationDuration: '0.8s' }}
       aria-hidden="true"
     >
-      <circle
-        cx="12"
-        cy="12"
-        r="10"
-        stroke={color ?? 'currentColor'}
-        strokeWidth="3"
-        opacity={0.25}
-      />
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity={0.25} />
       <path
         d="M12 2a10 10 0 0 1 10 10"
-        stroke={color ?? 'currentColor'}
+        stroke="currentColor"
         strokeWidth="3"
         strokeLinecap="round"
       />
@@ -53,13 +54,8 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
   );
 }
 
-const LANDING_ANCHOR_OFFSET = 88;
-const LANDING_LINKS = [
-  { href: '/download', label: 'Download' },
-  { href: '/docs', label: 'Docs' },
-  { href: '/changelog', label: 'Changelog' },
-  { href: '/tools', label: 'Stack' },
-] as const;
+const LANDING_ANCHOR_OFFSET = 64;
+const SECTION_SCROLL_STYLE = { scrollMarginTop: LANDING_ANCHOR_OFFSET };
 type LandingTab = 'local' | 'cloud';
 
 export interface LandingPageProps {
@@ -71,9 +67,85 @@ export interface LandingPageProps {
   onShowTools?: () => void;
 }
 
-const HERO_AGENT_CHIPS = [
+/* ─── Illustrative listings ──────────────────────────────────────────────
+ * The three source columns and the index they collate into. Synthetic file
+ * names in the shape real agents produce; labeled "illustrative" on the page.
+ */
+type SourcePlan = { key: string; name: string; ws: string; age: string; minutes: number };
+type Source = {
+  agent: string;
+  label: string;
+  path: string;
+  plans: SourcePlan[];
+};
+
+function plan(key: string, name: string, ws: string, age: string, minutes: number): SourcePlan {
+  return { key, name, ws, age, minutes };
+}
+
+const SOURCES: Source[] = [
+  {
+    agent: 'claude-code',
+    label: 'Claude Code',
+    path: '~/.claude/plans',
+    plans: [
+      plan('c1', 'rate-limit-rollout.md', 'api', '2m', 2),
+      plan('c2', 'auth-token-refresh.md', 'api', '41m', 41),
+      plan('c3', 'search-index-rebuild.md', 'web', '2h', 120),
+      plan('c4', 'flaky-ws-tests.md', 'cli', '5h', 300),
+      plan('c5', 'onboarding-copy-pass.md', 'web', 'yesterday', 1500),
+      plan('c6', 'migrate-session-store.md', 'api', '2d', 2900),
+      plan('c7', 'plan-outline-panel.md', 'web', '3d', 4300),
+      plan('c8', 'oauth-callback-hardening.md', 'api', '4d', 5900),
+      plan('c9', 'desktop-auto-update.md', 'desktop', '6d', 8600),
+      plan('c10', 'search-ranking-tweaks.md', 'web', '1w', 10100),
+      plan('c11', 'adapter-continue-experimental.md', 'cli', '2w', 20200),
+    ],
+  },
+  {
+    agent: 'codex-cli',
+    label: 'Codex',
+    path: '~/.codex/tasks',
+    plans: [
+      plan('x1', 'daemon-retry-backoff.md', 'cli', '9m', 9),
+      plan('x2', 'sqlite-vacuum-schedule.md', 'cli', '1h', 60),
+      plan('x3', 'share-link-scoping.md', 'api', '4h', 240),
+      plan('x4', 'electron-safe-storage.md', 'desktop', 'yesterday', 1600),
+      plan('x5', 'changelog-parser.md', 'web', '2d', 3000),
+      plan('x6', 'ci-release-matrix.md', 'cli', '4d', 5800),
+      plan('x7', 'hook-capture-spool.md', 'cli', '5d', 7200),
+      plan('x8', 'workspace-member-limits.md', 'api', '1w', 10500),
+      plan('x9', 'plan-history-diff.md', 'web', '2w', 20800),
+      plan('x10', 'windows-code-signing.md', 'desktop', '3w', 30300),
+    ],
+  },
+  {
+    agent: 'cursor',
+    label: 'Cursor',
+    path: '.cursor/plans',
+    plans: [
+      plan('u1', 'pricing-toggle-a11y.md', 'web', '18m', 18),
+      plan('u2', 'tag-collections-ui.md', 'web', '3h', 180),
+      plan('u3', 'comment-threads.md', 'api', '7h', 420),
+      plan('u4', 'notarize-mac-build.md', 'desktop', 'yesterday', 1700),
+      plan('u5', 'adapter-catalog-hide.md', 'cli', '3d', 4100),
+      plan('u6', 'workspace-invites.md', 'api', '5d', 7300),
+      plan('u7', 'tech-dependency-chart.md', 'web', '1w', 10300),
+      plan('u8', 'mermaid-in-plans.md', 'web', '2w', 20500),
+      plan('u9', 'daemon-status-panel.md', 'cli', '3w', 30100),
+      plan('u10', 'keyboard-nav-audit.md', 'web', '1mo', 43200),
+    ],
+  },
+];
+
+const INDEX_ROWS = SOURCES.flatMap((source) =>
+  source.plans.map((p) => ({ ...p, agent: source.agent, label: source.label })),
+).sort((a, b) => a.minutes - b.minutes);
+
+const SUPPORTED_AGENTS = [
   { agent: 'antigravity', label: 'Antigravity' },
   { agent: 'claude-code', label: 'Claude Code' },
+  { agent: 'codebuddy', label: 'CodeBuddy' },
   { agent: 'codex-cli', label: 'Codex' },
   { agent: 'commandcode', label: 'Command Code' },
   { agent: 'cursor', label: 'Cursor' },
@@ -101,7 +173,7 @@ const PLAN_REVIEW_BULLETS = [
   'Cloud sync can start from the same local index when review needs another person.',
 ] as const;
 
-const CODE_REVIEW_BULLETS = [
+const CLOUD_REVIEW_BULLETS = [
   'Share links, comments, tags, collections, and plan history live on Cloud Pro.',
   'Workspace members can review synced plans without touching the source machine.',
   'Dashboard creation, uploads, and editing cover plans that do not start in an agent.',
@@ -123,419 +195,6 @@ const PRODUCT_STEPS = [
   },
 ] as const;
 
-const SECTION_FRAME_CLASS =
-  'landing-frame border-b border-[var(--landing-border-subtle)] px-[clamp(18px,5vw,72px)]';
-
-const SECTION_SCROLL_STYLE = { scrollMarginTop: LANDING_ANCHOR_OFFSET };
-
-type LandingAnchorProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
-  href: string;
-};
-
-function LandingAnchor({ href, children, ...props }: LandingAnchorProps) {
-  return (
-    <a href={href} {...props}>
-      {children}
-    </a>
-  );
-}
-
-function ActionLink({
-  href,
-  children,
-  variant = 'secondary',
-}: {
-  href: string;
-  children: ReactNode;
-  variant?: 'primary' | 'secondary';
-}) {
-  return (
-    <LandingAnchor
-      href={href}
-      target={href.startsWith('http') ? '_blank' : undefined}
-      rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
-      className={`landing-action landing-action--${variant}`}
-    >
-      {children}
-    </LandingAnchor>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  variant = 'secondary',
-  disabled,
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  variant?: 'primary' | 'secondary';
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`landing-action landing-action--${variant}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function CliInstallOptions() {
-  const [activeOption, setActiveOption] =
-    useState<(typeof CLI_INSTALL_OPTIONS)[number]['id']>('installer');
-  const [copied, setCopied] = useState(false);
-  const active =
-    CLI_INSTALL_OPTIONS.find((option) => option.id === activeOption) ?? CLI_INSTALL_OPTIONS[0];
-  const cmd = active.cmd;
-
-  function copy() {
-    navigator.clipboard?.writeText(cmd).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
-    });
-  }
-
-  return (
-    <div className="rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] p-2.5">
-      <div className="mb-2 flex flex-wrap gap-1.5">
-        {CLI_INSTALL_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => setActiveOption(option.id)}
-            className={`rounded-[5px] border px-2 py-1 text-[11px] font-semibold leading-none transition-colors duration-150 ${
-              activeOption === option.id
-                ? 'border-[color-mix(in_oklch,var(--landing-accent)_34%,transparent)] bg-[color-mix(in_oklch,var(--landing-accent)_12%,transparent)] text-[var(--landing-accent)]'
-                : 'border-transparent bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex min-w-0 items-center gap-2">
-        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] leading-[1.6] text-[var(--landing-accent)]">
-          {cmd}
-        </code>
-        <button
-          type="button"
-          className="inline-flex size-8 shrink-0 items-center justify-center rounded-[6px] border border-[var(--landing-border)] bg-[var(--landing-surface)] text-[var(--landing-muted)] hover:border-[var(--landing-border-strong)] hover:text-[var(--landing-text)]"
-          onClick={copy}
-          aria-label="Copy install command"
-        >
-          {copied ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M20 6 9 17l-5-5"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect
-                x="9"
-                y="9"
-                width="11"
-                height="11"
-                rx="2"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              />
-              <path
-                d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          )}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function landingNavClickHandler(
-  href: string,
-  handlers: {
-    onShowDownload?: () => void;
-    onShowDocs?: () => void;
-    onShowChangelog?: () => void;
-    onShowTools?: () => void;
-  },
-): ((e: MouseEvent<HTMLAnchorElement>) => void) | undefined {
-  if (href === '/download' && handlers.onShowDownload) {
-    return (e) => {
-      if (e.defaultPrevented) return;
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-      e.preventDefault();
-      handlers.onShowDownload?.();
-    };
-  }
-  if (href === '/docs' && handlers.onShowDocs) {
-    return (e) => {
-      if (e.defaultPrevented) return;
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-      e.preventDefault();
-      handlers.onShowDocs?.();
-    };
-  }
-  if (href === '/changelog' && handlers.onShowChangelog) {
-    return (e) => {
-      if (e.defaultPrevented) return;
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-      e.preventDefault();
-      handlers.onShowChangelog?.();
-    };
-  }
-  if (href === '/tools' && handlers.onShowTools) {
-    return (e) => {
-      if (e.defaultPrevented) return;
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-      e.preventDefault();
-      handlers.onShowTools?.();
-    };
-  }
-  return undefined;
-}
-
-function LandingNavbar({
-  mobileMenuOpen,
-  onMobileMenuToggle,
-  onMobileMenuClose,
-  onShowChangelog,
-  onShowDocs,
-  onShowDownload,
-  onShowTools,
-  authSlot,
-}: {
-  mobileMenuOpen: boolean;
-  onMobileMenuToggle: () => void;
-  onMobileMenuClose: () => void;
-  onShowChangelog?: () => void;
-  onShowDocs?: () => void;
-  onShowDownload?: () => void;
-  onShowTools?: () => void;
-  authSlot?: ReactNode;
-}) {
-  const navHandlers = { onShowDownload, onShowDocs, onShowChangelog, onShowTools };
-
-  function handleNavClick(href: string) {
-    const handler = landingNavClickHandler(href, navHandlers);
-    if (!handler) return undefined;
-    return (e: MouseEvent<HTMLAnchorElement>) => {
-      handler(e);
-      if (e.defaultPrevented) onMobileMenuClose();
-    };
-  }
-
-  return (
-    <nav
-      className="fixed inset-x-0 top-0 z-[100] border-b border-[var(--landing-border-subtle)] bg-[var(--landing-bg)]/96"
-      data-landing-animate="nav"
-    >
-      <div className="flex min-h-[49px] items-center justify-between gap-5 px-[18px]">
-        <LandingAnchor
-          href="/"
-          onClick={onMobileMenuClose}
-          className="shrink-0 text-[16px] font-bold text-[var(--landing-text)] no-underline"
-        >
-          Agendex<span className="text-[var(--landing-accent)]">.</span>
-        </LandingAnchor>
-
-        <div className="flex min-w-0 items-center gap-3 text-[13px] font-medium max-[860px]:hidden">
-          {LANDING_LINKS.map((link) => (
-            <React.Fragment key={link.href}>
-              <LandingAnchor
-                href={link.href}
-                onClick={handleNavClick(link.href)}
-                className="text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
-              >
-                {link.label}
-              </LandingAnchor>
-              <span className="text-[var(--landing-border-strong)]" aria-hidden="true">
-                |
-              </span>
-            </React.Fragment>
-          ))}
-          <LandingAnchor
-            href="https://github.com/tiru5/agendex"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
-          >
-            GitHub
-          </LandingAnchor>
-          <ThemeToggleButton />
-          {authSlot}
-        </div>
-
-        <div className="hidden shrink-0 items-center gap-2.5 max-[860px]:flex">
-          <ThemeToggleButton />
-          <button
-            type="button"
-            aria-controls="landing-mobile-menu"
-            aria-expanded={mobileMenuOpen}
-            onClick={onMobileMenuToggle}
-            className="inline-flex size-[38px] shrink-0 items-center justify-center rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-surface)] text-[var(--landing-text)]"
-          >
-            <span className="sr-only">Toggle navigation</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d={mobileMenuOpen ? 'M6 6l12 12M18 6 6 18' : 'M4 7h16M4 12h16M4 17h16'}
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div
-        id="landing-mobile-menu"
-        className={`landing-frame border-t border-[var(--landing-border-subtle)] px-5 py-4 min-[861px]:hidden ${
-          mobileMenuOpen ? 'block' : 'hidden'
-        }`}
-      >
-        <div className="flex flex-col gap-2.5">
-          {LANDING_LINKS.map((link) => (
-            <LandingAnchor
-              key={link.href}
-              href={link.href}
-              onClick={handleNavClick(link.href)}
-              className="flex min-h-10 items-center rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 text-[13px] font-semibold text-[var(--landing-text)] no-underline"
-            >
-              {link.label}
-            </LandingAnchor>
-          ))}
-          {authSlot}
-        </div>
-      </div>
-    </nav>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M16.4 12.6A6.4 6.4 0 0 1 7.4 3.6 6.7 6.7 0 1 0 16.4 12.6Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function SunIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M10 1.5v2M10 16.5v2M18.5 10h-2M3.5 10h-2M16 4l-1.4 1.4M5.4 14.6 4 16M16 16l-1.4-1.4M5.4 5.4 4 4"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function ThemeToggleButton() {
-  const { resolvedTheme, setTheme } = useTheme();
-  const next = resolvedTheme === 'dark' ? 'light' : 'dark';
-
-  return (
-    <button
-      type="button"
-      onClick={() => setTheme(next)}
-      aria-label={`Switch to ${next} theme`}
-      title={`Switch to ${next} theme`}
-      className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-[7px] border-0 bg-transparent p-0 text-[var(--landing-muted)] transition-colors duration-150 hover:text-[var(--landing-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-accent)]"
-    >
-      {resolvedTheme === 'dark' ? <MoonIcon /> : <SunIcon />}
-    </button>
-  );
-}
-
-function LandingCursorIcon() {
-  return (
-    <svg
-      className="landing-hero-cursor"
-      width="42"
-      height="42"
-      viewBox="0 0 42 42"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        data-landing-cursor-pointer
-        d="M11 7.5 31 20.2l-9.1 2.2 5.2 8.9-4.6 2.7-5.1-8.8-6.4 6.2V7.5Z"
-        fill="var(--landing-bg)"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinejoin="round"
-      />
-      <path
-        data-landing-cursor-rays
-        d="M28.3 9.8 32 6.5M31.6 14h4.8M24.5 7.8l1.4-4.5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function HeroAgentStrip() {
-  const stripRef = useRef<HTMLDivElement>(null);
-
-  return (
-    <section className="landing-hero-agents-shell" aria-label="Supported agents">
-      <button
-        type="button"
-        className="landing-hero-agents-control landing-hero-agents-control--previous"
-        aria-label="Scroll supported agents left"
-        onClick={() => stripRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="m15 18-6-6 6-6" />
-        </svg>
-      </button>
-      <div ref={stripRef} className="landing-hero-agents">
-        {HERO_AGENT_CHIPS.map((agent) => (
-          <span key={agent.label} className="landing-hero-agent">
-            <span className="landing-hero-agent-mark">
-              <AgentIcon agent={agent.agent} size={18} />
-            </span>
-            {agent.label}
-          </span>
-        ))}
-      </div>
-      <button
-        type="button"
-        className="landing-hero-agents-control landing-hero-agents-control--next"
-        aria-label="Scroll supported agents right"
-        onClick={() => stripRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="m9 18 6-6-6-6" />
-        </svg>
-      </button>
-    </section>
-  );
-}
-
 const HERO_INSTALL_COMMANDS = [
   {
     id: 'unix',
@@ -550,390 +209,575 @@ const HERO_INSTALL_COMMANDS = [
     cmd: 'irm https://agendex.dev/install.ps1 | iex',
   },
 ] as const;
+const HERO_INSTALL_IDS = HERO_INSTALL_COMMANDS.map((o) => o.id);
+const CLI_INSTALL_IDS = CLI_INSTALL_OPTIONS.map((o) => o.id);
 
-function HeroInstallCommand() {
-  const { resolvedTheme } = useTheme();
-  const [activePlatform, setActivePlatform] =
-    useState<(typeof HERO_INSTALL_COMMANDS)[number]['id']>('unix');
+/* ─── Small shared bits ─────────────────────────────────────────────────── */
+
+function ActionLink({
+  href,
+  children,
+  variant = 'secondary',
+  onClick,
+}: {
+  href: string;
+  children: ReactNode;
+  variant?: 'primary' | 'secondary';
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+}) {
+  const external = href.startsWith('http');
+  return (
+    <a
+      href={href}
+      onClick={onClick}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noopener noreferrer' : undefined}
+      className={`landing-action landing-action--${variant}`}
+    >
+      {children}
+    </a>
+  );
+}
+
+function CopyIcon({ copied }: { copied: boolean }) {
+  return copied ? (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="m5 12 4 4L19 6"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ) : (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function useCopy(text: string) {
   const [copied, setCopied] = useState(false);
-  const active =
-    HERO_INSTALL_COMMANDS.find((option) => option.id === activePlatform) ??
-    HERO_INSTALL_COMMANDS[0];
+  async function copy() {
+    if (!navigator.clipboard?.writeText) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      return;
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  }
+  return { copied, copy };
+}
 
-  function copy() {
-    navigator.clipboard?.writeText(active.cmd).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
-    });
+/**
+ * WAI-ARIA tabs: roving tabindex, arrow/Home/End keys move selection and
+ * focus together, and the panel is linked to the active tab.
+ */
+function useTabs<T extends string>(ids: readonly T[], initial: T) {
+  const [active, setActive] = useState<T>(initial);
+  const baseId = useId();
+  const tabId = (id: T) => `${baseId}-tab-${id}`;
+  const panelId = `${baseId}-panel`;
+
+  function onKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    const index = ids.indexOf(active);
+    if (index < 0) return;
+    let next: number;
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        next = (index + 1) % ids.length;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        next = (index - 1 + ids.length) % ids.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = ids.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    const nextId = ids[next];
+    if (nextId === undefined) return;
+    setActive(nextId);
+    document.getElementById(tabId(nextId))?.focus();
   }
 
+  function tabProps(id: T) {
+    return {
+      id: tabId(id),
+      role: 'tab' as const,
+      'aria-selected': active === id,
+      'aria-controls': panelId,
+      tabIndex: active === id ? 0 : -1,
+      onClick: () => setActive(id),
+      onKeyDown,
+    };
+  }
+
+  function panelProps() {
+    return { id: panelId, role: 'tabpanel' as const, 'aria-labelledby': tabId(active) };
+  }
+
+  return { active, tabProps, panelProps };
+}
+
+/* ─── The browser: first viewport ───────────────────────────────────────── */
+
+function SourceColumn({
+  source,
+  linked,
+  onLink,
+}: {
+  source: Source;
+  linked: string | null;
+  onLink: (key: string | null) => void;
+}) {
   return (
-    <div className="landing-hero-install">
-      <div className="mb-1.5 flex gap-1.5">
+    <div className="landing-col" data-source={source.agent}>
+      <div className="landing-col-head">
+        <code title={source.path}>{source.path}</code>
+        <span>{source.plans.length} items</span>
+      </div>
+      <ul className="landing-rows" aria-label={`${source.label} plans (illustrative)`}>
+        {source.plans.map((p) => (
+          <li
+            key={p.key}
+            data-plan={p.key}
+            className={`landing-row${linked === p.key ? ' is-linked' : ''}`}
+            onMouseEnter={(e) => {
+              onLink(p.key);
+              e.currentTarget
+                .closest('.landing-browser')
+                ?.querySelector(`[data-index-row="${p.key}"]`)
+                ?.scrollIntoView({ block: 'nearest' });
+            }}
+            onMouseLeave={() => onLink(null)}
+          >
+            <DocIcon />
+            <span className="landing-row-name">{p.name}</span>
+            <span className="landing-row-meta">{p.age}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="landing-col-foot" aria-hidden="true">
+        <span>{source.label}</span>
+        <span>{source.plans.length} items · illustrative</span>
+      </div>
+    </div>
+  );
+}
+
+function InstallRow() {
+  const tabs = useTabs(HERO_INSTALL_IDS, 'unix');
+  const active =
+    HERO_INSTALL_COMMANDS.find((o) => o.id === tabs.active) ?? HERO_INSTALL_COMMANDS[0];
+  const { copied, copy } = useCopy(active.cmd);
+
+  return (
+    <div className="landing-install">
+      <div className="landing-install-tabs" role="tablist" aria-label="Install platform">
         {HERO_INSTALL_COMMANDS.map((option) => (
           <button
             key={option.id}
             type="button"
-            onClick={() => setActivePlatform(option.id)}
-            className={`rounded-[5px] border px-2 py-1 text-[11px] font-semibold leading-none transition-colors duration-150 ${
-              activePlatform === option.id
-                ? 'border-[color-mix(in_oklch,var(--landing-accent)_34%,transparent)] bg-[color-mix(in_oklch,var(--landing-accent)_12%,transparent)] text-[var(--landing-accent)]'
-                : 'border-transparent bg-transparent text-[var(--landing-muted)] hover:text-[var(--landing-text)]'
-            }`}
+            className="landing-install-tab"
+            {...tabs.tabProps(option.id)}
           >
             {option.label}
           </button>
         ))}
       </div>
-      <div className="landing-hero-command relative">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute right-6 top-0 z-[2] -translate-y-[88%] max-sm:hidden"
-        >
-          <DexMascot
-            variant={resolvedTheme === 'light' ? 'light' : 'dark'}
-            size={64}
-            decorative
-            className="dex-blink dex-sway"
-          />
-        </div>
-        <span className="landing-hero-command-prompt" aria-hidden="true">
-          {active.prompt}
-        </span>
+      <div className="landing-install-cmd" {...tabs.panelProps()}>
+        <span aria-hidden="true">{active.prompt}</span>
         <code>{active.cmd}</code>
         <button
           type="button"
+          className="landing-copy-key"
           onClick={copy}
-          className="landing-hero-copy"
-          aria-label="Copy install command"
+          aria-label={copied ? 'Copied' : 'Copy install command'}
         >
-          {copied ? (
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="m5 12 4 4L19 6"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : (
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect
-                x="8"
-                y="8"
-                width="12"
-                height="12"
-                rx="2"
-                stroke="currentColor"
-                strokeWidth="1.7"
-              />
-              <path
-                d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-              />
-            </svg>
-          )}
+          <CopyIcon copied={copied} />
+          {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-
-      <div className="landing-hero-runbook">
-        <p>Then configure sources and open the dashboard:</p>
-        <code>agendex configure</code>
-        <code>agendex add-dir ~/path/to/plans --live</code>
-        <code>agendex open</code>
-      </div>
+      <p className="landing-install-after">
+        Then <code>agendex configure</code>, <code>agendex add-dir ~/plans --live</code>,{' '}
+        <code>agendex open</code>.
+      </p>
     </div>
   );
 }
 
-function HeroProofBar() {
-  return (
-    <div className="landing-hero-proof">
-      <div>
-        <GitHubIcon size={15} />
-        <span className="landing-hero-star" aria-hidden="true">
-          ●
-        </span>
-        <span>Live local plan index</span>
-      </div>
-      <div>Source paths, agents, workspaces, and raw markdown stay inspectable.</div>
-      <div>Cloud sync only when enabled</div>
-    </div>
-  );
-}
-
-function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlot?: ReactNode }) {
-  const [isSyncAnimationVisible, setIsSyncAnimationVisible] = useState(false);
-  const syncAnimationTimerRef = useRef<number | null>(null);
-
+/**
+ * The signature interaction: index rows FLIP from their source twins into
+ * place once, after the page settles. Hovering either side links the pair.
+ */
+function useCollate(browserRef: React.RefObject<HTMLElement | null>) {
   useEffect(() => {
-    return () => {
-      if (syncAnimationTimerRef.current !== null) {
-        window.clearTimeout(syncAnimationTimerRef.current);
-      }
-    };
-  }, []);
+    const root = browserRef.current;
+    if (!root) return undefined;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (window.innerWidth <= 960) return undefined;
 
-  function renderSyncingAnimation() {
-    if (syncAnimationTimerRef.current !== null) {
-      window.clearTimeout(syncAnimationTimerRef.current);
+    const browser = root;
+    const indexRows = Array.from(browser.querySelectorAll<HTMLElement>('[data-index-row]'));
+    const animations: Animation[] = [];
+    let started = false;
+    browser.classList.add('is-collating');
+
+    function run() {
+      if (started) return;
+      started = true;
+      window.removeEventListener('scroll', run);
+      window.clearTimeout(idle);
+      let pending = 0;
+      indexRows.forEach((row, i) => {
+        const key = row.dataset.indexRow;
+        const twin = browser.querySelector<HTMLElement>(`[data-plan="${key}"]`);
+        if (!twin) return;
+        const from = twin.getBoundingClientRect();
+        const to = row.getBoundingClientRect();
+        const dx = from.left - to.left;
+        const dy = from.top - to.top;
+        pending += 1;
+        const anim = row.animate(
+          [
+            { transform: `translate(${dx}px, ${dy}px)`, opacity: 0 },
+            { transform: `translate(${dx}px, ${dy}px)`, opacity: 0.6, offset: 0.08 },
+            { transform: 'translate(0, 0)', opacity: 1 },
+          ],
+          {
+            duration: 640,
+            delay: i * 34,
+            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+            fill: 'both',
+          },
+        );
+        anim.onfinish = () => {
+          pending -= 1;
+          if (pending === 0) browser.classList.remove('is-collating');
+        };
+        animations.push(anim);
+      });
+      if (pending === 0) browser.classList.remove('is-collating');
     }
 
-    setIsSyncAnimationVisible(true);
-    syncAnimationTimerRef.current = window.setTimeout(() => {
-      setIsSyncAnimationVisible(false);
-      syncAnimationTimerRef.current = null;
-    }, 1800);
+    const idle = window.setTimeout(run, 1600);
+    window.addEventListener('scroll', run, { passive: true, once: true });
+
+    return () => {
+      window.clearTimeout(idle);
+      window.removeEventListener('scroll', run);
+      animations.forEach((a) => a.cancel());
+      browser.classList.remove('is-collating');
+    };
+  }, [browserRef]);
+}
+
+function LandingBrowser({
+  onShowLogin,
+  ctaSlot,
+  handlers,
+}: {
+  onShowLogin: () => void;
+  ctaSlot?: ReactNode;
+  handlers: LandingNavHandlers;
+}) {
+  const browserRef = useRef<HTMLElement>(null);
+  const [linked, setLinked] = useState<string | null>(null);
+  const [selected, setSelected] = useState<number>(-1);
+  useCollate(browserRef);
+
+  function onIndexKey(e: React.KeyboardEvent<HTMLUListElement>) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    setSelected((s) => {
+      const next = e.key === 'ArrowDown' ? s + 1 : s - 1;
+      return Math.max(0, Math.min(INDEX_ROWS.length - 1, next));
+    });
   }
 
   return (
-    <div className="landing-hero-shell" data-landing-animate="hero-shell">
-      <div className="landing-hero-content">
-        <LandingAnchor
-          href="/download"
-          data-landing-animate-item
-          className="mb-5 inline-flex max-w-full items-center gap-2.5 rounded-full border border-[color-mix(in_oklch,var(--landing-accent)_26%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] py-[7px] pl-2 pr-3.5 text-[12px] font-semibold leading-[1.2] text-[var(--landing-text)] no-underline transition-[border-color,background-color] duration-150 hover:border-[color-mix(in_oklch,var(--landing-accent)_44%,var(--landing-border))] hover:bg-[color-mix(in_oklch,var(--landing-accent)_13%,transparent)]"
-        >
-          <span className="shrink-0 rounded-full bg-[var(--landing-accent)] px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--landing-bg)]">
-            New
-          </span>
-          <span className="min-w-0 truncate">
-            Agendex Desktop is out for macOS and Windows — exclusive to Cloud Pro.
-          </span>
-          <svg
-            aria-hidden="true"
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="shrink-0 text-[var(--landing-accent)]"
-          >
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </LandingAnchor>
-        <h1 className="landing-hero-title" data-landing-animate-item>
-          Your Agents Make Plans.
-          <br />
-          <span>Agendex Keeps Watch</span>
-        </h1>
+    <section ref={browserRef} className="landing-browser" aria-label="How Agendex indexes plans">
+      <div className="landing-sources">
+        {SOURCES.map((source) => (
+          <SourceColumn key={source.agent} source={source} linked={linked} onLink={setLinked} />
+        ))}
+      </div>
 
-        <div className="landing-hero-copy-block" data-landing-animate-item>
-          <LandingCursorIcon />
+      <div className="landing-col landing-col--index">
+        <div className="landing-col-head">
+          <code>Agendex › Local index</code>
+          <span>{INDEX_ROWS.length} items · illustrative</span>
+        </div>
+
+        <div className="landing-index-intro">
+          <h1>Your agents make plans. Agendex keeps watch.</h1>
           <p>
-            <button
-              type="button"
-              className="landing-hero-index-trigger"
-              data-syncing={isSyncAnimationVisible || undefined}
-              onClick={renderSyncingAnimation}
-              aria-label={
-                isSyncAnimationVisible
-                  ? 'Syncing index'
-                  : 'Render syncing animation for the local plan index'
-              }
-            >
-              <span className="landing-hero-index-label" aria-hidden="true">
-                Index
-              </span>
-              <span className="landing-hero-index-spinner" aria-hidden="true">
-                <svg className="landing-hero-sync-icon" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M20 12a8 8 0 0 1-13.66 5.66L4 15.32M4 12A8 8 0 0 1 17.66 6.34L20 8.68M20 4v4.68h-4.68M4 20v-4.68h4.68"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span className="landing-hero-index-spinner-text">sync</span>
-              </span>
-              <span className="landing-hero-status" role="status" aria-live="polite">
-                {isSyncAnimationVisible ? 'Syncing index' : ''}
-              </span>
-            </button>{' '}
-            every plan and session your coding agents leave behind, scattered across your machines,
-            into one searchable place. Everything stays local by default — sync to Cloud Pro when
-            the work needs sharing, review, or access to pro features.
+            Every plan your agents write, in one searchable column. Local by default; sync to Cloud
+            Pro when review needs another person.
           </p>
-          <div className="landing-hero-meta">
-            Watches local files <span>|</span> filters by agent and workspace <span>|</span> syncs
-            only when configured
-          </div>
         </div>
 
-        <HeroAgentStrip />
-        <div data-landing-animate-item>
-          <HeroInstallCommand />
+        <div className="relative">
+          <InstallRow />
         </div>
 
-        <div className="landing-hero-actions" data-landing-animate-item>
-          <ActionLink href="/docs">Read the docs</ActionLink>
-          {ctaSlot ?? (
-            <ActionButton onClick={onShowLogin} variant="primary">
-              Connect dashboard
-              <span aria-hidden="true">→</span>
-            </ActionButton>
-          )}
-        </div>
-      </div>
-
-      <div data-landing-animate-item>
-        <HeroProofBar />
-      </div>
-    </div>
-  );
-}
-
-function ReviewSplit({
-  title,
-  body,
-  bullets,
-  variant,
-}: {
-  title: string;
-  body: string;
-  bullets: readonly string[];
-  variant: 'plans' | 'teams';
-}) {
-  return (
-    <div className="grid gap-8 border-b border-[var(--landing-border-subtle)] py-[70px] last:border-b-0 max-sm:py-[50px] lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.84fr)] lg:items-center">
-      <div
-        className={`rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_78%,transparent)] p-4 ${
-          variant === 'teams' ? 'lg:order-2' : ''
-        }`}
-      >
-        <div className="mb-4 flex items-center gap-2 border-b border-[var(--landing-border-subtle)] pb-3 text-[12px] font-semibold text-[var(--landing-muted)]">
-          <span className="size-2 rounded-full bg-[#ff5f56]" aria-hidden="true" />
-          <span className="size-2 rounded-full bg-[#ffbd2e]" aria-hidden="true" />
-          <span className="size-2 rounded-full bg-[#27c93f]" aria-hidden="true" />
-          <span className="ml-2">{variant === 'plans' ? 'Local index' : 'Cloud review'}</span>
-        </div>
-        {variant === 'plans' ? <PlanReviewMock /> : <TeamReviewMock />}
-      </div>
-
-      <div className="max-w-[520px]">
-        <h2 className="m-0 text-balance text-[30px] font-[740] leading-[1.08] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[26px]">
-          {title}
-        </h2>
-        <p className="mt-4 mb-0 text-[15px] leading-[1.7] text-[var(--landing-muted)]">{body}</p>
-        <ul className="mt-6 space-y-3 p-0 text-[14px] leading-[1.65] text-[var(--landing-muted)]">
-          {bullets.map((bullet) => (
-            <li key={bullet} className="flex gap-3">
-              <span className="mt-[0.72em] size-1.5 shrink-0 rounded-full bg-[var(--landing-accent)]" />
-              <span>{bullet}</span>
+        <ul
+          className="landing-rows"
+          // A Finder-style column is a listbox with arrow-key selection; a <select> would change its semantics.
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
+          role="listbox"
+          aria-label="Collated plans (illustrative)"
+          tabIndex={0}
+          onKeyDown={onIndexKey}
+          onBlur={() => setSelected(-1)}
+        >
+          {INDEX_ROWS.map((row, i) => (
+            <li
+              key={row.key}
+              role="option"
+              aria-selected={selected === i}
+              data-index-row={row.key}
+              className={`landing-row${linked === row.key ? ' is-linked' : ''}${
+                selected === i ? ' is-selected' : ''
+              }`}
+              onMouseEnter={() => setLinked(row.key)}
+              onMouseLeave={() => setLinked(null)}
+            >
+              <AgentIcon agent={row.agent} size={14} />
+              <span className="landing-row-name">{row.name}</span>
+              <span className="landing-row-ws">{row.ws}</span>
+              <span className="landing-row-meta">{row.age}</span>
             </li>
           ))}
         </ul>
+
+        <ul className="landing-index-links">
+          <li>
+            <a
+              href="/docs"
+              onClick={landingNavClickHandler('/docs', handlers)}
+              className="landing-row"
+            >
+              <DocIcon />
+              <span className="landing-row-name">Read the docs</span>
+              <ChevronIcon />
+            </a>
+          </li>
+          <li>
+            {ctaSlot ?? (
+              <button type="button" onClick={onShowLogin} className="landing-row w-full text-left">
+                <DocIcon />
+                <span className="landing-row-name">Connect a running dashboard</span>
+                <ChevronIcon />
+              </button>
+            )}
+          </li>
+          <li>
+            <a
+              href="/download"
+              onClick={landingNavClickHandler('/download', handlers)}
+              className="landing-row"
+            >
+              <DocIcon />
+              <span className="landing-row-name">Agendex Desktop</span>
+              <span className="landing-row-ws">Cloud Pro</span>
+              <ChevronIcon />
+            </a>
+          </li>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function PathBar() {
+  const { resolvedTheme } = useTheme();
+  return (
+    <div className="landing-pathbar" aria-hidden="true">
+      <div className="landing-pathbar-crumbs">
+        <DexMascot variant={resolvedTheme === 'light' ? 'light' : 'dark'} size={20} decorative />
+        <b>Agendex</b>
+        <ChevronIcon size={10} />
+        <span>Local index</span>
+        <ChevronIcon size={10} />
+        <span>3 sources watched</span>
+      </div>
+      <div className="landing-pathbar-status">
+        {SUPPORTED_AGENTS.length} agent integrations · local by default
       </div>
     </div>
   );
 }
 
-function PlanReviewMock() {
-  return (
-    <div className="space-y-3">
-      <div className="rounded-[7px] border border-[var(--landing-border-subtle)] bg-[var(--landing-surface)] p-3">
-        <div className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] text-[var(--landing-faint)]">
-          ~/work/api/.codex/tasks/rate-limit-rollout.md
-        </div>
-        <h3 className="mt-2 mb-0 text-[17px] font-bold text-[var(--landing-text)]">
-          Rate limit rollout plan
-        </h3>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-3">
-        {['Source linked', 'Workspace: api', 'Hidden: no'].map((item) => (
-          <div
-            key={item}
-            className="rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_78%,transparent)] px-3 py-2 text-[12px] font-semibold text-[var(--landing-muted)]"
-          >
-            {item}
-          </div>
-        ))}
-      </div>
-      <div className="rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_82%,transparent)] p-3 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] leading-[1.7] text-[var(--landing-muted)]">
-        <div className="text-[var(--landing-accent)]">## Execution notes</div>
-        <div>- Add per-user token bucket</div>
-        <div>- Gate rollout behind config</div>
-        <div>- Watch 429 rate after deploy</div>
-      </div>
-    </div>
-  );
-}
+/* ─── Sections ──────────────────────────────────────────────────────────── */
 
-function TeamReviewMock() {
+function ReviewSection() {
   return (
-    <div className="space-y-3">
-      {[
-        ['Ana', 'Can we stage this behind the workspace flag first?'],
-        ['Sam', 'Yes, tag this as backend before sharing it wider.'],
-        ['Agendex', 'Plan history saved from synced daemon payload.'],
-      ].map(([name, note]) => (
+    <section id="features" className="landing-band" style={SECTION_SCROLL_STYLE}>
+      <div className="landing-band-inner">
+        <h2 className="landing-h2">Review the plan before it disappears into an agent log.</h2>
+        <p className="landing-lede">
+          The plan itself is the review surface, with enough source detail to trust what changed and
+          where it came from. Cloud review adds two more columns when the work is shared.
+        </p>
+
         <div
-          key={note}
-          className="rounded-[7px] border border-[var(--landing-border-subtle)] bg-[var(--landing-surface)] p-3"
+          className="landing-columns mt-8"
+          style={{ gridTemplateColumns: 'minmax(0,0.9fr) minmax(0,1.1fr) minmax(0,1fr)' }}
         >
-          <div className="mb-1 text-[12px] font-bold text-[var(--landing-text)]">{name}</div>
-          <div className="text-[13px] leading-[1.55] text-[var(--landing-muted)]">{note}</div>
+          <div>
+            <div className="landing-col-head">
+              <code>Local index</code>
+              <span>free · illustrative</span>
+            </div>
+            <ul className="landing-rows">
+              {INDEX_ROWS.slice(0, 6).map((row, i) => (
+                <li key={row.key} className={`landing-row${i === 0 ? ' is-linked' : ''}`}>
+                  <AgentIcon agent={row.agent} size={14} />
+                  <span className="landing-row-name">{row.name}</span>
+                  <span className="landing-row-meta">{row.age}</span>
+                </li>
+              ))}
+            </ul>
+            <ul className="m-0 list-none border-t border-[var(--landing-border-subtle)] p-4 text-[13px] leading-[1.6] text-[var(--landing-muted)]">
+              {PLAN_REVIEW_BULLETS.map((b) => (
+                <li key={b} className="mt-2 first:mt-0">
+                  {b}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <div className="landing-col-head">
+              <code>Preview</code>
+              <span>illustrative</span>
+            </div>
+            <div className="landing-preview">
+              <div className="t">Rate limit rollout plan</div>
+              <div className="mt-2 text-[11.5px] text-[var(--landing-faint)]">
+                claude-code · api · 2m ago · source linked
+              </div>
+              <div className="h mt-4">## Execution notes</div>
+              <div>- Add per-user token bucket</div>
+              <div>- Gate rollout behind config</div>
+              <div>- Watch 429 rate after deploy</div>
+              <div className="h mt-3">## Rollback</div>
+              <div>- Flip config; bucket state is ephemeral</div>
+            </div>
+          </div>
+          <div>
+            <div className="landing-col-head">
+              <code>Cloud review</code>
+              <span>Cloud Pro · illustrative</span>
+            </div>
+            <ul className="landing-rows">
+              {[
+                ['Ana', 'Can we stage this behind the workspace flag first?'],
+                ['Sam', 'Yes, tag this as backend before sharing it wider.'],
+                ['Agendex', 'Version 3 saved from the daemon sync.'],
+              ].map(([name, note]) => (
+                <li
+                  key={note}
+                  className="landing-row"
+                  style={{
+                    gridTemplateColumns: 'minmax(0,1fr)',
+                    minHeight: 0,
+                    padding: '8px 12px',
+                  }}
+                >
+                  <span className="landing-row-name" style={{ whiteSpace: 'normal' }}>
+                    <b className="text-[var(--landing-text)]">{name}</b>{' '}
+                    <span className="text-[var(--landing-muted)]">{note}</span>
+                  </span>
+                </li>
+              ))}
+              <li
+                className="landing-row is-linked"
+                style={{ gridTemplateColumns: 'minmax(0,1fr)' }}
+              >
+                <span className="landing-row-name text-[var(--landing-accent)]">
+                  Share link copied. Scope: this plan only.
+                </span>
+              </li>
+            </ul>
+            <ul className="m-0 list-none border-t border-[var(--landing-border-subtle)] p-4 text-[13px] leading-[1.6] text-[var(--landing-muted)]">
+              {CLOUD_REVIEW_BULLETS.map((b) => (
+                <li key={b} className="mt-2 first:mt-0">
+                  {b}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-      ))}
-      <div className="rounded-[7px] border border-[color-mix(in_oklch,var(--landing-accent)_25%,transparent)] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] p-3 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] text-[var(--landing-accent)]">
-        share link copied · scope: one synced plan
       </div>
-    </div>
+    </section>
   );
 }
 
-function ProductStepsSection() {
+function SourcesSection({ handlers }: { handlers: LandingNavHandlers }) {
   return (
-    <section
-      id="features"
-      className={`${SECTION_FRAME_CLASS} py-[76px] max-sm:py-[54px]`}
-      style={SECTION_SCROLL_STYLE}
-    >
-      <div className="mx-auto max-w-[680px] text-center">
-        <h2 className="m-0 text-balance text-[32px] font-[740] leading-[1.08] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[27px]">
-          A local index first, collaboration when you turn it on.
-        </h2>
-        <p className="mt-4 mb-0 text-[15px] leading-[1.7] text-[var(--landing-muted)]">
-          The landing page stays focused on what Agendex actually handles. Setup, adapter details,
-          and sync commands belong in the docs route.
-        </p>
-      </div>
-
-      <div className="mt-9 overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-surface)]">
-        <div className="flex items-center gap-2 border-b border-[var(--landing-border-subtle)] px-4 py-3 text-[12px] font-semibold text-[var(--landing-muted)]">
-          <span className="size-2 rounded-full bg-[#ff5f56]" aria-hidden="true" />
-          <span className="size-2 rounded-full bg-[#ffbd2e]" aria-hidden="true" />
-          <span className="size-2 rounded-full bg-[#27c93f]" aria-hidden="true" />
-          <span className="ml-2">Agendex review flow</span>
-        </div>
-        <div className="grid divide-y divide-[var(--landing-border-subtle)] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-          {PRODUCT_STEPS.map((step, index) => (
-            <div key={step.title} className="p-5">
-              <div className="mb-10 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-semibold text-[var(--landing-accent)]">
-                {String(index + 1).padStart(2, '0')}
-              </div>
-              <h3 className="m-0 text-[17px] font-bold text-[var(--landing-text)]">{step.title}</h3>
-              <p className="mt-3 mb-0 text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
-                {step.body}
-              </p>
+    <section className="landing-band" style={SECTION_SCROLL_STYLE}>
+      <div className="landing-band-inner grid items-start gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+        <div>
+          <h2 className="landing-h2">Every adapter is a folder we watch.</h2>
+          <p className="landing-lede">
+            Agendex knows where each agent keeps its plans and how to parse them. Custom directories
+            cover everything else.
+          </p>
+          <div className="mt-6 landing-list">
+            <div className="landing-list-head">
+              How it fits together <span>3 steps</span>
             </div>
-          ))}
+            {PRODUCT_STEPS.map((step, i) => (
+              <div key={step.title} className="landing-list-row">
+                <b>{i + 1}</b>
+                <div>
+                  <span className="font-semibold">{step.title}</span>
+                  <p>{step.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4">
+            <ActionLink href="/docs" onClick={landingNavClickHandler('/docs', handlers)}>
+              Open docs
+            </ActionLink>
+          </div>
         </div>
-      </div>
-
-      <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--landing-border-subtle)] pt-7">
-        <p className="m-0 max-w-[560px] text-[14px] leading-[1.7] text-[var(--landing-muted)]">
-          Setup, CLI commands, adapter status, custom source folders, privacy, and cloud sync
-          details live in one reference route.
-        </p>
-        <ActionLink href="/docs">Open docs</ActionLink>
+        <div className="landing-list">
+          <div className="landing-list-head">
+            Sources <span>{SUPPORTED_AGENTS.length} adapters · more via custom directories</span>
+          </div>
+          <ul className="m-0 grid list-none p-0 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+            {SUPPORTED_AGENTS.map((a) => (
+              <li
+                key={a.agent}
+                className="landing-row border-b border-[var(--landing-border-subtle)]"
+                style={{ gridTemplateColumns: '18px minmax(0,1fr)' }}
+              >
+                <AgentIcon agent={a.agent} size={14} />
+                <span className="landing-row-name">{a.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </section>
   );
@@ -942,7 +786,7 @@ function ProductStepsSection() {
 function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: boolean) => void }) {
   return (
     <div
-      className="inline-flex w-fit max-w-full gap-1 rounded-[7px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] p-1"
+      className="inline-flex w-fit gap-0.5 rounded-[7px] border border-[var(--landing-border)] bg-[var(--landing-surface-raised)] p-0.5"
       aria-label="Billing cadence"
     >
       {(['Monthly', 'Yearly'] as const).map((label) => {
@@ -952,15 +796,11 @@ function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: bo
             key={label}
             type="button"
             onClick={() => onChange(label === 'Yearly')}
-            className="min-h-[32px] rounded-[6px] border border-transparent bg-transparent px-3 text-[12px] font-bold leading-[1.2] text-[var(--landing-muted)] data-[active=true]:border-[color-mix(in_oklch,var(--landing-accent)_22%,var(--landing-border))] data-[active=true]:bg-[color-mix(in_oklch,var(--landing-accent)_10%,var(--landing-surface-raised))] data-[active=true]:text-[var(--landing-text)]"
             data-active={active}
+            className="min-h-[30px] rounded-[5px] border-0 bg-transparent px-3 text-[12.5px] font-semibold text-[var(--landing-muted)] data-[active=true]:bg-[var(--landing-index-bg)] data-[active=true]:text-[var(--landing-accent-ink)]"
           >
             {label}
-            {label === 'Yearly' && (
-              <span className="ml-1.5 text-[11px] font-semibold text-[color-mix(in_oklch,var(--landing-accent)_70%,var(--landing-muted))]">
-                Save 17%
-              </span>
-            )}
+            {label === 'Yearly' && <span className="ml-1.5 font-medium opacity-80">Save 17%</span>}
           </button>
         );
       })}
@@ -968,8 +808,7 @@ function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: bo
   );
 }
 
-function PricingCard({
-  tier,
+function PricingVolume({
   title,
   price,
   period,
@@ -981,7 +820,6 @@ function PricingCard({
   isPro,
   signingIn,
 }: {
-  tier: string;
   title: string;
   price: string;
   period?: string;
@@ -994,76 +832,49 @@ function PricingCard({
   signingIn?: boolean;
 }) {
   return (
-    <article
-      className={`flex min-h-[420px] min-w-0 flex-col rounded-[8px] border p-6 ${
-        isPro
-          ? 'border-[color-mix(in_oklch,var(--landing-accent)_24%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-surface)_92%,var(--landing-bg))]'
-          : 'border-[var(--landing-border)] bg-[var(--landing-surface)]'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="mb-2 text-[11px] font-bold text-[var(--landing-muted)]">{tier}</div>
-          <h3 className="m-0 text-[20px] font-bold leading-[1.15] text-[var(--landing-text)]">
-            {title}
-          </h3>
-        </div>
-        {isPro && (
-          <div className="shrink-0 rounded-[5px] border border-[color-mix(in_oklch,var(--landing-accent)_25%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] px-2 py-1 text-[11px] font-bold text-[color-mix(in_oklch,var(--landing-accent)_72%,var(--landing-muted))]">
-            Cloud Pro
-          </div>
-        )}
+    <article className="landing-list flex flex-col">
+      <div className="landing-list-head">
+        {title}
+        <span>
+          <b
+            key={price}
+            className="landing-price-swap text-[15px] font-bold text-[var(--landing-text)]"
+          >
+            {price}
+          </b>
+          {period && (
+            <em key={period} className="landing-price-swap landing-price-swap--trail not-italic">
+              {period}
+            </em>
+          )}
+        </span>
       </div>
-
-      <p className="mt-4 mb-0 max-w-[430px] text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
+      <p className="m-0 border-b border-[var(--landing-border-subtle)] px-[14px] py-3 text-[13.5px] leading-[1.6] text-[var(--landing-muted)]">
         {summary}
       </p>
-
-      <div className="mt-7 mb-6 flex items-end gap-2">
-        <span
-          key={price}
-          className="landing-price-swap text-[44px] font-[760] leading-none tracking-[-0.03em] text-[var(--landing-text)]"
-        >
-          {price}
-        </span>
-        {period && (
-          <span
-            key={period}
-            className="landing-price-swap landing-price-swap--trail text-[13px] font-semibold text-[var(--landing-muted)]"
-          >
-            {period}
-          </span>
-        )}
-      </div>
-
-      <div className="pt-4">
-        <div className="mb-3 text-[11px] font-bold text-[var(--landing-muted)]">Included</div>
-        <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-          {features.map((f) => (
-            <li
-              key={f}
-              className="flex items-start gap-2.5 text-[13px] leading-[1.5] text-[var(--landing-muted)]"
-            >
-              <span
-                aria-hidden="true"
-                className="font-bold text-[color-mix(in_oklch,var(--landing-accent)_66%,var(--landing-muted))]"
-              >
-                ✓
-              </span>
-              <span>{f}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="mt-auto pt-6">
+      <ul className="m-0 list-none p-0">
+        {features.map((f) => (
+          <li key={f} className="landing-row border-b border-[var(--landing-border-subtle)]">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="m5 12 4.5 4.5L19 7"
+                stroke="var(--landing-accent)"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="landing-row-name" style={{ whiteSpace: 'normal' }}>
+              {f}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="p-[14px]">
         {note && (
-          <div className="mb-4 border-t border-[var(--landing-border-subtle)] pt-4">
-            <div className="text-[12px] font-bold text-[var(--landing-text)]">{note.label}</div>
-            <p className="m-0 mt-1 text-[12px] leading-[1.55] text-[var(--landing-muted)]">
-              {note.body}
-            </p>
-          </div>
+          <p className="m-0 mb-3 text-[12.5px] leading-[1.55] text-[var(--landing-muted)]">
+            <b className="text-[var(--landing-text)]">{note.label}.</b> {note.body}
+          </p>
         )}
         {onCta ? (
           <button
@@ -1085,7 +896,7 @@ function PricingCard({
   );
 }
 
-function LandingPricing({
+function PricingSection({
   yearly,
   signingIn,
   onSetYearly,
@@ -1099,55 +910,90 @@ function LandingPricing({
   proCtaSlot?: ReactNode;
 }) {
   return (
-    <section
-      id="pricing"
-      className={`${SECTION_FRAME_CLASS} py-[78px] max-sm:py-[54px]`}
-      style={SECTION_SCROLL_STYLE}
-    >
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)] lg:items-end">
-        <div>
-          <h2 className="m-0 max-w-[700px] text-balance text-[34px] font-[740] leading-[1.06] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[28px]">
-            Start with local search. Add cloud review when the work is shared.
-          </h2>
-          <p className="mt-4 mb-0 max-w-[560px] text-[15px] leading-[1.7] text-[var(--landing-muted)]">
-            The free path is the local OSS index. Cloud Pro adds daemon sync, links, comments,
-            history, tags, collections, and workspace access without changing where plans originate.
-          </p>
-        </div>
-        <div className="justify-self-start lg:justify-self-end">
+    <section id="pricing" className="landing-band" style={SECTION_SCROLL_STYLE}>
+      <div className="landing-band-inner">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <h2 className="landing-h2">
+              Start with local search. Add cloud review when the work is shared.
+            </h2>
+            <p className="landing-lede">
+              The free path is the local OSS index. Cloud Pro adds daemon sync, links, comments,
+              history, tags, collections, and workspace access without changing where plans
+              originate.
+            </p>
+          </div>
           <PricingToggle yearly={yearly} onChange={onSetYearly} />
         </div>
-      </div>
-
-      <div className="mt-8 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-        <PricingCard
-          tier="Local OSS"
-          title="Self-hosted"
-          price="$0"
-          summary="For indexing and searching local agent plans, sessions, custom folders, and fallback plans on one machine."
-          features={FREE_FEATURES}
-          cta="Get Started"
-          onCta={onShowLogin}
-        />
-        <PricingCard
-          tier="Team review"
-          title="Cloud Pro"
-          price={yearly ? '$69' : '$7'}
-          period={yearly ? '/year' : '/month'}
-          summary="For syncing local plans to the cloud dashboard with sharing, comments, history, tags, collections, and team access."
-          features={PRO_FEATURES}
-          cta={proCtaSlot ?? 'Start Free Trial'}
-          onCta={proCtaSlot ? undefined : onShowLogin}
-          note={MONEY_BACK_GUARANTEE}
-          isPro
-          signingIn={signingIn}
-        />
+        <div className="mt-8 grid items-start gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <PricingVolume
+            title="Self-hosted"
+            price="$0"
+            summary="For indexing and searching local agent plans, sessions, custom folders, and fallback plans on one machine."
+            features={FREE_FEATURES}
+            cta="Get started"
+            onCta={onShowLogin}
+          />
+          <PricingVolume
+            title="Cloud Pro"
+            price={yearly ? '$69' : '$7'}
+            period={yearly ? '/year' : '/month'}
+            summary="For syncing local plans to the cloud dashboard with sharing, comments, history, tags, collections, and team access."
+            features={PRO_FEATURES}
+            cta={proCtaSlot ?? 'Start free trial'}
+            onCta={proCtaSlot ? undefined : onShowLogin}
+            note={MONEY_BACK_GUARANTEE}
+            isPro
+            signingIn={signingIn}
+          />
+        </div>
       </div>
     </section>
   );
 }
 
-function LandingFAQ({
+function FAQItem({
+  question,
+  answer,
+  open,
+  onToggle,
+}: {
+  question: string;
+  answer: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const buttonId = useId();
+  const contentId = useId();
+  return (
+    <div className="landing-disclosure">
+      <button
+        id={buttonId}
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={contentId}
+        className="landing-disclosure-btn"
+      >
+        <ChevronIcon />
+        <span className="text-pretty">{question}</span>
+      </button>
+      <section
+        id={contentId}
+        aria-labelledby={buttonId}
+        aria-hidden={!open}
+        className="landing-disclosure-body"
+        data-open={open}
+      >
+        <div>
+          <p>{answer}</p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function FAQSection({
   openFaq,
   onSetOpenFaq,
 }: {
@@ -1155,26 +1001,22 @@ function LandingFAQ({
   onSetOpenFaq: (v: number | null) => void;
 }) {
   return (
-    <section
-      id="faq"
-      className={`${SECTION_FRAME_CLASS} py-[78px] max-sm:py-[54px]`}
-      style={SECTION_SCROLL_STYLE}
-    >
-      <div className="grid gap-10 lg:grid-cols-[320px_minmax(0,1fr)]">
+    <section id="faq" className="landing-band" style={SECTION_SCROLL_STYLE}>
+      <div className="landing-band-inner grid gap-8 lg:grid-cols-[300px_minmax(0,1fr)]">
         <div>
-          <h2 className="m-0 text-balance text-[34px] font-[740] leading-[1.06] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[28px]">
-            Answers before you install.
-          </h2>
-          <p className="mt-4 mb-0 max-w-[310px] text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
+          <h2 className="landing-h2">Answers before you install.</h2>
+          <p className="landing-lede">
             Privacy, adapters, and Cloud sync in plain terms. No account is required to start
             self-hosted.
           </p>
         </div>
-        <div className="min-w-0">
+        <div className="landing-list">
+          <div className="landing-list-head">
+            Questions <span>{FAQ_ITEMS.length} items</span>
+          </div>
           {FAQ_ITEMS.map((item, index) => (
             <FAQItem
               key={item.q}
-              index={index + 1}
               question={item.q}
               answer={item.a}
               open={openFaq === index}
@@ -1187,60 +1029,91 @@ function LandingFAQ({
   );
 }
 
-function LandingFooter({
-  onShowChangelog,
-  onShowDocs,
-  onShowDownload,
-  onShowTools,
-}: {
-  onShowChangelog?: () => void;
-  onShowDocs?: () => void;
-  onShowDownload?: () => void;
-  onShowTools?: () => void;
-}) {
-  const navHandlers = { onShowDownload, onShowDocs, onShowChangelog, onShowTools };
+function CliInstallOptions() {
+  const tabs = useTabs(CLI_INSTALL_IDS, 'installer');
+  const active =
+    CLI_INSTALL_OPTIONS.find((option) => option.id === tabs.active) ?? CLI_INSTALL_OPTIONS[0];
+  const { copied, copy } = useCopy(active.cmd);
 
   return (
-    <footer className="landing-frame flex min-h-[200px] items-end justify-between gap-8 px-[clamp(18px,5vw,72px)] py-10 text-[var(--landing-muted)] max-sm:min-h-0 max-sm:flex-col max-sm:items-start">
-      <div className="flex flex-col gap-3 text-[12.5px]">
-        <span className="text-[36px] font-[760] leading-none tracking-[-0.03em] text-[var(--landing-text)]">
-          Agendex<span className="text-[var(--landing-accent)]">.</span>
-        </span>
-        <span>© 2026 / Local plans indexed</span>
+    <div className="landing-list">
+      <div className="landing-list-head">
+        <div className="flex flex-wrap gap-0.5" role="tablist" aria-label="Package manager">
+          {CLI_INSTALL_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              {...tabs.tabProps(option.id)}
+              className="rounded-[5px] border-0 bg-transparent px-2 py-1 text-[12px] font-semibold text-[var(--landing-muted)] aria-selected:bg-[var(--landing-index-bg)] aria-selected:text-[var(--landing-accent-ink)]"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-3 max-sm:justify-start [&>a]:text-[12.5px] [&>a]:font-semibold [&>a]:text-[var(--landing-muted)] [&>a]:no-underline [&>a:hover]:text-[var(--landing-text)]">
-        <LandingAnchor href="#features">Features</LandingAnchor>
-        <LandingAnchor href="#pricing">Pricing</LandingAnchor>
-        <LandingAnchor href="/download" onClick={landingNavClickHandler('/download', navHandlers)}>
-          Download
-        </LandingAnchor>
-        <LandingAnchor href="/docs" onClick={landingNavClickHandler('/docs', navHandlers)}>
-          Docs
-        </LandingAnchor>
-        <LandingAnchor
-          href="/changelog"
-          onClick={landingNavClickHandler('/changelog', navHandlers)}
+      <div className="flex items-center gap-3 px-[14px] py-3" {...tabs.panelProps()}>
+        <code className="landing-cmd-text min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-[var(--landing-mono)] text-[13px] text-[var(--landing-text)]">
+          {active.cmd}
+        </code>
+        <button
+          type="button"
+          className="landing-action landing-action--compact"
+          onClick={copy}
+          aria-label={copied ? 'Copied' : 'Copy install command'}
         >
-          Changelog
-        </LandingAnchor>
-        <LandingAnchor href="/tools" onClick={landingNavClickHandler('/tools', navHandlers)}>
-          Stack
-        </LandingAnchor>
-        <LandingAnchor href="/terms">Terms</LandingAnchor>
-        <LandingAnchor href="/privacy">Privacy</LandingAnchor>
-        <LandingAnchor
-          href="https://github.com/tyru5/agendex"
+          <CopyIcon copied={copied} />
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ClosingSection() {
+  return (
+    <section className="landing-band" style={SECTION_SCROLL_STYLE}>
+      <div className="landing-band-inner mx-auto max-w-[640px]">
+        <h2 className="landing-h2">Install in one command.</h2>
+        <p className="landing-lede">
+          Start with a local index. Add Cloud Pro when review moves across people and machines.
+        </p>
+        <div className="mt-6">
+          <CliInstallOptions />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LandingFooter({ handlers }: { handlers: LandingNavHandlers }) {
+  return (
+    <footer className="landing-statusbar">
+      <span>© 2026 Agendex</span>
+      <nav aria-label="Footer">
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        {LANDING_LINKS.map((link) => (
+          <a key={link.href} href={link.href} onClick={landingNavClickHandler(link.href, handlers)}>
+            {link.label}
+          </a>
+        ))}
+        <a href="/terms">Terms</a>
+        <a href="/privacy">Privacy</a>
+        <a
+          href={GITHUB_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="landing-action landing-action--secondary landing-action--compact"
+          className="inline-flex items-center gap-1.5"
         >
-          <GitHubIcon size={14} />
-          View on GitHub
-        </LandingAnchor>
-      </div>
+          <GitHubIcon size={13} />
+          GitHub
+        </a>
+      </nav>
     </footer>
   );
 }
+
+/* ─── Login modal ───────────────────────────────────────────────────────── */
 
 function LoginModal({
   tokenValue,
@@ -1273,7 +1146,7 @@ function LoginModal({
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-[color-mix(in_oklch,var(--landing-bg)_84%,transparent)] p-5"
+      className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-[color-mix(in_oklch,var(--landing-text)_40%,transparent)] p-5"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -1282,63 +1155,70 @@ function LoginModal({
         onSubmit={onSubmit}
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="w-[min(100%,430px)] rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-surface)] p-6 shadow-[0_18px_40px_color-mix(in_oklch,var(--landing-bg)_68%,transparent)]"
+        className="landing-list w-[min(100%,430px)] shadow-[0_18px_40px_rgba(0,0,0,0.24)]"
       >
-        <h2 id={titleId} className="m-0 mb-2 text-[20px] font-bold text-[var(--landing-text)]">
-          Connect to Agendex
-        </h2>
-        <p
-          id={descriptionId}
-          className="m-0 mb-6 text-[13.5px] leading-[1.6] text-[var(--landing-muted)]"
-        >
-          Paste the auth token printed by the local Agendex CLI. The token stays in this browser.
-        </p>
-
-        <label
-          htmlFor={inputId}
-          className="mb-2 block text-[12px] font-bold text-[var(--landing-text)]"
-        >
-          CLI auth token
-        </label>
-        <input
-          id={inputId}
-          value={tokenValue}
-          onChange={(e) => onTokenChange(e.target.value)}
-          placeholder="agx_..."
-          aria-invalid={tokenError ? 'true' : 'false'}
-          aria-describedby={describedBy}
-          className="w-full rounded-[7px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_74%,transparent)] px-3.5 py-[12px] font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[13px] leading-[1.4] text-[var(--landing-text)] outline-none placeholder:text-[color-mix(in_oklch,var(--landing-muted)_78%,var(--landing-text))]"
-        />
-        <p id={hintId} className="mt-2 mb-0 text-[12px] leading-[1.55] text-[var(--landing-muted)]">
-          Run <code>agendex login</code> or start the local server to print a fresh token.
-        </p>
-        {tokenError && (
+        <div className="landing-list-head">
+          <span id={titleId} className="!text-[var(--landing-text)] !font-semibold">
+            Connect to Agendex
+          </span>
+        </div>
+        <div className="p-5">
           <p
-            id={errorId}
-            role="alert"
-            className="mt-2 mb-0 text-[12px] font-semibold leading-[1.5] text-[color-mix(in_oklch,var(--landing-orange)_82%,var(--landing-text))]"
+            id={descriptionId}
+            className="m-0 mb-5 text-[13.5px] leading-[1.6] text-[var(--landing-muted)]"
           >
-            {tokenError}
+            Paste the auth token printed by the local Agendex CLI. The token stays in this browser.
           </p>
-        )}
-
-        <button
-          type="submit"
-          className="landing-action landing-action--primary landing-action--full mt-4"
-        >
-          Connect dashboard
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-[7px] border border-transparent bg-transparent text-[13px] font-bold text-[var(--landing-muted)] hover:text-[var(--landing-text)]"
-        >
-          Cancel
-        </button>
+          <label
+            htmlFor={inputId}
+            className="mb-2 block text-[12.5px] font-semibold text-[var(--landing-text)]"
+          >
+            CLI auth token
+          </label>
+          <input
+            id={inputId}
+            value={tokenValue}
+            onChange={(e) => onTokenChange(e.target.value)}
+            placeholder="agx_..."
+            aria-invalid={tokenError ? 'true' : 'false'}
+            aria-describedby={describedBy}
+            className="w-full rounded-[6px] border border-[var(--landing-border-strong)] bg-[var(--landing-bg)] px-3 py-[10px] font-[var(--landing-mono)] text-[13px] leading-[1.4] text-[var(--landing-text)] outline-none placeholder:text-[var(--landing-faint)] focus:border-[var(--landing-accent)]"
+          />
+          <p
+            id={hintId}
+            className="mt-2 mb-0 text-[12px] leading-[1.55] text-[var(--landing-muted)]"
+          >
+            Run <code>agendex login</code> or start the local server to print a fresh token.
+          </p>
+          {tokenError && (
+            <p
+              id={errorId}
+              role="alert"
+              className="mt-2 mb-0 text-[12px] font-semibold leading-[1.5] text-[var(--landing-error)]"
+            >
+              {tokenError}
+            </p>
+          )}
+          <button
+            type="submit"
+            className="landing-action landing-action--primary landing-action--full mt-4"
+          >
+            Connect dashboard
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="landing-action landing-action--full mt-2 border-transparent bg-transparent"
+          >
+            Cancel
+          </button>
+        </div>
       </form>
     </div>
   );
 }
+
+/* ─── Slots, state, page ────────────────────────────────────────────────── */
 
 function isSlotComponent(type: unknown): type is SlotComponent {
   return typeof type === 'function' && typeof (type as SlotComponent)._slotName === 'string';
@@ -1379,128 +1259,6 @@ function useInitialHashScroll() {
       target.scrollIntoView({ block: 'start' });
     });
   }, []);
-}
-
-function useLandingIntroAnimation() {
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const root = pageRef.current;
-    if (!root) return undefined;
-
-    const ctx = gsap.context(() => {
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (reduceMotion) return;
-
-      const introItems = Array.from(
-        root.querySelectorAll<HTMLElement>('[data-landing-animate-item]'),
-      );
-      const agentChips = Array.from(root.querySelectorAll<HTMLElement>('.landing-hero-agent'));
-      const runbookLines = Array.from(
-        root.querySelectorAll<HTMLElement>('.landing-hero-runbook code'),
-      );
-      const cursor = root.querySelector<SVGSVGElement>('.landing-hero-cursor');
-      const cursorPointer = cursor?.querySelector<SVGPathElement>('[data-landing-cursor-pointer]');
-      const cursorRays = cursor?.querySelector<SVGPathElement>('[data-landing-cursor-rays]');
-      const nav = root.querySelector<HTMLElement>('[data-landing-animate="nav"]');
-      const heroShell = root.querySelector<HTMLElement>('[data-landing-animate="hero-shell"]');
-
-      gsap.set(introItems, { autoAlpha: 0, y: 18 });
-      gsap.set(agentChips, { autoAlpha: 0, scale: 0.96, y: 10 });
-      gsap.set(runbookLines, { autoAlpha: 0, x: -8 });
-      if (cursor) gsap.set(cursor, { transformOrigin: '40% 52%' });
-      if (cursorRays) gsap.set(cursorRays, { autoAlpha: 0.72, transformOrigin: '50% 50%' });
-
-      const timeline = gsap.timeline({
-        defaults: { duration: 0.62, ease: 'power3.out' },
-      });
-
-      if (nav) {
-        timeline.from(nav, { autoAlpha: 0, duration: 0.45, y: -10 });
-      }
-
-      if (heroShell) {
-        timeline.from(heroShell, { autoAlpha: 0, duration: 0.72, scale: 0.992, y: 14 }, '<0.04');
-      }
-
-      timeline
-        .to(introItems, { autoAlpha: 1, stagger: 0.075, y: 0 }, '<0.14')
-        .to(agentChips, { autoAlpha: 1, duration: 0.42, scale: 1, stagger: 0.035, y: 0 }, '<0.3')
-        .to(runbookLines, { autoAlpha: 1, duration: 0.34, stagger: 0.045, x: 0 }, '<0.12');
-
-      if (cursor) {
-        const cursorIdle = gsap.timeline({
-          paused: true,
-          repeat: -1,
-          repeatDelay: 0.42,
-          defaults: { ease: 'power3.out' },
-        });
-
-        cursorIdle
-          .to(cursor, { duration: 0.64, rotation: -1.5, x: 12, y: 8, ease: 'sine.inOut' })
-          .to(cursorPointer ?? cursor, { duration: 0.08, scale: 0.92, ease: 'power2.out' })
-          .to(cursorPointer ?? cursor, { duration: 0.2, scale: 1, ease: 'back.out(2.2)' });
-
-        if (cursorRays) {
-          cursorIdle
-            .to(cursorRays, { autoAlpha: 1, duration: 0.08 }, '<')
-            .to(cursorRays, { autoAlpha: 0.52, duration: 0.34, ease: 'power2.out' }, '>');
-        }
-
-        cursorIdle
-          .to(cursor, { duration: 0.68, rotation: -8.5, x: -2, y: -1, ease: 'sine.inOut' }, '<0.02')
-          .to(cursor, { duration: 0.38, rotation: -7, x: 0, y: 0, ease: 'power2.out' });
-
-        timeline.fromTo(
-          cursor,
-          { autoAlpha: 0, rotation: -15, scale: 0.86, x: -8, y: -5 },
-          {
-            autoAlpha: 1,
-            duration: 0.5,
-            ease: 'back.out(1.6)',
-            rotation: -7,
-            scale: 1,
-            x: 0,
-            y: 0,
-          },
-          '<0.08',
-        );
-        timeline.add(() => cursorIdle.play(0), '>-0.04');
-      }
-    }, root);
-
-    return () => ctx.revert();
-  }, []);
-
-  return pageRef;
-}
-
-function useMobileMenuControls({
-  activeTab,
-  showLogin,
-}: {
-  activeTab: LandingTab;
-  showLogin: boolean;
-}) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    function handleResize() {
-      if (window.innerWidth >= 861) setMobileMenuOpen(false);
-    }
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [activeTab, showLogin]);
-
-  return {
-    mobileMenuOpen,
-    toggleMobileMenu: () => setMobileMenuOpen((open) => !open),
-    closeMobileMenu: () => setMobileMenuOpen(false),
-  };
 }
 
 function useLandingContextValue({
@@ -1562,7 +1320,6 @@ function useLandingActions(
 
 function LandingPageInner({
   children,
-  mascot,
   onShowChangelog,
   onShowDocs,
   onShowDownload,
@@ -1570,7 +1327,6 @@ function LandingPageInner({
 }: LandingPageProps) {
   const [state, dispatch] = useReducer(landingReducer, LANDING_INITIAL);
   const [tokenError, setTokenError] = useState('');
-  const pageRef = useLandingIntroAnimation();
   const { token, showLogin, yearly, openFaq, activeTab, signingIn } = state;
   const actions = useLandingActions(token, tokenError, dispatch, setTokenError);
   const ctxValue = useLandingContextValue({
@@ -1580,91 +1336,34 @@ function LandingPageInner({
     dispatch,
   });
   const { navbarAuthNode, heroCtaNode, pricingCtaNode } = useLandingSlots(children);
-  const { mobileMenuOpen, toggleMobileMenu, closeMobileMenu } = useMobileMenuControls({
-    activeTab,
-    showLogin,
-  });
+  const handlers: LandingNavHandlers = { onShowDownload, onShowDocs, onShowChangelog, onShowTools };
 
   useInitialHashScroll();
 
   return (
     <LandingContext.Provider value={ctxValue}>
-      <div
-        ref={pageRef}
-        className="landing-page [&_a[href]]:cursor-pointer [&_button:not(:disabled)]:cursor-pointer"
-      >
-        <LandingNavbar
-          mobileMenuOpen={mobileMenuOpen}
-          onMobileMenuToggle={toggleMobileMenu}
-          onMobileMenuClose={closeMobileMenu}
-          onShowChangelog={onShowChangelog}
-          onShowDocs={onShowDocs}
-          onShowDownload={onShowDownload}
-          onShowTools={onShowTools}
-          authSlot={navbarAuthNode}
-        />
+      <div className="landing-page [&_a[href]]:cursor-pointer [&_button:not(:disabled)]:cursor-pointer">
+        <LandingToolbar current="/" handlers={handlers} authSlot={navbarAuthNode} />
 
-        <LandingHero
+        <LandingBrowser
           onShowLogin={() => startViewTransition(actions.openLogin)}
           ctaSlot={heroCtaNode}
+          handlers={handlers}
         />
+        <PathBar />
 
-        <section className={`${SECTION_FRAME_CLASS} py-0`} style={SECTION_SCROLL_STYLE}>
-          <ReviewSplit
-            title="Review the plan before the work disappears into an agent log."
-            body="Agendex makes the plan itself the review surface, with enough source detail to trust what changed and where it came from."
-            bullets={PLAN_REVIEW_BULLETS}
-            variant="plans"
-          />
-          <ReviewSplit
-            title="Turn plan review into shared team knowledge."
-            body="Cloud review adds links, comments, tags, and history without turning the product into a heavyweight project board."
-            bullets={CODE_REVIEW_BULLETS}
-            variant="teams"
-          />
-        </section>
-
-        <ProductStepsSection />
-
-        <LandingPricing
+        <ReviewSection />
+        <SourcesSection handlers={handlers} />
+        <PricingSection
           yearly={yearly}
           signingIn={signingIn}
           onSetYearly={actions.setYearly}
           onShowLogin={() => startViewTransition(actions.openLogin)}
           proCtaSlot={pricingCtaNode}
         />
-
-        <LandingFAQ openFaq={openFaq} onSetOpenFaq={actions.setOpenFaq} />
-
-        <section
-          className={`${SECTION_FRAME_CLASS} py-[58px] text-center max-sm:py-[44px]`}
-          style={SECTION_SCROLL_STYLE}
-        >
-          <h2 className="mx-auto m-0 max-w-[640px] text-balance text-[28px] font-[740] leading-[1.12] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[24px]">
-            Your local agent plans deserve a real index.
-          </h2>
-          <p className="mx-auto mt-3 mb-0 max-w-[520px] text-[14px] leading-[1.7] text-[var(--landing-muted)]">
-            Start with a local index. Add Cloud Pro when review moves across people and machines.
-          </p>
-          <div className="mx-auto mt-6 max-w-[520px] text-left">
-            <CliInstallOptions />
-          </div>
-        </section>
-
-        <LandingFooter
-          onShowChangelog={onShowChangelog}
-          onShowDocs={onShowDocs}
-          onShowDownload={onShowDownload}
-          onShowTools={onShowTools}
-        />
-
-        {mascot && (
-          <LandingMascot
-            greetings={mascot.greetings}
-            onActivate={mascot.onActivate}
-            triggerElementId="faq"
-          />
-        )}
+        <FAQSection openFaq={openFaq} onSetOpenFaq={actions.setOpenFaq} />
+        <ClosingSection />
+        <LandingFooter handlers={handlers} />
 
         {showLogin && (
           <LoginModal
@@ -1686,6 +1385,7 @@ export function LandingPage({
   onShowChangelog,
   onShowDocs,
   onShowDownload,
+  onShowTools,
 }: LandingPageProps = {}) {
   return (
     <LandingPageInner
@@ -1693,6 +1393,7 @@ export function LandingPage({
       onShowChangelog={onShowChangelog}
       onShowDocs={onShowDocs}
       onShowDownload={onShowDownload}
+      onShowTools={onShowTools}
     >
       {children}
     </LandingPageInner>
@@ -1702,94 +1403,3 @@ export function LandingPage({
 LandingPage.NavbarAuth = NavbarAuth;
 LandingPage.HeroCta = HeroCta;
 LandingPage.PricingCta = PricingCta;
-
-function FAQItem({
-  index,
-  question,
-  answer,
-  open,
-  onToggle,
-}: {
-  index: number;
-  question: string;
-  answer: string;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const buttonId = useId();
-  const contentId = useId();
-  return (
-    <div className="border-b border-[var(--landing-border-subtle)]">
-      <button
-        id={buttonId}
-        type="button"
-        onClick={onToggle}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        aria-expanded={open}
-        aria-controls={contentId}
-        className="group grid min-h-[70px] w-full grid-cols-[32px_minmax(0,1fr)_28px] items-center gap-4 border-0 bg-transparent px-0 py-[17px] text-left text-[14px] font-bold leading-[1.45] text-[var(--landing-text)] transition-colors duration-150 max-sm:grid-cols-[28px_minmax(0,1fr)_28px] max-sm:gap-3"
-        style={{ color: hovered || open ? 'var(--landing-text)' : undefined }}
-      >
-        <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold text-[var(--landing-accent)]">
-          {String(index).padStart(2, '0')}
-        </span>
-        <span className="text-pretty">{question}</span>
-        <div
-          className="inline-flex size-[28px] shrink-0 items-center justify-center rounded-full transition-[background-color,border-color] duration-200"
-          style={{
-            border: `1px solid ${
-              open
-                ? 'var(--landing-accent)'
-                : hovered
-                  ? 'var(--landing-border-strong)'
-                  : 'var(--landing-border)'
-            }`,
-            background: open ? 'var(--landing-accent)' : 'transparent',
-          }}
-        >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="none"
-            style={{
-              transition: 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
-              transform: open ? 'rotate(180deg)' : 'none',
-            }}
-            aria-hidden="true"
-          >
-            <path
-              d="M2.5 4.5L6 8L9.5 4.5"
-              stroke={open ? 'var(--landing-bg)' : 'var(--landing-muted)'}
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-      </button>
-      <section
-        id={contentId}
-        aria-labelledby={buttonId}
-        aria-hidden={!open}
-        className="grid"
-        style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
-      >
-        <div className="overflow-hidden">
-          <p
-            className="m-0 max-w-[650px] pb-[22px] pl-[46px] text-[13.5px] leading-[1.75] text-[var(--landing-muted)] max-sm:pl-[40px]"
-            style={{
-              opacity: open ? 1 : 0,
-              transform: open ? 'translateY(0)' : 'translateY(-4px)',
-              transition: 'opacity 0.22s 0.04s, transform 0.22s 0.04s',
-            }}
-          >
-            {answer}
-          </p>
-        </div>
-      </section>
-    </div>
-  );
-}

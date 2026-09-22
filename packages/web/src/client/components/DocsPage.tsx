@@ -1,5 +1,15 @@
-import type { MouseEvent, ReactNode } from 'react';
 import { GitHubIcon } from './OAuthIcons.tsx';
+import {
+  Body,
+  Callout,
+  CheckIcon,
+  CodeBlock,
+  InlineCode,
+  NumberedList,
+  SubHeading,
+  SubpageSection,
+  SubpageShell,
+} from './landing/SubpageShell.tsx';
 
 export interface DocsPageProps {
   /** Called when the user activates the back link in the header. */
@@ -200,66 +210,6 @@ const CLI_COMMANDS: ReadonlyArray<
   ],
 ] as const;
 
-function DocsShell({ children }: { children: ReactNode }) {
-  return (
-    <main className="landing-page docs-page min-h-[100dvh]">
-      <div className="landing-frame px-[clamp(18px,5vw,72px)] py-[clamp(56px,7vw,88px)]">
-        {children}
-      </div>
-    </main>
-  );
-}
-
-function CodeBlock({ children }: { children: ReactNode }) {
-  return (
-    <code className="block overflow-x-auto whitespace-pre rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_78%,transparent)] px-3 py-2.5 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12.5px] leading-[1.65] text-[var(--landing-accent)]">
-      {children}
-    </code>
-  );
-}
-
-function InlineCode({ children }: { children: ReactNode }) {
-  return (
-    <code className="rounded-[4px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_78%,transparent)] px-1.5 py-0.5 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] text-[var(--landing-accent)]">
-      {children}
-    </code>
-  );
-}
-
-function DocSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
-  return (
-    <section
-      id={id}
-      className="scroll-mt-24 border-t border-[var(--landing-border-subtle)] py-10 first:border-t-0 first:pt-0"
-    >
-      <h2 className="m-0 text-[24px] font-[740] leading-[1.1] tracking-[-0.02em] text-[var(--landing-text)]">
-        {title}
-      </h2>
-      <div className="mt-4 grid gap-4">{children}</div>
-    </section>
-  );
-}
-
-function Body({ children }: { children: ReactNode }) {
-  return (
-    <p className="m-0 max-w-[68ch] text-pretty text-[13.5px] leading-[1.7] text-[var(--landing-muted)]">
-      {children}
-    </p>
-  );
-}
-
-function SubHeading({ children }: { children: ReactNode }) {
-  return <h3 className="mt-3 mb-0 text-[15px] font-bold text-[var(--landing-text)]">{children}</h3>;
-}
-
-function Callout({ children }: { children: ReactNode }) {
-  return (
-    <div className="max-w-[68ch] rounded-[7px] border border-[var(--landing-border)] border-l-2 border-l-[var(--landing-accent)] bg-[var(--landing-surface)] px-4 py-3 text-[13px] leading-[1.65] text-[var(--landing-muted)]">
-      {children}
-    </div>
-  );
-}
-
 function FeatureList({ items }: { items: ReadonlyArray<string> }) {
   return (
     <ul className="m-0 grid list-none gap-2 p-0">
@@ -268,9 +218,7 @@ function FeatureList({ items }: { items: ReadonlyArray<string> }) {
           key={item}
           className="flex items-baseline gap-2.5 text-[13px] leading-[1.55] text-[var(--landing-muted)]"
         >
-          <span aria-hidden className="text-[11px] font-bold text-[var(--landing-accent)]">
-            ✓
-          </span>
+          <CheckIcon />
           {item}
         </li>
       ))}
@@ -279,42 +227,8 @@ function FeatureList({ items }: { items: ReadonlyArray<string> }) {
 }
 
 export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
-  function handleBack(e: MouseEvent<HTMLAnchorElement>) {
-    if (!onBack) return;
-    if (e.defaultPrevented) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    e.preventDefault();
-    onBack();
-  }
-
   return (
-    <DocsShell>
-      <nav className="mb-12 flex flex-wrap items-center justify-between gap-4">
-        <a
-          href={homeHref}
-          onClick={handleBack}
-          className="text-[14px] font-bold text-[var(--landing-text)] no-underline"
-        >
-          Agendex<span className="text-[var(--landing-accent)]">.</span>
-        </a>
-        <a
-          href={homeHref}
-          onClick={handleBack}
-          className="landing-action landing-action--secondary landing-action--compact"
-        >
-          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M19 12H5M12 5l-7 7 7 7"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Back
-        </a>
-      </nav>
-
+    <SubpageShell pageClass="docs-page" onBack={onBack} homeHref={homeHref}>
       <div className="lg:grid lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-14">
         <aside className="mb-10 lg:mb-0">
           <nav
@@ -323,7 +237,7 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
           >
             {NAV_GROUPS.map((group) => (
               <div key={group.label}>
-                <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--landing-faint)]">
+                <div className="mb-2 px-2 text-[12px] font-semibold text-[var(--landing-faint)]">
                   {group.label}
                 </div>
                 <ul className="m-0 grid list-none gap-1 p-0">
@@ -344,7 +258,7 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
         </aside>
 
         <div>
-          <DocSection id="overview" title="What is Agendex?">
+          <SubpageSection id="overview" title="What is Agendex?">
             <Body>
               AI coding agents produce plans constantly — implementation strategies, refactor
               proposals, debugging investigations — and then scatter them across dotfile directories
@@ -358,27 +272,17 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               comments, and plan history when review moves across people and machines.
             </Body>
             <SubHeading>How it works</SubHeading>
-            <ol className="m-0 grid max-w-[68ch] list-none gap-2 p-0">
-              {[
-                'Use your agents normally — Claude Code, Cursor, Codex, and friends keep writing plans where they always have.',
+            <NumberedList
+              items={[
+                'Use your agents normally. Claude Code, Cursor, Codex, and the rest keep writing plans where they always have.',
                 'The Agendex daemon watches those locations and indexes new or changed plans within seconds.',
                 'Open the workspace to search, filter, and inspect every plan in one place.',
                 'Optionally sync to Cloud Pro to share links, collect comments, and track history across machines.',
-              ].map((step, index) => (
-                <li
-                  key={step}
-                  className="flex items-baseline gap-3 text-[13.5px] leading-[1.65] text-[var(--landing-muted)]"
-                >
-                  <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-semibold text-[var(--landing-accent)]">
-                    {String(index + 1).padStart(2, '0')}
-                  </span>
-                  {step}
-                </li>
-              ))}
-            </ol>
-          </DocSection>
+              ]}
+            />
+          </SubpageSection>
 
-          <DocSection id="installation" title="Installation">
+          <SubpageSection id="installation" title="Installation">
             <Body>
               Agendex ships as a single global CLI, <InlineCode>agendex-cli</InlineCode>. The
               dashboard opens from the daemon when you need the workspace — there is nothing else to
@@ -388,21 +292,28 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             <Body>
               Node.js 20 or newer. Any of the common package managers works for the global install.
             </Body>
-            <div className="grid max-w-[560px] gap-2">
+            <div className="landing-list max-w-[620px]">
+              <div className="landing-list-head">
+                Package managers <span>{INSTALL_COMMANDS.length} options</span>
+              </div>
               {INSTALL_COMMANDS.map(([label, command]) => (
                 <div
                   key={label}
-                  className="grid gap-2 rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_76%,transparent)] p-3 sm:grid-cols-[72px_minmax(0,1fr)] sm:items-center"
+                  className="landing-list-row items-center"
+                  style={{ gridTemplateColumns: '64px minmax(0,1fr)' }}
                 >
-                  <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold text-[var(--landing-muted)]">
-                    {label}
-                  </span>
-                  <CodeBlock>{command}</CodeBlock>
+                  <b>{label}</b>
+                  <code className="font-['JetBrains_Mono','SF_Mono',ui-monospace,monospace] text-[12.5px] text-[var(--landing-text)]">
+                    {command}
+                  </code>
                 </div>
               ))}
             </div>
             <SubHeading>Script installer</SubHeading>
-            <Body>Prefer a one-liner? The install script sets everything up for you.</Body>
+            <Body>
+              The install script installs the CLI through your package manager and checks whether it
+              is on your PATH. If not, it prints the command needed to add it.
+            </Body>
             <div className="grid max-w-[560px] gap-2">
               <div>
                 <div className="mb-1.5 text-[12px] font-semibold text-[var(--landing-text)]">
@@ -423,10 +334,10 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               pipeline and adapters stay current. Verify your install any time with{' '}
               <InlineCode>agendex --version</InlineCode>.
             </Callout>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="quickstart" title="Quickstart">
-            <Body>From install to a searchable plan index in under a minute.</Body>
+          <SubpageSection id="quickstart" title="Quickstart">
+            <Body>Four commands from install to a searchable index.</Body>
             <div className="grid divide-y divide-[var(--landing-border-subtle)] overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-surface)]">
               {QUICKSTART_STEPS.map((step, index) => (
                 <article
@@ -434,82 +345,96 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
                   className="grid gap-3 p-5 sm:grid-cols-[minmax(0,1fr)_minmax(220px,0.7fr)] sm:items-center"
                 >
                   <div>
-                    <div className="mb-2 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-semibold text-[var(--landing-accent)]">
-                      {String(index + 1).padStart(2, '0')}
-                    </div>
-                    <h3 className="m-0 text-[16px] font-bold text-[var(--landing-text)]">
+                    <h3 className="m-0 flex items-baseline gap-2.5 text-[16px] font-bold text-[var(--landing-text)]">
+                      <span className="text-[13px] font-semibold tabular-nums text-[var(--landing-faint)]">
+                        {index + 1}
+                      </span>
                       {step.title}
                     </h3>
                     <p className="mt-2 mb-0 text-[13px] leading-[1.65] text-[var(--landing-muted)]">
                       {step.body}
                     </p>
                   </div>
-                  <CodeBlock>{step.command}</CodeBlock>
+                  <code className="font-['JetBrains_Mono','SF_Mono',ui-monospace,monospace] text-[12.5px] text-[var(--landing-text)]">
+                    {step.command}
+                  </code>
                 </article>
               ))}
             </div>
             <Callout>
               No account is required for any of the above. Run{' '}
               <InlineCode>agendex login</InlineCode> only when you want Cloud sync and sharing — see{' '}
-              <a href="#cloud-sync" className="text-[var(--landing-accent)]">
+              <a
+                href="#cloud-sync"
+                className="font-semibold text-[var(--landing-text)] underline decoration-[var(--landing-border-strong)] underline-offset-[3px] hover:decoration-[var(--landing-accent)]"
+              >
                 Cloud sync
               </a>
               .
             </Callout>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="configuration" title="Configuration">
+          <SubpageSection id="configuration" title="Configuration">
             <Body>
               <InlineCode>agendex configure</InlineCode> is the main entry point: an interactive
               multiselect of available adapters plus any custom directories you have added. Your
               selection, custom plan directories, and auth tokens are stored in a single config
               file.
             </Body>
-            <div className="grid max-w-[560px] gap-2">
-              <div className="grid gap-2 rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_76%,transparent)] p-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-center">
-                <span className="text-[12px] font-semibold text-[var(--landing-text)]">
-                  Config file
-                </span>
-                <CodeBlock>{'~/.agendex/config.json'}</CodeBlock>
-              </div>
-              <div className="grid gap-2 rounded-[7px] border border-[var(--landing-border-subtle)] bg-[color-mix(in_oklch,var(--landing-bg)_76%,transparent)] p-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-center">
-                <span className="text-[12px] font-semibold text-[var(--landing-text)]">
-                  Override dir
-                </span>
-                <CodeBlock>{'AGENDEX_CONFIG_DIR=/path/to/dir'}</CodeBlock>
-              </div>
+            <div className="landing-list max-w-[620px]">
+              <div className="landing-list-head">Where configuration lives</div>
+              {[
+                ['Config file', '~/.agendex/config.json'],
+                ['Override dir', 'AGENDEX_CONFIG_DIR=/path/to/dir'],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="landing-list-row items-center"
+                  style={{ gridTemplateColumns: '110px minmax(0,1fr)' }}
+                >
+                  <b>{label}</b>
+                  <code className="font-['JetBrains_Mono','SF_Mono',ui-monospace,monospace] text-[12.5px] text-[var(--landing-text)]">
+                    {value}
+                  </code>
+                </div>
+              ))}
             </div>
             <Body>
               Development mode (<InlineCode>AGENDEX_DEV=1</InlineCode> or the{' '}
               <InlineCode>--dev</InlineCode> flag) keeps a separate config in{' '}
               <InlineCode>~/.agendex-dev/</InlineCode> so experiments never touch your real index.
             </Body>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="plan-sources" title="Plan sources">
+          <SubpageSection id="plan-sources" title="Plan sources">
             <Body>
               Adapters teach Agendex where each agent keeps its plans and how to parse them. Agendex
               has 21 automatic integrations backed by durable artifacts or explicit plan-session
               evidence, plus the experimental Continue adapter:
             </Body>
-            <ul className="m-0 flex max-w-[68ch] list-none flex-wrap gap-2 p-0">
-              {IMPLEMENTED_ADAPTERS.map((adapter) => (
-                <li
-                  key={adapter}
-                  className="rounded-[6px] border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-1.5 text-[12.5px] font-semibold text-[var(--landing-text)]"
-                >
-                  {adapter}
-                </li>
-              ))}
-            </ul>
+            <div className="landing-list">
+              <div className="landing-list-head">
+                Implemented adapters <span>{IMPLEMENTED_ADAPTERS.length} items</span>
+              </div>
+              <ul className="m-0 grid list-none p-0 sm:grid-cols-2 lg:grid-cols-3">
+                {IMPLEMENTED_ADAPTERS.map((adapter) => (
+                  <li
+                    key={adapter}
+                    className="border-b border-[var(--landing-border-subtle)] px-[14px] py-2 text-[13px] text-[var(--landing-text)]"
+                  >
+                    {adapter}
+                  </li>
+                ))}
+              </ul>
+            </div>
             <Body>
               Unsupported catalog entries — {CATALOG_ADAPTERS} — stay hidden from selection until
               they have a stable, testable ingestion contract. Custom directories and the hook
               capture spool cover explicit Markdown exports in the meantime.
             </Body>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="custom-directories" title="Custom directories">
+          <SubpageSection id="custom-directories" title="Custom directories">
             <Body>
               For plans that live outside the default agent locations — a team plans folder, a
               repo&rsquo;s <InlineCode>plans/</InlineCode> directory, exported documents — add the
@@ -525,13 +450,13 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               to see what is configured and <InlineCode>agendex remove-dir &lt;path&gt;</InlineCode>{' '}
               to drop one.
             </Body>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="plan-filtering" title="Plan filtering">
+          <SubpageSection id="plan-filtering" title="Plan filtering">
             <Body>
               Agents produce a lot of Markdown that isn&rsquo;t a plan: empty files, one-line
               prompts, tool logs, execution output, code-only snippets. A shared classifier tags
-              these as low-value so your index stays signal, not noise.
+              these as low-value.
             </Body>
             <Body>
               Locally, low-value plans are hidden from search and lists — the files themselves are
@@ -539,14 +464,14 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               existing cloud copies are deleted and new ones are skipped, and the sync output
               reports exactly what was filtered.
             </Body>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="privacy" title="Privacy model">
+          <SubpageSection id="privacy" title="Privacy model">
             <Body>
-              Agendex is local-first. Self-hosted plan data stays on your machine — no account, no
-              telemetry pipeline, full source access. Cloud sync sends selected plan payloads to
-              your Agendex account, and nothing becomes publicly visible unless you explicitly
-              create a shared link.
+              Agendex is local-first. Self-hosted plan data stays on your machine: no account, no
+              telemetry, full source access. Cloud sync sends selected plan payloads to your Agendex
+              account, and nothing becomes publicly visible unless you explicitly create a shared
+              link.
             </Body>
             <Body>
               Synced plans carry provenance metadata — device ID, hostname, and local IP — so you
@@ -558,9 +483,9 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               <InlineCode>packages/ee</InlineCode>, which is source-available under the Agendex
               Enterprise License). You can read exactly what leaves your machine.
             </Callout>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="cloud-sync" title="Cloud sync">
+          <SubpageSection id="cloud-sync" title="Cloud sync">
             <Body>
               Authenticate once and the daemon takes care of the rest. Login opens a browser OAuth
               flow; the CLI stores the token locally.
@@ -575,21 +500,21 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               retry with backoff. The cloud dashboard updates reactively — no manual refresh.
             </Body>
             <Body>
-              Need more control? <InlineCode>agendex sync</InlineCode> runs a one-shot scan and
-              sync, <InlineCode>agendex sync --force</InlineCode> re-syncs everything ignoring the
-              hash cache, and <InlineCode>agendex upload &lt;path&gt;</InlineCode> pushes a single
-              Markdown file — handy for plans written outside any agent.
+              <InlineCode>agendex sync</InlineCode> runs a one-shot scan and sync,{' '}
+              <InlineCode>agendex sync --force</InlineCode> re-syncs everything ignoring the hash
+              cache, and <InlineCode>agendex upload &lt;path&gt;</InlineCode> pushes a single
+              Markdown file, for plans written outside any agent.
             </Body>
             <Callout>
-              Self-hosting the cloud stack too? Point the CLI at your own deployment with{' '}
+              If you self-host the cloud stack, point the CLI at your deployment with{' '}
               <InlineCode>agendex login --url &lt;url&gt;</InlineCode>.
             </Callout>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="sharing" title="Sharing & collaboration">
+          <SubpageSection id="sharing" title="Sharing & collaboration">
             <Body>
-              Cloud Pro turns plans from private artifacts into things a team can review. Every plan
-              can generate a scoped share link — recipients see that plan, nothing else.
+              Cloud Pro lets a team review plans. Every plan can generate a scoped share link;
+              recipients see that plan and nothing else.
             </Body>
             <FeatureList
               items={[
@@ -601,9 +526,9 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
                 'Up to five workspace members, access from any device',
               ]}
             />
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="free-vs-pro" title="Free vs Pro">
+          <SubpageSection id="free-vs-pro" title="Free vs Pro">
             <Body>
               The free path is the local OSS index — it is not a trial, and no account is required.
               Cloud Pro adds sync, sharing, and collaboration without changing where plans
@@ -611,25 +536,16 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </Body>
             <div className="grid gap-4 sm:grid-cols-2">
               <article className="rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-surface)] p-5">
-                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--landing-faint)]">
-                  Free
-                </div>
-                <h3 className="mt-1 mb-0 text-[18px] font-bold text-[var(--landing-text)]">
-                  Self-Hosted
+                <h3 className="m-0 text-[18px] font-bold text-[var(--landing-text)]">
+                  Self-hosted
                 </h3>
                 <div className="mt-2 mb-4 text-[13px] text-[var(--landing-muted)]">
-                  <span className="text-[20px] font-[740] text-[var(--landing-text)]">$0</span>{' '}
-                  forever
+                  <span className="text-[20px] font-[740] text-[var(--landing-text)]">$0</span>
                 </div>
                 <FeatureList items={FREE_FEATURES} />
               </article>
               <article className="rounded-[8px] border border-[var(--landing-border-strong)] bg-[var(--landing-surface)] p-5">
-                <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--landing-accent)]">
-                  Pro
-                </div>
-                <h3 className="mt-1 mb-0 text-[18px] font-bold text-[var(--landing-text)]">
-                  Cloud
-                </h3>
+                <h3 className="m-0 text-[18px] font-bold text-[var(--landing-text)]">Cloud Pro</h3>
                 <div className="mt-2 mb-4 text-[13px] text-[var(--landing-muted)]">
                   <span className="text-[20px] font-[740] text-[var(--landing-text)]">$7</span>
                   /month, or $69/year ($5.75/mo)
@@ -639,11 +555,11 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </div>
             <Callout>
               14-day money-back guarantee: if Cloud Pro is not a fit in your first 14 days, you get
-              a full refund. No questions asked.
+              a full refund.
             </Callout>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="cli-reference" title="CLI reference">
+          <SubpageSection id="cli-reference" title="CLI reference">
             <Body>
               Every command the <InlineCode>agendex</InlineCode> binary supports.{' '}
               <InlineCode>agendex help</InlineCode> prints this list in your terminal;{' '}
@@ -652,9 +568,9 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             <div className="grid gap-6">
               {CLI_COMMANDS.map(([group, commands]) => (
                 <div key={group}>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--landing-faint)]">
+                  <h3 className="mb-2 mt-0 text-[13px] font-semibold text-[var(--landing-text)]">
                     {group}
-                  </div>
+                  </h3>
                   <div className="grid divide-y divide-[var(--landing-border-subtle)] overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-surface)]">
                     {commands.map(([command, description]) => (
                       <div
@@ -673,9 +589,9 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
                 </div>
               ))}
             </div>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="agent-hooks" title="Agent hooks">
+          <SubpageSection id="agent-hooks" title="Agent hooks">
             <Body>
               Review hooks let supported agents notify Agendex the moment a plan is ready for
               review. Managed review-hook integrations are currently available for{' '}
@@ -716,9 +632,9 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               explicit plan fields and known plan artifact paths are accepted; conversation
               transcripts and tool output are not imported.
             </Body>
-          </DocSection>
+          </SubpageSection>
 
-          <DocSection id="self-hosting" title="Self-hosting">
+          <SubpageSection id="self-hosting" title="Self-hosting">
             <Body>
               The OSS server and web client run entirely on your machine — clone the repo, run
               locally, and keep full control over your data. The local API server listens on port{' '}
@@ -740,9 +656,9 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               <GitHubIcon size={14} />
               Self-hosting guide on GitHub
             </a>
-          </DocSection>
+          </SubpageSection>
         </div>
       </div>
-    </DocsShell>
+    </SubpageShell>
   );
 }

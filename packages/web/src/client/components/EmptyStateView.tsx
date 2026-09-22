@@ -182,7 +182,7 @@ function fireTriviaConfetti(mode: 'unlock' | 'complete') {
   if (typeof window === 'undefined') return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-  const colors = ['#c8ff32', '#ff7a2f', '#879891', '#eef4e8'];
+  const colors = ['#5532c7', '#8a7dfa', '#c9c2ff', '#fbfbff'];
 
   if (mode === 'unlock') {
     confetti({

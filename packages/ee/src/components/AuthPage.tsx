@@ -15,7 +15,7 @@ const DASHBOARD_PATH = '/dashboard';
 
 type AuthMode = 'login' | 'signup';
 
-function Spinner({ size = 14, color }: { size?: number; color?: string }) {
+function Spinner({ size = 14 }: { size?: number }) {
   return (
     <svg
       width={size}
@@ -24,24 +24,39 @@ function Spinner({ size = 14, color }: { size?: number; color?: string }) {
       fill="none"
       className="shrink-0 animate-spin"
       style={{ animationDuration: '0.8s' }}
+      aria-hidden="true"
     >
-      <circle
-        cx="12"
-        cy="12"
-        r="10"
-        stroke={color ?? 'currentColor'}
-        strokeWidth="3"
-        opacity={0.25}
-      />
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity={0.25} />
       <path
         d="M12 2a10 10 0 0 1 10 10"
-        stroke={color ?? 'currentColor'}
+        stroke="currentColor"
         strokeWidth="3"
         strokeLinecap="round"
       />
     </svg>
   );
 }
+
+function ChevronIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path
+        d="M4 2.5 7.5 6 4 9.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/*
+ * Auth lives inside the Column View world: the page is the marketing ground
+ * (`.landing-page` tokens), and the sign-in choices are rows of one listing.
+ */
+const ROW_CLASS =
+  'landing-row min-h-[44px] w-full cursor-pointer border-b border-[var(--landing-border-subtle)] bg-transparent text-left text-[13.5px] font-semibold text-[var(--landing-text)] no-underline transition-colors duration-150 last:border-b-0 hover:bg-[var(--landing-surface-raised)] disabled:cursor-default disabled:opacity-60';
 
 function AuthProviderButton({
   provider,
@@ -60,22 +75,19 @@ function AuthProviderButton({
   const Icon = provider === 'github' ? GitHubIcon : GoogleIcon;
   const content = (
     <>
-      <span className="flex items-center gap-3">
-        {isActive ? <Spinner size={16} /> : <Icon size={17} />}
-        {isActive ? 'Redirecting...' : label}
+      <span className="flex size-[18px] items-center justify-center text-[var(--landing-text)]">
+        {isActive ? <Spinner size={15} /> : <Icon size={16} />}
       </span>
-      <span className="text-[15px] text-[oklch(67%_0.025_165)]" aria-hidden="true">
-        →
+      <span className="landing-row-name">{isActive ? 'Redirecting…' : label}</span>
+      <span className="text-[var(--landing-faint)]">
+        <ChevronIcon />
       </span>
     </>
   );
 
-  const className =
-    'group flex w-full items-center justify-between rounded-[10px] border border-[oklch(90%_0.01_145_/_0.13)] bg-[oklch(20%_0.025_178)] px-4 py-3 text-left text-[13.5px] font-semibold text-[oklch(94%_0.014_125)] no-underline transition-[background-color,border-color,opacity] duration-200 ease-out hover:border-[oklch(90%_0.22_129_/_0.34)] hover:bg-[oklch(23%_0.026_178)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(90%_0.22_129)] disabled:cursor-default disabled:opacity-65';
-
   if (externalHref) {
     return (
-      <a href={externalHref} target="_blank" rel="noopener noreferrer" className={className}>
+      <a href={externalHref} target="_blank" rel="noopener noreferrer" className={ROW_CLASS}>
         {content}
       </a>
     );
@@ -86,10 +98,18 @@ function AuthProviderButton({
       type="button"
       disabled={isDisabled}
       onClick={() => onClick(provider)}
-      className={className}
+      className={ROW_CLASS}
     >
       {content}
     </button>
+  );
+}
+
+function AuthShell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="landing-page landing-subpage grid min-h-[100dvh] place-items-center px-4 py-10">
+      {children}
+    </main>
   );
 }
 
@@ -112,7 +132,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     () =>
       mode === 'signup'
         ? {
-            eyebrow: 'Create account',
+            head: 'Create account',
             title: 'Start with Agendex.',
             body:
               AUTH_PROVIDERS.length === 1
@@ -123,7 +143,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
             switchHref: '/login',
           }
         : {
-            eyebrow: 'Welcome back',
+            head: 'Sign in',
             title: 'Sign in to Agendex.',
             body: 'Return to your plans, shared reviews, and sync state.',
             switchLabel: 'New to Agendex?',
@@ -178,88 +198,83 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
 
   if (isAuthenticated || isLoading) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[oklch(16%_0.026_178)] px-5 py-10 text-[oklch(94%_0.014_125)]">
+      <AuthShell>
         <div
-          className="flex items-center gap-3 rounded-[18px] border border-[oklch(90%_0.01_145_/_0.14)] bg-[oklch(18.5%_0.027_178)] px-5 py-4 text-[13.5px] text-[oklch(67%_0.025_165)] shadow-[0_18px_40px_oklch(8%_0.02_178_/_0.34)]"
+          className="landing-list flex items-center gap-3 px-4 py-3 text-[13.5px] text-[var(--landing-muted)]"
           aria-busy="true"
           role="status"
         >
           <Spinner size={16} />
           Checking your session…
         </div>
-      </main>
+      </AuthShell>
     );
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[oklch(16%_0.026_178)] px-5 py-10 text-[oklch(94%_0.014_125)]">
-      <section className="w-full max-w-[396px]">
-        <div className="rounded-[18px] border border-[oklch(90%_0.01_145_/_0.14)] bg-[oklch(18.5%_0.027_178)] p-6 shadow-[0_18px_40px_oklch(8%_0.02_178_/_0.34)] max-sm:p-5">
-          <div className="mb-7 text-center">
-            <p className="m-0 text-[12px] font-semibold text-[oklch(90%_0.22_129)]">
-              {copy.eyebrow}
-            </p>
-            <h1 className="mt-3 mb-0 text-[24px] font-[650] leading-[1.16] tracking-[-0.02em] text-[oklch(94%_0.014_125)]">
-              {copy.title}
-            </h1>
-            <p className="mx-auto mt-3 mb-0 max-w-[32ch] text-[13.5px] leading-[1.55] text-[oklch(67%_0.025_165)]">
-              {copy.body}
-            </p>
-          </div>
+    <AuthShell>
+      <section className="w-full max-w-[420px]">
+        <h1 className="landing-h2 text-[clamp(28px,3.4vw,36px)]">{copy.title}</h1>
+        <p className="landing-lede mt-3 text-[14px]">{copy.body}</p>
 
-          <div className="space-y-3" aria-busy={activeProvider !== null || isLoading}>
-            {AUTH_PROVIDERS.map((provider) => (
-              <AuthProviderButton
-                key={provider}
-                provider={provider}
-                activeProvider={activeProvider}
-                externalHref={openAuthExternally ? externalAuthUrl(APP_URL, provider) : undefined}
-                onClick={handleProvider}
-              />
-            ))}
+        <div className="landing-list mt-6" aria-busy={activeProvider !== null || isLoading}>
+          <div className="landing-list-head">
+            {copy.head}
+            <span>
+              {AUTH_PROVIDERS.length} {AUTH_PROVIDERS.length === 1 ? 'option' : 'options'}
+            </span>
           </div>
-
-          {error && (
-            <div
-              className="mt-4 rounded-[8px] border border-[oklch(64%_0.2_27_/_0.36)] bg-[oklch(35%_0.08_27_/_0.24)] px-3 py-2 text-[12.5px] text-[oklch(86%_0.07_27)]"
-              role="alert"
-            >
-              {error}
-            </div>
-          )}
-
-          <div className="mt-6 border-t border-[oklch(90%_0.01_145_/_0.11)] pt-4 text-center text-[12.5px] text-[oklch(67%_0.025_165)]">
-            {copy.switchLabel}{' '}
-            <Link
-              href={copy.switchHref}
-              onClick={(event) => {
-                event.preventDefault();
-                startViewTransition(() => navigate(copy.switchHref));
-              }}
-              className="font-semibold text-[oklch(90%_0.22_129)] no-underline hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(90%_0.22_129)]"
-            >
-              {copy.switchCta}
-            </Link>
-            <p className="mt-3 mb-0 text-[11.5px] leading-[1.55] text-[oklch(67%_0.025_165_/_0.75)]">
-              By continuing, you agree to our{' '}
-              <a
-                href="/terms"
-                className="font-semibold text-[oklch(67%_0.025_165)] underline underline-offset-2 hover:text-[oklch(90%_0.22_129)]"
-              >
-                Terms of Service
-              </a>{' '}
-              and{' '}
-              <a
-                href="/privacy"
-                className="font-semibold text-[oklch(67%_0.025_165)] underline underline-offset-2 hover:text-[oklch(90%_0.22_129)]"
-              >
-                Privacy Policy
-              </a>
-              .
-            </p>
-          </div>
+          {AUTH_PROVIDERS.map((provider) => (
+            <AuthProviderButton
+              key={provider}
+              provider={provider}
+              activeProvider={activeProvider}
+              externalHref={openAuthExternally ? externalAuthUrl(APP_URL, provider) : undefined}
+              onClick={handleProvider}
+            />
+          ))}
         </div>
+
+        {error && (
+          <p
+            className="mt-3 mb-0 text-[12.5px] font-semibold leading-[1.5] text-[var(--landing-error)]"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
+
+        <p className="mt-5 mb-0 text-[13px] text-[var(--landing-muted)]">
+          {copy.switchLabel}{' '}
+          <Link
+            href={copy.switchHref}
+            onClick={(event) => {
+              event.preventDefault();
+              startViewTransition(() => navigate(copy.switchHref));
+            }}
+            className="font-semibold text-[var(--landing-accent)] underline decoration-[color-mix(in_oklch,var(--landing-accent)_40%,transparent)] underline-offset-[3px] hover:decoration-[var(--landing-accent)]"
+          >
+            {copy.switchCta}
+          </Link>
+        </p>
+        <p className="mt-2 mb-0 text-[12px] leading-[1.55] text-[var(--landing-faint)]">
+          By continuing, you agree to our{' '}
+          <a
+            href="/terms"
+            className="font-semibold text-[var(--landing-muted)] underline decoration-[var(--landing-border-strong)] underline-offset-[3px] hover:text-[var(--landing-text)]"
+          >
+            Terms of Service
+          </a>{' '}
+          and{' '}
+          <a
+            href="/privacy"
+            className="font-semibold text-[var(--landing-muted)] underline decoration-[var(--landing-border-strong)] underline-offset-[3px] hover:text-[var(--landing-text)]"
+          >
+            Privacy Policy
+          </a>
+          .
+        </p>
       </section>
-    </main>
+    </AuthShell>
   );
 }
