@@ -5,8 +5,9 @@ description: A column-view file browser for the plans your coding agents already
 # /privacy). Hex values are sRGB approximations; the normative tokens are the
 # OKLCH custom properties on `.landing-page` / `.dark .landing-page` in
 # packages/web/src/client/index.css ("Landing page: the Column View world").
-# The dashboard app keeps its own token set in `:root` / `.dark` and is not
-# governed by this document.
+# The dashboard app (OSS + EE) maps the same world onto its semantic tokens in
+# `:root` / `.dark` (see "Dashboard tokens" below); the marketing routes and the
+# dashboard share one palette, one face, and one selection color.
 colors:
   # Light (primary scene)
   screen-ground: '#f8fafc' # --landing-bg, oklch(98.4% 0.004 255)
@@ -374,3 +375,22 @@ On `/` at widths above 960px, index rows start hidden while `is-collating` is se
 - **Don't** use unicode characters as icons; every glyph is an inline SVG (document, chevron, check, copy, menu, agent marks).
 - **Don't** let Dex appear anywhere but the path bar, or lead a section with the mascot.
 - **Don't** present illustrative rows, comments or prices as real data without the "illustrative" label.
+
+## Dashboard tokens
+
+The OSS and EE dashboards consume the world through the semantic token set in `:root` / `.dark` (`packages/web/src/client/index.css`, the block at the top of the file), which every dashboard component and EE's Tailwind `@theme inline` map read. The mapping is one-to-one with the marketing tokens:
+
+| Dashboard token | Light | Dark | Marketing equivalent |
+| --- | --- | --- | --- |
+| `--bg` / `--surface` / `--surface-raised` | oklch(98.4% .004 255) / 99.4% / 95.5% | 15.5% / 18.5% / 23% (.012 265) | `--landing-bg` / `-surface` / `-surface-raised` |
+| `--text` / `--secondary` / `--tertiary` | 17% / 42% / 50% | 95% / 73% / 62% | `--landing-text` / `-muted` / `-faint` |
+| `--accent` | oklch(46% .215 285) | oklch(66% .18 285) | `--landing-accent` (text on ground) |
+| `--accent-contrast` | oklch(99% .008 285) | oklch(12% .03 285) | text on an `--accent` fill; dark keeps fills legible by inverting the ink instead of deepening the fill |
+| `--accent-soft` | accent at 9% | accent at 14% | `--landing-accent-soft`, the selected-row and linked-row wash |
+| `--radius` | 8px | 8px | listing radius |
+| `--font-sans` / `--font-mono` | Schibsted Grotesk / JetBrains Mono | same | `--landing-font` / `--landing-mono` |
+| `--grid-line` | text at 3% | text at 4% | none; kept only for the empty-state crosshair, held near-invisible |
+
+Status tokens (`--success` / `--warning` / `--danger` / `--info`), the categorical chart palette and the code-highlight ramp are unchanged: they are semantic, never brand.
+
+Dashboard component rules that follow from the world: the sidebar and topbar are flat `--surface` (no gradients, no inset grid shadow); sidebar section labels are sentence-case 12px/600 in `--secondary`, never tracked uppercase; filter cards, selects, plan rows and the primary sidebar action sit at 6–8px radius; a selected plan row is a full-row `--accent-soft` wash with no border or inset ring; count badges and path badges are 5px tags, and only true dots (unread, status, chart markers) stay circular. EE's About page carries a private `--about-*` token set for its always-dark editorial layout; it is mapped to the same dark ramp and violet.

@@ -1,35 +1,35 @@
 @import "driver.js/dist/driver.css";
 
 :root {
-  --bg: oklch(97.2% 0.012 128);
-  --surface: oklch(99% 0.009 128);
-  --surface-raised: oklch(94.5% 0.015 128);
-  --text: oklch(17% 0.017 132);
-  --secondary: oklch(45% 0.018 145);
-  --tertiary: oklch(54% 0.015 145);
+  --bg: oklch(98.4% 0.004 255);
+  --surface: oklch(99.4% 0.003 255);
+  --surface-raised: oklch(95.5% 0.006 255);
+  --text: oklch(17% 0.014 265);
+  --secondary: oklch(42% 0.014 265);
+  --tertiary: oklch(50% 0.012 265);
   --border: color-mix(in oklch, var(--text) 9%, transparent);
   --border-strong: color-mix(in oklch, var(--text) 15%, transparent);
   --hover: color-mix(in oklch, var(--text) 4.2%, transparent);
   --active: color-mix(in oklch, var(--text) 7%, transparent);
-  --accent: oklch(90% 0.22 129);
-  --accent-contrast: oklch(16% 0.02 132);
-  --accent-soft: color-mix(in oklch, var(--accent) 13%, transparent);
+  --accent: oklch(46% 0.215 285);
+  --accent-contrast: oklch(99% 0.008 285);
+  --accent-soft: color-mix(in oklch, var(--accent) 9%, transparent);
   --primary: var(--accent);
-  --primary-rgb: 200, 255, 50;
+  --primary-rgb: 85, 50, 199;
   --success: oklch(53% 0.13 152);
   --warning: oklch(55% 0.13 78);
   --danger: oklch(56% 0.18 28);
   --info: oklch(53% 0.08 190);
-  --grid-line: color-mix(in oklch, var(--text) 5.5%, transparent);
-  --grid-line-strong: color-mix(in oklch, var(--text) 9%, transparent);
+  --grid-line: color-mix(in oklch, var(--text) 3%, transparent);
+  --grid-line-strong: color-mix(in oklch, var(--text) 5.5%, transparent);
   --sidebar-accent: var(--accent);
   --sidebar-accent-contrast: var(--accent-contrast);
   --sidebar-soft-surface: color-mix(in oklch, var(--text) 3.2%, transparent);
   --sidebar-strong-border: var(--border-strong);
   --shadow-popover: 0 18px 40px color-mix(in oklch, var(--text) 18%, transparent);
-  --radius: 10px;
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --radius: 8px;
+  --font-sans: "Schibsted Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
   /* Semantic z scale: sticky chrome < topbar < overlays < toasts < modals < lightbox. */
   --z-sticky: 40;
   --z-topbar: 50;
@@ -47,10 +47,10 @@
   --chart-database: oklch(52% 0.12 160);
   --chart-cloud: oklch(54% 0.15 345);
   --chart-testing: oklch(52% 0.16 25);
-  --code-bg: oklch(95% 0.012 128);
+  --code-bg: oklch(96.5% 0.005 255);
   --code-border: color-mix(in oklch, var(--text) 14%, transparent);
-  --code-fg: oklch(24% 0.018 132);
-  --code-comment: oklch(51% 0.016 145);
+  --code-fg: oklch(24% 0.014 265);
+  --code-comment: oklch(51% 0.012 265);
   --code-keyword: oklch(50% 0.15 305);
   --code-string: oklch(42% 0.11 220);
   --code-number: oklch(43% 0.11 238);
@@ -60,36 +60,36 @@
 }
 
 .dark {
-  --bg: oklch(13.5% 0.036 181);
-  --surface: oklch(16.5% 0.037 181);
-  --surface-raised: oklch(20.5% 0.039 180);
-  --text: oklch(95% 0.018 127);
-  --secondary: oklch(68% 0.028 170);
-  --tertiary: oklch(60% 0.028 171);
+  --bg: oklch(15.5% 0.012 265);
+  --surface: oklch(18.5% 0.012 265);
+  --surface-raised: oklch(23% 0.013 265);
+  --text: oklch(95% 0.008 260);
+  --secondary: oklch(73% 0.01 260);
+  --tertiary: oklch(62% 0.01 260);
   --border: color-mix(in oklch, var(--text) 10%, transparent);
   --border-strong: color-mix(in oklch, var(--text) 17%, transparent);
   --hover: color-mix(in oklch, var(--text) 5.5%, transparent);
   --active: color-mix(in oklch, var(--text) 8.5%, transparent);
-  --accent: oklch(90% 0.22 129);
-  --accent-contrast: oklch(16% 0.02 132);
-  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+  --accent: oklch(66% 0.18 285);
+  --accent-contrast: oklch(12% 0.03 285);
+  --accent-soft: color-mix(in oklch, var(--accent) 14%, transparent);
   --primary: var(--accent);
-  --primary-rgb: 200, 255, 50;
+  --primary-rgb: 138, 125, 250;
   --success: oklch(72% 0.14 152);
   --warning: oklch(76% 0.13 78);
   --danger: oklch(65% 0.2 28);
   --info: oklch(72% 0.07 190);
-  --grid-line: color-mix(in oklch, var(--text) 5.2%, transparent);
-  --grid-line-strong: color-mix(in oklch, var(--text) 8.5%, transparent);
+  --grid-line: color-mix(in oklch, var(--text) 4%, transparent);
+  --grid-line-strong: color-mix(in oklch, var(--text) 6.5%, transparent);
   --sidebar-accent: var(--accent);
   --sidebar-accent-contrast: var(--accent-contrast);
   --sidebar-soft-surface: color-mix(in oklch, var(--text) 4%, transparent);
   --sidebar-strong-border: var(--border-strong);
-  --shadow-popover: 0 18px 40px color-mix(in oklch, oklch(9% 0.02 181) 56%, transparent);
-  --code-bg: oklch(11.5% 0.028 181);
+  --shadow-popover: 0 18px 40px color-mix(in oklch, oklch(8% 0.01 265) 56%, transparent);
+  --code-bg: oklch(20% 0.012 265);
   --code-border: color-mix(in oklch, var(--text) 15%, transparent);
-  --code-fg: oklch(82% 0.025 170);
-  --code-comment: oklch(62% 0.028 171);
+  --code-fg: oklch(90% 0.01 260);
+  --code-comment: oklch(62% 0.01 260);
   --code-keyword: oklch(72% 0.13 33);
   --code-string: oklch(80% 0.08 224);
   --code-number: oklch(75% 0.09 238);
@@ -216,12 +216,7 @@
 /* ─── Sidebar command dock ─── */
 .agendex-sidebar {
   container-type: inline-size;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--surface) 98%, transparent),
-      color-mix(in oklch, var(--bg) 20%, var(--surface))
-    );
+  background: var(--surface);
 }
 
 .agendex-sidebar *,
@@ -259,10 +254,9 @@
   min-width: 0;
   height: 31px;
   border: 1px solid color-mix(in oklch, var(--accent) 30%, var(--border));
-  border-radius: 10px;
+  border-radius: 6px;
   background: color-mix(in oklch, var(--sidebar-accent) 11%, var(--surface-raised));
   color: var(--text);
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 5%, transparent);
   transition:
     background 150ms ease,
     border-color 150ms ease,
@@ -274,7 +268,6 @@
   background: color-mix(in oklch, var(--sidebar-accent) 15%, var(--surface-raised));
   border-color: color-mix(in oklch, var(--accent) 44%, var(--border));
   transform: translateY(-1px);
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 10%, transparent);
 }
 
 .sidebar-primary-action:active {
@@ -309,14 +302,8 @@
 
 .sidebar-filter-card {
   border: 1px solid var(--border);
-  border-radius: 13px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--text) 2.4%, transparent),
-      transparent
-    ),
-    var(--sidebar-soft-surface);
+  border-radius: 8px;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -472,7 +459,7 @@
   height: 20px;
   padding: 0 6px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 6px;
   background: rgba(127, 127, 127, 0.035);
   color: var(--secondary);
   font-size: 10.5px;
@@ -581,16 +568,15 @@
 
 .sidebar-control-label,
 .sidebar-section-title {
-  font-size: 10px;
-  font-weight: 720;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--secondary);
 }
 
 .sidebar-select-shell {
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 6px;
   background: var(--surface);
   transition:
     border-color 140ms ease,
@@ -751,7 +737,7 @@
   min-width: 22px;
   height: 18px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: 5px;
   background: rgba(127, 127, 127, 0.06);
   color: var(--tertiary);
   font-size: 10.5px;
@@ -856,7 +842,7 @@
 .sidebar-plan-row {
   padding: 8px 8px 7px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 6px;
   transition:
     background 130ms ease,
     border-color 130ms ease,
@@ -875,9 +861,8 @@
 }
 
 .sidebar-plan-row.plan-row--selected {
-  background: color-mix(in oklch, var(--accent) 7%, var(--surface)) !important;
-  border-color: color-mix(in oklch, var(--accent) 24%, var(--border));
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 10%, transparent);
+  background: var(--accent-soft) !important;
+  border-color: transparent;
 }
 
 .sidebar-plan-row.plan-row--split {
@@ -2127,9 +2112,7 @@ body {
 }
 
 .agendex-topbar {
-  background:
-    linear-gradient(180deg, color-mix(in oklch, var(--surface) 96%, transparent), var(--surface));
-  box-shadow: inset 0 -1px 0 var(--grid-line);
+  background: var(--surface);
 }
 
 .agendex-topbar-button {
@@ -2152,7 +2135,6 @@ body {
   border: 1px solid color-mix(in oklch, var(--accent) 34%, var(--border));
   background: color-mix(in oklch, var(--accent) 14%, var(--surface-raised));
   color: var(--text);
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 8%, transparent);
   transition:
     background-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
     border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -2164,7 +2146,6 @@ body {
 .agendex-topbar-primary:focus-visible {
   background: color-mix(in oklch, var(--accent) 18%, var(--surface-raised));
   border-color: color-mix(in oklch, var(--accent) 48%, var(--border));
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 12%, transparent);
 }
 
 .agendex-topbar-primary:active {
@@ -2715,7 +2696,7 @@ body {
   font-size: 10px;
   line-height: 1;
   padding: 2px 4px;
-  border-radius: 999px;
+  border-radius: 5px;
   background: var(--accent-soft);
   color: var(--text);
   border: 1px solid var(--border);
@@ -3444,7 +3425,6 @@ body {
 
 .plan-compare-card--target {
   border-color: color-mix(in oklch, var(--accent) 38%, var(--border));
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 8%, transparent);
 }
 
 .plan-compare-card-role {
@@ -7334,7 +7314,6 @@ body:has(> * > * > .landing-page) {
 .upload-dropzone-active {
   border-color: color-mix(in oklch, var(--accent) 42%, var(--border));
   background: color-mix(in oklch, var(--accent) 5%, transparent);
-  box-shadow: 0 0 32px color-mix(in oklch, var(--accent) 8%, transparent);
 }
 
 .upload-dropzone-active .upload-dropzone-ring {

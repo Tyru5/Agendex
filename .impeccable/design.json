@@ -10,146 +10,374 @@
         "displayName": "Screen Ground",
         "canonical": "oklch(98.4% 0.004 255)",
         "darkCanonical": "oklch(15.5% 0.012 265)",
-        "tonalRamp": ["#090b10", "#1f2228", "#373b41", "#52555c", "#6e7279", "#9b9ea6", "#caced6", "#f8fafc"]
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#f8fafc"
+        ]
       },
       "column-surface": {
         "role": "neutral",
         "displayName": "Column Surface",
         "canonical": "oklch(99.4% 0.003 255)",
         "darkCanonical": "oklch(18.5% 0.012 265)",
-        "tonalRamp": ["#090b10", "#1f2228", "#373b41", "#52555c", "#6e7279", "#9b9ea6", "#caced6", "#fcfdff"]
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#fcfdff"
+        ]
       },
       "header-surface": {
         "role": "neutral",
         "displayName": "Header Surface",
         "canonical": "oklch(95.5% 0.006 255)",
         "darkCanonical": "oklch(23% 0.013 265)",
-        "tonalRamp": ["#090b10", "#1f2228", "#373b41", "#52555c", "#6e7279", "#9b9ea6", "#caced6", "#edf0f4"]
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#edf0f4"
+        ]
       },
       "ink": {
         "role": "neutral",
         "displayName": "Ink",
         "canonical": "oklch(17% 0.014 265)",
         "darkCanonical": "oklch(95% 0.008 260)",
-        "tonalRamp": ["#0c0f16", "#1f2228", "#373b41", "#52555c", "#6e7279", "#9b9ea6", "#caced6", "#eaeff7"]
+        "tonalRamp": [
+          "#0c0f16",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#eaeff7"
+        ]
       },
       "ink-muted": {
         "role": "neutral",
         "displayName": "Ink Muted",
         "canonical": "oklch(42% 0.014 265)",
         "darkCanonical": "oklch(73% 0.01 260)",
-        "tonalRamp": ["#090b10", "#1f2228", "#373b41", "#494d55", "#6e7279", "#9b9ea6", "#caced6", "#eaeff7"]
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#494d55",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#eaeff7"
+        ]
       },
       "ink-faint": {
         "role": "neutral",
         "displayName": "Ink Faint",
         "canonical": "oklch(50% 0.012 265)",
         "darkCanonical": "oklch(62% 0.01 260)",
-        "tonalRamp": ["#090b10", "#1f2228", "#373b41", "#52555c", "#60636a", "#9b9ea6", "#caced6", "#eaeff7"]
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#60636a",
+          "#9b9ea6",
+          "#caced6",
+          "#eaeff7"
+        ]
       },
       "column-divider": {
         "role": "neutral",
         "displayName": "Column Divider",
         "canonical": "oklch(87% 0.007 260)",
         "darkCanonical": "oklch(28% 0.012 265)",
-        "tonalRamp": ["#090b10", "#1f2228", "#373b41", "#52555c", "#6e7279", "#9b9ea6", "#d1d4d9", "#eaeff7"]
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#d1d4d9",
+          "#eaeff7"
+        ]
       },
       "control-edge": {
         "role": "neutral",
         "displayName": "Control Edge",
         "canonical": "oklch(76% 0.01 260)",
         "darkCanonical": "oklch(38% 0.014 265)",
-        "tonalRamp": ["#090b10", "#1f2228", "#373b41", "#52555c", "#6e7279", "#adb1b8", "#caced6", "#eaeff7"]
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#adb1b8",
+          "#caced6",
+          "#eaeff7"
+        ]
       },
       "row-divider": {
         "role": "neutral",
         "displayName": "Row Divider",
         "canonical": "oklch(92% 0.006 260)",
         "darkCanonical": "oklch(23% 0.012 265)",
-        "tonalRamp": ["#090b10", "#1f2228", "#373b41", "#52555c", "#6e7279", "#9b9ea6", "#e2e5e9", "#eaeff7"]
+        "tonalRamp": [
+          "#090b10",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#e2e5e9",
+          "#eaeff7"
+        ]
       },
       "ultramarine-violet": {
         "role": "primary",
         "displayName": "Ultramarine Violet",
         "canonical": "oklch(46% 0.215 285)",
         "darkCanonical": "text oklch(66% 0.18 285) / fill oklch(38% 0.19 285)",
-        "tonalRamp": ["#0e003a", "#200e57", "#3a1096", "#5532c7", "#6e5bdd", "#8a7bff", "#ada2ff", "#e3daff"]
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#3a1096",
+          "#5532c7",
+          "#6e5bdd",
+          "#8a7bff",
+          "#ada2ff",
+          "#e3daff"
+        ]
       },
       "ultramarine-pressed": {
         "role": "primary",
         "displayName": "Ultramarine Pressed",
         "canonical": "color-mix(in oklch, var(--landing-index-bg) 88%, var(--landing-text))",
-        "tonalRamp": ["#0e003a", "#200e57", "#3a1096", "#4b2fb0", "#6e5bdd", "#8a7bff", "#ada2ff", "#e3daff"]
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#3a1096",
+          "#4b2fb0",
+          "#6e5bdd",
+          "#8a7bff",
+          "#ada2ff",
+          "#e3daff"
+        ]
       },
       "selection-ink": {
         "role": "primary",
         "displayName": "Selection Ink",
         "canonical": "oklch(99% 0.008 285)",
-        "tonalRamp": ["#0e003a", "#200e57", "#3a1096", "#5532c7", "#6e5bdd", "#8a7bff", "#ada2ff", "#fbfbff"]
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#3a1096",
+          "#5532c7",
+          "#6e5bdd",
+          "#8a7bff",
+          "#ada2ff",
+          "#fbfbff"
+        ]
       },
       "selection-wash": {
         "role": "primary",
         "displayName": "Selection Wash",
         "canonical": "color-mix(in oklch, var(--landing-accent) 9%, var(--landing-bg))",
-        "tonalRamp": ["#0e003a", "#200e57", "#3a1096", "#5532c7", "#6e5bdd", "#8a7bff", "#ada2ff", "#e8e8f9"]
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#3a1096",
+          "#5532c7",
+          "#6e5bdd",
+          "#8a7bff",
+          "#ada2ff",
+          "#e8e8f9"
+        ]
       },
       "error-red": {
         "role": "status",
         "displayName": "Error Red",
         "canonical": "oklch(52% 0.19 30)",
         "darkCanonical": "oklch(70% 0.17 30)",
-        "tonalRamp": ["#290000", "#460200", "#7c0000", "#9e170c", "#be2517", "#d95544", "#fd7562", "#ffaf99"]
+        "tonalRamp": [
+          "#290000",
+          "#460200",
+          "#7c0000",
+          "#9e170c",
+          "#be2517",
+          "#d95544",
+          "#fd7562",
+          "#ffaf99"
+        ]
       },
       "night-ground": {
         "role": "neutral",
         "displayName": "Night Ground",
         "canonical": "oklch(15.5% 0.012 265)",
-        "tonalRamp": ["#0a0c11", "#1f2228", "#373b41", "#52555c", "#6e7279", "#9b9ea6", "#caced6", "#eaeff7"]
+        "tonalRamp": [
+          "#0a0c11",
+          "#1f2228",
+          "#373b41",
+          "#52555c",
+          "#6e7279",
+          "#9b9ea6",
+          "#caced6",
+          "#eaeff7"
+        ]
       },
       "night-violet-text": {
         "role": "primary",
         "displayName": "Night Violet Text",
         "canonical": "oklch(66% 0.18 285)",
-        "tonalRamp": ["#0e003a", "#200e57", "#3a1096", "#543bbb", "#6e5bdd", "#8a7dfa", "#ada2ff", "#e3daff"]
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#3a1096",
+          "#543bbb",
+          "#6e5bdd",
+          "#8a7dfa",
+          "#ada2ff",
+          "#e3daff"
+        ]
       },
       "night-violet-fill": {
         "role": "primary",
         "displayName": "Night Violet Fill",
         "canonical": "oklch(38% 0.19 285)",
-        "tonalRamp": ["#0e003a", "#200e57", "#411ea0", "#543bbb", "#6e5bdd", "#8a7bff", "#ada2ff", "#e3daff"]
+        "tonalRamp": [
+          "#0e003a",
+          "#200e57",
+          "#411ea0",
+          "#543bbb",
+          "#6e5bdd",
+          "#8a7bff",
+          "#ada2ff",
+          "#e3daff"
+        ]
       }
     },
     "typographyMeta": {
-      "display": { "displayName": "Window Title Display", "purpose": "The one h1 inside the index column, in selection ink, max 14ch." },
-      "headline": { "displayName": "Band Headline", "purpose": "Section h2 on / and the page h1 on subpages." },
-      "title": { "displayName": "Section Title", "purpose": "Subpage section headings on a hairline; 19px when dense." },
-      "lede": { "displayName": "Lede", "purpose": "The one-line paragraph under a headline; muted, 60ch." },
-      "body": { "displayName": "Reading Body", "purpose": "Subpage prose and disclosure answers; muted, 68ch." },
-      "row": { "displayName": "File Row", "purpose": "Browser rows, listing rows, toolbar links; tabular numerals beside it." },
-      "label": { "displayName": "Bar Label", "purpose": "Column heads, listing heads, tabs, form labels. Never uppercase or tracked." },
-      "mono": { "displayName": "Real Mono", "purpose": "Only commands, paths, agendex subcommands and rendered plan markdown." }
+      "display": {
+        "displayName": "Window Title Display",
+        "purpose": "The one h1 inside the index column, in selection ink, max 14ch."
+      },
+      "headline": {
+        "displayName": "Band Headline",
+        "purpose": "Section h2 on / and the page h1 on subpages."
+      },
+      "title": {
+        "displayName": "Section Title",
+        "purpose": "Subpage section headings on a hairline; 19px when dense."
+      },
+      "lede": {
+        "displayName": "Lede",
+        "purpose": "The one-line paragraph under a headline; muted, 60ch."
+      },
+      "body": {
+        "displayName": "Reading Body",
+        "purpose": "Subpage prose and disclosure answers; muted, 68ch."
+      },
+      "row": {
+        "displayName": "File Row",
+        "purpose": "Browser rows, listing rows, toolbar links; tabular numerals beside it."
+      },
+      "label": {
+        "displayName": "Bar Label",
+        "purpose": "Column heads, listing heads, tabs, form labels. Never uppercase or tracked."
+      },
+      "mono": {
+        "displayName": "Real Mono",
+        "purpose": "Only commands, paths, agendex subcommands and rendered plan markdown."
+      }
     },
     "shadows": [
-      { "name": "modal-lift", "value": "0 18px 40px rgba(0, 0, 0, 0.24)", "purpose": "The connect-to-dashboard modal only; every other surface is flat." }
+      {
+        "name": "modal-lift",
+        "value": "0 18px 40px rgba(0, 0, 0, 0.24)",
+        "purpose": "The connect-to-dashboard modal only; every other surface is flat."
+      }
     ],
     "motion": [
-      { "name": "control-state", "value": "120ms ease", "purpose": "Background, border and color on links, buttons and rows." },
-      { "name": "disclosure-chevron", "value": "180ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Chevron rotation on FAQ rows." },
-      { "name": "disclosure-open", "value": "220ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "grid-template-rows 0fr to 1fr on FAQ answers." },
-      { "name": "price-swap", "value": "260ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Price and period fade-up when billing cadence changes; 40ms trail on the period." },
-      { "name": "sources-dim", "value": "opacity 400ms ease", "purpose": "Source columns drop to 55% while collation runs." },
-      { "name": "collate-flip", "value": "640ms cubic-bezier(0.22, 1, 0.36, 1), 34ms stagger per row", "purpose": "Index rows FLIP from their source twins on first scroll or 1.6s idle; skipped under prefers-reduced-motion and at 960px and below." }
+      {
+        "name": "control-state",
+        "value": "120ms ease",
+        "purpose": "Background, border and color on links, buttons and rows."
+      },
+      {
+        "name": "disclosure-chevron",
+        "value": "180ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Chevron rotation on FAQ rows."
+      },
+      {
+        "name": "disclosure-open",
+        "value": "220ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "grid-template-rows 0fr to 1fr on FAQ answers."
+      },
+      {
+        "name": "price-swap",
+        "value": "260ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Price and period fade-up when billing cadence changes; 40ms trail on the period."
+      },
+      {
+        "name": "sources-dim",
+        "value": "opacity 400ms ease",
+        "purpose": "Source columns drop to 55% while collation runs."
+      },
+      {
+        "name": "collate-flip",
+        "value": "640ms cubic-bezier(0.22, 1, 0.36, 1), 34ms stagger per row",
+        "purpose": "Index rows FLIP from their source twins on first scroll or 1.6s idle; skipped under prefers-reduced-motion and at 960px and below."
+      }
     ],
     "breakpoints": [
-      { "name": "phone", "value": "640px", "purpose": "Path-bar status hides; install command wraps, copy key drops under it." },
-      { "name": "menu", "value": "860px", "purpose": "Toolbar nav folds into the menu button." },
-      { "name": "stack", "value": "960px", "purpose": "Browser becomes a stacked list view; index first, sources as a snapping strip; columns panel single-column." }
+      {
+        "name": "phone",
+        "value": "640px",
+        "purpose": "Path-bar status hides; install command wraps, copy key drops under it."
+      },
+      {
+        "name": "menu",
+        "value": "860px",
+        "purpose": "Toolbar nav folds into the menu button."
+      },
+      {
+        "name": "stack",
+        "value": "960px",
+        "purpose": "Browser becomes a stacked list view; index first, sources as a snapping strip; columns panel single-column."
+      }
     ],
-    "focus": { "value": "outline: 2px solid var(--landing-accent); outline-offset: 2px", "purpose": "Every focusable element, both themes." },
-    "textSelection": { "value": "background: var(--landing-accent); color: var(--landing-accent-ink)" },
+    "focus": {
+      "value": "outline: 2px solid var(--landing-accent); outline-offset: 2px",
+      "purpose": "Every focusable element, both themes."
+    },
+    "textSelection": {
+      "value": "background: var(--landing-accent); color: var(--landing-accent-ink)"
+    },
     "fonts": {
-      "loadedIn": ["packages/app/src/client/index.html", "packages/ee/index.html"],
-      "families": ["Schibsted Grotesk 400..900 (variable, italic too)", "JetBrains Mono 400/500/600"]
+      "loadedIn": [
+        "packages/app/src/client/index.html",
+        "packages/ee/index.html"
+      ],
+      "families": [
+        "Schibsted Grotesk 400..900 (variable, italic too)",
+        "JetBrains Mono 400/500/600"
+      ]
     }
   },
   "components": [
@@ -190,7 +418,7 @@
       "kind": "custom",
       "refersTo": "row",
       "description": "A source column: head with path and count, 34px document rows, foot with the illustrative label. Hover links a row.",
-      "html": "<div class=\"ds-col\"><div class=\"ds-col-head\"><code>~/.claude/plans</code><span>3 items</span></div><ul class=\"ds-rows\"><li class=\"ds-row ds-row--linked\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 1.5h5l3 3v10H4z\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/><path d=\"M9 1.5v3h3\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/></svg><span class=\"ds-row-name\">rate-limit-rollout.md</span><span class=\"ds-row-meta\">2m</span></li><li class=\"ds-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 1.5h5l3 3v10H4z\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/><path d=\"M9 1.5v3h3\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/></svg><span class=\"ds-row-name\">auth-token-refresh.md</span><span class=\"ds-row-meta\">41m</span></li><li class=\"ds-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 1.5h5l3 3v10H4z\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/><path d=\"M9 1.5v3h3\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/></svg><span class=\"ds-row-name\">search-index-rebuild.md</span><span class=\"ds-row-meta\">2h</span></li></ul><div class=\"ds-col-foot\"><span>Claude Code</span><span>3 items · illustrative</span></div></div>",
+      "html": "<div class=\"ds-col\"><div class=\"ds-col-head\"><code>~/.claude/plans</code><span>3 items</span></div><ul class=\"ds-rows\"><li class=\"ds-row ds-row--linked\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 1.5h5l3 3v10H4z\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/><path d=\"M9 1.5v3h3\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/></svg><span class=\"ds-row-name\">rate-limit-rollout.md</span><span class=\"ds-row-meta\">2m</span></li><li class=\"ds-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 1.5h5l3 3v10H4z\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/><path d=\"M9 1.5v3h3\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/></svg><span class=\"ds-row-name\">auth-token-refresh.md</span><span class=\"ds-row-meta\">41m</span></li><li class=\"ds-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 1.5h5l3 3v10H4z\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/><path d=\"M9 1.5v3h3\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/></svg><span class=\"ds-row-name\">search-index-rebuild.md</span><span class=\"ds-row-meta\">2h</span></li></ul><div class=\"ds-col-foot\"><span>Claude Code</span><span>3 items \u00b7 illustrative</span></div></div>",
       "css": ".ds-col { display: flex; flex-direction: column; width: 280px; border: 1px solid #d1d4d9; background: #fcfdff; color: #0c0f16; font-family: 'Schibsted Grotesk', system-ui, sans-serif; font-variant-numeric: tabular-nums; } .ds-col-head { display: flex; min-height: 30px; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #d1d4d9; background: #edf0f4; padding: 0 12px; color: #494d55; font-size: 12px; font-weight: 600; white-space: nowrap; } .ds-col-head code { overflow: hidden; text-overflow: ellipsis; font: 500 11.5px 'JetBrains Mono', ui-monospace, monospace; } .ds-col-head span { color: #60636a; font-weight: 500; } .ds-rows { margin: 0; padding: 4px 0; list-style: none; } .ds-row { display: grid; min-height: 34px; grid-template-columns: 18px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 0 12px; font-size: 13px; line-height: 1.25; transition: background-color 120ms ease; } .ds-row > svg { color: #60636a; } .ds-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-row-meta { color: #60636a; font-size: 12px; } .ds-row:hover, .ds-row--linked { background: #e8e8f9; } .ds-row:hover > svg, .ds-row:hover .ds-row-meta, .ds-row--linked > svg, .ds-row--linked .ds-row-meta { color: #5532c7; } .ds-col-foot { display: flex; min-height: 28px; align-items: center; justify-content: space-between; margin-top: auto; border-top: 1px solid #e2e5e9; padding: 0 12px; color: #60636a; font-size: 11.5px; }"
     },
     {
@@ -238,7 +466,7 @@
       "kind": "nav",
       "refersTo": "pathbar",
       "description": "Header-surface breadcrumb strip; on / it carries Dex as the volume icon and the watched-source count.",
-      "html": "<div class=\"ds-pathbar\"><div class=\"ds-pathbar-crumbs\"><span class=\"ds-pathbar-volume\" aria-hidden=\"true\"></span><b>Agendex</b><svg width=\"10\" height=\"10\" viewBox=\"0 0 12 12\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 2.5 7.5 6 4 9.5\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>Local index</span><svg width=\"10\" height=\"10\" viewBox=\"0 0 12 12\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 2.5 7.5 6 4 9.5\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>3 sources watched</span></div><div class=\"ds-pathbar-status\">21 agent integrations · local by default</div></div>",
+      "html": "<div class=\"ds-pathbar\"><div class=\"ds-pathbar-crumbs\"><span class=\"ds-pathbar-volume\" aria-hidden=\"true\"></span><b>Agendex</b><svg width=\"10\" height=\"10\" viewBox=\"0 0 12 12\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 2.5 7.5 6 4 9.5\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>Local index</span><svg width=\"10\" height=\"10\" viewBox=\"0 0 12 12\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 2.5 7.5 6 4 9.5\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>3 sources watched</span></div><div class=\"ds-pathbar-status\">21 agent integrations \u00b7 local by default</div></div>",
       "css": ".ds-pathbar { display: flex; min-height: 36px; width: 560px; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #d1d4d9; border-bottom: 1px solid #d1d4d9; background: #edf0f4; padding: 0 12px; color: #494d55; font: 400 12px/1 'Schibsted Grotesk', system-ui, sans-serif; font-variant-numeric: tabular-nums; } .ds-pathbar-crumbs { display: flex; align-items: center; gap: 6px; white-space: nowrap; } .ds-pathbar-volume { width: 20px; height: 20px; border-radius: 5px; background: #5532c7; } .ds-pathbar-crumbs b { color: #0c0f16; font-weight: 600; } .ds-pathbar-crumbs svg { color: #60636a; } .ds-pathbar-status { color: #60636a; }"
     }
   ],
@@ -254,13 +482,41 @@
       "Illustrative data is always labeled \"illustrative\" in the column head or foot."
     ],
     "rules": [
-      { "name": "The One Color Rule", "body": "Ultramarine-violet is the only hue on the page. A new element that needs emphasis takes the violet as text on ground, the violet as a fill with selection ink on top, or nothing. It never takes a second color.", "section": "colors" },
-      { "name": "The Fill Ink Rule", "body": "Anything painted with `--landing-index-bg` sets its text and glyphs to `--landing-accent-ink`, and all inner structure (heads, wells, hover, tags) is selection ink at a translucent percentage. No neutral tokens inside a violet fill.", "section": "colors" },
-      { "name": "The Dark Is Night Mode Rule", "body": "Dark only remaps the neutral scale and splits the violet into text and fill steps. It adds no glow, no gradients, no new hue.", "section": "colors" },
-      { "name": "The One Face Rule", "body": "Schibsted Grotesk at every scale. Emphasis comes from weight (400 / 500 / 600 / 700 / 750) and size, never from a second family.", "section": "typography" },
-      { "name": "The Real Mono Rule", "body": "JetBrains Mono appears only where a user could copy the text into a shell or a file: install commands, agent paths, `agendex` subcommands, and the preview pane's markdown. A label set in mono is a mistake.", "section": "typography" },
-      { "name": "The No Eyebrow Rule", "body": "Headings stand alone. No kicker, eyebrow or small-caps label sits above an `h1` or `h2`; the column head is the only thing that ever labels a region.", "section": "typography" },
-      { "name": "The Adjacency Rule", "body": "Two regions are separated by a 1px divider, a tonal header bar, or the violet fill, never by a shadow, a gradient or a border thicker than a hairline.", "section": "elevation" }
+      {
+        "name": "The One Color Rule",
+        "body": "Ultramarine-violet is the only hue on the page. A new element that needs emphasis takes the violet as text on ground, the violet as a fill with selection ink on top, or nothing. It never takes a second color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Fill Ink Rule",
+        "body": "Anything painted with `--landing-index-bg` sets its text and glyphs to `--landing-accent-ink`, and all inner structure (heads, wells, hover, tags) is selection ink at a translucent percentage. No neutral tokens inside a violet fill.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dark Is Night Mode Rule",
+        "body": "Dark only remaps the neutral scale and splits the violet into text and fill steps. It adds no glow, no gradients, no new hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Face Rule",
+        "body": "Schibsted Grotesk at every scale. Emphasis comes from weight (400 / 500 / 600 / 700 / 750) and size, never from a second family.",
+        "section": "typography"
+      },
+      {
+        "name": "The Real Mono Rule",
+        "body": "JetBrains Mono appears only where a user could copy the text into a shell or a file: install commands, agent paths, `agendex` subcommands, and the preview pane's markdown. A label set in mono is a mistake.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Eyebrow Rule",
+        "body": "Headings stand alone. No kicker, eyebrow or small-caps label sits above an `h1` or `h2`; the column head is the only thing that ever labels a region.",
+        "section": "typography"
+      },
+      {
+        "name": "The Adjacency Rule",
+        "body": "Two regions are separated by a 1px divider, a tonal header bar, or the violet fill, never by a shadow, a gradient or a border thicker than a hairline.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do build every new region from the browser vocabulary: a column head or listing head (header surface, 600 label, faint count), rows at 34px, hairline dividers, a foot or status line.",
