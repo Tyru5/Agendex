@@ -1,8 +1,16 @@
 ---
 version: 1
-slug: "packages-web-src-client-components-landingpage-tsx"
-primary_target: "packages/web/src/client/components/LandingPage.tsx"
-related_targets: ["packages/web/src/client/components/DocsPage.tsx","packages/web/src/client/components/DownloadPage.tsx","packages/web/src/client/components/ChangelogPage.tsx","packages/web/src/client/components/ToolsUsedPage.tsx","packages/web/src/client/components/LegalPage.tsx","packages/web/src/client/components/landing/SubpageShell.tsx"]
+slug: 'packages-web-src-client-components-landingpage-tsx'
+primary_target: 'packages/web/src/client/components/LandingPage.tsx'
+related_targets:
+  [
+    'packages/web/src/client/components/DocsPage.tsx',
+    'packages/web/src/client/components/DownloadPage.tsx',
+    'packages/web/src/client/components/ChangelogPage.tsx',
+    'packages/web/src/client/components/ToolsUsedPage.tsx',
+    'packages/web/src/client/components/LegalPage.tsx',
+    'packages/web/src/client/components/landing/SubpageShell.tsx',
+  ]
 ---
 
 # Landing surface brief

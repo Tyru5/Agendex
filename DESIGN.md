@@ -38,43 +38,43 @@ colors:
   night-error-red: '#f66e5c' # --landing-error dark, oklch(70% 0.17 30)
 typography:
   display:
-    fontFamily: "Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
+    fontFamily: 'Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif'
     fontSize: 'clamp(34px, 3.9vw, 58px)'
     fontWeight: 750
     lineHeight: 1.02
     letterSpacing: '-0.028em'
   headline:
-    fontFamily: "Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
+    fontFamily: 'Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif'
     fontSize: 'clamp(26px, 3.1vw, 36px)'
     fontWeight: 750
     lineHeight: 1.06
     letterSpacing: '-0.025em'
   title:
-    fontFamily: "Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
+    fontFamily: 'Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif'
     fontSize: '23px'
     fontWeight: 750
     lineHeight: 1.1
     letterSpacing: '-0.02em'
   lede:
-    fontFamily: "Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
+    fontFamily: 'Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif'
     fontSize: '15px'
     fontWeight: 400
     lineHeight: 1.6
     letterSpacing: '0'
   body:
-    fontFamily: "Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
+    fontFamily: 'Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif'
     fontSize: '13.5px'
     fontWeight: 400
     lineHeight: 1.7
     letterSpacing: '0'
   row:
-    fontFamily: "Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
+    fontFamily: 'Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif'
     fontSize: '13px'
     fontWeight: 400
     lineHeight: 1.25
     letterSpacing: '0'
   label:
-    fontFamily: "Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif"
+    fontFamily: 'Schibsted Grotesk, -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif'
     fontSize: '12px'
     fontWeight: 600
     lineHeight: 1.2
@@ -296,9 +296,11 @@ Rectilinear with barely-rounded corners; the radius is a hint that a thing is a 
 ## Components
 
 ### Window toolbar
+
 A 52px sticky bar in column surface with a hairline below. Brand at left ("Agendex" 700/15px with a violet period), nav as toolbar buttons in the middle (500/13px muted ink, 30px tall, 6px radius, header-surface hover, selection-wash fill and violet text when current), theme switch and the host's auth slot at right. Below 860px the nav becomes a compact secondary button with an inline SVG menu glyph that toggles a stacked list.
 
 ### Actions
+
 - **Shape:** 6px radius, 34px tall, 1px control-edge border, 600/13px label, 120ms ease on background, border and color.
 - **Primary:** violet fill (`--landing-index-bg`) with selection ink; hover mixes 12% ink into the fill. Inside the index column the roles invert: primary is selection ink with violet text.
 - **Secondary:** column surface with control-edge border and ink; hover to header surface.
@@ -308,48 +310,62 @@ A 52px sticky bar in column surface with a hairline below. Brand at left ("Agend
 - **Focus:** every link, button and input shows a 2px violet outline at 2px offset.
 
 ### Miller columns
+
 - **Column:** column surface, right hairline, flex stack.
 - **Column head:** 30px, header surface, hairline below, 600/12px muted ink; the path in mono 500/11.5px with ellipsis, the count in faint ink, pinned right.
 - **Row:** 34px grid of glyph, name, date; ink name with ellipsis, faint 12px date, faint document glyph. Hover on either a source row or its index twin sets `is-linked` on both: selection-wash background, violet glyph and date.
 - **Column foot:** 28px, faint 11.5px, source label left and `N items · illustrative` right.
 
 ### Index column
+
 The destination column, drenched in violet fill with selection ink. Its head, intro divider, install well, tag borders and hover states are all selection ink at 10-40% over the fill. Rows carry an agent icon, name, a workspace tag (11px/600 in a 4px-radius translucent-ink border) and date. Arrow keys move an `is-selected` bar (selection ink at 16%) Finder-style; the list is a `listbox` with `option` rows. The row list scrolls with a thin translucent scrollbar and fades to the fill over its last 28px. A pinned link list at the foot renders text rows (600 weight, trailing chevron) for Read the docs, Connect a running dashboard, and Agendex Desktop.
 
 ### Install row + copy key
+
 The install command is the index column's first row. Two 11.5px/600 tabs (macOS / Linux, Windows; the selected one is selection ink at 18%) sit above a 46px well: translucent-ink fill, 30% ink border, 7px radius, prompt glyph and command in mono 13px, and the **copy key** at right, a 32px selection-ink key with violet 700/12px text that flips its inline SVG and label to Copied for 1.4s. A 12.5px follow-up line names the next three `agendex` commands in mono.
 
 ### Path bar
+
 36px header-surface strip, hairline below, 12px muted ink with tabular numerals. Crumbs: Dex (20px, theme-matched) then `Agendex` in 600 ink, chevrons in faint ink, and the current location; a faint status string right that hides under 640px. On `/` it sits below the browser; on subpages it sits directly under the toolbar and has no Dex.
 
 ### Listing
+
 The section-level building block (`.landing-list`): a bordered 8px-radius column-surface box with a **listing head** (32px, header surface, 600/12.5px ink, faint counter right) and **listing rows** (`20px 1fr` grid, 12px 14px padding, 13.5px/1.5, row-divider hairlines, a faint 600/12px numeral or glyph in the first cell, muted prose paragraphs). Pricing volumes, the sources catalogue, the FAQ and the package-manager installer are all listings. A listing whose rows are file rows reuses the 34px row.
 
 ### Columns panel
+
 `.landing-columns`: a bordered 8px-radius grid whose children are separated by column dividers, used to show the local index, a preview pane and cloud review side by side. Collapses to stacked, hairline-separated blocks under 960px.
 
 ### Preview pane
+
 The browser's Quick Look: 14px padding, mono 12.5px/1.7 in muted ink, markdown headings (`.h`) in violet 600, and the plan title (`.t`) in the grotesk at 700/15px ink.
 
 ### Disclosure rows
+
 FAQ items: a 48px button row with a chevron in the first cell and a 600/14px question, header-surface hover; the chevron rotates 90° and turns violet when expanded (180ms). The answer expands via `grid-template-rows: 0fr → 1fr` over 220ms and reads as body copy (13.5px/1.7, muted, 68ch) indented under the question.
 
 ### Toggles and tabs
+
 Segmented controls (billing cadence, package manager) are a 7px-radius header-surface tray with 30px, 5px-radius segments at 600/12.5px muted ink; the active segment takes violet fill with selection ink. Install-platform tabs inside the index column use the translucent-ink variant.
 
 ### Inputs
+
 One field exists: the CLI token input in the connect modal. Screen-ground background, control-edge border, 6px radius, mono 13px, faint placeholder, violet caret; focus swaps the border to violet. Errors render a 12px/600 line in error red with `role="alert"`, plus the `aria-invalid` state.
 
 ### Modal
+
 The connect modal is a 430px listing (head + 20px-padded body) over a 40% ink scrim with the modal-lift shadow, closing on Escape or scrim click.
 
 ### Status-bar footer
+
 Header-surface strip, 14px vertical and gutter horizontal padding, 12.5px muted ink: copyright left, a wrapping nav of 600-weight links right (hover to ink), GitHub with its inline SVG.
 
 ### Reading primitives (subpages)
+
 Body paragraphs (13.5px/1.7, 68ch, muted), callouts (header surface, column-divider border, 7px radius, 12px 16px padding), text links (600 violet with a 40% violet underline that saturates on hover), inline code (mono 12px, header surface, row-divider border, 4px radius) and code blocks (mono 12.5px/1.65, column surface, 6px radius), numbered lists as listing rows, bullet lists with a 4px faint dot.
 
 ### Signature interaction: collation
+
 On `/` at widths above 960px, index rows start hidden while `is-collating` is set. On the first scroll or after 1.6s idle, each index row FLIPs from its source twin's bounding box into its slot: 640ms, `cubic-bezier(0.22, 1, 0.36, 1)`, 34ms stagger per row, opacity 0 → 0.6 → 1, while the three source columns dim to 55% (400ms). Hovering any row scrolls its twin into view and links the pair. With `prefers-reduced-motion: reduce`, or on narrow viewports, rows simply appear. All motion on these routes is opacity and transform, plus the disclosure's grid-row expansion and 120ms colour transitions on controls.
 
 ## Do's and Don'ts
@@ -380,16 +396,16 @@ On `/` at widths above 960px, index rows start hidden while `is-collating` is se
 
 The OSS and EE dashboards consume the world through the semantic token set in `:root` / `.dark` (`packages/web/src/client/index.css`, the block at the top of the file), which every dashboard component and EE's Tailwind `@theme inline` map read. The mapping is one-to-one with the marketing tokens:
 
-| Dashboard token | Light | Dark | Marketing equivalent |
-| --- | --- | --- | --- |
-| `--bg` / `--surface` / `--surface-raised` | oklch(98.4% .004 255) / 99.4% / 95.5% | 15.5% / 18.5% / 23% (.012 265) | `--landing-bg` / `-surface` / `-surface-raised` |
-| `--text` / `--secondary` / `--tertiary` | 17% / 42% / 50% | 95% / 73% / 62% | `--landing-text` / `-muted` / `-faint` |
-| `--accent` | oklch(46% .215 285) | oklch(66% .18 285) | `--landing-accent` (text on ground) |
-| `--accent-contrast` | oklch(99% .008 285) | oklch(12% .03 285) | text on an `--accent` fill; dark keeps fills legible by inverting the ink instead of deepening the fill |
-| `--accent-soft` | accent at 9% | accent at 14% | `--landing-accent-soft`, the selected-row and linked-row wash |
-| `--radius` | 8px | 8px | listing radius |
-| `--font-sans` / `--font-mono` | Schibsted Grotesk / JetBrains Mono | same | `--landing-font` / `--landing-mono` |
-| `--grid-line` | text at 3% | text at 4% | none; kept only for the empty-state crosshair, held near-invisible |
+| Dashboard token                           | Light                                 | Dark                           | Marketing equivalent                                                                                    |
+| ----------------------------------------- | ------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `--bg` / `--surface` / `--surface-raised` | oklch(98.4% .004 255) / 99.4% / 95.5% | 15.5% / 18.5% / 23% (.012 265) | `--landing-bg` / `-surface` / `-surface-raised`                                                         |
+| `--text` / `--secondary` / `--tertiary`   | 17% / 42% / 50%                       | 95% / 73% / 62%                | `--landing-text` / `-muted` / `-faint`                                                                  |
+| `--accent`                                | oklch(46% .215 285)                   | oklch(66% .18 285)             | `--landing-accent` (text on ground)                                                                     |
+| `--accent-contrast`                       | oklch(99% .008 285)                   | oklch(12% .03 285)             | text on an `--accent` fill; dark keeps fills legible by inverting the ink instead of deepening the fill |
+| `--accent-soft`                           | accent at 9%                          | accent at 14%                  | `--landing-accent-soft`, the selected-row and linked-row wash                                           |
+| `--radius`                                | 8px                                   | 8px                            | listing radius                                                                                          |
+| `--font-sans` / `--font-mono`             | Schibsted Grotesk / JetBrains Mono    | same                           | `--landing-font` / `--landing-mono`                                                                     |
+| `--grid-line`                             | text at 3%                            | text at 4%                     | none; kept only for the empty-state crosshair, held near-invisible                                      |
 
 Status tokens (`--success` / `--warning` / `--danger` / `--info`), the categorical chart palette and the code-highlight ramp are unchanged: they are semantic, never brand.
 

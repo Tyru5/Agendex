@@ -370,10 +370,7 @@
       "value": "background: var(--landing-accent); color: var(--landing-accent-ink)"
     },
     "fonts": {
-      "loadedIn": [
-        "packages/app/src/client/index.html",
-        "packages/ee/index.html"
-      ],
+      "loadedIn": ["packages/app/src/client/index.html", "packages/ee/index.html"],
       "families": [
         "Schibsted Grotesk 400..900 (variable, italic too)",
         "JetBrains Mono 400/500/600"
