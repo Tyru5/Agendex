@@ -209,6 +209,8 @@ const HERO_INSTALL_COMMANDS = [
     cmd: 'irm https://agendex.dev/install.ps1 | iex',
   },
 ] as const;
+const HERO_INSTALL_IDS = HERO_INSTALL_COMMANDS.map((o) => o.id);
+const CLI_INSTALL_IDS = CLI_INSTALL_OPTIONS.map((o) => o.id);
 
 /* ─── Small shared bits ─────────────────────────────────────────────────── */
 
@@ -263,13 +265,75 @@ function CopyIcon({ copied }: { copied: boolean }) {
 
 function useCopy(text: string) {
   const [copied, setCopied] = useState(false);
-  function copy() {
-    navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
-    });
+  async function copy() {
+    if (!navigator.clipboard?.writeText) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      return;
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
   }
   return { copied, copy };
+}
+
+/**
+ * WAI-ARIA tabs: roving tabindex, arrow/Home/End keys move selection and
+ * focus together, and the panel is linked to the active tab.
+ */
+function useTabs<T extends string>(ids: readonly T[], initial: T) {
+  const [active, setActive] = useState<T>(initial);
+  const baseId = useId();
+  const tabId = (id: T) => `${baseId}-tab-${id}`;
+  const panelId = `${baseId}-panel`;
+
+  function onKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    const index = ids.indexOf(active);
+    if (index < 0) return;
+    let next: number;
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        next = (index + 1) % ids.length;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        next = (index - 1 + ids.length) % ids.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = ids.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    const nextId = ids[next];
+    if (nextId === undefined) return;
+    setActive(nextId);
+    document.getElementById(tabId(nextId))?.focus();
+  }
+
+  function tabProps(id: T) {
+    return {
+      id: tabId(id),
+      role: 'tab' as const,
+      'aria-selected': active === id,
+      'aria-controls': panelId,
+      tabIndex: active === id ? 0 : -1,
+      onClick: () => setActive(id),
+      onKeyDown,
+    };
+  }
+
+  function panelProps() {
+    return { id: panelId, role: 'tabpanel' as const, 'aria-labelledby': tabId(active) };
+  }
+
+  return { active, tabProps, panelProps };
 }
 
 /* ─── The browser: first viewport ───────────────────────────────────────── */
@@ -319,12 +383,10 @@ function SourceColumn({
 }
 
 function InstallRow() {
-  const [activePlatform, setActivePlatform] =
-    useState<(typeof HERO_INSTALL_COMMANDS)[number]['id']>('unix');
+  const tabs = useTabs(HERO_INSTALL_IDS, 'unix');
   const active =
-    HERO_INSTALL_COMMANDS.find((o) => o.id === activePlatform) ?? HERO_INSTALL_COMMANDS[0];
+    HERO_INSTALL_COMMANDS.find((o) => o.id === tabs.active) ?? HERO_INSTALL_COMMANDS[0];
   const { copied, copy } = useCopy(active.cmd);
-  const tabsId = useId();
 
   return (
     <div className="landing-install">
@@ -332,18 +394,15 @@ function InstallRow() {
         {HERO_INSTALL_COMMANDS.map((option) => (
           <button
             key={option.id}
-            id={`${tabsId}-${option.id}`}
             type="button"
-            role="tab"
-            aria-selected={activePlatform === option.id}
             className="landing-install-tab"
-            onClick={() => setActivePlatform(option.id)}
+            {...tabs.tabProps(option.id)}
           >
             {option.label}
           </button>
         ))}
       </div>
-      <div className="landing-install-cmd" role="tabpanel">
+      <div className="landing-install-cmd" {...tabs.panelProps()}>
         <span aria-hidden="true">{active.prompt}</span>
         <code>{active.cmd}</code>
         <button
@@ -971,23 +1030,20 @@ function FAQSection({
 }
 
 function CliInstallOptions() {
-  const [activeOption, setActiveOption] =
-    useState<(typeof CLI_INSTALL_OPTIONS)[number]['id']>('installer');
+  const tabs = useTabs(CLI_INSTALL_IDS, 'installer');
   const active =
-    CLI_INSTALL_OPTIONS.find((option) => option.id === activeOption) ?? CLI_INSTALL_OPTIONS[0];
+    CLI_INSTALL_OPTIONS.find((option) => option.id === tabs.active) ?? CLI_INSTALL_OPTIONS[0];
   const { copied, copy } = useCopy(active.cmd);
 
   return (
     <div className="landing-list">
-      <div className="landing-list-head" role="tablist" aria-label="Package manager">
-        <div className="flex flex-wrap gap-0.5">
+      <div className="landing-list-head">
+        <div className="flex flex-wrap gap-0.5" role="tablist" aria-label="Package manager">
           {CLI_INSTALL_OPTIONS.map((option) => (
             <button
               key={option.id}
               type="button"
-              role="tab"
-              aria-selected={activeOption === option.id}
-              onClick={() => setActiveOption(option.id)}
+              {...tabs.tabProps(option.id)}
               className="rounded-[5px] border-0 bg-transparent px-2 py-1 text-[12px] font-semibold text-[var(--landing-muted)] aria-selected:bg-[var(--landing-index-bg)] aria-selected:text-[var(--landing-accent-ink)]"
             >
               {option.label}
@@ -995,7 +1051,7 @@ function CliInstallOptions() {
           ))}
         </div>
       </div>
-      <div className="flex items-center gap-3 px-[14px] py-3">
+      <div className="flex items-center gap-3 px-[14px] py-3" {...tabs.panelProps()}>
         <code className="landing-cmd-text min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-[var(--landing-mono)] text-[13px] text-[var(--landing-text)]">
           {active.cmd}
         </code>
