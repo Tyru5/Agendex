@@ -310,7 +310,10 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               ))}
             </div>
             <SubHeading>Script installer</SubHeading>
-            <Body>The install script downloads the CLI and adds it to your PATH.</Body>
+            <Body>
+              The install script installs the CLI through your package manager and checks whether it
+              is on your PATH. If not, it prints the command needed to add it.
+            </Body>
             <div className="grid max-w-[560px] gap-2">
               <div>
                 <div className="mb-1.5 text-[12px] font-semibold text-[var(--landing-text)]">
@@ -453,7 +456,7 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             <Body>
               Agents produce a lot of Markdown that isn&rsquo;t a plan: empty files, one-line
               prompts, tool logs, execution output, code-only snippets. A shared classifier tags
-              these as low-value and hides them from the index.
+              these as low-value.
             </Body>
             <Body>
               Locally, low-value plans are hidden from search and lists — the files themselves are
