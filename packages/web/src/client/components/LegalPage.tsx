@@ -1,4 +1,12 @@
-import type { MouseEvent, ReactNode } from 'react';
+import {
+  Body,
+  BulletList,
+  Callout,
+  SubpageHeader,
+  SubpageSection,
+  SubpageShell,
+  TextLink,
+} from './landing/SubpageShell.tsx';
 
 export type LegalPageKind = 'terms' | 'privacy';
 
@@ -28,137 +36,27 @@ const COPY: Record<LegalPageKind, { title: string; intro: string }> = {
   },
 };
 
-function LegalShell({ children }: { children: ReactNode }) {
-  return (
-    <main className="landing-page legal-page min-h-[100dvh]">
-      <div className="landing-frame px-[clamp(18px,5vw,72px)] py-[clamp(56px,7vw,88px)]">
-        {children}
-      </div>
-    </main>
-  );
-}
-
-function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
-  return (
-    <section
-      id={id}
-      className="scroll-mt-24 border-t border-[var(--landing-border-subtle)] py-8 first:border-t-0 first:pt-0"
-    >
-      <h2 className="m-0 text-[20px] font-[740] leading-[1.2] tracking-[-0.02em] text-[var(--landing-text)]">
-        {title}
-      </h2>
-      <div className="mt-3 grid gap-3">{children}</div>
-    </section>
-  );
-}
-
-function Body({ children }: { children: ReactNode }) {
-  return (
-    <p className="m-0 max-w-[68ch] text-pretty text-[13.5px] leading-[1.7] text-[var(--landing-muted)]">
-      {children}
-    </p>
-  );
-}
-
-function ListItem({ children }: { children: ReactNode }) {
-  return (
-    <li className="flex items-baseline gap-2.5 text-[13px] leading-[1.6] text-[var(--landing-muted)]">
-      <span aria-hidden className="text-[11px] font-bold text-[var(--landing-accent)]">
-        •
-      </span>
-      <span>{children}</span>
-    </li>
-  );
-}
-
-function List({ items }: { items: ReadonlyArray<[id: string, content: ReactNode]> }) {
-  return (
-    <ul className="m-0 grid max-w-[68ch] list-none gap-2 p-0">
-      {items.map(([id, content]) => (
-        <ListItem key={id}>{content}</ListItem>
-      ))}
-    </ul>
-  );
-}
-
-function Callout({ children }: { children: ReactNode }) {
-  return (
-    <div className="max-w-[68ch] rounded-[7px] border border-[var(--landing-border)] border-l-2 border-l-[var(--landing-accent)] bg-[var(--landing-surface)] px-4 py-3 text-[13px] leading-[1.65] text-[var(--landing-muted)]">
-      {children}
-    </div>
-  );
-}
-
-function TextLink({ href, children }: { href: string; children: ReactNode }) {
-  return (
-    <a
-      href={href}
-      className="font-semibold text-[var(--landing-accent)] underline decoration-[var(--landing-border)] underline-offset-2 hover:decoration-[var(--landing-accent)]"
-    >
-      {children}
-    </a>
-  );
-}
-
 export function LegalPage({ kind, onBack, homeHref = '/' }: LegalPageProps) {
-  function handleBack(e: MouseEvent<HTMLAnchorElement>) {
-    if (!onBack) return;
-    if (e.defaultPrevented) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    e.preventDefault();
-    onBack();
-  }
-
   const { title, intro } = COPY[kind];
 
   return (
-    <LegalShell>
-      <nav className="mb-10 flex flex-wrap items-center justify-between gap-4">
+    <SubpageShell
+      pageClass="legal-page"
+      onBack={onBack}
+      homeHref={homeHref}
+      navLinks={
         <a
-          href={homeHref}
-          onClick={handleBack}
-          className="text-[14px] font-bold text-[var(--landing-text)] no-underline"
+          href={kind === 'terms' ? '/privacy' : '/terms'}
+          className="text-[13px] font-semibold text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
         >
-          Agendex<span className="text-[var(--landing-accent)]">.</span>
+          {kind === 'terms' ? 'Privacy Policy' : 'Terms of Service'}
         </a>
-        <div className="flex items-center gap-4">
-          <a
-            href={kind === 'terms' ? '/privacy' : '/terms'}
-            className="text-[13px] font-semibold text-[var(--landing-muted)] no-underline hover:text-[var(--landing-text)]"
-          >
-            {kind === 'terms' ? 'Privacy Policy' : 'Terms of Service'}
-          </a>
-          <a
-            href={homeHref}
-            onClick={handleBack}
-            className="landing-action landing-action--secondary landing-action--compact"
-          >
-            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M19 12H5M12 5l-7 7 7 7"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Back
-          </a>
-        </div>
-      </nav>
-
-      <header className="mb-10 max-w-[68ch]">
-        <h1 className="m-0 text-[32px] font-[740] leading-[1.1] tracking-[-0.02em] text-[var(--landing-text)]">
-          {title}
-        </h1>
-        <p className="mt-4 mb-0 text-[13.5px] leading-[1.7] text-[var(--landing-muted)]">{intro}</p>
-        <p className="mt-2 mb-0 text-[12px] font-semibold text-[var(--landing-faint)]">
-          Effective {EFFECTIVE_DATE}
-        </p>
-      </header>
+      }
+    >
+      <SubpageHeader title={title} lede={intro} meta={`Effective ${EFFECTIVE_DATE}`} />
 
       {kind === 'terms' ? <TermsContent /> : <PrivacyContent />}
-    </LegalShell>
+    </SubpageShell>
   );
 }
 
@@ -173,7 +71,7 @@ export function PrivacyPolicyPage(props: Omit<LegalPageProps, 'kind'>) {
 function TermsContent() {
   return (
     <div>
-      <Section id="scope" title="1. Agreement and scope">
+      <SubpageSection dense id="scope" title="1. Agreement and scope">
         <Body>
           These Terms of Service ("Terms") form a binding agreement between you and Agendex
           governing your use of the Agendex cloud service — the Cloud Pro dashboard, plan sync,
@@ -195,24 +93,24 @@ function TermsContent() {
           subscription, you accept these Terms. If you use the Service on behalf of an organization,
           you represent that you are authorized to bind that organization.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="accounts" title="2. Accounts">
+      <SubpageSection dense id="accounts" title="2. Accounts">
         <Body>
           The Service uses passwordless sign-in through GitHub or Google OAuth. You are responsible
           for maintaining the security of the underlying provider account and for all activity that
           occurs under your Agendex account. You must be at least 13 years old (or the minimum
           digital-consent age in your jurisdiction, if higher) to use the Service.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="subscriptions" title="3. Subscriptions and billing">
+      <SubpageSection dense id="subscriptions" title="3. Subscriptions and billing">
         <Body>
           Cloud Pro features are offered as paid subscriptions, billed monthly or annually through
           Stripe. Paid features may include a free trial period; we will tell you when a trial ends
           and what it converts into.
         </Body>
-        <List
+        <BulletList
           items={[
             [
               'renewal',
@@ -249,9 +147,9 @@ function TermsContent() {
           not end access before the paid period expires. You are responsible for operating your
           self-hosted infrastructure and handling the data it stores.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="content" title="4. Your content">
+      <SubpageSection dense id="content" title="4. Your content">
         <Body>
           Plans, comments, tags, and other material you submit to the Service ("Your Content")
           remain yours. You grant Agendex a limited license to store, process, reproduce, and
@@ -267,11 +165,11 @@ function TermsContent() {
           Share links make a plan viewable by anyone who has the link. Treat share links like
           secrets — anyone with the URL can read the shared plan.
         </Callout>
-      </Section>
+      </SubpageSection>
 
-      <Section id="acceptable-use" title="5. Acceptable use">
+      <SubpageSection dense id="acceptable-use" title="5. Acceptable use">
         <Body>You agree not to:</Body>
-        <List
+        <BulletList
           items={[
             [
               'unlawful',
@@ -299,18 +197,18 @@ function TermsContent() {
           We may suspend or terminate accounts that violate these rules, with notice where
           practical.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="availability" title="6. Availability and changes">
+      <SubpageSection dense id="availability" title="6. Availability and changes">
         <Body>
           We work hard to keep the Service available, but it is provided without a service-level
           commitment. We may add, change, or discontinue features; if a discontinuation materially
           affects a paid subscription, we will give reasonable notice and a refund for the unused
           portion of the affected billing period.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="termination" title="7. Termination">
+      <SubpageSection dense id="termination" title="7. Termination">
         <Body>
           You may stop using the Service and delete your account at any time from Account settings.
           We may suspend or terminate your account if you materially breach these Terms, or if
@@ -319,17 +217,17 @@ function TermsContent() {
           <TextLink href="/privacy">Privacy Policy</TextLink>. Your locally indexed plans are never
           affected — they live on your machine.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="disclaimers" title="8. Disclaimers">
+      <SubpageSection dense id="disclaimers" title="8. Disclaimers">
         <Body>
           THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTIES OF ANY KIND,
           EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
           NON-INFRINGEMENT. We do not warrant that the Service will be uninterrupted or error-free.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="liability" title="9. Limitation of liability">
+      <SubpageSection dense id="liability" title="9. Limitation of liability">
         <Body>
           To the maximum extent permitted by law, Agendex will not be liable for indirect,
           incidental, special, consequential, or punitive damages, or for lost profits, data, or
@@ -342,33 +240,33 @@ function TermsContent() {
           including liability for gross negligence, willful misconduct, or violations of statutory
           data-protection obligations.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="governing-law" title="10. Governing law and venue">
+      <SubpageSection dense id="governing-law" title="10. Governing law and venue">
         <Body>
           These Terms are governed by the laws of the State of Colorado, United States, without
           regard to its conflict-of-laws principles. Any dispute arising out of or relating to these
           Terms or the Service will be brought exclusively in the state or federal courts located in
           the State of Colorado, and you consent to their jurisdiction and venue.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="changes" title="11. Changes to these Terms">
+      <SubpageSection dense id="changes" title="11. Changes to these Terms">
         <Body>
           We may update these Terms from time to time. If a change materially reduces your rights,
           we will notify you by email or through the Service at least 14 days before it takes
           effect. Continuing to use the Service after changes take effect means you accept the
           updated Terms.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="contact" title="12. Contact">
+      <SubpageSection dense id="contact" title="12. Contact">
         <Body>
           Questions about these Terms? Reach us at{' '}
           <TextLink href={CONTACT_URL}>agendex.dev</TextLink> or open an issue on{' '}
           <TextLink href={GITHUB_URL}>GitHub</TextLink>.
         </Body>
-      </Section>
+      </SubpageSection>
     </div>
   );
 }
@@ -376,7 +274,7 @@ function TermsContent() {
 function PrivacyContent() {
   return (
     <div>
-      <Section id="local-first" title="1. Local first">
+      <SubpageSection dense id="local-first" title="1. Local first">
         <Body>
           The free, self-hosted Agendex app runs entirely on your machine. It scans the agent plan
           directories you configure, indexes them locally, and talks to your local API server. With
@@ -386,11 +284,11 @@ function PrivacyContent() {
           The sections below describe the optional cloud Service — the Cloud Pro dashboard, plan
           sync, and sharing.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="we-collect" title="2. What the cloud Service collects">
+      <SubpageSection dense id="we-collect" title="2. What the cloud Service collects">
         <Body>When you use the cloud Service, we process:</Body>
-        <List
+        <BulletList
           items={[
             [
               'account',
@@ -442,10 +340,10 @@ function PrivacyContent() {
             ],
           ]}
         />
-      </Section>
+      </SubpageSection>
 
-      <Section id="we-dont" title="3. What we never do">
-        <List
+      <SubpageSection dense id="we-dont" title="3. What we never do">
+        <BulletList
           items={[
             ['no-sell', 'We do not sell personal data or plan content.'],
             ['no-ads', 'We do not run advertising or third-party ad trackers.'],
@@ -456,17 +354,17 @@ function PrivacyContent() {
             ],
           ]}
         />
-      </Section>
+      </SubpageSection>
 
-      <Section id="sharing" title="4. Sharing">
+      <SubpageSection dense id="sharing" title="4. Sharing">
         <Body>
           A plan is visible only to you and the people in your workspace until you create a share
           link. Anyone with a share link can view that plan without signing in. Deleting the share
           link immediately revokes access.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="retention" title="5. Retention and deletion">
+      <SubpageSection dense id="retention" title="5. Retention and deletion">
         <Body>
           You can delete individual plans, and your account and workspace data, from the dashboard
           at any time. Deleting your account removes cloud copies of your plans, comments, and
@@ -477,9 +375,9 @@ function PrivacyContent() {
           Deleting cloud data never deletes your local plans. Your locally indexed plans stay on
           your machine under your control.
         </Callout>
-      </Section>
+      </SubpageSection>
 
-      <Section id="security" title="6. Security">
+      <SubpageSection dense id="security" title="6. Security">
         <Body>
           Traffic to the Service is encrypted in transit. Cloud API access uses bearer tokens scoped
           to your account, and OAuth is delegated to GitHub and Google. We use strict transport
@@ -487,9 +385,9 @@ function PrivacyContent() {
           secure; if you believe you have found a vulnerability, please report it via{' '}
           <TextLink href={GITHUB_URL}>GitHub</TextLink>.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="rights" title="7. Your rights">
+      <SubpageSection dense id="rights" title="7. Your rights">
         <Body>
           Depending on where you live, you may have rights to access, correct, export, or delete
           your personal data, and to object to or restrict certain processing. You can exercise most
@@ -497,29 +395,29 @@ function PrivacyContent() {
           else, contact us via <TextLink href={CONTACT_URL}>agendex.dev</TextLink> and we will
           respond within a reasonable timeframe.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="children" title="8. Children">
+      <SubpageSection dense id="children" title="8. Children">
         <Body>
           The Service is not directed at children under 13 (or the higher minimum consent age in
           your jurisdiction), and we do not knowingly collect their personal data.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="policy-changes" title="9. Changes to this policy">
+      <SubpageSection dense id="policy-changes" title="9. Changes to this policy">
         <Body>
           We may update this policy as the Service evolves. Material changes will be announced in
           the dashboard or by email. The effective date at the top of this page always reflects the
           current version.
         </Body>
-      </Section>
+      </SubpageSection>
 
-      <Section id="contact" title="10. Contact">
+      <SubpageSection dense id="contact" title="10. Contact">
         <Body>
           Privacy questions? Reach us at <TextLink href={CONTACT_URL}>agendex.dev</TextLink> or open
           an issue on <TextLink href={GITHUB_URL}>GitHub</TextLink>.
         </Body>
-      </Section>
+      </SubpageSection>
     </div>
   );
 }

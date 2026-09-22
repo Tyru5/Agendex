@@ -19,6 +19,7 @@ import {
 import { DexMascot } from './landing/DexMascot.tsx';
 import { LandingMascot, type LandingMascotProps } from './landing/LandingMascot.tsx';
 import { useTheme } from '../hooks/useTheme.ts';
+import { ThemeToggleButton } from './landing/ThemeToggleButton.tsx';
 import { NavbarAuth, HeroCta, PricingCta } from './landing/LandingSlots.tsx';
 import type { SlotRenderFn, SlotComponent } from './landing/LandingSlots.tsx';
 import { AgentIcon } from './AgentIcon.tsx';
@@ -124,7 +125,7 @@ const PRODUCT_STEPS = [
 ] as const;
 
 const SECTION_FRAME_CLASS =
-  'landing-frame border-b border-[var(--landing-border-subtle)] px-[clamp(18px,5vw,72px)]';
+  'landing-frame landing-band border-b border-[var(--landing-border-subtle)] px-[clamp(18px,5vw,72px)]';
 
 const SECTION_SCROLL_STYLE = { scrollMarginTop: LANDING_ANCHOR_OFFSET };
 
@@ -350,23 +351,19 @@ function LandingNavbar({
           Agendex<span className="text-[var(--landing-accent)]">.</span>
         </LandingAnchor>
 
-        <div className="flex min-w-0 items-center gap-3 text-[13px] font-medium max-[860px]:hidden">
+        <div className="flex min-w-0 items-center gap-5 text-[13px] font-medium max-[860px]:hidden">
           {LANDING_LINKS.map((link) => (
-            <React.Fragment key={link.href}>
-              <LandingAnchor
-                href={link.href}
-                onClick={handleNavClick(link.href)}
-                className="text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
-              >
-                {link.label}
-              </LandingAnchor>
-              <span className="text-[var(--landing-border-strong)]" aria-hidden="true">
-                |
-              </span>
-            </React.Fragment>
+            <LandingAnchor
+              key={link.href}
+              href={link.href}
+              onClick={handleNavClick(link.href)}
+              className="text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
+            >
+              {link.label}
+            </LandingAnchor>
           ))}
           <LandingAnchor
-            href="https://github.com/tiru5/agendex"
+            href="https://github.com/tyru5/agendex"
             target="_blank"
             rel="noopener noreferrer"
             className="text-[var(--landing-muted)] no-underline transition-colors duration-150 hover:text-[var(--landing-text)]"
@@ -420,80 +417,6 @@ function LandingNavbar({
         </div>
       </div>
     </nav>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M16.4 12.6A6.4 6.4 0 0 1 7.4 3.6 6.7 6.7 0 1 0 16.4 12.6Z"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function SunIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M10 1.5v2M10 16.5v2M18.5 10h-2M3.5 10h-2M16 4l-1.4 1.4M5.4 14.6 4 16M16 16l-1.4-1.4M5.4 5.4 4 4"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function ThemeToggleButton() {
-  const { resolvedTheme, setTheme } = useTheme();
-  const next = resolvedTheme === 'dark' ? 'light' : 'dark';
-
-  return (
-    <button
-      type="button"
-      onClick={() => setTheme(next)}
-      aria-label={`Switch to ${next} theme`}
-      title={`Switch to ${next} theme`}
-      className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-[7px] border-0 bg-transparent p-0 text-[var(--landing-muted)] transition-colors duration-150 hover:text-[var(--landing-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-accent)]"
-    >
-      {resolvedTheme === 'dark' ? <MoonIcon /> : <SunIcon />}
-    </button>
-  );
-}
-
-function LandingCursorIcon() {
-  return (
-    <svg
-      className="landing-hero-cursor"
-      width="42"
-      height="42"
-      viewBox="0 0 42 42"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        data-landing-cursor-pointer
-        d="M11 7.5 31 20.2l-9.1 2.2 5.2 8.9-4.6 2.7-5.1-8.8-6.4 6.2V7.5Z"
-        fill="var(--landing-bg)"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinejoin="round"
-      />
-      <path
-        data-landing-cursor-rays
-        d="M28.3 9.8 32 6.5M31.6 14h4.8M24.5 7.8l1.4-4.5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
   );
 }
 
@@ -649,60 +572,12 @@ function HeroInstallCommand() {
   );
 }
 
-function HeroProofBar() {
-  return (
-    <div className="landing-hero-proof">
-      <div>
-        <GitHubIcon size={15} />
-        <span className="landing-hero-star" aria-hidden="true">
-          ●
-        </span>
-        <span>Live local plan index</span>
-      </div>
-      <div>Source paths, agents, workspaces, and raw markdown stay inspectable.</div>
-      <div>Cloud sync only when enabled</div>
-    </div>
-  );
-}
-
 function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlot?: ReactNode }) {
-  const [isSyncAnimationVisible, setIsSyncAnimationVisible] = useState(false);
-  const syncAnimationTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (syncAnimationTimerRef.current !== null) {
-        window.clearTimeout(syncAnimationTimerRef.current);
-      }
-    };
-  }, []);
-
-  function renderSyncingAnimation() {
-    if (syncAnimationTimerRef.current !== null) {
-      window.clearTimeout(syncAnimationTimerRef.current);
-    }
-
-    setIsSyncAnimationVisible(true);
-    syncAnimationTimerRef.current = window.setTimeout(() => {
-      setIsSyncAnimationVisible(false);
-      syncAnimationTimerRef.current = null;
-    }, 1800);
-  }
-
   return (
     <div className="landing-hero-shell" data-landing-animate="hero-shell">
       <div className="landing-hero-content">
-        <LandingAnchor
-          href="/download"
-          data-landing-animate-item
-          className="mb-5 inline-flex max-w-full items-center gap-2.5 rounded-full border border-[color-mix(in_oklch,var(--landing-accent)_26%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] py-[7px] pl-2 pr-3.5 text-[12px] font-semibold leading-[1.2] text-[var(--landing-text)] no-underline transition-[border-color,background-color] duration-150 hover:border-[color-mix(in_oklch,var(--landing-accent)_44%,var(--landing-border))] hover:bg-[color-mix(in_oklch,var(--landing-accent)_13%,transparent)]"
-        >
-          <span className="shrink-0 rounded-full bg-[var(--landing-accent)] px-2 py-[3px] text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--landing-bg)]">
-            New
-          </span>
-          <span className="min-w-0 truncate">
-            Agendex Desktop is out for macOS and Windows — exclusive to Cloud Pro.
-          </span>
+        <LandingAnchor href="/download" data-landing-animate-item className="landing-hero-notice">
+          Agendex Desktop is out for macOS and Windows, included with Cloud Pro.
           <svg
             aria-hidden="true"
             width="12"
@@ -710,60 +585,26 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2.5"
+            strokeWidth="2.2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="shrink-0 text-[var(--landing-accent)]"
           >
             <path d="M9 18l6-6-6-6" />
           </svg>
         </LandingAnchor>
         <h1 className="landing-hero-title" data-landing-animate-item>
-          Your Agents Make Plans.
-          <br />
-          <span>Agendex Keeps Watch</span>
+          Your agents make plans. <br className="max-sm:hidden" />
+          Agendex keeps watch.
         </h1>
 
         <div className="landing-hero-copy-block" data-landing-animate-item>
-          <LandingCursorIcon />
           <p>
-            <button
-              type="button"
-              className="landing-hero-index-trigger"
-              data-syncing={isSyncAnimationVisible || undefined}
-              onClick={renderSyncingAnimation}
-              aria-label={
-                isSyncAnimationVisible
-                  ? 'Syncing index'
-                  : 'Render syncing animation for the local plan index'
-              }
-            >
-              <span className="landing-hero-index-label" aria-hidden="true">
-                Index
-              </span>
-              <span className="landing-hero-index-spinner" aria-hidden="true">
-                <svg className="landing-hero-sync-icon" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M20 12a8 8 0 0 1-13.66 5.66L4 15.32M4 12A8 8 0 0 1 17.66 6.34L20 8.68M20 4v4.68h-4.68M4 20v-4.68h4.68"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span className="landing-hero-index-spinner-text">sync</span>
-              </span>
-              <span className="landing-hero-status" role="status" aria-live="polite">
-                {isSyncAnimationVisible ? 'Syncing index' : ''}
-              </span>
-            </button>{' '}
-            every plan and session your coding agents leave behind, scattered across your machines,
-            into one searchable place. Everything stays local by default — sync to Cloud Pro when
-            the work needs sharing, review, or access to pro features.
+            Every plan and session your coding agents leave behind, indexed into one searchable
+            place. Local by default. Sync to Cloud Pro when the work needs sharing or review.
           </p>
           <div className="landing-hero-meta">
-            Watches local files <span>|</span> filters by agent and workspace <span>|</span> syncs
-            only when configured
+            Watches local files <span aria-hidden="true">·</span> Filters by agent and workspace{' '}
+            <span aria-hidden="true">·</span> Syncs only when configured
           </div>
         </div>
 
@@ -777,14 +618,9 @@ function LandingHero({ onShowLogin, ctaSlot }: { onShowLogin: () => void; ctaSlo
           {ctaSlot ?? (
             <ActionButton onClick={onShowLogin} variant="primary">
               Connect dashboard
-              <span aria-hidden="true">→</span>
             </ActionButton>
           )}
         </div>
-      </div>
-
-      <div data-landing-animate-item>
-        <HeroProofBar />
       </div>
     </div>
   );
@@ -802,25 +638,20 @@ function ReviewSplit({
   variant: 'plans' | 'teams';
 }) {
   return (
-    <div className="grid gap-8 border-b border-[var(--landing-border-subtle)] py-[70px] last:border-b-0 max-sm:py-[50px] lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.84fr)] lg:items-center">
+    <div className="landing-band grid gap-8 border-b border-[var(--landing-border-subtle)] last:border-b-0 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.84fr)] lg:items-center">
       <div
         className={`rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_78%,transparent)] p-4 ${
           variant === 'teams' ? 'lg:order-2' : ''
         }`}
       >
-        <div className="mb-4 flex items-center gap-2 border-b border-[var(--landing-border-subtle)] pb-3 text-[12px] font-semibold text-[var(--landing-muted)]">
-          <span className="size-2 rounded-full bg-[#ff5f56]" aria-hidden="true" />
-          <span className="size-2 rounded-full bg-[#ffbd2e]" aria-hidden="true" />
-          <span className="size-2 rounded-full bg-[#27c93f]" aria-hidden="true" />
-          <span className="ml-2">{variant === 'plans' ? 'Local index' : 'Cloud review'}</span>
+        <div className="mb-4 border-b border-[var(--landing-border-subtle)] pb-3 text-[12px] font-semibold text-[var(--landing-muted)]">
+          {variant === 'plans' ? 'Local index' : 'Cloud review'}
         </div>
         {variant === 'plans' ? <PlanReviewMock /> : <TeamReviewMock />}
       </div>
 
       <div className="max-w-[520px]">
-        <h2 className="m-0 text-balance text-[30px] font-[740] leading-[1.08] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[26px]">
-          {title}
-        </h2>
+        <h2 className="m-0 text-balance landing-h2 text-[var(--landing-text)]">{title}</h2>
         <p className="mt-4 mb-0 text-[15px] leading-[1.7] text-[var(--landing-muted)]">{body}</p>
         <ul className="mt-6 space-y-3 p-0 text-[14px] leading-[1.65] text-[var(--landing-muted)]">
           {bullets.map((bullet) => (
@@ -872,7 +703,7 @@ function TeamReviewMock() {
       {[
         ['Ana', 'Can we stage this behind the workspace flag first?'],
         ['Sam', 'Yes, tag this as backend before sharing it wider.'],
-        ['Agendex', 'Plan history saved from synced daemon payload.'],
+        ['Agendex', 'Version 3 saved from the daemon sync.'],
       ].map(([name, note]) => (
         <div
           key={note}
@@ -883,7 +714,7 @@ function TeamReviewMock() {
         </div>
       ))}
       <div className="rounded-[7px] border border-[color-mix(in_oklch,var(--landing-accent)_25%,transparent)] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] p-3 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[12px] text-[var(--landing-accent)]">
-        share link copied · scope: one synced plan
+        Share link copied. Scope: this plan only.
       </div>
     </div>
   );
@@ -891,35 +722,29 @@ function TeamReviewMock() {
 
 function ProductStepsSection() {
   return (
-    <section
-      id="features"
-      className={`${SECTION_FRAME_CLASS} py-[76px] max-sm:py-[54px]`}
-      style={SECTION_SCROLL_STYLE}
-    >
+    <section id="features" className={SECTION_FRAME_CLASS} style={SECTION_SCROLL_STYLE}>
       <div className="mx-auto max-w-[680px] text-center">
-        <h2 className="m-0 text-balance text-[32px] font-[740] leading-[1.08] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[27px]">
+        <h2 className="m-0 text-balance landing-h2 text-[var(--landing-text)]">
           A local index first, collaboration when you turn it on.
         </h2>
         <p className="mt-4 mb-0 text-[15px] leading-[1.7] text-[var(--landing-muted)]">
-          The landing page stays focused on what Agendex actually handles. Setup, adapter details,
-          and sync commands belong in the docs route.
+          Three steps, no account. Adapter details and sync commands are in the docs.
         </p>
       </div>
 
       <div className="mt-9 overflow-hidden rounded-[8px] border border-[var(--landing-border)] bg-[var(--landing-surface)]">
-        <div className="flex items-center gap-2 border-b border-[var(--landing-border-subtle)] px-4 py-3 text-[12px] font-semibold text-[var(--landing-muted)]">
-          <span className="size-2 rounded-full bg-[#ff5f56]" aria-hidden="true" />
-          <span className="size-2 rounded-full bg-[#ffbd2e]" aria-hidden="true" />
-          <span className="size-2 rounded-full bg-[#27c93f]" aria-hidden="true" />
-          <span className="ml-2">Agendex review flow</span>
+        <div className="border-b border-[var(--landing-border-subtle)] px-5 py-3 text-[12px] font-semibold text-[var(--landing-muted)]">
+          How it fits together
         </div>
         <div className="grid divide-y divide-[var(--landing-border-subtle)] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
           {PRODUCT_STEPS.map((step, index) => (
             <div key={step.title} className="p-5">
-              <div className="mb-10 font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-semibold text-[var(--landing-accent)]">
-                {String(index + 1).padStart(2, '0')}
-              </div>
-              <h3 className="m-0 text-[17px] font-bold text-[var(--landing-text)]">{step.title}</h3>
+              <h3 className="m-0 flex items-baseline gap-2.5 text-[17px] font-bold text-[var(--landing-text)]">
+                <span className="text-[13px] font-semibold tabular-nums text-[var(--landing-faint)]">
+                  {index + 1}
+                </span>
+                {step.title}
+              </h3>
               <p className="mt-3 mb-0 text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
                 {step.body}
               </p>
@@ -930,8 +755,8 @@ function ProductStepsSection() {
 
       <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--landing-border-subtle)] pt-7">
         <p className="m-0 max-w-[560px] text-[14px] leading-[1.7] text-[var(--landing-muted)]">
-          Setup, CLI commands, adapter status, custom source folders, privacy, and cloud sync
-          details live in one reference route.
+          Setup, CLI commands, adapters, custom source folders, privacy, and cloud sync are
+          documented in one place.
         </p>
         <ActionLink href="/docs">Open docs</ActionLink>
       </div>
@@ -969,7 +794,6 @@ function PricingToggle({ yearly, onChange }: { yearly: boolean; onChange: (v: bo
 }
 
 function PricingCard({
-  tier,
   title,
   price,
   period,
@@ -981,7 +805,6 @@ function PricingCard({
   isPro,
   signingIn,
 }: {
-  tier: string;
   title: string;
   price: string;
   period?: string;
@@ -1001,19 +824,9 @@ function PricingCard({
           : 'border-[var(--landing-border)] bg-[var(--landing-surface)]'
       }`}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="mb-2 text-[11px] font-bold text-[var(--landing-muted)]">{tier}</div>
-          <h3 className="m-0 text-[20px] font-bold leading-[1.15] text-[var(--landing-text)]">
-            {title}
-          </h3>
-        </div>
-        {isPro && (
-          <div className="shrink-0 rounded-[5px] border border-[color-mix(in_oklch,var(--landing-accent)_25%,var(--landing-border))] bg-[color-mix(in_oklch,var(--landing-accent)_8%,transparent)] px-2 py-1 text-[11px] font-bold text-[color-mix(in_oklch,var(--landing-accent)_72%,var(--landing-muted))]">
-            Cloud Pro
-          </div>
-        )}
-      </div>
+      <h3 className="m-0 text-[20px] font-bold leading-[1.15] text-[var(--landing-text)]">
+        {title}
+      </h3>
 
       <p className="mt-4 mb-0 max-w-[430px] text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
         {summary}
@@ -1044,12 +857,22 @@ function PricingCard({
               key={f}
               className="flex items-start gap-2.5 text-[13px] leading-[1.5] text-[var(--landing-muted)]"
             >
-              <span
+              <svg
                 aria-hidden="true"
-                className="font-bold text-[color-mix(in_oklch,var(--landing-accent)_66%,var(--landing-muted))]"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="mt-[3px] shrink-0 text-[var(--landing-accent)]"
               >
-                ✓
-              </span>
+                <path
+                  d="m5 12 4.5 4.5L19 7"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
               <span>{f}</span>
             </li>
           ))}
@@ -1099,14 +922,10 @@ function LandingPricing({
   proCtaSlot?: ReactNode;
 }) {
   return (
-    <section
-      id="pricing"
-      className={`${SECTION_FRAME_CLASS} py-[78px] max-sm:py-[54px]`}
-      style={SECTION_SCROLL_STYLE}
-    >
+    <section id="pricing" className={SECTION_FRAME_CLASS} style={SECTION_SCROLL_STYLE}>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)] lg:items-end">
         <div>
-          <h2 className="m-0 max-w-[700px] text-balance text-[34px] font-[740] leading-[1.06] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[28px]">
+          <h2 className="m-0 max-w-[700px] text-balance landing-h2 text-[var(--landing-text)]">
             Start with local search. Add cloud review when the work is shared.
           </h2>
           <p className="mt-4 mb-0 max-w-[560px] text-[15px] leading-[1.7] text-[var(--landing-muted)]">
@@ -1121,22 +940,20 @@ function LandingPricing({
 
       <div className="mt-8 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
         <PricingCard
-          tier="Local OSS"
           title="Self-hosted"
           price="$0"
           summary="For indexing and searching local agent plans, sessions, custom folders, and fallback plans on one machine."
           features={FREE_FEATURES}
-          cta="Get Started"
+          cta="Get started"
           onCta={onShowLogin}
         />
         <PricingCard
-          tier="Team review"
           title="Cloud Pro"
           price={yearly ? '$69' : '$7'}
           period={yearly ? '/year' : '/month'}
           summary="For syncing local plans to the cloud dashboard with sharing, comments, history, tags, collections, and team access."
           features={PRO_FEATURES}
-          cta={proCtaSlot ?? 'Start Free Trial'}
+          cta={proCtaSlot ?? 'Start free trial'}
           onCta={proCtaSlot ? undefined : onShowLogin}
           note={MONEY_BACK_GUARANTEE}
           isPro
@@ -1155,14 +972,10 @@ function LandingFAQ({
   onSetOpenFaq: (v: number | null) => void;
 }) {
   return (
-    <section
-      id="faq"
-      className={`${SECTION_FRAME_CLASS} py-[78px] max-sm:py-[54px]`}
-      style={SECTION_SCROLL_STYLE}
-    >
+    <section id="faq" className={SECTION_FRAME_CLASS} style={SECTION_SCROLL_STYLE}>
       <div className="grid gap-10 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div>
-          <h2 className="m-0 text-balance text-[34px] font-[740] leading-[1.06] tracking-[-0.025em] text-[var(--landing-text)] max-sm:text-[28px]">
+          <h2 className="m-0 text-balance landing-h2 text-[var(--landing-text)]">
             Answers before you install.
           </h2>
           <p className="mt-4 mb-0 max-w-[310px] text-[13.5px] leading-[1.65] text-[var(--landing-muted)]">
@@ -1174,7 +987,6 @@ function LandingFAQ({
           {FAQ_ITEMS.map((item, index) => (
             <FAQItem
               key={item.q}
-              index={index + 1}
               question={item.q}
               answer={item.a}
               open={openFaq === index}
@@ -1206,7 +1018,7 @@ function LandingFooter({
         <span className="text-[36px] font-[760] leading-none tracking-[-0.03em] text-[var(--landing-text)]">
           Agendex<span className="text-[var(--landing-accent)]">.</span>
         </span>
-        <span>© 2026 / Local plans indexed</span>
+        <span>© 2026 Agendex</span>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-3 max-sm:justify-start [&>a]:text-[12.5px] [&>a]:font-semibold [&>a]:text-[var(--landing-muted)] [&>a]:no-underline [&>a:hover]:text-[var(--landing-text)]">
         <LandingAnchor href="#features">Features</LandingAnchor>
@@ -1395,78 +1207,19 @@ function useLandingIntroAnimation() {
       const introItems = Array.from(
         root.querySelectorAll<HTMLElement>('[data-landing-animate-item]'),
       );
-      const agentChips = Array.from(root.querySelectorAll<HTMLElement>('.landing-hero-agent'));
-      const runbookLines = Array.from(
-        root.querySelectorAll<HTMLElement>('.landing-hero-runbook code'),
-      );
-      const cursor = root.querySelector<SVGSVGElement>('.landing-hero-cursor');
-      const cursorPointer = cursor?.querySelector<SVGPathElement>('[data-landing-cursor-pointer]');
-      const cursorRays = cursor?.querySelector<SVGPathElement>('[data-landing-cursor-rays]');
       const nav = root.querySelector<HTMLElement>('[data-landing-animate="nav"]');
-      const heroShell = root.querySelector<HTMLElement>('[data-landing-animate="hero-shell"]');
 
-      gsap.set(introItems, { autoAlpha: 0, y: 18 });
-      gsap.set(agentChips, { autoAlpha: 0, scale: 0.96, y: 10 });
-      gsap.set(runbookLines, { autoAlpha: 0, x: -8 });
-      if (cursor) gsap.set(cursor, { transformOrigin: '40% 52%' });
-      if (cursorRays) gsap.set(cursorRays, { autoAlpha: 0.72, transformOrigin: '50% 50%' });
+      gsap.set(introItems, { autoAlpha: 0, y: 14 });
 
       const timeline = gsap.timeline({
-        defaults: { duration: 0.62, ease: 'power3.out' },
+        defaults: { duration: 0.55, ease: 'power3.out' },
       });
 
       if (nav) {
-        timeline.from(nav, { autoAlpha: 0, duration: 0.45, y: -10 });
+        timeline.from(nav, { autoAlpha: 0, duration: 0.4, y: -8 });
       }
 
-      if (heroShell) {
-        timeline.from(heroShell, { autoAlpha: 0, duration: 0.72, scale: 0.992, y: 14 }, '<0.04');
-      }
-
-      timeline
-        .to(introItems, { autoAlpha: 1, stagger: 0.075, y: 0 }, '<0.14')
-        .to(agentChips, { autoAlpha: 1, duration: 0.42, scale: 1, stagger: 0.035, y: 0 }, '<0.3')
-        .to(runbookLines, { autoAlpha: 1, duration: 0.34, stagger: 0.045, x: 0 }, '<0.12');
-
-      if (cursor) {
-        const cursorIdle = gsap.timeline({
-          paused: true,
-          repeat: -1,
-          repeatDelay: 0.42,
-          defaults: { ease: 'power3.out' },
-        });
-
-        cursorIdle
-          .to(cursor, { duration: 0.64, rotation: -1.5, x: 12, y: 8, ease: 'sine.inOut' })
-          .to(cursorPointer ?? cursor, { duration: 0.08, scale: 0.92, ease: 'power2.out' })
-          .to(cursorPointer ?? cursor, { duration: 0.2, scale: 1, ease: 'back.out(2.2)' });
-
-        if (cursorRays) {
-          cursorIdle
-            .to(cursorRays, { autoAlpha: 1, duration: 0.08 }, '<')
-            .to(cursorRays, { autoAlpha: 0.52, duration: 0.34, ease: 'power2.out' }, '>');
-        }
-
-        cursorIdle
-          .to(cursor, { duration: 0.68, rotation: -8.5, x: -2, y: -1, ease: 'sine.inOut' }, '<0.02')
-          .to(cursor, { duration: 0.38, rotation: -7, x: 0, y: 0, ease: 'power2.out' });
-
-        timeline.fromTo(
-          cursor,
-          { autoAlpha: 0, rotation: -15, scale: 0.86, x: -8, y: -5 },
-          {
-            autoAlpha: 1,
-            duration: 0.5,
-            ease: 'back.out(1.6)',
-            rotation: -7,
-            scale: 1,
-            x: 0,
-            y: 0,
-          },
-          '<0.08',
-        );
-        timeline.add(() => cursorIdle.play(0), '>-0.04');
-      }
+      timeline.to(introItems, { autoAlpha: 1, stagger: 0.07, y: 0 }, '<0.1');
     }, root);
 
     return () => ctx.revert();
@@ -1609,7 +1362,7 @@ function LandingPageInner({
           ctaSlot={heroCtaNode}
         />
 
-        <section className={`${SECTION_FRAME_CLASS} py-0`} style={SECTION_SCROLL_STYLE}>
+        <section className={`${SECTION_FRAME_CLASS} !py-0`} style={SECTION_SCROLL_STYLE}>
           <ReviewSplit
             title="Review the plan before the work disappears into an agent log."
             body="Agendex makes the plan itself the review surface, with enough source detail to trust what changed and where it came from."
@@ -1636,12 +1389,9 @@ function LandingPageInner({
 
         <LandingFAQ openFaq={openFaq} onSetOpenFaq={actions.setOpenFaq} />
 
-        <section
-          className={`${SECTION_FRAME_CLASS} py-[58px] text-center max-sm:py-[44px]`}
-          style={SECTION_SCROLL_STYLE}
-        >
-          <h2 className="mx-auto m-0 max-w-[640px] text-balance text-[28px] font-[740] leading-[1.12] tracking-[-0.02em] text-[var(--landing-text)] max-sm:text-[24px]">
-            Your local agent plans deserve a real index.
+        <section className={`${SECTION_FRAME_CLASS} text-center`} style={SECTION_SCROLL_STYLE}>
+          <h2 className="mx-auto m-0 max-w-[640px] text-balance landing-h2 text-[var(--landing-text)]">
+            Install in one command.
           </h2>
           <p className="mx-auto mt-3 mb-0 max-w-[520px] text-[14px] leading-[1.7] text-[var(--landing-muted)]">
             Start with a local index. Add Cloud Pro when review moves across people and machines.
@@ -1704,13 +1454,11 @@ LandingPage.HeroCta = HeroCta;
 LandingPage.PricingCta = PricingCta;
 
 function FAQItem({
-  index,
   question,
   answer,
   open,
   onToggle,
 }: {
-  index: number;
   question: string;
   answer: string;
   open: boolean;
@@ -1729,12 +1477,9 @@ function FAQItem({
         onMouseLeave={() => setHovered(false)}
         aria-expanded={open}
         aria-controls={contentId}
-        className="group grid min-h-[70px] w-full grid-cols-[32px_minmax(0,1fr)_28px] items-center gap-4 border-0 bg-transparent px-0 py-[17px] text-left text-[14px] font-bold leading-[1.45] text-[var(--landing-text)] transition-colors duration-150 max-sm:grid-cols-[28px_minmax(0,1fr)_28px] max-sm:gap-3"
+        className="group grid min-h-[64px] w-full grid-cols-[minmax(0,1fr)_28px] items-center gap-4 border-0 bg-transparent px-0 py-[16px] text-left text-[14px] font-semibold leading-[1.45] text-[var(--landing-text)] transition-colors duration-150 max-sm:gap-3"
         style={{ color: hovered || open ? 'var(--landing-text)' : undefined }}
       >
-        <span className="font-['SF_Mono','JetBrains_Mono',ui-monospace,monospace] text-[11px] font-bold text-[var(--landing-accent)]">
-          {String(index).padStart(2, '0')}
-        </span>
         <span className="text-pretty">{question}</span>
         <div
           className="inline-flex size-[28px] shrink-0 items-center justify-center rounded-full transition-[background-color,border-color] duration-200"
@@ -1779,7 +1524,7 @@ function FAQItem({
       >
         <div className="overflow-hidden">
           <p
-            className="m-0 max-w-[650px] pb-[22px] pl-[46px] text-[13.5px] leading-[1.75] text-[var(--landing-muted)] max-sm:pl-[40px]"
+            className="m-0 max-w-[650px] pb-[22px] text-[13.5px] leading-[1.75] text-[var(--landing-muted)]"
             style={{
               opacity: open ? 1 : 0,
               transform: open ? 'translateY(0)' : 'translateY(-4px)',

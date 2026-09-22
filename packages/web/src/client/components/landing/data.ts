@@ -171,7 +171,6 @@ export const PRO_FEATURES = [
   'Plan creation, uploads, and editing',
   'Up to five workspace members',
   'Access from any device',
-  '...and more!',
 ];
 
 export const MONEY_BACK_GUARANTEE = {

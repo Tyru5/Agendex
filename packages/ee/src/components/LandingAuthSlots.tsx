@@ -27,8 +27,7 @@ export function EEHeroCta() {
       }
       className="landing-action landing-action--primary"
     >
-      {activeTab === 'cloud' ? 'Sign up' : 'Get Started'}
-      <span aria-hidden="true">→</span>
+      {activeTab === 'cloud' ? 'Sign up' : 'Get started'}
     </button>
   );
 }

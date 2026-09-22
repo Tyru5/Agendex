@@ -1,4 +1,3 @@
-import type { MouseEvent, ReactNode } from 'react';
 import type { SimpleIcon } from 'simple-icons';
 import {
   siBetterauth,
@@ -22,6 +21,7 @@ import {
   siXyflow,
 } from 'simple-icons';
 import { GitHubIcon } from './OAuthIcons.tsx';
+import { Body, SubpageHeader, SubpageSection, SubpageShell } from './landing/SubpageShell.tsx';
 
 export interface ToolsUsedPageProps {
   /** Called when the user activates the back link in the header. */
@@ -246,38 +246,6 @@ const STACK_SECTIONS: StackSection[] = [
 
 const DARK_ICON_HEX = new Set(['000000', '0B100F', '191919', '121212', 'FFFFFF']);
 
-function ToolsShell({ children }: { children: ReactNode }) {
-  return (
-    <main className="landing-page tools-page min-h-[100dvh]">
-      <div className="landing-frame px-[clamp(18px,5vw,72px)] py-[clamp(56px,7vw,88px)]">
-        {children}
-      </div>
-    </main>
-  );
-}
-
-function Body({ children }: { children: ReactNode }) {
-  return (
-    <p className="m-0 max-w-[68ch] text-pretty text-[13.5px] leading-[1.7] text-[var(--landing-muted)]">
-      {children}
-    </p>
-  );
-}
-
-function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
-  return (
-    <section
-      id={id}
-      className="scroll-mt-24 border-t border-[var(--landing-border-subtle)] py-12 first:border-t-0 first:pt-0"
-    >
-      <h2 className="m-0 text-[24px] font-[740] leading-[1.1] tracking-[-0.02em] text-[var(--landing-text)]">
-        {title}
-      </h2>
-      <div className="mt-5 grid gap-4">{children}</div>
-    </section>
-  );
-}
-
 function StackIcon({ icon, size = 18 }: { icon: SimpleIcon; size?: number }) {
   const hex = icon.hex.toUpperCase();
   const fill = DARK_ICON_HEX.has(hex) ? 'currentColor' : `#${icon.hex}`;
@@ -295,133 +263,83 @@ function StackIcon({ icon, size = 18 }: { icon: SimpleIcon; size?: number }) {
   );
 }
 
-function StackCard({ item }: { item: StackItem }) {
-  const content = (
+function StackRow({ item }: { item: StackItem }) {
+  const external = item.href ? (
+    <svg
+      aria-hidden="true"
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="none"
+      className="shrink-0 text-[var(--landing-faint)] opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+    >
+      <path
+        d="M7 17 17 7M9 7h8v8"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ) : null;
+
+  const inner = (
     <>
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-[var(--landing-border)] bg-[color-mix(in_oklch,var(--landing-bg)_70%,transparent)]">
-        {item.icon ? (
-          <StackIcon icon={item.icon} />
-        ) : (
-          <span className="text-[12px] font-bold text-[var(--landing-accent)]">
-            {item.name.slice(0, 1)}
-          </span>
-        )}
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <h3 className="m-0 text-[14px] font-bold text-[var(--landing-text)]">{item.name}</h3>
-          {item.href ? (
-            <svg
-              aria-hidden="true"
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              className="shrink-0 text-[var(--landing-faint)] opacity-0 transition-opacity duration-150 group-hover:opacity-100"
-            >
-              <path
-                d="M7 17 17 7M9 7h8v8"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : null}
-        </div>
-        <p className="mt-1 mb-0 text-[12.5px] leading-[1.55] text-[var(--landing-muted)]">
-          {item.role}
-        </p>
-      </div>
+      <span className="flex size-5 shrink-0 items-center justify-center text-[var(--landing-muted)]">
+        {item.icon ? <StackIcon icon={item.icon} size={15} /> : null}
+      </span>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate text-[13.5px] font-semibold text-[var(--landing-text)]">
+          {item.name}
+        </span>
+        {external}
+      </span>
+      <span className="min-w-0 text-[13px] leading-[1.5] text-[var(--landing-muted)]">
+        {item.role}
+      </span>
     </>
   );
 
   const className =
-    'group flex items-start gap-3 rounded-[10px] border border-[var(--landing-border)] bg-[var(--landing-surface)] p-3.5 transition-[border-color,background-color] duration-150 hover:border-[color-mix(in_oklch,var(--landing-accent)_35%,var(--landing-border))] hover:bg-[color-mix(in_oklch,var(--landing-surface)_88%,var(--landing-accent))]';
+    'group grid grid-cols-[20px_minmax(140px,0.4fr)_minmax(0,1fr)] items-center gap-x-3 gap-y-1 py-2.5 max-sm:grid-cols-[20px_minmax(0,1fr)] max-sm:[&>span:last-child]:col-start-2';
 
-  if (item.href) {
-    return (
-      <a
-        href={item.href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`${className} no-underline`}
-      >
-        {content}
-      </a>
-    );
-  }
-
-  return <div className={className}>{content}</div>;
+  return (
+    <li>
+      {item.href ? (
+        <a
+          href={item.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${className} no-underline`}
+        >
+          {inner}
+        </a>
+      ) : (
+        <div className={className}>{inner}</div>
+      )}
+    </li>
+  );
 }
 
 /**
- * Public marketing page describing the tools, libraries, and packages used to
- * build Agendex. Mirrors the shell patterns of Docs/Download/Changelog pages.
+ * Public page listing the tools, libraries, and packages used to build Agendex.
+ * Mirrors the shell patterns of the Docs/Download/Changelog pages.
  */
 export function ToolsUsedPage({ onBack, homeHref = '/' }: ToolsUsedPageProps) {
-  function handleBack(e: MouseEvent<HTMLAnchorElement>) {
-    if (!onBack) return;
-    if (e.defaultPrevented) return;
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-    e.preventDefault();
-    onBack();
-  }
-
-  const totalItems = STACK_SECTIONS.reduce((sum, section) => sum + section.items.length, 0);
-
   return (
-    <ToolsShell>
-      <nav className="mb-12 flex flex-wrap items-center justify-between gap-4">
-        <a
-          href={homeHref}
-          onClick={handleBack}
-          className="text-[14px] font-bold text-[var(--landing-text)] no-underline"
-        >
-          Agendex<span className="text-[var(--landing-accent)]">.</span>
-        </a>
-        <a
-          href={homeHref}
-          onClick={handleBack}
-          className="landing-action landing-action--secondary landing-action--compact"
-        >
-          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M19 12H5M12 5l-7 7 7 7"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Back
-        </a>
-      </nav>
+    <SubpageShell pageClass="tools-page" onBack={onBack} homeHref={homeHref}>
+      <SubpageHeader
+        title="Tools, libraries, and packages"
+        lede="What Agendex is built with, across local indexing, Cloud Pro, the CLI, and the desktop app. Direct dependencies only; transitive packages are not listed."
+      />
 
-      <header className="max-w-[720px]">
-        <p className="m-0 text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--landing-accent)]">
-          Stack · Open source
-        </p>
-        <h1 className="mt-3 mb-0 text-balance text-[36px] font-[760] leading-[1.05] tracking-[-0.03em] text-[var(--landing-text)] max-sm:text-[30px]">
-          Tools, libraries, and packages
-        </h1>
-        <p className="mt-4 mb-0 max-w-[58ch] text-pretty text-[15px] leading-[1.7] text-[var(--landing-muted)]">
-          A plain inventory of the technologies behind Agendex — local indexing, Cloud Pro, CLI, and
-          the desktop app. Not exhaustive of every transitive dependency; these are the pieces we
-          chose and operate on daily.
-        </p>
-        <p className="mt-3 mb-0 text-[12.5px] text-[var(--landing-faint)]">
-          {totalItems} entries · {STACK_SECTIONS.length} groups · AGPL-3.0 monorepo
-        </p>
-      </header>
-
-      <div className="mt-10 lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-14">
+      <div className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-14">
         <aside className="mb-10 lg:mb-0">
           <nav
             aria-label="Stack sections"
             className="grid gap-1 lg:sticky lg:top-8 lg:max-h-[calc(100dvh-64px)] lg:overflow-y-auto"
           >
-            <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--landing-faint)]">
+            <div className="mb-2 px-2 text-[12px] font-semibold text-[var(--landing-faint)]">
               On this page
             </div>
             {STACK_SECTIONS.map((section) => (
@@ -444,20 +362,20 @@ export function ToolsUsedPage({ onBack, homeHref = '/' }: ToolsUsedPageProps) {
 
         <div>
           {STACK_SECTIONS.map((section) => (
-            <Section key={section.id} id={section.id} title={section.title}>
+            <SubpageSection key={section.id} id={section.id} title={section.title}>
               <Body>{section.blurb}</Body>
-              <div className="grid gap-2.5 sm:grid-cols-2">
+              <ul className="m-0 grid list-none divide-y divide-[var(--landing-border-subtle)] border-y border-[var(--landing-border-subtle)] p-0">
                 {section.items.map((item) => (
-                  <StackCard key={item.name} item={item} />
+                  <StackRow key={item.name} item={item} />
                 ))}
-              </div>
-            </Section>
+              </ul>
+            </SubpageSection>
           ))}
 
-          <Section id="open-source" title="Open source">
+          <SubpageSection id="open-source" title="Open source">
             <Body>
-              Agendex is developed as a Bun workspaces monorepo under the AGPL-3.0 license. The
-              public source of truth lives on GitHub; issues and PRs are welcome.
+              Agendex is a Bun workspaces monorepo under the AGPL-3.0 license. Source, issues, and
+              pull requests are on GitHub.
             </Body>
             <div className="flex flex-wrap gap-2.5">
               <a
@@ -482,9 +400,9 @@ export function ToolsUsedPage({ onBack, homeHref = '/' }: ToolsUsedPageProps) {
                 Changelog
               </a>
             </div>
-          </Section>
+          </SubpageSection>
         </div>
       </div>
-    </ToolsShell>
+    </SubpageShell>
   );
 }

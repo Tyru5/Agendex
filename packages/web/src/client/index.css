@@ -4709,7 +4709,6 @@ a.plan-git-chip-link:focus-visible {
 
 .landing-page {
   --landing-accent: oklch(90% 0.22 129);
-  --landing-cyan: oklch(76% 0.13 205);
   --landing-orange: oklch(72% 0.18 46);
   --landing-bg: oklch(10% 0.032 178);
   --landing-surface: oklch(14.5% 0.035 180);
@@ -4737,15 +4736,26 @@ a.plan-git-chip-link:focus-visible {
       var(--landing-grid) calc(50% + 539px),
       transparent calc(50% + 540px)
     ),
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--landing-cyan) 5%, transparent),
-      transparent 360px
-    ),
     var(--landing-bg);
   color: var(--landing-text);
   font-family: var(--font-sans);
   letter-spacing: 0;
+}
+
+.landing-page ::selection {
+  background: color-mix(in oklch, var(--landing-accent) 70%, var(--landing-bg));
+  color: var(--landing-bg);
+}
+
+.landing-band {
+  padding-block: clamp(52px, 7vw, 76px);
+}
+
+.landing-h2 {
+  font-size: clamp(26px, 3.4vw, 34px);
+  font-weight: 740;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
 }
 
 /*
@@ -4756,7 +4766,6 @@ a.plan-git-chip-link:focus-visible {
  */
 .light .landing-page {
   --landing-accent: oklch(45% 0.145 130);
-  --landing-cyan: oklch(52% 0.1 205);
   --landing-orange: oklch(56% 0.15 46);
   --landing-bg: oklch(97.2% 0.012 128);
   --landing-surface: oklch(99% 0.009 128);
@@ -4783,36 +4792,6 @@ a.plan-git-chip-link:focus-visible {
     color-mix(in oklch, var(--landing-grid) 42%, transparent) calc(50% + 269px),
     transparent calc(50% + 270px)
   );
-}
-
-.landing-page::after {
-  content: "";
-  position: fixed;
-  top: -2%;
-  left: 0;
-  right: 0;
-  height: 1px;
-  z-index: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in oklch, var(--landing-accent) 10%, transparent) 20%,
-    color-mix(in oklch, var(--landing-accent) 22%, transparent) 50%,
-    color-mix(in oklch, var(--landing-accent) 10%, transparent) 80%,
-    transparent 100%
-  );
-  box-shadow: 0 0 16px 3px color-mix(in oklch, var(--landing-accent) 4%, transparent);
-  animation: landing-scan 11s linear infinite;
-}
-
-@keyframes landing-scan {
-  0% {
-    top: -2%;
-  }
-  100% {
-    top: 102%;
-  }
 }
 
 .landing-price-swap {
@@ -4873,241 +4852,78 @@ a.plan-git-chip-link:focus-visible {
   position: relative;
   z-index: 1;
   display: flex;
-  min-height: calc(100svh - 165px);
   flex-direction: column;
   width: min(100%, 1080px);
   margin-inline: auto;
   border-right: 1px solid var(--landing-border-subtle);
   border-bottom: 1px solid var(--landing-border-subtle);
   border-left: 1px solid var(--landing-border-subtle);
-  background:
-    linear-gradient(
-      90deg,
-      transparent 0,
-      transparent calc(100% - 1px),
-      color-mix(in oklch, var(--landing-accent) 18%, transparent) calc(100% - 1px)
-    ),
-    radial-gradient(
-      circle,
-      color-mix(in oklch, var(--landing-accent) 14%, transparent) 0 1px,
-      transparent 1px 100%
-    )
-    0 0 / 30px 30px,
-    linear-gradient(
-      180deg,
-      color-mix(in oklch, var(--landing-accent) 5%, transparent),
-      transparent 270px
-    );
 }
 
 .landing-hero-content {
   position: relative;
   flex: 1;
-  padding: clamp(124px, 12.2vh, 156px) 40px 64px;
+  padding: clamp(104px, 12vh, 148px) clamp(18px, 4vw, 40px) 56px;
 }
 
-.landing-hero-kicker {
+.landing-hero-notice {
   display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
   margin-bottom: 22px;
-  border: 1px solid color-mix(in oklch, var(--landing-accent) 24%, var(--landing-border));
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--landing-accent) 8%, transparent);
-  padding: 5px 9px;
+  color: var(--landing-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+.landing-hero-notice svg {
+  flex-shrink: 0;
   color: var(--landing-accent);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+}
+
+.landing-hero-notice:hover {
+  color: var(--landing-text);
 }
 
 .landing-hero-title {
-  max-width: 760px;
+  max-width: 880px;
   margin: 0;
   color: var(--landing-text);
-  font-size: clamp(54px, 5vw, 72px);
+  font-size: clamp(36px, 6.4vw, 68px);
   font-weight: 760;
-  letter-spacing: -0.035em;
-  line-height: 1.06;
-}
-
-.landing-hero-title span {
-  color: var(--landing-accent);
-  text-shadow: 0 0 24px color-mix(in oklch, var(--landing-accent) 12%, transparent);
+  letter-spacing: -0.03em;
+  line-height: 1.04;
 }
 
 .landing-hero-copy-block {
   position: relative;
-  margin-top: 32px;
-}
-
-.landing-hero-cursor {
-  position: absolute;
-  top: 0;
-  left: -54px;
-  color: var(--landing-accent);
-  filter: drop-shadow(0 0 18px color-mix(in oklch, var(--landing-accent) 16%, transparent));
-  transform: rotate(-7deg);
-  transform-origin: 40% 52%;
-  will-change: transform, filter;
+  margin-top: 28px;
 }
 
 .landing-hero-copy-block p {
-  max-width: 520px;
+  max-width: 540px;
   margin: 0;
   color: var(--landing-muted);
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1.58;
-}
-
-.landing-hero-copy-block p span,
-.landing-hero-index-trigger {
-  color: var(--landing-accent);
-  border-bottom: 2px solid color-mix(in oklch, var(--landing-accent) 72%, transparent);
-}
-
-.landing-hero-index-trigger {
-  position: relative;
-  display: inline-flex;
-  width: 2.6em;
-  min-height: 1em;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  vertical-align: baseline;
-  background: none;
-  border-top: 0;
-  border-right: 0;
-  border-left: 0;
-  cursor: pointer;
-  font: inherit;
-  font-weight: inherit;
-  line-height: inherit;
-  transition:
-    color 160ms ease,
-    text-shadow 160ms ease,
-    border-color 160ms ease,
-    width 300ms cubic-bezier(0.34, 1.2, 0.64, 1);
-}
-
-.landing-hero-index-trigger[data-syncing] {
-  width: 3.3em;
-}
-
-.landing-hero-index-trigger:hover,
-.landing-hero-index-trigger:focus-visible {
-  color: var(--landing-text);
-  border-bottom-color: var(--landing-accent);
-  text-shadow: 0 0 18px color-mix(in oklch, var(--landing-accent) 32%, transparent);
-}
-
-.landing-hero-index-trigger:focus-visible {
-  outline: 2px solid color-mix(in oklch, var(--landing-accent) 72%, transparent);
-  outline-offset: 4px;
-  border-radius: 3px;
-}
-
-.landing-hero-index-label {
-  display: inline-block;
-  transition:
-    opacity 200ms ease,
-    filter 200ms ease,
-    transform 280ms cubic-bezier(0.34, 1.4, 0.64, 1);
-  transition-delay: 70ms;
-}
-
-.landing-hero-index-trigger[data-syncing] .landing-hero-index-label {
-  opacity: 0;
-  filter: blur(3px);
-  transform: scale(0.72);
-  transition-delay: 0ms;
-}
-
-.landing-hero-index-spinner {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.28em;
-  opacity: 0;
-  transform: scale(0.6);
-  transition:
-    opacity 200ms ease,
-    transform 300ms cubic-bezier(0.34, 1.4, 0.64, 1);
-  transition-delay: 0ms;
-}
-
-.landing-hero-index-trigger[data-syncing] .landing-hero-index-spinner {
-  opacity: 1;
-  transform: scale(1);
-  transition-delay: 70ms;
-}
-
-.landing-hero-index-spinner-text {
-  font: inherit;
-}
-
-.landing-hero-sync-icon {
-  width: 0.95em;
-  height: 0.95em;
-}
-
-.landing-hero-index-trigger[data-syncing] .landing-hero-sync-icon {
-  animation: landing-sync-ring 760ms linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .landing-hero-index-trigger {
-    transition:
-      color 160ms ease,
-      text-shadow 160ms ease,
-      border-color 160ms ease;
-  }
-
-  .landing-hero-index-label,
-  .landing-hero-index-spinner {
-    filter: none;
-    transform: none;
-    transition: opacity 160ms ease;
-  }
-
-  .landing-hero-index-trigger[data-syncing] .landing-hero-index-label {
-    filter: none;
-    transform: none;
-  }
-
-  .landing-hero-index-trigger[data-syncing] .landing-hero-index-spinner {
-    transform: none;
-  }
-
-  .landing-hero-index-trigger[data-syncing] .landing-hero-sync-icon {
-    animation: none;
-  }
-}
-
-.landing-hero-status {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 450;
+  line-height: 1.6;
+  text-wrap: pretty;
 }
 
 .landing-hero-meta {
-  margin-top: 16px;
-  color: color-mix(in oklch, var(--landing-muted) 54%, transparent);
-  font-size: 13.5px;
-  font-weight: 600;
+  margin-top: 14px;
+  color: var(--landing-faint);
+  font-size: 13px;
+  font-weight: 500;
   line-height: 1.5;
 }
 
 .landing-hero-meta span {
-  margin-inline: 5px;
-  color: color-mix(in oklch, var(--landing-muted) 44%, transparent);
+  margin-inline: 4px;
 }
 
 .landing-hero-agents-shell {
@@ -5153,8 +4969,8 @@ a.plan-git-chip-link:focus-visible {
 
 .landing-hero-agents-control:hover,
 .landing-hero-agents-control:focus-visible {
-  border-color: var(--landing-lime);
-  color: var(--landing-lime);
+  border-color: var(--landing-accent);
+  color: var(--landing-accent);
 }
 
 .landing-hero-agents-control svg {
@@ -5187,7 +5003,7 @@ a.plan-git-chip-link:focus-visible {
   background: color-mix(in oklch, var(--landing-surface) 66%, transparent);
   color: var(--landing-muted);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
 }
@@ -5204,7 +5020,7 @@ a.plan-git-chip-link:focus-visible {
 
 .landing-hero-install {
   max-width: 696px;
-  margin-top: 20px;
+  margin-top: 44px;
 }
 
 .landing-hero-command {
@@ -5213,31 +5029,24 @@ a.plan-git-chip-link:focus-visible {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  border: 1px solid color-mix(in oklch, var(--landing-accent) 26%, var(--landing-border));
-  border-radius: 12px;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in oklch, var(--landing-accent) 7%, transparent),
-      transparent 44%
-    ),
-    var(--landing-command-bg);
-  padding: 0 14px 0 25px;
+  border: 1px solid var(--landing-border-strong);
+  border-radius: 10px;
+  background: var(--landing-command-bg);
+  padding: 0 12px 0 20px;
   color: var(--landing-text);
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--landing-border) 42%, transparent);
 }
 
 .landing-hero-command-prompt {
   color: var(--landing-accent);
   font-family: var(--font-mono);
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .landing-hero-command code {
   min-width: 0;
   overflow: hidden;
   font-family: var(--font-mono);
-  font-size: 17px;
+  font-size: 16px;
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5253,6 +5062,14 @@ a.plan-git-chip-link:focus-visible {
   border-radius: 7px;
   background: color-mix(in oklch, var(--landing-surface) 70%, transparent);
   color: var(--landing-accent);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.landing-hero-copy:hover {
+  border-color: var(--landing-border-strong);
+  background: var(--landing-surface-raised);
 }
 
 .landing-hero-runbook {
@@ -5261,9 +5078,9 @@ a.plan-git-chip-link:focus-visible {
 
 .landing-hero-runbook p {
   margin: 0 0 8px;
-  color: color-mix(in oklch, var(--landing-accent) 54%, var(--landing-muted));
+  color: var(--landing-muted);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .landing-hero-runbook code {
@@ -5290,45 +5107,15 @@ a.plan-git-chip-link:focus-visible {
 }
 
 .landing-hero-actions .landing-action {
-  min-height: 47px;
-  border-radius: 11px;
-  padding-inline: 25px;
-  background: color-mix(in oklch, var(--landing-surface) 54%, transparent);
-  font-size: 15px;
+  min-height: 44px;
+  border-radius: 10px;
+  padding-inline: 20px;
+  font-size: 14px;
 }
 
 .landing-hero-actions .landing-action--primary {
   background: var(--landing-accent);
   color: var(--landing-bg);
-}
-
-.landing-hero-proof {
-  display: grid;
-  min-height: 50px;
-  grid-template-columns: 1fr 1.8fr 1fr;
-  align-items: center;
-  border-top: 1px solid var(--landing-border-subtle);
-  color: color-mix(in oklch, var(--landing-muted) 72%, transparent);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.landing-hero-proof > div {
-  display: flex;
-  height: 100%;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-right: 1px solid var(--landing-border-subtle);
-  text-align: center;
-}
-
-.landing-hero-proof > div:last-child {
-  border-right: 0;
-}
-
-.landing-hero-star {
-  color: var(--landing-accent);
 }
 
 .landing-page .wip-marquee {
@@ -5352,11 +5139,37 @@ a.plan-git-chip-link:focus-visible {
   outline-offset: 3px;
 }
 
-.landing-action-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+.landing-action {
+  min-height: 44px;
+  border-radius: 10px;
+  padding-inline: 20px;
+  font-size: 14px;
+}
+
+.landing-hero-actions .landing-action--primary {
+  background: var(--landing-accent);
+  color: var(--landing-bg);
+}
+
+.landing-page .wip-marquee {
+  background: var(--landing-accent);
+  color: var(--landing-bg);
+}
+
+.landing-page > canvas.fixed {
+  opacity: 0.18;
+}
+
+.landing-page a,
+.landing-page button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.landing-page a:focus-visible,
+.landing-page button:focus-visible,
+.landing-page input:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--landing-accent) 72%, var(--landing-text));
+  outline-offset: 3px;
 }
 
 .landing-action {
@@ -5425,176 +5238,6 @@ a.plan-git-chip-link:focus-visible {
   opacity: 0.7;
 }
 
-.landing-annotation-cue {
-  position: relative;
-  display: inline-block;
-  overflow: visible;
-  white-space: nowrap;
-}
-
-.landing-annotation-trigger {
-  position: relative;
-  display: inline;
-  border: 0;
-  background: transparent;
-  color: var(--landing-accent);
-  font: inherit;
-  line-height: inherit;
-  padding: 0 1px;
-  text-align: inherit;
-  text-decoration: none;
-  text-decoration-line: underline;
-  text-decoration-color: color-mix(in oklch, var(--landing-accent) 46%, transparent);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 0.16em;
-}
-
-.landing-annotation-trigger.is-open {
-  color: color-mix(in oklch, var(--landing-orange) 82%, var(--landing-muted));
-  text-decoration: line-through;
-  text-decoration-color: color-mix(in oklch, var(--landing-orange) 80%, transparent);
-  text-decoration-thickness: 2px;
-}
-
-.landing-annotation-pointer {
-  position: absolute;
-  top: 0.05em;
-  left: -1.65em;
-  width: 1.55em;
-  height: 1.55em;
-  color: var(--landing-text);
-  filter: drop-shadow(0 10px 18px color-mix(in oklch, var(--landing-bg) 62%, transparent));
-  pointer-events: none;
-  transform-origin: 70% 30%;
-  animation: landing-annotation-tap 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-}
-
-.landing-annotation-trigger.is-open .landing-annotation-pointer {
-  opacity: 0;
-  animation: none;
-}
-
-.landing-annotation-popover {
-  position: relative;
-  top: -1px;
-  display: inline-flex;
-  width: max-content;
-  max-width: min(270px, 62vw);
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--landing-border);
-  border-radius: 8px;
-  margin-inline: 7px;
-  vertical-align: middle;
-  background: color-mix(in oklch, var(--landing-surface-raised) 92%, var(--landing-bg));
-  box-shadow: 0 18px 40px color-mix(in oklch, var(--landing-bg) 62%, transparent);
-  animation: landing-annotation-popover-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.landing-annotation-popover-head {
-  border-bottom: 1px solid var(--landing-border-subtle);
-  padding: 4px 9px;
-  font-size: 10.5px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--landing-muted);
-}
-
-.landing-annotation-popover-body {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
-  padding: 8px 10px 9px;
-  font-size: 12.5px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--landing-text);
-}
-
-.landing-annotation-cursor {
-  position: relative;
-  top: 0.12em;
-  display: inline-block;
-  width: 2px;
-  height: 0.9em;
-  background: var(--landing-accent);
-  animation: landing-annotation-cursor 1s steps(2, end) infinite;
-}
-
-@keyframes landing-annotation-tap {
-  0%,
-  100% {
-    opacity: 0.78;
-    transform: translate3d(0, 0, 0) rotate(-12deg);
-  }
-  11%,
-  29% {
-    opacity: 1;
-    transform: translate3d(7px, 1px, 0) rotate(-5deg);
-  }
-  20%,
-  38% {
-    opacity: 0.84;
-    transform: translate3d(0, 0, 0) rotate(-12deg);
-  }
-  52% {
-    opacity: 0.66;
-    transform: translate3d(0, 0, 0) rotate(-12deg);
-  }
-}
-
-@keyframes landing-annotation-cursor {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
-}
-
-@keyframes landing-annotation-popover-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (max-width: 480px) {
-  .landing-annotation-pointer {
-    top: 0.14em;
-    left: -1.05em;
-    width: 1.25em;
-    height: 1.25em;
-  }
-}
-
-@media (max-width: 360px) {
-  .landing-action-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .landing-action-row .landing-action {
-    width: 100%;
-  }
-}
-
-@keyframes landing-panel-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* ─── Dex mascot micro-interactions (transform-only) ─── */
 @keyframes dex-blink {
   0%,
@@ -5658,10 +5301,6 @@ a.plan-git-chip-link:focus-visible {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
-  }
-
-  .landing-page::after {
-    content: none;
   }
 
   .dex-blink [data-dex-eyes] {
@@ -9256,12 +8895,6 @@ a.plan-git-chip-link:focus-visible {
 @keyframes cloud-sync-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.95); }
-}
-
-@keyframes landing-sync-ring {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 @keyframes upload-fadeUp {
