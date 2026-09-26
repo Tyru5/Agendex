@@ -7,12 +7,19 @@ import { useMemo, useRef, useState } from 'react';
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_BYTES = 2 * 1024 * 1024;
 
-function buildAgentList(): Array<{ agent: string; label: string }> {
-  const items = AGENT_IDS.map((agent) => ({
-    agent: agent.trim().toLowerCase(),
-    label: getAgentLabel(agent),
-  }));
-  return items.sort((a, b) => a.label.localeCompare(b.label));
+function buildAgentList(
+  avatars: Record<string, string> = {},
+): Array<{ agent: string; label: string }> {
+  const items = new Map<string, { agent: string; label: string }>();
+  for (const agent of [...AGENT_IDS, ...Object.keys(avatars)]) {
+    const label = getAgentLabel(agent);
+    const existing = items.get(label);
+    // Branding aliases share a row; keep an uploaded avatar accessible under its stored ID.
+    if (!existing || (!avatars[existing.agent] && avatars[agent])) {
+      items.set(label, { agent, label });
+    }
+  }
+  return [...items.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 function AgentAvatarRow({
@@ -93,18 +100,7 @@ export function AgentAvatarsSection() {
   const [busyAgent, setBusyAgent] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const allAgents = useMemo(() => {
-    const items = buildAgentList();
-    if (avatars) {
-      const known = new Set(items.map((i) => i.agent));
-      for (const agent of Object.keys(avatars)) {
-        if (!known.has(agent)) {
-          items.push({ agent, label: getAgentLabel(agent) });
-        }
-      }
-    }
-    return items;
-  }, [avatars]);
+  const allAgents = useMemo(() => buildAgentList(avatars), [avatars]);
 
   function setError(agent: string, message: string | undefined) {
     setErrors((prev) => {
