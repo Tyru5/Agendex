@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   type FormEvent,
   type ReactNode,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -22,6 +23,7 @@ import {
 } from '../lib/annotations.ts';
 import type { Plan } from '../lib/api.ts';
 import { buildPlanOutline } from '../lib/extract-headings.ts';
+import { lazyWithPreload } from '../lib/lazy-with-preload.ts';
 import {
   getRelatedPlans,
   type LineageConfidence,
@@ -31,7 +33,7 @@ import {
 import { extractSyncOrigin, formatSyncOriginLabel } from '../lib/sync-origin.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { ExitFullscreenIcon, FullscreenIcon } from './FullscreenIcons.tsx';
-import { CompareIcon } from './PlanCompareView.tsx';
+import { CompareIcon } from './CompareIcon.tsx';
 import { PlanComparePicker } from './PlanComparePicker.tsx';
 import {
   planMarkdownComponents,
@@ -42,9 +44,14 @@ import { PlanActionButton } from './PlanActionButton.tsx';
 import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
 import { PlanPathContext } from './PlanPathContext.tsx';
-import { TechDependencyChart } from './TechDependencyChart.tsx';
 
 export { PlanActionButton } from './PlanActionButton.tsx';
+
+// The chart pulls in React Flow, dagre and d3 — by far the heaviest part of
+// the viewer — so it loads on demand instead of blocking the plan text.
+const TechDependencyChart = lazyWithPreload(() =>
+  import('./TechDependencyChart.tsx').then((m) => m.TechDependencyChart),
+);
 
 function extractWorkspace(plan: Plan): string | undefined {
   return plan.workspace || undefined;
@@ -913,7 +920,9 @@ export function PlanViewer({
 
           {onChartWideChange && !chartHidden && (
             <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-              <TechDependencyChart plan={plan} onWideChange={handleTechChartWideChange} />
+              <Suspense fallback={<div aria-busy="true" style={{ minHeight: '500px' }} />}>
+                <TechDependencyChart plan={plan} onWideChange={handleTechChartWideChange} />
+              </Suspense>
             </div>
           )}
 

@@ -2,19 +2,12 @@ import {
   AgentAvatarProvider,
   type AgentStats,
   api as localApi,
-  ChangelogPage,
-  DocsPage,
-  DownloadPage,
   EmptyStateView,
-  PrivacyPolicyPage,
-  TermsOfServicePage,
-  ToolsUsedPage,
   applyPlanFilters,
   focusPlanSearchField,
   getAppShortcuts,
   hasMorningBriefUpdates,
   hasToken,
-  LandingPage,
   MAX_FOLDERS,
   MorningBrief,
   MorningBriefIcon,
@@ -26,8 +19,7 @@ import {
   PlanActionButton,
   PlanSourcesDialog,
   type PlanState,
-  PlanCompareView,
-  PlanViewer,
+  LazyPlanViewer,
   SidebarResizeHandle,
   SkeletonBlock,
   resolveMorningBriefSince,
@@ -43,19 +35,13 @@ import {
   useSidebarWidth,
   workspacesFromPlans,
 } from '@agendex/web';
-import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import type { UsageSummary } from '@agendex/shared';
 import { formatForDisplay, useHotkey } from '@tanstack/react-hotkeys';
-import {
-  ConvexProviderWithAuth,
-  useConvex,
-  useConvexAuth,
-  useMutation,
-  useQuery,
-} from 'convex/react';
-import { AnimatePresence, domAnimation, LazyMotion, m, useReducedMotion } from 'motion/react';
+import { useConvex, useConvexAuth, useMutation, useQuery } from 'convex/react';
+import { AnimatePresence, LazyMotion, m, useReducedMotion } from 'motion/react';
+import { loadMotionFeatures } from './lib/load-motion-features.ts';
 import {
   parseAsNativeArrayOf,
   parseAsString,
@@ -77,14 +63,8 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Redirect, Route, Switch, useLocation } from 'wouter';
+import { Redirect, useLocation } from 'wouter';
 import { CHART_PREF_STORAGE_KEY } from './chartPref.ts';
-import { AboutMePage } from './components/AboutMePage.tsx';
-import { AcceptInvitePage } from './components/AcceptInvitePage.tsx';
-import { AuthPage } from './components/AuthPage.tsx';
-import { CliAuthPage } from './components/CliAuthPage.tsx';
-import { CloudPlanCreator } from './components/CloudPlanCreator.tsx';
-import { CloudPlanEditor } from './components/CloudPlanEditor.tsx';
 import {
   CloudPlanAnnotationsPanel,
   useCloudPlanAnnotations,
@@ -93,24 +73,18 @@ import {
   CloudPlannotatorBadge,
   CloudPlannotatorWritebackPanel,
 } from './components/CloudPlannotatorPanel.tsx';
-import { CloudPlanUploader } from './components/CloudPlanUploader.tsx';
 import { CloudPlanSourcesDialog } from './components/CloudPlanSourcesDialog.tsx';
+import { BootLoadingView } from './components/BootLoadingView.tsx';
 import { CloudUpgrade } from './components/CloudUpgrade.tsx';
 import { CommentThread } from './components/CommentThread.tsx';
 import { DashboardTopbar } from './components/DashboardTopbar.tsx';
-import { DesktopAuthPage } from './components/DesktopAuthPage.tsx';
 import { DesktopSignInPage } from './components/DesktopSignInPage.tsx';
-import { EEHeroCta, EENavbarAuth, EEPricingCta } from './components/LandingAuthSlots.tsx';
 import { LocalIpDisclosureNotice } from './components/LocalIpDisclosureNotice.tsx';
-import { OnboardingRoute } from './components/OnboardingRoute.tsx';
 import { PaywallGuard } from './components/PaywallGuard.tsx';
 import { CloudPlanGitLinks } from './components/CloudPlanGitLinks.tsx';
 import { PlanTagsBar } from './components/PlanTagsBar.tsx';
 import { PricingModal } from './components/PricingModal.tsx';
-import { SettingsPage } from './components/SettingsPage.tsx';
-import { SharedPlanView } from './components/SharedPlanView.tsx';
 import { SharePlanDialog } from './components/SharePlanDialog.tsx';
-import { WelcomeScreen } from './components/WelcomeScreen.tsx';
 import { useAuth } from './hooks/useAuth.ts';
 import { useHydratedCloudPlan } from './hooks/useCloudPlanContent.ts';
 import { useCloudPlanPreferences } from './hooks/useCloudPlanPreferences.ts';
@@ -124,8 +98,7 @@ import { useSubscription } from './hooks/useSubscription.ts';
 import { useSyncIndicator } from './hooks/useSyncIndicator.ts';
 import { useWorkspaceAccess } from './hooks/useWorkspaceAccess.ts';
 import { buildDashboardTourSteps } from './tour.ts';
-import { authClient, normalizeLocalDevUrl } from './lib/auth-client.ts';
-import { parseCliAuthCallback } from './lib/cli-auth-callback.ts';
+import { normalizeLocalDevUrl } from './lib/auth-client.ts';
 import { findCloudCustomPlanSource, isConfiguredPlanSourcePath } from './lib/cloud-plan-sources.ts';
 import {
   canManageCustomPlanSources,
@@ -133,31 +106,50 @@ import {
   canUseTechDependencyChart,
   shouldQueryCloudPlanTags,
 } from './lib/cloud-query-mode.ts';
-import { convex } from './lib/convex-client.ts';
-import { parseDesktopAuthRequest } from './lib/desktop-auth-flow.ts';
-import {
-  getDesktopCloudToken,
-  getDesktopConvexAuthToken,
-  isDesktop,
-  setDesktopModePref,
-} from './lib/desktop.ts';
+import { getDesktopCloudToken, isDesktop, setDesktopModePref } from './lib/desktop.ts';
 import { OUTLINE_PREF_STORAGE_KEY } from './outlinePref.ts';
 
+// Import the component modules directly: a dynamic import of the package
+// barrel would drag every export it re-exports into the lazy chunk.
 const PlanEditor = lazy(() =>
-  import('@agendex/web').then((m) => ({
+  import('@agendex/web/components/PlanEditor.tsx').then((m) => ({
     default: m.PlanEditor,
   })),
 );
 
 const PlanCreator = lazy(() =>
-  import('@agendex/web').then((m) => ({
+  import('@agendex/web/components/PlanCreator.tsx').then((m) => ({
     default: m.PlanCreator,
   })),
 );
 
 const PlanUploader = lazy(() =>
-  import('@agendex/web').then((m) => ({
+  import('@agendex/web/components/PlanUploader.tsx').then((m) => ({
     default: m.PlanUploader,
+  })),
+);
+
+const CloudPlanCreator = lazy(() =>
+  import('./components/CloudPlanCreator.tsx').then((m) => ({
+    default: m.CloudPlanCreator,
+  })),
+);
+
+const CloudPlanUploader = lazy(() =>
+  import('./components/CloudPlanUploader.tsx').then((m) => ({
+    default: m.CloudPlanUploader,
+  })),
+);
+
+const CloudPlanEditor = lazy(() =>
+  import('./components/CloudPlanEditor.tsx').then((m) => ({
+    default: m.CloudPlanEditor,
+  })),
+);
+
+const PlanCompareView = lazy(() =>
+  import('@agendex/web/components/PlanCompareView.tsx').then((m) => ({
+    default: m.PlanCompareView,
   })),
 );
 
@@ -186,29 +178,6 @@ function readBriefLastReadAt(): number | null {
   if (!value) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
-function BootLoadingView({
-  message = 'Loading your dashboard...',
-  fullscreen = true,
-}: {
-  message?: string;
-  fullscreen?: boolean;
-}) {
-  return (
-    <div
-      className={
-        fullscreen
-          ? 'h-screen flex items-center justify-center bg-bg'
-          : 'h-full min-h-[280px] flex items-center justify-center'
-      }
-    >
-      <div className="w-full max-w-[420px] px-5">
-        <div className="text-[13px] text-tertiary mb-3 text-center">{message}</div>
-        <SkeletonBlock lines={4} />
-      </div>
-    </div>
-  );
 }
 
 const AUTH_SESSION_SETTLE_DELAY_MS = 250;
@@ -858,7 +827,7 @@ function CloudToolbarOptionStack({
   if (!active) return null;
 
   return (
-    <LazyMotion features={domAnimation}>
+    <LazyMotion features={loadMotionFeatures}>
       <div className="plannotator-review-stack mx-auto px-6 pb-16">
         <AnimatePresence initial={false}>
           {showPlannotatorTools && (
@@ -1006,7 +975,7 @@ function CloudPlanReviewWorkspace({
   }, [leftRailVisible, rightRailVisible]);
 
   return (
-    <LazyMotion features={domAnimation}>
+    <LazyMotion features={loadMotionFeatures}>
       <m.div
         ref={shellRef}
         layout={!reduceMotion}
@@ -1032,7 +1001,7 @@ function CloudPlanReviewWorkspace({
         </ToolbarOptionRail>
 
         <div className="plannotator-review-document">
-          <PlanViewer
+          <LazyPlanViewer
             plan={plan}
             allPlans={allPlans}
             onSelectRelatedPlan={onSelectRelatedPlan}
@@ -1404,7 +1373,7 @@ function useDashboardMain({
         </div>
         <div className="main-scroll overflow-auto" style={{ minWidth: 0 }}>
           {selectionFilterNotice}
-          <PlanViewer
+          <LazyPlanViewer
             plan={selectedPlan}
             allPlans={allPlans}
             onSelectRelatedPlan={onSelectRelatedPlan}
@@ -1438,7 +1407,7 @@ function useDashboardMain({
           )}
         </div>
         <div className="overflow-auto border-l border-border" style={{ minWidth: 0 }}>
-          <PlanViewer
+          <LazyPlanViewer
             plan={splitPlan}
             allPlans={allPlans}
             onSelectRelatedPlan={onSelectRelatedPlan}
@@ -1577,13 +1546,21 @@ function useDashboardMain({
               </button>
             </div>
           ) : (
-            <PlanCompareView
-              basePlan={comparePlan}
-              targetPlan={selectedPlan}
-              onClose={onCloseCompare}
-              onSwap={onSwapCompare ?? (() => {})}
-              onOpenPlan={onSelectRelatedPlan}
-            />
+            <Suspense
+              fallback={
+                <div className="p-4">
+                  <SkeletonBlock lines={8} />
+                </div>
+              }
+            >
+              <PlanCompareView
+                basePlan={comparePlan}
+                targetPlan={selectedPlan}
+                onClose={onCloseCompare}
+                onSwap={onSwapCompare ?? (() => {})}
+                onOpenPlan={onSelectRelatedPlan}
+              />
+            </Suspense>
           )
         ) : (
           <>
@@ -1611,7 +1588,7 @@ function useDashboardMain({
                 onToggleChart={onToggleChart}
               />
             ) : (
-              <PlanViewer
+              <LazyPlanViewer
                 plan={selectedPlan}
                 allPlans={allPlans}
                 onSelectRelatedPlan={onSelectRelatedPlan}
@@ -2935,66 +2912,11 @@ function useDashboard({
   );
 }
 
-function ChangelogRoute() {
-  const [, navigate] = useLocation();
-  return <ChangelogPage onBack={() => startViewTransition(() => navigate('/'))} />;
-}
-
-function DocsRoute() {
-  const [, navigate] = useLocation();
-  return <DocsPage onBack={() => startViewTransition(() => navigate('/'))} />;
-}
-
-function DownloadRoute() {
-  const [, navigate] = useLocation();
-  return <DownloadPage onBack={() => startViewTransition(() => navigate('/'))} />;
-}
-
-function ToolsUsedRoute() {
-  const [, navigate] = useLocation();
-  return <ToolsUsedPage onBack={() => startViewTransition(() => navigate('/'))} />;
-}
-
-function TermsRoute() {
-  const [, navigate] = useLocation();
-  return <TermsOfServicePage onBack={() => startViewTransition(() => navigate('/'))} />;
-}
-
-function PrivacyRoute() {
-  const [, navigate] = useLocation();
-  return <PrivacyPolicyPage onBack={() => startViewTransition(() => navigate('/'))} />;
-}
-
-function CliAuthRoute() {
-  const callback = new URLSearchParams(window.location.search).get('callback');
-  if (!callback) return <Redirect to="/" />;
-  const cliCallback = parseCliAuthCallback(callback);
-  if (!cliCallback.ok) return <AuthCallbackError title="Invalid CLI callback" />;
-  return <CliAuthPage callbackUrl={cliCallback.callbackUrl} />;
-}
-
-function DesktopAuthRoute() {
-  const authRequest = parseDesktopAuthRequest(window.location.href);
-  if (!authRequest.ok) return <AuthCallbackError title="Invalid desktop callback" />;
-  return <DesktopAuthPage authRequest={authRequest} />;
-}
-
-function AuthCallbackError({ title }: { readonly title: string }) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-bg">
-      <div className="text-center space-y-2 max-w-[320px] w-full px-5">
-        <h1 className="font-semibold text-[16px] text-text">{title}</h1>
-        <p className="text-[13px] text-[#ef4444]">This authorization link is not supported.</p>
-      </div>
-    </div>
-  );
-}
-
 /**
  * Legacy auth-check route for old marketing links. The root landing page no
  * longer depends on this route before rendering.
  */
-function AuthCheckRoute() {
+export function AuthCheckRoute() {
   const { isAuthenticated, isLoading, refreshSession } = useAuth();
   const authSettled = useAuthSessionSettled({ isAuthenticated, isLoading, refreshSession });
   const appUrl = getConfiguredAppUrl();
@@ -3031,24 +2953,6 @@ function AuthCheckRoute() {
   return <BootLoadingView />;
 }
 
-function LandingRoute() {
-  const [, navigate] = useLocation();
-
-  return (
-    <LandingPage
-      mascot={{ onActivate: () => startViewTransition(() => navigate('/about-me')) }}
-      onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
-      onShowDocs={() => startViewTransition(() => navigate('/docs'))}
-      onShowDownload={() => startViewTransition(() => navigate('/download'))}
-      onShowTools={() => startViewTransition(() => navigate('/tools'))}
-    >
-      <LandingPage.NavbarAuth>{() => <EENavbarAuth />}</LandingPage.NavbarAuth>
-      <LandingPage.HeroCta>{() => <EEHeroCta />}</LandingPage.HeroCta>
-      <LandingPage.PricingCta>{() => <EEPricingCta />}</LandingPage.PricingCta>
-    </LandingPage>
-  );
-}
-
 function DashboardView({
   autoMode,
   authPending,
@@ -3059,7 +2963,7 @@ function DashboardView({
   return useDashboard({ autoMode, authPending });
 }
 
-function DashboardRoute() {
+export function DashboardRoute() {
   const { isAuthenticated, isLoading, refreshSession } = useAuth();
   const convexAuth = useConvexAuth();
   const desktop = isDesktop();
@@ -3149,152 +3053,4 @@ function DashboardRoute() {
   if (isLoading || !authSettled || processingOtt) return <BootLoadingView />;
 
   return <Redirect to="/login" />;
-}
-
-function AuthRuntime({ children }: { children: ReactNode }) {
-  if (isDesktop() && getDesktopCloudToken()) {
-    return (
-      <ConvexProviderWithAuth client={convex} useAuth={useDesktopConvexAuth}>
-        {children}
-      </ConvexProviderWithAuth>
-    );
-  }
-
-  return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
-      {children}
-    </ConvexBetterAuthProvider>
-  );
-}
-
-function useDesktopConvexAuth() {
-  const token = getDesktopCloudToken();
-  const cachedTokenRef = useRef<string | null>(null);
-  const pendingTokenRef = useRef<Promise<string | null> | null>(null);
-
-  useEffect(() => {
-    if (!token) cachedTokenRef.current = null;
-  }, [token]);
-
-  const fetchAccessToken = useCallback(
-    async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
-      if (!getDesktopCloudToken()) {
-        cachedTokenRef.current = null;
-        return null;
-      }
-      if (cachedTokenRef.current && !forceRefreshToken) return cachedTokenRef.current;
-      if (pendingTokenRef.current && !forceRefreshToken) return pendingTokenRef.current;
-
-      if (forceRefreshToken) cachedTokenRef.current = null;
-
-      pendingTokenRef.current = getDesktopConvexAuthToken()
-        .then((convexToken) => {
-          cachedTokenRef.current = convexToken;
-          return convexToken;
-        })
-        .catch(() => {
-          cachedTokenRef.current = null;
-          return null;
-        })
-        .finally(() => {
-          pendingTokenRef.current = null;
-        });
-      return pendingTokenRef.current;
-    },
-    [],
-  );
-
-  return useMemo(
-    () => ({
-      isLoading: false,
-      isAuthenticated: Boolean(token),
-      fetchAccessToken,
-    }),
-    [fetchAccessToken, token],
-  );
-}
-
-export default function App() {
-  return (
-    <Switch>
-      <Route path="/auth/check">
-        {() => (
-          <AuthRuntime>
-            <AuthCheckRoute />
-          </AuthRuntime>
-        )}
-      </Route>
-      <Route path="/auth/cli">
-        {() => (
-          <AuthRuntime>
-            <CliAuthRoute />
-          </AuthRuntime>
-        )}
-      </Route>
-      <Route path="/auth/desktop">
-        {() => (
-          <AuthRuntime>
-            <DesktopAuthRoute />
-          </AuthRuntime>
-        )}
-      </Route>
-      <Route path="/login">
-        {() => (
-          <AuthRuntime>
-            <AuthPage mode="login" />
-          </AuthRuntime>
-        )}
-      </Route>
-      <Route path="/signup">
-        {() => (
-          <AuthRuntime>
-            <AuthPage mode="signup" />
-          </AuthRuntime>
-        )}
-      </Route>
-      <Route path="/shared/:token">
-        {({ token }) => (
-          <AuthRuntime>
-            <SharedPlanView token={token} />
-          </AuthRuntime>
-        )}
-      </Route>
-      <Route path="/about-me" component={AboutMePage} />
-      <Route path="/changelog" component={ChangelogRoute} />
-      <Route path="/docs" component={DocsRoute} />
-      <Route path="/download" component={DownloadRoute} />
-      <Route path="/tools" component={ToolsUsedRoute} />
-      <Route path="/terms" component={TermsRoute} />
-      <Route path="/privacy" component={PrivacyRoute} />
-      <Route path="/welcome">
-        <AuthRuntime>
-          <OnboardingRoute>
-            <WelcomeScreen />
-          </OnboardingRoute>
-        </AuthRuntime>
-      </Route>
-      <Route path="/invite/:token">
-        {({ token }) => (
-          <AuthRuntime>
-            <AcceptInvitePage token={token} />
-          </AuthRuntime>
-        )}
-      </Route>
-      <Route path="/settings">
-        {() => (
-          <AuthRuntime>
-            <SettingsPage />
-          </AuthRuntime>
-        )}
-      </Route>
-      <Route path={DASHBOARD_PATH}>
-        {() => (
-          <AuthRuntime>
-            <DashboardRoute />
-          </AuthRuntime>
-        )}
-      </Route>
-      <Route path="/" component={LandingRoute} />
-    </Switch>
-  );
 }

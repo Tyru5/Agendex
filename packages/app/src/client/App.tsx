@@ -1,27 +1,16 @@
 import {
-  ChangelogPage,
-  DocsPage,
-  DownloadPage,
   EmptyStateView,
-  PrivacyPolicyPage,
-  TermsOfServicePage,
   applyPlanFilters,
   focusPlanSearchField,
   getAppShortcuts,
-  hasToken,
-  LandingPage,
   normalizeFilterValues,
   OfflineView,
   type Plan,
-  PlanCompareView,
   PlanFilterMismatchBanner,
   PlanSourcesDialog,
-  PlanViewer,
-  setToken,
+  LazyPlanViewer,
   Sidebar,
-  startViewTransition,
   TOUR_TARGET,
-  ToolsUsedPage,
   Topbar,
   useAgents,
   useBackendStatus,
@@ -41,7 +30,8 @@ import {
   useQueryState,
   useQueryStates,
 } from 'nuqs';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { sortOptions } from './dashboardSort.ts';
 import { buildLocalWorkspaceTourSteps } from './tour.ts';
 
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
@@ -52,9 +42,16 @@ const TOPBAR_HEIGHT = 70;
 /** Standalone shell is local-workspace only; mirrors `mode === 'local'` in packages/ee. */
 const IS_LOCAL_WORKSPACE_SHELL = true;
 
-const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
+// Compare mode is opt-in per session; keep the diff engine out of the
+// dashboard's startup bundle.
+const PlanCompareView = lazy(() =>
+  import('@agendex/web/components/PlanCompareView.tsx').then((m) => ({
+    default: m.PlanCompareView,
+  })),
+);
+
 const dateOptions = ['all', 'today', '7d', '30d'] as const;
-function Dashboard() {
+export function Dashboard() {
   const [search, setSearch] = useQueryState(
     'q',
     parseAsString
@@ -457,17 +454,19 @@ function Dashboard() {
           <OfflineView />
         ) : selectedPlan && comparePlan ? (
           <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
-            <PlanCompareView
-              basePlan={comparePlan}
-              targetPlan={selectedPlan}
-              onClose={() => setComparePlanId(null)}
-              onSwap={swapCompare}
-              onOpenPlan={setSelectedPlan}
-            />
+            <Suspense fallback={null}>
+              <PlanCompareView
+                basePlan={comparePlan}
+                targetPlan={selectedPlan}
+                onClose={() => setComparePlanId(null)}
+                onSwap={swapCompare}
+                onOpenPlan={setSelectedPlan}
+              />
+            </Suspense>
           </div>
         ) : selectedPlan ? (
           <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
-            <PlanViewer
+            <LazyPlanViewer
               plan={selectedPlan}
               allPlans={plans}
               onSelectRelatedPlan={setSelectedPlan}
@@ -501,165 +500,4 @@ function Dashboard() {
       </div>
     </div>
   );
-}
-
-function SessionExpiredBanner() {
-  const [visible, setVisible] = useState(() => {
-    const expired = sessionStorage.getItem('agendex_session_expired');
-    if (expired) {
-      sessionStorage.removeItem('agendex_session_expired');
-      return true;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    if (!visible) return;
-    const timer = setTimeout(() => setVisible(false), 8000);
-    return () => clearTimeout(timer);
-  }, [visible]);
-
-  if (!visible) return null;
-
-  return (
-    <div className="session-expired-banner">
-      <span className="session-expired-icon">
-        <svg viewBox="0 0 16 16" fill="none" width="15" height="15">
-          <path
-            d="M8 1.33a6.67 6.67 0 1 0 0 13.34A6.67 6.67 0 0 0 8 1.33ZM8 5v3.33M8 10.67h.007"
-            stroke="currentColor"
-            strokeWidth="1.3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
-      <span>Session expired — please log in again to continue.</span>
-      <button className="session-expired-dismiss" onClick={() => setVisible(false)} type="button">
-        <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
-          <path
-            d="M12 4L4 12M4 4l8 8"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
-    </div>
-  );
-}
-
-export default function App() {
-  if (typeof window !== 'undefined' && window.location.pathname === '/changelog') {
-    return (
-      <ChangelogPage
-        onBack={() => {
-          startViewTransition(() => {
-            window.location.href = '/';
-          });
-        }}
-      />
-    );
-  }
-
-  if (typeof window !== 'undefined' && window.location.pathname === '/docs') {
-    return (
-      <DocsPage
-        onBack={() => {
-          startViewTransition(() => {
-            window.location.href = '/';
-          });
-        }}
-      />
-    );
-  }
-
-  if (typeof window !== 'undefined' && window.location.pathname === '/download') {
-    return (
-      <DownloadPage
-        onBack={() => {
-          startViewTransition(() => {
-            window.location.href = '/';
-          });
-        }}
-      />
-    );
-  }
-
-  if (typeof window !== 'undefined' && window.location.pathname === '/tools') {
-    return (
-      <ToolsUsedPage
-        onBack={() => {
-          startViewTransition(() => {
-            window.location.href = '/';
-          });
-        }}
-      />
-    );
-  }
-
-  if (typeof window !== 'undefined' && window.location.pathname === '/terms') {
-    return (
-      <TermsOfServicePage
-        onBack={() => {
-          startViewTransition(() => {
-            window.location.href = '/';
-          });
-        }}
-      />
-    );
-  }
-
-  if (typeof window !== 'undefined' && window.location.pathname === '/privacy') {
-    return (
-      <PrivacyPolicyPage
-        onBack={() => {
-          startViewTransition(() => {
-            window.location.href = '/';
-          });
-        }}
-      />
-    );
-  }
-
-  // Accept a one-time token from the URL fragment (e.g. /#token=abc) so setup
-  // links can connect without pasting. Fragments never reach the server; the
-  // hash is stripped immediately so the token doesn't linger in the URL.
-  if (typeof window !== 'undefined' && window.location.hash.startsWith('#token=')) {
-    const token = window.location.hash.slice('#token='.length).trim();
-    if (token) setToken(token);
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-  }
-
-  if (!hasToken()) {
-    return (
-      <>
-        <SessionExpiredBanner />
-        <LandingPage
-          onShowChangelog={() => {
-            startViewTransition(() => {
-              window.location.href = '/changelog';
-            });
-          }}
-          onShowDocs={() => {
-            startViewTransition(() => {
-              window.location.href = '/docs';
-            });
-          }}
-          onShowDownload={() => {
-            startViewTransition(() => {
-              window.location.href = '/download';
-            });
-          }}
-          onShowTools={() => {
-            startViewTransition(() => {
-              window.location.href = '/tools';
-            });
-          }}
-        />
-      </>
-    );
-  }
-
-  return <Dashboard />;
 }

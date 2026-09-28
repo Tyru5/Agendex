@@ -1,6 +1,7 @@
 import { stopWatchingForShutdown } from '@agendex/shared';
 import { createBunWebSocket, serveStatic } from 'hono/bun';
 import { buildAgendexApp } from './app.ts';
+import { cacheControlFor } from './static-cache.ts';
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 const configureAdapters = process.argv.includes('--configure-adapters');
@@ -16,8 +17,28 @@ const { app, ready, token } = buildAgendexApp({
   upgradeWebSocket,
   configureAdapters,
   mountStatic: (app) => {
-    app.use('/*', serveStatic({ root: './src/client/dist' }));
-    app.get('/*', serveStatic({ path: './src/client/dist/index.html' }));
+    app.use(
+      '/*',
+      serveStatic({
+        root: './src/client/dist',
+        onFound: (path, c) => {
+          // `/` resolves to index.html, which must never be cached.
+          c.header(
+            'Cache-Control',
+            path.endsWith('.html') ? 'no-store' : cacheControlFor(c.req.path),
+          );
+        },
+      }),
+    );
+    app.get(
+      '/*',
+      serveStatic({
+        path: './src/client/dist/index.html',
+        onFound: (_path, c) => {
+          c.header('Cache-Control', 'no-store');
+        },
+      }),
+    );
   },
 });
 

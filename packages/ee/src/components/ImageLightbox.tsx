@@ -1,4 +1,5 @@
-import { AnimatePresence, domAnimation, LazyMotion, m } from 'motion/react';
+import { AnimatePresence, LazyMotion, m } from 'motion/react';
+import { loadMotionFeatures } from '../lib/load-motion-features.ts';
 import { useCallback, useEffect, useState } from 'react';
 
 type LightboxImage = {
@@ -47,7 +48,7 @@ export function ImageLightbox({ images, initialIndex, onClose }: ImageLightboxPr
   }, []);
 
   return (
-    <LazyMotion features={domAnimation}>
+    <LazyMotion features={loadMotionFeatures}>
       <m.div
         className="fixed inset-0 z-[var(--z-lightbox)] flex items-center justify-center"
         role="dialog"

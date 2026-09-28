@@ -72,6 +72,7 @@ export {
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export type { PlanAnnotationCreateDraft } from './client/components/PlanViewer.tsx';
 export { PlanActionButton, PlanViewer } from './client/components/PlanViewer.tsx';
+export { LazyPlanViewer, preloadPlanViewer } from './client/components/LazyPlanViewer.tsx';
 export type { PlanCompareViewProps } from './client/components/PlanCompareView.tsx';
 export { PlanCompareView } from './client/components/PlanCompareView.tsx';
 export type { PlanComparePickerProps } from './client/components/PlanComparePicker.tsx';
@@ -155,7 +156,7 @@ export type {
   PlanAnnotationApiRecord,
   PlansResponse,
 } from './client/lib/api.ts';
-export { api, clearToken, hasToken, setToken } from './client/lib/api.ts';
+export { api, clearToken, hasToken, prefetchDashboardData, setToken } from './client/lib/api.ts';
 export type { ParsedCodePath } from './client/lib/plan-paths.ts';
 export {
   candidatePathsForValidation,
@@ -219,3 +220,5 @@ export { extractTechnologies } from './client/lib/tech-extract.ts';
 export type { TechEdge, TechGraph, TechNode, TechNodeData } from './client/lib/tech-graph.ts';
 export { buildAdjacencyMap, buildTechGraph, CATEGORY_COLORS } from './client/lib/tech-graph.ts';
 export { startViewTransition } from './client/lib/view-transition.ts';
+export type { PreloadableComponent } from './client/lib/lazy-with-preload.ts';
+export { lazyWithPreload, preloadComponents, whenIdle } from './client/lib/lazy-with-preload.ts';

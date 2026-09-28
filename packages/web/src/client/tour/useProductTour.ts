@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import {
   isProductTourPending,
   PRODUCT_TOUR_VERSION,
+  preloadProductTour,
   type ProductTourState,
   type ProductTourStep,
   startProductTour,
@@ -32,11 +33,15 @@ export interface UseProductTourOptions {
 export function useProductTour({ steps, state, ready, onBeforeStart }: UseProductTourOptions) {
   const driverRef = useRef<Driver | null>(null);
   const startTimerRef = useRef<number | null>(null);
+  // Bumped on every cancel so a start still waiting on driver.js to load can
+  // tell it was superseded (replay, unmount) and bail instead of showing.
+  const startGenerationRef = useRef(0);
   const autoStartedRef = useRef(false);
   const latest = useRef({ steps, state, onBeforeStart });
   latest.current = { steps, state, onBeforeStart };
 
   const cancelPendingStart = useCallback(() => {
+    startGenerationRef.current += 1;
     if (startTimerRef.current === null) return;
     window.clearTimeout(startTimerRef.current);
     startTimerRef.current = null;
@@ -47,9 +52,13 @@ export function useProductTour({ steps, state, ready, onBeforeStart }: UseProduc
     driverRef.current?.destroy();
     driverRef.current = null;
     latest.current.onBeforeStart?.();
+    const generation = startGenerationRef.current;
+    // Fetch driver.js during the start delay rather than after it.
+    preloadProductTour().catch(() => undefined);
     startTimerRef.current = window.setTimeout(() => {
       startTimerRef.current = null;
-      driverRef.current = startProductTour(latest.current.steps, {
+      startProductTour(latest.current.steps, {
+        isCancelled: () => generation !== startGenerationRef.current,
         onFinish: () => {
           driverRef.current = null;
           // `markCompleted` may hit the network (account-scoped state). A
@@ -61,7 +70,13 @@ export function useProductTour({ steps, state, ready, onBeforeStart }: UseProduc
               console.error('Failed to persist product tour completion', error);
             });
         },
-      });
+      })
+        .then((tour) => {
+          if (tour) driverRef.current = tour;
+        })
+        .catch((error: unknown) => {
+          console.error('Failed to start product tour', error);
+        });
     }, START_DELAY_MS);
   }, [cancelPendingStart]);
 

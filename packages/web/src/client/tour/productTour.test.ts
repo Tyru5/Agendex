@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { isProductTourPending, PRODUCT_TOUR_VERSION } from './productTour.ts';
+import { isProductTourPending, PRODUCT_TOUR_VERSION, startProductTour } from './productTour.ts';
 
 const noop = () => {};
 
@@ -25,5 +25,20 @@ describe('isProductTourPending', () => {
     expect(
       isProductTourPending({ completedVersion: PRODUCT_TOUR_VERSION + 1, markCompleted: noop }),
     ).toBe(false);
+  });
+});
+
+describe('startProductTour', () => {
+  test('does not start a tour that was superseded while driver.js was loading', async () => {
+    let finished = false;
+    const tour = await startProductTour([{ title: 'Welcome', description: 'Hi' }], {
+      onFinish: () => {
+        finished = true;
+      },
+      isCancelled: () => true,
+    });
+
+    expect(tour).toBeNull();
+    expect(finished).toBe(false);
   });
 });

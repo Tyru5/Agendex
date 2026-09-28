@@ -1,4 +1,4 @@
-import { type Driver, type DriveStep, driver } from 'driver.js';
+import type { Driver, DriveStep } from 'driver.js';
 
 /**
  * Bump when the tour content changes enough that returning users should see
@@ -66,15 +66,28 @@ function toDriveStep(step: ProductTourStep): DriveStep {
 }
 
 /**
+ * driver.js is only needed once a tour actually runs, so it is fetched on
+ * demand instead of shipping in every page's startup bundle. Call early (e.g.
+ * when a start is scheduled) to overlap the download with the start delay.
+ */
+export function preloadProductTour(): Promise<typeof import('driver.js')> {
+  return import('driver.js');
+}
+
+/**
  * Creates and starts a driver.js tour. `onFinish` fires exactly once when the
  * user ends the tour (Finish, close, Escape, or overlay click). A programmatic
  * `destroy()` (shell unmounting mid-tour) does not count as finishing, so the
- * tour resumes on the next visit. Returns the driver so callers can destroy it.
+ * tour resumes on the next visit. Resolves with the driver so callers can
+ * destroy it, or `null` when `isCancelled` reports that the start was
+ * superseded while driver.js was loading.
  */
-export function startProductTour(
+export async function startProductTour(
   steps: readonly ProductTourStep[],
-  { onFinish }: { onFinish: () => void },
-): Driver {
+  { onFinish, isCancelled }: { onFinish: () => void; isCancelled?: () => boolean },
+): Promise<Driver | null> {
+  const { driver } = await preloadProductTour();
+  if (isCancelled?.()) return null;
   const tour = driver({
     steps: steps.map(toDriveStep),
     popoverClass: PRODUCT_TOUR_POPOVER_CLASS,

@@ -60,6 +60,48 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+const PREFETCH_TTL_MS = 10_000;
+const prefetched = new Map<string, { response: Promise<unknown>; at: number }>();
+
+/** GETs `path`, taking over a matching `prefetchGet` response that is still fresh. */
+function get<T>(path: string): Promise<T> {
+  const hit = prefetched.get(path);
+  if (hit) {
+    prefetched.delete(path);
+    if (Date.now() - hit.at < PREFETCH_TTL_MS) return hit.response as Promise<T>;
+  }
+  return request<T>(path);
+}
+
+function prefetchGet(path: string) {
+  const response = request(path);
+  // Unclaimed failures must not surface as unhandled rejections; a claimed
+  // one still rejects for its consumer.
+  response.catch(() => undefined);
+  prefetched.set(path, { response, at: Date.now() });
+}
+
+function plansPath(params?: { agent?: string; q?: string; sort?: string }): string {
+  const qs = new URLSearchParams();
+  if (params?.agent) qs.set('agent', params.agent);
+  if (params?.q) qs.set('q', params.q);
+  if (params?.sort) qs.set('sort', params.sort);
+  qs.set('limit', '10000');
+  return `/plans?${qs.toString()}`;
+}
+
+/**
+ * Starts the dashboard's initial requests before its code has loaded, so the
+ * plan list downloads alongside the JavaScript instead of after it. The
+ * dashboard's first matching `api.getPlans` / `api.getAgents` call (within a
+ * few seconds) takes over the in-flight response. Requires a stored token.
+ */
+export function prefetchDashboardData({ sort }: { sort: string }) {
+  if (!hasToken()) return;
+  prefetchGet(plansPath({ sort }));
+  prefetchGet('/agents');
+}
+
 export interface Plan {
   id: string;
   /** Stable ID assigned by the local scanner before this plan was synced. */
@@ -183,19 +225,12 @@ export interface OpenInAppInfo {
 }
 
 export const api = {
-  getPlans: (params?: { agent?: string; q?: string; sort?: string }) => {
-    const qs = new URLSearchParams();
-    if (params?.agent) qs.set('agent', params.agent);
-    if (params?.q) qs.set('q', params.q);
-    if (params?.sort) qs.set('sort', params.sort);
-    qs.set('limit', '10000');
-    const query = qs.toString();
-    return request<PlansResponse>(`/plans${query ? `?${query}` : ''}`);
-  },
+  getPlans: (params?: { agent?: string; q?: string; sort?: string }) =>
+    get<PlansResponse>(plansPath(params)),
 
   getPlan: (id: string) => request<Plan>(`/plans/${id}`),
 
-  getAgents: () => request<AgentStats[]>('/agents'),
+  getAgents: () => get<AgentStats[]>('/agents'),
 
   getUsage: (days?: number, refresh?: boolean) => {
     const params = new URLSearchParams();
