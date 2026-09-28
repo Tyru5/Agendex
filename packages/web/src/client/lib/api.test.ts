@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
-import { api } from './api.ts';
+import { api, prefetchDashboardData } from './api.ts';
 
 function createStorage(): Storage {
   const store = new Map<string, string>();
@@ -111,4 +111,97 @@ test('updatePlanAnnotationStatus can send writeback without status', async () =>
   await api.updatePlanAnnotationStatus('plan-1', 'annotation-1', undefined, 'writeback-1');
 
   expect(requestBody).toEqual({ writebackId: 'writeback-1' });
+});
+
+test('the dashboard takes over prefetched plan and agent responses instead of refetching', async () => {
+  localStorage.setItem('agendex_token', 'token-1');
+  const requested: string[] = [];
+  Object.defineProperty(globalThis, 'fetch', {
+    value: async (url: string) => {
+      requested.push(url);
+      const body = url.startsWith('/api/v1/plans') ? { plans: [], total: 0 } : [];
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+    configurable: true,
+  });
+
+  prefetchDashboardData({ sort: 'updatedAt' });
+  expect(requested).toEqual(['/api/v1/plans?sort=updatedAt&limit=10000', '/api/v1/agents']);
+
+  await Promise.all([api.getPlans({ sort: 'updatedAt' }), api.getAgents()]);
+  expect(requested).toHaveLength(2);
+
+  // A prefetch is handed over once; later calls hit the network again.
+  await api.getPlans({ sort: 'updatedAt' });
+  expect(requested).toHaveLength(3);
+});
+
+/** Lets pending requests settle before the dashboard asks for them. */
+function settle() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+test('a prefetch that finished before the dashboard asked is not reused', async () => {
+  localStorage.setItem('agendex_token', 'token-1');
+  let planRequests = 0;
+  Object.defineProperty(globalThis, 'fetch', {
+    value: async (url: string) => {
+      const body = url.startsWith('/api/v1/plans') ? { plans: [], total: ++planRequests } : [];
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+    configurable: true,
+  });
+
+  prefetchDashboardData({ sort: 'updatedAt' });
+  await settle();
+
+  const res = await api.getPlans({ sort: 'updatedAt' });
+  expect(planRequests).toBe(2);
+  expect(res.total).toBe(2);
+});
+
+test('a prefetch that failed before the dashboard asked is retried', async () => {
+  localStorage.setItem('agendex_token', 'token-1');
+  let planRequests = 0;
+  Object.defineProperty(globalThis, 'fetch', {
+    value: async (url: string) => {
+      if (url.startsWith('/api/v1/plans') && ++planRequests === 1) {
+        return new Response('backend starting', { status: 503, statusText: 'Unavailable' });
+      }
+      const body = url.startsWith('/api/v1/plans') ? { plans: [], total: planRequests } : [];
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+    configurable: true,
+  });
+
+  prefetchDashboardData({ sort: 'updatedAt' });
+  await settle();
+
+  const res = await api.getPlans({ sort: 'updatedAt' });
+  expect(planRequests).toBe(2);
+  expect(res.total).toBe(2);
+});
+
+test('dashboard data is not prefetched without a token', () => {
+  const requested: string[] = [];
+  Object.defineProperty(globalThis, 'fetch', {
+    value: async (url: string) => {
+      requested.push(url);
+      return new Response('[]');
+    },
+    configurable: true,
+  });
+
+  prefetchDashboardData({ sort: 'updatedAt' });
+
+  expect(requested).toEqual([]);
 });

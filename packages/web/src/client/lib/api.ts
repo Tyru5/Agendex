@@ -60,6 +60,54 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/** Prefetched GETs that have not been answered yet, by path. */
+const inFlight = new Map<string, Promise<unknown>>();
+
+/**
+ * GETs `path`, taking over a matching `prefetchGet` request that is still in
+ * flight. A prefetch that settles unclaimed is dropped instead of replayed:
+ * its data may be out of date by the time anything asks for it, and a failure
+ * deserves a fresh attempt.
+ */
+function get<T>(path: string): Promise<T> {
+  const pending = inFlight.get(path);
+  if (!pending) return request<T>(path);
+  inFlight.delete(path);
+  return pending as Promise<T>;
+}
+
+function prefetchGet(path: string) {
+  const response = request(path);
+  inFlight.set(path, response);
+  // Handling rejections here also keeps an unclaimed failure from surfacing as
+  // an unhandled rejection; a claimed one still rejects for its consumer.
+  const drop = () => {
+    if (inFlight.get(path) === response) inFlight.delete(path);
+  };
+  response.then(drop, drop);
+}
+
+function plansPath(params?: { agent?: string; q?: string; sort?: string }): string {
+  const qs = new URLSearchParams();
+  if (params?.agent) qs.set('agent', params.agent);
+  if (params?.q) qs.set('q', params.q);
+  if (params?.sort) qs.set('sort', params.sort);
+  qs.set('limit', '10000');
+  return `/plans?${qs.toString()}`;
+}
+
+/**
+ * Starts the dashboard's initial requests before its code has loaded, so the
+ * plan list downloads alongside the JavaScript instead of after it. The
+ * dashboard's first matching `api.getPlans` / `api.getAgents` call takes over
+ * a request that is still in flight. Requires a stored token.
+ */
+export function prefetchDashboardData({ sort }: { sort: string }) {
+  if (!hasToken()) return;
+  prefetchGet(plansPath({ sort }));
+  prefetchGet('/agents');
+}
+
 export interface Plan {
   id: string;
   /** Stable ID assigned by the local scanner before this plan was synced. */
@@ -183,19 +231,12 @@ export interface OpenInAppInfo {
 }
 
 export const api = {
-  getPlans: (params?: { agent?: string; q?: string; sort?: string }) => {
-    const qs = new URLSearchParams();
-    if (params?.agent) qs.set('agent', params.agent);
-    if (params?.q) qs.set('q', params.q);
-    if (params?.sort) qs.set('sort', params.sort);
-    qs.set('limit', '10000');
-    const query = qs.toString();
-    return request<PlansResponse>(`/plans${query ? `?${query}` : ''}`);
-  },
+  getPlans: (params?: { agent?: string; q?: string; sort?: string }) =>
+    get<PlansResponse>(plansPath(params)),
 
   getPlan: (id: string) => request<Plan>(`/plans/${id}`),
 
-  getAgents: () => request<AgentStats[]>('/agents'),
+  getAgents: () => get<AgentStats[]>('/agents'),
 
   getUsage: (days?: number, refresh?: boolean) => {
     const params = new URLSearchParams();

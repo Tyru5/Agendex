@@ -2,9 +2,13 @@
   "name": "@agendex/web",
   "private": true,
   "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
   "exports": {
     ".": "./src/index.ts",
-    "./styles": "./src/client/index.css"
+    "./styles": "./src/client/index.css",
+    "./components/*": "./src/client/components/*"
   },
   "dependencies": {
     "@agendex/shared": "workspace:*",

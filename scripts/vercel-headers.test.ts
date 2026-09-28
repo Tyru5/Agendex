@@ -3,15 +3,20 @@ import { readFile } from 'node:fs/promises';
 
 type Header = { key: string; value: string };
 type HeaderRule = { source: string; headers: Header[] };
-type VercelConfig = { headers?: HeaderRule[] };
+type Rewrite = { source: string; destination: string };
+type VercelConfig = { headers?: HeaderRule[]; rewrites?: Rewrite[] };
 
 const configPath = new URL('../vercel.json', import.meta.url);
 
+async function readConfig(): Promise<VercelConfig> {
+  return JSON.parse(await readFile(configPath, 'utf8')) as VercelConfig;
+}
+
 async function productionHeaders(): Promise<Map<string, string>> {
-  const config = JSON.parse(await readFile(configPath, 'utf8')) as VercelConfig;
-  expect(config.headers).toHaveLength(1);
-  expect(config.headers?.[0]?.source).toBe('/(.*)');
-  return new Map(config.headers?.[0]?.headers.map(({ key, value }) => [key, value] as const));
+  const config = await readConfig();
+  const everyRoute = config.headers?.filter((rule) => rule.source === '/(.*)');
+  expect(everyRoute).toHaveLength(1);
+  return new Map(everyRoute?.[0]?.headers.map(({ key, value }) => [key, value] as const));
 }
 
 function parseCsp(value: string): Map<string, string[]> {
@@ -79,4 +84,20 @@ test('CSP allows required production integrations without an unrestricted wildca
   expect([...csp.values()].flat()).not.toContain('*');
   expect(csp.get('script-src')).not.toContain("'unsafe-inline'");
   expect(csp.get('script-src')).not.toContain("'unsafe-eval'");
+});
+
+test('hashed build assets are cached immutably and never fall back to the SPA shell', async () => {
+  const config = await readConfig();
+  const assetRules = config.headers?.filter((rule) => rule.source === '/assets/(.*)');
+
+  expect(assetRules).toHaveLength(1);
+  expect(assetRules?.[0]?.headers).toEqual([
+    { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+  ]);
+  // A stale chunk must 404 rather than be answered with index.html, which the
+  // immutable rule above would otherwise pin in the browser cache.
+  expect(config.rewrites?.at(-1)).toEqual({
+    source: '/((?!assets/).*)',
+    destination: '/index.html',
+  });
 });

@@ -1,4 +1,4 @@
-import confetti from 'canvas-confetti';
+import type createConfetti from 'canvas-confetti';
 import {
   useCallback,
   useEffect,
@@ -182,6 +182,14 @@ function fireTriviaConfetti(mode: 'unlock' | 'complete') {
   if (typeof window === 'undefined') return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
+  // Loaded on first use: confetti only fires mid-trivia, so it stays out of
+  // the dashboard's startup bundle.
+  import('canvas-confetti')
+    .then(({ default: confetti }) => burstTriviaConfetti(confetti, mode))
+    .catch(() => undefined);
+}
+
+function burstTriviaConfetti(confetti: typeof createConfetti, mode: 'unlock' | 'complete') {
   const colors = ['#5532c7', '#8a7dfa', '#c9c2ff', '#fbfbff'];
 
   if (mode === 'unlock') {
