@@ -60,25 +60,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-const PREFETCH_TTL_MS = 10_000;
-const prefetched = new Map<string, { response: Promise<unknown>; at: number }>();
+/** Prefetched GETs that have not been answered yet, by path. */
+const inFlight = new Map<string, Promise<unknown>>();
 
-/** GETs `path`, taking over a matching `prefetchGet` response that is still fresh. */
+/**
+ * GETs `path`, taking over a matching `prefetchGet` request that is still in
+ * flight. A prefetch that settles unclaimed is dropped instead of replayed:
+ * its data may be out of date by the time anything asks for it, and a failure
+ * deserves a fresh attempt.
+ */
 function get<T>(path: string): Promise<T> {
-  const hit = prefetched.get(path);
-  if (hit) {
-    prefetched.delete(path);
-    if (Date.now() - hit.at < PREFETCH_TTL_MS) return hit.response as Promise<T>;
-  }
-  return request<T>(path);
+  const pending = inFlight.get(path);
+  if (!pending) return request<T>(path);
+  inFlight.delete(path);
+  return pending as Promise<T>;
 }
 
 function prefetchGet(path: string) {
   const response = request(path);
-  // Unclaimed failures must not surface as unhandled rejections; a claimed
-  // one still rejects for its consumer.
-  response.catch(() => undefined);
-  prefetched.set(path, { response, at: Date.now() });
+  inFlight.set(path, response);
+  // Handling rejections here also keeps an unclaimed failure from surfacing as
+  // an unhandled rejection; a claimed one still rejects for its consumer.
+  const drop = () => {
+    if (inFlight.get(path) === response) inFlight.delete(path);
+  };
+  response.then(drop, drop);
 }
 
 function plansPath(params?: { agent?: string; q?: string; sort?: string }): string {
@@ -93,8 +99,8 @@ function plansPath(params?: { agent?: string; q?: string; sort?: string }): stri
 /**
  * Starts the dashboard's initial requests before its code has loaded, so the
  * plan list downloads alongside the JavaScript instead of after it. The
- * dashboard's first matching `api.getPlans` / `api.getAgents` call (within a
- * few seconds) takes over the in-flight response. Requires a stored token.
+ * dashboard's first matching `api.getPlans` / `api.getAgents` call takes over
+ * a request that is still in flight. Requires a stored token.
  */
 export function prefetchDashboardData({ sort }: { sort: string }) {
   if (!hasToken()) return;

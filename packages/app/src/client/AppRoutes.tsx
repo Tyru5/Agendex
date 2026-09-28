@@ -55,6 +55,18 @@ function goTo(path: string) {
 }
 
 /**
+ * Accepts a one-time token from the URL fragment (e.g. /#token=abc) so setup
+ * links can connect without pasting. Fragments never reach the server; the
+ * hash is stripped immediately so the token doesn't linger in the URL.
+ */
+function adoptTokenFromUrl() {
+  if (!window.location.hash.startsWith('#token=')) return;
+  const token = window.location.hash.slice('#token='.length).trim();
+  if (token) setToken(token);
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+}
+
+/**
  * Fetches the chunks the current page renders. main.tsx awaits this before
  * the first render so the page paints directly, without a Suspense fallback
  * that React would then hold on screen for up to 300ms. Never rejects: a
@@ -63,8 +75,10 @@ function goTo(path: string) {
 export function preloadRoute(): Promise<unknown> {
   const subpage = SUBPAGES[window.location.pathname];
   if (subpage) return subpage.preload().catch(() => undefined);
-  const signedIn = hasToken() || window.location.hash.startsWith('#token=');
-  if (!signedIn) return LandingPage.preload().catch(() => undefined);
+  // Must run before the prefetch below, so a setup link's token replaces a
+  // stored one before any request is authenticated with the old token.
+  adoptTokenFromUrl();
+  if (!hasToken()) return LandingPage.preload().catch(() => undefined);
   // Start the plan list and the viewer alongside the dashboard's own chunk:
   // the list is the dashboard's slowest dependency, and the viewer is needed
   // as soon as a plan opens.
@@ -138,15 +152,7 @@ function Routes() {
   const Subpage = SUBPAGES[window.location.pathname];
   if (Subpage) return <Subpage onBack={() => goTo('/')} />;
 
-  // Accept a one-time token from the URL fragment (e.g. /#token=abc) so setup
-  // links can connect without pasting. Fragments never reach the server; the
-  // hash is stripped immediately so the token doesn't linger in the URL.
-  if (window.location.hash.startsWith('#token=')) {
-    const token = window.location.hash.slice('#token='.length).trim();
-    if (token) setToken(token);
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-  }
-
+  adoptTokenFromUrl();
   if (!hasToken()) {
     return (
       <>

@@ -5,7 +5,7 @@ import {
   startViewTransition,
   whenIdle,
 } from '@agendex/web';
-import { type ReactNode, Suspense, useEffect } from 'react';
+import { type ReactNode, Suspense, useEffect, useState } from 'react';
 import { Redirect, Route, Switch, useLocation } from 'wouter';
 import { BootLoadingView } from './components/BootLoadingView.tsx';
 import { parseCliAuthCallback } from './lib/cli-auth-callback.ts';
@@ -205,9 +205,26 @@ function Authed({ children, fallback = null }: { children: ReactNode; fallback?:
           {isDesktop() && <DesktopUiReadySignal />}
         </Suspense>
       </AuthRuntime>
-      <Suspense fallback={null}>
-        <PlanToaster />
-      </Suspense>
+    </Suspense>
+  );
+}
+
+/**
+ * Mounts the plan toaster with the first cloud route and keeps it mounted on
+ * public pages after that, so leaving the dashboard doesn't dismiss live
+ * toasts. Visitors who only see public pages never download it.
+ */
+function PlanToasterHost() {
+  const [location] = useLocation();
+  const onCloudRoute = findRoute(location)?.authed === true;
+  const [visitedCloudRoute, setVisitedCloudRoute] = useState(onCloudRoute);
+  useEffect(() => {
+    if (onCloudRoute) setVisitedCloudRoute(true);
+  }, [onCloudRoute]);
+  if (!onCloudRoute && !visitedCloudRoute) return null;
+  return (
+    <Suspense fallback={null}>
+      <PlanToaster />
     </Suspense>
   );
 }
@@ -280,87 +297,90 @@ function AuthCallbackError({ title }: { readonly title: string }) {
 export default function AppRoutes() {
   usePrefetchNextRoutes();
   return (
-    <Suspense fallback={null}>
-      <Switch>
-        <Route path="/auth/check">
-          {() => (
-            <Authed fallback={<BootLoadingView />}>
-              <AuthCheckRoute />
-            </Authed>
-          )}
-        </Route>
-        <Route path="/auth/cli">
-          {() => (
+    <>
+      <Suspense fallback={null}>
+        <Switch>
+          <Route path="/auth/check">
+            {() => (
+              <Authed fallback={<BootLoadingView />}>
+                <AuthCheckRoute />
+              </Authed>
+            )}
+          </Route>
+          <Route path="/auth/cli">
+            {() => (
+              <Authed>
+                <CliAuthRoute />
+              </Authed>
+            )}
+          </Route>
+          <Route path="/auth/desktop">
+            {() => (
+              <Authed>
+                <DesktopAuthRoute />
+              </Authed>
+            )}
+          </Route>
+          <Route path="/login">
+            {() => (
+              <Authed>
+                <AuthPage mode="login" />
+              </Authed>
+            )}
+          </Route>
+          <Route path="/signup">
+            {() => (
+              <Authed>
+                <AuthPage mode="signup" />
+              </Authed>
+            )}
+          </Route>
+          <Route path="/shared/:token">
+            {({ token }) => (
+              <Authed>
+                <SharedPlanView token={token} />
+              </Authed>
+            )}
+          </Route>
+          <Route path="/about-me" component={AboutMePage} />
+          <Route path="/changelog" component={ChangelogRoute} />
+          <Route path="/docs" component={DocsRoute} />
+          <Route path="/download" component={DownloadRoute} />
+          <Route path="/tools" component={ToolsUsedRoute} />
+          <Route path="/terms" component={TermsRoute} />
+          <Route path="/privacy" component={PrivacyRoute} />
+          <Route path="/welcome">
             <Authed>
-              <CliAuthRoute />
+              <OnboardingRoute>
+                <WelcomeScreen />
+              </OnboardingRoute>
             </Authed>
-          )}
-        </Route>
-        <Route path="/auth/desktop">
-          {() => (
-            <Authed>
-              <DesktopAuthRoute />
-            </Authed>
-          )}
-        </Route>
-        <Route path="/login">
-          {() => (
-            <Authed>
-              <AuthPage mode="login" />
-            </Authed>
-          )}
-        </Route>
-        <Route path="/signup">
-          {() => (
-            <Authed>
-              <AuthPage mode="signup" />
-            </Authed>
-          )}
-        </Route>
-        <Route path="/shared/:token">
-          {({ token }) => (
-            <Authed>
-              <SharedPlanView token={token} />
-            </Authed>
-          )}
-        </Route>
-        <Route path="/about-me" component={AboutMePage} />
-        <Route path="/changelog" component={ChangelogRoute} />
-        <Route path="/docs" component={DocsRoute} />
-        <Route path="/download" component={DownloadRoute} />
-        <Route path="/tools" component={ToolsUsedRoute} />
-        <Route path="/terms" component={TermsRoute} />
-        <Route path="/privacy" component={PrivacyRoute} />
-        <Route path="/welcome">
-          <Authed>
-            <OnboardingRoute>
-              <WelcomeScreen />
-            </OnboardingRoute>
-          </Authed>
-        </Route>
-        <Route path="/invite/:token">
-          {({ token }) => (
-            <Authed>
-              <AcceptInvitePage token={token} />
-            </Authed>
-          )}
-        </Route>
-        <Route path="/settings">
-          {() => (
-            <Authed>
-              <SettingsPage />
-            </Authed>
-          )}
-        </Route>
-        <Route path="/dashboard">
-          {() => (
-            <Authed fallback={<BootLoadingView />}>
-              <DashboardRoute />
-            </Authed>
-          )}
-        </Route>
-        <Route path="/" component={LandingRoute} />
-      </Switch>
-    </Suspense>
+          </Route>
+          <Route path="/invite/:token">
+            {({ token }) => (
+              <Authed>
+                <AcceptInvitePage token={token} />
+              </Authed>
+            )}
+          </Route>
+          <Route path="/settings">
+            {() => (
+              <Authed>
+                <SettingsPage />
+              </Authed>
+            )}
+          </Route>
+          <Route path="/dashboard">
+            {() => (
+              <Authed fallback={<BootLoadingView />}>
+                <DashboardRoute />
+              </Authed>
+            )}
+          </Route>
+          <Route path="/" component={LandingRoute} />
+        </Switch>
+      </Suspense>
+      <PlanToasterHost />
+    </>
   );
 }
