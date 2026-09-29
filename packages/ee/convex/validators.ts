@@ -106,6 +106,8 @@ export const planPreferenceValidator = v.object({
   planId: v.id('plans'),
   pinned: v.boolean(),
   lastSeenUpdatedAt: v.optional(v.number()),
+  lastReadVersion: v.optional(v.number()),
+  lastReadAt: v.optional(v.number()),
   createdAt: v.number(),
   updatedAt: v.number(),
 });

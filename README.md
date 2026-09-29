@@ -21,6 +21,7 @@ Agendex is a Bun workspaces monorepo:
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
+- [Changes since last read](docs/changes-since-last-read.md): compare a plan's title and body with the exact revision previously opened, independently of unread badges
 - Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, stalled, or unavailable status
 - Read-only [MCP server](packages/cli/README.md#use-agendex-from-your-agents-mcp) for coding agents to search local plans and inspect receipts, without a cloud account or daemon
 - Local API with token-based auth
@@ -331,6 +332,8 @@ See [`docs/desktop-release.md`](./docs/desktop-release.md) for the release runbo
 
 The published CLI is Node-compatible and can be installed with `curl -fsSL https://agendex.dev/install.sh | bash` or directly with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://app.agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev ...` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
 
+For saved read comparisons, see [Changes since last read](docs/changes-since-last-read.md).
+
 ## Local API (OSS)
 
 Server routes are under `/api/v1` and require `Authorization: Bearer <token>`.
@@ -344,6 +347,7 @@ Key endpoints:
   relevance order unless `sort=updatedAt|createdAt|title` is set.
 - `GET /api/v1/plans/:id`
 - `GET /api/v1/plans/:id/raw`
+- `POST /api/v1/plans/:id/read` verifies the displayed revision, returns its previous `{ baseline, reason }`, and remembers the current revision; stale content returns `409`. `DELETE /api/v1/plans/:id/read` forgets the baseline. See [read comparisons](docs/changes-since-last-read.md) for request fields and retention limits.
 - `GET /api/v1/plans/:id/receipt` -> `{ receipt }`: commits attributed to the plan, file groups
   (changed, untouched, missing, ambiguous, unplanned, uncommitted), status (`planned`,
   `in-progress`, `landed`, `stalled`, `unavailable`), confidence, and reasons. Computed locally
@@ -384,7 +388,7 @@ Local config (from `@agendex/shared`, used by the OSS API and the CLI):
 - **Dev:** `~/.agendex-dev/config.json` when `AGENDEX_DEV=1` is set in the process environment (the CLI also accepts a `--dev` flag; see [`packages/cli/README.md`](./packages/cli/README.md))
 - **Override:** `AGENDEX_CONFIG_DIR=/custom/path`
 
-The same config directory also contains CLI/runtime files such as `daemon.pid`, `sync-cache.json`, `plannotator-writebacks-delivered.json`, and the `plans/` fallback directory.
+The same config directory also contains CLI/runtime files such as `daemon.pid`, `sync-cache.json`, `plannotator-writebacks-delivered.json`, `plan-read-snapshots.json`, and the `plans/` fallback directory.
 
 Config fields:
 

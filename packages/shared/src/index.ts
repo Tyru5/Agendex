@@ -193,3 +193,5 @@ export type {
   PlannotatorWritebackPayload,
 } from './types.ts';
 export { ProFeature } from './types.ts';
+
+export { openPlanRead, clearPlanRead } from './services/plan-read-store';
