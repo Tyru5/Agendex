@@ -70,6 +70,7 @@ type TestContext = {
   };
   state: {
     deleted: string[];
+    patched: string[];
     inserted: Array<{ table: string; value: Record<string, unknown>; id: string }>;
     scheduled: ScheduledCall[];
     indexes: string[];
@@ -139,6 +140,7 @@ function createContext({
   const documentsById = new Map(documents.map((document) => [document._id, document]));
   const rowsByTable = new Map<string, TestDocument[]>([['collectionPlans', [...junctions]]]);
   const deleted: string[] = [];
+  const patched: string[] = [];
   const inserted: Array<{ table: string; value: Record<string, unknown>; id: string }> = [];
   const scheduled: ScheduledCall[] = [];
   const indexes: string[] = [];
@@ -150,6 +152,7 @@ function createContext({
       documentsById.delete(id);
     },
     patch: async (id: string, value: Record<string, unknown>) => {
+      patched.push(id);
       const row = [...rowsByTable.values()].flat().find((candidate) => candidate._id === id);
       Object.assign(row ?? documentsById.get(id) ?? {}, value);
     },
@@ -197,7 +200,7 @@ function createContext({
         scheduled.push({ delay, args });
       },
     },
-    state: { deleted, inserted, scheduled, indexes },
+    state: { deleted, patched, inserted, scheduled, indexes },
   };
 }
 
@@ -398,12 +401,47 @@ test('collection order lists legacy memberships first by creation time and appen
   expect(await planOrder(ctx)).toEqual(['legacy-older', 'legacy-newer', 'positioned']);
 
   await addPlan(ctx, 'added');
+  expect(ctx.state.patched).toEqual([]);
   expect(ctx.state.inserted[0]?.value.position).toBe(3);
   expect(await planOrder(ctx)).toEqual(['legacy-older', 'legacy-newer', 'positioned', 'added']);
 
   expect(await addPlan(ctx, 'legacy-older')).toBe('junction-legacy-older');
   expect(ctx.state.inserted).toHaveLength(1);
   expect(await planOrder(ctx)).toEqual(['legacy-older', 'legacy-newer', 'positioned', 'added']);
+});
+
+test('adding a plan near the membership limit does not backfill legacy positions', async () => {
+  const ctx = createContext({
+    documents: [collection('collection-a', 'user-a'), plan('added', 'user-a')],
+    junctions: Array.from({ length: 999 }, (_, index) =>
+      junction(`junction-${index}`, 'user-a', 'collection-a', `plan-${index}`),
+    ),
+  });
+
+  await addPlan(ctx, 'added');
+  expect(ctx.state.patched).toEqual([]);
+  expect(ctx.state.inserted).toHaveLength(1);
+  expect(ctx.state.inserted[0]?.value.position).toBe(999);
+});
+
+test('adding after sparse positions preserves the existing order', async () => {
+  const ctx = createContext({
+    documents: [
+      collection('collection-a', 'user-a'),
+      plan('a', 'user-a'),
+      plan('b', 'user-a'),
+      plan('added', 'user-a'),
+    ],
+    junctions: [
+      junction('junction-a', 'user-a', 'collection-a', 'a', { position: 3 }),
+      junction('junction-b', 'user-a', 'collection-a', 'b', { position: 9 }),
+    ],
+  });
+
+  await addPlan(ctx, 'added');
+  expect(ctx.state.patched).toEqual([]);
+  expect(ctx.state.inserted[0]?.value.position).toBe(10);
+  expect(await planOrder(ctx)).toEqual(['a', 'b', 'added']);
 });
 
 test('moveCollectionPlan moves within listed plans and rejects out-of-range targets', async () => {

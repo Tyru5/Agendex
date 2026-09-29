@@ -241,12 +241,17 @@ export const addPlanToCollection = mutation({
       throw new ConvexError(`Collections hold up to ${MAX_COLLECTION_MEMBERSHIPS} plans`);
     }
 
-    await writeCollectionOrder(ctx, rows);
+    // Legacy rows already sort first. Append after the largest stored position
+    // without rewriting existing memberships (including gaps left by removals).
+    const position = rows.reduce(
+      (next, row) => Math.max(next, (row.position ?? -1) + 1),
+      rows.length,
+    );
     return await ctx.db.insert('collectionPlans', {
       ownerId: user._id,
       collectionId: args.collectionId,
       planId: args.planId,
-      position: rows.length,
+      position,
       createdAt: Date.now(),
     });
   },
