@@ -10,7 +10,7 @@ const CLOUD_FEATURES = [
   {
     icon: 'link',
     title: 'Shareable links',
-    desc: 'Send a link, anyone can view your plan',
+    desc: 'Share a plan with optional password and expiry',
   },
   {
     icon: 'thread',

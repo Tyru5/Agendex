@@ -11,7 +11,7 @@ const TRIAL_FEATURES = [
   {
     icon: 'share',
     title: 'Share links',
-    desc: 'One-click shareable plan URLs',
+    desc: 'Optional passwords and link expiry',
   },
   {
     icon: 'comment',
@@ -31,7 +31,7 @@ const TRIAL_FEATURES = [
   {
     icon: 'tag',
     title: 'Tags & collections',
-    desc: 'Organize plans your way',
+    desc: 'Group plans and save their order',
   },
 ];
 

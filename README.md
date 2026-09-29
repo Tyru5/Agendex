@@ -21,7 +21,8 @@ Agendex is a Bun workspaces monorepo:
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
-- Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, or stalled status
+- Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, stalled, or unavailable status
+- Read-only [MCP server](packages/cli/README.md#use-agendex-from-your-agents-mcp) for coding agents to search local plans and inspect receipts, without a cloud account or daemon
 - Local API with token-based auth
 - Adapter selection, rescanning, and custom plan source directories
 - Guided product tour on first visit, replayable from the `?` button in the top bar
@@ -33,6 +34,7 @@ Agendex is a Bun workspaces monorepo:
 - Cloud sync via CLI or daemon, with hash-based skip for unchanged plans, real-time upload queue with retries, and automatic low-value pruning on the cloud side
 - Automatic Git repository, branch, and commit detection during CLI sync/upload, plus Pro-managed branch, commit, and pull-request links in dashboard and shared plan views
 - Shareable plan links with optional password and expiry, comment threads, tags, collections with their own reorderable plan order, and plan history
+- Activity brief with recent plan updates and checklist progress; git landing evidence is available when a matching local plan and authenticated local API are reachable
 - Workspace members, daemon status/cleanup, and collaboration features
 - Dashboard plan creation, uploads, and editing
 - Pro Plannotator sync and daemon-mediated request-changes write-back
@@ -43,6 +45,9 @@ The Electron app starts its cloud sync worker automatically after desktop sign-i
 CLI daemon is already running. The worker uses the encrypted desktop session, requires no
 separate CLI login, and stops with the Electron application. Existing CLI daemons remain
 independently owned and are never stopped by desktop logout or shutdown.
+
+For usage instructions, see the in-app **Docs** entries for **Plan search**, **Plan receipts**,
+**Activity brief**, **Sharing & collaboration**, and **MCP server**.
 
 ## Adapter Status
 
@@ -344,6 +349,12 @@ Key endpoints:
   `in-progress`, `landed`, `stalled`, `unavailable`), confidence, and reasons. Computed locally
   from git history, no LLM. Only commits on local branches, HEAD, and the default branch
   (`origin/HEAD`, else `main`, `master`, or `trunk`) count; other remote branches are ignored.
+  Attribution ends at 30 days or when a newer plan mentions at least half of the earlier plan's
+  tracked files. `landed` requires an attributed post-plan commit on the default branch, not
+  completion of every task. A commit timestamp within the plan's creation second but before its
+  exact creation time is uncertain evidence and cannot establish a landing by itself. Confidence
+  is low when no attributed commit is confirmed post-plan. `unavailable` covers missing repository
+  access, unreadable git history, or no trackable file mentions.
   Explicit `./` and `../` file mentions use the plan file's directory when it is inside the
   workspace, including after the mentioned file is deleted. For example, a plan at
   `packages/a/plans/task.md` uses `../../shared/util.ts` to reference `packages/shared/util.ts`;

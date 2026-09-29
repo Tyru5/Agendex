@@ -118,7 +118,7 @@ export const FEATURES = [
   },
   {
     title: 'Share Plans',
-    desc: 'Sync a plan to Cloud Pro and generate a scoped share link when review needs to leave your machine.',
+    desc: 'Sync a plan to Cloud Pro and create a scoped share link with optional password and expiry.',
   },
   {
     title: 'Comments',
@@ -129,8 +129,24 @@ export const FEATURES = [
     desc: 'The CLI daemon pushes changed local plans to your account and keeps daemon/device status visible.',
   },
   {
-    title: 'Fuzzy Search',
-    desc: 'Search across indexed titles, content, agents, and workspaces from the local app.',
+    title: 'Plan Search',
+    desc: 'Search titles, content, file paths, agents, and workspaces. The local API and MCP also support term and phrase queries ranked by relevance.',
+  },
+  {
+    title: 'Plan Receipts',
+    desc: 'Inspect local git evidence for mentioned files, attributed commits, and landings on the default branch.',
+  },
+  {
+    title: 'MCP Server',
+    desc: 'Give coding agents read-only access to local plan search and receipts without a cloud account or daemon.',
+  },
+  {
+    title: 'Activity Brief',
+    desc: 'Catch up on recent plan updates and checklist progress in the EE dashboard, with git landing evidence when local receipts are available.',
+  },
+  {
+    title: 'Ordered Collections',
+    desc: 'Group cloud plans and save a separate reading order for each collection.',
   },
   {
     title: 'Adapter System',
@@ -162,11 +178,12 @@ export const FREE_FEATURES = [
 
 export const PRO_FEATURES = [
   'Everything in Self-hosted',
-  'Agendex Desktop app for macOS',
+  'Agendex Desktop app for macOS and Windows',
   'Cloud sync from the CLI daemon',
   'Shareable plan links with optional password and expiry',
   'Comment threads',
   'Tags, ordered collections, and plan history',
+  'Activity brief with plan updates and checklist progress',
   'Technology dependency charts',
   'Plannotator integration',
   'New plan indicators',

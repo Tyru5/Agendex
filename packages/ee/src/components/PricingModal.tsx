@@ -7,7 +7,10 @@ interface PricingModalProps {
 
 const FREE_FEATURES = [
   'Local plan indexing & search',
-  'All agent adapters',
+  'Implemented agent adapters',
+  'Plan receipts from git history',
+  'MCP server for your coding agents',
+  'Custom plan source directories',
   'Full source access',
   'No accounts required',
 ];
@@ -15,9 +18,10 @@ const FREE_FEATURES = [
 const PRO_FEATURES = [
   'Everything in Self-Hosted',
   'Cloud sync via CLI daemon',
-  'Shareable plan links',
+  'Shareable plan links with optional password and expiry',
   'Comment threads',
-  'Tags, collections & plan history',
+  'Tags, ordered collections, and plan history',
+  'Activity brief with plan updates and checklist progress',
   'Technology dependency charts',
   'Plannotator integration',
   'New plan tracking & indicators',

@@ -59,6 +59,10 @@ agendex browse                 # Interactively select, view, save, or open a clo
 agendex browse --agent <name> --format md|html --out <path> [--force]
 agendex mcp                    # Serve local plans + receipts to coding agents over MCP (stdio)
 agendex mcp --workspace <dir>  # Same, scoped to <dir> when the client doesn't start it in the project
+agendex hooks status           # Inspect installed agent review hooks
+agendex hooks install pi       # Install the pi extension
+agendex hooks uninstall all    # Remove Agendex-managed hooks
+agendex capture-plan --agent antigravity < hook-payload.json  # Capture an explicit plan
 agendex cleanup                # Interactively remove cloud daemons
 agendex cleanup --stale        # Auto-remove all stale daemons
 agendex status                 # Show config state, daemon status, uptime & hostname
@@ -84,10 +88,23 @@ Tools:
   date or `24h`, `7d`, `2w`.
 
 Receipt status is `planned`, `in-progress`, `landed`, `stalled`, or `unavailable`, worked out from
-the plan's git repository without an LLM. Results are scoped to the git repository of the directory
-the server starts in; pass `workspace` to look at another project, `all_workspaces: true` to search
-everything, or start the server with `--workspace <dir>` to pin the default. `limit` defaults to 10
-(max 50). The first tool call waits for the initial scan.
+the plan's git repository without an LLM. A landed receipt means an attributed post-plan commit
+is on the default branch; it does not prove every task was completed. Missing repository access
+or trackable file mentions produces an unavailable receipt.
+
+By default, tools use the git repository of the directory the server starts in. Pass `workspace`
+to select another project, or start with `--workspace <dir>` to pin the default. `search_plans`
+and `get_plan` also accept `all_workspaces: true`; `get_plan` otherwise refuses IDs outside the
+selected workspace. For `plans_for_file`, an absolute path selects that file's repository;
+relative paths use the selected workspace. `limit` defaults to 10 (max 50), and `max_chars`
+defaults to 60,000 (max 200,000). The first tool call waits for the initial scan; retry a tool
+call if a transient scan error occurs.
+
+Search matches every term, with double quotes for phrases, and ranks results by relevance.
+For example, ask your agent to call `search_plans` with
+`{"query":"auth \"refresh token\"","limit":5}`, then pass one returned ID to `get_plan`.
+Use `recent_plans` with `{"since":"7d"}` to catch up on the current repository, or
+`plans_for_file` with `{"path":"src/auth.ts"}` before editing a file.
 
 Claude Code:
 
@@ -124,6 +141,13 @@ Cursor (`.cursor/mcp.json` in the project, or `~/.cursor/mcp.json`):
 
 Any other stdio client: run `agendex mcp` as the command (add `--workspace <dir>` if the client
 doesn't start servers in the project directory). Stdout carries only JSON-RPC; logs go to stderr.
+
+## Agent hooks
+
+Review hooks for Claude Code and Codex require `--preview`: hook-native review is not implemented,
+so the Claude Code hook denies ExitPlanMode and the Codex hook fails at Stop. The pi extension
+installs without that flag. Plan capture is separate: it accepts explicit plan fields or known
+plan artifacts and preserves a session ID when the hook payload supplies one.
 
 ## Dev vs prod (config directory)
 
