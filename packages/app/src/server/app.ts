@@ -1,5 +1,6 @@
 import {
   getAll,
+  getIndexablePlans,
   loadOrInitConfig,
   resolveAdapters,
   scan,
@@ -77,7 +78,7 @@ export function buildAgendexApp(options: BuildAgendexAppOptions): BuiltAgendexAp
       return scan();
     })
     .then(() => {
-      const watcherCallback = (plans: unknown[]) => broadcast('plan:updated', plans);
+      const watcherCallback = () => broadcast('plan:updated', getIndexablePlans());
       setPlanSourcesWatcherCallback(watcherCallback);
       startWatching(watcherCallback);
 
@@ -89,7 +90,7 @@ export function buildAgendexApp(options: BuildAgendexAppOptions): BuiltAgendexAp
           const fp = buildFingerprint();
           if (fp !== lastFingerprint) {
             lastFingerprint = fp;
-            broadcast('plan:updated', getAll());
+            broadcast('plan:updated', getIndexablePlans());
           }
         })().catch((error) => {
           console.error('[agendex] fallback plan scan failed:', error);

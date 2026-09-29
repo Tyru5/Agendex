@@ -22,6 +22,7 @@ Agendex is a Bun workspaces monorepo:
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
 - Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, stalled, or unavailable status
+- Advisory plan checks in the viewer for missing or ambiguous file references, verification steps, and acceptance criteria
 - Read-only [MCP server](packages/cli/README.md#use-agendex-from-your-agents-mcp) for coding agents to search local plans and inspect receipts, without a cloud account or daemon
 - Local API with token-based auth
 - Adapter selection, rescanning, and custom plan source directories
@@ -344,6 +345,18 @@ Key endpoints:
   relevance order unless `sort=updatedAt|createdAt|title` is set.
 - `GET /api/v1/plans/:id`
 - `GET /api/v1/plans/:id/raw`
+- `GET /api/v1/plans/:id/check` returns advisory findings for missing or ambiguous file references,
+  verification steps, acceptance criteria, and file counts. Missing paths may be intended new files;
+  checks do not approve a plan. `404` for unknown or hidden plans.
+- `GET /api/v1/hidden-plans` — authenticated local recovery summaries (no content), paginated with
+  `limit=1..100` and nonnegative `offset`; includes classifier reasons/signals and manually restored
+  plans. `hiddenCount` counts only currently hidden plans.
+- `GET /api/v1/hidden-plans/:id` — intentional authenticated inspection of a hidden or locally restored
+  plan, including content and advisory checks. Plans that remain hidden are excluded from normal
+  list/search/raw/MCP endpoints; restored plans become visible there.
+- `PUT /api/v1/hidden-plans/:id/override` — `{ "restore": true }` restores visibility via the existing
+  manual value override; `{ "restore": false }` reclassifies automatically. The override persists in
+  local config across scans without editing source files. Unknown or stale sources return `404`.
 - `GET /api/v1/plans/:id/receipt` -> `{ receipt }`: commits attributed to the plan, file groups
   (changed, untouched, missing, ambiguous, unplanned, uncommitted), status (`planned`,
   `in-progress`, `landed`, `stalled`, `unavailable`), confidence, and reasons. Computed locally
@@ -393,6 +406,7 @@ Config fields:
 - `deviceId` (cloud daemon identity)
 - `enabledAdapters`
 - `customPlanDirs`
+- `planValueOverrides` (local plan IDs explicitly restored through the recovery UI)
 
 Common environment variables:
 
@@ -490,3 +504,12 @@ This repo is available under the [AGPL-3.0](./LICENSE) license, except for the `
 - Code in `packages/ee/` may be copied and modified freely for development and testing purposes without a subscription.
 - Production use of `packages/ee/` — any deployment that serves end users, whether internal or external — requires a valid Agendex Cloud Pro subscription under the [Agendex Enterprise License](./packages/ee/LICENSE).
 - Contributions are subject to the [Contributor License Agreement](./CLA.md).
+
+### Recover classifier-filtered plans
+
+Open **Hidden plans** in the local dashboard sidebar, even when no visible plans remain. Select a
+summary to inspect content, classifier reasons/signals, and advisory checks, then restore it or undo a
+previous restore. The same recovery panel is available under **Plan sources and recovery**. Visibility
+and counts update after recovery. Undo uses the current automatic assessment; an improved plan can
+remain visible. Cloud sync prunes low-value content, so cloud recovery requires the source device and a
+subsequent sync. Existing published copies are not revoked by changing local visibility.

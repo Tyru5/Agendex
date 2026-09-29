@@ -20,6 +20,7 @@ import {
   PlanList,
   PlanActionButton,
   PlanSourcesDialog,
+  HiddenPlansRecoveryButton,
   type PlanReceiptState,
   type PlanSortBy,
   type PlanState,
@@ -1852,6 +1853,7 @@ function useDashboardSidebar({
       }}
     >
       {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
+      {mode === 'local' && <HiddenPlansRecoveryButton />}
       <div
         ref={scrollViewportRef}
         className="flex-1 overflow-auto sidebar-scroll sidebar-content-list"

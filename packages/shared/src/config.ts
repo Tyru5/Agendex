@@ -99,6 +99,8 @@ export interface AgendexConfig {
   enabledAdapters: AdapterId[];
   customPlanDirs: string[];
   lastPlanDownload?: PlanDownloadRecord;
+  /** Locally restored classifier-filtered plans, keyed by stable local id. */
+  planValueOverrides?: Record<string, true>;
 }
 
 interface StoredConfig {
@@ -113,6 +115,15 @@ interface StoredConfig {
   enabledAdapters?: unknown;
   customPlanDirs?: unknown;
   lastPlanDownload?: unknown;
+  planValueOverrides?: unknown;
+}
+
+function normalizePlanValueOverrides(raw: unknown): Record<string, true> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const entries = Object.entries(raw).filter(
+    ([id, value]) => id.length > 0 && id.length <= 512 && !id.includes('\0') && value === true,
+  );
+  return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
 function normalizePlanDownloadRecord(raw: unknown): PlanDownloadRecord | undefined {
@@ -335,6 +346,7 @@ function normalizeStoredConfig(raw: StoredConfig | null): AgendexConfig | null {
     enabledAdapters: migrated.adapters,
     customPlanDirs: normalizeCustomPlanDirs(raw.customPlanDirs),
     lastPlanDownload: normalizePlanDownloadRecord(raw.lastPlanDownload),
+    planValueOverrides: normalizePlanValueOverrides(raw.planValueOverrides),
   };
 }
 
@@ -367,6 +379,7 @@ function normalizedConfigForWrite(config: AgendexConfig): AgendexConfig {
     enabledAdapters: migrated.adapters,
     customPlanDirs: normalizeCustomPlanDirs(config.customPlanDirs),
     lastPlanDownload: normalizePlanDownloadRecord(config.lastPlanDownload),
+    planValueOverrides: normalizePlanValueOverrides(config.planValueOverrides),
   };
 }
 

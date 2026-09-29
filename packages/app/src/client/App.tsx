@@ -413,6 +413,7 @@ export function Dashboard() {
       )}
 
       <Sidebar
+        localRecovery={IS_LOCAL_WORKSPACE_SHELL}
         sidebarHidden={sidebarHidden}
         sidebarVisible={sidebarVisible}
         sidebarPeekOpen={sidebarPeekOpen}

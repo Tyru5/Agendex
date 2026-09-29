@@ -47,6 +47,7 @@ import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
 import { PlanPathContext } from './PlanPathContext.tsx';
 import { PlanReceiptSection } from './PlanReceiptSection.tsx';
+import { PlanCheckSection } from './PlanCheckSection.tsx';
 
 export { PlanActionButton } from './PlanActionButton.tsx';
 
@@ -920,6 +921,9 @@ export function PlanViewer({
               loading={receiptLoading}
               onOpenPath={planPaths && workspace ? planPaths.openPath : undefined}
             />
+            {renderMode === 'markdown' && (
+              <PlanCheckSection plan={{ ...plan, content: renderContent }} paths={planPaths} />
+            )}
           </header>
 
           {onChartWideChange && !chartHidden && (

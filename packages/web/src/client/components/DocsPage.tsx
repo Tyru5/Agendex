@@ -36,6 +36,7 @@ const NAV_GROUPS = [
       ['plan-sources', 'Plan sources'],
       ['custom-directories', 'Custom directories'],
       ['plan-search', 'Plan search'],
+      ['plan-check', 'Plan check'],
       ['plan-filtering', 'Plan filtering'],
       ['plan-receipts', 'Plan receipts'],
       ['privacy', 'Privacy model'],
@@ -486,11 +487,28 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </Body>
           </SubpageSection>
 
+          <SubpageSection id="plan-check" title="Plan check">
+            <Body>
+              Open a plan and expand <InlineCode>Plan check</InlineCode> to see advisory findings
+              for missing or ambiguous file references, verification steps, and acceptance criteria.
+              The section also shows the number of referenced files. Missing paths may be files the
+              plan intends to create; these findings do not approve or reject a plan. File checks
+              require access to the local workspace. If that connection is unavailable, Agendex
+              still checks the plan text and explains that file checks are incomplete.
+            </Body>
+          </SubpageSection>
+
           <SubpageSection id="plan-filtering" title="Plan filtering">
             <Body>
               Agents produce a lot of Markdown that isn&rsquo;t a plan: empty files, one-line
               prompts, tool logs, execution output, code-only snippets. A shared classifier tags
               these as low-value.
+            </Body>
+            <Body>
+              Open Hidden plans in the local sidebar to inspect classifier reasons, signals, raw
+              content, and advisory checks. Restore a plan to visible lists, or undo a restore to
+              use automatic classification again. Overrides persist across scans without editing
+              sources. This entry remains available when every plan is hidden.
             </Body>
             <Body>
               Locally, low-value plans are hidden from search and lists — the files themselves are

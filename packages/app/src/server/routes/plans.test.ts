@@ -160,6 +160,25 @@ async function postJson(path: string, body: unknown) {
   });
 }
 
+describe('GET /plans/:id/check', () => {
+  test('shares the viewer checks with API consumers', async () => {
+    const response = await plans.request(`/plans/${planId}/check`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      check: {
+        fileCount: number;
+        verificationDetected: boolean;
+        findings: Array<{ code: string }>;
+      };
+    };
+    expect(body.check.fileCount).toBe(2);
+    expect(body.check.verificationDetected).toBe(true);
+    expect(body.check.findings.map((finding) => finding.code)).toContain('acceptance-criteria');
+    expect(body.check.findings.map((finding) => finding.code)).not.toContain('missing-files');
+    expect((await plans.request('/plans/no-such-plan/check')).status).toBe(404);
+  });
+});
+
 describe('GET /plans?q=', () => {
   async function searchTitles(query: string) {
     const res = await plans.request(`/plans?${query}`);

@@ -197,6 +197,11 @@ Agendex uses a shared plan-value classifier (`@agendex/shared`) to keep non-plan
 
 Low-value tagging happens during scan/rescan. If you edit a file into a real plan, the next scan clears the tag and sync uploads it again. Version restore in the cloud rejects low-value snapshots; browse history on a hidden plan to find and restore a good snapshot.
 
+To recover a locally hidden plan without editing its source, use **Hidden plans** in the local
+dashboard sidebar or **Plan sources and recovery**. Inspect the classifier reasons, restore the
+plan, then sync again from that device. The override is stored in the shared local config and
+persists across scans; undoing it returns the plan to automatic classification.
+
 ## Sync Provenance
 
 `agendex sync` and the daemon include sync provenance in cloud payload metadata so the web app can show where a plan was synced from. This includes the device ID, hostname, and the host machine's local IP address when one is available.

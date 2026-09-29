@@ -2,7 +2,7 @@ import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { lstat, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
-import { getConfigDir, loadConfig } from '../config.ts';
+import { CURRENT_CONFIG_VERSION, getConfigDir, loadConfig, updateConfig } from '../config.ts';
 import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import { resolvePlanRepoRoot } from '../git.ts';
@@ -188,7 +188,19 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
   return files;
 }
 
+let localValueOverrides: Record<string, true> = {};
+
 function preparePlanForIndex(plan: Plan): Plan {
+  const metadata = { ...plan.metadata };
+  if (metadata.localPlanValueOverride === true) {
+    delete metadata.planValueOverride;
+    delete metadata.localPlanValueOverride;
+  }
+  if (localValueOverrides[plan.id] === true) {
+    metadata.planValueOverride = 'manual';
+    metadata.localPlanValueOverride = true;
+  }
+  plan = { ...plan, metadata };
   const workspace = plan.workspace ?? resolvePlanRepoRoot(plan) ?? undefined;
   return annotatePlanValueMetadata(workspace ? { ...plan, workspace } : plan);
 }
@@ -338,6 +350,7 @@ export interface ScanOptions {
 }
 
 async function scanOnce(): Promise<void> {
+  localValueOverrides = loadConfig()?.planValueOverrides ?? {};
   const adapters = getActiveAdapters();
   const next = new Map<string, Plan>();
 
@@ -438,6 +451,30 @@ export function getById(id: string): Plan | undefined {
 export function getIndexableById(id: string): Plan | undefined {
   const plan = store.get(id);
   return plan && isIndexablePlan(plan) ? plan : undefined;
+}
+
+/** Restore or return a locally indexed plan to automatic classification. Never modifies its source. */
+export async function setPlanValueOverride(
+  id: string,
+  restore: boolean,
+): Promise<Plan | undefined> {
+  if (!store.has(id)) return undefined;
+  updateConfig((config) => {
+    const planValueOverrides = { ...config?.planValueOverrides };
+    if (restore) planValueOverrides[id] = true;
+    else delete planValueOverrides[id];
+    return {
+      ...(config ?? {
+        configVersion: CURRENT_CONFIG_VERSION,
+        enabledAdapters: [],
+        customPlanDirs: [],
+      }),
+      planValueOverrides,
+    };
+  });
+  // Queuing a fresh scan also prevents an already-running traversal from overwriting recovery.
+  await scan();
+  return store.get(id);
 }
 
 function isUserPlan(plan: Plan): boolean {
@@ -625,6 +662,7 @@ function removePlansForPath(filePath: string, adapter?: AgentAdapter): Plan[] {
 }
 
 export async function rescanFile(filePath: string) {
+  localValueOverrides = loadConfig()?.planValueOverrides ?? {};
   const adapters = getActiveAdapters();
   const normalized = resolve(filePath);
   const removedPlans: Plan[] = [];

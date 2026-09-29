@@ -2,6 +2,11 @@ import { existsSync, realpathSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import {
   CURRENT_CONFIG_VERSION,
+  assessPlanValue,
+  getAll,
+  getById,
+  isLowValuePlan,
+  setPlanValueOverride,
   getAgentStats,
   createPlanAnnotation,
   deletePlanAnnotation,
@@ -9,6 +14,7 @@ import {
   getIndexableById,
   getIndexablePlans,
   getPlanReceipt,
+  getPlanCheck,
   getPlanReceipts,
   isWithinWorkspace,
   listPlanAnnotations,
@@ -31,6 +37,74 @@ import { Hono } from 'hono';
 import { launchOpenIn } from '../open-in.ts';
 
 const plans = new Hono();
+
+function recoveryAssessment(plan: NonNullable<ReturnType<typeof getById>>) {
+  const metadata = { ...plan.metadata };
+  // Explain what automatic classification would do, even after a local restore.
+  if (metadata.localPlanValueOverride === true) delete metadata.planValueOverride;
+  return assessPlanValue({ ...plan, metadata });
+}
+function isRecoveryPlan(plan: NonNullable<ReturnType<typeof getById>>) {
+  return isLowValuePlan(plan) || plan.metadata.localPlanValueOverride === true;
+}
+
+// Authenticated local-only recovery surface. Never used by normal browse, MCP, or shares.
+plans.get('/hidden-plans', (c) => {
+  const rawLimit = c.req.query('limit') ?? '50';
+  const rawOffset = c.req.query('offset') ?? '0';
+  if (!/^\d+$/.test(rawLimit) || !/^\d+$/.test(rawOffset))
+    return c.json({ error: 'invalid pagination' }, 400);
+  const limit = Number(rawLimit);
+  const offset = Number(rawOffset);
+  if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+    return c.json({ error: 'invalid pagination' }, 400);
+  const candidates = getAll()
+    .filter(isRecoveryPlan)
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime() || a.id.localeCompare(b.id));
+  return c.json({
+    plans: candidates.slice(offset, offset + limit).map((plan) => ({
+      id: plan.id,
+      title: plan.title,
+      agent: plan.agent,
+      workspace: plan.workspace,
+      filePath: plan.filePath,
+      updatedAt: plan.updatedAt.toISOString(),
+      restored: plan.metadata.localPlanValueOverride === true,
+      assessment: recoveryAssessment(plan),
+    })),
+    total: candidates.length,
+    hiddenCount: candidates.filter(isLowValuePlan).length,
+    limit,
+    offset,
+  });
+});
+
+plans.get('/hidden-plans/:id', async (c) => {
+  const plan = getById(c.req.param('id'));
+  if (!plan || !isRecoveryPlan(plan)) return c.json({ error: 'not found' }, 404);
+  return c.json({ plan, assessment: recoveryAssessment(plan), check: await getPlanCheck(plan) });
+});
+
+plans.put('/hidden-plans/:id/override', async (c) => {
+  const plan = getById(c.req.param('id'));
+  if (!plan || !isRecoveryPlan(plan)) return c.json({ error: 'not found' }, 404);
+  let body: { restore?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'invalid JSON' }, 400);
+  }
+  if (typeof body?.restore !== 'boolean')
+    return c.json({ error: 'restore must be a boolean' }, 400);
+  const updated = await setPlanValueOverride(plan.id, body.restore);
+  if (!updated) return c.json({ error: 'plan source no longer indexed' }, 404);
+  watcherOnChange?.(getIndexablePlans());
+  return c.json({
+    ok: true,
+    hidden: isLowValuePlan(updated),
+    restored: updated.metadata.localPlanValueOverride === true,
+  });
+});
 
 plans.get('/plans', (c) => {
   const agent = c.req.query('agent');
@@ -76,6 +150,12 @@ plans.get('/plans/:id/receipt', async (c) => {
   const plan = getIndexableById(c.req.param('id'));
   if (!plan) return c.json({ error: 'not found' }, 404);
   return c.json({ receipt: await getPlanReceipt(plan) });
+});
+
+plans.get('/plans/:id/check', async (c) => {
+  const plan = getIndexableById(c.req.param('id'));
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  return c.json({ check: await getPlanCheck(plan) });
 });
 
 /** Receipt summaries for list rows and the brief, keyed by plan id. `?ids=a,b` narrows the set. */
