@@ -24,6 +24,8 @@ function repoRelative(realRepoRoot: string, absolute: string): string | null {
 }
 
 function mentionBase(path: string, workspace: string, baseDir: string | undefined): string {
+  // Match the existing resolver's plan-local parent paths. Once a plan directory
+  // is available, do not reinterpret ../ against the workspace when a file is absent.
   return (path.startsWith('./') || path.startsWith('../')) && baseDir ? baseDir : workspace;
 }
 

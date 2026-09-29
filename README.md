@@ -344,6 +344,11 @@ Key endpoints:
   `in-progress`, `landed`, `stalled`, `unavailable`), confidence, and reasons. Computed locally
   from git history, no LLM. Only commits on local branches, HEAD, and the default branch
   (`origin/HEAD`, else `main`, `master`, or `trunk`) count; other remote branches are ignored.
+  Explicit `./` and `../` file mentions use the plan file's directory when it is inside the
+  workspace, including after the mentioned file is deleted. For example, a plan at
+  `packages/a/plans/task.md` uses `../../shared/util.ts` to reference `packages/shared/util.ts`;
+  `../shared/util.ts` instead references `packages/a/shared/util.ts`. An absolute path inside
+  the repository also works. Without a usable plan directory, `../` uses the workspace.
   `404` for unknown or hidden plans.
 - `GET /api/v1/receipts` (`ids=a,b` optional) -> `{ receipts: { [planId]: summary } }` with
   status, confidence, changed/mentioned file counts, commit count, and landing time for every

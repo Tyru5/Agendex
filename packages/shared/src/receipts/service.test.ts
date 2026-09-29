@@ -196,6 +196,35 @@ describe('getPlanReceipt on a real repository', () => {
     expect(earlier.commits.map((c) => c.subject)).toEqual(['remove intended config']);
   });
 
+  test('nested plans distinguish plan-relative siblings from workspace siblings', async () => {
+    const start = Date.now() - DAY;
+    write('packages/a/plans/README.md');
+    write('packages/a/shared/util.ts');
+    write('packages/shared/util.ts');
+    commitAll('initial', start - HOUR);
+    write('packages/shared/util.ts', 'workspace sibling\n');
+    commitAll('change workspace sibling', start + HOUR);
+    write('packages/a/shared/util.ts', 'plan sibling\n');
+    commitAll('change plan sibling', start + 2 * HOUR);
+
+    for (const [mention, expectedPath, subject] of [
+      ['../shared/util.ts', 'packages/a/shared/util.ts', 'change plan sibling'],
+      ['../../shared/util.ts', 'packages/shared/util.ts', 'change workspace sibling'],
+      [
+        join(repo, 'packages/shared/util.ts'),
+        'packages/shared/util.ts',
+        'change workspace sibling',
+      ],
+    ]) {
+      const plan = makePlan('p', `Update \`${mention}\`.`, start, join(repo, 'packages/a'));
+      plan.filePath = join(repo, 'packages/a/plans/p.md');
+      const receipt = await getPlanReceipt(plan);
+      expect(receipt.status).toBe('landed');
+      expect(receipt.files.changed).toEqual([expectedPath]);
+      expect(receipt.commits.map((c) => c.subject)).toEqual([subject]);
+    }
+  });
+
   test('a planned commit merged into main lands the plan', async () => {
     const start = Date.now() - DAY;
     write('src/a.ts');
