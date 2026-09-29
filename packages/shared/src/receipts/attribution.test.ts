@@ -165,6 +165,46 @@ describe('attributeRepoReceipts status', () => {
 });
 
 describe('attributeRepoReceipts windows', () => {
+  test('a one-file follow-up does not close a larger plan', () => {
+    const receipts = receiptsFor(
+      [
+        plan('large', NOW - 3 * DAY, ['src/a.ts', 'src/b.ts', 'src/c.ts', 'src/d.ts'].map(found)),
+        plan('small', NOW - 2 * DAY, [found('src/a.ts')]),
+      ],
+      [commit('later', NOW - DAY, ['src/b.ts'])],
+      { landed: ['later'] },
+    );
+    expect(receipts.get('large')?.window.supersededByPlanId).toBeUndefined();
+    expect(receipts.get('large')?.status).toBe('landed');
+    expect(receipts.get('large')?.commits.map((c) => c.sha)).toEqual(['later']);
+  });
+
+  test('same-second commits count, but commits in an earlier second do not', () => {
+    const second = NOW - DAY;
+    const receipt = receiptsFor(
+      [plan('p', second + 500, [found('src/a.ts')])],
+      [commit('same', second, ['src/a.ts']), commit('before', second - 1000, ['src/a.ts'])],
+      { landed: ['same'] },
+    ).get('p');
+    expect(receipt?.status).toBe('landed');
+    expect(receipt?.window.start).toBe(new Date(second + 500).toISOString());
+    expect(receipt?.commits.map((c) => c.sha)).toEqual(['same']);
+  });
+
+  test('the superseding second belongs only to the newer plan', () => {
+    const second = NOW - DAY;
+    const receipts = receiptsFor(
+      [
+        plan('old', second - DAY, [found('src/a.ts')]),
+        plan('new', second + 500, [found('src/a.ts')]),
+      ],
+      [commit('same', second, ['src/a.ts']), commit('before', second - 1000, ['src/a.ts'])],
+    );
+    expect(receipts.get('old')?.commits.map((c) => c.sha)).toEqual(['before']);
+    expect(receipts.get('new')?.commits.map((c) => c.sha)).toEqual(['same']);
+    expect(receipts.get('new')?.commits[0]?.sharedWithPlanIds).toEqual([]);
+  });
+
   test('a newer plan covering the same files closes the older window', () => {
     const aStart = NOW - 3 * DAY;
     const bStart = NOW - 2 * DAY;

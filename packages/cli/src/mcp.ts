@@ -153,31 +153,31 @@ export async function runMcpServer(args: string[]): Promise<number> {
     id.unref();
     stopTimers.push(() => clearInterval(id));
   };
-  const ready = scan().then(
-    () => {
-      startWatching();
-      // Same safety net as the daemon: pick up plan directories created after
-      // launch and sources the watcher doesn't cover (e.g. the hook spool).
-      every(parseEnvMs('AGENDEX_SYNC_RESCAN_INTERVAL_MS', DEFAULT_SYNC_RESCAN_INTERVAL_MS), () => {
-        void scan({ queueIfBusy: false }).catch(() => {});
-      });
-      let watchKey = collectWatchPaths().join('\0');
-      every(
-        parseEnvMs('AGENDEX_WATCHER_REFRESH_INTERVAL_MS', DEFAULT_WATCHER_REFRESH_INTERVAL_MS),
-        () => {
-          const nextKey = collectWatchPaths().join('\0');
-          if (nextKey === watchKey) return;
-          watchKey = nextKey;
-          startWatching();
-        },
-      );
-    },
-    (err: unknown) => {
-      console.error(
-        `[agendex] initial scan failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    },
-  );
+  const ready = scan().then(() => {
+    startWatching();
+    // Same safety net as the daemon: pick up plan directories created after
+    // launch and sources the watcher doesn't cover (e.g. the hook spool).
+    every(parseEnvMs('AGENDEX_SYNC_RESCAN_INTERVAL_MS', DEFAULT_SYNC_RESCAN_INTERVAL_MS), () => {
+      void scan({ queueIfBusy: false }).catch(() => {});
+    });
+    let watchKey = collectWatchPaths().join('\0');
+    every(
+      parseEnvMs('AGENDEX_WATCHER_REFRESH_INTERVAL_MS', DEFAULT_WATCHER_REFRESH_INTERVAL_MS),
+      () => {
+        const nextKey = collectWatchPaths().join('\0');
+        if (nextKey === watchKey) return;
+        watchKey = nextKey;
+        startWatching();
+      },
+    );
+  });
+  // Observe startup errors immediately, while keeping readiness rejected so tool
+  // calls report the failure instead of serving an incomplete or stale index.
+  void ready.catch((err: unknown) => {
+    console.error(
+      `[agendex] initial scan failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
 
   const handlers = createMcpToolHandlers(createIndexProviders(ready, cwd));
   const server = new McpServer(

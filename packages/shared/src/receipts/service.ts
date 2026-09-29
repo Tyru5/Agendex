@@ -97,7 +97,7 @@ function plansSignature(plans: readonly Plan[]): string {
         plan.id,
         toMs(plan.createdAt),
         toMs(plan.updatedAt),
-        plan.content.length,
+        plan.content,
         plan.workspace ?? '',
         plan.filePath,
       ].join('\0'),

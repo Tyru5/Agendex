@@ -252,6 +252,34 @@ describe('getPlanReceipt on a real repository', () => {
     expect(second.files.changed).toEqual(['src/a.ts']);
   });
 
+  test('same-length content edits invalidate receipts even with unchanged timestamps', async () => {
+    const start = Date.now() - DAY;
+    write('src/a.ts');
+    write('src/b.ts');
+    commitAll('initial', start - HOUR);
+    write('src/a.ts', 'changed\n');
+    commitAll('Implement a', start + HOUR);
+
+    const plan = makePlan('p', 'Change `src/b.ts`.', start);
+    expect((await getPlanReceipt(plan)).status).toBe('planned');
+    plan.content = 'Change `src/a.ts`.';
+    const second = await getPlanReceipt(plan);
+    expect(second.status).toBe('landed');
+    expect(second.files.changed).toEqual(['src/a.ts']);
+  });
+
+  test('a real Git commit in the plan creation second is included', async () => {
+    const second = Math.floor((Date.now() - DAY) / 1000) * 1000;
+    write('src/a.ts');
+    commitAll('initial', second - HOUR);
+    write('src/a.ts', 'changed\n');
+    const sha = commitAll('Implement a', second + 900);
+
+    const receipt = await getPlanReceipt(makePlan('p', 'Change `src/a.ts`.', second + 500));
+    expect(receipt.status).toBe('landed');
+    expect(receipt.commits.map((c) => c.sha)).toEqual([sha]);
+  });
+
   test('a mentioned file created after a receipt resolves once git state changes', async () => {
     const start = Date.now() - DAY;
     write('src/a.ts');

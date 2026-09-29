@@ -224,7 +224,7 @@ function computeWindows(plans: readonly ReceiptPlanInput[], now: number): PlanWi
       if (superseder && other.createdAt >= superseder.createdAt) return;
       const theirs = keys[otherIdx] as Set<string>;
       if (theirs.size === 0) return;
-      const needed = Math.max(1, Math.ceil(0.5 * Math.min(own.size, theirs.size)));
+      const needed = Math.max(1, Math.ceil(0.5 * own.size));
       let shared = 0;
       for (const key of theirs) if (own.has(key)) shared++;
       if (shared >= needed) superseder = other;
@@ -261,7 +261,13 @@ export function attributeRepoReceipts(input: RepoReceiptInput): RepoReceiptResul
       index.lookup(file, refs);
       for (const ref of refs) {
         const window = windows[ref.plan] as PlanWindow;
-        if (commit.committedAt < window.start || commit.committedAt >= window.end) continue;
+        // Git records whole seconds. Use the same precision at both boundaries so
+        // same-second work belongs to the newer plan when a window is superseded.
+        if (
+          commit.committedAt < Math.floor(window.start / 1000) * 1000 ||
+          commit.committedAt >= (window.open ? window.end : Math.floor(window.end / 1000) * 1000)
+        )
+          continue;
         let files = perPlan.get(ref.plan);
         if (!files) perPlan.set(ref.plan, (files = new Map()));
         add(files, file, ref.mention);

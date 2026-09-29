@@ -85,8 +85,8 @@ export interface PlanReceiptSummariesState {
   /** Keyed by local plan id (see `receiptSummaryForPlan`); undefined until the first answer. */
   receipts: Record<string, PlanReceiptSummary> | undefined;
   /**
-   * False only while enabled and waiting for the first answer. Disabled, no local token, and a
-   * failed first request all count as settled, so callers never wait forever.
+   * False while enabled until the first successful answer. Failed requests retry on
+   * refresh; disabled receipts and a missing local token count as settled.
    */
   settled: boolean;
 }
@@ -129,12 +129,9 @@ export function usePlanReceiptSummaries(
           if (cancelled || id !== requestId) return;
           setState({ receipts: body.receipts, answered: true });
         })
-        // A failed refresh keeps the last summaries; a failed first answer still settles.
-        .catch(() => {
-          if (!cancelled && id === requestId) {
-            setState((prev) => (prev.answered ? prev : { ...prev, answered: true }));
-          }
-        });
+        // Preserve the last successful answer. A first failure must not allow the
+        // brief's read boundary to advance past landings that were never shown.
+        .catch(() => {});
     });
     return () => {
       cancelled = true;
