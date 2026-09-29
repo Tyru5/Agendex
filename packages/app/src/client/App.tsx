@@ -1,5 +1,8 @@
 import {
   EmptyStateView,
+  FilePlanLookupContext,
+  localFilePlanCounts,
+  filePlanSearchQuery,
   applyPlanFilters,
   focusPlanSearchField,
   getAppShortcuts,
@@ -20,6 +23,7 @@ import {
   usePlanReceipt,
   usePlanReceiptSummaries,
   usePlans,
+  useFilePlanSearch,
   useProductTour,
   useSidebarWidth,
   workspacesFromPlans,
@@ -134,6 +138,7 @@ export function Dashboard() {
   const backendStatus = useBackendStatus();
 
   const { plans, loading, error, refresh } = localPlans;
+  const fileSearch = useFilePlanSearch(plans, search, workspaceFilter);
   const workspaces = useMemo(() => workspacesFromPlans(plans), [plans]);
   const { receipts } = usePlanReceiptSummaries(IS_LOCAL_WORKSPACE_SHELL, plans);
   const { customPlanDirs, removeCustomDir, refreshCustomPlanDirs } =
@@ -157,8 +162,9 @@ export function Dashboard() {
       agents: selectedAgents,
       workspace: workspaceFilter,
       date: dateBucket,
+      fileMatchIds: fileSearch.ids,
     });
-  }, [dateBucket, plans, search, selectedAgents, workspaceFilter]);
+  }, [dateBucket, plans, search, selectedAgents, workspaceFilter, fileSearch.ids]);
   const filteredPlanIds = useMemo(
     () => new Set(filteredPlans.map((plan) => plan.id)),
     [filteredPlans],
@@ -314,36 +320,78 @@ export function Dashboard() {
     },
   });
 
+  const fileLookup = useMemo(
+    () => ({
+      revision: JSON.stringify(plans.map((plan) => [plan.id, plan.updatedAt])),
+      counts: localFilePlanCounts,
+      navigate: (path: string, workspace?: string) => {
+        void setSearch(filePlanSearchQuery(path));
+        void setFilters({
+          agents: [],
+          agent: null,
+          workspace: workspace ?? null,
+          date: 'all',
+          sort: 'updatedAt',
+        });
+        revealSidebarForSearch();
+      },
+    }),
+    [plans, revealSidebarForSearch, setFilters, setSearch],
+  );
+
   return (
-    <div
-      className="agendex-app-shell h-screen grid overflow-clip"
-      data-plan-open={selectedPlan ? 'true' : undefined}
-      style={{
-        position: 'relative',
-        gridTemplateColumns: `${sidebarWidth}px 1fr`,
-        gridTemplateRows: `${TOPBAR_HEIGHT}px 1fr`,
-      }}
-    >
-      <Topbar
-        sidebarHidden={sidebarHidden}
-        sidebarPinnedOpen={sidebarPinnedOpen}
-        onToggleSidebar={toggleSidebar}
-        onSelectPlan={setSelectedPlan}
-        onFocusSearch={revealSidebarForSearch}
-        totalPlans={totalPlans}
-        activeAgents={activeAgents}
-        backendStatus={backendStatus}
-        height={TOPBAR_HEIGHT}
-        sidebarWidth={expandedWidth}
-        actions={
-          <>
-            {IS_LOCAL_WORKSPACE_SHELL && (
+    <FilePlanLookupContext.Provider value={fileLookup}>
+      <div
+        className="agendex-app-shell h-screen grid overflow-clip"
+        data-plan-open={selectedPlan ? 'true' : undefined}
+        style={{
+          position: 'relative',
+          gridTemplateColumns: `${sidebarWidth}px 1fr`,
+          gridTemplateRows: `${TOPBAR_HEIGHT}px 1fr`,
+        }}
+      >
+        <Topbar
+          sidebarHidden={sidebarHidden}
+          sidebarPinnedOpen={sidebarPinnedOpen}
+          onToggleSidebar={toggleSidebar}
+          onSelectPlan={setSelectedPlan}
+          onFocusSearch={revealSidebarForSearch}
+          totalPlans={totalPlans}
+          activeAgents={activeAgents}
+          backendStatus={backendStatus}
+          height={TOPBAR_HEIGHT}
+          sidebarWidth={expandedWidth}
+          actions={
+            <>
+              {IS_LOCAL_WORKSPACE_SHELL && (
+                <button
+                  type="button"
+                  onClick={() => setSourcesOpen(true)}
+                  aria-label="Manage plan sources"
+                  title="Manage plan sources"
+                  data-tour={TOUR_TARGET.planSources}
+                  className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setSourcesOpen(true)}
-                aria-label="Manage plan sources"
-                title="Manage plan sources"
-                data-tour={TOUR_TARGET.planSources}
+                onClick={replayTour}
+                aria-label="Replay product tour"
+                title="Replay product tour"
+                data-tour={TOUR_TARGET.replayTour}
                 className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
               >
                 <svg
@@ -355,158 +403,137 @@ export function Dashboard() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  aria-hidden="true"
                 >
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                  <path d="M12 17h.01" />
                 </svg>
               </button>
-            )}
-            <button
-              type="button"
-              onClick={replayTour}
-              aria-label="Replay product tour"
-              title="Replay product tour"
-              data-tour={TOUR_TARGET.replayTour}
-              className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-                <path d="M12 17h.01" />
-              </svg>
-            </button>
-          </>
-        }
-      />
-
-      {IS_LOCAL_WORKSPACE_SHELL && (
-        <PlanSourcesDialog
-          open={sourcesOpen}
-          onClose={() => setSourcesOpen(false)}
-          onSourcesChanged={handleSourcesChanged}
+            </>
+          }
         />
-      )}
 
-      {sidebarHidden && (
-        <div
+        {IS_LOCAL_WORKSPACE_SHELL && (
+          <PlanSourcesDialog
+            open={sourcesOpen}
+            onClose={() => setSourcesOpen(false)}
+            onSourcesChanged={handleSourcesChanged}
+          />
+        )}
+
+        {sidebarHidden && (
+          <div
+            onMouseEnter={revealSidebarOnHover}
+            onMouseLeave={schedulePeekClose}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: `${TOPBAR_HEIGHT}px`,
+              height: `calc(100% - ${TOPBAR_HEIGHT}px)`,
+              width: `${SIDEBAR_HOVER_ZONE_WIDTH}px`,
+              zIndex: 40,
+            }}
+            aria-hidden="true"
+          />
+        )}
+
+        <Sidebar
+          sidebarHidden={sidebarHidden}
+          sidebarVisible={sidebarVisible}
+          sidebarPeekOpen={sidebarPeekOpen}
           onMouseEnter={revealSidebarOnHover}
           onMouseLeave={schedulePeekClose}
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: `${TOPBAR_HEIGHT}px`,
-            height: `calc(100% - ${TOPBAR_HEIGHT}px)`,
-            width: `${SIDEBAR_HOVER_ZONE_WIDTH}px`,
-            zIndex: 40,
-          }}
-          aria-hidden="true"
+          search={search}
+          onSearch={setSearch}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          dateBucket={dateBucket}
+          onDateBucketChange={setDateBucket}
+          agents={agents}
+          selectedAgents={selectedAgents}
+          onAgentsChange={setSelectedAgents}
+          workspace={workspaceFilter}
+          onWorkspaceChange={setWorkspaceFilter}
+          workspaces={workspaces}
+          onClearFilters={clearFilters}
+          onSearchFocusRequest={revealSidebarForSearch}
+          filteredPlans={filteredPlans}
+          selectedPlanId={selectedPlan?.id}
+          onSelectPlan={setSelectedPlan}
+          onRemoveCustomDir={IS_LOCAL_WORKSPACE_SHELL ? handleRemoveCustomDir : undefined}
+          customPlanDirs={IS_LOCAL_WORKSPACE_SHELL ? customPlanDirs : undefined}
+          loading={loading || fileSearch.loading}
+          error={error ?? fileSearch.error}
+          width={expandedWidth}
+          onResize={setExpandedWidth}
+          receipts={receipts}
         />
-      )}
 
-      <Sidebar
-        sidebarHidden={sidebarHidden}
-        sidebarVisible={sidebarVisible}
-        sidebarPeekOpen={sidebarPeekOpen}
-        onMouseEnter={revealSidebarOnHover}
-        onMouseLeave={schedulePeekClose}
-        search={search}
-        onSearch={setSearch}
-        sortBy={sortBy}
-        onSortChange={setSortBy}
-        dateBucket={dateBucket}
-        onDateBucketChange={setDateBucket}
-        agents={agents}
-        selectedAgents={selectedAgents}
-        onAgentsChange={setSelectedAgents}
-        workspace={workspaceFilter}
-        onWorkspaceChange={setWorkspaceFilter}
-        workspaces={workspaces}
-        onClearFilters={clearFilters}
-        onSearchFocusRequest={revealSidebarForSearch}
-        filteredPlans={filteredPlans}
-        selectedPlanId={selectedPlan?.id}
-        onSelectPlan={setSelectedPlan}
-        onRemoveCustomDir={IS_LOCAL_WORKSPACE_SHELL ? handleRemoveCustomDir : undefined}
-        customPlanDirs={IS_LOCAL_WORKSPACE_SHELL ? customPlanDirs : undefined}
-        loading={loading}
-        error={error}
-        width={expandedWidth}
-        onResize={setExpandedWidth}
-        receipts={receipts}
-      />
-
-      <div
-        className="agendex-main-pane"
-        data-tour={TOUR_TARGET.mainPane}
-        style={{
-          gridColumn: '2 / 3',
-          gridRow: '2 / 3',
-          background: 'transparent',
-          viewTransitionName: 'main-content',
-          overflow: 'hidden',
-          minWidth: 0,
-          minHeight: 0,
-        }}
-      >
-        {backendStatus === 'offline' ? (
-          <OfflineView />
-        ) : selectedPlan && comparePlan ? (
-          <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
-            <Suspense fallback={null}>
-              <PlanCompareView
-                basePlan={comparePlan}
-                targetPlan={selectedPlan}
-                onClose={() => setComparePlanId(null)}
-                onSwap={swapCompare}
-                onOpenPlan={setSelectedPlan}
+        <div
+          className="agendex-main-pane"
+          data-tour={TOUR_TARGET.mainPane}
+          style={{
+            gridColumn: '2 / 3',
+            gridRow: '2 / 3',
+            background: 'transparent',
+            viewTransitionName: 'main-content',
+            overflow: 'hidden',
+            minWidth: 0,
+            minHeight: 0,
+          }}
+        >
+          {backendStatus === 'offline' ? (
+            <OfflineView />
+          ) : selectedPlan && comparePlan ? (
+            <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
+              <Suspense fallback={null}>
+                <PlanCompareView
+                  basePlan={comparePlan}
+                  targetPlan={selectedPlan}
+                  onClose={() => setComparePlanId(null)}
+                  onSwap={swapCompare}
+                  onOpenPlan={setSelectedPlan}
+                />
+              </Suspense>
+            </div>
+          ) : selectedPlan ? (
+            <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
+              <LazyPlanViewer
+                plan={selectedPlan}
+                allPlans={plans}
+                onSelectRelatedPlan={setSelectedPlan}
+                onComparePlan={startCompare}
+                outlineHidden={outlineHidden}
+                receipt={selectedReceipt.receipt}
+                receiptLoading={selectedReceipt.loading}
+                headerExtra={
+                  showFilterMismatchBanner ? (
+                    <PlanFilterMismatchBanner
+                      onShowInFilters={clearFilters}
+                      onKeepViewing={() => setDismissedFilterMismatchKey(filterMismatchKey)}
+                    />
+                  ) : undefined
+                }
               />
-            </Suspense>
-          </div>
-        ) : selectedPlan ? (
-          <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
-            <LazyPlanViewer
-              plan={selectedPlan}
-              allPlans={plans}
-              onSelectRelatedPlan={setSelectedPlan}
-              onComparePlan={startCompare}
-              outlineHidden={outlineHidden}
-              receipt={selectedReceipt.receipt}
-              receiptLoading={selectedReceipt.loading}
-              headerExtra={
-                showFilterMismatchBanner ? (
-                  <PlanFilterMismatchBanner
-                    onShowInFilters={clearFilters}
-                    onKeepViewing={() => setDismissedFilterMismatchKey(filterMismatchKey)}
-                  />
-                ) : undefined
-              }
-            />
-          </div>
-        ) : (
-          <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
-            <EmptyStateView
-              onSearch={() => {
-                revealSidebarForSearch();
-                focusPlanSearchField();
-              }}
-              planCount={totalPlans}
-              agents={agents}
-              plans={plans}
-              onSelectPlan={setSelectedPlan}
-              shortcuts={getAppShortcuts()}
-            />
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
+              <EmptyStateView
+                onSearch={() => {
+                  revealSidebarForSearch();
+                  focusPlanSearchField();
+                }}
+                planCount={totalPlans}
+                agents={agents}
+                plans={plans}
+                onSelectPlan={setSelectedPlan}
+                shortcuts={getAppShortcuts()}
+              />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </FilePlanLookupContext.Provider>
   );
 }

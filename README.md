@@ -22,6 +22,7 @@ Agendex is a Bun workspaces monorepo:
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
 - Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, stalled, or unavailable status
+- File provenance: search `file:src/auth.ts` in the dashboard or run `agendex why src/auth.ts` to find plans that mentioned or changed a file; cloud lookup uses synced mentions, and source links show related-plan counts
 - Read-only [MCP server](packages/cli/README.md#use-agendex-from-your-agents-mcp) for coding agents to search local plans and inspect receipts, without a cloud account or daemon
 - Local API with token-based auth
 - Adapter selection, rescanning, and custom plan source directories
@@ -344,6 +345,12 @@ Key endpoints:
   relevance order unless `sort=updatedAt|createdAt|title` is set.
 - `GET /api/v1/plans/:id`
 - `GET /api/v1/plans/:id/raw`
+- `GET /api/v1/file-plans` (`path` required; `workspace` or `allWorkspaces=true`, `limit=1..100`, `offset` optional)
+  returns newest-first plan summaries that mention a file or have attributed commits that changed
+  it. Relative paths resolve from the workspace or server directory; `allWorkspaces=true` searches
+  relative paths across indexed repositories and cannot be combined with `workspace`.
+- `POST /api/v1/file-plan-counts` (up to 20 `paths`; optional `workspace` or `allWorkspaces`)
+  returns `{ counts: [{ path, count, exact }] }` using the same file attribution and workspace rules.
 - `GET /api/v1/plans/:id/receipt` -> `{ receipt }`: commits attributed to the plan, file groups
   (changed, untouched, missing, ambiguous, unplanned, uncommitted), status (`planned`,
   `in-progress`, `landed`, `stalled`, `unavailable`), confidence, and reasons. Computed locally

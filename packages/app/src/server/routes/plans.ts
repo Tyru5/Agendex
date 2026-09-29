@@ -3,6 +3,8 @@ import { dirname } from 'node:path';
 import {
   CURRENT_CONFIG_VERSION,
   getAgentStats,
+  getFilePlanHistory,
+  getFilePlanCounts,
   createPlanAnnotation,
   deletePlanAnnotation,
   detectOpenInApps,
@@ -31,6 +33,94 @@ import { Hono } from 'hono';
 import { launchOpenIn } from '../open-in.ts';
 
 const plans = new Hono();
+
+plans.get('/file-plans', async (c) => {
+  const path = c.req.query('path');
+  if (!path?.trim()) return c.json({ error: 'path is required' }, 400);
+  const workspace = c.req.query('workspace');
+  const allWorkspaces = c.req.query('allWorkspaces');
+  if (allWorkspaces !== undefined && allWorkspaces !== 'true' && allWorkspaces !== 'false') {
+    return c.json({ error: 'allWorkspaces must be true or false' }, 400);
+  }
+  if (allWorkspaces === 'true' && workspace !== undefined) {
+    return c.json({ error: 'Use workspace or allWorkspaces, not both' }, 400);
+  }
+  if (workspace !== undefined) {
+    try {
+      if (!workspace.trim() || !statSync(workspace).isDirectory()) {
+        return c.json({ error: 'workspace must be an existing directory' }, 400);
+      }
+    } catch {
+      return c.json({ error: 'workspace must be an existing directory' }, 400);
+    }
+  }
+  const limit = c.req.query('limit');
+  const offset = c.req.query('offset');
+  // Validate inputs before the service touches git or the plan index.
+  if (path.includes('\0') || path.length > 4096) {
+    return c.json({ error: 'path must be at most 4096 characters and contain no NUL' }, 400);
+  }
+  if (limit !== undefined && (!/^\d+$/.test(limit) || Number(limit) < 1 || Number(limit) > 100)) {
+    return c.json({ error: 'limit must be an integer from 1 to 100' }, 400);
+  }
+  if (offset !== undefined && (!/^\d+$/.test(offset) || !Number.isSafeInteger(Number(offset)))) {
+    return c.json({ error: 'offset must be a non-negative integer' }, 400);
+  }
+  return c.json(
+    await getFilePlanHistory(path, {
+      cwd: workspace,
+      limit: limit === undefined ? undefined : Number(limit),
+      offset: offset === undefined ? undefined : Number(offset),
+      allWorkspaces: allWorkspaces === 'true',
+    }),
+  );
+});
+
+plans.post('/file-plan-counts', async (c) => {
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON' }, 400);
+  }
+  if (!body || typeof body !== 'object') return c.json({ error: 'paths are required' }, 400);
+  const { paths, workspace, allWorkspaces } = body as {
+    paths?: unknown;
+    workspace?: unknown;
+    allWorkspaces?: unknown;
+  };
+  if (
+    !Array.isArray(paths) ||
+    paths.length > 20 ||
+    paths.some(
+      (path) =>
+        typeof path !== 'string' || !path.trim() || path.length > 4096 || path.includes('\0'),
+    )
+  ) {
+    return c.json({ error: 'Provide at most 20 non-empty file paths' }, 400);
+  }
+  if (
+    (workspace !== undefined && typeof workspace !== 'string') ||
+    (allWorkspaces !== undefined && typeof allWorkspaces !== 'boolean') ||
+    (workspace !== undefined && allWorkspaces === true)
+  ) {
+    return c.json({ error: 'Invalid workspace scope' }, 400);
+  }
+  if (typeof workspace === 'string') {
+    try {
+      if (!workspace.trim() || !statSync(workspace).isDirectory())
+        return c.json({ error: 'workspace must be an existing directory' }, 400);
+    } catch {
+      return c.json({ error: 'workspace must be an existing directory' }, 400);
+    }
+  }
+  return c.json({
+    counts: await getFilePlanCounts(paths as string[], {
+      cwd: workspace as string | undefined,
+      allWorkspaces: allWorkspaces === true,
+    }),
+  });
+});
 
 plans.get('/plans', (c) => {
   const agent = c.req.query('agent');

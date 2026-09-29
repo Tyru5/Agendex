@@ -126,6 +126,7 @@ export {
   update,
 } from './services/plan-service.ts';
 export { searchPlans } from './services/plan-search.ts';
+export { getFilePlanHistory, getFilePlanCounts } from './services/file-plan-history.ts';
 export type { PlanFileMatch } from './receipts/service.ts';
 export {
   clearPlanReceiptCache,

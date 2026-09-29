@@ -474,9 +474,21 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
           <SubpageSection id="plan-search" title="Plan search">
             <Body>
               In the local dashboard, type text in the search box to match titles, plan content,
-              file paths, workspaces, and agent names. The entire query is matched as a
-              case-insensitive substring, without special quote syntax. Use agent and workspace
-              filters to narrow the results, and choose a date or name sort in the sort menu.
+              file paths, workspaces, and agent names. Text is matched as a case-insensitive
+              substring. Use agent and workspace filters to narrow the results, and choose a date or
+              name sort in the sort menu.
+            </Body>
+            <Body>
+              Use <InlineCode>file:src/auth.ts</InlineCode> to find plans that mention a file or
+              have attributed commits that changed it. Quote paths with spaces, as in{' '}
+              <InlineCode>file:&quot;src/auth flow.ts&quot;</InlineCode>. Combine file filters with
+              text; multiple file filters must all match. With no workspace selected, relative paths
+              search across indexed repositories. Cloud lookup searches synced plan mentions; it
+              does not infer Git changes. Click a source path's related-plan count to find plans in
+              its workspace. Counts capped at 100 display 100+. Newly synced and edited plans update
+              the index; a notice appears while older synced plans are being indexed or if a plan
+              exceeds the 512-reference indexing limit. Cloud absolute paths require a workspace
+              filter.
             </Body>
             <Body>
               The local search API and MCP <InlineCode>search_plans</InlineCode> tool support

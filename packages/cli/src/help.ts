@@ -121,6 +121,11 @@ const HELP_GROUPS: HelpGroup[] = [
     title: 'Hooks & review',
     commands: [
       {
+        command: 'why <file>',
+        description: 'Find local plans mentioning a file or with attributed changes',
+        examples: ['agendex why src/auth.ts', 'agendex why src/auth.ts --workspace ~/repo --json'],
+      },
+      {
         command: 'capture-plan --agent <agent>',
         description: 'Capture a plan from a hook JSON payload on stdin',
       },

@@ -11,6 +11,7 @@ import {
   setActiveAdapters,
 } from '@agendex/shared';
 import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
+import type { FilePlanHistory } from '@agendex/shared/file-plan-history';
 import { junieAdapter } from '../../../../shared/src/adapters/file-artifact-adapters.ts';
 import { plans } from './plans.ts';
 
@@ -159,6 +160,72 @@ async function postJson(path: string, body: unknown) {
     body: JSON.stringify(body),
   });
 }
+
+describe('GET /file-plans', () => {
+  test('searches all indexed repositories without asking the browser for local directories', async () => {
+    const response = await plans.request('/file-plans?path=src%2Fmain.ts&allWorkspaces=true');
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as FilePlanHistory).total).toBe(3);
+    expect((await plans.request('/file-plans?path=a.ts&allWorkspaces=yes')).status).toBe(400);
+    expect(
+      (
+        await plans.request(
+          `/file-plans?${new URLSearchParams({ path: 'a.ts', workspace, allWorkspaces: 'true' })}`,
+        )
+      ).status,
+    ).toBe(400);
+  });
+  test('finds plans for a source file without returning their content', async () => {
+    const query = new URLSearchParams({ path: 'src/main.ts', workspace });
+    const response = await plans.request(`/file-plans?${query}`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as FilePlanHistory;
+    expect(body.total).toBe(3);
+    expect(body.plans.some((plan) => plan.id === planId && plan.mentioned)).toBe(true);
+    expect(body.plans.every((plan) => plan.receipt !== null && !('content' in plan))).toBe(true);
+  });
+
+  test('absolute paths and pagination preserve the total', async () => {
+    const query = new URLSearchParams({
+      path: join(workspace, 'src/main.ts'),
+      limit: '1',
+      offset: '1',
+    });
+    const response = await plans.request(`/file-plans?${query}`);
+    const body = (await response.json()) as FilePlanHistory;
+    expect(response.status).toBe(200);
+    expect(body.total).toBe(3);
+    expect(body.plans).toHaveLength(1);
+    expect(body.limit).toBe(1);
+    expect(body.offset).toBe(1);
+  });
+
+  test('returns a successful empty result for an unrelated file', async () => {
+    const query = new URLSearchParams({ path: 'src/unrelated.ts', workspace });
+    const response = await plans.request(`/file-plans?${query}`);
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as FilePlanHistory).plans).toEqual([]);
+  });
+
+  test('rejects invalid paths, workspaces and pagination', async () => {
+    for (const query of [
+      new URLSearchParams(),
+      new URLSearchParams({ path: ' ' }),
+      new URLSearchParams({ path: 'a\0.ts' }),
+      new URLSearchParams({ path: 'a'.repeat(4097) }),
+      new URLSearchParams({ path: 'a.ts', workspace: join(workspace, 'absent') }),
+      new URLSearchParams({ path: 'a.ts', workspace: join(workspace, 'src/main.ts') }),
+      ...['0', '101', '1.5', '2foo', ''].map(
+        (limit) => new URLSearchParams({ path: 'a.ts', limit }),
+      ),
+      ...['-1', '1.5', '9007199254740992'].map(
+        (offset) => new URLSearchParams({ path: 'a.ts', offset }),
+      ),
+    ]) {
+      expect((await plans.request(`/file-plans?${query}`)).status).toBe(400);
+    }
+  });
+});
 
 describe('GET /plans?q=', () => {
   async function searchTitles(query: string) {
@@ -349,5 +416,35 @@ describe('plan receipts', () => {
     const subset = await plans.request(`/receipts?ids=${encodeURIComponent(ledgerPlanId)}`);
     const subsetBody = (await subset.json()) as { receipts: Record<string, PlanReceiptSummary> };
     expect(Object.keys(subsetBody.receipts)).toEqual([ledgerPlanId]);
+  });
+});
+
+describe('POST /file-plan-counts', () => {
+  test('batches unique path counts without full plan or receipt payloads', async () => {
+    const response = await postJson('/file-plan-counts', {
+      paths: ['src/main.ts', 'src/main.ts', 'src/missing.ts'],
+      workspace,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      counts: [
+        { path: 'src/main.ts', count: 3, exact: true },
+        { path: 'src/missing.ts', count: 0, exact: true },
+      ],
+    });
+  });
+  test('rejects invalid scopes and oversized batches before lookup', async () => {
+    for (const body of [
+      null,
+      { paths: 'src/main.ts' },
+      { paths: Array(21).fill('src/main.ts') },
+      { paths: [''] },
+      { paths: ['a\0.ts'] },
+      { paths: ['src/main.ts'], workspace: 5 },
+      { paths: ['src/main.ts'], workspace, allWorkspaces: true },
+      { paths: ['src/main.ts'], workspace: '/does-not-exist' },
+    ]) {
+      expect((await postJson('/file-plan-counts', body)).status).toBe(400);
+    }
   });
 });

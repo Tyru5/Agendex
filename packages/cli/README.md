@@ -59,6 +59,8 @@ agendex browse                 # Interactively select, view, save, or open a clo
 agendex browse --agent <name> --format md|html --out <path> [--force]
 agendex mcp                    # Serve local plans + receipts to coding agents over MCP (stdio)
 agendex mcp --workspace <dir>  # Same, scoped to <dir> when the client doesn't start it in the project
+agendex why src/auth.ts        # Find local plans mentioning or changing a file
+agendex why src/auth.ts --workspace /path/to/repo --limit 10 --json
 agendex hooks status           # Inspect installed agent review hooks
 agendex hooks install pi       # Install the pi extension
 agendex hooks uninstall all    # Remove Agendex-managed hooks
@@ -69,6 +71,19 @@ agendex status                 # Show config state, daemon status, uptime & host
 agendex help                   # Show help message
 agendex --version / -v         # Print CLI version
 ```
+
+## Find plans for a file
+
+`agendex why <file>` scans configured local plan sources and returns related plans across agents,
+newest first. Each result distinguishes a plan mention from a change in an attributed commit and
+includes receipt status and confidence. It needs no login, daemon, or running API server.
+Use `--workspace <dir>` to resolve relative paths in another repository, `--limit <1-100>` to bound
+results (default 20), and `--json` for machine-readable output. Quote paths containing spaces.
+
+The dashboard also supports `file:src/auth.ts` and `file:"src/auth flow.ts"`. Combine these
+with text or workspace filters; up to eight file filters require a plan to match every file.
+Click the related-plan count beside a source link to search for that file in its workspace.
+Cloud lookup finds synced text mentions only; commit attribution remains a local repository feature.
 
 ## Use Agendex from your agents (MCP)
 

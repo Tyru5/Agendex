@@ -7,6 +7,7 @@ import { type QueryCtx, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
+import { refreshFilePlanMentions } from './filePlanMentionIndex';
 import { normalizePlanSourcePath, planMatchesSource } from './planSourcePath';
 import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 import {
@@ -64,6 +65,12 @@ export const publishPlan = mutation({
 
     if (existing) {
       if (!planContentChanged(existing, args)) {
+        await ctx.db.patch(existing._id, {
+          workspace: args.workspace,
+          filePath: args.filePath,
+          metadata,
+        });
+        await refreshFilePlanMentions(ctx, existing._id);
         return existing._id;
       }
 
@@ -107,6 +114,7 @@ export const publishPlan = mutation({
         source: 'editor',
         createdAt: now,
       });
+      await refreshFilePlanMentions(ctx, existing._id);
       return existing._id;
     }
 
@@ -143,6 +151,7 @@ export const publishPlan = mutation({
       createdAt: now,
     });
 
+    await refreshFilePlanMentions(ctx, planId);
     return planId;
   },
 });
@@ -379,6 +388,7 @@ export const renamePlan = mutation({
       agentNormalized: canonicalPlanAgent(plan.agent),
       updatedAt: Date.now(),
     });
+    await refreshFilePlanMentions(ctx, args.planId);
     return null;
   },
 });
@@ -459,6 +469,7 @@ export const updatePlanContent = mutation({
       source: 'editor',
       createdAt: now,
     });
+    await refreshFilePlanMentions(ctx, args.planId);
     return null;
   },
 });
@@ -493,7 +504,8 @@ export const deletePlan = mutation({
  * Related-data cleanup fans out several deletes per plan, so keep each
  * transaction well within Convex write limits.
  */
-const DELETE_SOURCE_BATCH_SIZE = 25;
+// At most 512 indexed file mentions accompany each deleted plan.
+const DELETE_SOURCE_BATCH_SIZE = 3;
 
 /**
  * Deletes a bounded batch of the caller's plans synced from one custom source

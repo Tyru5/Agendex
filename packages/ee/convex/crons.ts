@@ -33,4 +33,6 @@ crons.interval(
   internal.subscriptions.expireOverdueInternalTrials,
 );
 
+crons.interval('backfill file plan mentions', { hours: 1 }, internal.filePlanMentions.backfill);
+
 export default crons;

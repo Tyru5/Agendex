@@ -162,3 +162,27 @@ describe('splitBareCodePathText', () => {
     ]);
   });
 });
+
+test('explicit inline code supports filenames with spaces without treating prose as a path', () => {
+  expect(parseCodePath('src/my auth.ts')).toBeNull();
+  expect(parseCodePath('src/my auth.ts', { allowSpaces: true })?.path).toBe('src/my auth.ts');
+  expect(
+    extractCandidateCodePaths('Update `src/my auth.ts` before tests.').map((path) => path.path),
+  ).toEqual(['src/my auth.ts']);
+  expect(parseCodePath('src/unsafe\nname.ts', { allowSpaces: true })).toBeNull();
+});
+
+test('space-aware inline paths never interpret shell commands or URLs as filenames', () => {
+  for (const value of [
+    'bun test src/a.ts',
+    'bunx tsc src/a.ts',
+    'bash scripts/check.ts',
+    'cat src/a.ts',
+    'git diff src/a.ts',
+    'https://example.com/my file.ts',
+    'npm run test',
+    '/foo/*.ts',
+  ]) {
+    expect(parseCodePath(value, { allowSpaces: true })).toBeNull();
+  }
+});

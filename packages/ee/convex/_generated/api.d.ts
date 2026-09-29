@@ -22,6 +22,8 @@ import type * as dataExport from "../dataExport.js";
 import type * as dataExportActions from "../dataExportActions.js";
 import type * as dataExportRedaction from "../dataExportRedaction.js";
 import type * as entitlements from "../entitlements.js";
+import type * as filePlanMentionIndex from "../filePlanMentionIndex.js";
+import type * as filePlanMentions from "../filePlanMentions.js";
 import type * as http from "../http.js";
 import type * as planCleanup from "../planCleanup.js";
 import type * as planDeletion from "../planDeletion.js";
@@ -68,6 +70,8 @@ declare const fullApi: ApiFromModules<{
   dataExportActions: typeof dataExportActions;
   dataExportRedaction: typeof dataExportRedaction;
   entitlements: typeof entitlements;
+  filePlanMentionIndex: typeof filePlanMentionIndex;
+  filePlanMentions: typeof filePlanMentions;
   http: typeof http;
   planCleanup: typeof planCleanup;
   planDeletion: typeof planDeletion;

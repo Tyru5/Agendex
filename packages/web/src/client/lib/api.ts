@@ -1,5 +1,6 @@
 import type { PlanChecklistSummary } from '@agendex/shared/plan-checklist';
 import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
+import type { FilePlanHistory } from '@agendex/shared/file-plan-history';
 
 const BASE = '/api/v1';
 
@@ -308,6 +309,31 @@ export const api = {
 
   getPlanReceiptSummaries: () =>
     request<{ receipts: Record<string, PlanReceiptSummary> }>('/receipts'),
+
+  getFilePlanHistory: (
+    path: string,
+    options: {
+      workspace?: string;
+      allWorkspaces?: boolean;
+      offset?: number;
+      signal?: AbortSignal;
+    } = {},
+  ) => {
+    const query = new URLSearchParams({ path, limit: '100', offset: String(options.offset ?? 0) });
+    if (options.workspace) query.set('workspace', options.workspace);
+    if (options.allWorkspaces) query.set('allWorkspaces', 'true');
+    return request<FilePlanHistory>(`/file-plans?${query}`, { signal: options.signal });
+  },
+
+  getFilePlanCounts: (paths: string[], workspace?: string, signal?: AbortSignal) =>
+    request<{ counts: Array<{ path: string; count: number; exact: boolean }> }>(
+      '/file-plan-counts',
+      {
+        method: 'POST',
+        body: JSON.stringify({ paths, workspace, allWorkspaces: !workspace }),
+        signal,
+      },
+    ),
 
   getOpenInApps: () => request<{ available: boolean; apps: OpenInAppInfo[] }>('/open-in/apps'),
 

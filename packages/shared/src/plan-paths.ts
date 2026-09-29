@@ -150,7 +150,10 @@ function hasCodeExtension(basename: string): boolean {
  * other `#anchor` suffixes are stripped. Returns null when the token is
  * not a plausible code-file path.
  */
-export function parseCodePath(raw: string): ParsedCodePath | null {
+export function parseCodePath(
+  raw: string,
+  options: { allowSpaces?: boolean } = {},
+): ParsedCodePath | null {
   let value = raw.trim();
   if (!value || value.length > 1024) return null;
   if (value.includes('://')) return null;
@@ -180,6 +183,16 @@ export function parseCodePath(raw: string): ParsedCodePath | null {
     [line, lineEnd] = [lineEnd, line];
   }
 
+  // Explicit inline-code paths may contain spaces; shell snippets must remain code.
+  if (
+    options.allowSpaces &&
+    /\s/.test(value) &&
+    /^(?:bunx|bun|bash|sh|zsh|fish|pwsh|powershell|npm|npx|pnpm|yarn|git|node|python(?:3)?|ruby|go|cargo|make|cat|echo|cd|ls|rm|mv|cp|touch|sed|rg|grep|find|chmod|chown|sudo|env|export|curl|wget)\s/.test(
+      value,
+    )
+  )
+    return null;
+
   // Trailing punctuation from prose ("see foo/bar.ts.", "(foo/bar.ts)").
   value = value.replace(/[.,;)\]]+$/, '');
 
@@ -188,7 +201,11 @@ export function parseCodePath(raw: string): ParsedCodePath | null {
   // on Windows and it also gives validation results a stable lookup key.
   value = value.replace(/\\/g, '/');
 
-  if (!value || IMPLAUSIBLE_CHARS.test(value)) return null;
+  if (
+    !value ||
+    (options.allowSpaces ? /[{}*?<>|"`\t\r\n]/.test(value) : IMPLAUSIBLE_CHARS.test(value))
+  )
+    return null;
   if (!hasCodeExtension(basenameOf(value))) return null;
 
   const result: ParsedCodePath = { raw, path: value };
@@ -270,7 +287,7 @@ export function extractCandidateCodePaths(markdown: string): ParsedCodePath[] {
   let lastIndex = 0;
   for (const match of source.matchAll(INLINE_CODE_RE)) {
     const content = match[1] ?? '';
-    push(parseCodePath(content));
+    push(parseCodePath(content, { allowSpaces: true }));
     withoutInline += source.slice(lastIndex, match.index);
     lastIndex = match.index + match[0].length;
   }
