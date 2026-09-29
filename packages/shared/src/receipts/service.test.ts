@@ -169,6 +169,33 @@ describe('getPlanReceipt on a real repository', () => {
     }
   });
 
+  test('missing parent-relative paths keep the plan directory as their base', async () => {
+    const start = Date.now() - DAY;
+    write('packages/a/config.ts');
+    write('packages/a/plans/README.md');
+    write('packages/config.ts');
+    commitAll('initial', start - HOUR);
+    // The intended file disappeared before the plan. Only the wrong same-named
+    // file changes after it, which must not count as work on this plan.
+    unlinkSync(join(repo, 'packages/a/config.ts'));
+    commitAll('remove intended config', start - 1000);
+    write('packages/config.ts', 'wrong file changed\n');
+    commitAll('edit wrong config', start + HOUR);
+    const plan = makePlan('p', 'Update `../config.ts`.', start, join(repo, 'packages/a'));
+    plan.filePath = join(repo, 'packages/a/plans/p.md');
+    const receipt = await getPlanReceipt(plan);
+    expect(receipt.status).toBe('planned');
+    expect(receipt.files.missing).toEqual(['packages/a/config.ts']);
+    expect(receipt.commits).toEqual([]);
+
+    // A later deletion of the intended file should remain attributable too.
+    plan.createdAt = new Date(start - 2000);
+    const earlier = await getPlanReceipt(plan);
+    expect(earlier.status).toBe('landed');
+    expect(earlier.files.changed).toEqual(['packages/a/config.ts']);
+    expect(earlier.commits.map((c) => c.subject)).toEqual(['remove intended config']);
+  });
+
   test('a planned commit merged into main lands the plan', async () => {
     const start = Date.now() - DAY;
     write('src/a.ts');

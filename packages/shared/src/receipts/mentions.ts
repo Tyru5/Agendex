@@ -23,6 +23,10 @@ function repoRelative(realRepoRoot: string, absolute: string): string | null {
   return rel.split(sep).join('/');
 }
 
+function mentionBase(path: string, workspace: string, baseDir: string | undefined): string {
+  return (path.startsWith('./') || path.startsWith('../')) && baseDir ? baseDir : workspace;
+}
+
 function missingMention(
   path: string,
   realRepoRoot: string,
@@ -30,7 +34,7 @@ function missingMention(
   baseDir: string | undefined,
 ): PlanMention | null {
   if (path.startsWith('./') && !baseDir) return null;
-  const from = path.startsWith('./') && baseDir ? baseDir : workspace;
+  const from = mentionBase(path, workspace, baseDir);
   const joined = repoRelative(realRepoRoot, isAbsolute(path) ? path : resolve(from, path));
   if (!joined) return null;
   // Explicit paths retain their location even when absent; never fuzzy-match an escape.
@@ -74,7 +78,10 @@ export async function resolvePlanMentions(
     // Explicit sibling paths may cross the package boundary, but remain confined
     // to this repository. Fuzzy relative mentions keep the narrower workspace.
     if (result?.status === 'missing' && (isAbsolute(path) || path.startsWith('../'))) {
-      result = await resolveCodeFile(resolve(workspace, path), realRepoRoot);
+      result = await resolveCodeFile(
+        resolve(mentionBase(path, workspace, baseDir), path),
+        realRepoRoot,
+      );
     }
     let mention: PlanMention | null = null;
     if (result?.status === 'found') {
