@@ -212,7 +212,14 @@ test('account deletion drains mention rows in restart-safe per-plan batches', as
       phase: 'filePlanMentions',
       batchSize: 1,
     });
-    expect(drained).toEqual({ deleted: 0, nextPhase: null });
+    expect(drained.deleted).toBe(0);
+    expect(drained.nextPhase).not.toBe('filePlanMentions');
+    expect(
+      await ctx.db
+        .query('filePlanMentions')
+        .withIndex('by_plan', (q) => q.eq('planId', id))
+        .take(1),
+    ).toEqual([]);
   });
 });
 
