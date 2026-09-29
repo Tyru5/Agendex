@@ -2,9 +2,13 @@ import { type CSSProperties, useMemo } from 'react';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
 import {
-  buildMorningBrief,
+  type BriefClosedLoop,
   type BriefPlanActivity,
+  type BriefReceipts,
   type BriefWorkspaceRelay,
+  buildMorningBrief,
+  closedLoopEvidenceLabel,
+  morningBriefMarkReadState,
 } from '../lib/morning-brief.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { Skeleton, SkeletonLine } from './Skeleton.tsx';
@@ -130,12 +134,20 @@ function workspaceName(workspace: string | undefined, filePath?: string): string
   return parts.at(-1) || source;
 }
 
-function movementSummary(planCount: number, agentCount: number, workspaceCount: number): string {
-  if (planCount === 0) return 'No plan files changed in this window.';
+function movementSummary(
+  planCount: number,
+  agentCount: number,
+  workspaceCount: number,
+  landedCount: number,
+): string {
+  const landed =
+    landedCount > 0 ? ` ${landedCount} plan${landedCount === 1 ? '' : 's'} landed.` : '';
+  if (planCount === 0) return `No plan files changed in this window.${landed}`;
   const plans = `${planCount} plan${planCount === 1 ? '' : 's'} moved`;
   const agents = `${agentCount} agent${agentCount === 1 ? '' : 's'}`;
-  if (workspaceCount === 0) return `${plans} with ${agents}.`;
-  return `${plans} across ${workspaceCount} workspace${workspaceCount === 1 ? '' : 's'} with ${agents}.`;
+  if (workspaceCount === 0) return `${plans} with ${agents}.${landed}`;
+  const workspaces = `${workspaceCount} workspace${workspaceCount === 1 ? '' : 's'}`;
+  return `${plans} across ${workspaces} with ${agents}.${landed}`;
 }
 
 function BriefLoadingState() {
@@ -357,32 +369,33 @@ function RelayRow({
 }
 
 function ClosedLoopRow({
-  activity,
+  loop,
   until,
   onSelectPlan,
 }: {
-  activity: BriefPlanActivity;
+  loop: BriefClosedLoop;
   until: number;
   onSelectPlan: (plan: Plan) => void;
 }) {
+  const evidence = closedLoopEvidenceLabel(loop);
   return (
     <li>
       <button
         type="button"
         className="morning-brief-closed-row"
-        onClick={() => onSelectPlan(activity.plan)}
-        aria-label={`Open completed plan ${activity.plan.title}`}
+        onClick={() => onSelectPlan(loop.plan)}
+        aria-label={`Open completed plan ${loop.plan.title}. ${evidence}`}
       >
         <span className="morning-brief-closed-check" aria-hidden="true">
           <CheckIcon />
         </span>
-        <span className="morning-brief-closed-agent" title={getAgentLabel(activity.plan.agent)}>
-          <AgentIcon agent={activity.plan.agent} size={15} />
+        <span className="morning-brief-closed-agent" title={getAgentLabel(loop.plan.agent)}>
+          <AgentIcon agent={loop.plan.agent} size={15} />
         </span>
-        <strong>{activity.plan.title}</strong>
-        <span>{activity.checklist.completed} tasks checked</span>
-        <time dateTime={new Date(activity.occurredAt).toISOString()}>
-          {formatRelativeTime(activity.occurredAt, until)}
+        <strong>{loop.plan.title}</strong>
+        <span>{evidence}</span>
+        <time dateTime={new Date(loop.occurredAt).toISOString()}>
+          {formatRelativeTime(loop.occurredAt, until)}
         </time>
         <ArrowIcon />
       </button>
@@ -394,7 +407,11 @@ export interface MorningBriefProps {
   plans: readonly Plan[];
   since: number;
   until: number;
+  /** Local receipt summaries keyed by local plan id; adds landed plans to closed loops. */
+  receipts?: BriefReceipts;
   loading?: boolean;
+  /** The first receipt summaries are still on their way; mark-read waits for them. */
+  receiptsLoading?: boolean;
   error?: string | null;
   markedRead?: boolean;
   onMarkRead: () => void;
@@ -406,15 +423,27 @@ export function MorningBrief({
   plans,
   since,
   until,
+  receipts,
   loading = false,
+  receiptsLoading = false,
   error,
   markedRead = false,
   onMarkRead,
   onSelectPlan,
   onRetry,
 }: MorningBriefProps) {
-  const brief = useMemo(() => buildMorningBrief(plans, since, until), [plans, since, until]);
-  const markReadDisabled = loading || Boolean(error) || markedRead || brief.planCount === 0;
+  const brief = useMemo(
+    () => buildMorningBrief(plans, since, until, receipts),
+    [plans, since, until, receipts],
+  );
+  const caughtUp = brief.planCount === 0 && brief.landedCount === 0;
+  const markRead = morningBriefMarkReadState({
+    loading,
+    error: Boolean(error),
+    markedRead,
+    receiptsLoading,
+    caughtUp,
+  });
 
   return (
     <main className="morning-brief" aria-labelledby="morning-brief-title">
@@ -427,31 +456,30 @@ export function MorningBrief({
             </div>
             <h1 id="morning-brief-title">{timeOfDayTitle(until)}</h1>
             <p className="morning-brief-summary">
-              {movementSummary(brief.planCount, brief.agentCount, brief.workspaceCount)}
+              {movementSummary(
+                brief.planCount,
+                brief.agentCount,
+                brief.workspaceCount,
+                brief.landedCount,
+              )}
             </p>
             <p className="morning-brief-window">Since {formatWindowStart(since, until, true)}</p>
           </div>
           <div className="morning-brief-header-actions">
             <span className="morning-brief-local-note">
-              Computed from local timestamps and task lists.
+              {receipts
+                ? 'Computed from local timestamps, task lists, and git history.'
+                : 'Computed from local timestamps and task lists.'}
             </span>
             <button
               type="button"
               className="morning-brief-mark-read"
               onClick={onMarkRead}
-              disabled={markReadDisabled}
+              disabled={markRead.disabled}
               data-read={markedRead ? 'true' : undefined}
             >
               <CheckIcon />
-              {markedRead
-                ? 'Brief read'
-                : loading
-                  ? 'Building brief'
-                  : error
-                    ? 'Brief unavailable'
-                    : brief.planCount === 0
-                      ? 'Brief is current'
-                      : 'Mark brief read'}
+              {markRead.label}
             </button>
           </div>
         </header>
@@ -470,7 +498,7 @@ export function MorningBrief({
               </button>
             )}
           </section>
-        ) : brief.planCount === 0 ? (
+        ) : caughtUp ? (
           <section className="morning-brief-zero-state">
             <div className="morning-brief-zero-mark" aria-hidden="true">
               <MorningBriefIcon size={30} />
@@ -559,16 +587,20 @@ export function MorningBrief({
               <div className="morning-brief-panel-heading">
                 <div>
                   <h2 id="brief-closed-title">Closed loops</h2>
-                  <p>Plans whose detected task lists are fully checked.</p>
+                  <p>
+                    {receipts
+                      ? 'Plans that landed on the default branch or have every task checked.'
+                      : 'Plans whose detected task lists are fully checked.'}
+                  </p>
                 </div>
                 <span>{brief.closedLoops.length}</span>
               </div>
               {brief.closedLoops.length > 0 ? (
                 <ol className="morning-brief-closed-list">
-                  {brief.closedLoops.map((activity) => (
+                  {brief.closedLoops.map((loop) => (
                     <ClosedLoopRow
-                      key={activity.plan.id}
-                      activity={activity}
+                      key={loop.plan.id}
+                      loop={loop}
                       until={brief.until}
                       onSelectPlan={onSelectPlan}
                     />
@@ -577,7 +609,11 @@ export function MorningBrief({
               ) : (
                 <div className="morning-brief-panel-empty morning-brief-panel-empty--inline">
                   <strong>No closed loops yet</strong>
-                  <span>Fully checked task lists will land here.</span>
+                  <span>
+                    {receipts
+                      ? 'Landed plans and fully checked task lists will show up here.'
+                      : 'Fully checked task lists will land here.'}
+                  </span>
                 </div>
               )}
             </section>

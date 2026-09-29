@@ -127,11 +127,16 @@ const HELP_GROUPS: HelpGroup[] = [
       { command: 'hooks status', description: 'Show Claude Code, Codex, and Pi hook status' },
       {
         command: 'hooks install <agent|all>',
-        description: 'Install hook integration',
+        description: 'Install hook integration (claude-code and codex require --preview)',
         examples: ['agendex hooks install claude-code --preview'],
       },
       { command: 'hooks uninstall <agent|all>', description: 'Remove managed hook entries' },
       { command: 'review-plan --hook --agent <agent>', description: 'Run hook-native plan review' },
+      {
+        command: 'mcp [--workspace <dir>]',
+        description: 'Serve local plans and receipts to coding agents (MCP over stdio)',
+        examples: ['claude mcp add agendex -- agendex mcp'],
+      },
     ],
   },
   {

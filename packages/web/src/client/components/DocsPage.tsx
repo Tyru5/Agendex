@@ -36,6 +36,7 @@ const NAV_GROUPS = [
       ['plan-sources', 'Plan sources'],
       ['custom-directories', 'Custom directories'],
       ['plan-filtering', 'Plan filtering'],
+      ['plan-receipts', 'Plan receipts'],
       ['privacy', 'Privacy model'],
     ],
   },
@@ -51,6 +52,7 @@ const NAV_GROUPS = [
     label: 'Reference',
     items: [
       ['cli-reference', 'CLI reference'],
+      ['mcp-server', 'MCP server'],
       ['agent-hooks', 'Agent hooks'],
       ['self-hosting', 'Self-hosting'],
     ],
@@ -126,6 +128,8 @@ const CATALOG_ADAPTERS =
 const FREE_FEATURES = [
   'Local plan indexing and search',
   'Implemented agent adapters',
+  'Plan receipts from git history',
+  'MCP server for your coding agents',
   'Custom plan source directories',
   'Full source access',
   'No account required',
@@ -135,9 +139,9 @@ const PRO_FEATURES = [
   'Everything in Self-hosted',
   'Agendex Desktop app for macOS (see /download)',
   'Cloud sync from the CLI daemon',
-  'Shareable plan links',
+  'Shareable plan links with optional password and expiry',
   'Comment threads',
-  'Tags, collections, and plan history',
+  'Tags, ordered collections, and plan history',
   'Technology dependency charts',
   'Plannotator integration',
   'New plan indicators',
@@ -198,12 +202,24 @@ const CLI_COMMANDS: ReadonlyArray<
     ],
   ],
   [
+    'Agents',
+    [
+      [
+        'agendex mcp',
+        'Run a read-only MCP server over stdio so coding agents can search plans, list plans for a file, and read receipts. Pass --workspace <dir> to pin the default repository.',
+      ],
+    ],
+  ],
+  [
     'Hooks',
     [
-      ['agendex hooks status', 'Show hook integration status for supported agents.'],
+      [
+        'agendex hooks status',
+        'Show hook integration status for supported agents, including preview-only hooks.',
+      ],
       [
         'agendex hooks install <agent|all>',
-        'Install hook integration for claude-code, codex, or pi.',
+        'Install hook integration for claude-code, codex, or pi. claude-code and codex need --preview until hook-native review ships.',
       ],
       ['agendex hooks uninstall <agent|all>', 'Remove managed Agendex hook entries.'],
     ],
@@ -466,6 +482,28 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </Body>
           </SubpageSection>
 
+          <SubpageSection id="plan-receipts" title="Plan receipts">
+            <Body>
+              When a plan lives in a git repository, Agendex reads the commits that came after it. A
+              commit counts toward a plan when it changes a file the plan mentions and falls inside
+              the plan&rsquo;s window, which runs from when the plan was written until a newer plan
+              covers the same files, or 30 days.
+            </Body>
+            <Body>
+              Landed means an attributed commit reached the default branch. In progress means
+              commits exist but none are on the default branch yet, or mentioned files have
+              uncommitted changes. Stalled means nothing touched the plan&rsquo;s files for 7 days,
+              or a newer plan took over. Planned means the plan is recent and nothing has happened
+              yet.
+            </Body>
+            <Body>
+              Each receipt lists the mentioned files that changed, the ones nobody touched, and
+              changes made outside the plan, with a confidence level. Receipts are computed on your
+              machine from git, with no model calls. Only local branches and the default branch
+              count; other remote branches are ignored.
+            </Body>
+          </SubpageSection>
+
           <SubpageSection id="privacy" title="Privacy model">
             <Body>
               Agendex is local-first. Self-hosted plan data stays on your machine: no account, no
@@ -518,9 +556,9 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </Body>
             <FeatureList
               items={[
-                'Shareable plan links with scoped access',
+                'Scoped share links with optional password and expiry',
                 'Comment threads on plans',
-                'Tags, collections, and plan history',
+                'Tags, ordered collections, and plan history',
                 'Technology dependency charts across your plans',
                 'Plan creation, uploads, and editing from the dashboard',
                 'Up to five workspace members, access from any device',
@@ -591,16 +629,39 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </div>
           </SubpageSection>
 
-          <SubpageSection id="agent-hooks" title="Agent hooks">
+          <SubpageSection id="mcp-server" title="MCP server">
             <Body>
-              Review hooks let supported agents notify Agendex the moment a plan is ready for
-              review. Managed review-hook integrations are currently available for{' '}
-              <InlineCode>claude-code</InlineCode>, <InlineCode>codex</InlineCode>, and{' '}
-              <InlineCode>pi</InlineCode>.
+              <InlineCode>agendex mcp</InlineCode> runs a read-only Model Context Protocol server
+              over stdio. Agents you connect can search the plans every agent on this machine wrote,
+              list the plans that touched a file, and read each plan&rsquo;s receipt, so they check
+              what was already planned before planning again.
             </Body>
             <div className="max-w-[560px]">
               <CodeBlock>
-                {'agendex hooks status\nagendex hooks install all\nagendex hooks uninstall all'}
+                {'claude mcp add agendex -- agendex mcp\ncodex mcp add agendex -- agendex mcp'}
+              </CodeBlock>
+            </div>
+            <Body>
+              Results are scoped to the repository the server starts in. Clients that don&rsquo;t
+              start servers in the project, such as Cursor, pass{' '}
+              <InlineCode>--workspace &lt;dir&gt;</InlineCode>. The tools are{' '}
+              <InlineCode>search_plans</InlineCode>, <InlineCode>get_plan</InlineCode>,{' '}
+              <InlineCode>plans_for_file</InlineCode>, and <InlineCode>recent_plans</InlineCode>.
+            </Body>
+          </SubpageSection>
+
+          <SubpageSection id="agent-hooks" title="Agent hooks">
+            <Body>
+              Review hooks will let supported agents hand a plan to Agendex for review before they
+              run it. Hook-native review isn&rsquo;t implemented yet, so the{' '}
+              <InlineCode>claude-code</InlineCode> and <InlineCode>codex</InlineCode> hooks install
+              only with <InlineCode>--preview</InlineCode>. Until review ships, the Claude Code hook
+              denies ExitPlanMode and the Codex hook fails every time Codex stops. The{' '}
+              <InlineCode>pi</InlineCode> extension installs without it.
+            </Body>
+            <div className="max-w-[560px]">
+              <CodeBlock>
+                {'agendex hooks status\nagendex hooks install pi\nagendex hooks uninstall all'}
               </CodeBlock>
             </div>
             <Body>

@@ -4,7 +4,6 @@ import {
   resolveAdapters,
   scan,
   setActiveAdapters,
-  setOnPlansChanged,
   startWatching,
 } from '@agendex/shared';
 import { Hono } from 'hono';
@@ -13,7 +12,6 @@ import type { UpgradeWebSocket } from 'hono/ws';
 import { AUTH_TOKEN, authMiddleware } from './auth.ts';
 import { plans, setPlanSourcesWatcherCallback } from './routes/plans.ts';
 import { usage } from './routes/usage.ts';
-import { rebuildIndex } from './services/search.ts';
 
 export interface BuildAgendexAppOptions {
   /**
@@ -66,8 +64,6 @@ export function buildAgendexApp(options: BuildAgendexAppOptions): BuiltAgendexAp
       .sort()
       .join('|');
   }
-
-  setOnPlansChanged((plans) => rebuildIndex(plans));
 
   app.use('/api/*', cors());
 

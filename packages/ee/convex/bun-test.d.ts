@@ -20,6 +20,11 @@ declare module 'bun:test' {
     toBeNumber(): void;
     toMatch(expected: unknown): void;
     not: Matcher;
+    rejects: AsyncMatcher;
+  }
+
+  interface AsyncMatcher {
+    toThrow(expected?: unknown): Promise<void>;
   }
 
   export const expect: (actual: unknown) => Matcher;

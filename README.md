@@ -21,6 +21,7 @@ Agendex is a Bun workspaces monorepo:
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
+- Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, or stalled status
 - Local API with token-based auth
 - Adapter selection, rescanning, and custom plan source directories
 - Guided product tour on first visit, replayable from the `?` button in the top bar
@@ -31,7 +32,7 @@ Agendex is a Bun workspaces monorepo:
 - Convex-backed auth and cloud dashboard flows
 - Cloud sync via CLI or daemon, with hash-based skip for unchanged plans, real-time upload queue with retries, and automatic low-value pruning on the cloud side
 - Automatic Git repository, branch, and commit detection during CLI sync/upload, plus Pro-managed branch, commit, and pull-request links in dashboard and shared plan views
-- Shareable plan links, comment threads, tags, collections, and plan history
+- Shareable plan links with optional password and expiry, comment threads, tags, collections with their own reorderable plan order, and plan history
 - Workspace members, daemon status/cleanup, and collaboration features
 - Dashboard plan creation, uploads, and editing
 - Pro Plannotator sync and daemon-mediated request-changes write-back
@@ -203,8 +204,8 @@ bun run cli:open --url https://example.com
 bun run cli:view https://app.agendex.dev/shared/<token>
 bun run cli:logout          # clear stored cloud token
 bun run cli:configure       # select which agents/adapters to index
-bun run cli:hooks -- status            # show Claude Code, Codex, and Pi hook status
-bun run cli:hooks -- install <agent|all>   # install hook integration (claude-code requires --preview)
+bun run cli:hooks -- status            # show Claude Code, Codex, and Pi hook status (flags preview-only hooks)
+bun run cli:hooks -- install <agent|all>   # install hook integration (claude-code and codex require --preview: review is not implemented yet)
 bun run cli:hooks -- uninstall <agent|all> # remove managed Agendex hook entries
 bun run cli:review-plan --hook --agent <agent>  # hook-native plan review entrypoint
 bun run cli -- capture-plan --agent <agent> < hook-payload.json
@@ -218,6 +219,7 @@ bun run cli:download "Add auth" --agent claude-code --format md
 bun run cli:download "Add auth" --force    # overwrite an existing destination file
 bun run cli:browse                            # interactively select, view, save, or open a cloud plan
 bun run cli:browse --agent claude-code
+bun run cli -- mcp                           # serve local plans + receipts to coding agents over MCP (stdio)
 bun run cli:stop            # stop daemon
 bun run cli:cleanup         # interactively remove cloud daemon records
 bun run cli:cleanup --stale
@@ -331,9 +333,21 @@ Server routes are under `/api/v1` and require `Authorization: Bearer <token>`.
 Key endpoints:
 
 - `GET /api/v1/health`
-- `GET /api/v1/plans`
+- `GET /api/v1/plans` (`agent`, `workspace`, `q`, `sort`, `limit`, `offset`). With `q`, a plan
+  matches only when every term (whitespace-separated; `"quoted phrase"` counts as one) appears,
+  case-insensitively, in its title, content, file path, workspace, or agent. Results come back in
+  relevance order unless `sort=updatedAt|createdAt|title` is set.
 - `GET /api/v1/plans/:id`
 - `GET /api/v1/plans/:id/raw`
+- `GET /api/v1/plans/:id/receipt` -> `{ receipt }`: commits attributed to the plan, file groups
+  (changed, untouched, missing, ambiguous, unplanned, uncommitted), status (`planned`,
+  `in-progress`, `landed`, `stalled`, `unavailable`), confidence, and reasons. Computed locally
+  from git history, no LLM. Only commits on local branches, HEAD, and the default branch
+  (`origin/HEAD`, else `main`, `master`, or `trunk`) count; other remote branches are ignored.
+  `404` for unknown or hidden plans.
+- `GET /api/v1/receipts` (`ids=a,b` optional) -> `{ receipts: { [planId]: summary } }` with
+  status, confidence, changed/mentioned file counts, commit count, and landing time for every
+  indexed plan (or just the listed ids).
 - `GET /api/v1/agents`
 - `POST /api/v1/rescan`
 - `GET /api/v1/plan-sources`

@@ -9,7 +9,6 @@ function opencodeSessionDir(): string {
   const dataHome = process.env.XDG_DATA_HOME || join(getHomeDir(), '.local', 'share');
   return join(dataHome, 'opencode', 'storage', 'session');
 }
-const cwdPlansDir = join(process.cwd(), '.sisyphus', 'plans');
 const PLAN_PATH_MARKER = '/.sisyphus/plans/';
 
 interface SessionMeta {
@@ -78,7 +77,9 @@ function parseSessionMeta(raw: string): SessionMeta | undefined {
 }
 
 function discoverPlanDirectories(): string[] {
-  const dirs = new Set<string>([cwdPlansDir]);
+  // Read the working directory per scan: long-lived callers (e.g. `agendex mcp --workspace`)
+  // may change it after this module loads.
+  const dirs = new Set<string>([join(process.cwd(), '.sisyphus', 'plans')]);
   const sessionDir = opencodeSessionDir();
   if (!existsSync(sessionDir)) return Array.from(dirs);
 

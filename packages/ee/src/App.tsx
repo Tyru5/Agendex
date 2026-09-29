@@ -1,9 +1,11 @@
 import {
   AgentAvatarProvider,
   type AgentStats,
+  type BriefReceipts,
   api as localApi,
   EmptyStateView,
   applyPlanFilters,
+  collectionMoveIndex,
   focusPlanSearchField,
   getAppShortcuts,
   hasMorningBriefUpdates,
@@ -18,10 +20,14 @@ import {
   PlanList,
   PlanActionButton,
   PlanSourcesDialog,
+  type PlanReceiptState,
+  type PlanSortBy,
   type PlanState,
   LazyPlanViewer,
   SidebarResizeHandle,
   SkeletonBlock,
+  sortForCollectionFilter,
+  sortPlansByIdOrder,
   resolveMorningBriefSince,
   startViewTransition,
   TOUR_TARGET,
@@ -30,6 +36,8 @@ import {
   useCustomPlanSources,
   usePlanFolders,
   usePlanState,
+  usePlanReceipt,
+  usePlanReceiptSummaries,
   usePlans,
   useProductTour,
   useSidebarWidth,
@@ -169,7 +177,7 @@ const MODE_PREF_KEY = 'agendex_dashboard_mode';
 
 type DashboardMode = 'local' | 'cloud';
 
-const sortOptions = ['updatedAt', 'createdAt', 'title'] as const;
+const sortOptions = ['updatedAt', 'createdAt', 'title', 'collection'] as const;
 const dateOptions = ['all', 'today', '7d', '30d'] as const;
 const workspaceViewOptions = ['brief'] as const;
 
@@ -319,7 +327,7 @@ function useDashboardData(
   mode: DashboardMode,
   selectedAgents: readonly string[],
   workspaceFilter: string | undefined,
-  sortBy: 'updatedAt' | 'createdAt' | 'title',
+  sortBy: PlanSortBy,
   dateBucket: 'all' | 'today' | '7d' | '30d',
   search: string,
   selectedTags: string[],
@@ -330,7 +338,11 @@ function useDashboardData(
 ) {
   const localEnabled = mode === 'local';
   const cloudPlanMetadataEnabled = canUseCloudPlanMetadata(mode, isPro);
-  const filters = useMemo(() => ({ sort: sortBy }), [sortBy]);
+  // Collections are cloud-only, so the local API never sees collection order.
+  const filters = useMemo(
+    () => ({ sort: sortBy === 'collection' ? 'updatedAt' : sortBy }),
+    [sortBy],
+  );
   const localPlans = usePlans(filters, localEnabled);
   const cloudPlans = useCloudPlans();
   const localAgents = useAgents(localEnabled);
@@ -408,6 +420,15 @@ function useDashboardData(
     () => (collectionPlanIds ? new Set(collectionPlanIds) : null),
     [collectionPlanIds],
   );
+  // Collection order applies once the selected collection's order has loaded; until then the
+  // list keeps the default sort.
+  const collectionOrder = useMemo(
+    () =>
+      sortBy === 'collection' && selectedCollectionId && collectionPlanIds
+        ? { collectionId: selectedCollectionId, planIds: collectionPlanIds }
+        : undefined,
+    [collectionPlanIds, selectedCollectionId, sortBy],
+  );
 
   // Cloud list items ship without `content`, so content matching runs
   // server-side; the returned ids union into applyPlanFilters' metadata matches.
@@ -425,7 +446,9 @@ function useDashboardData(
       planTagsById: planTagsMap,
       collectionMemberIds: collectionPlanIdSet ?? undefined,
     });
-    if (mode === 'cloud') {
+    if (collectionOrder) {
+      result = sortPlansByIdOrder(result, collectionOrder.planIds);
+    } else if (mode === 'cloud') {
       result = result.toSorted((a, b) => {
         if (sortBy === 'title') return a.title.localeCompare(b.title);
         const field = sortBy === 'createdAt' ? 'createdAt' : 'updatedAt';
@@ -442,6 +465,7 @@ function useDashboardData(
     dateBucket,
     sortBy,
     collectionPlanIdSet,
+    collectionOrder,
     selectedCollection,
     selectedTags,
     planTagsMap,
@@ -491,6 +515,7 @@ function useDashboardData(
     refresh,
     allTags,
     allCollections,
+    collectionOrder,
     filteredPlans,
     workspaces: workspacesFromPlans(plans),
     planState: mode === 'cloud' ? cloudPlanState : localPlanState,
@@ -877,6 +902,7 @@ function CloudPlanReviewWorkspace({
   onShare,
   onChartWideChange,
   onToggleChart,
+  receipt,
 }: {
   plan: Plan;
   planContext: { mode: DashboardMode; isPro: boolean };
@@ -894,6 +920,7 @@ function CloudPlanReviewWorkspace({
   onShare: () => void;
   onChartWideChange?: (wide: boolean) => void;
   onToggleChart?: () => void;
+  receipt: PlanReceiptState;
 }) {
   const { mode, isPro } = planContext;
   const {
@@ -1023,6 +1050,8 @@ function CloudPlanReviewWorkspace({
             onCreateAnnotation={annotationState.createAnnotation}
             onClearAnnotationCreateError={annotationState.clearCreateError}
             onSelectAnnotation={annotationState.setSelectedAnnotationId}
+            receipt={receipt.receipt}
+            receiptLoading={receipt.loading}
           />
         </div>
 
@@ -1145,6 +1174,7 @@ function useDashboardMain({
   briefUntil,
   briefMarkedRead,
   briefLoading,
+  briefReceiptsLoading,
   briefError,
   uploading,
   creating,
@@ -1183,6 +1213,7 @@ function useDashboardMain({
   selectionFilterNoticeKey,
   onShowSelectedInFilters,
   planViewMode,
+  receipts,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -1194,6 +1225,8 @@ function useDashboardMain({
   briefUntil: number;
   briefMarkedRead: boolean;
   briefLoading: boolean;
+  /** First receipt summaries not answered yet; mark-read waits so landings aren't skipped. */
+  briefReceiptsLoading: boolean;
   briefError: string | null;
   uploading: boolean;
   creating: boolean;
@@ -1234,6 +1267,8 @@ function useDashboardMain({
   selectionFilterNoticeKey?: string;
   onShowSelectedInFilters?: () => void;
   planViewMode: PlanViewMode;
+  /** Local receipt summaries keyed by local plan id, for the brief. */
+  receipts?: BriefReceipts;
 }) {
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -1257,6 +1292,15 @@ function useDashboardMain({
     plan: splitPlan,
     enabled: mode === 'cloud' && isPro && Boolean(splitPlan),
   });
+  // Cloud plans reach local receipts only through the id the local index gave them.
+  const selectedReceipt = usePlanReceipt(
+    selectedPlan,
+    mode === 'local' || Boolean(selectedPlan?.localPlanId),
+  );
+  const splitReceipt = usePlanReceipt(
+    splitPlan,
+    mode === 'local' || Boolean(splitPlan?.localPlanId),
+  );
   const { user } = useAuth();
   const currentUserId = user?.id ? String(user.id) : undefined;
   const canWriteSelectedAnnotations =
@@ -1394,6 +1438,8 @@ function useDashboardMain({
             onCreateAnnotation={selectedAnnotationState.createAnnotation}
             onClearAnnotationCreateError={selectedAnnotationState.clearCreateError}
             onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
+            receipt={selectedReceipt.receipt}
+            receiptLoading={selectedReceipt.loading}
           />
           {isCloudReview && (
             <CloudToolbarOptionStack
@@ -1427,6 +1473,8 @@ function useDashboardMain({
             onCreateAnnotation={splitAnnotationState.createAnnotation}
             onClearAnnotationCreateError={splitAnnotationState.clearCreateError}
             onSelectAnnotation={splitAnnotationState.setSelectedAnnotationId}
+            receipt={splitReceipt.receipt}
+            receiptLoading={splitReceipt.loading}
           />
           {isCloudReview && (
             <CloudToolbarOptionStack
@@ -1467,7 +1515,9 @@ function useDashboardMain({
           plans={allPlans}
           since={briefSince}
           until={briefUntil}
+          receipts={receipts}
           loading={briefLoading}
+          receiptsLoading={briefReceiptsLoading}
           error={briefError}
           markedRead={briefMarkedRead}
           onMarkRead={onMarkBriefRead}
@@ -1586,6 +1636,7 @@ function useDashboardMain({
                 onShare={onShare}
                 onChartWideChange={onChartWideChange}
                 onToggleChart={onToggleChart}
+                receipt={selectedReceipt}
               />
             ) : (
               <LazyPlanViewer
@@ -1610,6 +1661,8 @@ function useDashboardMain({
                 onCreateAnnotation={selectedAnnotationState.createAnnotation}
                 onClearAnnotationCreateError={selectedAnnotationState.clearCreateError}
                 onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
+                receipt={selectedReceipt.receipt}
+                receiptLoading={selectedReceipt.loading}
               />
             )}
             {sharing && isCloudReview && (
@@ -1700,10 +1753,12 @@ function useDashboardSidebar({
   planState,
   onRenamePlan,
   onDeletePlan,
+  onMovePlan,
   onRemoveCustomDir,
   customPlanDirs,
   width,
   onResize,
+  receipts,
 }: {
   sidebarHidden: boolean;
   sidebarVisible: boolean;
@@ -1715,7 +1770,7 @@ function useDashboardSidebar({
   loading: boolean;
   error: string | null | undefined;
   search: string;
-  sortBy: 'updatedAt' | 'createdAt' | 'title';
+  sortBy: PlanSortBy;
   dateBucket: 'all' | 'today' | '7d' | '30d';
   selectedAgents: readonly string[];
   workspace: string | undefined;
@@ -1732,10 +1787,12 @@ function useDashboardSidebar({
   planState: PlanState;
   onRenamePlan?: (planId: string, newTitle: string) => void;
   onDeletePlan?: (planId: string) => void;
+  onMovePlan?: (planId: string, targetPlanId: string) => void;
   onRemoveCustomDir?: (dir: string) => void | Promise<void>;
   customPlanDirs?: readonly string[];
   width?: number;
   onResize?: (width: number) => void;
+  receipts?: BriefReceipts;
 }) {
   const folderState = usePlanFolders();
   const scrollViewportRef = useRef<HTMLDivElement>(null);
@@ -1837,6 +1894,8 @@ function useDashboardSidebar({
             onRemoveCustomDir={onRemoveCustomDir}
             customPlanDirs={customPlanDirs}
             folderState={folderState}
+            onMovePlan={onMovePlan}
+            receipts={receipts}
             emptyState={
               hasActiveFilters
                 ? {
@@ -2033,10 +2092,7 @@ function useDashboard({
     (workspace: string | undefined) => setFilters({ workspace: workspace ?? null }),
     [setFilters],
   );
-  const setSortBy = useCallback(
-    (sort: 'updatedAt' | 'createdAt' | 'title') => setFilters({ sort }),
-    [setFilters],
-  );
+  const setSortBy = useCallback((sort: PlanSortBy) => setFilters({ sort }), [setFilters]);
   const setDateBucket = useCallback(
     (date: 'all' | 'today' | '7d' | '30d') => setFilters({ date }),
     [setFilters],
@@ -2075,7 +2131,11 @@ function useDashboard({
     [setFilters],
   );
   const setSelectedCollection = useCallback(
-    (collection: string | undefined) => setFilters({ collection: collection ?? null }),
+    (collection: string | undefined) =>
+      setFilters(({ sort }) => ({
+        collection: collection ?? null,
+        sort: sortForCollectionFilter(sort, collection),
+      })),
     [setFilters],
   );
   const clearFilters = useCallback(() => {
@@ -2124,6 +2184,7 @@ function useDashboard({
     refresh,
     allTags,
     allCollections,
+    collectionOrder,
     filteredPlans,
     workspaces,
     planState,
@@ -2148,18 +2209,22 @@ function useDashboard({
     cloudPlanState,
   );
 
+  // Local mode always; cloud mode only for synced plans the local API indexed (localPlanId).
+  const receiptsEnabled = mode === 'local' || plans.some((plan) => Boolean(plan.localPlanId));
+  const { receipts, settled: receiptsSettled } = usePlanReceiptSummaries(receiptsEnabled, plans);
   const briefOpen = workspaceView === 'brief';
   const briefHasUpdates = useMemo(
-    () => hasMorningBriefUpdates(plans, resolveMorningBriefSince(briefReadAt)),
-    [briefReadAt, plans],
+    () =>
+      hasMorningBriefUpdates(plans, resolveMorningBriefSince(briefReadAt), Date.now(), receipts),
+    [briefReadAt, plans, receipts],
   );
   const briefShortcutLabel = formatForDisplay('Mod+Shift+B');
 
   useEffect(() => {
-    if (!briefOpen || !hasMorningBriefUpdates(plans, briefUntil)) return;
+    if (!briefOpen || !hasMorningBriefUpdates(plans, briefUntil, Date.now(), receipts)) return;
     setBriefUntil(Date.now());
     setBriefMarkedRead(false);
-  }, [briefOpen, briefUntil, plans]);
+  }, [briefOpen, briefUntil, plans, receipts]);
 
   const plansById = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
 
@@ -2402,11 +2467,14 @@ function useDashboard({
   }, [briefOpen, openBrief, setWorkspaceView]);
 
   const markBriefRead = useCallback(() => {
+    // Marking read before the first receipts answer would persist a boundary past landings
+    // the brief never showed.
+    if (!receiptsSettled) return;
     const readAt = briefUntil;
     localStorage.setItem(BRIEF_LAST_READ_PREF_KEY, String(readAt));
     setBriefReadAt(readAt);
     setBriefMarkedRead(true);
-  }, [briefUntil]);
+  }, [briefUntil, receiptsSettled]);
 
   const planStateReady = mode === 'cloud' ? cloudPlanState.isReady : true;
   useUnseenPlanToasts({
@@ -2556,6 +2624,33 @@ function useDashboard({
   function handleUpload() {
     startViewTransition(() => setActivePanel('uploading'));
   }
+
+  const moveCollectionPlanBase = useMutation(api.collections.moveCollectionPlan);
+  const moveCollectionPlanMutation = useMemo(
+    () =>
+      moveCollectionPlanBase.withOptimisticUpdate((localStore, args) => {
+        const queryArgs = { collectionId: args.collectionId };
+        const planIds = localStore.getQuery(api.collections.getPlansInCollection, queryArgs);
+        if (!planIds) return;
+        const next = planIds.filter((planId) => planId !== args.planId);
+        next.splice(args.toIndex, 0, args.planId);
+        localStore.setQuery(api.collections.getPlansInCollection, queryArgs, next);
+      }),
+    [moveCollectionPlanBase],
+  );
+  const handleMoveCollectionPlan = useCallback(
+    async (planId: string, targetPlanId: string) => {
+      if (!collectionOrder) return;
+      const toIndex = collectionMoveIndex(collectionOrder.planIds, planId, targetPlanId);
+      if (toIndex === null) return;
+      await moveCollectionPlanMutation({
+        collectionId: collectionOrder.collectionId,
+        planId: planId as Id<'plans'>,
+        toIndex,
+      });
+    },
+    [collectionOrder, moveCollectionPlanMutation],
+  );
 
   const renamePlanMutation = useMutation(api.plans.renamePlan);
   const handleRenamePlan = useCallback(
@@ -2843,10 +2938,12 @@ function useDashboard({
         planState={planState}
         onRenamePlan={mode === 'cloud' && isPro ? handleRenamePlan : undefined}
         onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
+        onMovePlan={collectionOrder ? handleMoveCollectionPlan : undefined}
         onRemoveCustomDir={canManageLocalPlanSources ? handleRemoveCustomDir : undefined}
         customPlanDirs={canManageLocalPlanSources ? customPlanDirs : undefined}
         width={expandedWidth}
         onResize={setExpandedWidth}
+        receipts={receipts}
       />
 
       <DashboardMainView
@@ -2860,6 +2957,7 @@ function useDashboard({
         briefUntil={briefUntil}
         briefMarkedRead={briefMarkedRead}
         briefLoading={loading}
+        briefReceiptsLoading={!receiptsSettled}
         briefError={error}
         uploading={uploading}
         creating={creating}
@@ -2904,6 +3002,7 @@ function useDashboard({
         selectionFilterNoticeKey={selectionFilterNoticeKey}
         onShowSelectedInFilters={clearFilters}
         planViewMode={planViewMode}
+        receipts={receipts}
       />
 
       {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}

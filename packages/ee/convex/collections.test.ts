@@ -52,7 +52,7 @@ type TestContext = {
   db: {
     get: (id: string) => Promise<TestDocument | null>;
     delete: (id: string) => Promise<void>;
-    patch: () => Promise<undefined>;
+    patch: (id: string, value: Record<string, unknown>) => Promise<void>;
     insert: (table: string, value: Record<string, unknown>) => Promise<string>;
     query: (table: string) => {
       withIndex: (
@@ -111,7 +111,13 @@ function plan(id: string, ownerId: string): TestDocument {
   };
 }
 
-function junction(id: string, ownerId: string, collectionId: string, planId: string): TestDocument {
+function junction(
+  id: string,
+  ownerId: string,
+  collectionId: string,
+  planId: string,
+  fields: Partial<TestDocument> = {},
+): TestDocument {
   return {
     _id: id,
     _creationTime: 1,
@@ -119,6 +125,7 @@ function junction(id: string, ownerId: string, collectionId: string, planId: str
     collectionId,
     planId,
     createdAt: 1,
+    ...fields,
   };
 }
 
@@ -142,10 +149,18 @@ function createContext({
       deleted.push(id);
       documentsById.delete(id);
     },
-    patch: async () => undefined,
+    patch: async (id: string, value: Record<string, unknown>) => {
+      const row = [...rowsByTable.values()].flat().find((candidate) => candidate._id === id);
+      Object.assign(row ?? documentsById.get(id) ?? {}, value);
+    },
     insert: async (table: string, value: Record<string, unknown>) => {
       const id = `${table}-new`;
       inserted.push({ table, value, id });
+      const ownerId = typeof value.ownerId === 'string' ? value.ownerId : '';
+      rowsByTable.set(table, [
+        ...(rowsByTable.get(table) ?? []),
+        { ...value, _id: id, _creationTime: Date.now(), ownerId },
+      ]);
       return id;
     },
     query: (table: string) => ({
@@ -309,6 +324,7 @@ test('owned collection membership behavior remains unchanged', async () => {
         ownerId: 'user-a',
         collectionId: 'collection-a',
         planId: 'plan-a',
+        position: 0,
         createdAt: expect.any(Number),
       },
     },
@@ -331,4 +347,117 @@ test('owned collection membership behavior remains unchanged', async () => {
   expect(collectionIds).toEqual(['collection-a']);
   expect(planIds).toEqual(['plan-a']);
   expect(populatedCtx.state.deleted).toEqual(['junction-a']);
+});
+
+function planOrder(ctx: TestContext): Promise<string[]> {
+  return handlerOf<{ collectionId: string }, string[]>(collections.getPlansInCollection)(ctx, {
+    collectionId: 'collection-a',
+  });
+}
+
+function addPlan(ctx: TestContext, planId: string): Promise<string> {
+  return handlerOf<{ collectionId: string; planId: string }, string>(
+    collections.addPlanToCollection,
+  )(ctx, { collectionId: 'collection-a', planId });
+}
+
+function movePlan(
+  ctx: TestContext,
+  planId: string,
+  toIndex: number,
+  collectionId = 'collection-a',
+): Promise<null> {
+  return handlerOf<{ collectionId: string; planId: string; toIndex: number }, null>(
+    collections.moveCollectionPlan,
+  )(ctx, { collectionId, planId, toIndex });
+}
+
+test('collection order lists legacy memberships first by creation time and appends new plans', async () => {
+  const ctx = createContext({
+    documents: [
+      collection('collection-a', 'user-a'),
+      plan('positioned', 'user-a'),
+      plan('legacy-newer', 'user-a'),
+      plan('legacy-older', 'user-a'),
+      plan('added', 'user-a'),
+    ],
+    junctions: [
+      junction('junction-positioned', 'user-a', 'collection-a', 'positioned', {
+        _creationTime: 10,
+        position: 0,
+      }),
+      junction('junction-legacy-newer', 'user-a', 'collection-a', 'legacy-newer', {
+        _creationTime: 30,
+      }),
+      junction('junction-legacy-older', 'user-a', 'collection-a', 'legacy-older', {
+        _creationTime: 20,
+      }),
+    ],
+  });
+
+  expect(await planOrder(ctx)).toEqual(['legacy-older', 'legacy-newer', 'positioned']);
+
+  await addPlan(ctx, 'added');
+  expect(ctx.state.inserted[0]?.value.position).toBe(3);
+  expect(await planOrder(ctx)).toEqual(['legacy-older', 'legacy-newer', 'positioned', 'added']);
+
+  expect(await addPlan(ctx, 'legacy-older')).toBe('junction-legacy-older');
+  expect(ctx.state.inserted).toHaveLength(1);
+  expect(await planOrder(ctx)).toEqual(['legacy-older', 'legacy-newer', 'positioned', 'added']);
+});
+
+test('moveCollectionPlan moves within listed plans and rejects out-of-range targets', async () => {
+  const ctx = createContext({
+    documents: [
+      collection('collection-a', 'user-a'),
+      plan('a', 'user-a'),
+      plan('b', 'user-a'),
+      plan('c', 'user-a'),
+    ],
+    junctions: [
+      junction('junction-a', 'user-a', 'collection-a', 'a', { position: 0 }),
+      junction('junction-deleted', 'user-a', 'collection-a', 'deleted-plan', { position: 1 }),
+      junction('junction-b', 'user-a', 'collection-a', 'b', { position: 2 }),
+      junction('junction-c', 'user-a', 'collection-a', 'c', { position: 3 }),
+    ],
+  });
+
+  expect(await planOrder(ctx)).toEqual(['a', 'b', 'c']);
+  await movePlan(ctx, 'c', 0);
+  expect(await planOrder(ctx)).toEqual(['c', 'a', 'b']);
+  await movePlan(ctx, 'c', 2);
+  expect(await planOrder(ctx)).toEqual(['a', 'b', 'c']);
+  await movePlan(ctx, 'a', 1);
+  expect(await planOrder(ctx)).toEqual(['b', 'a', 'c']);
+
+  for (const toIndex of [3, -1, 0.5]) {
+    await expect(movePlan(ctx, 'a', toIndex)).rejects.toThrow('Position out of range');
+  }
+  expect(await planOrder(ctx)).toEqual(['b', 'a', 'c']);
+});
+
+test('moveCollectionPlan requires an owned collection, owned plan, and owned membership', async () => {
+  const ctx = createContext({
+    documents: [
+      collection('collection-a', 'user-a'),
+      collection('collection-b', 'user-b'),
+      plan('member', 'user-a'),
+      plan('outsider', 'user-a'),
+      plan('forged-member', 'user-a'),
+      plan('foreign', 'user-b'),
+    ],
+    junctions: [
+      junction('junction-member', 'user-a', 'collection-a', 'member', { position: 0 }),
+      junction('junction-forged', 'user-b', 'collection-a', 'forged-member', { position: 1 }),
+      junction('junction-foreign', 'user-b', 'collection-b', 'foreign', { position: 0 }),
+    ],
+  });
+
+  await expect(movePlan(ctx, 'member', 0, 'collection-b')).rejects.toThrow('Collection not found');
+  await expect(movePlan(ctx, 'foreign', 0)).rejects.toThrow('Plan not found');
+  await expect(movePlan(ctx, 'outsider', 0)).rejects.toThrow('Plan not in collection');
+  await expect(movePlan(ctx, 'forged-member', 0)).rejects.toThrow('Plan not in collection');
+
+  currentUser = { _id: 'user-b' };
+  await expect(movePlan(ctx, 'member', 0)).rejects.toThrow('Collection not found');
 });

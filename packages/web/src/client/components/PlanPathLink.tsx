@@ -11,8 +11,8 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { parseCodePath, type ParsedCodePath } from '@agendex/shared/plan-paths';
 import type { PathExistsApiResult } from '../lib/api.ts';
-import { parseCodePath, type ParsedCodePath } from '../lib/plan-paths.ts';
 import { planPathTargetKey, type PlanPathRemoteTarget } from '../lib/plan-path-targets.ts';
 import { type PlanPathContextValue, usePlanPathContext } from './PlanPathContext.tsx';
 

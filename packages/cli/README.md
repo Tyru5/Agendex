@@ -57,12 +57,73 @@ agendex download <query>       # Download a cloud plan by id, name, or name + ag
 agendex download <query> --agent <name> --format md|html --out <path> [--force]
 agendex browse                 # Interactively select, view, save, or open a cloud plan
 agendex browse --agent <name> --format md|html --out <path> [--force]
+agendex mcp                    # Serve local plans + receipts to coding agents over MCP (stdio)
+agendex mcp --workspace <dir>  # Same, scoped to <dir> when the client doesn't start it in the project
 agendex cleanup                # Interactively remove cloud daemons
 agendex cleanup --stale        # Auto-remove all stale daemons
 agendex status                 # Show config state, daemon status, uptime & hostname
 agendex help                   # Show help message
 agendex --version / -v         # Print CLI version
 ```
+
+## Use Agendex from your agents (MCP)
+
+`agendex mcp` runs a read-only [Model Context Protocol](https://modelcontextprotocol.io) server over
+stdio, so any coding agent can check what other agents already planned on this machine and whether
+that work landed. It reads the same local index as the dashboard (the adapters from
+`agendex configure`); no login, cloud, or daemon needed.
+
+Tools:
+
+- `search_plans { query, workspace?, agent?, all_workspaces?, limit? }` — ranked plans with a snippet
+  and a receipt summary.
+- `get_plan { id, max_chars? }` — full markdown (first 60,000 characters by default), metadata, and
+  the full receipt: attributed commits, changed / untouched / missing files, and unplanned changes.
+- `plans_for_file { path, workspace?, limit? }` — plans that mention a file or whose commits changed it.
+- `recent_plans { workspace?, agent?, since?, limit? }` — newest plans first; `since` takes an ISO
+  date or `24h`, `7d`, `2w`.
+
+Receipt status is `planned`, `in-progress`, `landed`, `stalled`, or `unavailable`, worked out from
+the plan's git repository without an LLM. Results are scoped to the git repository of the directory
+the server starts in; pass `workspace` to look at another project, `all_workspaces: true` to search
+everything, or start the server with `--workspace <dir>` to pin the default. `limit` defaults to 10
+(max 50). The first tool call waits for the initial scan.
+
+Claude Code:
+
+```bash
+claude mcp add agendex -- agendex mcp
+claude mcp add --scope user agendex -- agendex mcp   # every project
+```
+
+Codex (`~/.codex/config.toml`, or `.codex/config.toml` in a trusted project):
+
+```bash
+codex mcp add agendex -- agendex mcp
+```
+
+```toml
+[mcp_servers.agendex]
+command = "agendex"
+args = ["mcp"]
+```
+
+Cursor (`.cursor/mcp.json` in the project, or `~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "agendex": {
+      "type": "stdio",
+      "command": "agendex",
+      "args": ["mcp", "--workspace", "${workspaceFolder}"]
+    }
+  }
+}
+```
+
+Any other stdio client: run `agendex mcp` as the command (add `--workspace <dir>` if the client
+doesn't start servers in the project directory). Stdout carries only JSON-RPC; logs go to stderr.
 
 ## Dev vs prod (config directory)
 

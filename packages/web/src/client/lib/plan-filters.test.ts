@@ -1,6 +1,13 @@
 import { expect, test } from 'bun:test';
 import type { Plan } from './api.ts';
-import { applyPlanFilters, deriveFilterChips, workspacesFromPlans } from './plan-filters.ts';
+import {
+  applyPlanFilters,
+  collectionMoveIndex,
+  deriveFilterChips,
+  sortForCollectionFilter,
+  sortPlansByIdOrder,
+  workspacesFromPlans,
+} from './plan-filters.ts';
 
 function makePlan(overrides: Partial<Plan>): Plan {
   return {
@@ -173,4 +180,43 @@ test('deriveFilterChips returns only non-default active values with labels', () 
   ]);
 
   expect(deriveFilterChips({ q: '', agents: [], date: 'all', tagIds: [] })).toEqual([]);
+});
+
+test('sortPlansByIdOrder follows the id order and keeps unlisted plans after it in input order', () => {
+  const plans = ['stray-1', 'c', 'a', 'stray-2', 'b'].map((id) => makePlan({ id }));
+
+  expect(sortPlansByIdOrder(plans, ['b', 'missing', 'a', 'c']).map((plan) => plan.id)).toEqual([
+    'b',
+    'a',
+    'c',
+    'stray-1',
+    'stray-2',
+  ]);
+});
+
+test('collectionMoveIndex lands a plan next to its visible neighbour across hidden plans', () => {
+  const order = ['a', 'hidden', 'b', 'c'];
+  const move = (planId: string, targetPlanId: string) => {
+    const toIndex = collectionMoveIndex(order, planId, targetPlanId);
+    if (toIndex === null) return null;
+    const next = order.filter((id) => id !== planId);
+    next.splice(toIndex, 0, planId);
+    return next;
+  };
+
+  // Visible list is a, b, c: moving c up and a down each swap it with its visible neighbour.
+  expect(move('c', 'b')).toEqual(['a', 'hidden', 'c', 'b']);
+  expect(move('a', 'b')).toEqual(['hidden', 'b', 'a', 'c']);
+  expect(move('b', 'a')).toEqual(['b', 'a', 'hidden', 'c']);
+  expect(collectionMoveIndex(order, 'a', 'a')).toBeNull();
+  expect(collectionMoveIndex(order, 'outside', 'a')).toBeNull();
+  expect(collectionMoveIndex(order, 'a', 'outside')).toBeNull();
+});
+
+test('sortForCollectionFilter defaults collection views to collection order without overriding picks', () => {
+  expect(sortForCollectionFilter('updatedAt', 'collection-a')).toBe('collection');
+  expect(sortForCollectionFilter('title', 'collection-a')).toBe('title');
+  expect(sortForCollectionFilter('collection', 'collection-b')).toBe('collection');
+  expect(sortForCollectionFilter('collection', undefined)).toBe('updatedAt');
+  expect(sortForCollectionFilter('createdAt', undefined)).toBe('createdAt');
 });

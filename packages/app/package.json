@@ -25,7 +25,6 @@
     "@tanstack/react-hotkeys": "^0.7.0",
     "@xyflow/react": "^12.10.0",
     "codemirror": "^6.0.2",
-    "fuse.js": "^7.1.0",
     "github-slugger": "^2.0.0",
     "highlight.js": "^11.11.1",
     "hono": "^4.12.34",

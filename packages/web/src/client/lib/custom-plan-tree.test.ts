@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { Plan } from './api.ts';
-import { buildCustomDirTree } from './custom-plan-tree.ts';
+import { buildCustomDirTree, splitCustomDirPlans } from './custom-plan-tree.ts';
 
 const nestedPlan: Plan = {
   id: 'plan-1',
@@ -61,4 +61,17 @@ test('Given equivalent separator styles When building source roots Then the sour
       children: [],
     },
   ]);
+});
+
+test('Given an ordered list When splitting by source Then custom-source plans keep their place in it', () => {
+  const regular = (id: string): Plan => ({ ...nestedPlan, id, agent: 'claude', metadata: {} });
+  const plans = [regular('a'), { ...nestedPlan, id: 'custom-b' }, regular('c')];
+
+  const grouped = splitCustomDirPlans(plans);
+  expect(grouped.customDirPlans.map((plan) => plan.id)).toEqual(['custom-b']);
+  expect(grouped.nonCustomPlans.map((plan) => plan.id)).toEqual(['a', 'c']);
+
+  const ordered = splitCustomDirPlans(plans, { ordered: true });
+  expect(ordered.customDirPlans).toEqual([]);
+  expect(ordered.nonCustomPlans.map((plan) => plan.id)).toEqual(['a', 'custom-b', 'c']);
 });

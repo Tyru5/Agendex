@@ -1,6 +1,6 @@
 import { extractPlanGitContext, forgeKind, sourceFileUrl } from '@agendex/shared/git-forge';
+import type { ParsedCodePath } from '@agendex/shared/plan-paths';
 import type { Plan } from './api.ts';
-import type { ParsedCodePath } from './plan-paths.ts';
 
 export interface PlanPathRemoteTarget {
   url: string;

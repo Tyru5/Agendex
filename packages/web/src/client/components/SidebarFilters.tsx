@@ -6,19 +6,19 @@ import {
   deriveFilterChips,
   type PlanDateBucket,
   type PlanFilterChip,
+  type PlanSortBy,
 } from '../lib/plan-filters.ts';
 import { AgentFilter } from './AgentFilter.tsx';
 import { PlanSearchField } from './PlanSearchField.tsx';
 
-export type SidebarSortBy = 'updatedAt' | 'createdAt' | 'title';
-
 type TagOption = { _id: string; name: string; color?: string };
 type CollectionOption = { _id: string; name: string };
 
-const SORT_OPTIONS: Array<{ value: SidebarSortBy; label: string; chip: string }> = [
+const SORT_OPTIONS: Array<{ value: PlanSortBy; label: string; chip: string }> = [
   { value: 'updatedAt', label: 'Last modified', chip: 'Modified' },
   { value: 'createdAt', label: 'Date created', chip: 'Created' },
   { value: 'title', label: 'Title', chip: 'Title' },
+  { value: 'collection', label: 'Collection order', chip: 'Collection order' },
 ];
 
 const DATE_OPTIONS: Array<{ value: PlanDateBucket; label: string }> = [
@@ -33,15 +33,15 @@ type ActiveChip =
   | {
       key: 'sort';
       kind: 'sort';
-      value: SidebarSortBy;
+      value: PlanSortBy;
       label: string;
     };
 
 export type SidebarFiltersProps = {
   search: string;
   onSearch: (value: string) => void;
-  sortBy: SidebarSortBy;
-  onSortChange: (sort: SidebarSortBy) => void;
+  sortBy: PlanSortBy;
+  onSortChange: (sort: PlanSortBy) => void;
   dateBucket: PlanDateBucket;
   onDateBucketChange: (bucket: PlanDateBucket) => void;
   agents: AgentStats[];
@@ -108,7 +108,8 @@ export function SidebarFilters({
       },
       labelMaps,
     );
-    if (sortBy !== 'updatedAt') {
+    // Collection order is the collection view's default, so it needs no chip of its own.
+    if (sortBy !== 'updatedAt' && sortBy !== 'collection') {
       chips.push({
         key: 'sort',
         kind: 'sort',
@@ -250,10 +251,12 @@ export function SidebarFilters({
           </div>
           <SidebarSelect
             value={sortBy}
-            onChange={(event) => onSortChange(event.target.value as SidebarSortBy)}
+            onChange={(event) => onSortChange(event.target.value as PlanSortBy)}
             aria-label="Sort plans"
           >
-            {SORT_OPTIONS.map((option) => (
+            {SORT_OPTIONS.filter(
+              (option) => option.value !== 'collection' || selectedCollection,
+            ).map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

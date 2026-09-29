@@ -24,6 +24,7 @@ import { renderHelp } from './help.ts';
 import { requestWorkerShutdown, runWorker, startSupervisor } from './daemon.ts';
 import { runHookReviewCommand, runHooksCommand } from './hooks.ts';
 import { writeStderr, writeStdout } from './stdio.ts';
+import { runMcpServer } from './mcp.ts';
 import {
   acquireDaemonStartLock,
   isAgendexDaemonProcess,
@@ -94,6 +95,7 @@ async function main(): Promise<number> {
     'upload',
     'download',
     'browse',
+    'mcp',
     'upgrade',
     'help',
     '--help',
@@ -428,6 +430,10 @@ async function main(): Promise<number> {
 
     case 'upgrade': {
       return runUpgrade({ force: args.includes('--force') });
+    }
+
+    case 'mcp': {
+      return runMcpServer(args);
     }
 
     default: {
@@ -783,7 +789,8 @@ const exitCode = await main().catch((err) => {
 
 await Promise.all([flushStream(process.stdout), flushStream(process.stderr)]);
 
-if (exitCode !== 0) {
+// `mcp` leaves abandoned watcher handles open by design; exit explicitly once it's done.
+if (exitCode !== 0 || command === 'mcp') {
   process.exit(exitCode);
 }
 
