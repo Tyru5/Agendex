@@ -18,6 +18,7 @@ import {
   useCustomPlanSources,
   useLocalProductTourState,
   usePlanReceipt,
+  usePlanSessionCost,
   usePlanReceiptSummaries,
   usePlans,
   useProductTour,
@@ -210,6 +211,7 @@ export function Dashboard() {
     return plansById.get(selectedPlanId);
   }, [plansById, selectedPlanId]);
   const selectedReceipt = usePlanReceipt(selectedPlan);
+  const selectedSessionCost = usePlanSessionCost(selectedPlan);
   const comparePlan = useMemo(() => {
     if (!comparePlanId) return undefined;
     return plansById.get(comparePlanId);
@@ -481,6 +483,8 @@ export function Dashboard() {
               outlineHidden={outlineHidden}
               receipt={selectedReceipt.receipt}
               receiptLoading={selectedReceipt.loading}
+              sessionCost={selectedSessionCost.sessionCost}
+              sessionCostLoading={selectedSessionCost.loading}
               headerExtra={
                 showFilterMismatchBanner ? (
                   <PlanFilterMismatchBanner

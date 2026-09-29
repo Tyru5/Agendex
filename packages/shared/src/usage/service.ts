@@ -353,6 +353,8 @@ function aggregate(
 export interface GetUsageSummaryOptions {
   /** Rolling window size in days. Defaults to 30. */
   days?: number;
+  /** Restrict records before aggregation, for verified session attribution. */
+  session?: { agent: UsageAgent; sessionId: string; sessionAliases?: readonly string[] };
   /** Override the source list (tests). */
   sources?: UsageSource[];
   /** Override the scan-cache directory (tests). */
@@ -388,7 +390,9 @@ export async function getUsageSummaries(
     readScanCache(cachePath),
   ]);
 
-  const sources = options.sources ?? usageSources();
+  const sources = (options.sources ?? usageSources()).filter(
+    (source) => !options.session || source.agent === options.session.agent,
+  );
   const sourceStatuses: UsageSourceStatus[] = [];
   // Only files touched this scan — merged with the on-disk cache on write so
   // overlapping day-window requests do not discard each other's entries.
@@ -495,6 +499,14 @@ export async function getUsageSummaries(
     const windowRecords: UsageRecord[] = [];
     for (const record of records) {
       if (record.timestampMs < windowSinceMs) continue;
+      if (
+        options.session &&
+        (record.agent !== options.session.agent ||
+          ![options.session.sessionId, ...(options.session.sessionAliases ?? [])].includes(
+            record.sessionId,
+          ))
+      )
+        continue;
       if (record.dedupeKey !== null) {
         if (seenDedupeKeys.has(record.dedupeKey)) continue;
         seenDedupeKeys.add(record.dedupeKey);

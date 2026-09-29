@@ -351,3 +351,16 @@ describe('plan receipts', () => {
     expect(Object.keys(subsetBody.receipts)).toEqual([ledgerPlanId]);
   });
 });
+
+describe('session cost route', () => {
+  test('returns explicit unavailable for unsupported agents without scanning usage', async () => {
+    const res = await plans.request(`/plans/${planId}/session-cost`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      sessionCost: { status: 'unavailable', reason: 'unsupported-agent', costUsd: null },
+    });
+  });
+  test('unknown plans cannot nominate an arbitrary session', async () => {
+    expect((await plans.request('/plans/nope/session-cost')).status).toBe(404);
+  });
+});

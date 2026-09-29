@@ -1,3 +1,4 @@
+import type { PlanSessionCost } from '@agendex/shared/session-cost';
 import {
   type CSSProperties,
   type FormEvent,
@@ -46,6 +47,7 @@ import { PlanActionButton } from './PlanActionButton.tsx';
 import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
 import { PlanPathContext } from './PlanPathContext.tsx';
+import { PlanSessionCostSection } from './PlanSessionCostSection.tsx';
 import { PlanReceiptSection } from './PlanReceiptSection.tsx';
 
 export { PlanActionButton } from './PlanActionButton.tsx';
@@ -281,6 +283,8 @@ type PlanViewerProps = {
   /** What happened in git after the plan was written; from `usePlanReceipt`. */
   receipt?: PlanReceipt | null;
   receiptLoading?: boolean;
+  sessionCost?: PlanSessionCost | null;
+  sessionCostLoading?: boolean;
 };
 
 export function PlanViewer({
@@ -308,6 +312,8 @@ export function PlanViewer({
   onSelectAnnotation,
   receipt,
   receiptLoading,
+  sessionCost,
+  sessionCostLoading,
 }: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null);
@@ -914,6 +920,11 @@ export function PlanViewer({
               />
             )}
 
+            <PlanSessionCostSection
+              key={`session-cost:${plan.id}`}
+              sessionCost={sessionCost}
+              loading={sessionCostLoading}
+            />
             <PlanReceiptSection
               key={plan.id}
               receipt={receipt}

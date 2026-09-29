@@ -1,3 +1,4 @@
+import type { PlanSessionCost } from '@agendex/shared/session-cost';
 import type { PlanChecklistSummary } from '@agendex/shared/plan-checklist';
 import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
 
@@ -302,6 +303,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ paths, sourceFilePath }),
     }),
+
+  getPlanSessionCost: (id: string) =>
+    request<{ sessionCost: PlanSessionCost }>(`/plans/${encodeURIComponent(id)}/session-cost`),
 
   getPlanReceipt: (id: string) =>
     request<{ receipt: PlanReceipt }>(`/plans/${encodeURIComponent(id)}/receipt`),

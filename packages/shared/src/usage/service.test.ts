@@ -275,3 +275,29 @@ test('getUsageSummary reports missing source directories without failing', async
     expect(summary.sources[0]?.status).toBe('missing');
   });
 });
+
+// A busy user can have many sessions; filtering must happen before aggregation/event caps.
+test('session filtering isolates matching native ID and documented transcript aliases', async () => {
+  await withTempDirs(async ({ source, cache }) => {
+    const timestamp = new Date().toISOString();
+    await writeFile(
+      join(source, 'sessions.jsonl'),
+      [
+        ...Array.from({ length: 405 }, (_, i) =>
+          claudeRow({ messageId: `m-${i}`, requestId: `r-${i}`, timestamp, sessionId: 'wanted' }),
+        ),
+        claudeRow({ messageId: 'other', requestId: 'other', timestamp, sessionId: 'unrelated' }),
+        claudeRow({ messageId: 'alias', requestId: 'alias', timestamp, sessionId: 'alias' }),
+      ].join('\n'),
+    );
+    const summary = await getUsageSummary({
+      days: 90,
+      session: { agent: 'claude-code', sessionId: 'wanted', sessionAliases: ['alias'] },
+      cacheDir: cache,
+      sources: [{ agent: 'claude-code', dir: source }],
+    });
+    expect(summary.records).toBe(406);
+    expect(summary.totalTokens).toBe(406 * 150);
+    expect(summary.events).toHaveLength(400);
+  });
+});

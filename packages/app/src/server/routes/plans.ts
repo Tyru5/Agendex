@@ -9,6 +9,7 @@ import {
   getIndexableById,
   getIndexablePlans,
   getPlanReceipt,
+  getPlanSessionCost,
   getPlanReceipts,
   isWithinWorkspace,
   listPlanAnnotations,
@@ -70,6 +71,12 @@ plans.get('/plans/:id/raw', (c) => {
   const plan = getIndexableById(c.req.param('id'));
   if (!plan) return c.json({ error: 'not found' }, 404);
   return c.text(plan.content);
+});
+
+plans.get('/plans/:id/session-cost', async (c) => {
+  const plan = getIndexableById(c.req.param('id'));
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  return c.json({ sessionCost: await getPlanSessionCost(plan, getIndexablePlans()) });
 });
 
 plans.get('/plans/:id/receipt', async (c) => {

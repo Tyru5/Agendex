@@ -38,6 +38,7 @@ const NAV_GROUPS = [
       ['plan-search', 'Plan search'],
       ['plan-filtering', 'Plan filtering'],
       ['plan-receipts', 'Plan receipts'],
+      ['session-cost', 'Session cost'],
       ['privacy', 'Privacy model'],
     ],
   },
@@ -529,6 +530,29 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               confidence reasons. In Cloud views, receipts require a matching locally indexed plan
               and a reachable, authenticated local Agendex API. Cloud sync alone does not compute
               git receipts on the server.
+            </Body>
+          </SubpageSection>
+
+          <SubpageSection id="session-cost" title="Session cost">
+            <Body>
+              Expand <InlineCode>Session cost</InlineCode> in a plan to see observed usage for its
+              whole session in the last 90 days. USD amounts are API-equivalent estimates, using
+              provider-reported cost when available. They are not subscription charges or invoices.
+              Every plan from the same session can show the same amount; do not add those amounts.
+            </Body>
+            <Body>
+              Usage is available for Claude Code, Codex CLI, and Grok when the plan has a verified
+              native session ID. Agendex never guesses a session from its workspace, title, or time.
+              Claude Code plans need an explicit <InlineCode>sessionId</InlineCode> in their
+              frontmatter; IDs guessed from filenames are insufficient. Reindex existing Claude
+              plans after adding that metadata. Other agents show unavailable usage.
+            </Body>
+            <Body>
+              Local mode reads native transcripts through the authenticated local API. Cloud mode
+              reads only the plan owner&rsquo;s synced usage events, and only the owner can see
+              session cost. Truncated sync snapshots cannot safely identify full session spend and
+              show unavailable. Unknown model prices remain unknown; partial amounts exclude those
+              records. Missing or older records outside the 90-day window are not included.
             </Body>
           </SubpageSection>
 

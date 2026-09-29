@@ -193,3 +193,5 @@ export type {
   PlannotatorWritebackPayload,
 } from './types.ts';
 export { ProFeature } from './types.ts';
+
+export { getPlanSessionCost } from './services/plan-session-cost.ts';

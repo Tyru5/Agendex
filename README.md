@@ -21,6 +21,7 @@ Agendex is a Bun workspaces monorepo:
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
+- Session cost: observed USD API-equivalent usage estimates for verified Claude Code, Codex CLI, and Grok sessions, with shared-session and unknown-price disclosures
 - Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, stalled, or unavailable status
 - Read-only [MCP server](packages/cli/README.md#use-agendex-from-your-agents-mcp) for coding agents to search local plans and inspect receipts, without a cloud account or daemon
 - Local API with token-based auth
@@ -46,7 +47,7 @@ CLI daemon is already running. The worker uses the encrypted desktop session, re
 separate CLI login, and stops with the Electron application. Existing CLI daemons remain
 independently owned and are never stopped by desktop logout or shutdown.
 
-For usage instructions, see the in-app **Docs** entries for **Plan search**, **Plan receipts**,
+For usage instructions, see the in-app **Docs** entries for **Plan search**, **Plan receipts**, **Session cost**,
 **Activity brief**, **Sharing & collaboration**, and **MCP server**.
 
 ## Adapter Status
@@ -344,6 +345,12 @@ Key endpoints:
   relevance order unless `sort=updatedAt|createdAt|title` is set.
 - `GET /api/v1/plans/:id`
 - `GET /api/v1/plans/:id/raw`
+- `GET /api/v1/plans/:id/session-cost` -> `{ sessionCost }`: observed session usage for the last
+  90 days, joined only by a verified native session ID. `status: unavailable` explains missing,
+  conflicting, or unverified identity and missing usage. `costUsd` is `null` when every record has
+  unknown pricing; `pricing: partial` means the amount excludes unpriced records. This whole-session
+  USD API-equivalent estimate is not individual plan spend or an invoice. Multiple plans may show
+  the same session amount; never add those amounts together.
 - `GET /api/v1/plans/:id/receipt` -> `{ receipt }`: commits attributed to the plan, file groups
   (changed, untouched, missing, ambiguous, unplanned, uncommitted), status (`planned`,
   `in-progress`, `landed`, `stalled`, `unavailable`), confidence, and reasons. Computed locally
