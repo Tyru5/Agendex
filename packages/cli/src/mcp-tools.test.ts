@@ -247,6 +247,17 @@ describe('search_plans', () => {
 });
 
 describe('get_plan', () => {
+  test('requires an explicit scope override to read a plan in another repository', async () => {
+    const { handlers } = harness(scopedPlans);
+    expect(errorText(await handlers.get_plan({ id: 'other' }))).toContain('No plan');
+    expect(errorText(await handlers.get_plan({ id: 'scratch' }))).toContain('No plan');
+    expect(data(await handlers.get_plan({ id: 'other', workspace: '/work/other' })).id).toBe(
+      'other',
+    );
+    expect(data(await handlers.get_plan({ id: 'other', all_workspaces: true })).id).toBe('other');
+    expect(data(await handlers.get_plan({ id: 'app-artifact' })).id).toBe('app-artifact');
+  });
+
   const plan = makePlan('big', {
     content: 'x'.repeat(70_000),
     metadata: { sessionId: 'session-1' },

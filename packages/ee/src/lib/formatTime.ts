@@ -18,7 +18,7 @@ export function formatShareLinkExpiry(expiresAt: number | undefined, now: number
   const diff = expiresAt - now;
   if (diff <= 0) return 'Expired';
   const hours = Math.ceil(diff / 3_600_000);
-  if (hours < 24) return hours === 1 ? 'Expires in 1 hour' : `Expires in ${hours} hours`;
+  if (diff < 86_400_000) return hours === 1 ? 'Expires in 1 hour' : `Expires in ${hours} hours`;
   const days = Math.floor(diff / 86_400_000);
   return days === 1 ? 'Expires in 1 day' : `Expires in ${days} days`;
 }

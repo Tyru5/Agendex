@@ -177,7 +177,8 @@ export async function readRepoHistory(
       'core.quotePath=false',
       'log',
       '-z',
-      '--no-merges',
+      // Combined diffs include merge-only edits without counting ordinary merges twice.
+      '--diff-merges=combined',
       '--no-renames',
       '--name-only',
       since,

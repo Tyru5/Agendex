@@ -77,7 +77,7 @@ Tools:
 
 - `search_plans { query, workspace?, agent?, all_workspaces?, limit? }` — ranked plans with a snippet
   and a receipt summary.
-- `get_plan { id, max_chars? }` — full markdown (first 60,000 characters by default), metadata, and
+- `get_plan { id, workspace?, all_workspaces?, max_chars? }` — full markdown (first 60,000 characters by default), metadata, and
   the full receipt: attributed commits, changed / untouched / missing files, and unplanned changes.
 - `plans_for_file { path, workspace?, limit? }` — plans that mention a file or whose commits changed it.
 - `recent_plans { workspace?, agent?, since?, limit? }` — newest plans first; `since` takes an ISO

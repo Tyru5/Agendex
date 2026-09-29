@@ -41,6 +41,7 @@ import {
   searchPlansInput,
 } from './mcp-tools.ts';
 import { CLI_VERSION } from './version.ts';
+import { createRetryableReadiness } from './mcp-readiness.ts';
 
 /** Repo roots rarely change; re-resolve occasionally so new clones are picked up. */
 const PATH_CACHE_TTL_MS = 60_000;
@@ -70,7 +71,7 @@ function cachedByPath<T>(compute: (path: string) => T): (path: string) => T {
   };
 }
 
-function createIndexProviders(ready: Promise<void>, cwd: string): McpToolProviders {
+function createIndexProviders(ready: () => Promise<void>, cwd: string): McpToolProviders {
   const canonicalDir = cachedByPath((dir) => {
     const absolute = resolve(dir);
     try {
@@ -92,11 +93,11 @@ function createIndexProviders(ready: Promise<void>, cwd: string): McpToolProvide
     cwd,
     now: Date.now,
     plans: async () => {
-      await ready;
+      await ready();
       return getIndexablePlans();
     },
     planById: async (id) => {
-      await ready;
+      await ready();
       return getIndexableById(id);
     },
     search: searchPlans,
@@ -153,7 +154,8 @@ export async function runMcpServer(args: string[]): Promise<number> {
     id.unref();
     stopTimers.push(() => clearInterval(id));
   };
-  const ready = scan().then(() => {
+  const ready = createRetryableReadiness(async () => {
+    await scan();
     startWatching();
     // Same safety net as the daemon: pick up plan directories created after
     // launch and sources the watcher doesn't cover (e.g. the hook spool).
@@ -171,9 +173,9 @@ export async function runMcpServer(args: string[]): Promise<number> {
       },
     );
   });
-  // Observe startup errors immediately, while keeping readiness rejected so tool
-  // calls report the failure instead of serving an incomplete or stale index.
-  void ready.catch((err: unknown) => {
+  // Report this attempt's failure. A later tool call retries initialization rather
+  // than serving an incomplete index or retaining a permanently rejected promise.
+  void ready().catch((err: unknown) => {
     console.error(
       `[agendex] initial scan failed: ${err instanceof Error ? err.message : String(err)}`,
     );

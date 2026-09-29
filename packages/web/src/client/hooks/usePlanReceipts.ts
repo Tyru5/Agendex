@@ -85,10 +85,12 @@ export interface PlanReceiptSummariesState {
   /** Keyed by local plan id (see `receiptSummaryForPlan`); undefined until the first answer. */
   receipts: Record<string, PlanReceiptSummary> | undefined;
   /**
-   * False while enabled until the first successful answer. Failed requests retry on
+   * False while enabled until the first answer or failure. Failed requests retry on
    * refresh; disabled receipts and a missing local token count as settled.
    */
   settled: boolean;
+  /** The latest attempt failed; do not persist a read boundary over unseen receipts. */
+  failed: boolean;
 }
 
 /**
@@ -103,7 +105,8 @@ export function usePlanReceiptSummaries(
   const [state, setState] = useState<{
     receipts: Record<string, PlanReceiptSummary> | undefined;
     answered: boolean;
-  }>({ receipts: undefined, answered: false });
+    failed: boolean;
+  }>({ receipts: undefined, answered: false, failed: false });
   // Changes when any plan is added, removed, or rewritten.
   const plansKey = useMemo(() => {
     let latest = '';
@@ -115,7 +118,9 @@ export function usePlanReceiptSummaries(
     if (!active) {
       // Re-enabling starts unsettled again instead of trusting an older answer.
       setState((prev) =>
-        prev.answered || prev.receipts ? { receipts: undefined, answered: false } : prev,
+        prev.answered || prev.receipts
+          ? { receipts: undefined, answered: false, failed: false }
+          : prev,
       );
       return;
     }
@@ -127,11 +132,14 @@ export function usePlanReceiptSummaries(
         .getPlanReceiptSummaries()
         .then((body) => {
           if (cancelled || id !== requestId) return;
-          setState({ receipts: body.receipts, answered: true });
+          setState({ receipts: body.receipts, answered: true, failed: false });
         })
-        // Preserve the last successful answer. A first failure must not allow the
-        // brief's read boundary to advance past landings that were never shown.
-        .catch(() => {});
+        .catch(() => {
+          if (cancelled || id !== requestId) return;
+          // Settle the loading UI and keep any last answer. The caller can acknowledge
+          // visible activity without persisting a boundary over unseen landings.
+          setState((prev) => ({ ...prev, answered: true, failed: true }));
+        });
     });
     return () => {
       cancelled = true;
@@ -140,6 +148,6 @@ export function usePlanReceiptSummaries(
   }, [active, plansKey]);
 
   return active
-    ? { receipts: state.receipts, settled: state.answered }
-    : { receipts: undefined, settled: true };
+    ? { receipts: state.receipts, settled: state.answered, failed: state.failed }
+    : { receipts: undefined, settled: true, failed: false };
 }

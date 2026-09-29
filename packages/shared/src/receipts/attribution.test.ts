@@ -191,7 +191,7 @@ describe('attributeRepoReceipts windows', () => {
     expect(receipt?.commits.map((c) => c.sha)).toEqual(['same']);
   });
 
-  test('the superseding second belongs only to the newer plan', () => {
+  test('the imprecise superseding second can be shared by both plans', () => {
     const second = NOW - DAY;
     const receipts = receiptsFor(
       [
@@ -200,9 +200,33 @@ describe('attributeRepoReceipts windows', () => {
       ],
       [commit('same', second, ['src/a.ts']), commit('before', second - 1000, ['src/a.ts'])],
     );
-    expect(receipts.get('old')?.commits.map((c) => c.sha)).toEqual(['before']);
+    expect(receipts.get('old')?.commits.map((c) => c.sha)).toEqual(['same', 'before']);
     expect(receipts.get('new')?.commits.map((c) => c.sha)).toEqual(['same']);
-    expect(receipts.get('new')?.commits[0]?.sharedWithPlanIds).toEqual([]);
+    expect(receipts.get('new')?.commits[0]?.sharedWithPlanIds).toEqual(['old']);
+    expect(receipts.get('new')?.confidence).toBe('low');
+  });
+
+  test('final-second work on an older-only file survives partial supersession', () => {
+    const second = NOW - DAY;
+    const receipts = receiptsFor(
+      [
+        plan('old', second - DAY, [found('src/a.ts'), found('src/b.ts')]),
+        plan('new', second + 500, [found('src/a.ts')]),
+      ],
+      [commit('last', second, ['src/b.ts'])],
+    );
+    expect(receipts.get('old')?.commits.map((c) => c.sha)).toEqual(['last']);
+    expect(receipts.get('new')?.commits).toEqual([]);
+  });
+
+  test('the final partial second of the 30-day window is included', () => {
+    const start = NOW - 31 * DAY + 500;
+    const end = start + 30 * DAY;
+    const receipt = receiptsFor(
+      [plan('p', start, [found('src/a.ts')])],
+      [commit('last', end - 500, ['src/a.ts']), commit('after', end + 500, ['src/a.ts'])],
+    ).get('p');
+    expect(receipt?.commits.map((c) => c.sha)).toEqual(['last']);
   });
 
   test('a newer plan covering the same files closes the older window', () => {

@@ -25,15 +25,22 @@ function missingMention(
   workspace: string,
   baseDir: string | undefined,
 ): PlanMention | null {
+  if (path.startsWith('./') && !baseDir) return null;
   const from = path.startsWith('./') && baseDir ? baseDir : workspace;
   const joined = repoRelative(realRepoRoot, isAbsolute(path) ? path : resolve(from, path));
   if (!joined) return null;
+  const workspacePrefix = repoRelative(realRepoRoot, workspace) ?? '';
+  if (workspacePrefix && !joined.startsWith(workspacePrefix + '/')) return null;
+  // Explicit paths retain their location even when absent; never fuzzy-match an escape.
+  if (isAbsolute(path) || path.startsWith('./') || path.startsWith('../')) {
+    return { key: joined, found: false, joined };
+  }
   // Fallback keys come from the text the plan wrote, minus leading ./ and ../.
   const tail = (isAbsolute(path) ? joined : path.replace(/^(?:\.{1,2}\/)+/, '')).toLowerCase();
   if (!tail) return null;
   return tail.includes('/')
-    ? { key: joined, found: false, joined, suffix: tail }
-    : { key: joined, found: false, joined, basename: tail };
+    ? { key: joined, found: false, joined, suffix: tail, workspacePrefix }
+    : { key: joined, found: false, joined, basename: tail, workspacePrefix };
 }
 
 /**

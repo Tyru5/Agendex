@@ -89,6 +89,56 @@ afterEach(() => {
 });
 
 describe('getPlanReceipt on a real repository', () => {
+  test('edits made only in a merge commit land the plan', async () => {
+    const start = Date.now() - DAY;
+    write('src/a.ts');
+    commitAll('initial', start - HOUR);
+    git(repo, ['checkout', '-q', '-b', 'feature']);
+    write('docs/feature.md');
+    commitAll('unrelated feature', start + HOUR);
+    git(repo, ['checkout', '-q', 'main']);
+    git(repo, ['merge', '-q', '--no-ff', '--no-commit', 'feature']);
+    write('src/a.ts', 'merge-only change\n');
+    const sha = commitAll('Merge and adjust a', start + 2 * HOUR);
+
+    const receipt = await getPlanReceipt(makePlan('p', 'Update `src/a.ts`.', start));
+    expect(receipt.status).toBe('landed');
+    expect(receipt.files.changed).toEqual(['src/a.ts']);
+    expect(receipt.commits.map((commit) => commit.sha)).toEqual([sha]);
+  });
+
+  test('missing paths and basenames cannot claim commits in sibling packages', async () => {
+    const start = Date.now() - DAY;
+    write('packages/a/README.md');
+    write('packages/b/src/foo.ts');
+    commitAll('initial', start - HOUR);
+    // Delete the sibling file, so attribution must consider its history rather than
+    // finding it in the current working tree.
+    unlinkSync(join(repo, 'packages/b/src/foo.ts'));
+    commitAll('delete sibling foo', start + HOUR);
+
+    for (const mention of ['src/foo.ts', 'foo.ts']) {
+      const receipt = await getPlanReceipt(
+        makePlan(mention, `Update \`${mention}\`.`, start, join(repo, 'packages/a')),
+      );
+      expect(receipt.status).toBe('planned');
+      expect(receipt.commits).toEqual([]);
+    }
+  });
+
+  test('missing suffix matches still find deleted files within the plan workspace', async () => {
+    const start = Date.now() - DAY;
+    write('packages/a/lib/src/foo.ts');
+    commitAll('initial', start - HOUR);
+    unlinkSync(join(repo, 'packages/a/lib/src/foo.ts'));
+    commitAll('delete workspace foo', start + HOUR);
+    const receipt = await getPlanReceipt(
+      makePlan('p', 'Update `src/foo.ts`.', start, join(repo, 'packages/a')),
+    );
+    expect(receipt.status).toBe('landed');
+    expect(receipt.files.changed).toEqual(['packages/a/src/foo.ts']);
+  });
+
   test('a planned commit merged into main lands the plan', async () => {
     const start = Date.now() - DAY;
     write('src/a.ts');

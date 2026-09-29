@@ -40,6 +40,8 @@ export interface PlanMention {
   joined?: string;
   suffix?: string;
   basename?: string;
+  /** Restrict fuzzy matches to the plan workspace within this repository. */
+  workspacePrefix?: string;
 }
 
 export interface ResolvedMentions {
@@ -97,6 +99,7 @@ function basenameOf(path: string): string {
 
 /** Whether repo-relative file `file` satisfies `mention`. */
 export function mentionMatchesFile(mention: PlanMention, file: string): boolean {
+  if (mention.workspacePrefix && !file.startsWith(mention.workspacePrefix + '/')) return false;
   if (file === mention.exact || file === mention.joined) return true;
   if (mention.suffix) {
     const lower = file.toLowerCase();
@@ -260,12 +263,14 @@ export function attributeRepoReceipts(input: RepoReceiptInput): RepoReceiptResul
       refs.length = 0;
       index.lookup(file, refs);
       for (const ref of refs) {
+        const mention = plans[ref.plan]?.mentions.mentions[ref.mention];
+        if (!mention || !mentionMatchesFile(mention, file)) continue;
         const window = windows[ref.plan] as PlanWindow;
-        // Git records whole seconds. Use the same precision at both boundaries so
-        // same-second work belongs to the newer plan when a window is superseded.
+        // Git records whole seconds. Include the creation second, but retain the
+        // precise end so work in a partially overlapping final second is not lost.
         if (
           commit.committedAt < Math.floor(window.start / 1000) * 1000 ||
-          commit.committedAt >= (window.open ? window.end : Math.floor(window.end / 1000) * 1000)
+          commit.committedAt >= window.end
         )
           continue;
         let files = perPlan.get(ref.plan);

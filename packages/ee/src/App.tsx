@@ -2032,7 +2032,7 @@ function useDashboard({
     {
       agent: legacyAgentFilterRaw,
       agents: selectedAgentsRaw,
-      sort: sortBy,
+      sort: sortByRaw,
       date: dateBucket,
       workspace: workspaceFilterRaw,
       tags: selectedTagsRaw,
@@ -2043,7 +2043,7 @@ function useDashboard({
     {
       agent: parseAsString,
       agents: parseAsNativeArrayOf(parseAsString).withDefault([]),
-      sort: parseAsStringLiteral(sortOptions).withDefault('updatedAt'),
+      sort: parseAsStringLiteral(sortOptions),
       date: parseAsStringLiteral(dateOptions).withDefault('all'),
       workspace: parseAsString,
       tags: parseAsNativeArrayOf(parseAsString).withDefault([]),
@@ -2073,6 +2073,8 @@ function useDashboard({
 
   const workspaceFilter = workspaceFilterRaw ?? undefined;
   const selectedCollection = selectedCollectionRaw ?? undefined;
+  // A collection bookmark without a sort uses saved order; explicit sorts survive reloads.
+  const sortBy: PlanSortBy = sortByRaw ?? (selectedCollection ? 'collection' : 'updatedAt');
   const selectedTags = useMemo(() => normalizeFilterValues(selectedTagsRaw), [selectedTagsRaw]);
   const selectedAgents = useMemo(() => {
     const agents = normalizeFilterValues(selectedAgentsRaw);
@@ -2134,7 +2136,7 @@ function useDashboard({
     (collection: string | undefined) =>
       setFilters(({ sort }) => ({
         collection: collection ?? null,
-        sort: sortForCollectionFilter(sort, collection),
+        sort: sortForCollectionFilter(sort ?? 'updatedAt', collection),
       })),
     [setFilters],
   );
@@ -2211,7 +2213,18 @@ function useDashboard({
 
   // Local mode always; cloud mode only for synced plans the local API indexed (localPlanId).
   const receiptsEnabled = mode === 'local' || plans.some((plan) => Boolean(plan.localPlanId));
-  const { receipts, settled: receiptsSettled } = usePlanReceiptSummaries(receiptsEnabled, plans);
+  const {
+    receipts,
+    settled: receiptsSettled,
+    failed: receiptsFailed,
+  } = usePlanReceiptSummaries(receiptsEnabled, plans);
+  const readWithoutReceipts = useRef(false);
+  useEffect(() => {
+    if (readWithoutReceipts.current && receiptsSettled && !receiptsFailed) {
+      readWithoutReceipts.current = false;
+      setBriefMarkedRead(false);
+    }
+  }, [receiptsSettled, receiptsFailed]);
   const briefOpen = workspaceView === 'brief';
   const briefHasUpdates = useMemo(
     () =>
@@ -2470,11 +2483,17 @@ function useDashboard({
     // Marking read before the first receipts answer would persist a boundary past landings
     // the brief never showed.
     if (!receiptsSettled) return;
+    if (receiptsFailed) {
+      readWithoutReceipts.current = true;
+      setBriefMarkedRead(true);
+      return;
+    }
+    readWithoutReceipts.current = false;
     const readAt = briefUntil;
     localStorage.setItem(BRIEF_LAST_READ_PREF_KEY, String(readAt));
     setBriefReadAt(readAt);
     setBriefMarkedRead(true);
-  }, [briefUntil, receiptsSettled]);
+  }, [briefUntil, receiptsSettled, receiptsFailed]);
 
   const planStateReady = mode === 'cloud' ? cloudPlanState.isReady : true;
   useUnseenPlanToasts({

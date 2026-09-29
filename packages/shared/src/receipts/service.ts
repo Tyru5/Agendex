@@ -51,11 +51,13 @@ interface MentionCacheEntry {
 const repoCache = new Map<string, RepoCacheEntry>();
 const repoRootCache = new Map<string, { at: number; root: string | null }>();
 let mentionCache = new WeakMap<Plan, MentionCacheEntry>();
+let contentHashCache = new WeakMap<Plan, { content: string; hash: string }>();
 
 export function clearPlanReceiptCache(): void {
   repoCache.clear();
   repoRootCache.clear();
   mentionCache = new WeakMap();
+  contentHashCache = new WeakMap();
 }
 
 function safeRealpath(path: string): string | null {
@@ -89,6 +91,14 @@ function planStart(plan: Plan): number {
   return Number.isFinite(updated) ? updated : Date.now();
 }
 
+function contentHash(plan: Plan): string {
+  const cached = contentHashCache.get(plan);
+  if (cached?.content === plan.content) return cached.hash;
+  const hash = createHash('sha1').update(plan.content).digest('hex');
+  contentHashCache.set(plan, { content: plan.content, hash });
+  return hash;
+}
+
 function plansSignature(plans: readonly Plan[]): string {
   const hash = createHash('sha1');
   for (const plan of [...plans].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
@@ -97,7 +107,7 @@ function plansSignature(plans: readonly Plan[]): string {
         plan.id,
         toMs(plan.createdAt),
         toMs(plan.updatedAt),
-        plan.content,
+        contentHash(plan),
         plan.workspace ?? '',
         plan.filePath,
       ].join('\0'),
@@ -109,9 +119,13 @@ function plansSignature(plans: readonly Plan[]): string {
 
 /** Mentions cached per plan object; re-resolved when content, location, or repo state changes. */
 function planMentions(plan: Plan, repoRoot: string, stateKey: string): Promise<ResolvedMentions> {
-  const signature = [plan.content, plan.workspace ?? '', plan.filePath, repoRoot, stateKey].join(
-    '\0',
-  );
+  const signature = [
+    contentHash(plan),
+    plan.workspace ?? '',
+    plan.filePath,
+    repoRoot,
+    stateKey,
+  ].join('\0');
   const cached = mentionCache.get(plan);
   if (cached?.signature === signature) return cached.promise;
   const promise = resolvePlanMentions(plan, repoRoot);

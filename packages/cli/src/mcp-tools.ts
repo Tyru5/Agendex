@@ -86,6 +86,8 @@ export const searchPlansInput = {
 
 export const getPlanInput = {
   id: z.string().describe('Plan id from search_plans, recent_plans, or plans_for_file.'),
+  workspace: workspaceField,
+  all_workspaces: searchPlansInput.all_workspaces,
   max_chars: z
     .number()
     .int()
@@ -142,7 +144,8 @@ export const AGENDEX_MCP_TOOL_DESCRIPTIONS = {
     'Read one plan in full: its markdown, metadata (agent, workspace, file path, times, session, ' +
     'git) and its receipt (attributed commits, which mentioned files changed, were not touched, ' +
     'or are missing, and changes made outside the plan). Call this when a search result looks ' +
-    'relevant, before building on or verifying that plan.',
+    'relevant, before building on or verifying that plan. Scoped to the current repository ' +
+    'unless you pass workspace or all_workspaces.',
   plans_for_file:
     'Find plans that mention a file or whose commits changed it, newest first. Call this before ' +
     'editing a file to see what other agents already planned for it and whether that work landed.',
@@ -289,7 +292,8 @@ export function createMcpToolHandlers(providers: McpToolProviders): McpToolHandl
 
     async get_plan(input: GetPlanInput): Promise<CallToolResult> {
       const plan = await providers.planById(input.id.trim());
-      if (!plan) {
+      const scope = resolveScope(input.workspace, input.all_workspaces);
+      if (!plan || !inScope(plan, scope)) {
         return toolError(
           `No plan with id "${input.id}". Use search_plans, recent_plans, or plans_for_file to find plan ids.`,
         );
