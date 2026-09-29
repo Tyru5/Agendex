@@ -373,11 +373,30 @@ export const renamePlan = mutation({
       return null;
     }
 
+    await ensureBaselinePlanVersion(ctx, {
+      ownerId: user._id,
+      planId: args.planId,
+      version: plan.version,
+      snapshot: plan,
+      createdAt: plan.updatedAt,
+    });
+    const version = plan.version + 1;
+    const now = Date.now();
+    const snapshot = { ...plan, title };
     await ctx.db.patch(args.planId, {
       title,
       titleNormalized: normalizePlanLookupText(title),
       agentNormalized: canonicalPlanAgent(plan.agent),
-      updatedAt: Date.now(),
+      version,
+      updatedAt: now,
+    });
+    await recordPlanVersion(ctx, {
+      ownerId: user._id,
+      planId: args.planId,
+      version,
+      snapshot,
+      source: 'editor',
+      createdAt: now,
     });
     return null;
   },

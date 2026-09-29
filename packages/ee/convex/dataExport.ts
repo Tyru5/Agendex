@@ -59,6 +59,7 @@ const accountSectionValidator = v.union(
   v.literal('pendingUploads'),
   v.literal('uploadReservations'),
   v.literal('avatarUploadReservations'),
+  v.literal('assignedReviews'),
 );
 
 const planSectionValidator = v.union(
@@ -69,6 +70,7 @@ const planSectionValidator = v.union(
   v.literal('planLinks'),
   v.literal('writebacks'),
   v.literal('planTags'),
+  v.literal('reviews'),
 );
 
 function serializePage(result: { page: unknown[]; isDone: boolean; continueCursor: string }) {
@@ -371,6 +373,13 @@ export const listAccountSectionPage = internalQuery({
             .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
             .paginate(paginationOpts),
         );
+      case 'assignedReviews':
+        return serializePage(
+          await ctx.db
+            .query('planReviewRequests')
+            .withIndex('by_reviewer', (q) => q.eq('reviewerId', ownerId))
+            .paginate(paginationOpts),
+        );
       case 'agentAvatars':
         return serializePage(
           await ctx.db
@@ -504,6 +513,13 @@ export const listPlanSectionPage = internalQuery({
         return serializePage(
           await ctx.db
             .query('plannotatorWritebacks')
+            .withIndex('by_plan', (q) => q.eq('planId', planId))
+            .paginate(paginationOpts),
+        );
+      case 'reviews':
+        return serializePage(
+          await ctx.db
+            .query('planReviewRequests')
             .withIndex('by_plan', (q) => q.eq('planId', planId))
             .paginate(paginationOpts),
         );

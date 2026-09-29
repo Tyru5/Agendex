@@ -22,6 +22,7 @@ This directory contains the Convex backend for Agendex Cloud / EE. It powers aut
 - `planCleanup.ts` - internal dry-run audit and apply cleanup for existing low-value cloud rows and Codex subagent/title-family clones (maintainer-only)
 - `sharing.ts` - create and revoke share links
 - `comments.ts` - read, create, and delete plan comments
+- `teamReviews.ts` - revision-bound workspace review requests, decisions, unread markers, and paginated inboxes; see [team review requests](../../../docs/team-review-requests.md)
 - `collections.ts` - collection-level EE feature logic
 - `tags.ts` and `planTags.ts` - tag and plan-tag feature support
 - `entitlements.ts` - subscription gating for Pro features

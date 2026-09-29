@@ -43,6 +43,7 @@ import type * as storageReferences from "../storageReferences.js";
 import type * as stripe from "../stripe.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as tags from "../tags.js";
+import type * as teamReviews from "../teamReviews.js";
 import type * as validators from "../validators.js";
 import type * as workspaceAccess from "../workspaceAccess.js";
 import type * as workspaceMembers from "../workspaceMembers.js";
@@ -89,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   stripe: typeof stripe;
   subscriptions: typeof subscriptions;
   tags: typeof tags;
+  teamReviews: typeof teamReviews;
   validators: typeof validators;
   workspaceAccess: typeof workspaceAccess;
   workspaceMembers: typeof workspaceMembers;

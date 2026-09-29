@@ -40,7 +40,8 @@ type AccountSection =
   | 'agentAvatars'
   | 'pendingUploads'
   | 'uploadReservations'
-  | 'avatarUploadReservations';
+  | 'avatarUploadReservations'
+  | 'assignedReviews';
 
 type PlanSection =
   | 'versions'
@@ -49,7 +50,8 @@ type PlanSection =
   | 'shareLinks'
   | 'planLinks'
   | 'writebacks'
-  | 'planTags';
+  | 'planTags'
+  | 'reviews';
 
 type ExportComment = {
   _id: Id<'comments'>;
@@ -397,6 +399,10 @@ export const buildDataExport = internalAction({
         jsonArrayStream(accountPageFetcher(ctx, ownerId, 'planPreferences')),
       );
       zip.file(
+        `${root}/assigned-team-reviews.json`,
+        jsonArrayStream(accountPageFetcher(ctx, ownerId, 'assignedReviews')),
+      );
+      zip.file(
         `${root}/agent-avatars.json`,
         jsonArrayStream(accountPageFetcher(ctx, ownerId, 'agentAvatars')),
       );
@@ -493,6 +499,7 @@ export const buildDataExport = internalAction({
             ['planLinks', 'plan-links.json'],
             ['writebacks', 'writebacks.json'],
             ['planTags', 'plan-tags.json'],
+            ['reviews', 'team-reviews.json'],
           ];
           for (const [section, fileName] of sectionFiles) {
             zip.file(

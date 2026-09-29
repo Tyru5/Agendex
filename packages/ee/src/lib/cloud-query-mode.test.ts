@@ -1,3 +1,4 @@
+import { canUsePersonalCloudMetadata } from './cloud-query-mode';
 import { expect, test } from 'bun:test';
 import {
   canManageCustomPlanSources,
@@ -54,4 +55,12 @@ test('Given hosted cloud Pro mode When checking custom source management eligibi
 
 test('Given desktop cloud free mode When checking custom source management eligibility Then it is hidden', () => {
   expect(canManageCustomPlanSources('cloud', false, true)).toBe(false);
+});
+
+test('invited reviewers skip subscriber-only metadata queries without losing workspace cloud access', () => {
+  expect(canUseCloudPlanMetadata('cloud', true)).toBe(true);
+  expect(canUsePersonalCloudMetadata('cloud', true, 'member')).toBe(false);
+  expect(canUsePersonalCloudMetadata('cloud', true, 'owner')).toBe(true);
+  expect(canUsePersonalCloudMetadata('cloud', false, 'owner')).toBe(false);
+  expect(canUsePersonalCloudMetadata('local', true, 'owner')).toBe(false);
 });

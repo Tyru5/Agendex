@@ -119,6 +119,33 @@ export default defineSchema({
       filterFields: ['ownerId', 'agent'],
     }),
 
+  planReviewRequests: defineTable({
+    planId: v.id('plans'),
+    workspaceOwnerId: v.string(),
+    requesterId: v.string(),
+    reviewerId: v.string(),
+    reviewerName: v.string(),
+    reviewerMembershipId: v.id('workspaceMembers'),
+    planVersion: v.number(),
+    revision: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('approved'),
+      v.literal('changes_requested'),
+      v.literal('cancelled'),
+    ),
+    message: v.string(),
+    decisionNote: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    requesterReadAt: v.optional(v.number()),
+    reviewerReadAt: v.optional(v.number()),
+  })
+    .index('by_plan', ['planId'])
+    .index('by_plan_and_reviewer_and_version', ['planId', 'reviewerId', 'planVersion'])
+    .index('by_reviewer', ['reviewerId'])
+    .index('by_requester', ['requesterId']),
+
   shareLinks: defineTable({
     planId: v.id('plans'),
     token: v.string(),
@@ -393,6 +420,7 @@ export default defineSchema({
         v.literal('planLinks'),
         v.literal('collectionPlans'),
         v.literal('planPreferences'),
+        v.literal('planReviewRequests'),
       ),
     ),
     attempt: v.number(),

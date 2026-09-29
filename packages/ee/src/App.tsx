@@ -1,3 +1,4 @@
+import { TeamReviewPlanPanel } from './components/TeamReviews';
 import {
   AgentAvatarProvider,
   type AgentStats,
@@ -111,6 +112,7 @@ import { findCloudCustomPlanSource, isConfiguredPlanSourcePath } from './lib/clo
 import {
   canManageCustomPlanSources,
   canUseCloudPlanMetadata,
+  canUsePersonalCloudMetadata,
   canUseTechDependencyChart,
   shouldQueryCloudPlanTags,
 } from './lib/cloud-query-mode.ts';
@@ -335,9 +337,15 @@ function useDashboardData(
   isPro: boolean,
   localPlanState: PlanState,
   cloudPlanState: PlanState,
+  workspaceRole: 'owner' | 'member' | 'none',
 ) {
   const localEnabled = mode === 'local';
-  const cloudPlanMetadataEnabled = canUseCloudPlanMetadata(mode, isPro);
+  // Invited reviewers can use cloud plans/team reviews with their owner's entitlement.
+  // Personal tags/collections retain their existing subscriber-only authorization.
+  const cloudPlanMetadataEnabled = canUsePersonalCloudMetadata(mode, isPro, workspaceRole);
+  // Workspace members cannot write the plan owner's personal preferences.
+  // Keep their read/pin markers locally, using the existing local preference store.
+  const planState = cloudPlanMetadataEnabled ? cloudPlanState : localPlanState;
   // Collections are cloud-only, so the local API never sees collection order.
   const filters = useMemo(
     () => ({ sort: sortBy === 'collection' ? 'updatedAt' : sortBy }),
@@ -397,18 +405,15 @@ function useDashboardData(
   const plansComplete = mode === 'cloud' ? cloudPlans.complete : !loading;
 
   const hasUnseenPlans = useMemo(
-    () =>
-      plans.some((plan) =>
-        (mode === 'cloud' ? cloudPlanState : localPlanState).isUnseen(plan.id, plan.updatedAt),
-      ),
-    [plans, mode, cloudPlanState, localPlanState],
+    () => plans.some((plan) => planState.isUnseen(plan.id, plan.updatedAt)),
+    [plans, planState],
   );
 
   const planTagsMap = useQuery(
     api.planTags.getTagsForPlans,
     shouldQueryCloudPlanTags({
       mode,
-      isPro,
+      isPro: isPro && workspaceRole === 'owner',
       selectedTagCount: selectedTags.length,
       planCount: plans.length,
     })
@@ -518,7 +523,7 @@ function useDashboardData(
     collectionOrder,
     filteredPlans,
     workspaces: workspacesFromPlans(plans),
-    planState: mode === 'cloud' ? cloudPlanState : localPlanState,
+    planState,
     hasUnseenPlans,
     totalPlans,
     activeAgents,
@@ -687,10 +692,16 @@ function PlanHeaderExtra({
   isPro: boolean;
   mode: DashboardMode;
 }) {
+  const { user } = useAuth();
+  const { role } = useWorkspaceAccess();
+  const canManagePersonalTags =
+    canUsePersonalCloudMetadata(mode, isPro, role) &&
+    Boolean(user?.id) &&
+    plan.ownerId === String(user?.id);
   if (!canUseCloudPlanMetadata(mode, isPro)) return undefined;
   return (
     <>
-      <PlanTagsBar planId={plan.id} />
+      {canManagePersonalTags && <PlanTagsBar planId={plan.id} />}
       <CloudPlanGitLinks planId={plan.id} metadata={plan.metadata} />
       <CloudPlannotatorBadge plan={plan} />
     </>
@@ -1028,6 +1039,7 @@ function CloudPlanReviewWorkspace({
         </ToolbarOptionRail>
 
         <div className="plannotator-review-document">
+          <TeamReviewPlanPanel key={plan.id} planId={plan.id} />
           <LazyPlanViewer
             plan={plan}
             allPlans={allPlans}
@@ -1417,6 +1429,9 @@ function useDashboardMain({
         </div>
         <div className="main-scroll overflow-auto" style={{ minWidth: 0 }}>
           {selectionFilterNotice}
+          {isCloudReview && selectedPlan && (
+            <TeamReviewPlanPanel key={selectedPlan.id} planId={selectedPlan.id} />
+          )}
           <LazyPlanViewer
             plan={selectedPlan}
             allPlans={allPlans}
@@ -2169,7 +2184,11 @@ function useDashboard({
   const showHistory = activePanel === 'history';
   const sharing = activePanel === 'sharing';
   const sidebarBeforeWide = useRef<boolean | null>(null);
-  const { canAccessCloud: isPro, isLoading: isWorkspaceAccessLoading } = useWorkspaceAccess();
+  const {
+    canAccessCloud: isPro,
+    isLoading: isWorkspaceAccessLoading,
+    role: workspaceRole,
+  } = useWorkspaceAccess();
   const localPlanState = usePlanState();
   const cloudPlanState = useCloudPlanPreferences();
   const canManageLocalPlanSources = canManageCustomPlanSources(mode, isPro, canSwitchMode);
@@ -2209,6 +2228,7 @@ function useDashboard({
     isPro,
     localPlanState,
     cloudPlanState,
+    workspaceRole,
   );
 
   // Local mode always; cloud mode only for synced plans the local API indexed (localPlanId).

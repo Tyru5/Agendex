@@ -1,8 +1,9 @@
 import type { Id } from './_generated/dataModel';
+import { internal } from './_generated/api';
 import type { MutationCtx } from './_generated/server';
 import { deleteCommentWithAttachments, deletePendingUploadRecord } from './comments';
 
-type PlanDeletionCtx = Pick<MutationCtx, 'db' | 'storage'>;
+type PlanDeletionCtx = Pick<MutationCtx, 'db' | 'storage' | 'scheduler'>;
 
 export const PLAN_DELETION_PHASES = [
   'shareLinks',
@@ -16,6 +17,7 @@ export const PLAN_DELETION_PHASES = [
   'planLinks',
   'collectionPlans',
   'planPreferences',
+  'planReviewRequests',
 ] as const;
 
 export type PlanDeletionPhase = (typeof PLAN_DELETION_PHASES)[number];
@@ -116,6 +118,13 @@ export async function deletePlanRelatedDataBatch(
       .take(batchSize);
     for (const row of rows) await ctx.db.delete(row._id);
     deleted = rows.length;
+  } else if (phase === 'planReviewRequests') {
+    const rows = await ctx.db
+      .query('planReviewRequests')
+      .withIndex('by_plan', (q) => q.eq('planId', planId))
+      .take(batchSize);
+    for (const row of rows) await ctx.db.delete(row._id);
+    deleted = rows.length;
   } else {
     const rows = await ctx.db
       .query('planPreferences')
@@ -141,6 +150,13 @@ export async function deletePlanRelatedData(
     ownerId: string;
   },
 ): Promise<void> {
+  const reviews = await ctx.db
+    .query('planReviewRequests')
+    .withIndex('by_plan', (q) => q.eq('planId', planId))
+    .take(100);
+  await Promise.all(reviews.map((row) => ctx.db.delete(row._id)));
+  if (reviews.length === 100)
+    await ctx.scheduler.runAfter(0, internal.teamReviews.deleteForPlan, { planId });
   const shareLinks = await ctx.db
     .query('shareLinks')
     .withIndex('by_plan', (q) => q.eq('planId', planId))

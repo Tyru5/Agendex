@@ -14,12 +14,16 @@ export type PlanVersionSnapshot = {
 
 type PlanVersionWriteCtx = Pick<MutationCtx, 'db'>;
 
-/** True when title or body changed enough to warrant a new history snapshot. */
+/** True when title, body, or an explicitly provided format changes the reviewed revision. */
 export function planContentChanged(
-  previous: { title: string; content: string },
-  next: { title: string; content: string },
+  previous: { title: string; content: string; format?: string },
+  next: { title: string; content: string; format?: string },
 ): boolean {
-  return previous.title !== next.title || previous.content !== next.content;
+  return (
+    previous.title !== next.title ||
+    previous.content !== next.content ||
+    (next.format !== undefined && previous.format !== next.format)
+  );
 }
 
 /** Insert an immutable planVersions row for the given plan version number. */

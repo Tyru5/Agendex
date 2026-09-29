@@ -14,6 +14,7 @@ export const EXPORT_INVENTORY_TABLES = [
   'collections',
   'collectionPlans',
   'planPreferences',
+  'planReviewRequests',
   'agentAvatars',
   'agentAvatarUploadReservations',
   'accountPreferences',

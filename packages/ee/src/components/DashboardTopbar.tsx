@@ -1,3 +1,7 @@
+import { useConvex } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
+import { TeamReviewInbox } from './TeamReviews';
 import { type Plan, type PlanState, TOUR_TARGET } from '@agendex/web';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
@@ -129,6 +133,29 @@ export function DashboardTopbar({
   /** Extra controls rendered before the system status control. */
   actions?: ReactNode;
 }) {
+  const convex = useConvex();
+  const openReviewPlan = async (id: string) => {
+    const listed = plans.find((plan) => plan.id === id);
+    if (listed) {
+      onSelectPlan(listed);
+      return;
+    }
+    const plan = await convex.query(api.plans.getPlan, { planId: id as Id<'plans'> });
+    onSelectPlan({
+      id: plan._id,
+      ownerId: plan.ownerId,
+      localPlanId: plan.localPlanId,
+      agent: plan.agent,
+      title: plan.title,
+      content: plan.content,
+      format: plan.format as Plan['format'],
+      filePath: plan.filePath ?? '',
+      workspace: plan.workspace,
+      createdAt: new Date(plan.createdAt).toISOString(),
+      updatedAt: new Date(plan.updatedAt).toISOString(),
+      metadata: plan.metadata ?? {},
+    });
+  };
   return (
     <div
       className="agendex-topbar flex items-center min-w-0 col-span-full border-b border-border z-50 box-border"
@@ -217,6 +244,7 @@ export function DashboardTopbar({
         <div className="w-px h-4 bg-border mx-0.5" />
 
         <SubscriptionBadge />
+        {mode === 'cloud' && isPro && <TeamReviewInbox onOpenPlan={openReviewPlan} />}
         <AuthButton />
       </div>
     </div>
