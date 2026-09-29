@@ -1,0 +1,219 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, type Plan } from '../lib/api.ts';
+import { downloadPlan } from '../lib/plan-download.ts';
+import {
+  buildHandoffCommand,
+  copyHandoffCommand,
+  createHandoffContext,
+  hydrateCrossAgentCandidates,
+  suggestCrossAgentPlans,
+  type CrossAgentSuggestion,
+  type HandoffCli,
+} from '../lib/cross-agent-plans.ts';
+
+export type RelatedContentLoader = (plan: Plan) => Promise<string | null>;
+export function CrossAgentSection({
+  plan,
+  allPlans,
+  loadContent,
+  onCompare,
+}: {
+  plan: Plan;
+  allPlans: readonly Plan[];
+  loadContent?: RelatedContentLoader;
+  onCompare?: (plan: Plan) => void;
+}) {
+  const [suggestions, setSuggestions] = useState<CrossAgentSuggestion[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [clis, setClis] = useState<{ id: HandoffCli; label: string }[]>([]);
+  const [target, setTarget] = useState<HandoffCli>('codex');
+  const [contextPath, setContextPath] = useState('');
+  const [command, setCommand] = useState('');
+  const [error, setError] = useState('');
+  const request = useRef(0);
+  const detectRequest = useRef(0);
+  const planEpoch = useRef(0);
+  const invalidateRequests = useCallback(() => {
+    request.current++;
+    planEpoch.current++;
+  }, []);
+  useEffect(() => {
+    invalidateRequests();
+    setSuggestions(null);
+    setLoading(false);
+    setNotice('');
+    setCommand('');
+    setError('');
+    setContextPath('');
+    setClis([]);
+    return invalidateRequests;
+  }, [plan.id, plan.updatedAt, invalidateRequests]);
+  async function findRelated() {
+    const version = ++request.current;
+    setLoading(true);
+    setNotice('');
+    const result = await hydrateCrossAgentCandidates(
+      plan,
+      allPlans,
+      loadContent,
+      () => version === request.current,
+    );
+    if (!result) return;
+    const { plans: hydrated, unavailable } = result;
+    setSuggestions(suggestCrossAgentPlans(plan, hydrated));
+    setLoading(false);
+    setNotice(
+      `Checked ${hydrated.length} of up to 20 recent plans from other agents in this workspace.${unavailable ? ` Content unavailable for ${unavailable} plans.` : ''}`,
+    );
+  }
+  async function detectTargets() {
+    const version = planEpoch.current;
+    const detection = ++detectRequest.current;
+    setCommand('');
+    setClis([]);
+    try {
+      const result = await api.getHandoffClis();
+      if (version !== planEpoch.current || detection !== detectRequest.current) return;
+      setCommand('');
+      setClis(result.apps);
+      if (result.apps[0]) setTarget(result.apps[0].id);
+      setError(
+        result.apps.length
+          ? ''
+          : 'No supported CLI was detected on the connected local machine. Export context for manual handoff.',
+      );
+    } catch {
+      if (version !== planEpoch.current || detection !== detectRequest.current) return;
+      setError(
+        'Connect the local Agendex API to detect installed CLIs. Context export is still available.',
+      );
+    }
+  }
+  function exportContext() {
+    try {
+      downloadPlan(
+        { ...plan, title: `${plan.title} handoff`, content: createHandoffContext(plan) },
+        'md',
+      );
+      setError('');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to export context.');
+    }
+  }
+  function prepareCommand() {
+    try {
+      if (!clis.some((cli) => cli.id === target)) throw new Error('Detect an installed CLI first.');
+      setCommand(buildHandoffCommand(plan, target, contextPath));
+      setError('');
+    } catch (cause) {
+      setCommand('');
+      setError(cause instanceof Error ? cause.message : 'Unable to prepare command.');
+    }
+  }
+  return (
+    <details className="cross-agent-section">
+      <summary>Compare across agents and hand off</summary>
+      <p>
+        Suggestions use shared file or work references and content overlap. They do not establish
+        session lineage.
+      </p>
+      {!plan.workspace?.trim() ? (
+        <p>A workspace is required to find related plans safely.</p>
+      ) : (
+        <>
+          <button
+            type="button"
+            disabled={loading || !plan.content?.trim()}
+            onClick={() => void findRelated()}
+          >
+            {loading ? 'Finding related plans…' : 'Find related plans from other agents'}
+          </button>
+          {notice && <p role="status">{notice}</p>}
+          {suggestions?.length === 0 && <p>No strong matches found in the checked plans.</p>}
+          <ul>
+            {suggestions?.map((suggestion) => (
+              <li key={suggestion.plan.id}>
+                <strong>{suggestion.plan.title}</strong> ({suggestion.plan.agent})
+                <p>{suggestion.evidence.join(' · ')}</p>
+                {onCompare && (
+                  <button
+                    type="button"
+                    onClick={() => onCompare(suggestion.plan)}
+                    aria-label={`Compare ${suggestion.plan.title} with current plan`}
+                  >
+                    Compare plans
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <h3>Hand off to a new session</h3>
+      <p>
+        Export the context, review it, and save it on the machine where the CLI will run. Commands
+        use a POSIX shell and start a new session. Agendex never executes them.
+      </p>
+      <button type="button" onClick={exportContext} disabled={!plan.content?.trim()}>
+        Download handoff Markdown
+      </button>{' '}
+      <button type="button" onClick={() => void detectTargets()}>
+        Detect installed CLIs
+      </button>
+      {clis.length > 0 && (
+        <div>
+          <label>
+            Target agent{' '}
+            <select
+              value={target}
+              onChange={(event) => {
+                setTarget(event.target.value as HandoffCli);
+                setCommand('');
+              }}
+            >
+              {clis.map((cli) => (
+                <option key={cli.id} value={cli.id}>
+                  {cli.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Absolute path to downloaded context{' '}
+            <input
+              value={contextPath}
+              onChange={(event) => {
+                setContextPath(event.target.value);
+                setCommand('');
+              }}
+              placeholder="/absolute/path/to/handoff.md"
+            />
+          </label>
+          <button type="button" onClick={prepareCommand}>
+            Prepare command
+          </button>
+        </div>
+      )}
+      {error && <p role="alert">{error}</p>}
+      {command && (
+        <>
+          <label>
+            Reviewable command
+            <textarea readOnly value={command} rows={4} />
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              void copyHandoffCommand(command, navigator.clipboard).then((copied) => {
+                setError(copied ? '' : 'Copy failed. Select and copy the command text.');
+              });
+            }}
+          >
+            Copy command
+          </button>
+        </>
+      )}
+    </details>
+  );
+}

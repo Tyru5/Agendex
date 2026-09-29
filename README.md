@@ -21,6 +21,7 @@ Agendex is a Bun workspaces monorepo:
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
+- Cross-agent [comparison and handoff](docs/cross-agent-handoff.md): workspace-scoped suggestions with matching evidence, Markdown context export, and reviewable commands for installed Codex and Claude Code CLIs
 - Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, stalled, or unavailable status
 - Read-only [MCP server](packages/cli/README.md#use-agendex-from-your-agents-mcp) for coding agents to search local plans and inspect receipts, without a cloud account or daemon
 - Local API with token-based auth
@@ -365,6 +366,7 @@ Key endpoints:
   status, confidence, changed/mentioned file counts, commit count, and landing time for every
   indexed plan (or just the listed ids).
 - `GET /api/v1/agents`
+- `GET /api/v1/open-in/agent-clis` -> `{ apps: [{ id, label }] }`: installed Codex and Claude Code CLIs available for preparing handoff commands; returns an empty list on Windows. Detection does not launch a CLI.
 - `POST /api/v1/rescan`
 - `GET /api/v1/plan-sources`
 - `POST /api/v1/plan-sources` with `{ "path": "/path/to/plans" }`

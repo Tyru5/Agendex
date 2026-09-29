@@ -6,6 +6,7 @@ import {
   createPlanAnnotation,
   deletePlanAnnotation,
   detectOpenInApps,
+  detectHandoffClis,
   getIndexableById,
   getIndexablePlans,
   getPlanReceipt,
@@ -148,6 +149,8 @@ plans.post('/plans/:id/paths/exists', async (c) => {
   const results = await resolveCodeFileBatch(paths, plan.workspace, planBaseDir(plan));
   return c.json({ results });
 });
+
+plans.get('/open-in/agent-clis', (c) => c.json({ apps: detectHandoffClis() }));
 
 plans.get('/open-in/apps', (c) => {
   return c.json({ available: true, apps: detectOpenInApps() });

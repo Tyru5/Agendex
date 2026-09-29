@@ -43,7 +43,11 @@ async function getErrorMessage(res: Response): Promise<string> {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options: { expireSessionOnUnauthorized?: boolean } = {},
+): Promise<T> {
   const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -54,6 +58,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (res.status === 401) {
+    if (options.expireSessionOnUnauthorized === false) {
+      throw new Error('Local Agendex authentication is required.');
+    }
     clearToken();
     sessionStorage.setItem('agendex_session_expired', '1');
     window.location.reload();
@@ -308,6 +315,13 @@ export const api = {
 
   getPlanReceiptSummaries: () =>
     request<{ receipts: Record<string, PlanReceiptSummary> }>('/receipts'),
+
+  getHandoffClis: () =>
+    request<{ apps: { id: 'codex' | 'claude'; label: string }[] }>(
+      '/open-in/agent-clis',
+      undefined,
+      { expireSessionOnUnauthorized: false },
+    ),
 
   getOpenInApps: () => request<{ available: boolean; apps: OpenInAppInfo[] }>('/open-in/apps'),
 

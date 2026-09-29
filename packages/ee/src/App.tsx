@@ -897,6 +897,7 @@ function CloudPlanReviewWorkspace({
   allPlans,
   onSelectRelatedPlan,
   onComparePlan,
+  loadRelatedPlanContent,
   onEdit,
   onHistory,
   onShare,
@@ -913,6 +914,7 @@ function CloudPlanReviewWorkspace({
   outlineHidden?: boolean;
   chartHidden?: boolean;
   allPlans?: readonly Plan[];
+  loadRelatedPlanContent?: (plan: Plan) => Promise<string | null>;
   onSelectRelatedPlan?: (plan: Plan) => void;
   onComparePlan?: (plan: Plan) => void;
   onEdit: () => void;
@@ -1032,6 +1034,7 @@ function CloudPlanReviewWorkspace({
             plan={plan}
             allPlans={allPlans}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            loadRelatedPlanContent={loadRelatedPlanContent}
             onComparePlan={onComparePlan}
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
@@ -1273,6 +1276,14 @@ function useDashboardMain({
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const convex = useConvex();
+  const loadRelatedPlanContent = useCallback(
+    async (plan: Plan) => {
+      if (mode !== 'cloud') return plan.content || null;
+      const result = await convex.query(api.plans.getMyPlanContent, { planId: plan.id });
+      return result?.content ?? null;
+    },
+    [convex, mode],
+  );
   const cloudUsage = useQuery(api.cli.getUsage, mode === 'cloud' ? { days: 30 } : 'skip') as
     | UsageSummary
     | null
@@ -1420,6 +1431,7 @@ function useDashboardMain({
           <LazyPlanViewer
             plan={selectedPlan}
             allPlans={allPlans}
+            loadRelatedPlanContent={loadRelatedPlanContent}
             onSelectRelatedPlan={onSelectRelatedPlan}
             mode="split"
             onEdit={onEdit}
@@ -1456,6 +1468,7 @@ function useDashboardMain({
           <LazyPlanViewer
             plan={splitPlan}
             allPlans={allPlans}
+            loadRelatedPlanContent={loadRelatedPlanContent}
             onSelectRelatedPlan={onSelectRelatedPlan}
             mode="split"
             onChartWideChange={onChartWideChange}
@@ -1629,6 +1642,7 @@ function useDashboardMain({
                 outlineHidden={outlineHidden}
                 chartHidden={chartHidden}
                 allPlans={allPlans}
+                loadRelatedPlanContent={loadRelatedPlanContent}
                 onSelectRelatedPlan={onSelectRelatedPlan}
                 onComparePlan={onComparePlan}
                 onEdit={onEdit}
@@ -1642,6 +1656,7 @@ function useDashboardMain({
               <LazyPlanViewer
                 plan={selectedPlan}
                 allPlans={allPlans}
+                loadRelatedPlanContent={loadRelatedPlanContent}
                 onSelectRelatedPlan={onSelectRelatedPlan}
                 onComparePlan={onComparePlan}
                 onEdit={onEdit}

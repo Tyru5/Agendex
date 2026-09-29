@@ -205,3 +205,14 @@ test('dashboard data is not prefetched without a token', () => {
 
   expect(requested).toEqual([]);
 });
+
+test('optional local CLI detection surfaces unauthorized without expiring or reloading cloud session', async () => {
+  localStorage.setItem('agendex_token', 'expired-local-token');
+  Object.defineProperty(globalThis, 'fetch', {
+    value: async () => new Response('{}', { status: 401 }),
+    configurable: true,
+  });
+  // No window/sessionStorage globals exist in this test; a reload or session-expiry write would throw.
+  await expectErrorMessage(() => api.getHandoffClis(), 'Local Agendex authentication is required.');
+  expect(localStorage.getItem('agendex_token')).toBe('expired-local-token');
+});

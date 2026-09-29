@@ -351,3 +351,14 @@ describe('plan receipts', () => {
     expect(Object.keys(subsetBody.receipts)).toEqual([ledgerPlanId]);
   });
 });
+
+test('handoff CLI catalog contains only supported target IDs and labels', async () => {
+  const res = await plans.request('/open-in/agent-clis');
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as { apps: { id: string; label: string }[] };
+  expect(Array.isArray(body.apps)).toBe(true);
+  for (const app of body.apps) {
+    expect(['codex', 'claude']).toContain(app.id);
+    expect(typeof app.label).toBe('string');
+  }
+});

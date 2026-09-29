@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { buildLaunchCommand } from './open-in-apps.ts';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { detectHandoffClis, buildLaunchCommand } from './open-in-apps.ts';
 
 const originalPlatform = process.platform;
 
@@ -34,4 +37,24 @@ describe('buildLaunchCommand', () => {
       process.env.PATH = originalPath;
     }
   });
+});
+
+test('handoff detection requires an executable file and handles missing/Windows targets', () => {
+  const originalPath = process.env.PATH;
+  const directory = mkdtempSync(join(tmpdir(), 'agendex-clis-'));
+  try {
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    process.env.PATH = directory;
+    expect(detectHandoffClis()).toEqual([]);
+    mkdirSync(join(directory, 'codex'));
+    writeFileSync(join(directory, 'claude'), '#!/bin/sh\n', { mode: 0o644 });
+    expect(detectHandoffClis()).toEqual([]);
+    chmodSync(join(directory, 'claude'), 0o755);
+    expect(detectHandoffClis()).toEqual([{ id: 'claude', label: 'Claude Code' }]);
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    expect(detectHandoffClis()).toEqual([]);
+  } finally {
+    process.env.PATH = originalPath;
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

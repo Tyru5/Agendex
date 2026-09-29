@@ -10033,3 +10033,14 @@ body:has(> * > * > .landing-page) {
     animation-duration: 0.01ms !important;
   }
 }
+
+.cross-agent-section { margin-top: 16px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--secondary); font-size: 13px; }
+.cross-agent-section summary { cursor: pointer; color: var(--text); font-weight: 600; }
+.cross-agent-section p { margin: 8px 0; }
+.cross-agent-section ul { padding-left: 20px; }
+.cross-agent-section li { margin: 10px 0; }
+.cross-agent-section button { padding: 5px 9px; border: 1px solid var(--border); border-radius: 5px; cursor: pointer; }
+.cross-agent-section button:disabled { opacity: .5; cursor: default; }
+.cross-agent-section label { display: block; margin-top: 10px; }
+.cross-agent-section input, .cross-agent-section select, .cross-agent-section textarea { display: block; padding: 6px; margin-top: 4px; max-width: 100%; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); }
+.cross-agent-section input, .cross-agent-section textarea { width: 100%; }
