@@ -7,9 +7,12 @@ import { authComponent } from './auth';
 import { requireFeature, requireFeatureForUserId } from './entitlements';
 import { isVisiblePlan } from './planVisibility';
 import {
+  isShareLinkLive,
   resolveSharedPlanAccess,
   SHARE_ACCESS_PROOF_TTL_MS,
   shareAccessProofIdValidator,
+  shareLinkExpiresAt,
+  shareLinkExpiryValidator,
 } from './shareAccess';
 import { sharedPlanDtoValidator, toSharedPlanDto } from './sharedPlanDto';
 
@@ -148,6 +151,7 @@ export const createShareLink = action({
   args: {
     planId: v.id('plans'),
     protectWithPassword: v.optional(v.boolean()),
+    expiresIn: v.optional(shareLinkExpiryValidator),
   },
   returns: v.union(
     v.object({ token: v.string() }),
@@ -182,6 +186,7 @@ export const createShareLink = action({
       token,
       createdBy: user._id,
       passwordHash,
+      expiresIn: args.expiresIn,
     });
     return password !== undefined ? { token, password } : { token };
   },
@@ -193,6 +198,7 @@ export const createShareLinkInternal = internalMutation({
     token: v.string(),
     createdBy: v.string(),
     passwordHash: v.optional(v.string()),
+    expiresIn: v.optional(shareLinkExpiryValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -206,13 +212,44 @@ export const createShareLinkInternal = internalMutation({
       throw new ConvexError('Access denied');
     }
 
-    await ctx.db.insert('shareLinks', {
+    const createdAt = Date.now();
+    const expiresAt = shareLinkExpiresAt(args.expiresIn ?? 'never', createdAt);
+    const shareLinkId = await ctx.db.insert('shareLinks', {
       planId: args.planId,
       token: args.token,
       createdBy: args.createdBy,
-      createdAt: Date.now(),
+      createdAt,
       passwordHash: args.passwordHash,
+      expiresAt,
     });
+    if (expiresAt !== undefined) {
+      await ctx.scheduler.runAt(expiresAt, internal.sharing.expireShareLinkInternal, {
+        shareLinkId,
+      });
+    }
+    return null;
+  },
+});
+
+export const expireShareLinkInternal = internalMutation({
+  args: { shareLinkId: v.id('shareLinks') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const shareLink = await ctx.db.get(args.shareLinkId);
+    if (!shareLink || shareLink.expiresAt === undefined) {
+      return null;
+    }
+
+    if (shareLink.expiresAt > Date.now()) {
+      await ctx.scheduler.runAt(
+        shareLink.expiresAt,
+        internal.sharing.expireShareLinkInternal,
+        args,
+      );
+      return null;
+    }
+
+    await ctx.db.delete(shareLink._id);
     return null;
   },
 });
@@ -251,6 +288,7 @@ export const getShareLinks = query({
       token: v.string(),
       createdAt: v.number(),
       hasPassword: v.boolean(),
+      expiresAt: v.optional(v.number()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -275,12 +313,16 @@ export const getShareLinks = query({
       .withIndex('by_plan', (q) => q.eq('planId', args.planId))
       .collect();
 
-    return links.map((link) => ({
-      _id: link._id,
-      token: link.token,
-      createdAt: link.createdAt,
-      hasPassword: !!link.passwordHash,
-    }));
+    const now = Date.now();
+    return links
+      .filter((link) => isShareLinkLive(link, now))
+      .map((link) => ({
+        _id: link._id,
+        token: link.token,
+        createdAt: link.createdAt,
+        hasPassword: !!link.passwordHash,
+        ...(link.expiresAt !== undefined && { expiresAt: link.expiresAt }),
+      }));
   },
 });
 
@@ -344,7 +386,7 @@ export const issueShareAccessProofInternal = internalMutation({
     args,
   ): Promise<{ accessProof: Id<'shareAccessProofs'>; expiresAt: number }> => {
     const shareLink = await ctx.db.get(args.shareLinkId);
-    if (!shareLink) {
+    if (!shareLink || !isShareLinkLive(shareLink, Date.now())) {
       throw new ConvexError('Invalid or revoked share link');
     }
     if (!shareLink.passwordHash) {

@@ -488,6 +488,7 @@ export const listPlanSectionPage = internalQuery({
             createdBy: link.createdBy,
             createdAt: link.createdAt,
             passwordHash: link.passwordHash,
+            expiresAt: link.expiresAt,
           } satisfies ShareLinkForExport),
         );
         return serializePage({ ...result, page });

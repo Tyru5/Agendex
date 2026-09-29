@@ -12,6 +12,17 @@ export function formatRelativeTime(ts: number, now: number = Date.now()): string
 
 export const timeAgo = formatRelativeTime;
 
+/** Share-link expiry label, e.g. `Expires in 6 days`, `Expires in 3 hours`, `No expiry`. */
+export function formatShareLinkExpiry(expiresAt: number | undefined, now: number = Date.now()) {
+  if (expiresAt === undefined) return 'No expiry';
+  const diff = expiresAt - now;
+  if (diff <= 0) return 'Expired';
+  const hours = Math.ceil(diff / 3_600_000);
+  if (hours < 24) return hours === 1 ? 'Expires in 1 hour' : `Expires in ${hours} hours`;
+  const days = Math.floor(diff / 86_400_000);
+  return days === 1 ? 'Expires in 1 day' : `Expires in ${days} days`;
+}
+
 export function formatUptime(ms: number): string {
   const s = Math.floor(ms / 1000);
   const h = Math.floor(s / 3600);

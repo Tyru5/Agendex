@@ -38,6 +38,7 @@ test('redactShareLink omits passwordHash and sets passwordProtected', () => {
       token: 'tok2',
       createdBy: 'user1',
       createdAt: 2,
+      expiresAt: 3,
     }),
   ).toEqual({
     _id: 'sl2',
@@ -45,6 +46,7 @@ test('redactShareLink omits passwordHash and sets passwordProtected', () => {
     token: 'tok2',
     createdBy: 'user1',
     createdAt: 2,
+    expiresAt: 3,
     passwordProtected: false,
   });
 });

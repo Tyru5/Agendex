@@ -5,7 +5,7 @@ import { useAction, useMutation, useQuery } from 'convex/react';
 import { type CSSProperties, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { usePublishing } from '../hooks/usePublishing.ts';
 import { normalizeLocalDevUrl } from '../lib/auth-client.ts';
-import { timeAgo } from '../lib/formatTime.ts';
+import { formatShareLinkExpiry, timeAgo } from '../lib/formatTime.ts';
 
 const appUrl = normalizeLocalDevUrl(
   (import.meta.env.VITE_APP_URL as string) || window.location.origin,
@@ -19,7 +19,17 @@ type ShareLinkRow = {
   token: string;
   createdAt: number;
   hasPassword: boolean;
+  expiresAt?: number;
 };
+
+type ShareLinkExpiry = 'never' | '1d' | '7d' | '30d';
+
+const SHARE_LINK_EXPIRY_OPTIONS: { value: ShareLinkExpiry; label: string }[] = [
+  { value: 'never', label: 'Never' },
+  { value: '1d', label: '1 day' },
+  { value: '7d', label: '7 days' },
+  { value: '30d', label: '30 days' },
+];
 
 /** Box + outgoing stroke — same metaphor as “open link,” lighter than the old share-node glyph. */
 function LinkOutIcon({ className }: { className?: string }) {
@@ -78,6 +88,8 @@ export function SharePlanDialog({ plan, mode, onClose }: SharePlanDialogProps) {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [copiedSecret, setCopiedSecret] = useState<'password' | 'both' | null>(null);
   const [protectWithPassword, setProtectWithPassword] = useState(false);
+  const [expiresIn, setExpiresIn] = useState<ShareLinkExpiry>('never');
+  const expiryId = useId();
   const [revokeConfirmId, setRevokeConfirmId] = useState<string | null>(null);
   const [oneTimeSecret, setOneTimeSecret] = useState<{
     url: string;
@@ -138,6 +150,7 @@ export function SharePlanDialog({ plan, mode, onClose }: SharePlanDialogProps) {
       const result = await createShareLink({
         planId: planId as Id<'plans'>,
         ...(protectWithPassword ? { protectWithPassword: true } : {}),
+        ...(expiresIn !== 'never' ? { expiresIn } : {}),
       });
       const url = `${appUrl}/shared/${result.token}`;
       setCopiedSecret(null);
@@ -147,6 +160,7 @@ export function SharePlanDialog({ plan, mode, onClose }: SharePlanDialogProps) {
         setOneTimeSecret(null);
       }
       setProtectWithPassword(false);
+      setExpiresIn('never');
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Could not create share link. Try again.';
@@ -354,7 +368,7 @@ export function SharePlanDialog({ plan, mode, onClose }: SharePlanDialogProps) {
                   >
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <span className="text-[11px] text-tertiary tabular-nums">
-                        {timeAgo(link.createdAt)}
+                        {timeAgo(link.createdAt)} · {formatShareLinkExpiry(link.expiresAt)}
                       </span>
                       {link.hasPassword && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-secondary">
@@ -471,6 +485,24 @@ export function SharePlanDialog({ plan, mode, onClose }: SharePlanDialogProps) {
               </span>
             </div>
           </label>
+        </div>
+
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <label htmlFor={expiryId} className="text-[13px] font-medium text-text">
+            Link expires
+          </label>
+          <select
+            id={expiryId}
+            value={expiresIn}
+            onChange={(e) => setExpiresIn(e.target.value as ShareLinkExpiry)}
+            className="rounded-lg border border-border bg-surface px-3 py-1.5 text-[13px] font-[inherit] text-text outline-none focus:border-text cursor-pointer"
+          >
+            {SHARE_LINK_EXPIRY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <button
