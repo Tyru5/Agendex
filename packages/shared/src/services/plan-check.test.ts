@@ -16,6 +16,7 @@ test('API plan check resolves beyond the path batch limit instead of truncating 
       id: 'batched',
       title: 'Batched plan',
       agent: 'test',
+      format: 'md',
       workspace,
       filePath: join(workspace, 'plan.md'),
       content: Array.from({ length: 501 }, (_, index) => `Update \`src/file${index}.ts\`.`).join(
