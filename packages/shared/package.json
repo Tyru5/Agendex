@@ -15,7 +15,8 @@
     "./plan-sync-identity": "./src/services/plan-sync-identity.ts",
     "./plan-download-lookup": "./src/services/plan-download-lookup.ts",
     "./receipts": "./src/receipts/types.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./approval-gates": "./src/approval-gates.ts"
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",

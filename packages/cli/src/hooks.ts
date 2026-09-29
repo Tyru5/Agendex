@@ -1,3 +1,4 @@
+import { runReviewPlan } from './review-plan.ts';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -8,7 +9,7 @@ export type HookScope = 'user' | 'repo';
 
 const SUPPORTED_AGENTS: HookAgent[] = ['claude-code', 'codex', 'pi'];
 const MANAGED_MARKER = 'agendex-plan-review';
-const HOOK_TIMEOUT_SECONDS = 345600;
+const HOOK_TIMEOUT_SECONDS = 3610;
 const PREVIEW_FLAG = '--preview';
 
 interface HookStatusRow {
@@ -32,7 +33,7 @@ function scopeRoot(scope: HookScope): string {
 
 function hooksJsonPath(agent: HookAgent, scope: HookScope): string {
   const root = scopeRoot(scope);
-  if (agent === 'claude-code') return join(root, '.claude', 'hooks.json');
+  if (agent === 'claude-code') return join(root, '.claude', 'settings.json');
   if (agent === 'codex') return join(root, '.codex', 'hooks.json');
   return join(
     root,
@@ -168,24 +169,15 @@ function ensureCodexHooksEnabled(raw: string): string {
   return `${lines.join('\n').trimEnd()}\n`;
 }
 
-type PreviewAgent = 'claude-code' | 'codex';
-
-// Agents whose installed hook runs review-plan automatically, which is not implemented yet.
+type PreviewAgent = 'codex';
 const PREVIEW_EFFECT: Record<PreviewAgent, { refusal: string; dryRun: string; installed: string }> =
   {
-    'claude-code': {
-      refusal: 'claude-code: the hook would deny ExitPlanMode permission requests.',
-      dryRun:
-        'This dry run describes a PermissionRequest hook that would deny ExitPlanMode until hook-native plan review ships.',
-      installed:
-        'The installed PermissionRequest hook will deny ExitPlanMode until hook-native plan review ships.',
-    },
     codex: {
-      refusal: 'codex: the hook would run a failing command every time Codex stops.',
+      refusal: 'codex: Stop cannot approve or reject a plan permission request.',
       dryRun:
-        'This dry run describes a Stop hook that would run a failing command every time Codex stops until hook-native plan review ships.',
+        'This legacy Stop hook is unsupported for plan approval; the review command will fail without sending a continuation decision.',
       installed:
-        'The installed Stop hook will run a failing command every time Codex stops until hook-native plan review ships.',
+        'The legacy Stop hook is unsupported for plan approval. Uninstall it; use review-plan --file for manual review.',
     },
   };
 
@@ -195,7 +187,7 @@ function isPreviewAgent(agent: HookAgent): agent is PreviewAgent {
 
 function printPreviewBlock(agents: PreviewAgent[]): void {
   console.error(
-    `[agendex] refusing to install ${agents.join(' and ')} ${agents.length === 1 ? 'hook' : 'hooks'}: hook-native plan review is not implemented yet.`,
+    `[agendex] refusing to install ${agents.join(' and ')} ${agents.length === 1 ? 'hook' : 'hooks'}: Codex Stop does not provide a plan-permission contract.`,
   );
   for (const agent of agents) console.error(`[agendex] ${PREVIEW_EFFECT[agent].refusal}`);
   console.error(
@@ -213,7 +205,7 @@ function printPreviewWarning(agent: PreviewAgent, dryRun: boolean): void {
 
 function previewDetail(agent: HookAgent, detail: string): string {
   return isPreviewAgent(agent)
-    ? `${detail}; preview-only until plan review ships, remove with: agendex hooks uninstall ${agent}`
+    ? `${detail}; preview-only; unsupported for plan permission, remove with: agendex hooks uninstall ${agent}`
     : detail;
 }
 
@@ -252,9 +244,9 @@ const REVIEW_COMMAND = ${JSON.stringify(command)};
 
 export default function agendexPiExtension(pi: ExtensionAPI): void {
   pi.registerCommand('agendex-review-plan', {
-    description: 'Open an Agendex plan review gate for the current Pi session',
+    description: 'Show the Agendex manual plan review command (not an automatic Pi gate)',
     handler: async (_args, ctx) => {
-      ctx.ui.notify('Agendex review command registered. Native interactive review is handled by the Agendex CLI hook path.', 'info');
+      ctx.ui.notify('Agendex review command registered. Use agendex review-plan --file /absolute/path/to/plan.md for manual review; Pi has no automatic permission gate.', 'info');
       pi.sendMessage(
         {
           customType: 'agendex-review-command',
@@ -310,9 +302,13 @@ async function uninstallJsonAgent(
   dryRun: boolean,
 ) {
   const path = hooksJsonPath(agent, scope);
-  if (!existsSync(path)) return path;
-  const updated = removeManagedHooks(readJsonFile(path));
-  await writeWithBackup(path, `${JSON.stringify(updated, null, 2)}\n`, dryRun);
+  const paths =
+    agent === 'claude-code' ? [path, join(scopeRoot(scope), '.claude', 'hooks.json')] : [path];
+  for (const target of paths) {
+    if (!existsSync(target)) continue;
+    const updated = removeManagedHooks(readJsonFile(target));
+    await writeWithBackup(target, `${JSON.stringify(updated, null, 2)}\n`, dryRun);
+  }
   return path;
 }
 
@@ -449,15 +445,5 @@ export async function runHooksCommand(args: string[], cliEntry: string): Promise
 }
 
 export async function runHookReviewCommand(args: string[]): Promise<number> {
-  if (!args.includes('--hook')) {
-    console.error(
-      '[agendex] review-plan currently supports hook mode only: agendex review-plan --hook --agent <agent>',
-    );
-    return 1;
-  }
-
-  console.error(
-    '[agendex] hook-native plan review is not implemented yet. Uninstall this hook or wait for the interactive review-session server before enabling it.',
-  );
-  return 1;
+  return runReviewPlan(args);
 }

@@ -10033,3 +10033,7 @@ body:has(> * > * > .landing-page) {
     animation-duration: 0.01ms !important;
   }
 }
+
+.agendex-approval-dialog::backdrop {
+  background: color-mix(in oklch, var(--text) 35%, transparent);
+}

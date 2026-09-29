@@ -131,7 +131,10 @@ const HELP_GROUPS: HelpGroup[] = [
         examples: ['agendex hooks install claude-code --preview'],
       },
       { command: 'hooks uninstall <agent|all>', description: 'Remove managed hook entries' },
-      { command: 'review-plan --hook --agent <agent>', description: 'Run hook-native plan review' },
+      {
+        command: 'review-plan --file <plan.md>',
+        description: 'Wait for an authenticated plan review',
+      },
       {
         command: 'mcp [--workspace <dir>]',
         description: 'Serve local plans and receipts to coding agents (MCP over stdio)',
