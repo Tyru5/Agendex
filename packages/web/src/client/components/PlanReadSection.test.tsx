@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PlanReadSection, readRevisionKey, readSummary } from './PlanReadSection.tsx';
+import { PlanReadSection } from './PlanReadSection.tsx';
+import { readRevisionKey, readSummary } from '../lib/plan-read-session.ts';
 import type { Plan } from '../lib/api.ts';
 const plan = { id: 'p', title: 'Plan', content: 'Steps' } as Plan;
 test('public viewer without a private read source has no recording UI', () => {

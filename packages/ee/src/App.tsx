@@ -2017,7 +2017,7 @@ function useDashboard({
   authPending: boolean;
 }) {
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const planViewPreference = useQuery(
     api.account.getMyPlanViewPreference,
     isAuthenticated ? {} : 'skip',
@@ -2966,7 +2966,7 @@ function useDashboard({
         receipts={receipts}
       />
 
-      <PlanReadProvider mode={mode}>
+      <PlanReadProvider mode={mode} userId={user?.id ? String(user.id) : undefined}>
         <DashboardMainView
           mode={mode}
           isPro={isPro}
