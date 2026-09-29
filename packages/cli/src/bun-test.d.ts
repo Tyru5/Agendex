@@ -34,6 +34,7 @@ declare module 'bun:test' {
   interface ExpectFn {
     (actual: unknown): Matcher;
     stringContaining(value: string): unknown;
+    stringMatching(value: string | RegExp): unknown;
   }
 
   export const expect: ExpectFn;

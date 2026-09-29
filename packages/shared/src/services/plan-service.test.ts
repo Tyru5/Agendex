@@ -719,6 +719,40 @@ test('scan annotates low-value user-created and custom markdown plans', async ()
   expect(getIndexablePlans()).toHaveLength(0);
 });
 
+test('scan reads hook-captured sessionId frontmatter and ignores the legacy latest placeholder', async () => {
+  await useTempHome('agendex-plan-service-session-frontmatter-');
+  const hooksDir = join(getConfigDir(), 'plans', 'hooks', 'codex');
+  const sessionPlanPath = join(hooksDir, 'session-1', 'plan.md');
+  const latestPlanPath = join(hooksDir, 'latest', 'plan.md');
+  const body = '# Ship lineage\n\n- [ ] Parse session frontmatter\n- [ ] Add tests\n';
+
+  await mkdir(join(hooksDir, 'session-1'), { recursive: true });
+  await mkdir(join(hooksDir, 'latest'), { recursive: true });
+  await writeFile(
+    sessionPlanPath,
+    `---\nagent: codex\nsource: hook\nsessionId: session-1\n---\n${body}`,
+    'utf-8',
+  );
+  await writeFile(
+    latestPlanPath,
+    `---\nagent: codex\nsource: hook\nsessionId: latest\n---\n${body}`,
+    'utf-8',
+  );
+
+  saveConfig({ configVersion: 3, enabledAdapters: [], customPlanDirs: [] });
+  setActiveAdapters([]);
+
+  await scan();
+
+  const sessionPlan = getAll().find((plan) => plan.filePath === sessionPlanPath);
+  const latestPlan = getAll().find((plan) => plan.filePath === latestPlanPath);
+  expect(sessionPlan?.agent).toBe('codex');
+  expect(sessionPlan?.metadata.sessionId).toBe('session-1');
+  expect(sessionPlan?.metadata.sessionIdSource).toBe('frontmatter');
+  expect(latestPlan).toBeDefined();
+  expect(latestPlan?.metadata.sessionId).toBeUndefined();
+});
+
 test('scan keeps valuable user-created and custom markdown plans indexable', async () => {
   const home = await useTempHome('agendex-plan-service-valuable-source-scope-');
   const userPlansDir = join(getConfigDir(), 'plans');

@@ -61,6 +61,25 @@ test('captures iFlow plan before its transient source disappears', async () => {
   expect(await Bun.file(capturedPath).text()).toContain('# iFlow Plan');
 });
 
+test('capture records the payload session id and omits it when the payload has none', async () => {
+  const root = await useTempRoot();
+  const workspace = join(root, 'repo');
+  await mkdir(join(workspace, '.iflow'), { recursive: true });
+  await writeFile(join(workspace, '.iflow', 'plan.md'), '# iFlow Plan\n\n- [ ] Implement');
+
+  const [withId] = await capturePlanFromHook('iflow-cli', {
+    session_id: 'session-1',
+    workspacePaths: [workspace],
+  });
+  const [withoutId] = await capturePlanFromHook('iflow-cli', { workspacePaths: [workspace] });
+  if (!withId || !withoutId) throw new Error('Expected captured plan paths');
+
+  expect(await Bun.file(withId).text()).toContain('sessionId: session-1\n');
+  const withoutIdContent = await Bun.file(withoutId).text();
+  expect(withoutIdContent).toContain('agent: iflow-cli');
+  expect(withoutIdContent).not.toContain('sessionId:');
+});
+
 test('capture-plan command accepts explicit inline plan fields', async () => {
   await useTempRoot();
   const result = await runCapturePlanCommand(

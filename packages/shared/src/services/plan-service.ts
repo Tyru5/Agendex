@@ -203,10 +203,15 @@ async function parseGenericMarkdownPlan(
 
     let agent =
       (typeof extraMetadata.agentHint === 'string' ? extraMetadata.agentHint : '') || 'unknown';
+    let metadata = extraMetadata;
     const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
     if (fmMatch) {
       const agentLine = fmMatch[1]?.match(/^agent:\s*(.+)$/m);
       if (agentLine?.[1]) agent = agentLine[1].trim();
+      // Older CLI versions wrote the placeholder `latest` when the hook payload had no id.
+      const sessionId = fmMatch[1]?.match(/^sessionId:\s*(.+)$/m)?.[1]?.trim();
+      if (sessionId && sessionId !== 'latest')
+        metadata = { ...extraMetadata, sessionId, sessionIdSource: 'frontmatter' };
     }
 
     const bodyContent = fmMatch ? content.slice(fmMatch[0].length) : content;
@@ -226,7 +231,7 @@ async function parseGenericMarkdownPlan(
       format: 'md',
       createdAt: stats.birthtime,
       updatedAt: stats.mtime,
-      metadata: extraMetadata,
+      metadata,
     };
   } catch {
     return null;

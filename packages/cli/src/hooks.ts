@@ -9,7 +9,7 @@ export type HookScope = 'user' | 'repo';
 const SUPPORTED_AGENTS: HookAgent[] = ['claude-code', 'codex', 'pi'];
 const MANAGED_MARKER = 'agendex-plan-review';
 const HOOK_TIMEOUT_SECONDS = 345600;
-const CLAUDE_PREVIEW_FLAG = '--preview';
+const PREVIEW_FLAG = '--preview';
 
 interface HookStatusRow {
   agent: HookAgent;
@@ -168,26 +168,53 @@ function ensureCodexHooksEnabled(raw: string): string {
   return `${lines.join('\n').trimEnd()}\n`;
 }
 
-function printClaudePreviewBlock(): void {
+type PreviewAgent = 'claude-code' | 'codex';
+
+// Agents whose installed hook runs review-plan automatically, which is not implemented yet.
+const PREVIEW_EFFECT: Record<PreviewAgent, { refusal: string; dryRun: string; installed: string }> =
+  {
+    'claude-code': {
+      refusal: 'claude-code: the hook would deny ExitPlanMode permission requests.',
+      dryRun:
+        'This dry run describes a PermissionRequest hook that would deny ExitPlanMode until hook-native plan review ships.',
+      installed:
+        'The installed PermissionRequest hook will deny ExitPlanMode until hook-native plan review ships.',
+    },
+    codex: {
+      refusal: 'codex: the hook would run a failing command every time Codex stops.',
+      dryRun:
+        'This dry run describes a Stop hook that would run a failing command every time Codex stops until hook-native plan review ships.',
+      installed:
+        'The installed Stop hook will run a failing command every time Codex stops until hook-native plan review ships.',
+    },
+  };
+
+function isPreviewAgent(agent: HookAgent): agent is PreviewAgent {
+  return agent in PREVIEW_EFFECT;
+}
+
+function printPreviewBlock(agents: PreviewAgent[]): void {
   console.error(
-    '[agendex] refusing to install claude-code hook: hook-native plan review is not implemented yet.',
+    `[agendex] refusing to install ${agents.join(' and ')} ${agents.length === 1 ? 'hook' : 'hooks'}: hook-native plan review is not implemented yet.`,
   );
+  for (const agent of agents) console.error(`[agendex] ${PREVIEW_EFFECT[agent].refusal}`);
   console.error(
-    '[agendex] Installing it now would cause Claude Code to deny ExitPlanMode permission requests.',
-  );
-  console.error(
-    `[agendex] Re-run with ${CLAUDE_PREVIEW_FLAG} to opt in deliberately, or install codex/pi separately.`,
+    `[agendex] Re-run with ${PREVIEW_FLAG} to opt in deliberately, or install pi separately.`,
   );
 }
 
-function printClaudePreviewWarning(dryRun: boolean): void {
-  console.error('[agendex] WARNING: claude-code hook support is preview-only.');
+function printPreviewWarning(agent: PreviewAgent, dryRun: boolean): void {
+  console.error(`[agendex] WARNING: ${agent} hook support is preview-only.`);
   console.error(
-    dryRun
-      ? '[agendex] This dry run describes a PermissionRequest hook that would deny ExitPlanMode until hook-native plan review ships.'
-      : '[agendex] The installed PermissionRequest hook will deny ExitPlanMode until hook-native plan review ships.',
+    `[agendex] ${dryRun ? PREVIEW_EFFECT[agent].dryRun : PREVIEW_EFFECT[agent].installed}`,
   );
-  console.error('[agendex] Remove it with: agendex hooks uninstall claude-code');
+  console.error(`[agendex] Remove it with: agendex hooks uninstall ${agent}`);
+}
+
+function previewDetail(agent: HookAgent, detail: string): string {
+  return isPreviewAgent(agent)
+    ? `${detail}; preview-only until plan review ships, remove with: agendex hooks uninstall ${agent}`
+    : detail;
 }
 
 async function installClaude(scope: HookScope, cliEntry: string, dryRun: boolean): Promise<string> {
@@ -313,7 +340,7 @@ function statusFor(agent: HookAgent, scope: HookScope): HookStatusRow {
       installed,
       path,
       detail: installed
-        ? 'Stop hook installed and hooks feature enabled'
+        ? previewDetail(agent, 'Stop hook installed and hooks feature enabled')
         : 'Missing Stop hook or [features].hooks = true',
     };
   }
@@ -322,7 +349,9 @@ function statusFor(agent: HookAgent, scope: HookScope): HookStatusRow {
     agent,
     installed,
     path,
-    detail: installed ? 'Agendex hook installed' : 'Agendex hook not installed',
+    detail: installed
+      ? previewDetail(agent, 'Agendex hook installed')
+      : 'Agendex hook not installed',
   };
 }
 
@@ -372,21 +401,22 @@ export async function runHooksCommand(args: string[], cliEntry: string): Promise
     const parsed = parseAgent(agentArg);
     if (!parsed) {
       console.error(
-        `[agendex] usage: agendex hooks install <claude-code|codex|pi|all> [--scope repo|user] [--dry-run] [${CLAUDE_PREVIEW_FLAG}]`,
+        `[agendex] usage: agendex hooks install <claude-code|codex|pi|all> [--scope repo|user] [--dry-run] [${PREVIEW_FLAG}]`,
       );
       return 1;
     }
 
     const dryRun = args.includes('--dry-run');
-    const preview = args.includes(CLAUDE_PREVIEW_FLAG);
+    const preview = args.includes(PREVIEW_FLAG);
     const agents = parsed === 'all' ? SUPPORTED_AGENTS : [parsed];
-    if (!preview && agents.includes('claude-code')) {
-      printClaudePreviewBlock();
+    const previewAgents = agents.filter(isPreviewAgent);
+    if (!preview && previewAgents.length > 0) {
+      printPreviewBlock(previewAgents);
       return 1;
     }
 
     for (const agent of agents) {
-      if (agent === 'claude-code') printClaudePreviewWarning(dryRun);
+      if (isPreviewAgent(agent)) printPreviewWarning(agent, dryRun);
       const path = await installAgent(agent, scope, resolve(cliEntry), dryRun);
       console.log(`[agendex] ${dryRun ? 'would install' : 'installed'} ${agent} hook: ${path}`);
     }
