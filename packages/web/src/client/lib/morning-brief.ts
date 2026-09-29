@@ -1,4 +1,11 @@
+import {
+  checklistFromSummary,
+  extractPlanChecklist,
+  type PlanChecklist,
+} from '@agendex/shared/plan-checklist';
+import type { PlanReceiptSummary } from '@agendex/shared/receipts';
 import type { Plan } from './api.ts';
+import { receiptSummaryForPlan } from './plan-receipt-format.ts';
 
 export const MORNING_BRIEF_DEFAULT_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 export const MORNING_BRIEF_MAX_LOOKBACK_MS = 7 * MORNING_BRIEF_DEFAULT_LOOKBACK_MS;
@@ -8,18 +15,11 @@ const PICKUP_LIMIT = 4;
 const RELAY_LIMIT = 5;
 const CLOSED_LOOP_LIMIT = 3;
 
-export type BriefChecklist = {
-  total: number;
-  completed: number;
-  remaining: number;
-  nextStep?: string;
-};
-
 export type BriefPlanActivity = {
   plan: Plan;
   occurredAt: number;
   kind: 'created' | 'updated';
-  checklist: BriefChecklist;
+  checklist: PlanChecklist;
 };
 
 export type BriefWorkspaceRelay = {
@@ -29,14 +29,26 @@ export type BriefWorkspaceRelay = {
   occurredAt: number;
 };
 
+/** A plan that finished in the window, and the evidence that says so. */
+export type BriefClosedLoop = {
+  plan: Plan;
+  occurredAt: number;
+  evidence: { kind: 'landed'; commits: number } | { kind: 'checklist'; steps: number };
+};
+
+/** Receipt summaries keyed by local plan id, as served by `GET /api/v1/receipts`. */
+export type BriefReceipts = Readonly<Record<string, PlanReceiptSummary>>;
+
 export type MorningBriefSnapshot = {
   since: number;
   until: number;
   activity: BriefPlanActivity[];
   pickups: BriefPlanActivity[];
-  closedLoops: BriefPlanActivity[];
+  closedLoops: BriefClosedLoop[];
   relays: BriefWorkspaceRelay[];
   planCount: number;
+  /** Plans whose attributed commits reached the default branch in the window. */
+  landedCount: number;
   newPlanCount: number;
   updatedPlanCount: number;
   agentCount: number;
@@ -48,40 +60,54 @@ function timestamp(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function cleanTaskLabel(value: string): string {
-  return value
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
-    .replace(/[*_~]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+/** "Landed · 4 commits" or "All 6 steps done". */
+export function closedLoopEvidenceLabel(loop: BriefClosedLoop): string {
+  const { evidence } = loop;
+  if (evidence.kind === 'landed') {
+    return `Landed · ${evidence.commits} commit${evidence.commits === 1 ? '' : 's'}`;
+  }
+  return evidence.steps === 1 ? '1 step done' : `All ${evidence.steps} steps done`;
 }
 
-export function extractBriefChecklist(content: string): BriefChecklist {
-  const taskPattern = /^\s*(?:[-*+]|\d+[.)])\s+\[([ xX])]\s+(.+?)\s*$/gm;
-  let total = 0;
-  let completed = 0;
-  let nextStep: string | undefined;
+/**
+ * The mark-read button. Reading persists `until` as the next brief's start, so it waits for the
+ * first receipt answer: marking read earlier would skip landings the brief never showed.
+ */
+export function morningBriefMarkReadState(state: {
+  loading: boolean;
+  error: boolean;
+  markedRead: boolean;
+  receiptsLoading: boolean;
+  caughtUp: boolean;
+}): { disabled: boolean; label: string } {
+  if (state.markedRead) return { disabled: true, label: 'Brief read' };
+  if (state.loading) return { disabled: true, label: 'Building brief' };
+  if (state.error) return { disabled: true, label: 'Brief unavailable' };
+  if (state.receiptsLoading) return { disabled: true, label: 'Checking git history' };
+  if (state.caughtUp) return { disabled: true, label: 'Brief is current' };
+  return { disabled: false, label: 'Mark brief read' };
+}
 
-  for (const match of content.matchAll(taskPattern)) {
-    total++;
-    const isCompleted = match[1]?.toLowerCase() === 'x';
-    if (isCompleted) {
-      completed++;
-      continue;
-    }
-    if (!nextStep) {
-      const label = cleanTaskLabel(match[2] ?? '');
-      if (label) nextStep = label;
-    }
+/** Landed plans in `(since, until]`, from receipt evidence alone. */
+function landedLoops(
+  plans: readonly Plan[],
+  receipts: BriefReceipts | undefined,
+  since: number,
+  until: number,
+): BriefClosedLoop[] {
+  if (!receipts) return [];
+  const loops: BriefClosedLoop[] = [];
+  for (const plan of plans) {
+    const receipt = receiptSummaryForPlan(receipts, plan);
+    const landedAt = receipt?.landedAt ? timestamp(receipt.landedAt) : undefined;
+    if (!receipt || landedAt === undefined || landedAt <= since || landedAt > until) continue;
+    loops.push({
+      plan,
+      occurredAt: landedAt,
+      evidence: { kind: 'landed', commits: receipt.commits },
+    });
   }
-
-  return {
-    total,
-    completed,
-    remaining: Math.max(0, total - completed),
-    nextStep,
-  };
+  return loops;
 }
 
 export function resolveMorningBriefSince(lastReadAt: number | null, now = Date.now()): number {
@@ -103,7 +129,10 @@ function planActivity(plan: Plan, since: number, until: number): BriefPlanActivi
     occurredAt,
     kind:
       createdAt !== undefined && createdAt > since && createdAt <= until ? 'created' : 'updated',
-    checklist: extractBriefChecklist(plan.content),
+    // Cloud list rows ship a checklist summary instead of content.
+    checklist: plan.checklist
+      ? checklistFromSummary(plan.checklist)
+      : extractPlanChecklist(plan.content),
   };
 }
 
@@ -159,26 +188,50 @@ function buildRelays(activities: BriefPlanActivity[]): BriefWorkspaceRelay[] {
   return relays.sort((a, b) => b.occurredAt - a.occurredAt).slice(0, RELAY_LIMIT);
 }
 
+/**
+ * `receipts` (keyed by local plan id) adds git evidence: a plan that landed in the window is a
+ * closed loop even when its file never changed, and a plan with a usable receipt is judged by
+ * it rather than by its checklist.
+ */
 export function buildMorningBrief(
   plans: readonly Plan[],
   since: number,
   until = Date.now(),
+  receipts?: BriefReceipts,
 ): MorningBriefSnapshot {
   const activities = plans
     .map((plan) => planActivity(plan, since, until))
     .filter((activity): activity is BriefPlanActivity => Boolean(activity))
     .sort((a, b) => b.occurredAt - a.occurredAt);
 
+  const landed = landedLoops(plans, receipts, since, until);
+  const landedIds = new Set(landed.map((loop) => loop.plan.id));
   const incomplete = activities.filter(
-    (activity) => activity.checklist.total > 0 && activity.checklist.remaining > 0,
+    (activity) =>
+      activity.checklist.total > 0 &&
+      activity.checklist.remaining > 0 &&
+      !landedIds.has(activity.plan.id),
   );
-  const withoutTasks = activities.filter((activity) => activity.checklist.total === 0);
+  const withoutTasks = activities.filter(
+    (activity) => activity.checklist.total === 0 && !landedIds.has(activity.plan.id),
+  );
   const pickups = [...incomplete, ...withoutTasks].slice(0, PICKUP_LIMIT);
-  const closedLoops = activities
-    .filter(
-      (activity) =>
-        activity.checklist.total > 0 && activity.checklist.completed === activity.checklist.total,
-    )
+  const checklistLoops = activities
+    .filter((activity) => {
+      const { checklist } = activity;
+      if (checklist.total === 0 || checklist.completed !== checklist.total) return false;
+      const receipt = receiptSummaryForPlan(receipts, activity.plan);
+      return !receipt || receipt.status === 'unavailable';
+    })
+    .map(
+      (activity): BriefClosedLoop => ({
+        plan: activity.plan,
+        occurredAt: activity.occurredAt,
+        evidence: { kind: 'checklist', steps: activity.checklist.total },
+      }),
+    );
+  const closedLoops = [...landed, ...checklistLoops]
+    .sort((a, b) => b.occurredAt - a.occurredAt)
     .slice(0, CLOSED_LOOP_LIMIT);
 
   const agents = new Set(activities.map((activity) => activity.plan.agent));
@@ -197,6 +250,7 @@ export function buildMorningBrief(
     closedLoops,
     relays: buildRelays(activities),
     planCount: activities.length,
+    landedCount: landed.length,
     newPlanCount,
     updatedPlanCount: activities.length - newPlanCount,
     agentCount: agents.size,
@@ -208,9 +262,12 @@ export function hasMorningBriefUpdates(
   plans: readonly Plan[],
   since: number,
   until = Date.now(),
+  receipts?: BriefReceipts,
 ): boolean {
-  return plans.some((plan) => {
-    const occurredAt = timestamp(plan.updatedAt) ?? timestamp(plan.createdAt);
-    return occurredAt !== undefined && occurredAt > since && occurredAt <= until;
-  });
+  return (
+    plans.some((plan) => {
+      const occurredAt = timestamp(plan.updatedAt) ?? timestamp(plan.createdAt);
+      return occurredAt !== undefined && occurredAt > since && occurredAt <= until;
+    }) || landedLoops(plans, receipts, since, until).length > 0
+  );
 }

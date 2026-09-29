@@ -83,7 +83,7 @@ export type { DiffBlock, PlanDiff, PlanDiffStats } from './client/lib/plan-diff.
 export { buildDiffSections, diffPlanContent } from './client/lib/plan-diff.ts';
 export { SearchBar } from './client/components/SearchBar.tsx';
 export { Sidebar } from './client/components/Sidebar.tsx';
-export type { SidebarFiltersProps, SidebarSortBy } from './client/components/SidebarFilters.tsx';
+export type { SidebarFiltersProps } from './client/components/SidebarFilters.tsx';
 export { SidebarFilters } from './client/components/SidebarFilters.tsx';
 export { SidebarResizeHandle } from './client/components/SidebarResizeHandle.tsx';
 export { Skeleton, SkeletonBlock, SkeletonLine } from './client/components/Skeleton.tsx';
@@ -106,6 +106,11 @@ export { usePinnedPlans } from './client/hooks/usePinnedPlans.ts';
 export { usePlanState } from './client/hooks/usePlanState.ts';
 export { usePlanFolders } from './client/hooks/usePlanFolders.ts';
 export { useAgents, usePlans } from './client/hooks/usePlans.ts';
+export type {
+  PlanReceiptState,
+  PlanReceiptSummariesState,
+} from './client/hooks/usePlanReceipts.ts';
+export { usePlanReceipt, usePlanReceiptSummaries } from './client/hooks/usePlanReceipts.ts';
 export { useScrollSpy } from './client/hooks/useScrollSpy.ts';
 export { seedSeen, useSeenPlans } from './client/hooks/useSeenPlans.ts';
 export {
@@ -157,14 +162,6 @@ export type {
   PlansResponse,
 } from './client/lib/api.ts';
 export { api, clearToken, hasToken, prefetchDashboardData, setToken } from './client/lib/api.ts';
-export type { ParsedCodePath } from './client/lib/plan-paths.ts';
-export {
-  candidatePathsForValidation,
-  extractCandidateCodePaths,
-  isCodeFilePath,
-  isCodeFilePathStrict,
-  parseCodePath,
-} from './client/lib/plan-paths.ts';
 export { SIDEBAR_EXPANDED_WIDTH } from './client/lib/constants.ts';
 export type { FolderState, PlanFolder, PlanFolderStore } from './client/lib/plan-folders.ts';
 export { MAX_FOLDERS } from './client/lib/plan-folders.ts';
@@ -174,26 +171,30 @@ export type {
   PlanFilterChipKind,
   PlanFilterChipLabels,
   PlanFilterState,
+  PlanSortBy,
   PlanTagMembership,
 } from './client/lib/plan-filters.ts';
 export {
   applyPlanFilters,
+  collectionMoveIndex,
   deriveFilterChips,
   normalizeFilterValues,
+  sortForCollectionFilter,
+  sortPlansByIdOrder,
   workspacesFromPlans,
 } from './client/lib/plan-filters.ts';
 export type { OutlineEntry } from './client/lib/extract-headings.ts';
 export { buildPlanOutline } from './client/lib/extract-headings.ts';
 export { looksLikeMarkdown, normalizePlanMarkdown } from './client/lib/plan-markdown.ts';
 export type {
-  BriefChecklist,
+  BriefClosedLoop,
   BriefPlanActivity,
+  BriefReceipts,
   BriefWorkspaceRelay,
   MorningBriefSnapshot,
 } from './client/lib/morning-brief.ts';
 export {
   buildMorningBrief,
-  extractBriefChecklist,
   hasMorningBriefUpdates,
   MORNING_BRIEF_DEFAULT_LOOKBACK_MS,
   MORNING_BRIEF_MAX_LOOKBACK_MS,

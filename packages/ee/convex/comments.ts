@@ -193,11 +193,11 @@ async function reserveCommentUpload(
 async function deleteStorageFile(
   ctx: Pick<MutationCtx, 'db' | 'storage'>,
   storageId: Id<'_storage'>,
-): Promise<void> {
+): Promise<boolean> {
   const metadata = await ctx.db.system.get(storageId);
-  if (metadata) {
-    await ctx.storage.delete(storageId);
-  }
+  if (!metadata) return false;
+  await ctx.storage.delete(storageId);
+  return true;
 }
 
 export async function deletePendingUploadRecord(

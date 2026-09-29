@@ -7,6 +7,38 @@ export const shareAccessProofIdValidator = v.id('shareAccessProofs');
 
 export const SHARE_ACCESS_PROOF_TTL_MS = 15 * 60 * 1000;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Owner-selectable share-link lifetimes; `never` keeps the link until revoked. */
+export const SHARE_LINK_EXPIRY_MS = {
+  never: null,
+  '1d': DAY_MS,
+  '7d': 7 * DAY_MS,
+  '30d': 30 * DAY_MS,
+} as const;
+
+export type ShareLinkExpiry = keyof typeof SHARE_LINK_EXPIRY_MS;
+
+export const shareLinkExpiryValidator = v.union(
+  v.literal('never'),
+  v.literal('1d'),
+  v.literal('7d'),
+  v.literal('30d'),
+);
+
+export function shareLinkExpiresAt(expiry: ShareLinkExpiry, now: number): number | undefined {
+  const ttl = SHARE_LINK_EXPIRY_MS[expiry];
+  return ttl === null ? undefined : now + ttl;
+}
+
+/** Expired links are treated exactly like revoked (missing) links. */
+export function isShareLinkLive(
+  shareLink: Pick<Doc<'shareLinks'>, 'expiresAt'> | null,
+  now: number,
+): boolean {
+  return shareLink !== null && (shareLink.expiresAt === undefined || shareLink.expiresAt > now);
+}
+
 type ShareAccessProofState = Pick<Doc<'shareAccessProofs'>, 'shareLinkId' | 'expiresAt'>;
 
 export type ShareAccessDecision =
@@ -78,12 +110,13 @@ export async function resolveSharedPlanAccess(
   ctx: ShareAccessCtx,
   args: SharedPlanAccessArgs,
 ): Promise<SharedPlanAccess> {
-  const shareLink = await ctx.db
+  const now = Date.now();
+  const found = await ctx.db
     .query('shareLinks')
     .withIndex('by_token', (q) => q.eq('token', args.token))
     .first();
+  const shareLink = found && isShareLinkLive(found, now) ? found : null;
 
-  const now = Date.now();
   const linkDecision = evaluateShareAccessPolicy({
     shareLinkId: shareLink?._id ?? null,
     passwordProtected: shareLink?.passwordHash !== undefined,

@@ -118,15 +118,21 @@ export async function capturePlanFromHook(
   if (!CAPTURE_AGENTS.has(agent)) throw new Error(`Unsupported capture agent: ${agent}`);
   if (!isRecord(payload)) throw new Error('Hook payload must be a JSON object');
 
-  const conversationId =
-    stringValue(payload, ['conversationId', 'conversation_id', 'sessionId', 'session_id']) ??
-    'latest';
+  const sessionId = stringValue(payload, [
+    'conversationId',
+    'conversation_id',
+    'sessionId',
+    'session_id',
+  ]);
+  const frontmatter = `---\nagent: ${agent}\nsource: hook\n${
+    sessionId ? `sessionId: ${safeSegment(sessionId)}\n` : ''
+  }---\n`;
   const destinationDir = join(
     getConfigDir(),
     'plans',
     'hooks',
     safeSegment(agent),
-    safeSegment(conversationId),
+    safeSegment(sessionId ?? 'latest'),
   );
   await mkdir(destinationDir, { recursive: true });
 
@@ -152,11 +158,7 @@ export async function capturePlanFromHook(
     try {
       const content = await readFile(canonicalSource, 'utf-8');
       const destination = join(destinationDir, safeSegment(basename(sourcePath)));
-      await writeFile(
-        destination,
-        `---\nagent: ${agent}\nsource: hook\nsessionId: ${safeSegment(conversationId)}\n---\n${content}`,
-        'utf-8',
-      );
+      await writeFile(destination, `${frontmatter}${content}`, 'utf-8');
       captured.push(destination);
     } catch {
       // The source may be transient and disappear between hook delivery and capture.
@@ -166,11 +168,7 @@ export async function capturePlanFromHook(
   const inlineContent = directPlanContent(payload);
   if (inlineContent) {
     const destination = join(destinationDir, 'plan.md');
-    await writeFile(
-      destination,
-      `---\nagent: ${agent}\nsource: hook\nsessionId: ${safeSegment(conversationId)}\n---\n${inlineContent}`,
-      'utf-8',
-    );
+    await writeFile(destination, `${frontmatter}${inlineContent}`, 'utf-8');
     if (!captured.includes(destination)) captured.push(destination);
   }
 

@@ -18,8 +18,15 @@ declare module 'bun:test' {
     toMatchObject(expected: unknown): void;
     toThrow(expected?: unknown): void;
     toBeNumber(): void;
+    toBeLessThan(expected: number | bigint): void;
+    toBeGreaterThan(expected: number | bigint): void;
     toMatch(expected: unknown): void;
     not: Matcher;
+    rejects: AsyncMatcher;
+  }
+
+  interface AsyncMatcher {
+    toThrow(expected?: unknown): Promise<void>;
   }
 
   export const expect: (actual: unknown) => Matcher;

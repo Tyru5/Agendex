@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { candidatePathsForValidation, extractCandidateCodePaths } from '@agendex/shared/plan-paths';
 import type { PlanPathContextValue, PlanPathOpenResult } from '../components/PlanPathContext.tsx';
 import {
   api,
@@ -7,7 +8,6 @@ import {
   type PathExistsApiResult,
   type Plan,
 } from '../lib/api.ts';
-import { candidatePathsForValidation, extractCandidateCodePaths } from '../lib/plan-paths.ts';
 import { remoteTargetsForPlanPaths } from '../lib/plan-path-targets.ts';
 
 const OPEN_IN_APP_STORAGE_KEY = 'agendex_open_in_app';

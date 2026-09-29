@@ -8,6 +8,8 @@ import {
   detectOpenInApps,
   getIndexableById,
   getIndexablePlans,
+  getPlanReceipt,
+  getPlanReceipts,
   isWithinWorkspace,
   listPlanAnnotations,
   loadConfig,
@@ -18,35 +20,39 @@ import {
   resolveCodeFileBatch,
   resolveCustomPlanDirPath,
   scan,
+  searchPlans,
   startWatching,
   updateConfig,
   updatePlanAnnotationStatus,
   validatePlanAnnotationInput,
 } from '@agendex/shared';
+import { type PlanReceiptSummary, summarizePlanReceipt } from '@agendex/shared/receipts';
 import { Hono } from 'hono';
 import { launchOpenIn } from '../open-in.ts';
-import { search } from '../services/search.ts';
 
 const plans = new Hono();
 
 plans.get('/plans', (c) => {
   const agent = c.req.query('agent');
-  const q = c.req.query('q');
+  const q = c.req.query('q')?.trim();
   const workspace = c.req.query('workspace');
-  const sort = c.req.query('sort') ?? 'updatedAt';
+  // A search keeps relevance order unless the caller asks for another sort.
+  const sort = c.req.query('sort') ?? (q ? 'relevance' : 'updatedAt');
   const limit = parseInt(c.req.query('limit') ?? '50', 10);
   const offset = parseInt(c.req.query('offset') ?? '0', 10);
 
-  let results = q ? search(q) : getIndexablePlans();
+  let results = q ? searchPlans(getIndexablePlans(), q) : getIndexablePlans();
 
   if (agent) results = results.filter((p) => p.agent === agent);
   if (workspace) results = results.filter((p) => p.workspace?.includes(workspace));
 
-  results.sort((a, b) => {
-    if (sort === 'title') return a.title.localeCompare(b.title);
-    if (sort === 'createdAt') return b.createdAt.getTime() - a.createdAt.getTime();
-    return b.updatedAt.getTime() - a.updatedAt.getTime();
-  });
+  if (!(q && sort === 'relevance')) {
+    results.sort((a, b) => {
+      if (sort === 'title') return a.title.localeCompare(b.title);
+      if (sort === 'createdAt') return b.createdAt.getTime() - a.createdAt.getTime();
+      return b.updatedAt.getTime() - a.updatedAt.getTime();
+    });
+  }
 
   const total = results.length;
   results = results.slice(offset, offset + limit);
@@ -64,6 +70,32 @@ plans.get('/plans/:id/raw', (c) => {
   const plan = getIndexableById(c.req.param('id'));
   if (!plan) return c.json({ error: 'not found' }, 404);
   return c.text(plan.content);
+});
+
+plans.get('/plans/:id/receipt', async (c) => {
+  const plan = getIndexableById(c.req.param('id'));
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  return c.json({ receipt: await getPlanReceipt(plan) });
+});
+
+/** Receipt summaries for list rows and the brief, keyed by plan id. `?ids=a,b` narrows the set. */
+plans.get('/receipts', async (c) => {
+  const ids = c.req
+    .query('ids')
+    ?.split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  // Unknown and hidden ids drop out here; the engine still uses every repo peer for windows.
+  const subset = ids
+    ? ids.flatMap((id) => {
+        const plan = getIndexableById(id);
+        return plan ? [plan] : [];
+      })
+    : undefined;
+  const receipts = await getPlanReceipts(subset);
+  const summaries: Record<string, PlanReceiptSummary> = {};
+  for (const [planId, receipt] of receipts) summaries[planId] = summarizePlanReceipt(receipt);
+  return c.json({ receipts: summaries });
 });
 
 /** baseDir for ./ siblings: the plan file's parent, when inside the workspace. */

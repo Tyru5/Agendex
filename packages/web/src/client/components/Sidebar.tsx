@@ -1,12 +1,13 @@
+import type { PlanReceiptSummary } from '@agendex/shared/receipts';
 import { TOUR_TARGET } from '../tour/productTour.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePlanFolders } from '../hooks/usePlanFolders.ts';
 import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
 import type { AgentStats, Plan } from '../lib/api.ts';
+import type { PlanSortBy } from '../lib/plan-filters.ts';
 import { MAX_FOLDERS } from '../lib/plan-folders.ts';
 import { startViewTransition } from '../lib/view-transition.ts';
 import { PlanList } from './PlanList.tsx';
-import type { SidebarSortBy } from './SidebarFilters.tsx';
 import { SidebarFilters } from './SidebarFilters.tsx';
 import { SidebarResizeHandle } from './SidebarResizeHandle.tsx';
 import { SkeletonBlock } from './Skeleton.tsx';
@@ -19,8 +20,8 @@ interface SidebarProps {
   onMouseLeave: () => void;
   search: string;
   onSearch: (value: string) => void;
-  sortBy: SidebarSortBy;
-  onSortChange: (sort: SidebarSortBy) => void;
+  sortBy: PlanSortBy;
+  onSortChange: (sort: PlanSortBy) => void;
   dateBucket: 'all' | 'today' | '7d' | '30d';
   onDateBucketChange: (date: 'all' | 'today' | '7d' | '30d') => void;
   agents: AgentStats[];
@@ -44,6 +45,8 @@ interface SidebarProps {
   error: string | null;
   width?: number;
   onResize?: (width: number) => void;
+  /** Receipt summaries keyed by local plan id; drives the list's status tags. */
+  receipts?: Readonly<Record<string, PlanReceiptSummary>>;
 }
 
 const SCROLL_TOP_PLAN_THRESHOLD = 12;
@@ -81,6 +84,7 @@ export function Sidebar({
   error,
   width,
   onResize,
+  receipts,
 }: SidebarProps) {
   const folderState = usePlanFolders();
   const scrollViewportRef = useRef<HTMLDivElement>(null);
@@ -187,6 +191,7 @@ export function Sidebar({
             onRemoveCustomDir={onRemoveCustomDir}
             customPlanDirs={customPlanDirs}
             folderState={folderState}
+            receipts={receipts}
             emptyState={
               onClearFilters && hasActiveFilters
                 ? {

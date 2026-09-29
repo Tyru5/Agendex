@@ -20,6 +20,23 @@ export function isCustomDirPlan(plan: Plan): boolean {
   return plan.metadata.source === 'custom-dir' || typeof plan.metadata.customDir === 'string';
 }
 
+/**
+ * Splits plans into the custom-source tree and the regular list, preserving input order. An
+ * ordered list (collection order) keeps every plan in the regular list so the order holds.
+ */
+export function splitCustomDirPlans(
+  plans: readonly Plan[],
+  { ordered = false }: { ordered?: boolean } = {},
+): { customDirPlans: Plan[]; nonCustomPlans: Plan[] } {
+  if (ordered) return { customDirPlans: [], nonCustomPlans: [...plans] };
+  const customDirPlans: Plan[] = [];
+  const nonCustomPlans: Plan[] = [];
+  for (const plan of plans) {
+    (isCustomDirPlan(plan) ? customDirPlans : nonCustomPlans).push(plan);
+  }
+  return { customDirPlans, nonCustomPlans };
+}
+
 function normalizePath(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '');
 }

@@ -1,8 +1,16 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, mkdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { clearPathResolveCache, getIndexablePlans, scan, setActiveAdapters } from '@agendex/shared';
+import {
+  clearPathResolveCache,
+  clearPlanReceiptCache,
+  getIndexablePlans,
+  scan,
+  setActiveAdapters,
+} from '@agendex/shared';
+import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
 import { junieAdapter } from '../../../../shared/src/adapters/file-artifact-adapters.ts';
 import { plans } from './plans.ts';
 
@@ -10,6 +18,32 @@ let workspace: string;
 let outside: string;
 let planId: string;
 let planFilePath: string;
+let ledgerPlanId: string;
+let ledgerPlanCreatedAt: Date;
+
+// The only plan that mentions src/ledger.ts, so no other fixture plan supersedes it.
+const LEDGER_PLAN_CONTENT = `# Record ledger totals
+
+## Steps
+
+1. Sum the entries in \`src/ledger.ts\` before writing them.
+`;
+
+function git(args: string[], env?: Record<string, string>) {
+  execFileSync(
+    'git',
+    [
+      '-c',
+      'user.name=Agendex Test',
+      '-c',
+      'user.email=test@agendex.dev',
+      '-c',
+      'commit.gpgsign=false',
+      ...args,
+    ],
+    { cwd: workspace, env: { ...process.env, ...env }, stdio: 'ignore' },
+  );
+}
 
 const PLAN_CONTENT = `# Improve startup flow
 
@@ -30,6 +64,39 @@ which slows the first paint. We will cache it during startup instead.
 - [ ] Existing tests continue to pass
 `;
 
+// Only mention of "rate limiting" sits deep in the body, past the first 650 characters.
+const DEEP_RATE_LIMIT_CONTENT = `# Harden the public gateway
+
+## Context
+
+${'The gateway forwards every request to the upstream service without any guard. '.repeat(9)}
+
+## Steps
+
+1. Add rate limiting to the gateway middleware in src/main.ts.
+2. Return a clear error when a client exceeds its budget.
+
+## Verification
+
+- [ ] Burst traffic is rejected with a clear error
+`;
+
+const TITLE_RATE_LIMIT_CONTENT = `# Rate limiting for uploads
+
+## Context
+
+Uploads can flood the worker queue.
+
+## Steps
+
+1. Cap concurrent uploads per user in src/main.ts.
+2. Queue the overflow instead of dropping it.
+
+## Verification
+
+- [ ] Excess uploads wait in the queue
+`;
+
 beforeAll(async () => {
   clearPathResolveCache();
   workspace = await mkdtemp(join(tmpdir(), 'agendex-plans-route-ws-'));
@@ -39,22 +106,44 @@ beforeAll(async () => {
   await mkdir(join(workspace, 'packages', 'a'), { recursive: true });
   await mkdir(join(workspace, 'packages', 'b'), { recursive: true });
   await mkdir(join(workspace, '.junie', 'plans'), { recursive: true });
+  // Written first so the receipt tests rarely need to wait for its birthtime's next second.
+  await writeFile(join(workspace, '.junie', 'plans', 'ledger-totals.md'), LEDGER_PLAN_CONTENT);
 
   await writeFile(join(workspace, 'src', 'main.ts'), 'export {};');
   await writeFile(join(workspace, 'packages', 'a', 'App.tsx'), 'export {};');
   await writeFile(join(workspace, 'packages', 'b', 'App.tsx'), 'export {};');
+  await writeFile(join(workspace, 'src', 'ledger.ts'), 'export const total = 0;\n');
   await writeFile(join(outside, 'secret.ts'), 'export {};');
+  // The workspace is a git repo whose history predates every fixture plan.
+  git(['init', '-q', '-b', 'main']);
+  git(['add', 'src', 'packages']);
+  git(['commit', '-q', '--no-verify', '-m', 'Initial commit'], {
+    GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z',
+    GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z',
+  });
   await writeFile(join(workspace, '.junie', 'plans', 'startup-flow.md'), PLAN_CONTENT);
+  const deepPath = join(workspace, '.junie', 'plans', 'gateway-hardening.md');
+  const titlePath = join(workspace, '.junie', 'plans', 'upload-limits.md');
+  await writeFile(deepPath, DEEP_RATE_LIMIT_CONTENT);
+  await writeFile(titlePath, TITLE_RATE_LIMIT_CONTENT);
+  // The deep-content plan is the most recent, so relevance must beat recency.
+  await utimes(titlePath, new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:00:00Z'));
+  await utimes(deepPath, new Date('2026-06-01T00:00:00Z'), new Date('2026-06-01T00:00:00Z'));
 
   process.env.AGENDEX_JUNIE_PLAN_DIRS = join(workspace, '.junie', 'plans');
   setActiveAdapters([junieAdapter]);
   await scan();
 
-  const plan = getIndexablePlans().find((p) => p.agent === 'junie');
+  const plan = getIndexablePlans().find((p) => p.filePath.endsWith('startup-flow.md'));
   if (!plan) throw new Error('Expected the fixture plan to be indexed');
   if (!plan.workspace) throw new Error('Expected the fixture plan to carry a workspace');
   planId = plan.id;
   planFilePath = plan.filePath;
+
+  const ledgerPlan = getIndexablePlans().find((p) => p.filePath.endsWith('ledger-totals.md'));
+  if (!ledgerPlan) throw new Error('Expected the ledger plan to be indexed');
+  ledgerPlanId = ledgerPlan.id;
+  ledgerPlanCreatedAt = ledgerPlan.createdAt;
 });
 
 afterAll(async () => {
@@ -70,6 +159,29 @@ async function postJson(path: string, body: unknown) {
     body: JSON.stringify(body),
   });
 }
+
+describe('GET /plans?q=', () => {
+  async function searchTitles(query: string) {
+    const res = await plans.request(`/plans?${query}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { plans: Array<{ title: string }>; total: number };
+    return { titles: body.plans.map((p) => p.title), total: body.total };
+  }
+
+  // User story: a search finds text deep in a plan and ranks the best match first.
+  test('returns matches in relevance order, including deep content hits', async () => {
+    expect(DEEP_RATE_LIMIT_CONTENT.indexOf('rate limiting')).toBeGreaterThan(650);
+    const { titles, total } = await searchTitles('q=rate%20limiting');
+    expect(titles).toEqual(['Rate limiting for uploads', 'Harden the public gateway']);
+    expect(total).toBe(2);
+  });
+
+  // User story: an explicit sort still wins over relevance.
+  test('re-sorts search results when sort is given', async () => {
+    const { titles } = await searchTitles('q=rate%20limiting&sort=updatedAt');
+    expect(titles).toEqual(['Harden the public gateway', 'Rate limiting for uploads']);
+  });
+});
 
 describe('POST /plans/:id/paths/exists', () => {
   // User story: a local plan can validate exact, ambiguous, missing, and unsafe paths.
@@ -182,5 +294,60 @@ describe('POST /plans/:id/open-in', () => {
       sourceFilePath: planFilePath,
     });
     expect(res.status).toBe(502);
+  });
+});
+
+describe('plan receipts', () => {
+  beforeAll(async () => {
+    // The plan's createdAt is the fixture file's real birthtime and git timestamps are whole
+    // seconds, so the commit lands on the next second boundary. An open receipt window never
+    // counts future commits, and fake timers cannot move file birthtimes or the git subprocess
+    // clock, so wait for the platform clock to reach that second when it hasn't already.
+    const committedAtSec = Math.ceil(ledgerPlanCreatedAt.getTime() / 1000);
+    const waitMs = committedAtSec * 1000 - Date.now();
+    if (waitMs > 0) await Bun.sleep(waitMs + 20);
+    await writeFile(join(workspace, 'src', 'ledger.ts'), 'export const total = 42;\n');
+    git(['commit', '-q', '--no-verify', '-am', 'Sum ledger totals'], {
+      GIT_AUTHOR_DATE: `@${committedAtSec} +0000`,
+      GIT_COMMITTER_DATE: `@${committedAtSec} +0000`,
+    });
+    clearPlanReceiptCache();
+  });
+
+  // User story: an unknown or hidden plan id never reveals repository history.
+  test('404s for unknown plans', async () => {
+    const res = await plans.request('/plans/nope/receipt');
+    expect(res.status).toBe(404);
+  });
+
+  // User story: a plan whose file was later committed to main reads as landed, with evidence.
+  test('reports a plan as landed once its mentioned file reaches main', async () => {
+    const res = await plans.request(`/plans/${ledgerPlanId}/receipt`);
+    expect(res.status).toBe(200);
+    const { receipt } = (await res.json()) as { receipt: PlanReceipt };
+    expect(receipt.planId).toBe(ledgerPlanId);
+    expect(receipt.status).toBe('landed');
+    expect(receipt.commits.map((commit) => commit.subject)).toEqual(['Sum ledger totals']);
+    expect(receipt.commits[0]?.onDefaultBranch).toBe(true);
+    expect(receipt.files.changed).toEqual(['src/ledger.ts']);
+  });
+
+  // User story: list rows fetch every summary at once and match them to plans by id.
+  test('summarizes receipts keyed by plan id and narrows with ?ids=', async () => {
+    const all = await plans.request('/receipts');
+    expect(all.status).toBe(200);
+    const allBody = (await all.json()) as { receipts: Record<string, PlanReceiptSummary> };
+    expect(allBody.receipts[ledgerPlanId]).toMatchObject({
+      planId: ledgerPlanId,
+      status: 'landed',
+      changedFiles: 1,
+      mentionedFiles: 1,
+      commits: 1,
+    });
+    expect(allBody.receipts[planId]?.planId).toBe(planId);
+
+    const subset = await plans.request(`/receipts?ids=${encodeURIComponent(ledgerPlanId)}`);
+    const subsetBody = (await subset.json()) as { receipts: Record<string, PlanReceiptSummary> };
+    expect(Object.keys(subsetBody.receipts)).toEqual([ledgerPlanId]);
   });
 });

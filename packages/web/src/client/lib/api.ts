@@ -1,3 +1,6 @@
+import type { PlanChecklistSummary } from '@agendex/shared/plan-checklist';
+import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
+
 const BASE = '/api/v1';
 
 type ErrorResponse = {
@@ -122,6 +125,8 @@ export interface Plan {
   updatedAt: string;
   workspace?: string;
   metadata: Record<string, unknown>;
+  /** Checklist progress for rows shipped without content (cloud lists). */
+  checklist?: PlanChecklistSummary;
 }
 
 export interface PlansResponse {
@@ -297,6 +302,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ paths, sourceFilePath }),
     }),
+
+  getPlanReceipt: (id: string) =>
+    request<{ receipt: PlanReceipt }>(`/plans/${encodeURIComponent(id)}/receipt`),
+
+  getPlanReceiptSummaries: () =>
+    request<{ receipts: Record<string, PlanReceiptSummary> }>('/receipts'),
 
   getOpenInApps: () => request<{ available: boolean; apps: OpenInAppInfo[] }>('/open-in/apps'),
 

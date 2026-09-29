@@ -125,6 +125,7 @@ export default defineSchema({
     createdBy: v.string(),
     createdAt: v.number(),
     passwordHash: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
   })
     .index('by_token', ['token'])
     .index('by_plan', ['planId'])

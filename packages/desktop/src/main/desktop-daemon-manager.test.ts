@@ -433,21 +433,29 @@ test('re-evaluates PID state after a concurrent lock holder finishes stopping', 
       return child;
     }) as never,
     isDaemonProcess: () => true,
-    timings: testTimings(),
+    // This tests the state reread, not the startup deadline. Leave room for a
+    // contended CI runner to resume the filesystem lock poll.
+    timings: { ...testTimings(), startTimeoutMs: 1_000 },
     rotateCloudToken: () => null,
     onAuthExpired: () => undefined,
     log: () => undefined,
   });
 
-  const starting = manager.ensureRunning(credentials());
-  setTimeout(() => {
+  try {
+    const starting = manager.ensureRunning(credentials());
+    // Startup has observed the old PID and yielded waiting for our lock.
+    // Release explicitly instead of racing two real timers on a busy runner.
+    expect(manager.getState().status).toBe('starting');
+    expect(forks).toBe(0);
     rmSync(pidPath, { force: true });
     release?.();
-  }, 5);
 
-  expect(await starting).toBe('started');
-  expect(forks).toBe(1);
-  await manager.stop();
+    expect(await starting).toBe('started');
+    expect(forks).toBe(1);
+  } finally {
+    release?.();
+    await manager.stop();
+  }
 });
 
 test('development worker coordination does not collide with the production PID namespace', async () => {

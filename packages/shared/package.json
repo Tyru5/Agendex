@@ -9,9 +9,12 @@
     "./git-forge": "./src/git-forge.ts",
     "./daemon-status": "./src/daemon-status.ts",
     "./desktop-auth-callback": "./src/desktop-auth-callback.ts",
+    "./plan-checklist": "./src/plan-checklist.ts",
+    "./plan-paths": "./src/plan-paths.ts",
     "./plan-value": "./src/services/plan-value.ts",
     "./plan-sync-identity": "./src/services/plan-sync-identity.ts",
     "./plan-download-lookup": "./src/services/plan-download-lookup.ts",
+    "./receipts": "./src/receipts/types.ts",
     "./types": "./src/types.ts"
   },
   "dependencies": {

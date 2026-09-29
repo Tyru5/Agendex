@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import type { PlanReceipt } from '@agendex/shared/receipts';
 import Markdown from 'react-markdown';
 import { useFullscreen } from '../hooks/useFullscreen.ts';
 import { usePlanAnnotationHighlights } from '../hooks/usePlanAnnotationHighlights.ts';
@@ -31,6 +32,7 @@ import {
   type RelatedPlanEntry,
 } from '../lib/plan-lineage.ts';
 import { extractSyncOrigin, formatSyncOriginLabel } from '../lib/sync-origin.ts';
+import { timeAgo } from '../lib/time-ago.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { ExitFullscreenIcon, FullscreenIcon } from './FullscreenIcons.tsx';
 import { CompareIcon } from './CompareIcon.tsx';
@@ -44,6 +46,7 @@ import { PlanActionButton } from './PlanActionButton.tsx';
 import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
 import { PlanPathContext } from './PlanPathContext.tsx';
+import { PlanReceiptSection } from './PlanReceiptSection.tsx';
 
 export { PlanActionButton } from './PlanActionButton.tsx';
 
@@ -55,17 +58,6 @@ const TechDependencyChart = lazyWithPreload(() =>
 
 function extractWorkspace(plan: Plan): string | undefined {
   return plan.workspace || undefined;
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hour${hrs !== 1 ? 's' : ''} ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days} day${days !== 1 ? 's' : ''} ago`;
 }
 
 export type PlanAnnotationCreateDraft = {
@@ -286,6 +278,9 @@ type PlanViewerProps = {
   ) => PlanAnnotationCreateResult | Promise<PlanAnnotationCreateResult>;
   onClearAnnotationCreateError?: () => void;
   onSelectAnnotation?: (id: string | null) => void;
+  /** What happened in git after the plan was written; from `usePlanReceipt`. */
+  receipt?: PlanReceipt | null;
+  receiptLoading?: boolean;
 };
 
 export function PlanViewer({
@@ -311,6 +306,8 @@ export function PlanViewer({
   onCreateAnnotation,
   onClearAnnotationCreateError,
   onSelectAnnotation,
+  receipt,
+  receiptLoading,
 }: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null);
@@ -916,6 +913,13 @@ export function PlanViewer({
                 onComparePlan={onComparePlan}
               />
             )}
+
+            <PlanReceiptSection
+              key={plan.id}
+              receipt={receipt}
+              loading={receiptLoading}
+              onOpenPath={planPaths && workspace ? planPaths.openPath : undefined}
+            />
           </header>
 
           {onChartWideChange && !chartHidden && (

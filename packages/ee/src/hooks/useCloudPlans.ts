@@ -58,6 +58,8 @@ export function useCloudPlans(): {
       updatedAt: new Date(p.updatedAt).toISOString(),
       workspace: p.workspace,
       metadata: (p.metadata as Record<string, unknown>) ?? {},
+      // Lets the Morning Brief show task progress without hydrating content.
+      checklist: p.checklist,
     }));
     return { plans, loading: false, complete, error: null };
   } catch (e) {

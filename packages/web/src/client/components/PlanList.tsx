@@ -1,15 +1,22 @@
+import type { PlanReceiptSummary } from '@agendex/shared/receipts';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlanState } from '../hooks/usePlanState.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
 import type { Plan } from '../lib/api.ts';
-import { isCustomDirPlan } from '../lib/custom-plan-tree.ts';
+import { splitCustomDirPlans } from '../lib/custom-plan-tree.ts';
 import type { FolderState } from '../lib/plan-folders.ts';
 import { plansWithSessionSiblings } from '../lib/plan-lineage.ts';
+import {
+  RECEIPT_STATUS_LABEL,
+  receiptSummaryForPlan,
+  receiptTagStatus,
+} from '../lib/plan-receipt-format.ts';
 import type { PlanState } from '../lib/plan-state.ts';
 import { AgentIcon } from './AgentIcon.tsx';
 import { CustomDirTree } from './CustomDirTree.tsx';
 import { FolderTree, MoveToFolderMenu } from './FolderTree.tsx';
+import { ReceiptStatusIcon } from './ReceiptStatusIcon.tsx';
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -27,6 +34,7 @@ function PlanRow({
   selected,
   unseen,
   hasSessionSiblings,
+  receipt,
   onClick,
   isSplit,
   onContextMenu,
@@ -35,11 +43,15 @@ function PlanRow({
   onRenameChange,
   onRenameSubmit,
   onRenameCancel,
+  onKeyDown,
+  keyShortcuts,
 }: {
   plan: Plan;
   selected: boolean;
   unseen: boolean;
   hasSessionSiblings?: boolean;
+  /** Local receipt summary; only landed, in progress, and stalled show a tag. */
+  receipt?: PlanReceiptSummary;
   onClick: () => void;
   isSplit?: boolean;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -48,6 +60,8 @@ function PlanRow({
   onRenameChange?: (value: string) => void;
   onRenameSubmit?: () => void;
   onRenameCancel?: () => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLButtonElement>) => void;
+  keyShortcuts?: string;
 }) {
   const titleRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -63,11 +77,15 @@ function PlanRow({
     if (isRenaming) renameInputRef.current?.focus();
   }, [isRenaming]);
 
+  const receiptStatus = receiptTagStatus(receipt);
+
   return (
     <button
       type="button"
       onClick={isRenaming ? undefined : onClick}
       onContextMenu={onContextMenu}
+      onKeyDown={isRenaming ? undefined : onKeyDown}
+      aria-keyshortcuts={keyShortcuts}
       title={!isRenaming && overflows ? plan.title : undefined}
       className={`w-full text-left block plan-row sidebar-plan-row${selected ? ' plan-row--selected' : ''}${isSplit ? ' plan-row--split' : ''} cursor-pointer font-[inherit]`}
       style={{
@@ -113,6 +131,12 @@ function PlanRow({
               session
             </span>
           </>
+        )}
+        {receiptStatus && (
+          <span className="sidebar-plan-receipt" data-status={receiptStatus}>
+            <ReceiptStatusIcon status={receiptStatus} size={10} />
+            {RECEIPT_STATUS_LABEL[receiptStatus]}
+          </span>
         )}
       </div>
     </button>
@@ -168,6 +192,72 @@ function MenuButton({
   );
 }
 
+type MoveControl = 'row' | 'up' | 'down';
+
+const MOVE_SHORTCUTS = 'Alt+ArrowUp Alt+ArrowDown';
+
+function MoveIcon({ direction }: { direction: 'up' | 'down' }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width="12"
+      height="12"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={direction === 'up' ? 'M4 10l4-4 4 4' : 'M4 6l4 4 4-4'} />
+    </svg>
+  );
+}
+
+function ReorderablePlanRow({
+  plan,
+  above,
+  below,
+  onMove,
+  children,
+}: {
+  plan: Plan;
+  above: Plan | undefined;
+  below: Plan | undefined;
+  onMove: (planId: string, targetPlanId: string, control: MoveControl) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="sidebar-reorder-row" data-reorder-plan={plan.id}>
+      {children}
+      <div className="sidebar-reorder-actions">
+        <button
+          type="button"
+          className="sidebar-reorder-action"
+          data-reorder-control="up"
+          disabled={!above}
+          aria-label={`Move ${plan.title} up`}
+          title="Move up"
+          onClick={() => above && onMove(plan.id, above.id, 'up')}
+        >
+          <MoveIcon direction="up" />
+        </button>
+        <button
+          type="button"
+          className="sidebar-reorder-action"
+          data-reorder-control="down"
+          disabled={!below}
+          aria-label={`Move ${plan.title} down`}
+          title="Move down"
+          onClick={() => below && onMove(plan.id, below.id, 'down')}
+        >
+          <MoveIcon direction="down" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type PlanListProps = {
   plans: Plan[];
   selectedId: string | undefined;
@@ -187,6 +277,13 @@ type PlanListProps = {
     actionLabel: string;
     onAction: () => void;
   };
+  /**
+   * Collection order mode: renders `plans` as one flat list in the given order and offers
+   * Move up / Move down, which move a plan into its visible neighbour's slot.
+   */
+  onMovePlan?: (planId: string, targetPlanId: string) => void;
+  /** Receipt summaries keyed by local plan id, from `usePlanReceiptSummaries`. */
+  receipts?: Readonly<Record<string, PlanReceiptSummary>>;
 };
 
 export function PlanList(props: PlanListProps) {
@@ -204,6 +301,8 @@ export function PlanList(props: PlanListProps) {
     customPlanDirs,
     folderState,
     emptyState,
+    onMovePlan,
+    receipts,
   } = props;
   const localPlanState = usePlanState();
   const planState = planStateProp ?? localPlanState;
@@ -255,21 +354,16 @@ export function PlanList(props: PlanListProps) {
     planState.markSeen(selectedPlan.id, selectedPlan.updatedAt);
   }, [selectedPlan, planState, isPro]);
 
-  const { customDirPlans, nonCustomPlans } = useMemo(() => {
-    const custom: Plan[] = [];
-    const regular: Plan[] = [];
-    for (const plan of plans) {
-      if (isCustomDirPlan(plan)) {
-        custom.push(plan);
-      } else {
-        regular.push(plan);
-      }
-    }
-    return { customDirPlans: custom, nonCustomPlans: regular };
-  }, [plans]);
+  // Collection order renders every plan, custom-source ones included, as one ordered list.
+  const { customDirPlans, nonCustomPlans } = useMemo(
+    () => splitCustomDirPlans(plans, { ordered: Boolean(onMovePlan) }),
+    [plans, onMovePlan],
+  );
 
   const { pinnedPlans, unseenPlans, regularPlans } = useMemo(() => {
-    if (!isPro) return { pinnedPlans: [], unseenPlans: [], regularPlans: nonCustomPlans };
+    if (!isPro || onMovePlan) {
+      return { pinnedPlans: [], unseenPlans: [], regularPlans: nonCustomPlans };
+    }
 
     const pinned: Plan[] = [];
     const unseen: Plan[] = [];
@@ -288,7 +382,51 @@ export function PlanList(props: PlanListProps) {
     }
 
     return { pinnedPlans: pinned, unseenPlans: unseen, regularPlans: rest };
-  }, [nonCustomPlans, planState, selectedId, isPro]);
+  }, [nonCustomPlans, planState, selectedId, isPro, onMovePlan]);
+
+  const listRef = useRef<HTMLDivElement>(null);
+  const pendingMoveFocusRef = useRef<{ planId: string; control: MoveControl } | null>(null);
+
+  const movePlan = useCallback(
+    (planId: string, targetPlanId: string, control: MoveControl) => {
+      if (!onMovePlan) return;
+      pendingMoveFocusRef.current = { planId, control };
+      onMovePlan(planId, targetPlanId);
+    },
+    [onMovePlan],
+  );
+
+  // Reordering can detach the focused row from the DOM; put focus back on the control that moved
+  // it (or the row once that control hits an edge) unless focus has already left the list.
+  useLayoutEffect(() => {
+    const pending = pendingMoveFocusRef.current;
+    const list = listRef.current;
+    if (!pending || !list) return;
+    pendingMoveFocusRef.current = null;
+    const active = document.activeElement;
+    if (active && active !== document.body && !list.contains(active)) return;
+    const row = Array.from(list.querySelectorAll<HTMLElement>('[data-reorder-plan]')).find(
+      (element) => element.dataset.reorderPlan === pending.planId,
+    );
+    const control = row?.querySelector<HTMLButtonElement>(
+      `[data-reorder-control="${pending.control}"]`,
+    );
+    const target = control && !control.disabled ? control : row?.querySelector('button');
+    target?.focus();
+  }, [regularPlans]);
+
+  function handleMoveKeyDown(
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    plan: Plan,
+    above: Plan | undefined,
+    below: Plan | undefined,
+  ) {
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const target = e.key === 'ArrowUp' ? above : e.key === 'ArrowDown' ? below : undefined;
+    if (!target) return;
+    e.preventDefault();
+    movePlan(plan.id, target.id, 'row');
+  }
 
   function handleClick(plan: Plan) {
     const nextPlan = plan.id === selectedId ? undefined : plan;
@@ -343,38 +481,44 @@ export function PlanList(props: PlanListProps) {
     ? planState.isUnseen(contextPlan.id, contextPlan.updatedAt)
     : false;
   const splitDisabled = contextPlan ? contextPlan.id === selectedId : false;
+  const contextPlanIndex =
+    onMovePlan && contextPlan ? regularPlans.findIndex((plan) => plan.id === contextPlan.id) : -1;
+  const contextPlanAbove = contextPlanIndex >= 0 ? regularPlans[contextPlanIndex - 1] : undefined;
+  const contextPlanBelow = contextPlanIndex >= 0 ? regularPlans[contextPlanIndex + 1] : undefined;
 
   return (
-    <div className="w-full">
-      {(customDirPlans.length > 0 || (customPlanDirs && customPlanDirs.length > 0)) && (
-        <>
-          <CustomDirTree
-            plans={customDirPlans}
-            onRemoveSource={onRemoveCustomDir}
-            customPlanDirs={customPlanDirs}
-            renderPlan={(plan) => (
-              <PlanRow
-                key={plan.id}
-                plan={plan}
-                selected={plan.id === selectedId}
-                unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
-                hasSessionSiblings={sessionSiblingIds.has(plan.id)}
-                onClick={() => handleClick(plan)}
-                isSplit={isPro && plan.id === splitPlanId}
-                onContextMenu={(e) => handleContextMenu(e, plan)}
-                isRenaming={renamingPlanId === plan.id}
-                renameValue={renameValue}
-                onRenameChange={setRenameValue}
-                onRenameSubmit={submitRename}
-                onRenameCancel={cancelRename}
-              />
+    <div className="w-full" ref={listRef}>
+      {!onMovePlan &&
+        (customDirPlans.length > 0 || (customPlanDirs && customPlanDirs.length > 0)) && (
+          <>
+            <CustomDirTree
+              plans={customDirPlans}
+              onRemoveSource={onRemoveCustomDir}
+              customPlanDirs={customPlanDirs}
+              renderPlan={(plan) => (
+                <PlanRow
+                  key={plan.id}
+                  plan={plan}
+                  selected={plan.id === selectedId}
+                  unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
+                  hasSessionSiblings={sessionSiblingIds.has(plan.id)}
+                  receipt={receiptSummaryForPlan(receipts, plan)}
+                  onClick={() => handleClick(plan)}
+                  isSplit={isPro && plan.id === splitPlanId}
+                  onContextMenu={(e) => handleContextMenu(e, plan)}
+                  isRenaming={renamingPlanId === plan.id}
+                  renameValue={renameValue}
+                  onRenameChange={setRenameValue}
+                  onRenameSubmit={submitRename}
+                  onRenameCancel={cancelRename}
+                />
+              )}
+            />
+            {(pinnedPlans.length > 0 || unseenPlans.length > 0 || regularPlans.length > 0) && (
+              <div className="sidebar-ghost-divider" />
             )}
-          />
-          {(pinnedPlans.length > 0 || unseenPlans.length > 0 || regularPlans.length > 0) && (
-            <div className="sidebar-ghost-divider" />
-          )}
-        </>
-      )}
+          </>
+        )}
       {nonCustomPlans.length > 0 && (
         <div className="sidebar-section-header">
           <span className="sidebar-section-title">
@@ -395,6 +539,7 @@ export function PlanList(props: PlanListProps) {
               selected={plan.id === selectedId}
               unseen={planState.isUnseen(plan.id, plan.updatedAt)}
               hasSessionSiblings={sessionSiblingIds.has(plan.id)}
+              receipt={receiptSummaryForPlan(receipts, plan)}
               onClick={() => handleClick(plan)}
               isSplit={plan.id === splitPlanId}
               onContextMenu={(e) => handleContextMenu(e, plan)}
@@ -432,6 +577,7 @@ export function PlanList(props: PlanListProps) {
               selected={plan.id === selectedId}
               unseen
               hasSessionSiblings={sessionSiblingIds.has(plan.id)}
+              receipt={receiptSummaryForPlan(receipts, plan)}
               onClick={() => handleClick(plan)}
               isSplit={plan.id === splitPlanId}
               onContextMenu={(e) => handleContextMenu(e, plan)}
@@ -445,7 +591,7 @@ export function PlanList(props: PlanListProps) {
           {regularPlans.length > 0 && <div className="sidebar-ghost-divider" />}
         </div>
       )}
-      {folderState && folderState.folders.length > 0 ? (
+      {folderState && folderState.folders.length > 0 && !onMovePlan ? (
         <FolderTree
           folderState={folderState}
           plans={regularPlans}
@@ -456,6 +602,7 @@ export function PlanList(props: PlanListProps) {
               selected={plan.id === selectedId}
               unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
               hasSessionSiblings={sessionSiblingIds.has(plan.id)}
+              receipt={receiptSummaryForPlan(receipts, plan)}
               onClick={() => handleClick(plan)}
               isSplit={isPro && plan.id === splitPlanId}
               onContextMenu={(e) => handleContextMenu(e, plan)}
@@ -468,23 +615,42 @@ export function PlanList(props: PlanListProps) {
           )}
         />
       ) : (
-        regularPlans.map((plan) => (
-          <PlanRow
-            key={plan.id}
-            plan={plan}
-            selected={plan.id === selectedId}
-            unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
-            hasSessionSiblings={sessionSiblingIds.has(plan.id)}
-            onClick={() => handleClick(plan)}
-            isSplit={isPro && plan.id === splitPlanId}
-            onContextMenu={isPro || folderState ? (e) => handleContextMenu(e, plan) : undefined}
-            isRenaming={renamingPlanId === plan.id}
-            renameValue={renameValue}
-            onRenameChange={setRenameValue}
-            onRenameSubmit={submitRename}
-            onRenameCancel={cancelRename}
-          />
-        ))
+        regularPlans.map((plan, index) => {
+          const above = regularPlans[index - 1];
+          const below = regularPlans[index + 1];
+          const row = (
+            <PlanRow
+              key={plan.id}
+              plan={plan}
+              selected={plan.id === selectedId}
+              unseen={isPro && planState.isUnseen(plan.id, plan.updatedAt)}
+              hasSessionSiblings={sessionSiblingIds.has(plan.id)}
+              receipt={receiptSummaryForPlan(receipts, plan)}
+              onClick={() => handleClick(plan)}
+              isSplit={isPro && plan.id === splitPlanId}
+              onContextMenu={isPro || folderState ? (e) => handleContextMenu(e, plan) : undefined}
+              isRenaming={renamingPlanId === plan.id}
+              renameValue={renameValue}
+              onRenameChange={setRenameValue}
+              onRenameSubmit={submitRename}
+              onRenameCancel={cancelRename}
+              onKeyDown={onMovePlan ? (e) => handleMoveKeyDown(e, plan, above, below) : undefined}
+              keyShortcuts={onMovePlan ? MOVE_SHORTCUTS : undefined}
+            />
+          );
+          if (!onMovePlan) return row;
+          return (
+            <ReorderablePlanRow
+              key={plan.id}
+              plan={plan}
+              above={above}
+              below={below}
+              onMove={movePlan}
+            >
+              {row}
+            </ReorderablePlanRow>
+          );
+        })
       )}
       {isPro &&
         contextMenu &&
@@ -522,6 +688,32 @@ export function PlanList(props: PlanListProps) {
                 setContextMenu(null);
               }}
             />
+            {contextPlanIndex >= 0 && (
+              <>
+                <MenuButton
+                  label="Move up"
+                  disabled={!contextPlanAbove}
+                  onClick={() => {
+                    if (!contextPlanAbove) return;
+                    movePlan(contextMenu.plan.id, contextPlanAbove.id, 'row');
+                    setContextMenu(null);
+                  }}
+                >
+                  <MoveIcon direction="up" />
+                </MenuButton>
+                <MenuButton
+                  label="Move down"
+                  disabled={!contextPlanBelow}
+                  onClick={() => {
+                    if (!contextPlanBelow) return;
+                    movePlan(contextMenu.plan.id, contextPlanBelow.id, 'row');
+                    setContextMenu(null);
+                  }}
+                >
+                  <MoveIcon direction="down" />
+                </MenuButton>
+              </>
+            )}
             {folderState && (
               <MenuButton
                 label="Move to folder…"

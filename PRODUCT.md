@@ -24,8 +24,8 @@ Users encounter Agendex through the local web app, Cloud Pro web dashboard, CLI,
 
 ## Capabilities and Constraints
 
-- The free OSS flow supports local indexing, search, filtering, live file watching, custom plan sources, offline recovery, and token-authenticated local API access without Convex or Stripe.
-- Cloud Pro adds authentication, synchronization, share links, comments, tags, collections, plan history, workspace membership, plan creation and editing, and subscription flows.
+- The free OSS flow supports local indexing, dashboard substring search, filtering, live file watching, custom plan sources, git-based plan receipts, a read-only MCP server, offline recovery, and token-authenticated local API access without Convex or Stripe. API and MCP search support exact terms and quoted phrases ranked by relevance.
+- Cloud Pro adds authentication, synchronization, share links with optional password and expiry, comments, tags, ordered collections, plan history, an activity brief with checklist progress, workspace membership, plan creation and editing, and subscription flows. Git receipts in cloud views require matching locally indexed plans and a reachable authenticated local API.
 - The CLI and daemon connect local agent artifacts to cloud workspaces while skipping unchanged content, retrying failed uploads, and preserving sync provenance.
 - The Electron application wraps the shared web interface, embeds the local API, and owns a cloud sync worker when no CLI daemon is already running.
 - Local and cloud behavior share plan classification and adapter logic, but cloud authentication and collaboration depend on the EE stack.

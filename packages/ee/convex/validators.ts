@@ -1,3 +1,4 @@
+import { extractPlanChecklist } from '@agendex/shared/plan-checklist';
 import { v, type Infer } from 'convex/values';
 import type { Doc } from './_generated/dataModel';
 import { planMetadataValidator, toPlanMetadataDto } from './planMetadata';
@@ -48,6 +49,14 @@ export const planListItemValidator = v.object({
   version: planFields.version,
   createdAt: planFields.createdAt,
   updatedAt: planFields.updatedAt,
+  /** Markdown task progress; present only when the plan has tasks. Content stays stripped. */
+  checklist: v.optional(
+    v.object({
+      total: v.number(),
+      completed: v.number(),
+      nextStep: v.optional(v.string()),
+    }),
+  ),
 });
 
 export type PlanDto = Infer<typeof planValidator>;
@@ -82,7 +91,12 @@ export function toPlanDto(plan: Doc<'plans'>): PlanDto {
 
 export function toPlanListItemDto(plan: Doc<'plans'>): PlanListItemDto {
   const { content: _content, ...dto } = toPlanDto(plan);
-  return dto;
+  const { total, completed, nextStep } = extractPlanChecklist(plan.content);
+  if (total === 0) return dto;
+  return {
+    ...dto,
+    checklist: { total, completed, ...(nextStep !== undefined && { nextStep }) },
+  };
 }
 
 export const planPreferenceValidator = v.object({

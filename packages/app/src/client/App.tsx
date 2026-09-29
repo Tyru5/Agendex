@@ -7,6 +7,7 @@ import {
   OfflineView,
   type Plan,
   PlanFilterMismatchBanner,
+  type PlanSortBy,
   PlanSourcesDialog,
   LazyPlanViewer,
   Sidebar,
@@ -16,6 +17,8 @@ import {
   useBackendStatus,
   useCustomPlanSources,
   useLocalProductTourState,
+  usePlanReceipt,
+  usePlanReceiptSummaries,
   usePlans,
   useProductTour,
   useSidebarWidth,
@@ -100,7 +103,8 @@ export function Dashboard() {
     [setFilters],
   );
   const setSortBy = useCallback(
-    (sort: 'updatedAt' | 'createdAt' | 'title') => setFilters({ sort }),
+    // The OSS dashboard has no collections, so collection order falls back to the default sort.
+    (sort: PlanSortBy) => setFilters({ sort: sort === 'collection' ? null : sort }),
     [setFilters],
   );
   const setDateBucket = useCallback(
@@ -131,6 +135,7 @@ export function Dashboard() {
 
   const { plans, loading, error, refresh } = localPlans;
   const workspaces = useMemo(() => workspacesFromPlans(plans), [plans]);
+  const { receipts } = usePlanReceiptSummaries(IS_LOCAL_WORKSPACE_SHELL, plans);
   const { customPlanDirs, removeCustomDir, refreshCustomPlanDirs } =
     useCustomPlanSources(IS_LOCAL_WORKSPACE_SHELL);
 
@@ -204,6 +209,7 @@ export function Dashboard() {
     if (!selectedPlanId) return undefined;
     return plansById.get(selectedPlanId);
   }, [plansById, selectedPlanId]);
+  const selectedReceipt = usePlanReceipt(selectedPlan);
   const comparePlan = useMemo(() => {
     if (!comparePlanId) return undefined;
     return plansById.get(comparePlanId);
@@ -435,6 +441,7 @@ export function Dashboard() {
         error={error}
         width={expandedWidth}
         onResize={setExpandedWidth}
+        receipts={receipts}
       />
 
       <div
@@ -472,6 +479,8 @@ export function Dashboard() {
               onSelectRelatedPlan={setSelectedPlan}
               onComparePlan={startCompare}
               outlineHidden={outlineHidden}
+              receipt={selectedReceipt.receipt}
+              receiptLoading={selectedReceipt.loading}
               headerExtra={
                 showFilterMismatchBanner ? (
                   <PlanFilterMismatchBanner

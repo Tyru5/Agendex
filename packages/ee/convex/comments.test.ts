@@ -108,6 +108,10 @@ function createCleanupFixture(options: {
       attachmentClaims = attachmentClaims.filter((row) => row._id !== id);
     },
     system: {
+      async get(id: StorageId) {
+        const object = storedObjects.get(id);
+        return object ? { _id: object.storageId, _creationTime: object.createdAt } : null;
+      },
       query() {
         scannedGlobalStorage = true;
         throw new Error('Comment cleanup must not scan global storage');

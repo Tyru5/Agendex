@@ -8,8 +8,8 @@ import {
   type Plan,
   type PlanDateBucket,
   type PlanFilterChip,
+  type PlanSortBy,
   type PlanState,
-  type SidebarSortBy,
   TOUR_TARGET,
   usePlanState,
   useTheme,
@@ -34,8 +34,8 @@ type TagOption = { _id: string; name: string; color?: string };
 type CollectionOption = { _id: string; name: string };
 
 export type CommandPaletteFilters = {
-  sortBy: SidebarSortBy;
-  onSortChange: (sort: SidebarSortBy) => void;
+  sortBy: PlanSortBy;
+  onSortChange: (sort: PlanSortBy) => void;
   dateBucket: PlanDateBucket;
   onDateBucketChange: (bucket: PlanDateBucket) => void;
   agents: AgentStats[];
@@ -58,14 +58,15 @@ type ActiveFilterChip =
   | {
       key: 'sort';
       kind: 'sort';
-      value: SidebarSortBy;
+      value: PlanSortBy;
       label: string;
     };
 
-const SORT_OPTIONS: Array<{ value: SidebarSortBy; label: string; chip: string }> = [
+const SORT_OPTIONS: Array<{ value: PlanSortBy; label: string; chip: string }> = [
   { value: 'updatedAt', label: 'Last modified', chip: 'Modified' },
   { value: 'createdAt', label: 'Date created', chip: 'Created' },
   { value: 'title', label: 'Title', chip: 'Title' },
+  { value: 'collection', label: 'Collection order', chip: 'Collection order' },
 ];
 
 const DATE_OPTIONS: Array<{ value: PlanDateBucket; label: string }> = [
@@ -258,7 +259,8 @@ export function CommandPalette({
       },
     );
 
-    if (filters.sortBy !== 'updatedAt') {
+    // Collection order is the collection view's default, so it needs no chip of its own.
+    if (filters.sortBy !== 'updatedAt' && filters.sortBy !== 'collection') {
       chips.push({
         key: 'sort',
         kind: 'sort',
@@ -1061,10 +1063,12 @@ function PlanFiltersView({ filters }: { filters: CommandPaletteFilters }) {
         <FilterField label="Sort">
           <PaletteSelect
             value={filters.sortBy}
-            onChange={(event) => filters.onSortChange(event.target.value as SidebarSortBy)}
+            onChange={(event) => filters.onSortChange(event.target.value as PlanSortBy)}
             aria-label="Sort plans"
           >
-            {SORT_OPTIONS.map((option) => (
+            {SORT_OPTIONS.filter(
+              (option) => option.value !== 'collection' || filters.selectedCollection,
+            ).map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

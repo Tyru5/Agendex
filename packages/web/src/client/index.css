@@ -900,6 +900,38 @@
   letter-spacing: 0.01em;
 }
 
+/* Receipt tag: a 5px tag, always icon + text so status never rests on color. */
+.sidebar-plan-receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-left: auto;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: rgba(127, 127, 127, 0.06);
+  color: var(--secondary);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.sidebar-plan-receipt[data-status="landed"] {
+  background: color-mix(in oklch, var(--success) 10%, transparent);
+  color: color-mix(in oklch, var(--success) 72%, var(--text));
+}
+
+.sidebar-plan-receipt[data-status="in-progress"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sidebar-plan-receipt[data-status="stalled"] {
+  color: var(--tertiary);
+}
+
 .sidebar-unread-dot {
   position: absolute;
   left: 1px;
@@ -1002,6 +1034,75 @@
 .sidebar-source-action:disabled {
   cursor: progress;
   color: var(--secondary);
+}
+
+.sidebar-reorder-row {
+  position: relative;
+}
+
+/* Room for the move actions so they never cover the title. */
+.sidebar-reorder-row .plan-title {
+  padding-right: 46px;
+}
+
+.sidebar-reorder-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  /* Hidden actions must not swallow clicks aimed at the row behind them. */
+  pointer-events: none;
+  transition: opacity 130ms ease;
+}
+
+.sidebar-reorder-row:hover .sidebar-reorder-actions,
+.sidebar-reorder-row:focus-within .sidebar-reorder-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Touch devices never hover — keep the actions permanently reachable. */
+@media (hover: none) {
+  .sidebar-reorder-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.sidebar-reorder-action {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 130ms ease,
+    border-color 130ms ease,
+    color 130ms ease;
+}
+
+.sidebar-reorder-action:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.sidebar-reorder-action:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.sidebar-reorder-action:disabled {
+  cursor: default;
+  opacity: 0.35;
 }
 
 .sidebar-source-error {
@@ -3328,6 +3429,285 @@ body {
 .plan-lineage-item-relation {
   color: var(--secondary);
   font-weight: 520;
+}
+
+/* ── Plan receipt ─────────────────────────────────────────────── */
+
+.plan-receipt {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.plan-receipt-summary {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  margin-left: -6px;
+  padding: 4px 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+  color: var(--secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.plan-receipt-summary:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.plan-receipt-summary:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 1px;
+}
+
+.plan-receipt-chevron {
+  flex-shrink: 0;
+  color: var(--tertiary);
+  transition: transform 0.18s ease;
+}
+
+.plan-receipt-summary[aria-expanded="true"] .plan-receipt-chevron {
+  transform: rotate(90deg);
+}
+
+.plan-receipt-title {
+  color: var(--secondary);
+  font-size: 11px;
+  font-weight: 560;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.plan-receipt-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.plan-receipt[data-status="landed"] .plan-receipt-status {
+  color: color-mix(in oklch, var(--success) 72%, var(--text));
+}
+
+.plan-receipt[data-status="in-progress"] .plan-receipt-status {
+  color: var(--accent);
+}
+
+.plan-receipt-meta {
+  min-width: 0;
+  color: var(--tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-receipt-detail {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin-left: 5px;
+  padding: 2px 0 4px 12px;
+  border-left: 1px solid var(--border);
+}
+
+.plan-receipt-detail[hidden] {
+  display: none;
+}
+
+.plan-receipt-reasons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+  color: var(--secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.plan-receipt-reasons li {
+  position: relative;
+  padding-left: 12px;
+}
+
+.plan-receipt-reasons li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.6em;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--tertiary);
+}
+
+.plan-receipt-group {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.plan-receipt-group-title {
+  margin: 0;
+  color: var(--secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.plan-receipt-group-title span {
+  margin-left: 4px;
+  color: var(--tertiary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-receipt-commits,
+.plan-receipt-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.plan-receipt-commit {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  min-width: 0;
+  padding: 3px 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.plan-receipt-commit-body {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  color: var(--secondary);
+}
+
+.plan-receipt-commit-link {
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.plan-receipt-commit-link:hover {
+  color: var(--text);
+}
+
+.plan-receipt-commit-link:hover .plan-receipt-commit-subject {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--text) 40%, transparent);
+}
+
+.plan-receipt-commit-link:focus-visible,
+.plan-receipt-file-open:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 1px;
+}
+
+.plan-receipt-sha {
+  flex-shrink: 0;
+  color: var(--tertiary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.plan-receipt-commit-subject {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-receipt-commit-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--tertiary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.plan-receipt-on-branch {
+  padding: 0 5px;
+  border-radius: 5px;
+  background: rgba(127, 127, 127, 0.06);
+  color: var(--secondary);
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.plan-receipt-more,
+.plan-receipt-quiet {
+  margin: 0;
+  color: var(--tertiary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.plan-receipt-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
+.plan-receipt-file code {
+  color: var(--secondary);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.plan-receipt-file-open {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  margin-left: -4px;
+  padding: 1px 4px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-receipt-file-open:hover {
+  background: var(--hover);
+}
+
+.plan-receipt-file-open:hover code {
+  color: var(--text);
+}
+
+.plan-receipt-file-error {
+  color: var(--danger);
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-receipt-summary,
+  .plan-receipt-chevron {
+    transition: none;
+  }
 }
 
 /* ── Plan compare ─────────────────────────────────────────────── */

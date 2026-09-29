@@ -35,7 +35,9 @@ const NAV_GROUPS = [
     items: [
       ['plan-sources', 'Plan sources'],
       ['custom-directories', 'Custom directories'],
+      ['plan-search', 'Plan search'],
       ['plan-filtering', 'Plan filtering'],
+      ['plan-receipts', 'Plan receipts'],
       ['privacy', 'Privacy model'],
     ],
   },
@@ -43,6 +45,7 @@ const NAV_GROUPS = [
     label: 'Cloud',
     items: [
       ['cloud-sync', 'Cloud sync'],
+      ['activity-brief', 'Activity brief'],
       ['sharing', 'Sharing & collaboration'],
       ['free-vs-pro', 'Free vs Pro'],
     ],
@@ -51,6 +54,7 @@ const NAV_GROUPS = [
     label: 'Reference',
     items: [
       ['cli-reference', 'CLI reference'],
+      ['mcp-server', 'MCP server'],
       ['agent-hooks', 'Agent hooks'],
       ['self-hosting', 'Self-hosting'],
     ],
@@ -126,6 +130,8 @@ const CATALOG_ADAPTERS =
 const FREE_FEATURES = [
   'Local plan indexing and search',
   'Implemented agent adapters',
+  'Plan receipts from git history',
+  'MCP server for your coding agents',
   'Custom plan source directories',
   'Full source access',
   'No account required',
@@ -133,11 +139,12 @@ const FREE_FEATURES = [
 
 const PRO_FEATURES = [
   'Everything in Self-hosted',
-  'Agendex Desktop app for macOS (see /download)',
+  'Agendex Desktop app for macOS and Windows (see /download)',
   'Cloud sync from the CLI daemon',
-  'Shareable plan links',
+  'Shareable plan links with optional password and expiry',
   'Comment threads',
-  'Tags, collections, and plan history',
+  'Tags, ordered collections, and plan history',
+  'Activity brief with plan updates and checklist progress',
   'Technology dependency charts',
   'Plannotator integration',
   'New plan indicators',
@@ -198,12 +205,24 @@ const CLI_COMMANDS: ReadonlyArray<
     ],
   ],
   [
+    'Agents',
+    [
+      [
+        'agendex mcp',
+        'Run a read-only MCP server over stdio so coding agents can search plans, list plans for a file, and read receipts. Pass --workspace <dir> to pin the default repository.',
+      ],
+    ],
+  ],
+  [
     'Hooks',
     [
-      ['agendex hooks status', 'Show hook integration status for supported agents.'],
+      [
+        'agendex hooks status',
+        'Show hook integration status for supported agents, including preview-only hooks.',
+      ],
       [
         'agendex hooks install <agent|all>',
-        'Install hook integration for claude-code, codex, or pi.',
+        'Install hook integration for claude-code, codex, or pi. claude-code and codex need --preview until hook-native review ships.',
       ],
       ['agendex hooks uninstall <agent|all>', 'Remove managed Agendex hook entries.'],
     ],
@@ -452,6 +471,21 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </Body>
           </SubpageSection>
 
+          <SubpageSection id="plan-search" title="Plan search">
+            <Body>
+              In the local dashboard, type text in the search box to match titles, plan content,
+              file paths, workspaces, and agent names. The entire query is matched as a
+              case-insensitive substring, without special quote syntax. Use agent and workspace
+              filters to narrow the results, and choose a date or name sort in the sort menu.
+            </Body>
+            <Body>
+              The local search API and MCP <InlineCode>search_plans</InlineCode> tool support
+              term-based queries: every term must match, and double quotes group a phrase, as in{' '}
+              <InlineCode>auth &quot;refresh token&quot;</InlineCode>. These results default to
+              relevance order. Neither search mode corrects typos.
+            </Body>
+          </SubpageSection>
+
           <SubpageSection id="plan-filtering" title="Plan filtering">
             <Body>
               Agents produce a lot of Markdown that isn&rsquo;t a plan: empty files, one-line
@@ -463,6 +497,38 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               never touched and stay readable on disk. On Cloud sync, low-value plans are pruned:
               existing cloud copies are deleted and new ones are skipped, and the sync output
               reports exactly what was filtered.
+            </Body>
+          </SubpageSection>
+
+          <SubpageSection id="plan-receipts" title="Plan receipts">
+            <Body>
+              When a plan lives in a git repository, Agendex reads the commits that came after it. A
+              commit counts toward a plan when it changes a file the plan mentions and falls inside
+              the plan&rsquo;s window, which runs from when the plan was written until a newer plan
+              mentions at least half of its tracked files, or 30 days, whichever comes first.
+            </Body>
+            <Body>
+              Landed means an attributed post-plan commit is on the default branch; it does not
+              prove every task in the plan is complete. In progress means there are attributed
+              commits or uncommitted changes in mentioned files, but no confirmed landing. With
+              neither, a plan is stalled after 7 days or when a newer plan takes over; a recent plan
+              is planned. Unavailable means the repository or git history cannot be read, or the
+              plan has no trackable file mentions.
+            </Body>
+            <Body>
+              Each receipt lists the mentioned files that changed, the ones nobody touched, and
+              changes made outside the plan, with a confidence level. Receipts are computed on your
+              machine from git, with no model calls. HEAD, local branches, and the default branch
+              count; other remote branches are ignored. A commit timestamp in the same second but
+              before the plan&rsquo;s exact creation time is possible evidence only and cannot
+              establish a landing by itself. Confidence is low when no attributed commit is
+              confirmed post-plan.
+            </Body>
+            <Body>
+              Open a plan and expand <InlineCode>Receipt</InlineCode> to inspect the evidence and
+              confidence reasons. In Cloud views, receipts require a matching locally indexed plan
+              and a reachable, authenticated local Agendex API. Cloud sync alone does not compute
+              git receipts on the server.
             </Body>
           </SubpageSection>
 
@@ -511,6 +577,22 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </Callout>
           </SubpageSection>
 
+          <SubpageSection id="activity-brief" title="Activity brief">
+            <Body>
+              In the EE dashboard, open the activity brief from the top bar or press{' '}
+              <InlineCode>Cmd/Ctrl+Shift+B</InlineCode>. It groups recent plan activity and
+              checklist progress since your last read, up to 7 days back; your first brief covers
+              the past 24 hours. Open a listed plan for details, then mark the brief read when you
+              are caught up.
+            </Body>
+            <Body>
+              Synced checklist summaries keep cloud progress visible without loading every plan.
+              Checked tasks describe the plan&rsquo;s checklist, not verified code completion. When
+              local receipts are available, the brief also includes git landing evidence; the same
+              local API requirements described under Plan receipts apply.
+            </Body>
+          </SubpageSection>
+
           <SubpageSection id="sharing" title="Sharing & collaboration">
             <Body>
               Cloud Pro lets a team review plans. Every plan can generate a scoped share link;
@@ -518,14 +600,30 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </Body>
             <FeatureList
               items={[
-                'Shareable plan links with scoped access',
+                'Scoped share links with optional password and expiry',
                 'Comment threads on plans',
-                'Tags, collections, and plan history',
+                'Tags, ordered collections, and plan history',
                 'Technology dependency charts across your plans',
                 'Plan creation, uploads, and editing from the dashboard',
                 'Up to five workspace members, access from any device',
               ]}
             />
+            <SubHeading>Set a share link expiry</SubHeading>
+            <Body>
+              Open a cloud plan&rsquo;s share dialog, optionally set a password, and choose an
+              expiry before creating the link: <InlineCode>Never</InlineCode> (the default), 1 day,
+              7 days, or 30 days. Expired links stop granting access to the shared plan.
+            </Body>
+            <SubHeading>Order plans in a collection</SubHeading>
+            <Body>
+              Select a collection and use <InlineCode>Collection order</InlineCode> in the sort
+              menu. Use a plan&rsquo;s <InlineCode>Move up</InlineCode> or{' '}
+              <InlineCode>Move down</InlineCode> action, or focus its row and press{' '}
+              <InlineCode>Alt+ArrowUp</InlineCode> or <InlineCode>Alt+ArrowDown</InlineCode>. The
+              saved order belongs to that collection; a plan can have a different position in
+              another collection. Choose a date or name sort to browse without changing the saved
+              order.
+            </Body>
           </SubpageSection>
 
           <SubpageSection id="free-vs-pro" title="Free vs Pro">
@@ -561,8 +659,8 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
 
           <SubpageSection id="cli-reference" title="CLI reference">
             <Body>
-              Every command the <InlineCode>agendex</InlineCode> binary supports.{' '}
-              <InlineCode>agendex help</InlineCode> prints this list in your terminal;{' '}
+              Common commands for the <InlineCode>agendex</InlineCode> binary.{' '}
+              <InlineCode>agendex help</InlineCode> prints the full list in your terminal;{' '}
               <InlineCode>agendex --version</InlineCode> prints the installed version.
             </Body>
             <div className="grid gap-6">
@@ -591,16 +689,58 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </div>
           </SubpageSection>
 
-          <SubpageSection id="agent-hooks" title="Agent hooks">
+          <SubpageSection id="mcp-server" title="MCP server">
             <Body>
-              Review hooks let supported agents notify Agendex the moment a plan is ready for
-              review. Managed review-hook integrations are currently available for{' '}
-              <InlineCode>claude-code</InlineCode>, <InlineCode>codex</InlineCode>, and{' '}
-              <InlineCode>pi</InlineCode>.
+              <InlineCode>agendex mcp</InlineCode> runs a read-only Model Context Protocol server
+              over stdio. Agents you connect can search the plans every agent on this machine wrote,
+              find plans that mention a file or have commits that changed it, and read each
+              plan&rsquo;s receipt, so they check what was already planned before planning again. No
+              login, cloud account, or running daemon is needed.
             </Body>
             <div className="max-w-[560px]">
               <CodeBlock>
-                {'agendex hooks status\nagendex hooks install all\nagendex hooks uninstall all'}
+                {'claude mcp add agendex -- agendex mcp\ncodex mcp add agendex -- agendex mcp'}
+              </CodeBlock>
+            </div>
+            <Body>
+              Results are scoped to the repository the server starts in. Clients that don&rsquo;t
+              start servers in the project, such as Cursor, pass{' '}
+              <InlineCode>--workspace &lt;dir&gt;</InlineCode>. The tools are{' '}
+              <InlineCode>search_plans</InlineCode>, <InlineCode>get_plan</InlineCode>,{' '}
+              <InlineCode>plans_for_file</InlineCode>, and <InlineCode>recent_plans</InlineCode>.
+            </Body>
+            <CodeBlock>{'agendex mcp --workspace /path/to/project'}</CodeBlock>
+            <Body>
+              Ask your agent to search for <InlineCode>auth &quot;refresh token&quot;</InlineCode>,
+              read a returned plan ID, find plans for <InlineCode>src/auth.ts</InlineCode>, or list
+              recent plans with <InlineCode>since: "7d"</InlineCode>. Tools accept a workspace
+              override; search and get also accept <InlineCode>all_workspaces: true</InlineCode>. An
+              absolute file path selects that file&rsquo;s repository. Lists return 10 results by
+              default (maximum 50); plan reads return up to 60,000 characters by default (maximum
+              200,000 via <InlineCode>max_chars</InlineCode>).
+            </Body>
+            <a
+              href={`${GITHUB_URL}/blob/main/packages/cli/README.md#use-agendex-from-your-agents-mcp`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="landing-action landing-action--secondary landing-action--compact w-fit"
+            >
+              Full MCP tool reference and client configuration
+            </a>
+          </SubpageSection>
+
+          <SubpageSection id="agent-hooks" title="Agent hooks">
+            <Body>
+              Review hooks will let supported agents hand a plan to Agendex for review before they
+              run it. Hook-native review isn&rsquo;t implemented yet, so the{' '}
+              <InlineCode>claude-code</InlineCode> and <InlineCode>codex</InlineCode> hooks install
+              only with <InlineCode>--preview</InlineCode>. Until review ships, the Claude Code hook
+              denies ExitPlanMode and the Codex hook fails every time Codex stops. The{' '}
+              <InlineCode>pi</InlineCode> extension installs without it.
+            </Body>
+            <div className="max-w-[560px]">
+              <CodeBlock>
+                {'agendex hooks status\nagendex hooks install pi\nagendex hooks uninstall all'}
               </CodeBlock>
             </div>
             <Body>
@@ -630,7 +770,8 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             <Body>
               Captured plans are written to <InlineCode>~/.agendex/plans/hooks/</InlineCode>. Only
               explicit plan fields and known plan artifact paths are accepted; conversation
-              transcripts and tool output are not imported.
+              transcripts and tool output are not imported. When a payload supplies a session ID,
+              the captured plan keeps it for session lineage; capture does not invent a missing ID.
             </Body>
           </SubpageSection>
 
@@ -648,7 +789,7 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
               in the repository.
             </Body>
             <a
-              href={GITHUB_URL}
+              href={`${GITHUB_URL}/blob/main/docs/self-hosting.md`}
               target="_blank"
               rel="noopener noreferrer"
               className="landing-action landing-action--secondary landing-action--compact w-fit"

@@ -61,7 +61,7 @@ test('claude-code hook install is gated behind preview opt-in', async () => {
   }
 });
 
-test('hooks install all does not install claude-code without preview opt-in', async () => {
+test('hooks install all installs nothing without preview opt-in', async () => {
   const repo = await useTempRepo();
   const errorSpy = spyOn(console, 'error').mockImplementation(() => undefined);
   const logSpy = spyOn(console, 'log').mockImplementation(() => undefined);
@@ -71,10 +71,60 @@ test('hooks install all does not install claude-code without preview opt-in', as
 
     expect(result).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('refusing to install claude-code hook'),
+      expect.stringContaining('refusing to install claude-code and codex hooks'),
     );
     expect(logSpy).not.toHaveBeenCalled();
     expect(existsSync(join(repo, '.claude', 'hooks.json'))).toBe(false);
+    expect(existsSync(join(repo, '.codex', 'hooks.json'))).toBe(false);
+    expect(existsSync(join(repo, '.pi'))).toBe(false);
+  } finally {
+    errorSpy.mockRestore();
+    logSpy.mockRestore();
+  }
+});
+
+test('codex hook install is gated behind preview opt-in', async () => {
+  const repo = await useTempRepo();
+  const errorSpy = spyOn(console, 'error').mockImplementation(() => undefined);
+  const logSpy = spyOn(console, 'log').mockImplementation(() => undefined);
+
+  try {
+    const result = await runHooksCommand(['hooks', 'install', 'codex'], './dist/cli.js');
+
+    expect(result).toBe(1);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('refusing to install codex hook'),
+    );
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(existsSync(join(repo, '.codex', 'hooks.json'))).toBe(false);
+    expect(existsSync(join(repo, '.codex', 'config.toml'))).toBe(false);
+  } finally {
+    errorSpy.mockRestore();
+    logSpy.mockRestore();
+  }
+});
+
+test('codex preview install warns, writes the Stop hook, and status flags it as preview-only', async () => {
+  const repo = await useTempRepo();
+  const errorSpy = spyOn(console, 'error').mockImplementation(() => undefined);
+  const logSpy = spyOn(console, 'log').mockImplementation(() => undefined);
+
+  try {
+    const result = await runHooksCommand(
+      ['hooks', 'install', 'codex', '--preview'],
+      './dist/cli.js',
+    );
+
+    expect(result).toBe(0);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('WARNING: codex'));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('every time Codex stops'));
+    expect(readFileSync(join(repo, '.codex', 'hooks.json'), 'utf-8')).toContain('Stop');
+
+    logSpy.mockClear();
+    expect(await runHooksCommand(['hooks', 'status'], './dist/cli.js')).toBe(0);
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/codex: installed .*preview-only.*agendex hooks uninstall codex/),
+    );
   } finally {
     errorSpy.mockRestore();
     logSpy.mockRestore();

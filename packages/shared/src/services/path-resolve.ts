@@ -52,6 +52,21 @@ export function clearPathResolveCache(): void {
   fileListCache.clear();
 }
 
+/**
+ * Drop cached file lists for `root` and every workspace inside it, so the next
+ * resolve re-walks. Callers that cache resolution results per repository state
+ * use this when that state changes.
+ */
+export function forgetCodeFileLists(root: string): void {
+  // Cache keys are whatever path callers warmed with, real or not.
+  const roots = [resolve(root), safeRealpath(root) ?? resolve(root)];
+  for (const workspace of fileListCache.keys()) {
+    if (roots.some((prefix) => workspace === prefix || workspace.startsWith(prefix + sep))) {
+      fileListCache.delete(workspace);
+    }
+  }
+}
+
 function safeRealpath(path: string): string | null {
   try {
     return realpathSync(path);

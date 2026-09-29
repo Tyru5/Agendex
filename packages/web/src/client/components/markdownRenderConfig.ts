@@ -3,7 +3,7 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
-import { splitBareCodePathText } from '../lib/plan-paths.ts';
+import { splitBareCodePathText } from '@agendex/shared/plan-paths';
 import { sanitizeSchema } from '../lib/sanitize-schema.ts';
 import { PlanMarkdownCode, PlanMarkdownPre } from './PlanMarkdownRenderers.tsx';
 

@@ -96,6 +96,7 @@ export type ShareLinkForExport = {
   createdBy: string;
   createdAt: number;
   passwordHash?: string;
+  expiresAt?: number;
 };
 
 export function redactShareLink(link: ShareLinkForExport) {

@@ -125,6 +125,14 @@ export {
   setOnPlansChanged,
   update,
 } from './services/plan-service.ts';
+export { searchPlans } from './services/plan-search.ts';
+export type { PlanFileMatch } from './receipts/service.ts';
+export {
+  clearPlanReceiptCache,
+  findPlansForFile,
+  getPlanReceipt,
+  getPlanReceipts,
+} from './receipts/service.ts';
 export { isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
 export type {
   PlanBrowseDedupeResult,

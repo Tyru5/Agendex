@@ -290,7 +290,7 @@ function SharedPlanViewInner({
         <div className="share-surface-in w-full max-w-[400px] rounded-2xl border border-border bg-surface px-8 py-9 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.25)] text-left">
           <h1 className="text-[17px] font-semibold text-text tracking-[0] mb-2">Plan not found</h1>
           <p className="text-[13px] text-tertiary leading-[1.5]">
-            This link may have been revoked or the plan no longer exists.
+            This link may have expired or been revoked, or the plan no longer exists.
           </p>
         </div>
       </div>

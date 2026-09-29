@@ -168,13 +168,16 @@ const SUPPORTED_AGENTS = [
 
 const PLAN_REVIEW_BULLETS = [
   'Source path, agent, workspace, recency, and plan state stay visible together.',
-  'Full-text search moves across watched agent output and custom plan folders.',
+  'Search across watched agent output and custom plan folders.',
+  'Plan receipts connect mentioned files to local git history and default-branch commits.',
+  'The read-only MCP server lets coding agents search terms and quoted phrases, then inspect plans and receipts.',
   'Low-value plans can be hidden while the raw local files remain readable.',
   'Cloud sync can start from the same local index when review needs another person.',
 ] as const;
 
 const CLOUD_REVIEW_BULLETS = [
-  'Share links, comments, tags, collections, and plan history live on Cloud Pro.',
+  'Share links with optional password and expiry, comments, tags, ordered collections, and plan history live on Cloud Pro.',
+  'The activity brief brings together recent plan updates and checklist progress.',
   'Workspace members can review synced plans without touching the source machine.',
   'Dashboard creation, uploads, and editing cover plans that do not start in an agent.',
   'Plannotator sessions can receive daemon-delivered request-changes feedback.',

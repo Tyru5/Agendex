@@ -3,6 +3,9 @@ import { filterPlans } from './plan-search.ts';
 
 export type PlanDateBucket = 'all' | 'today' | '7d' | '30d';
 
+/** Plan-list sort orders. `collection` applies only while a collection filter is active. */
+export type PlanSortBy = 'updatedAt' | 'createdAt' | 'title' | 'collection';
+
 export type PlanTagMembership = {
   _id: string;
 };
@@ -162,6 +165,39 @@ export function workspacesFromPlans(plans: readonly Plan[]): string[] {
 /** Trims values, drops empties, and dedupes — the normalization both apps apply to list filters. */
 export function normalizeFilterValues(values: readonly string[]): string[] {
   return [...new Set(nonEmptyValues(values))];
+}
+
+/**
+ * The sort to keep when the collection filter changes: entering a collection from the default
+ * sort switches to collection order, and leaving a collection drops collection order.
+ */
+export function sortForCollectionFilter(
+  sort: PlanSortBy,
+  collectionId: string | undefined,
+): PlanSortBy {
+  if (collectionId) return sort === 'updatedAt' ? 'collection' : sort;
+  return sort === 'collection' ? 'updatedAt' : sort;
+}
+
+/** Plans in `orderedIds` order; plans missing from it follow in their incoming order. */
+export function sortPlansByIdOrder(plans: readonly Plan[], orderedIds: readonly string[]): Plan[] {
+  const rank = new Map(orderedIds.map((id, index) => [id, index]));
+  const unranked = orderedIds.length;
+  return plans.toSorted((a, b) => (rank.get(a.id) ?? unranked) - (rank.get(b.id) ?? unranked));
+}
+
+/**
+ * The index in `orderedIds` that moves `planId` into `targetPlanId`'s slot: just above the target
+ * when moving up, just below it when moving down. Null when either plan is not in the order.
+ */
+export function collectionMoveIndex(
+  orderedIds: readonly string[],
+  planId: string,
+  targetPlanId: string,
+): number | null {
+  if (planId === targetPlanId || !orderedIds.includes(planId)) return null;
+  const index = orderedIds.indexOf(targetPlanId);
+  return index === -1 ? null : index;
 }
 
 function lookup<T>(
