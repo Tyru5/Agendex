@@ -8,7 +8,11 @@
 import { realpathSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { candidatePathsForValidation, extractCandidateCodePaths } from '../plan-paths.ts';
-import { isWithinWorkspace, resolveCodeFileBatch } from '../services/path-resolve.ts';
+import {
+  isWithinWorkspace,
+  resolveCodeFile,
+  resolveCodeFileBatch,
+} from '../services/path-resolve.ts';
 import type { Plan } from '../types.ts';
 import type { PlanMention, ResolvedMentions } from './attribution.ts';
 
@@ -29,12 +33,12 @@ function missingMention(
   const from = path.startsWith('./') && baseDir ? baseDir : workspace;
   const joined = repoRelative(realRepoRoot, isAbsolute(path) ? path : resolve(from, path));
   if (!joined) return null;
-  const workspacePrefix = repoRelative(realRepoRoot, workspace) ?? '';
-  if (workspacePrefix && !joined.startsWith(workspacePrefix + '/')) return null;
   // Explicit paths retain their location even when absent; never fuzzy-match an escape.
   if (isAbsolute(path) || path.startsWith('./') || path.startsWith('../')) {
     return { key: joined, found: false, joined };
   }
+  const workspacePrefix = repoRelative(realRepoRoot, workspace) ?? '';
+  if (workspacePrefix && !joined.startsWith(workspacePrefix + '/')) return null;
   // Fallback keys come from the text the plan wrote, minus leading ./ and ../.
   const tail = (isAbsolute(path) ? joined : path.replace(/^(?:\.{1,2}\/)+/, '')).toLowerCase();
   if (!tail) return null;
@@ -66,7 +70,12 @@ export async function resolvePlanMentions(
   const byKey = new Map<string, PlanMention>();
   const ambiguous: string[] = [];
   for (const path of paths) {
-    const result = results[path];
+    let result = results[path];
+    // Explicit sibling paths may cross the package boundary, but remain confined
+    // to this repository. Fuzzy relative mentions keep the narrower workspace.
+    if (result?.status === 'missing' && (isAbsolute(path) || path.startsWith('../'))) {
+      result = await resolveCodeFile(resolve(workspace, path), realRepoRoot);
+    }
     let mention: PlanMention | null = null;
     if (result?.status === 'found') {
       const exact = repoRelative(realRepoRoot, result.resolved);

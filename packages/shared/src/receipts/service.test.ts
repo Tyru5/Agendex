@@ -139,6 +139,36 @@ describe('getPlanReceipt on a real repository', () => {
     expect(receipt.files.changed).toEqual(['packages/a/src/foo.ts']);
   });
 
+  test('explicit sibling references retain existing and deleted in-repository files', async () => {
+    const start = Date.now() - DAY;
+    write('packages/a/README.md');
+    write('packages/shared/util.ts');
+    write('packages/shared/removed.ts');
+    write('packages/shared/untouched.ts');
+    commitAll('initial', start - HOUR);
+    write('packages/shared/util.ts', 'changed\n');
+    unlinkSync(join(repo, 'packages/shared/removed.ts'));
+    commitAll('change sibling utilities', start + HOUR);
+
+    for (const prefix of ['../shared', join(repo, 'packages/shared')]) {
+      const receipt = await getPlanReceipt(
+        makePlan(
+          prefix,
+          `Edit \`${prefix}/util.ts\`, \`${prefix}/removed.ts\`, and \`${prefix}/untouched.ts\`.`,
+          start,
+          join(repo, 'packages/a'),
+        ),
+      );
+      expect(receipt.status).toBe('landed');
+      expect(receipt.files.changed).toEqual([
+        'packages/shared/util.ts',
+        'packages/shared/removed.ts',
+      ]);
+      expect(receipt.files.untouched).toEqual(['packages/shared/untouched.ts']);
+      expect(receipt.files.missing).toEqual([]);
+    }
+  });
+
   test('a planned commit merged into main lands the plan', async () => {
     const start = Date.now() - DAY;
     write('src/a.ts');
@@ -326,7 +356,9 @@ describe('getPlanReceipt on a real repository', () => {
     const sha = commitAll('Implement a', second + 900);
 
     const receipt = await getPlanReceipt(makePlan('p', 'Change `src/a.ts`.', second + 500));
-    expect(receipt.status).toBe('landed');
+    expect(receipt.status).toBe('in-progress');
+    expect(receipt.confidence).toBe('low');
+    expect(receipt.landedAt).toBeUndefined();
     expect(receipt.commits.map((c) => c.sha)).toEqual([sha]);
   });
 

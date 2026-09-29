@@ -186,7 +186,10 @@ describe('attributeRepoReceipts windows', () => {
       [commit('same', second, ['src/a.ts']), commit('before', second - 1000, ['src/a.ts'])],
       { landed: ['same'] },
     ).get('p');
-    expect(receipt?.status).toBe('landed');
+    expect(receipt?.status).toBe('in-progress');
+    expect(receipt?.confidence).toBe('low');
+    expect(receipt?.landedAt).toBeUndefined();
+    expect(receipt?.reasons.join(' ')).toContain('cannot establish which came first');
     expect(receipt?.window.start).toBe(new Date(second + 500).toISOString());
     expect(receipt?.commits.map((c) => c.sha)).toEqual(['same']);
   });
@@ -204,6 +207,18 @@ describe('attributeRepoReceipts windows', () => {
     expect(receipts.get('new')?.commits.map((c) => c.sha)).toEqual(['same']);
     expect(receipts.get('new')?.commits[0]?.sharedWithPlanIds).toEqual(['old']);
     expect(receipts.get('new')?.confidence).toBe('low');
+  });
+
+  test('an unambiguous later commit can establish landing after a same-second candidate', () => {
+    const second = NOW - DAY;
+    const receipt = receiptsFor(
+      [plan('p', second + 500, [found('src/a.ts')])],
+      [commit('candidate', second, ['src/a.ts']), commit('confirmed', second + 1000, ['src/a.ts'])],
+      { landed: ['candidate', 'confirmed'] },
+    ).get('p');
+    expect(receipt?.status).toBe('landed');
+    expect(receipt?.landedAt).toBe(new Date(second + 1000).toISOString());
+    expect(receipt?.commits.map((c) => c.sha)).toEqual(['confirmed', 'candidate']);
   });
 
   test('final-second work on an older-only file survives partial supersession', () => {

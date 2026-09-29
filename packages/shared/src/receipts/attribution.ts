@@ -347,7 +347,16 @@ export function attributeRepoReceipts(input: RepoReceiptInput): RepoReceiptResul
         sharedWithPlanIds: (claimedBy.get(commit.sha) ?? []).filter((id) => id !== plan.id),
       }),
     );
-    const landedCommits = commits.filter((commit) => commit.onDefaultBranch);
+    // A timestamp rounded down into the plan's creation second cannot establish
+    // whether the commit preceded the plan. Keep the evidence, but not a landing claim.
+    const confirmedShas = new Set(
+      planAttributions
+        .filter(({ commit }) => commit.committedAt >= window.start)
+        .map(({ commit }) => commit.sha),
+    );
+    const landedCommits = commits.filter(
+      (commit) => commit.onDefaultBranch && confirmedShas.has(commit.sha),
+    );
     const sharedCount = commits.filter((commit) => commit.sharedWithPlanIds.length > 0).length;
 
     let status: PlanReceiptStatus;
@@ -364,7 +373,7 @@ export function attributeRepoReceipts(input: RepoReceiptInput): RepoReceiptResul
       const first = planAttributions.at(-1)?.commit.committedAt;
       const quickStart = first !== undefined && first - window.start <= QUICK_START_DAYS * DAY_MS;
       const allShared = commits.length > 0 && sharedCount === commits.length;
-      if (coverage < 0.25 || allShared) confidence = 'low';
+      if (coverage < 0.25 || allShared || confirmedShas.size === 0) confidence = 'low';
       else if (coverage >= 0.5 && quickStart && sharedCount < commits.length) confidence = 'high';
       else confidence = 'medium';
     }
@@ -374,7 +383,11 @@ export function attributeRepoReceipts(input: RepoReceiptInput): RepoReceiptResul
       reasons.push(`${changed.length} of ${plural(mentionedFiles, 'mentioned file')} changed`);
     }
     const firstCommit = planAttributions.at(-1)?.commit;
-    if (firstCommit) {
+    if (firstCommit && firstCommit.committedAt < window.start) {
+      reasons.push(
+        'A commit shares the plan creation second; Git timestamps cannot establish which came first',
+      );
+    } else if (firstCommit) {
       reasons.push(
         `First commit ${formatDuration(firstCommit.committedAt - window.start)} after the plan`,
       );
@@ -384,7 +397,11 @@ export function attributeRepoReceipts(input: RepoReceiptInput): RepoReceiptResul
         `${plural(landedCommits.length, 'commit')} reached ${branchLabel(history.defaultBranch)}`,
       );
     } else if (history.defaultBranch && commits.length > 0) {
-      reasons.push(`No commits on ${branchLabel(history.defaultBranch)} yet`);
+      reasons.push(
+        commits.some((commit) => commit.onDefaultBranch)
+          ? `No confirmed post-plan commits on ${branchLabel(history.defaultBranch)} yet`
+          : `No commits on ${branchLabel(history.defaultBranch)} yet`,
+      );
     } else if (commits.length > 0) {
       reasons.push('No default branch found to check landing');
     }
