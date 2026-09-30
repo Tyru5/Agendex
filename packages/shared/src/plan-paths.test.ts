@@ -186,3 +186,29 @@ test('space-aware inline paths never interpret shell commands or URLs as filenam
     expect(parseCodePath(value, { allowSpaces: true })).toBeNull();
   }
 });
+
+test('spaced inline code needs a path-like first word, not a command or script call', () => {
+  for (const value of [
+    'tsc src/foo.ts',
+    'vitest run src/a.ts',
+    './scripts/run.sh src/a.ts',
+    './bin/x --watch src/a.ts',
+  ]) {
+    expect(parseCodePath(value, { allowSpaces: true })).toBeNull();
+  }
+  expect(parseCodePath('C:\\Program Files\\app\\main.ts', { allowSpaces: true })?.path).toBe(
+    'C:/Program Files/app/main.ts',
+  );
+});
+
+test('bare absolute prose paths keep their root; URL segments never gain one', () => {
+  expect(
+    extractCandidateCodePaths(
+      'Edit /repo/src/auth.ts and (/repo/src/b.ts). See https://x.dev/a/b.ts',
+    ).map((path) => path.path),
+  ).toEqual(['/repo/src/auth.ts', '/repo/src/b.ts']);
+  expect(splitBareCodePathText('see /repo/src/auth.ts')).toEqual([
+    { value: 'see ', isPath: false },
+    { value: '/repo/src/auth.ts', isPath: true },
+  ]);
+});

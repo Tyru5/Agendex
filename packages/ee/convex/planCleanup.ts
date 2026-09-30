@@ -1,4 +1,4 @@
-import { refreshFilePlanMentions } from './filePlanMentionIndex';
+import { refreshFilePlanMentionDuplicates, refreshFilePlanMentions } from './filePlanMentionIndex';
 import { computePlanSyncIdentity, exactDuplicateKey } from '@agendex/shared/plan-sync-identity';
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
@@ -347,6 +347,7 @@ export const backfillPlanSyncIdentity = internalMutation({
         continue;
       }
       await ctx.db.patch(plan._id, patch);
+      await refreshFilePlanMentionDuplicates(ctx, plan._id);
       updated++;
     }
 

@@ -4,7 +4,7 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import schema from './schema';
 import { refreshFilePlanMentions } from './filePlanMentionIndex';
-import { deletePlanRelatedDataBatch } from './planDeletion';
+import { deletePlanRelatedData, deletePlanRelatedDataBatch } from './planDeletion';
 
 vi.mock('./auth', () => ({
   authComponent: {
@@ -430,4 +430,64 @@ test('account deletion also removes orphan mention rows scoped to the deleted ow
       await ctx.scheduler.cancel(scheduled._id);
     await ctx.db.delete(jobId);
   });
+});
+
+test('duplicate sync identities expose only the listed winner mentions', async () => {
+  const t = make();
+  const addDuplicate = (files: string[], updatedAt: number) =>
+    t.run(async (ctx) => {
+      const id = await ctx.db.insert('plans', {
+        ownerId: 'owner',
+        agent: 'claude',
+        title: 'Implement authentication',
+        content: content(files),
+        format: 'markdown',
+        workspace: '/repo',
+        syncIdentityKey: 'sync-1',
+        version: 1,
+        createdAt: updatedAt,
+        updatedAt,
+      });
+      await refreshFilePlanMentions(ctx, id);
+      return id;
+    });
+  const older = await addDuplicate(['src/old.ts', 'src/auth.ts'], 1_000);
+  const newer = await addDuplicate(['src/auth.ts'], 2_000);
+  const owner = t.withIdentity({ subject: 'owner' });
+  const count = async (path: string) =>
+    (await owner.query(api.filePlanMentions.counts, { paths: [path] }))[0]?.count;
+  expect(await count('src/old.ts')).toBe(0);
+  expect(await count('src/auth.ts')).toBe(1);
+  expect(
+    (await owner.query(api.filePlanMentions.lookup, lookupArgs(['src/auth.ts']))).page,
+  ).toEqual([String(newer)]);
+  await t.run(async (ctx) => {
+    await deletePlanRelatedData(ctx, { planId: newer, ownerId: 'owner' });
+    await ctx.db.delete(newer);
+  });
+  expect(await count('src/old.ts')).toBe(1);
+  expect(
+    (await owner.query(api.filePlanMentions.lookup, lookupArgs(['src/auth.ts']))).page,
+  ).toEqual([String(older)]);
+});
+
+test('identity-only republish without metadata keeps stored metadata', async () => {
+  const t = make();
+  await subscribe(t, 'owner');
+  const owner = t.withIdentity({ subject: 'owner' });
+  const args = {
+    localPlanId: 'published-meta',
+    agent: 'claude',
+    title: 'Implement authentication',
+    content: content(['src/auth.ts']),
+    format: 'markdown',
+    workspace: '/repo',
+    metadata: { source: 'custom', customDir: '/plans' },
+  };
+  const id = await owner.mutation(api.plans.publishPlan, args);
+  const { metadata: _omitted, ...retry } = args;
+  await owner.mutation(api.plans.publishPlan, retry);
+  const stored = await t.run((ctx) => ctx.db.get(id));
+  expect(stored?.metadata).toMatchObject({ source: 'custom', customDir: '/plans' });
+  expect(stored?.workspace).toBe('/repo');
 });

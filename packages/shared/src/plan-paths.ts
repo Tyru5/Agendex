@@ -144,6 +144,24 @@ function hasCodeExtension(basename: string): boolean {
   return CODE_FILE_EXTENSIONS.has(lower.slice(dot + 1));
 }
 
+const COMMAND_PREFIX_RE =
+  /^(?:bunx|bun|bash|sh|zsh|fish|pwsh|powershell|npm|npx|pnpm|yarn|git|node|python(?:3)?|ruby|go|cargo|make|cat|echo|cd|ls|rm|mv|cp|touch|sed|rg|grep|find|chmod|chown|sudo|env|export|curl|wget)\s/;
+
+/**
+ * Spaced text is a path only when its first word is itself a partial path
+ * (`src/my file.ts`, `C:/Program Files/x.ts`). A bare leading word
+ * (`tsc src/a.ts`), a flag, or a complete file followed by arguments
+ * (`./scripts/run.sh src/a.ts`) is a command snippet.
+ */
+function looksLikeCommand(value: string): boolean {
+  if (COMMAND_PREFIX_RE.test(value)) return true;
+  const words = value.split(/\s+/);
+  const first = (words[0] ?? '').replace(/\\/g, '/');
+  if (!first.includes('/')) return true;
+  if (words.some((word) => word.startsWith('-'))) return true;
+  return hasCodeExtension(basenameOf(first.replace(/[.,;)\]]+$/, '')));
+}
+
 /**
  * Parse a raw mention into a clean path plus optional line range.
  * Handles `path:12`, `path:12-30`, and `path#L12` / `path#L12-L30`;
@@ -184,14 +202,7 @@ export function parseCodePath(
   }
 
   // Explicit inline-code paths may contain spaces; shell snippets must remain code.
-  if (
-    options.allowSpaces &&
-    /\s/.test(value) &&
-    /^(?:bunx|bun|bash|sh|zsh|fish|pwsh|powershell|npm|npx|pnpm|yarn|git|node|python(?:3)?|ruby|go|cargo|make|cat|echo|cd|ls|rm|mv|cp|touch|sed|rg|grep|find|chmod|chown|sudo|env|export|curl|wget)\s/.test(
-      value,
-    )
-  )
-    return null;
+  if (options.allowSpaces && /\s/.test(value) && looksLikeCommand(value)) return null;
 
   // Trailing punctuation from prose ("see foo/bar.ts.", "(foo/bar.ts)").
   value = value.replace(/[.,;)\]]+$/, '');
@@ -234,7 +245,9 @@ function stripFencedBlocksAndComments(markdown: string): string {
 const INLINE_CODE_RE = /`([^`\n]+)`/g;
 // Bare-prose tokens: path-ish runs containing at least one slash, optionally
 // followed by :line/:range or a #anchor. Leading ./ and ../ allowed.
-const BARE_PATH_PATTERN = String.raw`(?:[A-Za-z]:[\\/]|\.{1,2}[\\/])?[\w@~][\w.@+-]*(?:[\\/][\w.@+-]+)+(?::\d+(?:-\d+)?|#[\w.-]+)?`;
+// A leading `/` is kept only at a token boundary so absolute mentions keep
+// their root while URL segments (`https://host/a.ts`) never gain one.
+const BARE_PATH_PATTERN = String.raw`(?:(?<![^\s(])\/|[A-Za-z]:[\\/]|\.{1,2}[\\/])?[\w@~][\w.@+-]*(?:[\\/][\w.@+-]+)+(?::\d+(?:-\d+)?|#[\w.-]+)?`;
 
 export interface CodePathTextPart {
   value: string;

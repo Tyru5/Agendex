@@ -10,6 +10,7 @@ import {
   query,
 } from './_generated/server';
 import { authComponent } from './auth';
+import { refreshFilePlanMentionDuplicates } from './filePlanMentionIndex';
 import { requireFeature } from './entitlements';
 import { plannotatorWritebackValidator } from './validators';
 
@@ -611,6 +612,8 @@ export const reportWritebackStatus = internalMutation({
           },
           updatedAt: now,
         });
+        // updatedAt picks the duplicate winner whose file mentions are visible.
+        await refreshFilePlanMentionDuplicates(ctx, row.planId);
       }
     }
 

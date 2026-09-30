@@ -65,10 +65,12 @@ export const publishPlan = mutation({
 
     if (existing) {
       if (!planContentChanged(existing, args)) {
+        // Identity-only republish: omitted optional fields (e.g. a retry without
+        // metadata) keep their stored values so source-scoped cleanup still matches.
         await ctx.db.patch(existing._id, {
-          workspace: args.workspace,
-          filePath: args.filePath,
-          metadata,
+          ...(args.workspace !== undefined && { workspace: args.workspace }),
+          ...(args.filePath !== undefined && { filePath: args.filePath }),
+          ...(args.metadata !== undefined && { metadata }),
         });
         await refreshFilePlanMentions(ctx, existing._id);
         return existing._id;

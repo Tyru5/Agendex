@@ -91,6 +91,9 @@ export default defineSchema({
     identityStrength: v.optional(v.string()),
     fileMentionIndexVersion: v.optional(v.number()),
     fileMentionIndexTruncated: v.optional(v.boolean()),
+    // Duplicate-group key recorded at index time so a group's previous
+    // members can be reconciled after a plan leaves it.
+    fileMentionDuplicateKey: v.optional(v.string()),
     version: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -98,6 +101,7 @@ export default defineSchema({
     .index('by_fileMentionIndexVersion', ['fileMentionIndexVersion'])
     .index('by_owner_and_fileMentionIndexVersion', ['ownerId', 'fileMentionIndexVersion'])
     .index('by_owner_and_fileMentionIndexTruncated', ['ownerId', 'fileMentionIndexTruncated'])
+    .index('by_owner_and_fileMentionDuplicateKey', ['ownerId', 'fileMentionDuplicateKey'])
     .index('by_owner', ['ownerId'])
     .index('by_owner_and_agent', ['ownerId', 'agent'])
     .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
