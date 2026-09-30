@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { afterAll, beforeAll, expect, onTestFinished, test } from 'bun:test';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -202,7 +202,36 @@ test('undo restore reclassifies improved content instead of forcing it hidden', 
   expect((await call(`/hidden-plans/${hiddenId}`)).status).toBe(404);
 });
 
+test('a briefly missing restored source keeps its override', async () => {
+  await writeFile(filePath, '# Hidden draft');
+  await scan();
+  expect(
+    (
+      await call(`/hidden-plans/${hiddenId}/override`, {
+        method: 'PUT',
+        body: JSON.stringify({ restore: true }),
+      })
+    ).status,
+  ).toBe(200);
+  // Atomic save: the source vanishes for a scan, then returns.
+  await rm(filePath);
+  await rescanFile(filePath);
+  await scan();
+  expect(loadConfig()?.planValueOverrides?.[hiddenId]).toBe(filePath);
+  await writeFile(filePath, '# Hidden draft');
+  await scan();
+  expect(getIndexableById(hiddenId)?.metadata.localPlanValueOverride).toBe(true);
+  await call(`/hidden-plans/${hiddenId}/override`, {
+    method: 'PUT',
+    body: JSON.stringify({ restore: false }),
+  });
+});
+
 test('deleting a restored source drops its override so a recreated file starts hidden', async () => {
+  process.env.AGENDEX_OVERRIDE_DELETE_GRACE_MS = '0';
+  onTestFinished(() => {
+    delete process.env.AGENDEX_OVERRIDE_DELETE_GRACE_MS;
+  });
   await writeFile(filePath, '# Hidden draft');
   await scan();
   expect(

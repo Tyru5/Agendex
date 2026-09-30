@@ -190,12 +190,35 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
 
 let localValueOverrides: Record<string, string> = {};
 
-/** Forget restores whose source file is gone, so a future plan at that path starts hidden. */
-function pruneDeletedValueOverrides(ids: Iterable<string>): void {
-  const stale = [...ids].filter((id) => {
+/**
+ * A restored source must stay missing this long before its override is dropped, so an
+ * atomic save or a briefly unavailable mount does not undo the restore, while a plan
+ * created at the same path after a real deletion still starts hidden.
+ */
+const DEFAULT_OVERRIDE_DELETE_GRACE_MS = 5 * 60_000;
+const overrideSourceMissingSince = new Map<string, number>();
+
+function overrideDeleteGraceMs(): number {
+  const raw = process.env.AGENDEX_OVERRIDE_DELETE_GRACE_MS;
+  const parsed = raw === undefined || raw === '' ? Number.NaN : Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_OVERRIDE_DELETE_GRACE_MS;
+}
+
+/** Forget restores whose source stayed deleted past the grace period. */
+function pruneDeletedValueOverrides(ids: Iterable<string>, now = Date.now()): void {
+  const graceMs = overrideDeleteGraceMs();
+  const stale: string[] = [];
+  for (const id of ids) {
     const sourcePath = localValueOverrides[id];
-    return sourcePath !== undefined && !existsSync(sourcePath);
-  });
+    if (sourcePath === undefined) continue;
+    if (existsSync(sourcePath)) {
+      overrideSourceMissingSince.delete(id);
+      continue;
+    }
+    const since = overrideSourceMissingSince.get(id) ?? now;
+    overrideSourceMissingSince.set(id, since);
+    if (now - since >= graceMs) stale.push(id);
+  }
   if (stale.length === 0) return;
   updateConfig((config) => {
     if (!config?.planValueOverrides) return null;
@@ -203,7 +226,10 @@ function pruneDeletedValueOverrides(ids: Iterable<string>): void {
     for (const id of stale) delete planValueOverrides[id];
     return { ...config, planValueOverrides };
   });
-  for (const id of stale) delete localValueOverrides[id];
+  for (const id of stale) {
+    delete localValueOverrides[id];
+    overrideSourceMissingSince.delete(id);
+  }
 }
 
 function preparePlanForIndex(plan: Plan): Plan {
@@ -415,7 +441,7 @@ async function scanOnce(): Promise<void> {
   await scanCustomPlanDirs(coveredPaths, next);
 
   store = next;
-  pruneDeletedValueOverrides(Object.keys(localValueOverrides).filter((id) => !next.has(id)));
+  pruneDeletedValueOverrides(Object.keys(localValueOverrides));
   notifyPlansChanged();
   const indexableCount = getIndexablePlans().length;
   const hiddenCount = store.size - indexableCount;
@@ -477,6 +503,7 @@ export async function setPlanValueOverride(
 ): Promise<Plan | undefined> {
   const plan = store.get(id);
   if (!plan) return undefined;
+  overrideSourceMissingSince.delete(id);
   updateConfig((config) => {
     const planValueOverrides = { ...config?.planValueOverrides };
     if (restore) planValueOverrides[id] = resolve(plan.filePath);
