@@ -10,6 +10,15 @@ const COMMON = new Set(
   ),
 );
 export type CrossAgentSuggestion = { plan: Plan; evidence: string[]; score: number };
+/** Work references stored outside plan metadata (e.g. cloud git links), keyed by plan id. */
+export type CrossAgentLinkReferences = ReadonlyMap<string, readonly string[]>;
+export type CrossAgentOptions = {
+  loadContent?: (plan: Plan) => Promise<string | null>;
+  /** Returns normalized work references such as `pullRequestUrl:<url>` or `commit:<sha>`. */
+  loadLinkReferences?: (plan: Plan) => Promise<readonly string[]>;
+  /** False while the plan list is still paging in; searching then would miss plans. */
+  plansComplete?: boolean;
+};
 
 function tokens(content: string): Set<string> {
   return new Set(
@@ -21,17 +30,21 @@ function tokens(content: string): Set<string> {
     ).filter((word) => !COMMON.has(word)),
   );
 }
-function workReferences(plan: Plan): Set<string> {
+function workReferences(plan: Plan, links?: CrossAgentLinkReferences): Set<string> {
   const metadata = plan.metadata;
-  if (!metadata || typeof metadata !== 'object') return new Set();
-  return new Set(
-    ['issueUrl', 'pullRequestUrl', 'workItemId'].flatMap((key) => {
-      const value = metadata[key];
-      return typeof value === 'string' && value.trim() && value.length <= 2048
-        ? [`${key}:${value.trim()}`]
-        : [];
-    }),
-  );
+  const refs =
+    metadata && typeof metadata === 'object'
+      ? ['issueUrl', 'pullRequestUrl', 'workItemId'].flatMap((key) => {
+          const value = metadata[key];
+          return typeof value === 'string' && value.trim() && value.length <= 2048
+            ? [`${key}:${value.trim()}`]
+            : [];
+        })
+      : [];
+  for (const ref of links?.get(plan.id) ?? []) {
+    if (ref.trim() && ref.length <= 2048) refs.push(ref.trim());
+  }
+  return new Set(refs);
 }
 function intersection(left: Set<string>, right: Set<string>): string[] {
   return [...left].filter((value) => right.has(value)).sort();
@@ -61,6 +74,7 @@ export function crossAgentCandidates(current: Plan, plans: readonly Plan[]): Pla
 export function suggestCrossAgentPlans(
   current: Plan,
   plans: readonly Plan[],
+  links?: CrossAgentLinkReferences,
 ): CrossAgentSuggestion[] {
   if (!current.content?.trim()) return [];
   const currentTokens = tokens(current.content);
@@ -69,7 +83,7 @@ export function suggestCrossAgentPlans(
       p.path.replace(/^\.\//, ''),
     ),
   );
-  const currentRefs = workReferences(current);
+  const currentRefs = workReferences(current, links);
   return crossAgentCandidates(current, plans)
     .flatMap((plan) => {
       if (!plan.content?.trim()) return [];
@@ -85,7 +99,7 @@ export function suggestCrossAgentPlans(
           ),
         ),
       );
-      const references = intersection(currentRefs, workReferences(plan));
+      const references = intersection(currentRefs, workReferences(plan, links));
       if (
         !references.length &&
         !(paths.length >= 2 && sharedTokens.length >= 3) &&
@@ -158,6 +172,37 @@ export async function hydrateCrossAgentCandidates(
     }
   }
   return { plans: hydrated, unavailable };
+}
+
+/** Loads link-backed work references for the given plans; failures count as no references. */
+export async function loadCrossAgentLinkReferences(
+  plans: readonly Plan[],
+  loadLinkReferences: (plan: Plan) => Promise<readonly string[]>,
+  shouldContinue: () => boolean = () => true,
+): Promise<Map<string, readonly string[]> | null> {
+  const references = new Map<string, readonly string[]>();
+  for (let index = 0; index < plans.length; index += 4) {
+    if (!shouldContinue()) return null;
+    const batch = await Promise.all(
+      plans.slice(index, index + 4).map(async (plan) => {
+        try {
+          return [plan.id, await loadLinkReferences(plan)] as const;
+        } catch {
+          return [plan.id, []] as const;
+        }
+      }),
+    );
+    if (!shouldContinue()) return null;
+    for (const [id, refs] of batch) references.set(id, refs);
+  }
+  return references;
+}
+
+/** Stable identity of the candidate set; changes when a candidate is added, edited or removed. */
+export function crossAgentCandidateSignature(current: Plan, plans: readonly Plan[]): string {
+  return crossAgentCandidates(current, plans)
+    .map((plan) => `${plan.id}@${plan.updatedAt}`)
+    .join('|');
 }
 
 /** Clipboard is absent on insecure HTTP origins; preserve the selectable command as fallback. */

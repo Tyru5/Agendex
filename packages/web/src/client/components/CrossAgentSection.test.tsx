@@ -22,3 +22,14 @@ test('initial handoff UI exposes manual export and safe unavailable-workspace st
   expect(html).not.toContain('&&');
   expect(html).not.toContain('<script>');
 });
+test('search waits for the plan list to finish loading', () => {
+  const html = renderToStaticMarkup(
+    <CrossAgentSection
+      plan={{ ...plan, workspace: '/repo' }}
+      allPlans={[]}
+      options={{ plansComplete: false }}
+    />,
+  );
+  expect(html).toContain('Loading plans…');
+  expect(html).toMatch(/<button type="button" disabled="">Loading plans…<\/button>/);
+});

@@ -8,8 +8,10 @@ import {
   buildHandoffCommand,
   copyHandoffCommand,
   createHandoffContext,
+  crossAgentCandidateSignature,
   crossAgentCandidates,
   hydrateCrossAgentCandidates,
+  loadCrossAgentLinkReferences,
   suggestCrossAgentPlans,
   quotePosix,
 } from './cross-agent-plans.ts';
@@ -93,6 +95,47 @@ describe('cross-agent suggestions', () => {
     );
     expect(crossAgentCandidates(plan('current'), candidates)).toHaveLength(20);
     expect(crossAgentCandidates(plan('current'), candidates)[0]?.id).toBe('99');
+  });
+  test('linked pull requests stored outside metadata count as shared work', async () => {
+    const pr = 'pullRequestUrl:https://github.com/example/repo/pull/7';
+    const current = plan('a', { content: 'Rotate credentials safely.' });
+    const linked = plan('b', { agent: 'codex', content: 'Unrelated implementation details' });
+    const viaMetadata = plan('c', {
+      agent: 'codex',
+      content: 'Other unrelated work',
+      metadata: { pullRequestUrl: 'https://github.com/example/repo/pull/7' },
+    });
+    expect(suggestCrossAgentPlans(current, [linked, viaMetadata])).toEqual([]);
+    const links = await loadCrossAgentLinkReferences([current, linked, viaMetadata], async (p) => {
+      if (p.id === 'c') throw new Error('no access');
+      return [pr];
+    });
+    expect(links?.get('c')).toEqual([]);
+    const suggestions = suggestCrossAgentPlans(current, [linked, viaMetadata], links ?? undefined);
+    expect(suggestions.map((s) => s.plan.id)).toEqual(['b', 'c']);
+    expect(suggestions[0]?.evidence[0]).toBe(`Shared work reference: ${pr}`);
+  });
+  test('stale link loading is discarded', async () => {
+    let current = true;
+    const result = await loadCrossAgentLinkReferences(
+      [plan('a'), plan('b')],
+      async () => {
+        current = false;
+        return [];
+      },
+      () => current,
+    );
+    expect(result).toBeNull();
+  });
+  test('candidate signature changes when a candidate is edited or removed', () => {
+    const current = plan('a');
+    const other = plan('b', { agent: 'codex' });
+    const base = crossAgentCandidateSignature(current, [current, other]);
+    expect(crossAgentCandidateSignature(current, [current, { ...other }])).toBe(base);
+    expect(
+      crossAgentCandidateSignature(current, [current, { ...other, updatedAt: '2026-02-01' }]),
+    ).not.toBe(base);
+    expect(crossAgentCandidateSignature(current, [current])).not.toBe(base);
   });
 });
 describe('reviewable handoff', () => {

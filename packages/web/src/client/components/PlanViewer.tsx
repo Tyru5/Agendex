@@ -46,7 +46,7 @@ import { PlanActionButton } from './PlanActionButton.tsx';
 import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
 import { PlanPathContext } from './PlanPathContext.tsx';
-import { CrossAgentSection, type RelatedContentLoader } from './CrossAgentSection.tsx';
+import { CrossAgentSection, type CrossAgentOptions } from './CrossAgentSection.tsx';
 import { PlanReceiptSection } from './PlanReceiptSection.tsx';
 
 export { PlanActionButton } from './PlanActionButton.tsx';
@@ -256,7 +256,8 @@ type PlanViewerProps = {
   plan: Plan;
   /** Full indexed plan list used to resolve session lineage. */
   allPlans?: readonly Plan[];
-  loadRelatedPlanContent?: RelatedContentLoader;
+  /** Cloud content/link loaders and plan-list completeness for cross-agent suggestions. */
+  crossAgent?: CrossAgentOptions;
   onSelectRelatedPlan?: (plan: Plan) => void;
   /** Enables compare affordances; called with the plan to diff against. */
   onComparePlan?: (plan: Plan) => void;
@@ -288,7 +289,7 @@ type PlanViewerProps = {
 export function PlanViewer({
   plan,
   allPlans,
-  loadRelatedPlanContent,
+  crossAgent,
   onSelectRelatedPlan,
   onComparePlan,
   headerExtra,
@@ -922,7 +923,7 @@ export function PlanViewer({
                 key={`cross-agent:${plan.id}`}
                 plan={plan}
                 allPlans={allPlans}
-                loadContent={loadRelatedPlanContent}
+                options={crossAgent}
                 onCompare={onComparePlan}
               />
             )}

@@ -1,28 +1,34 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Plan } from '../lib/api.ts';
 import { downloadPlan } from '../lib/plan-download.ts';
 import {
   buildHandoffCommand,
   copyHandoffCommand,
   createHandoffContext,
+  crossAgentCandidateSignature,
   hydrateCrossAgentCandidates,
+  loadCrossAgentLinkReferences,
   suggestCrossAgentPlans,
+  type CrossAgentOptions,
   type CrossAgentSuggestion,
   type HandoffCli,
 } from '../lib/cross-agent-plans.ts';
 
-export type RelatedContentLoader = (plan: Plan) => Promise<string | null>;
+export type { CrossAgentOptions };
 export function CrossAgentSection({
   plan,
   allPlans,
-  loadContent,
+  options,
   onCompare,
 }: {
   plan: Plan;
   allPlans: readonly Plan[];
-  loadContent?: RelatedContentLoader;
+  options?: CrossAgentOptions;
   onCompare?: (plan: Plan) => void;
 }) {
+  const loadContent = options?.loadContent;
+  const loadLinkReferences = options?.loadLinkReferences;
+  const plansComplete = options?.plansComplete ?? true;
   const [suggestions, setSuggestions] = useState<CrossAgentSuggestion[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
@@ -32,6 +38,10 @@ export function CrossAgentSection({
   const [command, setCommand] = useState('');
   const [error, setError] = useState('');
   const request = useRef(0);
+  const candidateSignature = useMemo(
+    () => crossAgentCandidateSignature(plan, allPlans),
+    [plan, allPlans],
+  );
   const detectRequest = useRef(0);
   const planEpoch = useRef(0);
   const invalidateRequests = useCallback(() => {
@@ -49,6 +59,13 @@ export function CrossAgentSection({
     setClis([]);
     return invalidateRequests;
   }, [plan.id, plan.updatedAt, invalidateRequests]);
+  // Candidate plans were added, edited or removed: earlier suggestions may be stale.
+  useEffect(() => {
+    request.current++;
+    setSuggestions(null);
+    setLoading(false);
+    setNotice('');
+  }, [candidateSignature, loadContent, loadLinkReferences]);
   async function findRelated() {
     const version = ++request.current;
     setLoading(true);
@@ -61,7 +78,17 @@ export function CrossAgentSection({
     );
     if (!result) return;
     const { plans: hydrated, unavailable } = result;
-    setSuggestions(suggestCrossAgentPlans(plan, hydrated));
+    let links: Map<string, readonly string[]> | undefined;
+    if (loadLinkReferences && hydrated.length) {
+      const loaded = await loadCrossAgentLinkReferences(
+        [plan, ...hydrated],
+        loadLinkReferences,
+        () => version === request.current,
+      );
+      if (!loaded) return;
+      links = loaded;
+    }
+    setSuggestions(suggestCrossAgentPlans(plan, hydrated, links));
     setLoading(false);
     setNotice(
       `Checked ${hydrated.length} of up to 20 recent plans from other agents in this workspace.${unavailable ? ` Content unavailable for ${unavailable} plans.` : ''}`,
@@ -124,10 +151,14 @@ export function CrossAgentSection({
         <>
           <button
             type="button"
-            disabled={loading || !plan.content?.trim()}
+            disabled={loading || !plansComplete || !plan.content?.trim()}
             onClick={() => void findRelated()}
           >
-            {loading ? 'Finding related plans…' : 'Find related plans from other agents'}
+            {loading
+              ? 'Finding related plans…'
+              : plansComplete
+                ? 'Find related plans from other agents'
+                : 'Loading plans…'}
           </button>
           {notice && <p role="status">{notice}</p>}
           {suggestions?.length === 0 && <p>No strong matches found in the checked plans.</p>}
