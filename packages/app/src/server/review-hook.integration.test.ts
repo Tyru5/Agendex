@@ -212,3 +212,28 @@ test('equals-form manual file path waits and approves', async () => {
 
 test('global dev flag before review-plan reaches review transport', () =>
   run('approved', undefined, ['--dev', 'review-plan', '--hook', '--agent', 'claude-code']));
+
+test('review routes return 400 for bad bodies and 500 for server faults', async () => {
+  const post = (app: Hono, body: string) =>
+    app.request('/review-sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+  const app = createApprovalRoutes(new ApprovalSessions());
+  expect((await post(app, '{not json')).status).toBe(400);
+  expect((await post(app, 'null')).status).toBe(400);
+  expect((await post(app, '[]')).status).toBe(400);
+  const broken = new ApprovalSessions();
+  broken.create = () => {
+    throw new TypeError('boom');
+  };
+  const errors = spyOn(console, 'error').mockImplementation(() => undefined);
+  try {
+    const response = await post(createApprovalRoutes(broken), '{}');
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: 'Internal error' });
+  } finally {
+    errors.mockRestore();
+  }
+});

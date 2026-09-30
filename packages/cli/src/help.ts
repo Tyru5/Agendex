@@ -127,8 +127,8 @@ const HELP_GROUPS: HelpGroup[] = [
       { command: 'hooks status', description: 'Show Claude Code, Codex, and Pi hook status' },
       {
         command: 'hooks install <agent|all>',
-        description: 'Install hook integration (claude-code and codex require --preview)',
-        examples: ['agendex hooks install claude-code --preview'],
+        description: 'Install hook integration (codex requires --preview)',
+        examples: ['agendex hooks install claude-code'],
       },
       { command: 'hooks uninstall <agent|all>', description: 'Remove managed hook entries' },
       {
