@@ -55,7 +55,8 @@ export function CloudPlanUploader({
   onClose: () => void;
   onCreated: (plan: Plan) => void;
 }) {
-  const publishPlan = useMutation(api.plans.publishPlanWithSnapshot);
+  const publishPlan = useMutation(api.plans.publishPlan);
+  const publishPlanWithSnapshot = useMutation(api.plans.publishPlanWithSnapshot);
   const agentOptions = useMemo(() => getAgentOptions(agents), [agents]);
   const [step, setStep] = useState<Step>('pick');
   const [agent, setAgent] = useState(() => agentOptions[0] ?? '');
@@ -125,15 +126,19 @@ export function CloudPlanUploader({
         const file = valid[i]!;
         const trimmedTitle = file.title.trim();
         const trimmedContent = file.content.trim();
-        const published = await publishPlan({
+        const args = {
           localPlanId: `cloud-${crypto.randomUUID()}`,
           agent,
           title: trimmedTitle,
           content: trimmedContent,
           format: 'md',
-          metadata: { uploaded: true, userCreated: true, planValueOverride: 'manual' },
-        });
-        if (i === 0) firstPlan = publishedCloudPlan(published);
+          metadata: { uploaded: true, userCreated: true, planValueOverride: 'manual' as const },
+        };
+        if (i === 0) {
+          firstPlan = publishedCloudPlan(await publishPlanWithSnapshot(args));
+        } else {
+          await publishPlan(args);
+        }
         setUploadProgress(() => i + 1);
       }
       if (firstPlan) onCreated(firstPlan);
