@@ -521,6 +521,33 @@ test('large duplicate groups still expose the newest winner only', async () => {
   expect(counts.map((count) => count.count)).toEqual([0, 0, 1]);
   const oldest = ids[0];
   if (!oldest) throw new Error('missing plan');
+  // Refreshing an old member outside the reconcile window keeps it hidden.
+  await t.run((ctx) => refreshFilePlanMentions(ctx, oldest));
+  expect(
+    (await owner.query(api.filePlanMentions.counts, { paths: ['src/file0.ts'] }))[0]?.count,
+  ).toBe(0);
+  // Low-value members never join the group, so they cannot shadow the winner.
+  await t.run(async (ctx) => {
+    for (let i = 0; i < 40; i++) {
+      const id = await ctx.db.insert('plans', {
+        ownerId: 'owner',
+        agent: 'claude',
+        title: 'Implement authentication',
+        content: content([`src/low${i}.ts`]),
+        format: 'markdown',
+        workspace: '/repo',
+        syncIdentityKey: 'sync-large',
+        metadata: { lowValue: true },
+        version: 1,
+        createdAt: 500 + i,
+        updatedAt: 500 + i,
+      });
+      await refreshFilePlanMentions(ctx, id);
+    }
+  });
+  expect(
+    (await owner.query(api.filePlanMentions.counts, { paths: ['src/file39.ts'] }))[0]?.count,
+  ).toBe(1);
   await t.run(async (ctx) => {
     await ctx.db.patch(oldest, { updatedAt: 1_000 });
     await refreshFilePlanMentions(ctx, oldest);

@@ -1,5 +1,5 @@
 import { extractCandidateCodePaths, parseCodePath } from '@agendex/shared/plan-paths';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { duplicateKey, hasLowValueMetadata, isVisiblePlan } from './planVisibility';
 
@@ -97,42 +97,61 @@ export function extractCloudFileMentions(plan: {
   };
 }
 
-/** Members examined past the winner: covers any previous winner a write displaced. */
+/** Members examined per reconcile: the winner plus any winner a write displaced. */
 const DUPLICATE_RECONCILE_WINDOW = 32;
 
 type MentionCtx = Pick<MutationCtx, 'db'>;
 
 /**
+ * Group key recorded on the plan. Persisted low-value plans are filtered from
+ * the list before dedupe, so they never join a group: the newest member of a
+ * group is then always the list's winner.
+ */
+function mentionDuplicateKey(plan: Doc<'plans'>): string | undefined {
+  return hasLowValueMetadata(plan.metadata) ? undefined : duplicateKey(plan);
+}
+
+/**
  * Plan lists show one winner per duplicate sync identity, so only that winner's
  * mentions are visible: counts and lookups then agree with the rendered list.
  *
- * Members are read newest-first (the winner order), so the winner is always the
- * first eligible row however large the group is. Every write that can change a
- * winner reconciles its group while the displaced winner is still near the top,
- * so older members beyond the window are already hidden.
+ * Members are read newest-first (the list's winner order), so the winner is the
+ * first row and each call reads a bounded window. Every write that can change a
+ * winner reconciles its group while the displaced winner is still at the top,
+ * so older members beyond the window are already hidden; callers set the
+ * refreshed plan's own visibility from the returned winner.
  */
 async function reconcileDuplicateGroup(
   ctx: MentionCtx,
   ownerId: string,
   key: string,
   excludePlanId?: Id<'plans'>,
-): Promise<void> {
-  const members = ctx.db
+): Promise<Id<'plans'> | undefined> {
+  const members = await ctx.db
     .query('plans')
     .withIndex('by_owner_and_fileMentionDuplicateKey_and_updatedAt', (q) =>
       q.eq('ownerId', ownerId).eq('fileMentionDuplicateKey', key),
     )
-    .order('desc');
+    .order('desc')
+    .take(DUPLICATE_RECONCILE_WINDOW + 1);
   let winner: Id<'plans'> | undefined;
-  let afterWinner = 0;
-  for await (const plan of members) {
+  for (const plan of members) {
     if (plan._id === excludePlanId) continue;
-    // Same eligibility as the list: persisted low-value plans never win.
-    const wins = !winner && !hasLowValueMetadata(plan.metadata);
-    if (wins) winner = plan._id;
-    await setMentionVisibility(ctx, plan._id, wins && isVisiblePlan(plan));
-    if (winner && !wins && ++afterWinner >= DUPLICATE_RECONCILE_WINDOW) break;
+    winner ??= plan._id;
+    await setMentionVisibility(ctx, plan._id, plan._id === winner && isVisiblePlan(plan));
   }
+  return winner;
+}
+
+/** Re-pick winners for the plan's previous and current groups; returns its own visibility. */
+async function reconcilePlanDuplicates(ctx: MentionCtx, plan: Doc<'plans'>): Promise<boolean> {
+  const previousKey = plan.fileMentionDuplicateKey;
+  const key = mentionDuplicateKey(plan);
+  if (previousKey && previousKey !== key) {
+    await reconcileDuplicateGroup(ctx, plan.ownerId, previousKey);
+  }
+  const winner = key ? await reconcileDuplicateGroup(ctx, plan.ownerId, key) : plan._id;
+  return winner === plan._id && isVisiblePlan(plan);
 }
 
 async function setMentionVisibility(
@@ -155,35 +174,30 @@ async function setMentionVisibility(
 
 /** Called in the same transaction as every content/workspace/visibility write. */
 export async function refreshFilePlanMentions(ctx: MentionCtx, planId: Id<'plans'>): Promise<void> {
-  const plan = await ctx.db.get(planId);
-  if (!plan) return;
+  const current = await ctx.db.get(planId);
+  if (!current) return;
   const old = await ctx.db
     .query('filePlanMentions')
     .withIndex('by_plan', (q) => q.eq('planId', planId))
     .take(MAX_FILE_MENTIONS);
   for (const row of old) await ctx.db.delete(row._id);
-  const { paths, truncated } = extractCloudFileMentions(plan);
-  const workspace = normalizeMentionWorkspace(plan.workspace);
-  const visible = isVisiblePlan(plan);
+  const { paths, truncated } = extractCloudFileMentions(current);
+  await ctx.db.patch(planId, {
+    fileMentionIndexVersion: FILE_MENTION_INDEX_VERSION,
+    fileMentionIndexTruncated: truncated,
+    fileMentionDuplicateKey: mentionDuplicateKey(current),
+  });
+  // Rows are inserted after reconciling so their flag never depends on the window.
+  const visible = await reconcilePlanDuplicates(ctx, current);
+  const workspace = normalizeMentionWorkspace(current.workspace);
   for (const path of paths)
     await ctx.db.insert('filePlanMentions', {
-      ownerId: plan.ownerId,
+      ownerId: current.ownerId,
       planId,
       path,
       workspace,
       visible,
     });
-  const previousKey = plan.fileMentionDuplicateKey;
-  const key = duplicateKey(plan);
-  await ctx.db.patch(planId, {
-    fileMentionIndexVersion: FILE_MENTION_INDEX_VERSION,
-    fileMentionIndexTruncated: truncated,
-    fileMentionDuplicateKey: key,
-  });
-  if (previousKey && previousKey !== key) {
-    await reconcileDuplicateGroup(ctx, plan.ownerId, previousKey);
-  }
-  if (key) await reconcileDuplicateGroup(ctx, plan.ownerId, key);
 }
 
 /**
@@ -196,14 +210,11 @@ export async function refreshFilePlanMentionDuplicates(
 ): Promise<void> {
   const plan = await ctx.db.get(planId);
   if (!plan || plan.fileMentionIndexVersion === undefined) return;
-  const previousKey = plan.fileMentionDuplicateKey;
-  const key = duplicateKey(plan);
-  if (previousKey !== key) await ctx.db.patch(planId, { fileMentionDuplicateKey: key });
-  if (previousKey && previousKey !== key) {
-    await reconcileDuplicateGroup(ctx, plan.ownerId, previousKey);
+  const key = mentionDuplicateKey(plan);
+  if (plan.fileMentionDuplicateKey !== key) {
+    await ctx.db.patch(planId, { fileMentionDuplicateKey: key });
   }
-  if (key) await reconcileDuplicateGroup(ctx, plan.ownerId, key);
-  else await setMentionVisibility(ctx, planId, isVisiblePlan(plan));
+  await setMentionVisibility(ctx, planId, await reconcilePlanDuplicates(ctx, plan));
 }
 
 /** Called before plan deletion; at most 512 mention rows can exist per plan. */
