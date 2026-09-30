@@ -557,3 +557,49 @@ test('large duplicate groups still expose the newest winner only', async () => {
   });
   expect(moved.map((count) => count.count)).toEqual([1, 0]);
 });
+
+test('plans indexed by an older version are reindexed and stale low-value keys never win', async () => {
+  vi.useFakeTimers();
+  const t = make();
+  const [useful, stale] = await t.run(async (ctx) => {
+    const base = {
+      ownerId: 'owner',
+      agent: 'claude',
+      title: 'Implement authentication',
+      format: 'markdown',
+      workspace: '/repo',
+      syncIdentityKey: 'sync-stale',
+      version: 1,
+    };
+    const usefulId = await ctx.db.insert('plans', {
+      ...base,
+      content: content(['src/auth.ts']),
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await refreshFilePlanMentions(ctx, usefulId);
+    // Simulates a v1-indexed low-value plan that still carries a group key.
+    const staleId = await ctx.db.insert('plans', {
+      ...base,
+      content: content(['src/other.ts']),
+      metadata: { lowValue: true },
+      fileMentionIndexVersion: 1,
+      fileMentionDuplicateKey: 'sync:sync-stale',
+      createdAt: 2,
+      updatedAt: 2,
+    });
+    return [usefulId, staleId];
+  });
+  const owner = t.withIdentity({ subject: 'owner' });
+  expect(await owner.query(api.filePlanMentions.indexingStatus, {})).toEqual({ complete: false });
+  await t.run((ctx) => refreshFilePlanMentions(ctx, useful));
+  expect(
+    (await owner.query(api.filePlanMentions.counts, { paths: ['src/auth.ts'] }))[0]?.count,
+  ).toBe(1);
+  await t.mutation(internal.filePlanMentions.backfill, {});
+  await t.finishAllScheduledFunctions(vi.runAllTimers);
+  expect(await owner.query(api.filePlanMentions.indexingStatus, {})).toEqual({ complete: true });
+  const healed = await t.run((ctx) => ctx.db.get(stale));
+  expect(healed?.fileMentionIndexVersion).toBe(2);
+  expect(healed?.fileMentionDuplicateKey).toBeUndefined();
+});

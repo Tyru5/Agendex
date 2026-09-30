@@ -3,7 +3,8 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { duplicateKey, hasLowValueMetadata, isVisiblePlan } from './planVisibility';
 
-export const FILE_MENTION_INDEX_VERSION = 1;
+// v2 records duplicate-group keys; older rows are reindexed by the backfill.
+export const FILE_MENTION_INDEX_VERSION = 2;
 export const MAX_FILE_MENTIONS = 512;
 
 /** Normalize only text. Cloud never checks file existence or infers a git root. */
@@ -137,7 +138,10 @@ async function reconcileDuplicateGroup(
   let winner: Id<'plans'> | undefined;
   for (const plan of members) {
     if (plan._id === excludePlanId) continue;
-    winner ??= plan._id;
+    if (hasLowValueMetadata(plan.metadata)) {
+      // Stale key from an older index version: leave the group and never win.
+      await ctx.db.patch(plan._id, { fileMentionDuplicateKey: undefined });
+    } else winner ??= plan._id;
     await setMentionVisibility(ctx, plan._id, plan._id === winner && isVisiblePlan(plan));
   }
   return winner;

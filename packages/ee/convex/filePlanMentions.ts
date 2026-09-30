@@ -5,6 +5,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internalMutation, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import {
+  FILE_MENTION_INDEX_VERSION,
   normalizeFileMentionPath,
   normalizeMentionWorkspace,
   refreshFilePlanMentions,
@@ -37,7 +38,7 @@ async function indexComplete(ctx: QueryCtx, ownerId: string): Promise<boolean> {
   const pending = await ctx.db
     .query('plans')
     .withIndex('by_owner_and_fileMentionIndexVersion', (q) =>
-      q.eq('ownerId', ownerId).eq('fileMentionIndexVersion', undefined),
+      q.eq('ownerId', ownerId).lt('fileMentionIndexVersion', FILE_MENTION_INDEX_VERSION),
     )
     .first();
   if (pending) return false;
@@ -63,7 +64,7 @@ async function indexOwnerBatch(ctx: MutationCtx, ownerId: string) {
   const plans = await ctx.db
     .query('plans')
     .withIndex('by_owner_and_fileMentionIndexVersion', (q) =>
-      q.eq('ownerId', ownerId).eq('fileMentionIndexVersion', undefined),
+      q.eq('ownerId', ownerId).lt('fileMentionIndexVersion', FILE_MENTION_INDEX_VERSION),
     )
     .take(BACKFILL_BATCH_SIZE);
   for (const plan of plans) await refreshFilePlanMentions(ctx, plan._id);
@@ -192,7 +193,9 @@ export const backfill = internalMutation({
   handler: async (ctx) => {
     const plans = await ctx.db
       .query('plans')
-      .withIndex('by_fileMentionIndexVersion', (q) => q.eq('fileMentionIndexVersion', undefined))
+      .withIndex('by_fileMentionIndexVersion', (q) =>
+        q.lt('fileMentionIndexVersion', FILE_MENTION_INDEX_VERSION),
+      )
       .take(BACKFILL_BATCH_SIZE);
     for (const plan of plans) await refreshFilePlanMentions(ctx, plan._id);
     const done = plans.length < BACKFILL_BATCH_SIZE;
