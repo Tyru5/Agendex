@@ -163,3 +163,19 @@ test('offline device events outside the current90-day window are excluded', asyn
     costUsd: 0.5,
   });
 });
+
+test('a known device without a 90-day snapshot makes the session amount incomplete', async () => {
+  const { t, planId } = await setup();
+  await t.run(async (ctx) => {
+    await ctx.db.insert('daemonHeartbeats', {
+      ownerId: 'owner',
+      lastSeenAt: Date.now(),
+      deviceId: 'no-usage',
+    });
+  });
+  expect(await t.query(api.planSessionCost.get, { planId })).toMatchObject({
+    status: 'unavailable',
+    reason: 'incomplete-snapshot',
+    costUsd: null,
+  });
+});

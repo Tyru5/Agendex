@@ -56,7 +56,10 @@ test('unknown, partial, unavailable, and loading states never assert free spend'
     renderToStaticMarkup(
       <PlanSessionCostSection sessionCost={unavailableSessionCost('incomplete-snapshot')} />,
     ),
-  ).toContain('Synced usage events are incomplete');
+  ).toContain('Usage records are incomplete');
+  expect(
+    renderToStaticMarkup(<PlanSessionCostSection sessionCost={{ ...cost, costUsd: 0.00001 }} />),
+  ).toContain('Estimated &lt;$0.0001');
   expect(renderToStaticMarkup(<PlanSessionCostSection sessionCost={null} loading />)).toContain(
     'Checking session usage',
   );

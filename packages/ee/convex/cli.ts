@@ -486,6 +486,7 @@ function stripUsageMergeMetadata(summary: Record<string, unknown>): Record<strin
   delete clean.cloudFormatVersion;
   delete clean.dedupeKeys;
   delete clean.events;
+  delete clean.failedFiles;
   return clean;
 }
 

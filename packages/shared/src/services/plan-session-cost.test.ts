@@ -63,3 +63,16 @@ test('unreadable sources or scanner failure return unavailable without guessed t
     ).reason,
   ).toBe('usage-unavailable');
 });
+test('transcripts that fail after discovery make the session total incomplete', async () => {
+  const cost = await getPlanSessionCost(plan, [plan], async () => ({
+    ...summary,
+    sources: [
+      { agent: 'codex-cli', path: '/sessions', status: 'scanned', files: 2, failedFiles: 1 },
+    ],
+  }));
+  expect(cost).toMatchObject({
+    status: 'unavailable',
+    reason: 'incomplete-snapshot',
+    costUsd: null,
+  });
+});

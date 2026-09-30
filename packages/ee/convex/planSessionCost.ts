@@ -63,10 +63,15 @@ export async function readOwnedPlanSessionCost(
     .take(9);
   if (devices.length > 8) return unavailableSessionCost('incomplete-snapshot', identity);
   const snapshots: SessionUsageSnapshot[] = [];
+  let missingDevices = 0;
   for (const device of devices) {
     const snapshot = normalizeUsageSnapshots(device.usageSnapshots)?.['90'];
     if (snapshot) snapshots.push(snapshot as SessionUsageSnapshot);
+    else missingDevices++;
   }
+  // A known device without a valid 90-day snapshot may hold this session's usage.
+  if (snapshots.length && missingDevices)
+    return unavailableSessionCost('incomplete-snapshot', identity);
   // We cannot count all peer plans without an unbounded document read. The UI
   // always explains that this whole-session amount can be shared by other plans.
   return sessionCostFromSnapshots(identity, snapshots);

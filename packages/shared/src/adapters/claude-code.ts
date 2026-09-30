@@ -38,19 +38,22 @@ function sessionScalar(value: string): string | undefined {
   return scalar.replace(/\s+#.*$/, '').trim() || undefined;
 }
 
-function frontmatterValue(content: string, key: string): string | undefined {
+/** Every value for `key`: repeated keys must not hide a conflicting session ID. */
+function frontmatterValues(content: string, key: string): string[] {
   const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
   const frontmatter = fmMatch?.[1];
-  if (!frontmatter) return undefined;
+  if (!frontmatter) return [];
 
+  const values: string[] = [];
   for (const line of frontmatter.split('\n')) {
     const separatorIndex = line.indexOf(':');
     if (separatorIndex === -1) continue;
     if (line.slice(0, separatorIndex).trim() !== key) continue;
-    return sessionScalar(line.slice(separatorIndex + 1));
+    const value = sessionScalar(line.slice(separatorIndex + 1));
+    if (value) values.push(value);
   }
 
-  return undefined;
+  return values;
 }
 
 function stableFilenameSessionId(filePath: string): string | undefined {
@@ -62,9 +65,9 @@ function stableFilenameSessionId(filePath: string): string | undefined {
 }
 
 function extractMetadata(content: string, filePath: string): Record<string, unknown> {
-  const explicitIds = ['sessionId', 'session_id', 'conversationId', 'conversation_id']
-    .map((key) => frontmatterValue(content, key))
-    .filter((id): id is string => Boolean(id));
+  const explicitIds = ['sessionId', 'session_id', 'conversationId', 'conversation_id'].flatMap(
+    (key) => frontmatterValues(content, key),
+  );
   const sessionId = explicitIds[0];
   const id = sessionId ?? stableFilenameSessionId(filePath);
   return id

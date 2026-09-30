@@ -152,7 +152,7 @@ export function summarizeSessionCost(
 export type SessionUsageSnapshot = Pick<
   UsageSummary,
   'days' | 'generatedAt' | 'records' | 'events'
-> & { cloudFormatVersion?: number };
+> & { cloudFormatVersion?: number; failedFiles?: number };
 
 /** Complete event snapshots are required: a capped aggregate cannot prove session spend. */
 export function sessionCostFromSnapshots(
@@ -166,7 +166,11 @@ export function sessionCostFromSnapshots(
   const windows = snapshots.filter((snapshot) => snapshot.days === windowDays);
   if (!windows.length) return unavailableSessionCost('usage-unavailable', identity, windowDays);
   if (
-    windows.some((snapshot) => snapshot.records > 0 && snapshot.events?.length !== snapshot.records)
+    windows.some(
+      (snapshot) =>
+        (snapshot.failedFiles ?? 0) > 0 ||
+        (snapshot.records > 0 && snapshot.events?.length !== snapshot.records),
+    )
   )
     return unavailableSessionCost('incomplete-snapshot', identity, windowDays);
 

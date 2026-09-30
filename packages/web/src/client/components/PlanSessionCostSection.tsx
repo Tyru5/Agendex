@@ -11,16 +11,22 @@ const REASONS: Record<SessionCostUnavailableReason, string> = {
   'usage-unavailable':
     'No usage snapshot or readable transcript source is available for this session.',
   'incomplete-snapshot':
-    'Synced usage events are incomplete. Aggregate usage cannot be safely assigned to this session.',
+    'Usage records are incomplete: a device snapshot or transcript could not be read. Aggregate usage cannot be safely assigned to this session.',
   'no-records': 'No matching usage records were observed in the last 90 days.',
 };
-const money = (amount: number) =>
+const MIN_DISPLAY_USD = 0.0001;
+const formatUsd = (amount: number, fractionDigits: number) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
-    maximumFractionDigits: amount > 0 && amount < 0.01 ? 4 : 2,
+    maximumFractionDigits: fractionDigits,
   }).format(amount);
+/** Positive spend below display precision must not render as free. */
+const money = (amount: number) =>
+  amount > 0 && amount < MIN_DISPLAY_USD
+    ? `<${formatUsd(MIN_DISPLAY_USD, 4)}`
+    : formatUsd(amount, amount > 0 && amount < 0.01 ? 4 : 2);
 
 export function PlanSessionCostSection({
   sessionCost,

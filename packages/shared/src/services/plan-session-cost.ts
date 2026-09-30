@@ -46,6 +46,9 @@ export async function getPlanSessionCost(
     const relevantSources = summary.sources.filter((source) => source.agent === identity.agent);
     if (relevantSources.length && relevantSources.every((source) => source.status !== 'scanned'))
       return unavailableSessionCost('usage-unavailable', identity);
+    // Any unreadable transcript may hold this session's usage; never show a partial total.
+    if (relevantSources.some((source) => source.status === 'error' || source.failedFiles))
+      return unavailableSessionCost('incomplete-snapshot', identity);
     return summarizeSessionCost(identity, summary, countPlansInSession(peers, identity));
   } catch {
     return unavailableSessionCost('usage-unavailable', identity);

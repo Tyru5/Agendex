@@ -37,7 +37,7 @@ import {
 } from './types.ts';
 
 const SCAN_CACHE_FILE = 'usage-scan-cache.json';
-const SCAN_CACHE_VERSION = 5;
+const SCAN_CACHE_VERSION = 6;
 export const DEFAULT_USAGE_DAYS = 30;
 /** Soft cap so multi-window cloud snapshots stay under the heartbeat byte budget. */
 const MAX_CLOUD_EVENTS = 400;
@@ -417,6 +417,7 @@ export async function getUsageSummaries(
     }
 
     candidates.sort((a, b) => a.path.localeCompare(b.path));
+    let failedFiles = 0;
     for (const file of candidates) {
       const cached = cache.files[file.path];
       let fileRecords: UsageRecord[];
@@ -426,6 +427,8 @@ export async function getUsageSummaries(
         try {
           fileRecords = await parseTranscriptFile(source.agent, file.path);
         } catch {
+          // Vanished or unreadable after discovery: totals omit this file.
+          failedFiles++;
           continue;
         }
       }
@@ -459,6 +462,7 @@ export async function getUsageSummaries(
       path: source.dir,
       status: 'scanned',
       files: candidates.length,
+      ...(failedFiles ? { failedFiles } : {}),
     });
   }
 

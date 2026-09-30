@@ -43,6 +43,15 @@ test('Claude plan session provenance distinguishes explicit, guessed, and confli
     [plan] = await claudeCodeAdapter.parse(path);
     if (!plan) throw new Error('Expected plan');
     expect(resolveUsageSession(plan)).toBe('ambiguous-session');
+
+    await writeFile(
+      path,
+      '---\nsessionId: native-session\nsessionId: other-session\n---\n# Plan\n\n1. Update source files.',
+    );
+    [plan] = await claudeCodeAdapter.parse(path);
+    if (!plan) throw new Error('Expected plan');
+    expect(plan.metadata.sessionIdOrigin).toBe('ambiguous');
+    expect(resolveUsageSession(plan)).toBe('ambiguous-session');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
