@@ -51,6 +51,54 @@ test('first read, exact historical version, and metadata-only updates', async ()
   await t.run((ctx) => ctx.db.patch(planId, { updatedAt: 3000 }));
   expect(await open('Updated', 3000)).toMatchObject({ baseline: { content: 'Updated' } });
 });
+test('publish returns an authoritative snapshot that can record its first opening atomically', async () => {
+  const t = convexTest(schema, modules);
+  await t.run((ctx) =>
+    ctx.db.insert('subscriptions', {
+      userId: 'alice',
+      stripeCustomerId: 'cus_publish_read',
+      stripeSubscriptionId: 'sub_publish_read',
+      status: 'active',
+      plan: 'monthly',
+      currentPeriodEnd: Date.now() + 86400000,
+      cancelAtPeriodEnd: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }),
+  );
+  const owner = t.withIdentity({ subject: 'alice' });
+  const args = {
+    localPlanId: 'cloud-created',
+    agent: 'omp',
+    title: 'Created plan',
+    content: 'Created steps',
+    format: 'md',
+    metadata: { userCreated: true as const, planValueOverride: 'manual' as const },
+  };
+
+  const published = await owner.mutation(api.plans.publishPlanWithSnapshot, args);
+  expect(published).toMatchObject({
+    ownerId: 'alice',
+    localPlanId: 'cloud-created',
+    title: 'Created plan',
+    content: 'Created steps',
+    version: 1,
+  });
+  const repeated = await owner.mutation(api.plans.publishPlanWithSnapshot, args);
+  expect(repeated._id).toBe(published._id);
+  expect(repeated.version).toBe(1);
+  expect(repeated.updatedAt).toBe(published.updatedAt);
+  expect(await owner.mutation(api.plans.publishPlan, args)).toBe(published._id);
+  expect(
+    await owner.mutation(api.planReads.open, {
+      planId: published._id,
+      title: published.title,
+      content: published.content,
+      updatedAt: published.updatedAt,
+    }),
+  ).toEqual({ baseline: null, reason: 'first-read' });
+});
+
 test('stale content and unloaded bodies never advance the boundary', async () => {
   const { t, planId, open } = await setup();
   await expect(open('', 1000)).rejects.toThrow(/stale/);

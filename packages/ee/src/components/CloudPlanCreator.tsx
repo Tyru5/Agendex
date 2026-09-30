@@ -7,7 +7,7 @@ import {
   type Plan,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
-import { useConvex, useMutation } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import { publishedCloudPlan } from '../lib/owned-plan-read-source.ts';
@@ -25,8 +25,7 @@ export function CloudPlanCreator({
   onClose: () => void;
   onCreated: (plan: Plan) => void;
 }) {
-  const convex = useConvex();
-  const publishPlan = useMutation(api.plans.publishPlan);
+  const publishPlan = useMutation(api.plans.publishPlanWithSnapshot);
   const agentOptions = useMemo(() => getAgentOptions(agents), [agents]);
   const [agent, setAgent] = useState(() => agentOptions[0] ?? '');
   const [title, setTitle] = useState('');
@@ -43,7 +42,7 @@ export function CloudPlanCreator({
     const trimmedContent = content.trim();
 
     try {
-      const planId = await publishPlan({
+      const published = await publishPlan({
         localPlanId: `cloud-${crypto.randomUUID()}`,
         agent,
         title: trimmedTitle,
@@ -51,7 +50,6 @@ export function CloudPlanCreator({
         format: 'md',
         metadata: { userCreated: true, planValueOverride: 'manual' },
       });
-      const published = await convex.query(api.plans.getPlan, { planId });
       onCreated(publishedCloudPlan(published));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'create failed');
