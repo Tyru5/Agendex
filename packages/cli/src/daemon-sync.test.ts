@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import type { SyncPlanPayload } from './api.ts';
 import { computePayloadHash } from './sync-cache.ts';
 import {
+  createSyncPayloadOrder,
   dedupeSyncPayloads,
   filterPayloadsNeedingSync,
   nextRetryDelayMs,
@@ -67,4 +68,19 @@ test('nextRetryDelayMs returns backoff steps then undefined', () => {
   expect(nextRetryDelayMs(1)).toBe(8000);
   expect(nextRetryDelayMs(2)).toBe(30000);
   expect(nextRetryDelayMs(3)).toBeUndefined();
+});
+
+test('sync order lets metadata-only changes with the same updatedAt supersede older payloads', () => {
+  const order = createSyncPayloadOrder();
+  const synced = payload({ updatedAt: 100, metadata: { planValue: 'low' } });
+  const restored = payload({ updatedAt: 100, metadata: { planValueOverride: 'manual' } });
+  const syncedRef = { updatedAt: 100, sequence: order.sequenceOf(synced) };
+  order.sequenceOf(restored);
+  expect(order.isSuperseded(restored, syncedRef)).toBe(false);
+  expect(order.isSuperseded(synced, syncedRef)).toBe(true);
+  const restoredRef = { updatedAt: 100, sequence: order.sequenceOf(restored) };
+  expect(order.isSuperseded(synced, restoredRef)).toBe(true);
+  expect(order.isSuperseded(payload({ updatedAt: 99 }), restoredRef)).toBe(true);
+  expect(order.isSuperseded(payload({ updatedAt: 101 }), restoredRef)).toBe(false);
+  expect(order.isSuperseded(restored, undefined)).toBe(false);
 });

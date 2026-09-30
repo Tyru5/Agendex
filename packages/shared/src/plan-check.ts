@@ -35,6 +35,7 @@ function sectionLabel(line: string): string {
 }
 function isPlaceholder(line: string): boolean {
   const cleaned = line
+    .replace(/<\/?[a-z][^>]*>/gi, '')
     .trim()
     .replace(/^(?:[-*+]|\d+[.)])\s+/, '')
     .replace(/^\[[ xX]\]\s*/, '')
@@ -46,15 +47,32 @@ function isPlaceholder(line: string): boolean {
     /^(?:none|n\/a)\b[.!:…\s-]*$/i.test(cleaned)
   );
 }
+const CHECK_SECTION_LABEL =
+  /^(?:verification|testing|tests?|validation|acceptance criteria|success criteria)$/i;
+function headingLevel(text: string): number | undefined {
+  return /^(#{1,6})\s/.exec(text)?.[1]?.length;
+}
 function hasSectionBody(content: string, label: RegExp): boolean {
   const lines = content.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
-    if (!label.test(sectionLabel(lines[index] ?? ''))) continue;
+    const line = lines[index]?.trim() ?? '';
+    if (!label.test(sectionLabel(line))) continue;
+    // Markdown sections end at a same-or-higher heading; deeper subheadings organize
+    // their content. Bold/colon label sections end at any heading or label.
+    const level = headingLevel(line);
     for (const following of lines.slice(index + 1)) {
       const text = following.trim();
       if (!text) continue;
-      // Both markdown headings and pure bold/colon labels end the preceding section.
-      if (/^#{1,6}\s/.test(text) || /^(?:\*\*[^*]+\*\*:?|[A-Za-z ]+:)$/.test(text)) break;
+      const nextLevel = headingLevel(text);
+      const isLabel = /^(?:\*\*[^*]+\*\*:?|[A-Za-z ]+:)$/.test(text);
+      if (nextLevel !== undefined || isLabel) {
+        const nested =
+          level !== undefined &&
+          (nextLevel === undefined ? true : nextLevel > level) &&
+          !CHECK_SECTION_LABEL.test(sectionLabel(text));
+        if (!nested) break;
+        continue;
+      }
       if (!isPlaceholder(text)) return true;
     }
   }

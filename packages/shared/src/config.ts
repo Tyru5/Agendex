@@ -99,8 +99,12 @@ export interface AgendexConfig {
   enabledAdapters: AdapterId[];
   customPlanDirs: string[];
   lastPlanDownload?: PlanDownloadRecord;
-  /** Locally restored classifier-filtered plans, keyed by stable local id. */
-  planValueOverrides?: Record<string, true>;
+  /**
+   * Locally restored classifier-filtered plans: stable local id -> source file path at
+   * restore time. The path lets a scan drop overrides whose source was deleted, so a
+   * new plan later created at the same path is not restored implicitly.
+   */
+  planValueOverrides?: Record<string, string>;
 }
 
 interface StoredConfig {
@@ -118,10 +122,17 @@ interface StoredConfig {
   planValueOverrides?: unknown;
 }
 
-function normalizePlanValueOverrides(raw: unknown): Record<string, true> | undefined {
+function normalizePlanValueOverrides(raw: unknown): Record<string, string> | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const entries = Object.entries(raw).filter(
-    ([id, value]) => id.length > 0 && id.length <= 512 && !id.includes('\0') && value === true,
+    ([id, value]) =>
+      id.length > 0 &&
+      id.length <= 512 &&
+      !id.includes('\0') &&
+      typeof value === 'string' &&
+      value.length > 0 &&
+      value.length <= 4096 &&
+      !value.includes('\0'),
   );
   return entries.length ? Object.fromEntries(entries) : undefined;
 }

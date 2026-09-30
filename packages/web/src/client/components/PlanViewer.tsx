@@ -384,7 +384,7 @@ export function PlanViewer({
       }),
     [plan.content, plan.filePath, plan.format, plan.title],
   );
-  const { entries, renderContent, renderMode } = outline;
+  const { entries, renderContent, renderMode, sourceContent } = outline;
 
   const showOutline = entries.filter((e) => e.source !== 'fallback_root').length >= 2;
 
@@ -396,7 +396,12 @@ export function PlanViewer({
     contentKey: renderContent,
   });
 
-  const planPaths = useValidatedPlanPaths(plan, renderMode === 'markdown' ? renderContent : '');
+  // Plain-text plans still validate paths so their advisory check can report files.
+  const planPaths = useValidatedPlanPaths(plan, sourceContent);
+  const checkPlanInput = useMemo(
+    () => ({ title: plan.title, metadata: plan.metadata, content: sourceContent }),
+    [plan.title, plan.metadata, sourceContent],
+  );
 
   const pathValidationKey = useMemo(() => {
     if (!planPaths) return '';
@@ -419,7 +424,7 @@ export function PlanViewer({
 
   usePlanPathNavigation({
     rootRef: bodyRef,
-    enabled: planPaths?.status === 'ready',
+    enabled: renderMode === 'markdown' && planPaths?.status === 'ready',
     // Reset focus when the plan, markdown, or validated path set changes.
     contentKey: `${plan.id}\0${renderContent}\0${pathValidationKey}`,
   });
@@ -921,9 +926,8 @@ export function PlanViewer({
               loading={receiptLoading}
               onOpenPath={planPaths && workspace ? planPaths.openPath : undefined}
             />
-            {renderMode === 'markdown' && (
-              <PlanCheckSection plan={{ ...plan, content: renderContent }} paths={planPaths} />
-            )}
+            {/* Cloud bodies are '' while loading or inaccessible; a check would be meaningless. */}
+            {sourceContent.trim() && <PlanCheckSection plan={checkPlanInput} paths={planPaths} />}
           </header>
 
           {onChartWideChange && !chartHidden && (
@@ -1031,7 +1035,7 @@ export function PlanViewer({
           )}
 
           {/* Body */}
-          {planPaths?.status === 'unavailable' && (
+          {renderMode === 'markdown' && planPaths?.status === 'unavailable' && (
             <div className="plan-path-status" role="status">
               {planPaths.statusMessage}
             </div>

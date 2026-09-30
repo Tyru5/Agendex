@@ -188,7 +188,23 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
   return files;
 }
 
-let localValueOverrides: Record<string, true> = {};
+let localValueOverrides: Record<string, string> = {};
+
+/** Forget restores whose source file is gone, so a future plan at that path starts hidden. */
+function pruneDeletedValueOverrides(ids: Iterable<string>): void {
+  const stale = [...ids].filter((id) => {
+    const sourcePath = localValueOverrides[id];
+    return sourcePath !== undefined && !existsSync(sourcePath);
+  });
+  if (stale.length === 0) return;
+  updateConfig((config) => {
+    if (!config?.planValueOverrides) return null;
+    const planValueOverrides = { ...config.planValueOverrides };
+    for (const id of stale) delete planValueOverrides[id];
+    return { ...config, planValueOverrides };
+  });
+  for (const id of stale) delete localValueOverrides[id];
+}
 
 function preparePlanForIndex(plan: Plan): Plan {
   const metadata = { ...plan.metadata };
@@ -196,7 +212,7 @@ function preparePlanForIndex(plan: Plan): Plan {
     delete metadata.planValueOverride;
     delete metadata.localPlanValueOverride;
   }
-  if (localValueOverrides[plan.id] === true) {
+  if (localValueOverrides[plan.id] !== undefined) {
     metadata.planValueOverride = 'manual';
     metadata.localPlanValueOverride = true;
   }
@@ -399,6 +415,7 @@ async function scanOnce(): Promise<void> {
   await scanCustomPlanDirs(coveredPaths, next);
 
   store = next;
+  pruneDeletedValueOverrides(Object.keys(localValueOverrides).filter((id) => !next.has(id)));
   notifyPlansChanged();
   const indexableCount = getIndexablePlans().length;
   const hiddenCount = store.size - indexableCount;
@@ -458,10 +475,11 @@ export async function setPlanValueOverride(
   id: string,
   restore: boolean,
 ): Promise<Plan | undefined> {
-  if (!store.has(id)) return undefined;
+  const plan = store.get(id);
+  if (!plan) return undefined;
   updateConfig((config) => {
     const planValueOverrides = { ...config?.planValueOverrides };
-    if (restore) planValueOverrides[id] = true;
+    if (restore) planValueOverrides[id] = resolve(plan.filePath);
     else delete planValueOverrides[id];
     return {
       ...(config ?? {
@@ -665,6 +683,9 @@ export async function rescanFile(filePath: string) {
   localValueOverrides = loadConfig()?.planValueOverrides ?? {};
   const adapters = getActiveAdapters();
   const normalized = resolve(filePath);
+  pruneDeletedValueOverrides(
+    Object.keys(localValueOverrides).filter((id) => localValueOverrides[id] === normalized),
+  );
   const removedPlans: Plan[] = [];
   const discoveredPlanDirs = discoverProjectPlanDirs();
 
@@ -700,6 +721,7 @@ export async function rescanFile(filePath: string) {
   }
 
   if (removedPlans.length > 0) {
+    pruneDeletedValueOverrides(removedPlans.map((plan) => plan.id));
     notifyPlansChanged();
     return removedPlans;
   }

@@ -253,14 +253,15 @@ export const api = {
     return request<UsageSummary>(`/usage${query ? `?${query}` : ''}`);
   },
 
-  getHiddenPlans: (offset = 0) =>
+  getHiddenPlans: (cursor?: string) =>
     get<{
       plans: HiddenPlanSummary[];
       total: number;
       hiddenCount: number;
       limit: number;
       offset: number;
-    }>(`/hidden-plans?offset=${offset}`),
+      nextCursor?: string;
+    }>(`/hidden-plans${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   getHiddenPlan: (id: string) =>
     get<{ plan: Plan; assessment: HiddenPlanSummary['assessment']; check: PlanCheck }>(
       `/hidden-plans/${encodeURIComponent(id)}`,

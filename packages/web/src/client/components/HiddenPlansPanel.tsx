@@ -25,6 +25,7 @@ type Detail = { plan: Plan; check: PlanCheck; assessment: HiddenPlanSummary['ass
 export function HiddenPlansPanel({ onChanged }: { onChanged?: () => void }) {
   const [rows, setRows] = useState<HiddenPlanSummary[]>([]);
   const [total, setTotal] = useState(0);
+  const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,11 +34,13 @@ export function HiddenPlansPanel({ onChanged }: { onChanged?: () => void }) {
   const mounted = useRef(true);
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await api.getHiddenPlans();
       if (!mounted.current) return;
       setRows(response.plans);
       setTotal(response.total);
+      setNextCursor(response.nextCursor);
     } catch (error) {
       if (mounted.current)
         setError(error instanceof Error ? error.message : 'Unable to load hidden plans');
@@ -89,16 +92,19 @@ export function HiddenPlansPanel({ onChanged }: { onChanged?: () => void }) {
     }
   }
   async function more() {
+    if (!nextCursor) return;
     setBusy(true);
     setError(null);
     try {
-      const response = await api.getHiddenPlans(rows.length);
+      // Cursor paging resumes after the last loaded row even if earlier rows changed.
+      const response = await api.getHiddenPlans(nextCursor);
       if (mounted.current) {
         setRows((current) => [
           ...current,
           ...response.plans.filter((row) => !current.some((item) => item.id === row.id)),
         ]);
         setTotal(response.total);
+        setNextCursor(response.nextCursor);
       }
     } catch (error) {
       if (mounted.current)
@@ -151,7 +157,7 @@ export function HiddenPlansPanel({ onChanged }: { onChanged?: () => void }) {
               </li>
             ))}
           </ul>
-          {rows.length < total && (
+          {nextCursor && (
             <button type="button" disabled={busy} onClick={() => void more()}>
               Load more
             </button>

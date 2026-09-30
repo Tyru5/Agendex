@@ -116,6 +116,8 @@ test('hidden list/detail/recovery require auth and normal endpoints retain hidin
     'limit=NaN',
     'offset=-1',
     'offset=9007199254740992',
+    'cursor=bad',
+    'cursor=12:',
   ]) {
     expect((await call(`/hidden-plans?${query}`)).status).toBe(400);
   }
@@ -140,7 +142,7 @@ test('restore and undo persist across rescan without rewriting sources, and emit
   expect(restored.status).toBe(200);
   expect((await restored.json()).hidden).toBe(false);
   expect(getIndexableById(hiddenId)?.metadata.planValueOverride).toBe('manual');
-  expect(loadConfig()?.planValueOverrides?.[hiddenId]).toBe(true);
+  expect(loadConfig()?.planValueOverrides?.[hiddenId]).toBe(filePath);
   expect(await readFile(filePath, 'utf8')).toBe('# Hidden draft');
   expect((await (await call('/hidden-plans')).json()).hiddenCount).toBe(0);
   expect(notifications).toBeGreaterThan(before);
@@ -198,4 +200,56 @@ test('undo restore reclassifies improved content instead of forcing it hidden', 
   expect((await undone.json()).hidden).toBe(false);
   expect(getIndexableById(hiddenId)?.metadata.localPlanValueOverride).toBeUndefined();
   expect((await call(`/hidden-plans/${hiddenId}`)).status).toBe(404);
+});
+
+test('deleting a restored source drops its override so a recreated file starts hidden', async () => {
+  await writeFile(filePath, '# Hidden draft');
+  await scan();
+  expect(
+    (
+      await call(`/hidden-plans/${hiddenId}/override`, {
+        method: 'PUT',
+        body: JSON.stringify({ restore: true }),
+      })
+    ).status,
+  ).toBe(200);
+  expect(loadConfig()?.planValueOverrides?.[hiddenId]).toBe(filePath);
+  await rm(filePath);
+  await scan();
+  expect(loadConfig()?.planValueOverrides?.[hiddenId]).toBeUndefined();
+  await writeFile(filePath, '# Different draft');
+  await scan();
+  expect(getIndexableById(hiddenId)).toBeUndefined();
+});
+
+test('cursor paging does not skip plans when an earlier row disappears', async () => {
+  const dir = join(root, 'plans');
+  const extra = ['page-a', 'page-b', 'page-c'].map((name) => join(dir, `${name}.md`));
+  for (const path of extra) await writeFile(path, `# ${path}`);
+  await scan();
+  try {
+    const first = await (await call('/hidden-plans?limit=1')).json();
+    expect(first.plans).toHaveLength(1);
+    expect(typeof first.nextCursor).toBe('string');
+    const seen = [first.plans[0].id];
+    // Remove the already-listed row; an offset of 1 would now skip the next plan.
+    await rm(first.plans[0].filePath);
+    await scan();
+    let cursor: string | undefined = first.nextCursor;
+    while (cursor) {
+      const page = await (
+        await call(`/hidden-plans?limit=1&cursor=${encodeURIComponent(cursor)}`)
+      ).json();
+      seen.push(...page.plans.map((plan: { id: string }) => plan.id));
+      cursor = page.nextCursor;
+    }
+    const all = (await (await call('/hidden-plans?limit=100')).json()).plans.map(
+      (plan: { id: string }) => plan.id,
+    );
+    for (const id of all) expect(seen).toContain(id);
+    expect(new Set(seen).size).toBe(seen.length);
+  } finally {
+    for (const path of extra) await rm(path, { force: true });
+    await scan();
+  }
 });

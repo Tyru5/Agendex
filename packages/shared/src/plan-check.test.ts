@@ -96,3 +96,26 @@ test('plan checks accept real fenced verification commands but reject placeholde
     expect(check.acceptanceCriteriaDetected).toBe(false);
   }
 });
+
+test('subheadings inside a section keep their criteria and verification content', () => {
+  const check = checkPlan({
+    content:
+      '# Plan\n\n## Verification\n\n### Unit\n\n- Run the handler suite.\n\n## Acceptance criteria\n\n### Performance\n\n- p95 stays under 200ms.\n',
+  });
+  expect(check.verificationDetected).toBe(true);
+  expect(check.acceptanceCriteriaDetected).toBe(true);
+  const empty = checkPlan({
+    content: '## Verification\n### Notes\nTBD\n## Acceptance criteria\n### Performance\n',
+  });
+  expect(empty.verificationDetected).toBe(false);
+  expect(empty.acceptanceCriteriaDetected).toBe(false);
+});
+
+test('empty bold sections are not satisfied by viewer anchors or the next label', () => {
+  const check = checkPlan({
+    content:
+      '**Verification**\n\n<a id="acceptance-criteria"></a>\n**Acceptance criteria**\nRequests return 200.',
+  });
+  expect(check.verificationDetected).toBe(false);
+  expect(check.acceptanceCriteriaDetected).toBe(true);
+});

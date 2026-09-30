@@ -44,6 +44,14 @@ function recoveryAssessment(plan: NonNullable<ReturnType<typeof getById>>) {
   if (metadata.localPlanValueOverride === true) delete metadata.planValueOverride;
   return assessPlanValue({ ...plan, metadata });
 }
+type RecoveryKey = { time: number; id: string };
+function recoveryKey(plan: NonNullable<ReturnType<typeof getById>>): RecoveryKey {
+  return { time: plan.updatedAt.getTime(), id: plan.id };
+}
+/** Newest first, then id; shared by sorting and cursor paging. */
+function compareRecoveryOrder(a: RecoveryKey, b: RecoveryKey): number {
+  return b.time - a.time || a.id.localeCompare(b.id);
+}
 function isRecoveryPlan(plan: NonNullable<ReturnType<typeof getById>>) {
   return isLowValuePlan(plan) || plan.metadata.localPlanValueOverride === true;
 }
@@ -58,11 +66,30 @@ plans.get('/hidden-plans', (c) => {
   const offset = Number(rawOffset);
   if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100)
     return c.json({ error: 'invalid pagination' }, 400);
+  // `cursor` (from `nextCursor`) pages by sort key, so rows vanishing between requests
+  // cannot shift later plans past the client the way a numeric offset would.
+  const rawCursor = c.req.query('cursor');
+  const cursor = rawCursor === undefined ? undefined : /^(\d{1,15}):(.+)$/.exec(rawCursor);
+  if (cursor === null) return c.json({ error: 'invalid cursor' }, 400);
   const candidates = getAll()
     .filter(isRecoveryPlan)
-    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime() || a.id.localeCompare(b.id));
+    .sort((a, b) => compareRecoveryOrder(recoveryKey(a), recoveryKey(b)));
+  let start = offset;
+  if (cursor) {
+    const after = { time: Number(cursor[1]), id: cursor[2] ?? '' };
+    const index = candidates.findIndex(
+      (plan) => compareRecoveryOrder(after, recoveryKey(plan)) < 0,
+    );
+    start = index === -1 ? candidates.length : index;
+  }
+  const page = candidates.slice(start, start + limit);
+  const last = page.at(-1);
   return c.json({
-    plans: candidates.slice(offset, offset + limit).map((plan) => ({
+    nextCursor:
+      last && start + limit < candidates.length
+        ? `${last.updatedAt.getTime()}:${last.id}`
+        : undefined,
+    plans: page.map((plan) => ({
       id: plan.id,
       title: plan.title,
       agent: plan.agent,

@@ -77,11 +77,17 @@ export function PlanSourcesDialog({ open, onClose, onSourcesChanged }: PlanSourc
   if (!open) return null;
 
   return (
+    // Escape is handled natively through onCancel; the click only covers the backdrop.
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events
     <dialog
       ref={dialogRef}
       className="plan-sources-dialog"
       aria-label="Plan sources and recovery"
       onCancel={onClose}
+      // The dialog has no padding, so only backdrop clicks target it directly.
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
       <div
         className="rounded-xl border border-border bg-surface shadow-lg"
