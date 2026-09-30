@@ -482,3 +482,49 @@ test('CLI format updates use the live version even when a previously fetched ver
   }
   expect((await t.run((ctx) => ctx.db.get(planId)))?.version).toBe(3);
 });
+
+test('revoked reviewers export only their own decision, not requester content', async () => {
+  const { t, request, membershipId } = await setup();
+  const [id] = await request();
+  asUser('alice');
+  await t.mutation(api.teamReviews.decide, { requestId: id, decision: 'approved', note: 'LGTM' });
+  await t.run((ctx) => ctx.db.delete(membershipId));
+  const assigned = await t.query(internal.dataExport.listAccountSectionPage, {
+    ownerId: 'alice',
+    section: 'assignedReviews',
+    cursor: null,
+  });
+  const [row] = JSON.parse(assigned.rowsJson) as Record<string, unknown>[];
+  expect(row).toMatchObject({
+    _id: id,
+    status: 'approved',
+    decisionNote: 'LGTM',
+    accessRevoked: true,
+  });
+  expect(row).not.toHaveProperty('message');
+  expect(row).not.toHaveProperty('planId');
+  expect(row).not.toHaveProperty('workspaceOwnerId');
+});
+
+test('future plan timestamps cannot hide a later cancellation or re-flag an acknowledged superseded review', async () => {
+  const { t, request, planId } = await setup();
+  const [id] = await request();
+  await t.run((ctx) => ctx.db.patch(planId, { updatedAt: Date.now() + 10_000_000 }));
+  asUser('alice');
+  await t.mutation(api.teamReviews.markRead, { requestId: id });
+  asUser('owner');
+  await t.mutation(api.teamReviews.cancel, { requestId: id });
+  asUser('alice');
+  const assigned = () => t.query(api.teamReviews.inbox, { direction: 'assigned', paginationOpts });
+  expect((await assigned()).page[0]).toMatchObject({ status: 'cancelled', unread: true });
+  asUser('owner');
+  const [next] = await request();
+  asUser('alice');
+  await t.mutation(api.teamReviews.markRead, { requestId: next });
+  await t.run((ctx) => ctx.db.patch(planId, { content: content + '\n' }));
+  const superseded = (await assigned()).page.find((r) => r.id === next);
+  expect(superseded).toMatchObject({ status: 'superseded', unread: true });
+  await t.mutation(api.teamReviews.markRead, { requestId: next });
+  await t.run((ctx) => ctx.db.patch(planId, { updatedAt: Date.now() + 20_000_000 }));
+  expect((await assigned()).page.find((r) => r.id === next)?.unread).toBe(false);
+});

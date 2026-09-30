@@ -305,17 +305,40 @@ function ReviewInboxDialog({ children, onClose }: { children: ReactNode; onClose
   );
 }
 
+const INBOX_PAGE_SIZE = 5;
+const MAX_AUTO_LOADS = 20;
+
+/**
+ * Inbox pages are filtered server-side after pagination (revoked access, deleted
+ * plans), so a raw page can come back short or empty. Keep loading (bounded)
+ * until the requested number of visible reviews is shown or history ends.
+ */
+function useInboxPages(direction: 'assigned' | 'sent') {
+  const pages = usePaginatedQuery(
+    api.teamReviews.inbox,
+    { direction },
+    { initialNumItems: INBOX_PAGE_SIZE },
+  );
+  const [target, setTarget] = useState(INBOX_PAGE_SIZE);
+  const autoLoads = useRef(0);
+  const { status, results, loadMore } = pages;
+  useEffect(() => {
+    if (status !== 'CanLoadMore' || results.length >= target) return;
+    if (autoLoads.current >= MAX_AUTO_LOADS) return;
+    autoLoads.current += 1;
+    loadMore(INBOX_PAGE_SIZE);
+  }, [status, results.length, target, loadMore]);
+  const loadOlder = () => {
+    autoLoads.current = 0;
+    setTarget(results.length + INBOX_PAGE_SIZE);
+    loadMore(INBOX_PAGE_SIZE);
+  };
+  return { ...pages, loadOlder };
+}
+
 export function TeamReviewInbox({ onOpenPlan }: { onOpenPlan: (planId: string) => Promise<void> }) {
-  const assigned = usePaginatedQuery(
-    api.teamReviews.inbox,
-    { direction: 'assigned' },
-    { initialNumItems: 5 },
-  );
-  const sent = usePaginatedQuery(
-    api.teamReviews.inbox,
-    { direction: 'sent' },
-    { initialNumItems: 5 },
-  );
+  const assigned = useInboxPages('assigned');
+  const sent = useInboxPages('sent');
   const act = useReviewActions();
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<'assigned' | 'sent'>('assigned');
@@ -360,8 +383,8 @@ export function TeamReviewInbox({ onOpenPlan }: { onOpenPlan: (planId: string) =
           <div className="space-y-3">
             {active.status === 'LoadingFirstPage' ? (
               <p role="status">Loading reviews…</p>
-            ) : active.results.length === 0 ? (
-              <p className="text-secondary">No review requests in this page.</p>
+            ) : active.results.length === 0 && active.status === 'Exhausted' ? (
+              <p className="text-secondary">No review requests.</p>
             ) : null}
             {active.results.map((review) => (
               <ReviewCard
@@ -375,7 +398,7 @@ export function TeamReviewInbox({ onOpenPlan }: { onOpenPlan: (planId: string) =
               />
             ))}
             {active.status === 'CanLoadMore' && (
-              <button type="button" className={buttonClass} onClick={() => active.loadMore(5)}>
+              <button type="button" className={buttonClass} onClick={active.loadOlder}>
                 Load older reviews
               </button>
             )}

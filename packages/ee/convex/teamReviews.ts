@@ -97,6 +97,16 @@ export async function effectiveReviewStatus(
     return 'cancelled' as const;
   return row.status;
 }
+/**
+ * Whether the assigned reviewer may still read this request, using the same
+ * checks as review reads. Exports redact requester-authored content otherwise.
+ */
+export async function reviewerCanRead(ctx: QueryCtx, row: Doc<'planReviewRequests'>) {
+  const plan = await ctx.db.get(row.planId);
+  if (!plan || !isVisiblePlan(plan) || plan.ownerId !== row.workspaceOwnerId) return false;
+  if (!(await member(ctx, row.workspaceOwnerId, row.reviewerId))) return false;
+  return hasActiveSubscriptionForUserId(ctx, row.workspaceOwnerId);
+}
 async function dto(
   ctx: QueryCtx,
   row: Doc<'planReviewRequests'>,
@@ -112,7 +122,9 @@ async function dto(
     return null;
   if (!(await hasActiveSubscriptionForUserId(ctx, row.workspaceOwnerId))) return null;
   const status = await effectiveReviewStatus(ctx, row, plan);
-  const readAt = userId === row.requesterId ? row.requesterReadAt : row.reviewerReadAt;
+  const isRequester = userId === row.requesterId;
+  const readAt = isRequester ? row.requesterReadAt : row.reviewerReadAt;
+  const seenStatus = isRequester ? row.requesterSeenStatus : row.reviewerSeenStatus;
   return {
     id: row._id,
     planId: row.planId,
@@ -124,10 +136,11 @@ async function dto(
     decisionNote: row.decisionNote ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    // Receipts track review events only (server-time updatedAt plus the derived
+    // status seen), never client-supplied plan timestamps.
     unread:
       participant &&
-      ((readAt ?? 0) < row.updatedAt ||
-        (status === 'superseded' && (readAt ?? 0) < plan.updatedAt)),
+      ((readAt ?? 0) < row.updatedAt || (status !== row.status && seenStatus !== status)),
     canDecide: userId === row.reviewerId && status === 'pending',
     canCancel: userId === row.requesterId && status === 'pending',
   };
@@ -259,12 +272,14 @@ export const markRead = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const row = await ctx.db.get(args.requestId);
-    if (!row || !(await dto(ctx, row, userId))) throw new ConvexError('Review request not found');
-    const plan = await ctx.db.get(row.planId);
-    const readAt = Math.max(Date.now(), row.updatedAt, plan?.updatedAt ?? 0);
+    const review = row && (await dto(ctx, row, userId));
+    if (!row || !review) throw new ConvexError('Review request not found');
+    // Acknowledge the latest review event; any later event bumps updatedAt past it.
     await ctx.db.patch(
       row._id,
-      userId === row.requesterId ? { requesterReadAt: readAt } : { reviewerReadAt: readAt },
+      userId === row.requesterId
+        ? { requesterReadAt: row.updatedAt, requesterSeenStatus: review.status }
+        : { reviewerReadAt: row.updatedAt, reviewerSeenStatus: review.status },
     );
     return null;
   },

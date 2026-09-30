@@ -12,9 +12,11 @@ import {
   DATA_EXPORT_TTL_MS,
   decideExportBuildClaim,
   isExportDownloadAvailable,
+  redactAssignedReview,
   redactShareLink,
   type ShareLinkForExport,
 } from './dataExportRedaction';
+import { reviewerCanRead } from './teamReviews';
 
 const EXPORT_PAGE_SIZE = 50;
 const EXPORT_BUILD_LEASE_MS = 10 * 60 * 1000;
@@ -373,13 +375,19 @@ export const listAccountSectionPage = internalQuery({
             .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
             .paginate(paginationOpts),
         );
-      case 'assignedReviews':
-        return serializePage(
-          await ctx.db
-            .query('planReviewRequests')
-            .withIndex('by_reviewer', (q) => q.eq('reviewerId', ownerId))
-            .paginate(paginationOpts),
+      case 'assignedReviews': {
+        const result = await ctx.db
+          .query('planReviewRequests')
+          .withIndex('by_reviewer', (q) => q.eq('reviewerId', ownerId))
+          .paginate(paginationOpts);
+        // Revoked reviewers keep only their own decision; requester content is withheld.
+        const page = await Promise.all(
+          result.page.map(async (row) =>
+            (await reviewerCanRead(ctx, row)) ? row : redactAssignedReview(row),
+          ),
         );
+        return serializePage({ ...result, page });
+      }
       case 'agentAvatars':
         return serializePage(
           await ctx.db

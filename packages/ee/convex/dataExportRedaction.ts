@@ -43,6 +43,7 @@ export function isExportDownloadAvailable(args: {
 export const EXPORT_REDACTION_NOTES = [
   'OAuth accessToken, refreshToken, idToken, and password fields are omitted from connected accounts.',
   'Share-link passwordHash values are omitted; passwordProtected is set instead.',
+  'Assigned reviews you can no longer access keep only your decision; requester, plan, and workspace details are omitted.',
 ] as const;
 
 export type CursorPage<T> = {
@@ -105,6 +106,30 @@ export function redactShareLink(link: ShareLinkForExport) {
   return {
     ...rest,
     passwordProtected: typeof passwordHash === 'string' && passwordHash.length > 0,
+  };
+}
+
+export type AssignedReviewForExport = {
+  _id: string;
+  _creationTime: number;
+  reviewerId: string;
+  status: string;
+  decisionNote?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+/** Allowlist of reviewer-authored fields for reviews the reviewer can no longer access. */
+export function redactAssignedReview(row: AssignedReviewForExport) {
+  return {
+    _id: row._id,
+    _creationTime: row._creationTime,
+    reviewerId: row.reviewerId,
+    status: row.status,
+    decisionNote: row.decisionNote ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    accessRevoked: true,
   };
 }
 
