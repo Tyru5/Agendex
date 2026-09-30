@@ -92,6 +92,7 @@ export const open = mutation({
     const fields = {
       lastReadVersion: oversized ? undefined : versionToRemember,
       lastReadAt: oversized ? undefined : now,
+      lastReadUpdatedAt: oversized ? undefined : plan.updatedAt,
       updatedAt: now,
     };
     if (previous) await ctx.db.patch(previous._id, fields);
@@ -112,7 +113,7 @@ export const open = mutation({
       baseline: {
         title: snapshot.title,
         content: snapshot.content,
-        updatedAt: new Date(previous.lastReadAt ?? snapshot.createdAt).toISOString(),
+        updatedAt: new Date(previous.lastReadUpdatedAt ?? snapshot.createdAt).toISOString(),
       },
       reason: 'available' as const,
     };
@@ -134,6 +135,7 @@ export const clear = mutation({
       await ctx.db.patch(previous._id, {
         lastReadVersion: undefined,
         lastReadAt: undefined,
+        lastReadUpdatedAt: undefined,
         updatedAt: Date.now(),
       });
     return null;

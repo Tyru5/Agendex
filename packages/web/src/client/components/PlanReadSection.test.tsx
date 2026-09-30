@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PlanReadSection } from './PlanReadSection.tsx';
-import { readRevisionKey, readSummary } from '../lib/plan-read-session.ts';
+import { readRevisionKey, readVisitKey, readSummary } from '../lib/plan-read-session.ts';
 import type { Plan } from '../lib/api.ts';
 const plan = { id: 'p', title: 'Plan', content: 'Steps' } as Plan;
 test('public viewer without a private read source has no recording UI', () => {
@@ -33,4 +33,13 @@ test('workspace reassignment and account/mode changes invalidate pending read id
   expect(
     readRevisionKey('local', { ...plan, workspace: '/workspace/one', ownerId: 'other-owner' }),
   ).not.toBe(initial);
+});
+
+test('live title, content, and metadata refreshes keep the same visit boundary', () => {
+  const key = readVisitKey('local', plan);
+  expect(
+    readVisitKey('local', { ...plan, title: 'New', content: 'Updated', updatedAt: '2026-09-30' }),
+  ).toBe(key);
+  expect(readVisitKey('cloud', plan)).not.toBe(key);
+  expect(readVisitKey('local', { ...plan, id: 'other' })).not.toBe(key);
 });

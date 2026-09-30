@@ -1,6 +1,6 @@
 # Changes since last read
 
-Open **Changes since last read** in a plan's viewer to inspect title and body changes against the revision you previously opened. The earlier content is the removed side of the unified diff; the current content is the added side. Opening a plan remembers its full loaded revision for your next visit, even while this section is collapsed. A comparison target, list preview, or prefetch does not record a read.
+Open **Changes since last read** in a plan's viewer to inspect title and body changes against the revision you previously opened. The earlier content is the removed side of the unified diff; the current content is the added side. Opening a plan remembers its full loaded revision for your next visit, even while this section is collapsed. Live refreshes preserve the comparison captured for the current visit. A comparison target, list preview, or prefetch does not record a read.
 
 Read-content baselines are separate from unread badges. **Mark all read**, pinning, and marking unread preserve the actual revision previously opened. Existing unread timestamps are not treated as saved content: the first visit after installing this feature establishes a baseline. A metadata timestamp change with the same title/body reports unchanged content.
 

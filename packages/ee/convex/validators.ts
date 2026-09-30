@@ -108,6 +108,7 @@ export const planPreferenceValidator = v.object({
   lastSeenUpdatedAt: v.optional(v.number()),
   lastReadVersion: v.optional(v.number()),
   lastReadAt: v.optional(v.number()),
+  lastReadUpdatedAt: v.optional(v.number()),
   createdAt: v.number(),
   updatedAt: v.number(),
 });

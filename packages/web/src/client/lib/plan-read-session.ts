@@ -8,13 +8,25 @@ export function requestPlanRead(
   key: string,
   source: PlanReadSource,
   plan: Plan,
+  timeoutMs = 15_000,
 ): Promise<PlanReadResult> | null {
   if (!canReadPlan(source, plan) || plan.contentLoaded === false) return null;
   const existing = pending.get(key);
   if (existing) return existing;
-  const result = source.open(plan);
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<PlanReadResult>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('Remembered revision request timed out. Reopen the plan to retry.')),
+      timeoutMs,
+    );
+  });
+  const result = Promise.race([
+    new Promise<PlanReadResult>((resolve) => resolve(source.open(plan))),
+    timeout,
+  ]);
   pending.set(key, result);
   const done = () => {
+    clearTimeout(timer);
     if (pending.get(key) === result) pending.delete(key);
   };
   void result.then(done, done);
@@ -44,4 +56,9 @@ export function readRevisionKey(scope: string | undefined, plan: Plan): string {
     plan.title,
     plan.content,
   ]);
+}
+
+/** A live revision refresh is part of the same visit, not another read. */
+export function readVisitKey(scope: string | undefined, plan: Plan): string {
+  return JSON.stringify([scope, plan.ownerId, plan.id, plan.agent, plan.filePath, plan.workspace]);
 }
