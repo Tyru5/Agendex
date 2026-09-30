@@ -204,14 +204,18 @@ function overrideDeleteGraceMs(): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_OVERRIDE_DELETE_GRACE_MS;
 }
 
-/** Forget restores whose source stayed deleted past the grace period. */
+/**
+ * Forget restores whose plan left the index and whose source stayed deleted past the
+ * grace period. An indexed plan keeps its restore even when its recorded path is not a
+ * file on disk (for example a live session reporting an unavailable source path).
+ */
 function pruneDeletedValueOverrides(ids: Iterable<string>, now = Date.now()): void {
   const graceMs = overrideDeleteGraceMs();
   const stale: string[] = [];
   for (const id of ids) {
     const sourcePath = localValueOverrides[id];
     if (sourcePath === undefined) continue;
-    if (existsSync(sourcePath)) {
+    if (store.has(id) || existsSync(sourcePath)) {
       overrideSourceMissingSince.delete(id);
       continue;
     }
