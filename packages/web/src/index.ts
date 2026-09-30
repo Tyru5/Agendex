@@ -72,6 +72,7 @@ export {
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export type { PlanAnnotationCreateDraft } from './client/components/PlanViewer.tsx';
 export type { CrossAgentOptions } from './client/lib/cross-agent-plans.ts';
+export { planLinkWorkReferences } from './client/lib/cross-agent-plans.ts';
 export { PlanActionButton, PlanViewer } from './client/components/PlanViewer.tsx';
 export { LazyPlanViewer, preloadPlanViewer } from './client/components/LazyPlanViewer.tsx';
 export type { PlanCompareViewProps } from './client/components/PlanCompareView.tsx';

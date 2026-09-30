@@ -8,6 +8,7 @@ import {
   crossAgentCandidateSignature,
   hydrateCrossAgentCandidates,
   loadCrossAgentLinkReferences,
+  sameLinkReferences,
   suggestCrossAgentPlans,
   type CrossAgentOptions,
   type CrossAgentSuggestion,
@@ -28,8 +29,13 @@ export function CrossAgentSection({
 }) {
   const loadContent = options?.loadContent;
   const loadLinkReferences = options?.loadLinkReferences;
+  const watchLinkReferences = options?.watchLinkReferences;
   const plansComplete = options?.plansComplete ?? true;
   const [suggestions, setSuggestions] = useState<CrossAgentSuggestion[] | null>(null);
+  /** Link references the current suggestions were computed from. */
+  const [linkSnapshot, setLinkSnapshot] = useState<ReadonlyMap<string, readonly string[]> | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
   const [clis, setClis] = useState<{ id: HandoffCli; label: string }[]>([]);
@@ -51,6 +57,7 @@ export function CrossAgentSection({
   useEffect(() => {
     invalidateRequests();
     setSuggestions(null);
+    setLinkSnapshot(null);
     setLoading(false);
     setNotice('');
     setCommand('');
@@ -63,12 +70,31 @@ export function CrossAgentSection({
   useEffect(() => {
     request.current++;
     setSuggestions(null);
+    setLinkSnapshot(null);
     setLoading(false);
     setNotice('');
   }, [candidateSignature, loadContent, loadLinkReferences]);
+  // Linked work changed for a plan the suggestions relied on: drop them rather than show stale evidence.
+  useEffect(() => {
+    if (!watchLinkReferences || !linkSnapshot) return;
+    const unsubscribes = [...linkSnapshot].map(([planId, references]) =>
+      watchLinkReferences(planId, (next) => {
+        if (sameLinkReferences(references, next)) return;
+        request.current++;
+        setSuggestions(null);
+        setLinkSnapshot(null);
+        setLoading(false);
+        setNotice('Linked pull requests or commits changed. Search again to refresh suggestions.');
+      }),
+    );
+    return () => {
+      for (const unsubscribe of unsubscribes) unsubscribe();
+    };
+  }, [linkSnapshot, watchLinkReferences]);
   async function findRelated() {
     const version = ++request.current;
     setLoading(true);
+    setLinkSnapshot(null);
     setNotice('');
     const result = await hydrateCrossAgentCandidates(
       plan,
@@ -89,6 +115,7 @@ export function CrossAgentSection({
       links = loaded;
     }
     setSuggestions(suggestCrossAgentPlans(plan, hydrated, links));
+    setLinkSnapshot(links ?? null);
     setLoading(false);
     setNotice(
       `Checked ${hydrated.length} of up to 20 recent plans from other agents in this workspace.${unavailable ? ` Content unavailable for ${unavailable} plans.` : ''}`,

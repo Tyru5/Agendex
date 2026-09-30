@@ -14,8 +14,13 @@ export type CrossAgentSuggestion = { plan: Plan; evidence: string[]; score: numb
 export type CrossAgentLinkReferences = ReadonlyMap<string, readonly string[]>;
 export type CrossAgentOptions = {
   loadContent?: (plan: Plan) => Promise<string | null>;
-  /** Returns normalized work references such as `pullRequestUrl:<url>` or `commit:<sha>`. */
+  /** Returns normalized work references such as `pullRequestUrl:<url>` or `commitUrl:<url>`. */
   loadLinkReferences?: (plan: Plan) => Promise<readonly string[]>;
+  /** Subscribes to a plan's link references; returns an unsubscribe function. */
+  watchLinkReferences?: (
+    planId: string,
+    onChange: (references: readonly string[]) => void,
+  ) => () => void;
   /** False while the plan list is still paging in; searching then would miss plans. */
   plansComplete?: boolean;
 };
@@ -196,6 +201,31 @@ export async function loadCrossAgentLinkReferences(
     for (const [id, refs] of batch) references.set(id, refs);
   }
   return references;
+}
+
+/**
+ * Converts stored plan git links to work references. Only links with a forge URL are used:
+ * a bare `#7` or short SHA can name different work in different repositories. PR URLs share
+ * the metadata key so a linked PR matches a plan's own `pullRequestUrl`.
+ */
+export function planLinkWorkReferences(
+  links: readonly { type: string; value: string; url?: string }[],
+): string[] {
+  return links.flatMap((link) => {
+    if (!link.url) return [];
+    if (link.type === 'pr') return [`pullRequestUrl:${link.url}`];
+    if (link.type === 'commit') return [`commitUrl:${link.url}`];
+    return [];
+  });
+}
+
+export function sameLinkReferences(
+  left: readonly string[] | undefined,
+  right: readonly string[] | undefined,
+): boolean {
+  const a = [...new Set(left ?? [])].sort();
+  const b = [...new Set(right ?? [])].sort();
+  return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
 /** Stable identity of the candidate set; changes when a candidate is added, edited or removed. */

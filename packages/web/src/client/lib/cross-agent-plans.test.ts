@@ -12,6 +12,8 @@ import {
   crossAgentCandidates,
   hydrateCrossAgentCandidates,
   loadCrossAgentLinkReferences,
+  planLinkWorkReferences,
+  sameLinkReferences,
   suggestCrossAgentPlans,
   quotePosix,
 } from './cross-agent-plans.ts';
@@ -114,6 +116,23 @@ describe('cross-agent suggestions', () => {
     const suggestions = suggestCrossAgentPlans(current, [linked, viaMetadata], links ?? undefined);
     expect(suggestions.map((s) => s.plan.id)).toEqual(['b', 'c']);
     expect(suggestions[0]?.evidence[0]).toBe(`Shared work reference: ${pr}`);
+  });
+  test('only forge-URL git links become work references', () => {
+    expect(
+      planLinkWorkReferences([
+        { type: 'pr', value: '#7' },
+        { type: 'pr', value: '#7', url: 'https://github.com/a/b/pull/7' },
+        { type: 'commit', value: 'abc1234' },
+        { type: 'commit', value: 'abc1234', url: 'https://github.com/a/b/commit/abc1234' },
+        { type: 'branch', value: 'main', url: 'https://github.com/a/b/tree/main' },
+      ]),
+    ).toEqual([
+      'pullRequestUrl:https://github.com/a/b/pull/7',
+      'commitUrl:https://github.com/a/b/commit/abc1234',
+    ]);
+    expect(sameLinkReferences(['b', 'a'], ['a', 'b', 'a'])).toBe(true);
+    expect(sameLinkReferences(['a'], [])).toBe(false);
+    expect(sameLinkReferences(undefined, [])).toBe(true);
   });
   test('stale link loading is discarded', async () => {
     let current = true;

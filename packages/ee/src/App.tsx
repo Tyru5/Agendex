@@ -8,6 +8,7 @@ import {
   collectionMoveIndex,
   type CrossAgentOptions,
   focusPlanSearchField,
+  planLinkWorkReferences,
   getAppShortcuts,
   hasMorningBriefUpdates,
   hasToken,
@@ -1292,29 +1293,42 @@ function useDashboardMain({
     [convex, mode],
   );
   const loadRelatedPlanLinks = useCallback(
-    async (plan: Plan) => {
-      const links = await convex.query(api.planLinks.getLinks, {
-        planId: plan.id as Id<'plans'>,
+    async (plan: Plan) =>
+      planLinkWorkReferences(
+        await convex.query(api.planLinks.getLinks, { planId: plan.id as Id<'plans'> }),
+      ),
+    [convex],
+  );
+  const watchRelatedPlanLinks = useCallback(
+    (planId: string, onChange: (references: readonly string[]) => void) => {
+      const watch = convex.watchQuery(api.planLinks.getLinks, { planId: planId as Id<'plans'> });
+      return watch.onUpdate(() => {
+        try {
+          const links = watch.localQueryResult();
+          if (links) onChange(planLinkWorkReferences(links));
+        } catch {
+          /* Link access was lost; keep the last suggestions until the next search. */
+        }
       });
-      // PR links share the metadata key so a linked PR matches a plan's own pullRequestUrl.
-      return links.flatMap((link) =>
-        link.type === 'pr'
-          ? [link.url ? `pullRequestUrl:${link.url}` : `pr:${link.value}`]
-          : link.type === 'commit'
-            ? [`commit:${link.value}`]
-            : [],
-      );
     },
     [convex],
   );
-  const crossAgent = useMemo<CrossAgentOptions>(
-    () => ({
+  const crossAgent = useMemo<CrossAgentOptions>(() => {
+    const linksEnabled = mode === 'cloud' && isPro;
+    return {
       loadContent: loadRelatedPlanContent,
-      loadLinkReferences: mode === 'cloud' && isPro ? loadRelatedPlanLinks : undefined,
+      loadLinkReferences: linksEnabled ? loadRelatedPlanLinks : undefined,
+      watchLinkReferences: linksEnabled ? watchRelatedPlanLinks : undefined,
       plansComplete,
-    }),
-    [isPro, loadRelatedPlanContent, loadRelatedPlanLinks, mode, plansComplete],
-  );
+    };
+  }, [
+    isPro,
+    loadRelatedPlanContent,
+    loadRelatedPlanLinks,
+    mode,
+    plansComplete,
+    watchRelatedPlanLinks,
+  ]);
   const cloudUsage = useQuery(api.cli.getUsage, mode === 'cloud' ? { days: 30 } : 'skip') as
     | UsageSummary
     | null
