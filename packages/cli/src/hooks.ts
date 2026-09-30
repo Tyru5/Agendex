@@ -1,3 +1,4 @@
+import { isDevMode } from '@agendex/shared';
 import { runReviewPlan } from './review-plan.ts';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
@@ -24,7 +25,7 @@ function shellQuote(value: string): string {
 }
 
 function commandFor(cliEntry: string, agent: HookAgent): string {
-  return `${shellQuote(process.execPath)} ${shellQuote(cliEntry)} review-plan --hook --agent ${agent}`;
+  return `${shellQuote(process.execPath)} ${shellQuote(cliEntry)}${isDevMode() ? ' --dev' : ''} review-plan --hook --agent ${agent}`;
 }
 
 function scopeRoot(scope: HookScope): string {

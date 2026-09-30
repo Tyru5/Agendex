@@ -209,3 +209,6 @@ test('equals-form manual file path waits and approves', async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('global dev flag before review-plan reaches review transport', () =>
+  run('approved', undefined, ['--dev', 'review-plan', '--hook', '--agent', 'claude-code']));

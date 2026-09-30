@@ -35,13 +35,15 @@ export interface ReviewDependencies {
   token?: string;
   signal?: AbortSignal;
 }
-async function readHookInput(): Promise<string> {
-  let result = '';
-  for await (const chunk of process.stdin) {
-    result += chunk.toString();
-    if (result.length > 1_100_000) throw new Error('Hook input is too large');
+export async function readHookInput(input: AsyncIterable<Buffer> = process.stdin): Promise<string> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of input) {
+    size += chunk.length;
+    if (size > 1_100_000) throw new Error('Hook input is too large');
+    chunks.push(chunk);
   }
-  return result;
+  return Buffer.concat(chunks).toString('utf-8');
 }
 /** Return explicit deny JSON on every Claude failure; nonzero alone does not deny PermissionRequest. */
 export async function runReviewPlan(
@@ -76,7 +78,12 @@ export async function runReviewPlan(
     | undefined;
   try {
     const { values } = parseArgs({
-      args: args[0] === 'review-plan' ? args.slice(1) : args,
+      args: (() => {
+        const commandIndex = args.findIndex((arg) => arg !== '--dev');
+        return args[commandIndex] === 'review-plan'
+          ? args.filter((_, index) => index !== commandIndex)
+          : args;
+      })(),
       strict: true,
       allowPositionals: false,
       options: {

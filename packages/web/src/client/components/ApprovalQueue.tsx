@@ -9,22 +9,28 @@ export function ApprovalQueue() {
   const [feedback, setFeedback] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<string>();
+  const refreshVersion = useRef(0);
   const refresh = useCallback(async () => {
+    const version = ++refreshVersion.current;
     try {
       const result = await api.getReviewSessions();
+      if (version !== refreshVersion.current) return;
       setSessions(result.sessions);
       setError('');
     } catch (e) {
+      if (version !== refreshVersion.current) return;
       setError(e instanceof Error ? e.message : 'Review queue unavailable');
     }
   }, []);
   useEffect(() => {
     if (!open) return;
     const currentDialog = dialog.current;
+    const currentRefreshVersion = refreshVersion;
     currentDialog?.showModal();
     void refresh();
     const timer = setInterval(() => void refresh(), 2000);
     return () => {
+      ++currentRefreshVersion.current;
       clearInterval(timer);
       currentDialog?.close();
     };

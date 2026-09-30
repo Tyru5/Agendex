@@ -70,8 +70,17 @@ export class ApprovalSessions {
         throw new ApprovalError('Session ID already belongs to another request', 409);
       return { ...existing.session };
     }
-    if (this.rows.size >= 200)
-      throw new ApprovalError('Review queue is full; retry after active reviews finish', 429);
+    if (this.rows.size >= 200) {
+      // Keep memory bounded without letting retained history block live reviews.
+      const inactive = [...this.rows].find(
+        ([, { session }]) =>
+          session.acknowledgedAt !== undefined ||
+          !['pending', 'approved', 'changes_requested', 'rejected'].includes(session.status),
+      );
+      if (!inactive)
+        throw new ApprovalError('Review queue is full; retry after active reviews finish', 429);
+      this.rows.delete(inactive[0]);
+    }
     const now = this.now();
     const session: ApprovalSession = {
       id: input.id,

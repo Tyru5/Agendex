@@ -117,3 +117,25 @@ test('API authentication protects reviewer decision, list and owner routes', asy
   expect(res.status).toBe(200);
   expect((await res.json()).status).toBe('approved');
 });
+
+test('retained history makes room while undelivered decisions keep capacity', () => {
+  for (const terminal of ['acknowledged', 'cancelled', 'superseded', 'expired', 'disconnected']) {
+    let now = 0;
+    const store = new ApprovalSessions(() => now);
+    for (let i = 0; i < 200; i++) {
+      const row = store.create({ ...input, id: `request-${i}` });
+      store.decide(row.id, row.revision, 'approved', undefined);
+    }
+    expect(() => store.create({ ...input, id: 'full' })).toThrow('full');
+    const row = store.list().find((session) => session.id === 'request-0');
+    if (!row) throw new Error('Missing capacity fixture');
+    if (terminal === 'acknowledged') store.acknowledge(row.id, ownerKey, row.revision);
+    if (terminal === 'cancelled') store.cancel(row.id, ownerKey);
+    if (terminal === 'superseded') store.heartbeat(row.id, ownerKey, 'edited');
+    if (terminal === 'expired') now = 120000;
+    if (terminal === 'disconnected') now = 60000;
+    expect(store.create({ ...input, id: 'next' }).status).toBe('pending');
+    expect(store.list()).toHaveLength(200);
+    expect(store.list().some((session) => session.id === row.id)).toBe(false);
+  }
+});

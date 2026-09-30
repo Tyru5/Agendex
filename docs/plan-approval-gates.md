@@ -30,7 +30,7 @@ Claude’s snapshot and absolute file path come from its injected tool input. Th
 
 The hook waits at most 30 minutes by default (`--timeout` accepts 1–3600 seconds). Waiting clients heartbeat every second. A missed heartbeat for 60 seconds marks a review disconnected, including an approved decision not yet acknowledged. Expiry, cancellation, revision change, API failure, and client signals deny rather than grant. Final acknowledgement atomically checks owner, live status, and revision; retries return the same acknowledgement. Cancellation cannot retract a decision already received by the agent.
 
-The process-local queue holds at most 200 sessions and removes terminal records an hour after their expiry. Restarting the server clears the queue and never replays grants; a waiting hook denies when its session disappears. The queue is live coordination, not a durable approval audit log. A terminated hook cannot send a cancellation; its heartbeat lease expires. Browser disconnection alone does not cancel a waiting agent.
+The process-local queue holds at most 200 sessions and removes terminal records an hour after their expiry, or earlier when space is needed for a new review. Completed and inactive records do not block new reviews; undelivered decisions still count as active. Restarting the server clears the queue and never replays grants; a waiting hook denies when its session disappears. The queue is live coordination, not a durable approval audit log. A terminated hook cannot send a cancellation; its heartbeat lease expires. Browser disconnection alone does not cancel a waiting agent.
 
 ## Agent contracts
 

@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { isDevMode, setDevMode } from '@agendex/shared';
 import { runHookReviewCommand, runHooksCommand } from './hooks.ts';
 
 const originalCwd = process.cwd();
@@ -238,4 +239,27 @@ test('uninstall removes legacy hooks and preserves unrelated settings', async ()
   expect(readFileSync(join(repo, '.claude', 'hooks.json'), 'utf-8')).not.toContain(
     'agendex-plan-review',
   );
+});
+
+test('installed Claude hook preserves dev configuration selection', async () => {
+  const repo = await useTempRepo();
+  const previousDev = isDevMode();
+  const logSpy = spyOn(console, 'log').mockImplementation(() => undefined);
+  try {
+    setDevMode(true);
+    expect(
+      await runHooksCommand(['--dev', 'hooks', 'install', 'claude-code'], './dist/cli.js'),
+    ).toBe(0);
+    const settings = JSON.parse(readFileSync(join(repo, '.claude', 'settings.json'), 'utf-8'));
+    expect(settings.hooks.PermissionRequest[0].hooks[0].command).toContain(
+      ' --dev review-plan --hook',
+    );
+    setDevMode(false);
+    expect(await runHooksCommand(['hooks', 'install', 'claude-code'], './dist/cli.js')).toBe(0);
+    const normal = JSON.parse(readFileSync(join(repo, '.claude', 'settings.json'), 'utf-8'));
+    expect(normal.hooks.PermissionRequest[0].hooks[0].command).not.toContain('--dev');
+  } finally {
+    setDevMode(previousDev);
+    logSpy.mockRestore();
+  }
 });
