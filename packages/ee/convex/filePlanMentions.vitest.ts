@@ -491,3 +491,42 @@ test('identity-only republish without metadata keeps stored metadata', async () 
   expect(stored?.metadata).toMatchObject({ source: 'custom', customDir: '/plans' });
   expect(stored?.workspace).toBe('/repo');
 });
+
+test('large duplicate groups still expose the newest winner only', async () => {
+  const t = make();
+  const ids = await t.run(async (ctx) => {
+    const created = [];
+    for (let i = 0; i < 40; i++) {
+      const id = await ctx.db.insert('plans', {
+        ownerId: 'owner',
+        agent: 'claude',
+        title: 'Implement authentication',
+        content: content([`src/file${i}.ts`]),
+        format: 'markdown',
+        workspace: '/repo',
+        syncIdentityKey: 'sync-large',
+        version: 1,
+        createdAt: i,
+        updatedAt: i,
+      });
+      await refreshFilePlanMentions(ctx, id);
+      created.push(id);
+    }
+    return created;
+  });
+  const owner = t.withIdentity({ subject: 'owner' });
+  const counts = await owner.query(api.filePlanMentions.counts, {
+    paths: ['src/file0.ts', 'src/file38.ts', 'src/file39.ts'],
+  });
+  expect(counts.map((count) => count.count)).toEqual([0, 0, 1]);
+  const oldest = ids[0];
+  if (!oldest) throw new Error('missing plan');
+  await t.run(async (ctx) => {
+    await ctx.db.patch(oldest, { updatedAt: 1_000 });
+    await refreshFilePlanMentions(ctx, oldest);
+  });
+  const moved = await owner.query(api.filePlanMentions.counts, {
+    paths: ['src/file0.ts', 'src/file39.ts'],
+  });
+  expect(moved.map((count) => count.count)).toEqual([1, 0]);
+});

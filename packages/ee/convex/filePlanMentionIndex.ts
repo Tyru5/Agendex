@@ -1,12 +1,7 @@
 import { extractCandidateCodePaths, parseCodePath } from '@agendex/shared/plan-paths';
-import type { Doc, Id } from './_generated/dataModel';
+import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
-import {
-  betterDuplicateWinner,
-  duplicateKey,
-  hasLowValueMetadata,
-  isVisiblePlan,
-} from './planVisibility';
+import { duplicateKey, hasLowValueMetadata, isVisiblePlan } from './planVisibility';
 
 export const FILE_MENTION_INDEX_VERSION = 1;
 export const MAX_FILE_MENTIONS = 512;
@@ -102,14 +97,19 @@ export function extractCloudFileMentions(plan: {
   };
 }
 
-/** Bounded read of one duplicate group; real groups are a handful of re-synced copies. */
-const MAX_DUPLICATE_GROUP = 32;
+/** Members examined past the winner: covers any previous winner a write displaced. */
+const DUPLICATE_RECONCILE_WINDOW = 32;
 
 type MentionCtx = Pick<MutationCtx, 'db'>;
 
 /**
  * Plan lists show one winner per duplicate sync identity, so only that winner's
  * mentions are visible: counts and lookups then agree with the rendered list.
+ *
+ * Members are read newest-first (the winner order), so the winner is always the
+ * first eligible row however large the group is. Every write that can change a
+ * winner reconciles its group while the displaced winner is still near the top,
+ * so older members beyond the window are already hidden.
  */
 async function reconcileDuplicateGroup(
   ctx: MentionCtx,
@@ -117,22 +117,21 @@ async function reconcileDuplicateGroup(
   key: string,
   excludePlanId?: Id<'plans'>,
 ): Promise<void> {
-  const members = (
-    await ctx.db
-      .query('plans')
-      .withIndex('by_owner_and_fileMentionDuplicateKey', (q) =>
-        q.eq('ownerId', ownerId).eq('fileMentionDuplicateKey', key),
-      )
-      .take(MAX_DUPLICATE_GROUP)
-  ).filter((plan) => plan._id !== excludePlanId);
-  // Same eligibility as the list: persisted low-value plans never win.
-  let winner: Doc<'plans'> | undefined;
-  for (const plan of members) {
-    if (hasLowValueMetadata(plan.metadata)) continue;
-    winner = winner ? betterDuplicateWinner(winner, plan) : plan;
-  }
-  for (const plan of members) {
-    await setMentionVisibility(ctx, plan._id, plan._id === winner?._id && isVisiblePlan(plan));
+  const members = ctx.db
+    .query('plans')
+    .withIndex('by_owner_and_fileMentionDuplicateKey_and_updatedAt', (q) =>
+      q.eq('ownerId', ownerId).eq('fileMentionDuplicateKey', key),
+    )
+    .order('desc');
+  let winner: Id<'plans'> | undefined;
+  let afterWinner = 0;
+  for await (const plan of members) {
+    if (plan._id === excludePlanId) continue;
+    // Same eligibility as the list: persisted low-value plans never win.
+    const wins = !winner && !hasLowValueMetadata(plan.metadata);
+    if (wins) winner = plan._id;
+    await setMentionVisibility(ctx, plan._id, wins && isVisiblePlan(plan));
+    if (winner && !wins && ++afterWinner >= DUPLICATE_RECONCILE_WINDOW) break;
   }
 }
 

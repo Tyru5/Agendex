@@ -199,6 +199,10 @@ test('spaced inline code needs a path-like first word, not a command or script c
   expect(parseCodePath('C:\\Program Files\\app\\main.ts', { allowSpaces: true })?.path).toBe(
     'C:/Program Files/app/main.ts',
   );
+  expect(parseCodePath('my file.ts', { allowSpaces: true })?.path).toBe('my file.ts');
+  expect(extractCandidateCodePaths('Rename `my file.ts`.').map((path) => path.path)).toEqual([
+    'my file.ts',
+  ]);
 });
 
 test('bare absolute prose paths keep their root; URL segments never gain one', () => {

@@ -148,17 +148,18 @@ const COMMAND_PREFIX_RE =
   /^(?:bunx|bun|bash|sh|zsh|fish|pwsh|powershell|npm|npx|pnpm|yarn|git|node|python(?:3)?|ruby|go|cargo|make|cat|echo|cd|ls|rm|mv|cp|touch|sed|rg|grep|find|chmod|chown|sudo|env|export|curl|wget)\s/;
 
 /**
- * Spaced text is a path only when its first word is itself a partial path
- * (`src/my file.ts`, `C:/Program Files/x.ts`). A bare leading word
- * (`tsc src/a.ts`), a flag, or a complete file followed by arguments
- * (`./scripts/run.sh src/a.ts`) is a command snippet.
+ * Spaced text is a command snippet when it starts with a known command, carries
+ * a flag, or passes a path argument: a later word has a `/` the first word
+ * lacks (`tsc src/a.ts`), or the first word is already a complete file
+ * (`./scripts/run.sh src/a.ts`). Spaced basenames (`my file.ts`) and spaced
+ * directories (`src/my file.ts`, `C:/Program Files/x.ts`) stay paths.
  */
 function looksLikeCommand(value: string): boolean {
   if (COMMAND_PREFIX_RE.test(value)) return true;
-  const words = value.split(/\s+/);
-  const first = (words[0] ?? '').replace(/\\/g, '/');
-  if (!first.includes('/')) return true;
+  const words = value.replace(/\\/g, '/').split(/\s+/);
   if (words.some((word) => word.startsWith('-'))) return true;
+  const first = words[0] ?? '';
+  if (!first.includes('/')) return words.slice(1).some((word) => word.includes('/'));
   return hasCodeExtension(basenameOf(first.replace(/[.,;)\]]+$/, '')));
 }
 

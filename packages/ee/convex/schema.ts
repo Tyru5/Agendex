@@ -101,7 +101,11 @@ export default defineSchema({
     .index('by_fileMentionIndexVersion', ['fileMentionIndexVersion'])
     .index('by_owner_and_fileMentionIndexVersion', ['ownerId', 'fileMentionIndexVersion'])
     .index('by_owner_and_fileMentionIndexTruncated', ['ownerId', 'fileMentionIndexTruncated'])
-    .index('by_owner_and_fileMentionDuplicateKey', ['ownerId', 'fileMentionDuplicateKey'])
+    .index('by_owner_and_fileMentionDuplicateKey_and_updatedAt', [
+      'ownerId',
+      'fileMentionDuplicateKey',
+      'updatedAt',
+    ])
     .index('by_owner', ['ownerId'])
     .index('by_owner_and_agent', ['ownerId', 'agent'])
     .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])

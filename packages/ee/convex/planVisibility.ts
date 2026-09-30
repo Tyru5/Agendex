@@ -119,10 +119,7 @@ export function duplicateKey(plan: PlanWithDuplicateIdentity): string | undefine
   return undefined;
 }
 
-export function betterDuplicateWinner<T extends PlanWithDuplicateIdentity>(
-  current: T,
-  candidate: T,
-): T {
+function betterDuplicateWinner<T extends PlanWithDuplicateIdentity>(current: T, candidate: T): T {
   if (candidate.updatedAt !== current.updatedAt) {
     return candidate.updatedAt > current.updatedAt ? candidate : current;
   }
