@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PlanReadSection } from './PlanReadSection.tsx';
+import { PlanReadDiff } from './PlanReadDiff.tsx';
+import { PlanReadSection, shouldRequestPlanRead } from './PlanReadSection.tsx';
 import { readRevisionKey, readVisitKey, readSummary } from '../lib/plan-read-session.ts';
 import type { Plan } from '../lib/api.ts';
 const plan = { id: 'p', title: 'Plan', content: 'Steps' } as Plan;
@@ -42,4 +43,48 @@ test('live title, content, and metadata refreshes keep the same visit boundary',
   ).toBe(key);
   expect(readVisitKey('cloud', plan)).not.toBe(key);
   expect(readVisitKey('local', { ...plan, id: 'other' })).not.toBe(key);
+});
+
+test('unified read diff describes removed and added rows', () => {
+  const html = renderToStaticMarkup(
+    <PlanReadDiff
+      baseline={{ title: 'Plan', content: 'Old step', updatedAt: '2026-09-29' }}
+      current={{ title: 'Plan', content: 'New step', updatedAt: '2026-09-30' }}
+    />,
+  );
+  expect(html).toContain('Removed lines use −; added lines use +.');
+  expect(html).not.toContain('Earlier read on the left');
+});
+
+test('a revision refreshed before rejection retries after the stale opening rejects', () => {
+  const key = readVisitKey('local', plan);
+  const staleRevision = readRevisionKey('local', plan);
+  const refreshedRevision = readRevisionKey('local', { ...plan, content: 'Updated' });
+
+  expect(shouldRequestPlanRead({ key }, undefined, key, refreshedRevision)).toBe(false);
+  expect(
+    shouldRequestPlanRead(undefined, { key, revisionKey: staleRevision }, key, refreshedRevision),
+  ).toBe(true);
+});
+
+test('a rejected revision waits for a refresh and retries only the newer revision', () => {
+  const key = readVisitKey('local', plan);
+  const staleRevision = readRevisionKey('local', plan);
+  const failed = { key, revisionKey: staleRevision };
+
+  expect(shouldRequestPlanRead(undefined, failed, key, staleRevision)).toBe(false);
+  expect(
+    shouldRequestPlanRead(
+      undefined,
+      failed,
+      key,
+      readRevisionKey('local', { ...plan, updatedAt: '2026-09-30' }),
+    ),
+  ).toBe(true);
+});
+
+test('a successful opening stays fixed across live revision refreshes', () => {
+  const key = readVisitKey('local', plan);
+  const refreshedRevision = readRevisionKey('local', { ...plan, content: 'Updated' });
+  expect(shouldRequestPlanRead({ key }, undefined, key, refreshedRevision)).toBe(false);
 });

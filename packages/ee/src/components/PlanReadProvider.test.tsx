@@ -7,7 +7,7 @@ import {
 } from '../../../web/src/client/lib/plan-read-context.tsx';
 import { PlanReadSection } from '../../../web/src/client/components/PlanReadSection.tsx';
 import { readRevisionKey, requestPlanRead } from '../../../web/src/client/lib/plan-read-session.ts';
-import { ownedPlanReadSource } from '../lib/owned-plan-read-source.ts';
+import { ownedPlanReadSource, publishedCloudPlan } from '../lib/owned-plan-read-source.ts';
 const plan = {
   id: 'owned-plan',
   ownerId: 'owner',
@@ -34,6 +34,49 @@ test('members and unresolved accounts neither render the private section nor sen
     ).toBe('');
   }
   expect(requests).toBe(0);
+});
+
+test('newly created and uploaded cloud plans carry owner identity into their first opening', async () => {
+  let requests = 0;
+  const source = ownedPlanReadSource(
+    'owner',
+    async () => {
+      requests++;
+      return { baseline: null, reason: 'first-read' };
+    },
+    async () => {},
+  );
+  const publishedAt = 1_700_000_000_000;
+  const initialPlans = [
+    publishedCloudPlan({
+      _id: 'created-plan',
+      ownerId: 'owner',
+      agent: 'omp',
+      title: 'Created',
+      content: 'Created steps',
+      format: 'md',
+      createdAt: publishedAt,
+      updatedAt: publishedAt,
+    }),
+    publishedCloudPlan({
+      _id: 'uploaded-plan',
+      ownerId: 'owner',
+      agent: 'omp',
+      title: 'Uploaded',
+      content: 'Uploaded steps',
+      format: 'md',
+      createdAt: publishedAt,
+      updatedAt: publishedAt,
+    }),
+  ];
+
+  for (const initialPlan of initialPlans) {
+    expect(initialPlan.ownerId).toBe('owner');
+    expect(initialPlan.updatedAt).toBe(new Date(publishedAt).toISOString());
+    await requestPlanRead(readRevisionKey(source.scope, initialPlan), source, initialPlan);
+  }
+
+  expect(requests).toBe(2);
 });
 
 test('account switching cannot inherit a pending owner read; loaded owner and local plans stay eligible', async () => {

@@ -1,6 +1,7 @@
 import { MAX_READ_SNAPSHOT_BYTES } from '@agendex/shared/plan-read';
 import { ConvexError, v } from 'convex/values';
-import { mutation } from './_generated/server';
+import type { Doc } from './_generated/dataModel';
+import { type MutationCtx, mutation } from './_generated/server';
 import { authComponent } from './auth';
 import { recordPlanVersion } from './planVersioning';
 
@@ -16,6 +17,24 @@ const readResult = v.object({
     v.literal('too-large'),
   ),
 });
+
+async function clearRememberedRead(
+  ctx: Pick<MutationCtx, 'db'>,
+  preference: Doc<'planPreferences'> | null,
+  now: number,
+) {
+  if (!preference) return;
+  if (!preference.pinned && preference.lastSeenUpdatedAt === undefined) {
+    await ctx.db.delete(preference._id);
+    return;
+  }
+  await ctx.db.patch(preference._id, {
+    lastReadVersion: undefined,
+    lastReadAt: undefined,
+    lastReadUpdatedAt: undefined,
+    updatedAt: now,
+  });
+}
 /** A transactional read captures the previous version before advancing the boundary. */
 export const open = mutation({
   args: { planId: v.id('plans'), updatedAt: v.number(), title: v.string(), content: v.string() },
@@ -89,10 +108,14 @@ export const open = mutation({
         });
     }
     const now = Date.now();
+    if (oversized) {
+      await clearRememberedRead(ctx, previous, now);
+      return { baseline: null, reason: 'too-large' as const };
+    }
     const fields = {
-      lastReadVersion: oversized ? undefined : versionToRemember,
-      lastReadAt: oversized ? undefined : now,
-      lastReadUpdatedAt: oversized ? undefined : plan.updatedAt,
+      lastReadVersion: versionToRemember,
+      lastReadAt: now,
+      lastReadUpdatedAt: plan.updatedAt,
       updatedAt: now,
     };
     if (previous) await ctx.db.patch(previous._id, fields);
@@ -104,7 +127,6 @@ export const open = mutation({
         createdAt: now,
         ...fields,
       });
-    if (oversized) return { baseline: null, reason: 'too-large' as const };
     if (!previous || previous.lastReadVersion === undefined)
       return { baseline: null, reason: 'first-read' as const };
     if (!snapshot || snapshot.ownerId !== user._id)
@@ -131,13 +153,7 @@ export const clear = mutation({
       .query('planPreferences')
       .withIndex('by_owner_plan', (q) => q.eq('ownerId', user._id).eq('planId', args.planId))
       .first();
-    if (previous)
-      await ctx.db.patch(previous._id, {
-        lastReadVersion: undefined,
-        lastReadAt: undefined,
-        lastReadUpdatedAt: undefined,
-        updatedAt: Date.now(),
-      });
+    await clearRememberedRead(ctx, previous, Date.now());
     return null;
   },
 });

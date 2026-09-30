@@ -23,10 +23,49 @@ test('stalled reads expire and a later opening retries rather than reusing a stu
   };
   const first = requestPlanRead('timeout-key', source, plan, 5);
   expect(requestPlanRead('timeout-key', source, plan, 5)).toBe(first);
-  await expect(first).rejects.toThrow('timed out');
+  await Bun.sleep(15);
   expect(await requestPlanRead('timeout-key', source, plan, 5)).toEqual(result);
   expect(calls).toBe(2);
   finish(result);
+  expect(await first).toEqual(result);
+});
+
+test('a slow successful read still delivers its comparison after coalescing expires', async () => {
+  let finish!: (value: PlanReadResult) => void;
+  const source: PlanReadSource = {
+    open: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    clear: async () => undefined,
+  };
+  const comparison: PlanReadResult = {
+    baseline: { title: 'Old plan', content: 'Old steps', updatedAt: '2026-01-01' },
+    reason: 'available',
+  };
+  const request = requestPlanRead('slow-success', source, plan, 5);
+  await Bun.sleep(15);
+  finish(comparison);
+  expect(await request).toEqual(comparison);
+});
+
+test('an expired request settling cannot evict a newer pending read', async () => {
+  const finishes: Array<(value: PlanReadResult) => void> = [];
+  const source: PlanReadSource = {
+    open: () =>
+      new Promise((resolve) => {
+        finishes.push(resolve);
+      }),
+    clear: async () => undefined,
+  };
+  const first = requestPlanRead('overlapping', source, plan, 5);
+  await Bun.sleep(15);
+  const second = requestPlanRead('overlapping', source, plan);
+  finishes[0]?.(result);
+  await first;
+  expect(requestPlanRead('overlapping', source, plan)).toBe(second);
+  finishes[1]?.(result);
+  await second;
 });
 test('settled reads never replay an earlier comparison on a later visit', async () => {
   let calls = 0;

@@ -11,17 +11,39 @@ import {
 const ReadDiff = lazy(() =>
   import('./PlanReadDiff.tsx').then((m) => ({ default: m.PlanReadDiff })),
 );
+
+type PlanReadOpening = {
+  key: string;
+  revisionKey: string;
+  request: Promise<PlanReadResult>;
+  plan: Plan;
+  status: 'pending' | 'fulfilled';
+  cleared?: boolean;
+};
+
+type FailedPlanReadOpening = { key: string; revisionKey: string };
+
+export function shouldRequestPlanRead(
+  opening: Pick<PlanReadOpening, 'key'> | undefined,
+  failed: FailedPlanReadOpening | undefined,
+  key: string,
+  revisionKey: string,
+): boolean {
+  return opening?.key !== key && (failed?.key !== key || failed.revisionKey !== revisionKey);
+}
+
 export function PlanReadSection({ plan }: { plan: Plan }) {
   const source = useContext(PlanReadContext);
   const eligible = canReadPlan(source, plan);
   const key = readVisitKey(source?.scope, plan);
+  const revisionKey = readRevisionKey(source?.scope, plan);
   const planRef = useRef(plan);
   useEffect(() => {
     planRef.current = plan;
   }, [plan]);
-  const opening = useRef<
-    { key: string; request: Promise<PlanReadResult>; plan: Plan; cleared?: boolean } | undefined
-  >(undefined);
+  const opening = useRef<PlanReadOpening | undefined>(undefined);
+  const failedOpening = useRef<FailedPlanReadOpening | undefined>(undefined);
+  const [retryVersion, setRetryVersion] = useState(0);
   const [state, setState] = useState<{
     key: string;
     result?: PlanReadResult;
@@ -34,35 +56,54 @@ export function PlanReadSection({ plan }: { plan: Plan }) {
   useEffect(() => {
     if (!source || !eligible) {
       opening.current = undefined;
+      failedOpening.current = undefined;
       return;
     }
-    if (opening.current?.key !== key) {
+    if (opening.current?.key !== key) opening.current = undefined;
+    if (failedOpening.current?.key !== key) failedOpening.current = undefined;
+    if (shouldRequestPlanRead(opening.current, failedOpening.current, key, revisionKey)) {
       const displayed = planRef.current;
-      const request = requestPlanRead(readRevisionKey(source.scope, displayed), source, displayed);
+      const openedRevisionKey = readRevisionKey(source.scope, displayed);
+      const request = requestPlanRead(openedRevisionKey, source, displayed);
       if (!request) return;
-      opening.current = { key, request, plan: displayed };
+      opening.current = {
+        key,
+        revisionKey: openedRevisionKey,
+        request,
+        plan: displayed,
+        status: 'pending',
+      };
     }
-    if (opening.current.cleared) return;
-    const { request, plan: openedPlan } = opening.current;
+    const currentOpening = opening.current;
+    if (!currentOpening || currentOpening.cleared || currentOpening.status === 'fulfilled') return;
+    const { request, plan: openedPlan, revisionKey: openedRevisionKey } = currentOpening;
     let active = true;
     void request.then(
       (result) => {
-        if (active) setState({ key, result, plan: openedPlan });
+        if (!active || opening.current !== currentOpening) return;
+        currentOpening.status = 'fulfilled';
+        failedOpening.current = undefined;
+        setState({ key, result, plan: openedPlan });
       },
       (error) => {
-        if (active)
-          setState({
-            key,
-            error:
-              error instanceof Error ? error.message : 'Could not load the remembered revision.',
-          });
+        if (!active || opening.current !== currentOpening) return;
+        opening.current = undefined;
+        failedOpening.current = { key, revisionKey: openedRevisionKey };
+        setState({
+          key,
+          error: error instanceof Error ? error.message : 'Could not load the remembered revision.',
+        });
+        const refreshedRevisionKey = readRevisionKey(source.scope, planRef.current);
+        if (refreshedRevisionKey !== openedRevisionKey) {
+          setRetryVersion((version) => version + 1);
+        }
       },
     );
     return () => {
       active = false;
     };
-    // Keep the first loaded revision and comparison for this source visit.
-  }, [key, source, eligible, plan.contentLoaded]);
+    // Keep the first successful revision and comparison for this source visit.
+  }, [key, source, eligible, plan.contentLoaded, revisionKey, retryVersion]);
   if (!eligible) return null;
   const current = state?.key === key ? state : undefined;
   const baseline = current?.result?.baseline;

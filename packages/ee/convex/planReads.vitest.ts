@@ -31,7 +31,14 @@ async function setup() {
   const owner = t.withIdentity({ subject: 'alice' });
   const open = (content = 'Original', updatedAt = 1000) =>
     owner.mutation(api.planReads.open, { planId, title: 'Plan', content, updatedAt });
-  return { t, planId, owner, open };
+  const getPreference = () =>
+    t.run((ctx) =>
+      ctx.db
+        .query('planPreferences')
+        .withIndex('by_owner_plan', (q) => q.eq('ownerId', 'alice').eq('planId', planId))
+        .first(),
+    );
+  return { t, planId, owner, open, getPreference };
 }
 test('first read, exact historical version, and metadata-only updates', async () => {
   const { t, planId, open } = await setup();
@@ -93,17 +100,57 @@ test('unread controls and mark-all-read preserve the actual read snapshot', asyn
   expect(await open('Updated', 2000)).toEqual({ baseline: null, reason: 'first-read' });
 });
 
+test('forget deletes read-only preferences but preserves pin and seen state', async () => {
+  const { planId, owner, open, getPreference } = await setup();
+  await open();
+  expect(await getPreference()).toMatchObject({ pinned: false, lastReadVersion: 1 });
+
+  await owner.mutation(api.planReads.clear, { planId });
+  expect(await getPreference()).toBeNull();
+
+  await open();
+  await owner.mutation(api.planPreferences.markSeen, { planId });
+  await owner.mutation(api.planReads.clear, { planId });
+  const seenOnly = await getPreference();
+  expect(seenOnly).toMatchObject({ pinned: false, lastSeenUpdatedAt: 1000 });
+  expect(seenOnly?.lastReadVersion).toBeUndefined();
+  expect(seenOnly?.lastReadAt).toBeUndefined();
+  expect(seenOnly?.lastReadUpdatedAt).toBeUndefined();
+
+  await owner.mutation(api.planPreferences.markUnseen, { planId });
+  expect(await getPreference()).toBeNull();
+  await open();
+  await owner.mutation(api.planPreferences.setPinned, { planId, pinned: true });
+  await owner.mutation(api.planReads.clear, { planId });
+  const pinnedOnly = await getPreference();
+  expect(pinnedOnly).toMatchObject({ pinned: true });
+  expect(pinnedOnly?.lastSeenUpdatedAt).toBeUndefined();
+  expect(pinnedOnly?.lastReadVersion).toBeUndefined();
+  expect(pinnedOnly?.lastReadAt).toBeUndefined();
+  expect(pinnedOnly?.lastReadUpdatedAt).toBeUndefined();
+});
+
 test('bulk unread timestamps never fabricate a previous opened revision', async () => {
   const { planId, owner, open } = await setup();
   await owner.mutation(api.planPreferences.markManySeen, { planIds: [planId] });
   expect(await open()).toEqual({ baseline: null, reason: 'first-read' });
 });
-test('oversized cloud plans explicitly clear stale read pointers', async () => {
-  const { t, planId, open } = await setup();
+test('first opening an oversized cloud plan does not create an empty preference', async () => {
+  const { t, planId, open, getPreference } = await setup();
+  const large = 'x'.repeat(256 * 1024);
+  await t.run((ctx) => ctx.db.patch(planId, { content: large, version: 2, updatedAt: 2000 }));
+
+  expect(await open(large, 2000)).toEqual({ baseline: null, reason: 'too-large' });
+  expect(await getPreference()).toBeNull();
+});
+
+test('oversized cloud plans clear stale read pointers without leaving an empty preference', async () => {
+  const { t, planId, open, getPreference } = await setup();
   await open();
   const large = 'x'.repeat(256 * 1024);
   await t.run((ctx) => ctx.db.patch(planId, { content: large, version: 2, updatedAt: 2000 }));
   expect(await open(large, 2000)).toEqual({ baseline: null, reason: 'too-large' });
+  expect(await getPreference()).toBeNull();
   await t.run((ctx) => ctx.db.patch(planId, { content: 'Smaller', version: 3, updatedAt: 3000 }));
   expect(await open('Smaller', 3000)).toEqual({ baseline: null, reason: 'first-read' });
 });

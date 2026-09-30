@@ -7,27 +7,13 @@ import {
   type Plan,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
-import { useMutation } from 'convex/react';
+import { useConvex, useMutation } from 'convex/react';
 import { useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
+import { publishedCloudPlan } from '../lib/owned-plan-read-source.ts';
 
 function getAgentOptions(agents: AgentStats[]) {
   return Array.from(new Set([...agents.map((agent) => agent.agent), ...AGENT_IDS]));
-}
-
-function makeCloudPlan(id: string, agent: string, title: string, content: string): Plan {
-  const now = new Date().toISOString();
-  return {
-    id,
-    agent,
-    title,
-    content,
-    format: 'md',
-    filePath: '',
-    createdAt: now,
-    updatedAt: now,
-    metadata: {},
-  };
 }
 
 export function CloudPlanCreator({
@@ -39,6 +25,7 @@ export function CloudPlanCreator({
   onClose: () => void;
   onCreated: (plan: Plan) => void;
 }) {
+  const convex = useConvex();
   const publishPlan = useMutation(api.plans.publishPlan);
   const agentOptions = useMemo(() => getAgentOptions(agents), [agents]);
   const [agent, setAgent] = useState(() => agentOptions[0] ?? '');
@@ -64,7 +51,8 @@ export function CloudPlanCreator({
         format: 'md',
         metadata: { userCreated: true, planValueOverride: 'manual' },
       });
-      onCreated(makeCloudPlan(planId, agent, trimmedTitle, trimmedContent));
+      const published = await convex.query(api.plans.getPlan, { planId });
+      onCreated(publishedCloudPlan(published));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'create failed');
     } finally {

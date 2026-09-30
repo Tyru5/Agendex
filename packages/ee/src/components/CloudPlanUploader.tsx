@@ -7,9 +7,10 @@ import {
   type Plan,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
-import { useMutation } from 'convex/react';
+import { useConvex, useMutation } from 'convex/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
+import { publishedCloudPlan } from '../lib/owned-plan-read-source.ts';
 
 interface UploadFile {
   name: string;
@@ -45,21 +46,6 @@ function getAgentOptions(agents: AgentStats[]) {
   return Array.from(new Set([...agents.map((agent) => agent.agent), ...AGENT_IDS]));
 }
 
-function makeCloudPlan(id: string, agent: string, title: string, content: string): Plan {
-  const now = new Date().toISOString();
-  return {
-    id,
-    agent,
-    title,
-    content,
-    format: 'md',
-    filePath: '',
-    createdAt: now,
-    updatedAt: now,
-    metadata: {},
-  };
-}
-
 export function CloudPlanUploader({
   agents,
   onClose,
@@ -69,6 +55,7 @@ export function CloudPlanUploader({
   onClose: () => void;
   onCreated: (plan: Plan) => void;
 }) {
+  const convex = useConvex();
   const publishPlan = useMutation(api.plans.publishPlan);
   const agentOptions = useMemo(() => getAgentOptions(agents), [agents]);
   const [step, setStep] = useState<Step>('pick');
@@ -148,7 +135,8 @@ export function CloudPlanUploader({
           metadata: { uploaded: true, userCreated: true, planValueOverride: 'manual' },
         });
         if (i === 0) {
-          firstPlan = makeCloudPlan(planId, agent, trimmedTitle, trimmedContent);
+          const published = await convex.query(api.plans.getPlan, { planId });
+          firstPlan = publishedCloudPlan(published);
         }
         setUploadProgress(() => i + 1);
       }

@@ -21,8 +21,8 @@ export function PlanReadDiff({
         </p>
       )}
       <p>
-        {diff.stats.added} lines added · {diff.stats.removed} lines removed. Earlier read on the
-        left; current revision on the right.
+        {diff.stats.added} lines added · {diff.stats.removed} lines removed. Removed lines use −;
+        added lines use +.
       </p>
       <PlanDiffBody diff={diff} layout="unified" className="plan-diff--embedded" />
     </>

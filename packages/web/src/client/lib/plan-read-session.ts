@@ -13,21 +13,16 @@ export function requestPlanRead(
   if (!canReadPlan(source, plan) || plan.contentLoaded === false) return null;
   const existing = pending.get(key);
   if (existing) return existing;
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<PlanReadResult>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error('Remembered revision request timed out. Reopen the plan to retry.')),
-      timeoutMs,
-    );
-  });
-  const result = Promise.race([
-    new Promise<PlanReadResult>((resolve) => resolve(source.open(plan))),
-    timeout,
-  ]);
+  const result = new Promise<PlanReadResult>((resolve) => resolve(source.open(plan)));
   pending.set(key, result);
+  const expire = () => {
+    if (pending.get(key) === result) pending.delete(key);
+  };
+  // Expire coalescing, not the operation: a late success may already have advanced storage.
+  const timer = setTimeout(expire, timeoutMs);
   const done = () => {
     clearTimeout(timer);
-    if (pending.get(key) === result) pending.delete(key);
+    expire();
   };
   void result.then(done, done);
   return result;
