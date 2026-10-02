@@ -3,6 +3,8 @@ import type { ApprovalDecision, ApprovalSession } from '@agendex/shared/approval
 import type { PlanChecklistSummary } from '@agendex/shared/plan-checklist';
 import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
 
+import type { HiddenPlanSummary, PlanCheck } from '@agendex/shared/plan-check';
+
 const BASE = '/api/v1';
 
 type ErrorResponse = {
@@ -271,6 +273,24 @@ export const api = {
     return request<UsageSummary>(`/usage${query ? `?${query}` : ''}`);
   },
 
+  getHiddenPlans: (cursor?: string) =>
+    get<{
+      plans: HiddenPlanSummary[];
+      total: number;
+      hiddenCount: number;
+      limit: number;
+      offset: number;
+      nextCursor?: string;
+    }>(`/hidden-plans${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
+  getHiddenPlan: (id: string) =>
+    get<{ plan: Plan; assessment: HiddenPlanSummary['assessment']; check: PlanCheck }>(
+      `/hidden-plans/${encodeURIComponent(id)}`,
+    ),
+  setHiddenPlanOverride: (id: string, restore: boolean) =>
+    request<{ ok: boolean; hidden: boolean; restored: boolean }>(
+      `/hidden-plans/${encodeURIComponent(id)}/override`,
+      { method: 'PUT', body: JSON.stringify({ restore }) },
+    ),
   rescan: () => request<{ ok: boolean }>('/rescan', { method: 'POST' }),
 
   createPlan: (agent: string, title: string, content: string) =>

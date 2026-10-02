@@ -7,12 +7,14 @@ import type { AgentStats, Plan } from '../lib/api.ts';
 import type { PlanSortBy } from '../lib/plan-filters.ts';
 import { MAX_FOLDERS } from '../lib/plan-folders.ts';
 import { startViewTransition } from '../lib/view-transition.ts';
+import { HiddenPlansRecoveryButton } from './HiddenPlansRecoveryButton.tsx';
 import { PlanList } from './PlanList.tsx';
 import { SidebarFilters } from './SidebarFilters.tsx';
 import { SidebarResizeHandle } from './SidebarResizeHandle.tsx';
 import { SkeletonBlock } from './Skeleton.tsx';
 
 interface SidebarProps {
+  localRecovery?: boolean;
   sidebarHidden: boolean;
   sidebarVisible: boolean;
   sidebarPeekOpen: boolean;
@@ -53,6 +55,7 @@ const SCROLL_TOP_PLAN_THRESHOLD = 12;
 const SCROLL_TOP_OFFSET = 220;
 
 export function Sidebar({
+  localRecovery,
   sidebarHidden,
   sidebarVisible,
   sidebarPeekOpen,
@@ -168,6 +171,7 @@ export function Sidebar({
         />
       </div>
 
+      {localRecovery && <HiddenPlansRecoveryButton />}
       <div
         ref={scrollViewportRef}
         className="flex-1 overflow-auto sidebar-scroll sidebar-content-list"
