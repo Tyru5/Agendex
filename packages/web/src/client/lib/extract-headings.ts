@@ -172,6 +172,8 @@ export function buildPlanOutline({
   entries: OutlineEntry[];
   renderMode: 'markdown' | 'plain';
   renderContent: string;
+  /** Normalized plan text without viewer-only anchors, for content analysis. */
+  sourceContent: string;
 } {
   const plainContent = content.replace(/\r\n?/g, '\n');
   const markdownCandidate = normalizePlanMarkdown(content);
@@ -199,5 +201,6 @@ export function buildPlanOutline({
       renderMode === 'markdown'
         ? injectBoldLabelAnchors(markdownCandidate, structuredEntries)
         : plainContent,
+    sourceContent: renderMode === 'markdown' ? markdownCandidate : plainContent,
   };
 }

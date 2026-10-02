@@ -1,4 +1,4 @@
-import { type Plan, type PlanState, TOUR_TARGET } from '@agendex/web';
+import { ApprovalQueue, type Plan, type PlanState, TOUR_TARGET } from '@agendex/web';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
@@ -204,6 +204,7 @@ export function DashboardTopbar({
 
         {actions}
 
+        {mode === 'local' && <ApprovalQueue />}
         <DesktopPageZoomIndicator />
 
         <SystemStatusMenu

@@ -123,9 +123,11 @@ export {
   rescanFile,
   scan,
   setOnPlansChanged,
+  setPlanValueOverride,
   update,
 } from './services/plan-service.ts';
 export { searchPlans } from './services/plan-search.ts';
+export { getPlanCheck } from './services/plan-check.ts';
 export type { PlanFileMatch } from './receipts/service.ts';
 export {
   clearPlanReceiptCache,
@@ -133,7 +135,7 @@ export {
   getPlanReceipt,
   getPlanReceipts,
 } from './receipts/service.ts';
-export { isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
+export { assessPlanValue, isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
 export type {
   PlanBrowseDedupeResult,
   PlanDownloadLookupCandidate,
@@ -193,3 +195,5 @@ export type {
   PlannotatorWritebackPayload,
 } from './types.ts';
 export { ProFeature } from './types.ts';
+
+export { openPlanRead, clearPlanRead } from './services/plan-read-store';

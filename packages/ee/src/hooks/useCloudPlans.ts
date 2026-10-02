@@ -52,6 +52,7 @@ export function useCloudPlans(): {
       // List items ship without content (see getMyPublishedPlans); selected and
       // split-view panes hydrate via useHydratedCloudPlan / useCloudPlanContent.
       content: p.content ?? '',
+      contentLoaded: typeof p.content === 'string',
       filePath: p.filePath ?? '',
       format: p.format,
       createdAt: new Date(p.createdAt).toISOString(),

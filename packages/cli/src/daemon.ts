@@ -34,6 +34,7 @@ import {
   syncPlan,
 } from './api.ts';
 import {
+  createSyncPayloadOrder,
   dedupeSyncPayloads,
   DEFAULT_LIVE_SESSION_POLL_MS,
   DEFAULT_SYNC_RESCAN_INTERVAL_MS,
@@ -172,7 +173,8 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
   // Tracks the updatedAt of the payload last successfully synced per plan, so a
   // delayed retry of an older failed payload can detect that a newer edit has
   // since synced and skip re-applying stale content/metadata.
-  const lastSyncedUpdatedAt = new Map<string, number>();
+  const lastSyncedOrder = new Map<string, { updatedAt?: number; sequence: number }>();
+  const payloadOrder = createSyncPayloadOrder();
   const pendingWritebackReports = loadPendingWritebackReports();
   // Last-synced payload for each plan id that is currently a live Plannotator
   // session. When such a plan stops being live (process died, session removed),
@@ -203,7 +205,7 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
     if (nextScope === syncCacheScope) return false;
     syncCacheScope = nextScope;
     syncCache = loadSyncCache(syncCacheScope);
-    lastSyncedUpdatedAt.clear();
+    lastSyncedOrder.clear();
     return true;
   }
 
@@ -215,15 +217,19 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
 
   function pushToSyncQueue(...payloads: SyncPlanPayload[]) {
     for (const payload of payloads) {
+      // Stamp build order on first sight; retries reuse their original stamp.
+      payloadOrder.sequenceOf(payload);
       const idx = syncQueue.findIndex((p) => p.localPlanId === payload.localPlanId);
       if (idx >= 0) {
         const existing = syncQueue[idx];
         // Never let an older payload (e.g. a delayed retry) clobber a newer one
         // that's already queued.
         if (
-          existing?.updatedAt !== undefined &&
-          payload.updatedAt !== undefined &&
-          existing.updatedAt >= payload.updatedAt
+          existing &&
+          payloadOrder.isSuperseded(payload, {
+            updatedAt: existing.updatedAt,
+            sequence: payloadOrder.sequenceOf(existing),
+          })
         ) {
           continue;
         }
@@ -255,11 +261,8 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
 
       // A newer edit may have synced successfully while this retry was waiting.
       // Re-applying the stale payload would overwrite that newer cloud state.
-      const lastSynced = lastSyncedUpdatedAt.get(entry.payload.localPlanId);
       if (
-        lastSynced !== undefined &&
-        entry.payload.updatedAt !== undefined &&
-        lastSynced >= entry.payload.updatedAt
+        payloadOrder.isSuperseded(entry.payload, lastSyncedOrder.get(entry.payload.localPlanId))
       ) {
         continue;
       }
@@ -301,12 +304,7 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
         // Re-check freshness right before syncing: a newer edit for this plan
         // may have synced successfully after this (possibly stale, retried)
         // payload was queued but before its turn in this batch came up.
-        const lastSynced = lastSyncedUpdatedAt.get(payload.localPlanId);
-        if (
-          lastSynced !== undefined &&
-          payload.updatedAt !== undefined &&
-          lastSynced >= payload.updatedAt
-        ) {
+        if (payloadOrder.isSuperseded(payload, lastSyncedOrder.get(payload.localPlanId))) {
           retryAttemptByPlanId.delete(payload.localPlanId);
           continue;
         }
@@ -347,9 +345,10 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
           }
           syncCache[payload.localPlanId] = computePayloadHash(payload);
           retryAttemptByPlanId.delete(payload.localPlanId);
-          if (payload.updatedAt !== undefined) {
-            lastSyncedUpdatedAt.set(payload.localPlanId, payload.updatedAt);
-          }
+          lastSyncedOrder.set(payload.localPlanId, {
+            updatedAt: payload.updatedAt,
+            sequence: payloadOrder.sequenceOf(payload),
+          });
         }
       }
     } catch (err) {

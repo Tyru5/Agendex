@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
 import { getActiveAdapters, setActiveAdapters } from '../adapters/registry.ts';
-import { getConfigDir, saveConfig } from '../config.ts';
+import { getConfigDir, loadConfig, saveConfig } from '../config.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
 import {
@@ -14,6 +14,7 @@ import {
   getIndexablePlans,
   rescanFile,
   scan,
+  setPlanValueOverride,
 } from './plan-service.ts';
 
 const originalAdapters = getActiveAdapters();
@@ -812,4 +813,47 @@ test('rescanFile annotates user-created and custom markdown plans', async () => 
   expect(customPlans[0]?.metadata.lowValue).toBe(true);
   expect(customPlans[0]?.metadata.lowValueReasons).toContain('code-only');
   expect(getIndexablePlans()).toHaveLength(0);
+});
+
+test('an indexed plan keeps its restore when its reported source path is not on disk', async () => {
+  const home = await useTempHome('agendex-live-restore-');
+  const sessionDir = join(home, 'sessions');
+  await mkdir(sessionDir, { recursive: true });
+  await writeFile(join(sessionDir, 'session.json'), '{}', 'utf8');
+  const reportedPath = join(home, 'unavailable', 'plan.md');
+  const id = hashPath(reportedPath);
+  const adapter: AgentAdapter = {
+    agent: 'test',
+    writable: false,
+    getSearchPaths: () => [sessionDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath.endsWith('.json'),
+    parse: async () => [
+      {
+        id,
+        agent: 'test',
+        title: 'Live draft',
+        content: '# Live draft',
+        filePath: reportedPath,
+        format: 'md',
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+        metadata: {},
+      },
+    ],
+    write: async () => false,
+  };
+  setActiveAdapters([adapter]);
+  process.env.AGENDEX_OVERRIDE_DELETE_GRACE_MS = '0';
+  try {
+    await scan();
+    expect(getIndexableById(id)).toBeUndefined();
+    expect(await setPlanValueOverride(id, true)).toBeDefined();
+    await scan();
+    await scan();
+    expect(loadConfig()?.planValueOverrides?.[id]).toBe(reportedPath);
+    expect(getIndexableById(id)?.metadata.localPlanValueOverride).toBe(true);
+  } finally {
+    delete process.env.AGENDEX_OVERRIDE_DELETE_GRACE_MS;
+  }
 });

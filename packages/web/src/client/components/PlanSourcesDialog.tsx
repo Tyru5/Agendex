@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { HiddenPlansPanel } from './HiddenPlansPanel.tsx';
 import { api } from '../lib/api.ts';
 
 type PlanSourcesDialogProps = {
@@ -13,6 +14,7 @@ export function PlanSourcesDialog({ open, onClose, onSourcesChanged }: PlanSourc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   const fetchSources = useCallback(async () => {
     try {
@@ -26,12 +28,19 @@ export function PlanSourcesDialog({ open, onClose, onSourcesChanged }: PlanSourc
   useEffect(() => {
     if (!open) return;
 
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const modal = dialogRef.current;
+    modal?.showModal();
     fetchSources();
     setError(null);
     setNewPath('');
     const focusTimer = setTimeout(() => inputRef.current?.focus(), 100);
 
-    return () => clearTimeout(focusTimer);
+    return () => {
+      clearTimeout(focusTimer);
+      modal?.close();
+      opener?.focus();
+    };
   }, [open, fetchSources]);
 
   async function handleAdd() {
@@ -68,22 +77,24 @@ export function PlanSourcesDialog({ open, onClose, onSourcesChanged }: PlanSourc
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.5)' }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
+    // Escape is handled natively through onCancel; the click only covers the backdrop.
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events
+    <dialog
+      ref={dialogRef}
+      className="plan-sources-dialog"
+      aria-label="Plan sources and recovery"
+      onCancel={onClose}
+      // The dialog has no padding, so only backdrop clicks target it directly.
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         className="rounded-xl border border-border bg-surface shadow-lg"
-        style={{ width: 480, maxHeight: '80vh', overflow: 'auto' }}
+        style={{ width: '100%', maxHeight: '80vh', overflow: 'auto' }}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="text-[15px] font-semibold text-text m-0">Custom Plan Sources</h3>
+          <h3 className="text-[15px] font-semibold text-text m-0">Plan sources and recovery</h3>
           <button
             type="button"
             onClick={onClose}
@@ -198,8 +209,9 @@ export function PlanSourcesDialog({ open, onClose, onSourcesChanged }: PlanSourc
               No custom directories configured. Add a path above to start scanning.
             </p>
           )}
+          <HiddenPlansPanel onChanged={() => onSourcesChanged?.(dirs)} />
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

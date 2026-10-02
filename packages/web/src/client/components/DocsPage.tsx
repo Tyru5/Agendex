@@ -36,6 +36,7 @@ const NAV_GROUPS = [
       ['plan-sources', 'Plan sources'],
       ['custom-directories', 'Custom directories'],
       ['plan-search', 'Plan search'],
+      ['plan-check', 'Plan check'],
       ['plan-filtering', 'Plan filtering'],
       ['plan-receipts', 'Plan receipts'],
       ['privacy', 'Privacy model'],
@@ -222,7 +223,7 @@ const CLI_COMMANDS: ReadonlyArray<
       ],
       [
         'agendex hooks install <agent|all>',
-        'Install hook integration for claude-code, codex, or pi. claude-code and codex need --preview until hook-native review ships.',
+        'Install the Claude Code approval gate or manual Pi extension. Codex Stop remains unsupported and requires --preview.',
       ],
       ['agendex hooks uninstall <agent|all>', 'Remove managed Agendex hook entries.'],
     ],
@@ -486,11 +487,28 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
             </Body>
           </SubpageSection>
 
+          <SubpageSection id="plan-check" title="Plan check">
+            <Body>
+              Open a plan and expand <InlineCode>Plan check</InlineCode> to see advisory findings
+              for missing or ambiguous file references, verification steps, and acceptance criteria.
+              The section also shows the number of referenced files. Missing paths may be files the
+              plan intends to create; these findings do not approve or reject a plan. File checks
+              require access to the local workspace. If that connection is unavailable, Agendex
+              still checks the plan text and explains that file checks are incomplete.
+            </Body>
+          </SubpageSection>
+
           <SubpageSection id="plan-filtering" title="Plan filtering">
             <Body>
               Agents produce a lot of Markdown that isn&rsquo;t a plan: empty files, one-line
               prompts, tool logs, execution output, code-only snippets. A shared classifier tags
               these as low-value.
+            </Body>
+            <Body>
+              Open Hidden plans in the local sidebar to inspect classifier reasons, signals, raw
+              content, and advisory checks. Restore a plan to visible lists, or undo a restore to
+              use automatic classification again. Overrides persist across scans without editing
+              sources. This entry remains available when every plan is hidden.
             </Body>
             <Body>
               Locally, low-value plans are hidden from search and lists — the files themselves are
@@ -731,16 +749,19 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
 
           <SubpageSection id="agent-hooks" title="Agent hooks">
             <Body>
-              Review hooks will let supported agents hand a plan to Agendex for review before they
-              run it. Hook-native review isn&rsquo;t implemented yet, so the{' '}
-              <InlineCode>claude-code</InlineCode> and <InlineCode>codex</InlineCode> hooks install
-              only with <InlineCode>--preview</InlineCode>. Until review ships, the Claude Code hook
-              denies ExitPlanMode and the Codex hook fails every time Codex stops. The{' '}
-              <InlineCode>pi</InlineCode> extension installs without it.
+              <InlineCode>claude-code</InlineCode> waits for decisions in the local dashboard’s
+              Reviews queue before allowing ExitPlanMode. Read the snapshot, then approve, request
+              changes, reject, or cancel. Approval applies only to that exact revision; source
+              edits, timeout and disconnection invalidate it. <InlineCode>codex</InlineCode> Stop
+              remains an unsupported preview integration, and Pi commands are manual. The queue uses
+              the existing local API token and is available from another device that can reach this
+              app.
             </Body>
             <div className="max-w-[560px]">
               <CodeBlock>
-                {'agendex hooks status\nagendex hooks install pi\nagendex hooks uninstall all'}
+                {
+                  'agendex hooks status\nagendex hooks install claude-code\nagendex review-plan --file ./plan.md\nagendex hooks uninstall all'
+                }
               </CodeBlock>
             </div>
             <Body>

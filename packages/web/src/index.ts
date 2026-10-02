@@ -225,3 +225,8 @@ export { buildAdjacencyMap, buildTechGraph, CATEGORY_COLORS } from './client/lib
 export { startViewTransition } from './client/lib/view-transition.ts';
 export type { PreloadableComponent } from './client/lib/lazy-with-preload.ts';
 export { lazyWithPreload, preloadComponents, whenIdle } from './client/lib/lazy-with-preload.ts';
+
+export { HiddenPlansRecoveryButton } from './client/components/HiddenPlansRecoveryButton.tsx';
+export { PlanReadContext, localPlanReadSource } from './client/lib/plan-read-context.tsx';
+export type { PlanReadSource } from './client/lib/plan-read-context.tsx';
+export { ApprovalQueue } from './client/components/ApprovalQueue.tsx';

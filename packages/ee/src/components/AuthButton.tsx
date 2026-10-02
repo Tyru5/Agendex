@@ -15,6 +15,7 @@ import { APP_URL } from '../lib/auth-client.ts';
 import { externalAuthUrl, shouldOpenAuthExternally } from '../lib/auth-navigation.ts';
 import { AUTH_PROVIDERS } from '../lib/auth-providers.ts';
 import { PricingModal } from './PricingModal';
+import { UserAvatar } from './UserAvatar.tsx';
 
 const DASHBOARD_PATH = '/dashboard';
 
@@ -211,13 +212,12 @@ export function AuthButton() {
           aria-label="Account menu"
           className="size-[30px] rounded-full overflow-hidden cursor-pointer border border-border p-0 bg-transparent flex items-center justify-center transition-[border-color,opacity] duration-150 hover:opacity-90 hover:border-[var(--border-strong)]"
         >
-          {user?.image ? (
-            <img src={user.image} alt="" className="size-[30px] rounded-full object-cover" />
-          ) : (
-            <div className="size-[30px] rounded-full bg-border flex items-center justify-center text-[11px] font-semibold text-secondary">
-              {initial}
-            </div>
-          )}
+          <UserAvatar
+            src={user?.image}
+            initial={initial}
+            className="size-[30px] rounded-full object-cover"
+            fallbackClassName="size-[30px] rounded-full bg-border flex items-center justify-center text-[11px] font-semibold text-secondary"
+          />
         </button>
 
         {open && (
