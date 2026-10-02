@@ -197,4 +197,5 @@ export type {
 } from './types.ts';
 export { ProFeature } from './types.ts';
 
+export { getPlanSessionCost } from './services/plan-session-cost.ts';
 export { openPlanRead, clearPlanRead } from './services/plan-read-store';

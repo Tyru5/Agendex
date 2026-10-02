@@ -108,6 +108,8 @@ export const grokAdapter: AgentAdapter = {
       if (sessionId) {
         metadata.sessionId = sessionId;
         metadata.sessionIdSource = 'grok';
+        // The usage parser uses this source-local identity when ACP rows omit sessionId.
+        metadata.sessionTranscriptId = `grok:${basename(dirname(filePath))}`;
       }
       if (summary.branch) metadata.branch = summary.branch;
       if (summary.commit) metadata.commit = summary.commit;

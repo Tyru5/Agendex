@@ -47,6 +47,8 @@ import {
   usePlanFolders,
   usePlanState,
   usePlanReceipt,
+  usePlanSessionCost,
+  type PlanSessionCostState,
   usePlanReceiptSummaries,
   usePlans,
   useProductTour,
@@ -925,6 +927,7 @@ function CloudPlanReviewWorkspace({
   onChartWideChange,
   onToggleChart,
   receipt,
+  sessionCost,
 }: {
   plan: Plan;
   planContext: { mode: DashboardMode; isPro: boolean };
@@ -944,6 +947,7 @@ function CloudPlanReviewWorkspace({
   onChartWideChange?: (wide: boolean) => void;
   onToggleChart?: () => void;
   receipt: PlanReceiptState;
+  sessionCost: PlanSessionCostState;
 }) {
   const { mode, isPro } = planContext;
   const {
@@ -1076,6 +1080,8 @@ function CloudPlanReviewWorkspace({
             onSelectAnnotation={annotationState.setSelectedAnnotationId}
             receipt={receipt.receipt}
             receiptLoading={receipt.loading}
+            sessionCost={sessionCost.sessionCost}
+            sessionCostLoading={sessionCost.loading}
           />
         </div>
 
@@ -1376,6 +1382,30 @@ function useDashboardMain({
     splitPlan,
     mode === 'local' || Boolean(splitPlan?.localPlanId),
   );
+  const selectedLocalSessionCost = usePlanSessionCost(selectedPlan, mode === 'local');
+  const splitLocalSessionCost = usePlanSessionCost(splitPlan, mode === 'local');
+  const selectedCloudSessionCost = useQuery(
+    api.planSessionCost.get,
+    mode === 'cloud' && selectedPlan ? { planId: selectedPlan.id as Id<'plans'> } : 'skip',
+  );
+  const splitCloudSessionCost = useQuery(
+    api.planSessionCost.get,
+    mode === 'cloud' && splitPlan ? { planId: splitPlan.id as Id<'plans'> } : 'skip',
+  );
+  const selectedSessionCost: PlanSessionCostState =
+    mode === 'local'
+      ? selectedLocalSessionCost
+      : {
+          sessionCost: selectedCloudSessionCost ?? null,
+          loading: Boolean(selectedPlan) && selectedCloudSessionCost === undefined,
+        };
+  const splitSessionCost: PlanSessionCostState =
+    mode === 'local'
+      ? splitLocalSessionCost
+      : {
+          sessionCost: splitCloudSessionCost ?? null,
+          loading: Boolean(splitPlan) && splitCloudSessionCost === undefined,
+        };
   const { user } = useAuth();
   const currentUserId = user?.id ? String(user.id) : undefined;
   const canWriteSelectedAnnotations =
@@ -1519,6 +1549,8 @@ function useDashboardMain({
             onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
             receipt={selectedReceipt.receipt}
             receiptLoading={selectedReceipt.loading}
+            sessionCost={selectedSessionCost.sessionCost}
+            sessionCostLoading={selectedSessionCost.loading}
           />
           {isCloudReview && (
             <CloudToolbarOptionStack
@@ -1558,6 +1590,8 @@ function useDashboardMain({
             onSelectAnnotation={splitAnnotationState.setSelectedAnnotationId}
             receipt={splitReceipt.receipt}
             receiptLoading={splitReceipt.loading}
+            sessionCost={splitSessionCost.sessionCost}
+            sessionCostLoading={splitSessionCost.loading}
           />
           {isCloudReview && (
             <CloudToolbarOptionStack
@@ -1721,6 +1755,7 @@ function useDashboardMain({
                 onChartWideChange={onChartWideChange}
                 onToggleChart={onToggleChart}
                 receipt={selectedReceipt}
+                sessionCost={selectedSessionCost}
               />
             ) : (
               <LazyPlanViewer
@@ -1748,6 +1783,8 @@ function useDashboardMain({
                 onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
                 receipt={selectedReceipt.receipt}
                 receiptLoading={selectedReceipt.loading}
+                sessionCost={selectedSessionCost.sessionCost}
+                sessionCostLoading={selectedSessionCost.loading}
               />
             )}
             {sharing && isCloudReview && (

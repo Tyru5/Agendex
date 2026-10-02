@@ -229,6 +229,10 @@ export type { PreloadableComponent } from './client/lib/lazy-with-preload.ts';
 export { lazyWithPreload, preloadComponents, whenIdle } from './client/lib/lazy-with-preload.ts';
 
 export {
+  usePlanSessionCost,
+  type PlanSessionCostState,
+} from './client/hooks/usePlanSessionCost.ts';
+export {
   FilePlanLookupContext,
   localFilePlanCounts,
   type FilePlanLookup,

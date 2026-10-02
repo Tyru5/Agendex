@@ -18,19 +18,42 @@ function extractTitle(content: string, filename: string): string {
     .join(' ');
 }
 
-function frontmatterValue(content: string, key: string): string | undefined {
+/** Native session IDs are YAML scalar strings, which may be quoted. */
+function sessionScalar(value: string): string | undefined {
+  const scalar = value.trim();
+  if (scalar.startsWith('"')) {
+    const quoted = scalar.match(/^"(?:[^"\\]|\\.)*"(?=\s*(?:#|$))/)?.[0];
+    if (!quoted) return undefined;
+    try {
+      const parsed: unknown = JSON.parse(quoted);
+      return typeof parsed === 'string' ? parsed.trim() || undefined : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  if (scalar.startsWith("'")) {
+    const match = scalar.match(/^'((?:[^']|'')*)'(?=\s*(?:#|$))/);
+    return match?.[1]?.replaceAll("''", "'").trim() || undefined;
+  }
+  return scalar.replace(/\s+#.*$/, '').trim() || undefined;
+}
+
+/** Every value for `key`: repeated keys must not hide a conflicting session ID. */
+function frontmatterValues(content: string, key: string): string[] {
   const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
   const frontmatter = fmMatch?.[1];
-  if (!frontmatter) return undefined;
+  if (!frontmatter) return [];
 
+  const values: string[] = [];
   for (const line of frontmatter.split('\n')) {
     const separatorIndex = line.indexOf(':');
     if (separatorIndex === -1) continue;
     if (line.slice(0, separatorIndex).trim() !== key) continue;
-    return line.slice(separatorIndex + 1).trim() || undefined;
+    const value = sessionScalar(line.slice(separatorIndex + 1));
+    if (value) values.push(value);
   }
 
-  return undefined;
+  return values;
 }
 
 function stableFilenameSessionId(filePath: string): string | undefined {
@@ -42,14 +65,19 @@ function stableFilenameSessionId(filePath: string): string | undefined {
 }
 
 function extractMetadata(content: string, filePath: string): Record<string, unknown> {
-  const sessionId =
-    frontmatterValue(content, 'sessionId') ??
-    frontmatterValue(content, 'session_id') ??
-    frontmatterValue(content, 'conversationId') ??
-    frontmatterValue(content, 'conversation_id') ??
-    stableFilenameSessionId(filePath);
-
-  return sessionId ? { sessionId, sessionIdSource: 'claude-code' } : {};
+  const explicitIds = ['sessionId', 'session_id', 'conversationId', 'conversation_id'].flatMap(
+    (key) => frontmatterValues(content, key),
+  );
+  const sessionId = explicitIds[0];
+  const id = sessionId ?? stableFilenameSessionId(filePath);
+  return id
+    ? {
+        sessionId: id,
+        sessionIdSource: 'claude-code',
+        sessionIdOrigin:
+          new Set(explicitIds).size > 1 ? 'ambiguous' : sessionId ? 'frontmatter' : 'filename',
+      }
+    : {};
 }
 
 export const claudeCodeAdapter: AgentAdapter = {

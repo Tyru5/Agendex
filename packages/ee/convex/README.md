@@ -16,6 +16,7 @@ This directory contains the Convex backend for Agendex Cloud / EE. It powers aut
 - `subscriptions.ts` - trial start and skip flows, checkout and portal sessions, and webhook-driven subscription sync
 - `cli.ts` - cloud plan upsert flow, token refresh, daemon heartbeat writes, and daemon status queries (clients authenticate with a session token from `agendex login`; open the dashboard in a browser with `agendex open`; the CLI keeps `cloudToken` and `convexUrl` under `~/.agendex`, or `~/.agendex-dev` when using `agendex --dev` / `AGENDEX_DEV=1` — see `packages/cli/README.md`)
 - `plans.ts` - EE plan retrieval helpers and shared plan access
+- `planSessionCost.ts` - observed session usage from complete, deduplicated 90-day daemon snapshots for the plan owner; unavailable when session identity or snapshots cannot support attribution
 - `filePlanMentionIndex.ts` - refreshes visible synced file mentions on plan changes, with a 512-reference limit per plan
 - `filePlanMentions.ts` - paginated file lookup, capped related-plan counts, indexing status, and batched backfill for existing plans
 - `planVisibility.ts` - shared low-value plan classification on ingest, metadata merge, and visibility gates for reads

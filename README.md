@@ -21,6 +21,7 @@ Agendex is a Bun workspaces monorepo:
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
+- Session cost: observed USD API-equivalent usage estimates for verified Claude Code, Codex CLI, and Grok sessions, with shared-session and unknown-price disclosures
 - Cross-agent [comparison and handoff](docs/cross-agent-handoff.md): workspace-scoped suggestions with matching evidence, Markdown context export, and reviewable commands for installed Codex and Claude Code CLIs
 - [Changes since last read](docs/changes-since-last-read.md): compare a plan's title and body with the exact revision previously opened, independently of unread badges
 - [Live plan approval](docs/plan-approval-gates.md): review Claude Code ExitPlanMode snapshots or manually submitted files through the local Reviews queue
@@ -51,7 +52,7 @@ CLI daemon is already running. The worker uses the encrypted desktop session, re
 separate CLI login, and stops with the Electron application. Existing CLI daemons remain
 independently owned and are never stopped by desktop logout or shutdown.
 
-For usage instructions, see the in-app **Docs** entries for **Plan search**, **Plan receipts**,
+For usage instructions, see the in-app **Docs** entries for **Plan search**, **Plan receipts**, **Session cost**,
 **Activity brief**, **Sharing & collaboration**, and **MCP server**.
 
 ## Adapter Status
@@ -353,6 +354,12 @@ Key endpoints:
   relevance order unless `sort=updatedAt|createdAt|title` is set.
 - `GET /api/v1/plans/:id`
 - `GET /api/v1/plans/:id/raw`
+- `GET /api/v1/plans/:id/session-cost` -> `{ sessionCost }`: observed session usage for the last
+  90 days, joined only by a verified native session ID. `status: unavailable` explains missing,
+  conflicting, or unverified identity and missing usage. `costUsd` is `null` when every record has
+  unknown pricing; `pricing: partial` means the amount excludes unpriced records. This whole-session
+  USD API-equivalent estimate is not individual plan spend or an invoice. Multiple plans may show
+  the same session amount; never add those amounts together.
 - `GET /api/v1/file-plans` (`path` required; `workspace` or `allWorkspaces=true`, `limit=1..100`, `offset` optional)
   returns newest-first plan summaries that mention a file or have attributed commits that changed
   it. Relative paths resolve from the workspace or server directory; `allWorkspaces=true` searches

@@ -18,6 +18,7 @@
     "./plan-read": "./src/plan-read.ts",
     "./receipts": "./src/receipts/types.ts",
     "./types": "./src/types.ts",
+    "./session-cost": "./src/usage/session-cost.ts",
     "./plan-check": "./src/plan-check.ts",
     "./approval-gates": "./src/approval-gates.ts"
   },

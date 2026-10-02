@@ -1,3 +1,4 @@
+import type { PlanSessionCost } from '@agendex/shared/session-cost';
 import type { PlanReadResult } from '@agendex/shared/plan-read';
 import type { ApprovalDecision, ApprovalSession } from '@agendex/shared/approval-gates';
 import type { PlanChecklistSummary } from '@agendex/shared/plan-checklist';
@@ -350,6 +351,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ paths, sourceFilePath }),
     }),
+
+  getPlanSessionCost: (id: string) =>
+    request<{ sessionCost: PlanSessionCost }>(`/plans/${encodeURIComponent(id)}/session-cost`),
 
   getPlanReceipt: (id: string) =>
     request<{ receipt: PlanReceipt }>(`/plans/${encodeURIComponent(id)}/receipt`),

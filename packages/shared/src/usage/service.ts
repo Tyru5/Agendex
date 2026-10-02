@@ -37,7 +37,7 @@ import {
 } from './types.ts';
 
 const SCAN_CACHE_FILE = 'usage-scan-cache.json';
-const SCAN_CACHE_VERSION = 5;
+const SCAN_CACHE_VERSION = 6;
 export const DEFAULT_USAGE_DAYS = 30;
 /** Soft cap so multi-window cloud snapshots stay under the heartbeat byte budget. */
 const MAX_CLOUD_EVENTS = 400;
@@ -353,6 +353,8 @@ function aggregate(
 export interface GetUsageSummaryOptions {
   /** Rolling window size in days. Defaults to 30. */
   days?: number;
+  /** Restrict records before aggregation, for verified session attribution. */
+  session?: { agent: UsageAgent; sessionId: string; sessionAliases?: readonly string[] };
   /** Override the source list (tests). */
   sources?: UsageSource[];
   /** Override the scan-cache directory (tests). */
@@ -388,7 +390,9 @@ export async function getUsageSummaries(
     readScanCache(cachePath),
   ]);
 
-  const sources = options.sources ?? usageSources();
+  const sources = (options.sources ?? usageSources()).filter(
+    (source) => !options.session || source.agent === options.session.agent,
+  );
   const sourceStatuses: UsageSourceStatus[] = [];
   // Only files touched this scan — merged with the on-disk cache on write so
   // overlapping day-window requests do not discard each other's entries.
@@ -413,6 +417,7 @@ export async function getUsageSummaries(
     }
 
     candidates.sort((a, b) => a.path.localeCompare(b.path));
+    let failedFiles = 0;
     for (const file of candidates) {
       const cached = cache.files[file.path];
       let fileRecords: UsageRecord[];
@@ -422,6 +427,8 @@ export async function getUsageSummaries(
         try {
           fileRecords = await parseTranscriptFile(source.agent, file.path);
         } catch {
+          // Vanished or unreadable after discovery: totals omit this file.
+          failedFiles++;
           continue;
         }
       }
@@ -455,6 +462,7 @@ export async function getUsageSummaries(
       path: source.dir,
       status: 'scanned',
       files: candidates.length,
+      ...(failedFiles ? { failedFiles } : {}),
     });
   }
 
@@ -495,6 +503,14 @@ export async function getUsageSummaries(
     const windowRecords: UsageRecord[] = [];
     for (const record of records) {
       if (record.timestampMs < windowSinceMs) continue;
+      if (
+        options.session &&
+        (record.agent !== options.session.agent ||
+          ![options.session.sessionId, ...(options.session.sessionAliases ?? [])].includes(
+            record.sessionId,
+          ))
+      )
+        continue;
       if (record.dedupeKey !== null) {
         if (seenDedupeKeys.has(record.dedupeKey)) continue;
         seenDedupeKeys.add(record.dedupeKey);

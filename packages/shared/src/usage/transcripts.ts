@@ -115,6 +115,8 @@ export interface CodexParserState {
   sessionId: string;
   model: string | null;
   lastUsageSignature: string | null;
+  /** True once a session_meta row supplied the rollout identity. */
+  hasMetaSessionId?: boolean;
 }
 
 export function createCodexState(fallbackSessionId: string): CodexParserState {
@@ -127,9 +129,21 @@ export function parseCodexLine(line: string, state: CodexParserState): UsageReco
 
   const payload = isRecord(row.payload) ? row.payload : undefined;
 
+  // Mirror the plan adapter's identity: payload.id, else payload.session_id,
+  // else legacy top-level session_meta.session_id.
+  const legacyMeta = isRecord(row.session_meta) ? row.session_meta : undefined;
+  const legacyId = legacyMeta ? asString(legacyMeta.session_id) : undefined;
+  if (legacyId && !state.hasMetaSessionId) {
+    state.sessionId = legacyId;
+    state.hasMetaSessionId = true;
+  }
+
   if (row.type === 'session_meta' && payload) {
     const id = asString(payload.id);
+    const sessionId = asString(payload.session_id);
     if (id) state.sessionId = id;
+    else if (sessionId && !state.hasMetaSessionId) state.sessionId = sessionId;
+    if (id || sessionId) state.hasMetaSessionId = true;
     const model = asString(payload.model);
     if (model) state.model = model;
     return null;

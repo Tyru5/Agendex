@@ -10,6 +10,8 @@ const PARTIAL_EVENT_REDUCTION_STEPS = [200, 100, 50, 25, 10, 1] as const;
 const CLOUD_USAGE_FORMAT_VERSION = 2 as const;
 export type CloudUsageSummary = UsageSummary & {
   cloudFormatVersion: typeof CLOUD_USAGE_FORMAT_VERSION;
+  /** Unreadable transcripts/sources: records may be missing from this snapshot. */
+  failedFiles?: number;
 };
 export type CloudUsageSnapshots = Record<string, CloudUsageSummary>;
 
@@ -26,6 +28,10 @@ type CloudConfigured = () => boolean;
 export function sanitizeUsageSummary(summary: UsageSummary): CloudUsageSummary {
   const { events: _events, ...summaryWithoutEvents } = summary;
   const events = summary.events?.length ? summary.events : undefined;
+  const failedFiles = (summary.sources ?? []).reduce(
+    (sum, source) => sum + (source.failedFiles ?? 0) + (source.status === 'error' ? 1 : 0),
+    0,
+  );
 
   return {
     ...summaryWithoutEvents,
@@ -41,6 +47,7 @@ export function sanitizeUsageSummary(summary: UsageSummary): CloudUsageSummary {
       ? [...summary.dedupeKeys].sort().slice(0, MAX_CLOUD_DEDUPE_KEYS)
       : undefined,
     ...(events ? { events } : {}),
+    ...(failedFiles ? { failedFiles } : {}),
   };
 }
 

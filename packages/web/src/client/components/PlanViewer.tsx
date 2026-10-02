@@ -1,3 +1,4 @@
+import type { PlanSessionCost } from '@agendex/shared/session-cost';
 import { FilePlanCountsContext, useFilePlanCounts } from './FilePlanLookupContext.tsx';
 import {
   type CSSProperties,
@@ -47,6 +48,7 @@ import { PlanActionButton } from './PlanActionButton.tsx';
 import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
 import { PlanPathContext } from './PlanPathContext.tsx';
+import { PlanSessionCostSection } from './PlanSessionCostSection.tsx';
 import { CrossAgentSection, type CrossAgentOptions } from './CrossAgentSection.tsx';
 import { PlanReadSection } from './PlanReadSection.tsx';
 import { PlanReceiptSection } from './PlanReceiptSection.tsx';
@@ -287,6 +289,8 @@ type PlanViewerProps = {
   /** What happened in git after the plan was written; from `usePlanReceipt`. */
   receipt?: PlanReceipt | null;
   receiptLoading?: boolean;
+  sessionCost?: PlanSessionCost | null;
+  sessionCostLoading?: boolean;
 };
 
 export function PlanViewer({
@@ -315,6 +319,8 @@ export function PlanViewer({
   onSelectAnnotation,
   receipt,
   receiptLoading,
+  sessionCost,
+  sessionCostLoading,
 }: PlanViewerProps) {
   const [copied, setCopied] = useState(false);
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionToolbarState | null>(null);
@@ -927,6 +933,11 @@ export function PlanViewer({
               />
             )}
 
+            <PlanSessionCostSection
+              key={`session-cost:${plan.id}`}
+              sessionCost={sessionCost}
+              loading={sessionCostLoading}
+            />
             {allPlans && (
               <CrossAgentSection
                 key={`cross-agent:${plan.id}`}

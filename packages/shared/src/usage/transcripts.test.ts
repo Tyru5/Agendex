@@ -114,6 +114,24 @@ test('parseCodexLine tracks session and model, subtracts cached input', () => {
   expect(record?.totals.reasoningTokens).toBe(80);
 });
 
+test('parseCodexLine uses session_id when session_meta has no id, matching the plan adapter', () => {
+  const tokenLine = JSON.stringify({
+    type: 'event_msg',
+    timestamp: '2026-08-01T10:00:00Z',
+    payload: { type: 'token_count', info: { last_token_usage: { output_tokens: 5 } } },
+  });
+  const state = createCodexState('codex-cli:rollout-file');
+  parseCodexLine(
+    JSON.stringify({ type: 'session_meta', payload: { session_id: 'native-thread' } }),
+    state,
+  );
+  expect(parseCodexLine(tokenLine, state)?.sessionId).toBe('native-thread');
+
+  const legacy = createCodexState('codex-cli:rollout-file');
+  parseCodexLine(JSON.stringify({ session_meta: { session_id: 'legacy-thread' } }), legacy);
+  expect(parseCodexLine(tokenLine, legacy)?.sessionId).toBe('legacy-thread');
+});
+
 test('parseCodexLine drops identical consecutive token payloads', () => {
   const state = createCodexState('fallback');
   const line = JSON.stringify({

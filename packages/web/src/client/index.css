@@ -10071,6 +10071,14 @@ body:has(> * > * > .landing-page) {
   }
 }
 
+/* Session cost is an advisory detail using the existing plan-viewer palette. */
+.plan-session-cost { margin: 0 0 1rem; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+.plan-session-cost summary { padding: 10px 12px; cursor: pointer; color: var(--text); }
+.plan-session-cost summary span { margin-left: 12px; color: var(--secondary); }
+.plan-session-cost-detail { padding: 0 12px 12px; color: var(--secondary); }
+.plan-session-cost-detail p { margin: 8px 0; }
+.plan-session-cost-detail dd { margin: 2px 0 8px; overflow-wrap: anywhere; }
+.plan-session-cost-detail dt { color: var(--text); }
 /* File provenance count is a separate action from opening the source. */
 .plan-path-count {
   align-self: stretch;
