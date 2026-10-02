@@ -1,3 +1,4 @@
+import { FilePlanCountsContext, useFilePlanCounts } from './FilePlanLookupContext.tsx';
 import {
   type CSSProperties,
   type FormEvent,
@@ -401,6 +402,7 @@ export function PlanViewer({
     contentKey: renderContent,
   });
 
+  const filePlanCounts = useFilePlanCounts(plan, renderMode === 'markdown' ? renderContent : '');
   // Plain-text plans still validate paths so their advisory check can report files.
   const planPaths = useValidatedPlanPaths(plan, sourceContent);
   const checkPlanInput = useMemo(
@@ -1066,15 +1068,17 @@ export function PlanViewer({
               onKeyUp={updateSelectionToolbar}
             >
               <div id="plan-top" aria-hidden="true" />
-              <PlanPathContext.Provider value={planPaths}>
-                <Markdown
-                  remarkPlugins={planMarkdownRemarkPlugins}
-                  rehypePlugins={planMarkdownRehypePlugins}
-                  components={planMarkdownComponents}
-                >
-                  {renderContent}
-                </Markdown>
-              </PlanPathContext.Provider>
+              <FilePlanCountsContext.Provider value={filePlanCounts}>
+                <PlanPathContext.Provider value={planPaths}>
+                  <Markdown
+                    remarkPlugins={planMarkdownRemarkPlugins}
+                    rehypePlugins={planMarkdownRehypePlugins}
+                    components={planMarkdownComponents}
+                  >
+                    {renderContent}
+                  </Markdown>
+                </PlanPathContext.Provider>
+              </FilePlanCountsContext.Provider>
             </article>
           ) : (
             <>

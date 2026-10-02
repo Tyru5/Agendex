@@ -89,10 +89,23 @@ export default defineSchema({
     contentHash: v.optional(v.string()),
     identityVersion: v.optional(v.number()),
     identityStrength: v.optional(v.string()),
+    fileMentionIndexVersion: v.optional(v.number()),
+    fileMentionIndexTruncated: v.optional(v.boolean()),
+    // Duplicate-group key recorded at index time so a group's previous
+    // members can be reconciled after a plan leaves it.
+    fileMentionDuplicateKey: v.optional(v.string()),
     version: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index('by_fileMentionIndexVersion', ['fileMentionIndexVersion'])
+    .index('by_owner_and_fileMentionIndexVersion', ['ownerId', 'fileMentionIndexVersion'])
+    .index('by_owner_and_fileMentionIndexTruncated', ['ownerId', 'fileMentionIndexTruncated'])
+    .index('by_owner_and_fileMentionDuplicateKey_and_updatedAt', [
+      'ownerId',
+      'fileMentionDuplicateKey',
+      'updatedAt',
+    ])
     .index('by_owner', ['ownerId'])
     .index('by_owner_and_agent', ['ownerId', 'agent'])
     .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
@@ -118,6 +131,23 @@ export default defineSchema({
       searchField: 'title',
       filterFields: ['ownerId', 'agent'],
     }),
+
+  filePlanMentions: defineTable({
+    ownerId: v.string(),
+    planId: v.id('plans'),
+    path: v.string(),
+    workspace: v.string(),
+    visible: v.boolean(),
+  })
+    .index('by_owner', ['ownerId'])
+    .index('by_plan', ['planId'])
+    .index('by_plan_and_path', ['planId', 'path'])
+    .index('by_owner_and_path_and_visible_and_workspace', [
+      'ownerId',
+      'path',
+      'visible',
+      'workspace',
+    ]),
 
   shareLinks: defineTable({
     planId: v.id('plans'),
@@ -396,6 +426,7 @@ export default defineSchema({
         v.literal('planLinks'),
         v.literal('collectionPlans'),
         v.literal('planPreferences'),
+        v.literal('filePlanMentions'),
       ),
     ),
     attempt: v.number(),

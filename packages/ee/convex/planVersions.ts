@@ -1,3 +1,4 @@
+import { refreshFilePlanMentions } from './filePlanMentionIndex';
 import { ProFeature } from '@agendex/shared/types';
 import { canonicalPlanAgent, normalizePlanLookupText } from '@agendex/shared/plan-download-lookup';
 import { ConvexError, v } from 'convex/values';
@@ -170,6 +171,7 @@ export const restore = mutation({
       source: 'restore',
       createdAt: now,
     });
+    await refreshFilePlanMentions(ctx, args.planId);
     return null;
   },
 });

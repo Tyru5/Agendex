@@ -7,6 +7,7 @@ import { type MutationCtx, type QueryCtx, mutation, query } from './_generated/s
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
+import { refreshFilePlanMentions } from './filePlanMentionIndex';
 import { normalizePlanSourcePath, planMatchesSource } from './planSourcePath';
 import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 import {
@@ -68,10 +69,17 @@ async function publishPlanDocument(ctx: MutationCtx, args: PublishPlanArgs): Pro
     )
     .first();
 
-  if (existing && !planContentChanged(existing, args)) return existing;
-
   let planId: Id<'plans'>;
-  if (existing) {
+  if (existing && !planContentChanged(existing, args)) {
+    // Identity-only republish: omitted optional fields (e.g. a retry without
+    // metadata) keep their stored values so source-scoped cleanup still matches.
+    await ctx.db.patch(existing._id, {
+      ...(args.workspace !== undefined && { workspace: args.workspace }),
+      ...(args.filePath !== undefined && { filePath: args.filePath }),
+      ...(args.metadata !== undefined && { metadata }),
+    });
+    planId = existing._id;
+  } else if (existing) {
     await ensureBaselinePlanVersion(ctx, {
       ownerId,
       planId: existing._id,
@@ -147,6 +155,7 @@ async function publishPlanDocument(ctx: MutationCtx, args: PublishPlanArgs): Pro
     });
   }
 
+  await refreshFilePlanMentions(ctx, planId);
   const published = await ctx.db.get(planId);
   if (!published) throw new ConvexError('Plan not found');
   return published;
@@ -415,6 +424,7 @@ export const renamePlan = mutation({
       source: 'editor',
       createdAt: now,
     });
+    await refreshFilePlanMentions(ctx, args.planId);
     return null;
   },
 });
@@ -495,6 +505,7 @@ export const updatePlanContent = mutation({
       source: 'editor',
       createdAt: now,
     });
+    await refreshFilePlanMentions(ctx, args.planId);
     return null;
   },
 });
@@ -529,7 +540,8 @@ export const deletePlan = mutation({
  * Related-data cleanup fans out several deletes per plan, so keep each
  * transaction well within Convex write limits.
  */
-const DELETE_SOURCE_BATCH_SIZE = 25;
+// At most 512 indexed file mentions accompany each deleted plan.
+const DELETE_SOURCE_BATCH_SIZE = 3;
 
 /**
  * Deletes a bounded batch of the caller's plans synced from one custom source

@@ -107,7 +107,7 @@ export function filterVisiblePlans<T extends PlanWithMetadata>(plans: T[]): T[] 
   return plans.filter((plan) => !hasLowValueMetadata(plan.metadata));
 }
 
-function duplicateKey(plan: PlanWithDuplicateIdentity): string | undefined {
+export function duplicateKey(plan: PlanWithDuplicateIdentity): string | undefined {
   if (plan.syncIdentityKey) return `sync:${plan.syncIdentityKey}`;
   if (plan.contentHash) {
     return `exact:${exactDuplicateKey({

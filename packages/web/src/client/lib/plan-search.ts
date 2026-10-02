@@ -1,4 +1,5 @@
 import type { Plan } from './api.ts';
+import { parseFilePlanQuery } from './file-plan-query.ts';
 
 /**
  * Filters plans by a search query across title, content, agent, workspace,
@@ -13,7 +14,12 @@ export function filterPlans(
   plans: Plan[],
   query: string,
   contentMatchIds?: ReadonlySet<string>,
+  fileMatchIds?: ReadonlySet<string>,
 ): Plan[] {
+  if (fileMatchIds) {
+    plans = plans.filter((plan) => fileMatchIds.has(plan.id));
+    query = parseFilePlanQuery(query).text;
+  }
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return plans;
 

@@ -10071,6 +10071,20 @@ body:has(> * > * > .landing-page) {
   }
 }
 
+/* File provenance count is a separate action from opening the source. */
+.plan-path-count {
+  align-self: stretch;
+  padding: 0 4px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+}
+.plan-path-count:hover { color: var(--text); }
+.plan-path-count:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cross-agent-section { margin-top: 16px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--secondary); font-size: 13px; }
 .cross-agent-section summary { cursor: pointer; color: var(--text); font-weight: 600; }
 .cross-agent-section p { margin: 8px 0; }

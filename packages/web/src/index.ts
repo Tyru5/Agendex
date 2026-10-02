@@ -1,4 +1,6 @@
 export { AgentFilter } from './client/components/AgentFilter.tsx';
+export { useFilePlanSearch } from './client/hooks/useFilePlanSearch.ts';
+
 export {
   AgentAvatarProvider,
   useAgentAvatarMap,
@@ -226,6 +228,12 @@ export { startViewTransition } from './client/lib/view-transition.ts';
 export type { PreloadableComponent } from './client/lib/lazy-with-preload.ts';
 export { lazyWithPreload, preloadComponents, whenIdle } from './client/lib/lazy-with-preload.ts';
 
+export {
+  FilePlanLookupContext,
+  localFilePlanCounts,
+  type FilePlanLookup,
+} from './client/components/FilePlanLookupContext.tsx';
+export { filePlanSearchQuery, parseFilePlanQuery } from './client/lib/file-plan-query.ts';
 export { HiddenPlansRecoveryButton } from './client/components/HiddenPlansRecoveryButton.tsx';
 export { PlanReadContext, localPlanReadSource } from './client/lib/plan-read-context.tsx';
 export type { PlanReadSource } from './client/lib/plan-read-context.tsx';

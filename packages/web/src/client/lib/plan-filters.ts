@@ -24,6 +24,7 @@ export type PlanFilterState = {
   tagIds?: readonly string[];
   collectionId?: string;
   contentMatchIds?: ReadonlySet<string>;
+  fileMatchIds?: ReadonlySet<string>;
   planTagsById?: PlanTagsById;
   collectionMemberIds?: ReadonlySet<string>;
 };
@@ -58,7 +59,7 @@ const DATE_CHIP_LABELS: Record<Exclude<PlanDateBucket, 'all'>, string> = {
 };
 
 export function applyPlanFilters(plans: Plan[], state: PlanFilterState): Plan[] {
-  let result = filterPlans(plans, state.q ?? '', state.contentMatchIds);
+  let result = filterPlans(plans, state.q ?? '', state.contentMatchIds, state.fileMatchIds);
 
   const agents = nonEmptyValues(state.agents);
   if (agents.length > 0) {

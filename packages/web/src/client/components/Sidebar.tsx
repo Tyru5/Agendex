@@ -183,7 +183,7 @@ export function Sidebar({
             <SkeletonBlock lines={5} />
           </div>
         ) : error ? (
-          <div className="p-4 text-[13px] text-[var(--danger)]">Failed to load plans.</div>
+          <div className="p-4 text-[13px] text-[var(--danger)]">{error}</div>
         ) : (
           <PlanList
             plans={filteredPlans}
