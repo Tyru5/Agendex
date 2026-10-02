@@ -14,6 +14,7 @@ import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
 import { junieAdapter } from '../../../../shared/src/adapters/file-artifact-adapters.ts';
 import { plans } from './plans.ts';
 
+const originalConfigDir = process.env.AGENDEX_CONFIG_DIR;
 let workspace: string;
 let outside: string;
 let planId: string;
@@ -101,6 +102,7 @@ beforeAll(async () => {
   clearPathResolveCache();
   workspace = await mkdtemp(join(tmpdir(), 'agendex-plans-route-ws-'));
   outside = await mkdtemp(join(tmpdir(), 'agendex-plans-route-out-'));
+  process.env.AGENDEX_CONFIG_DIR = join(outside, 'config');
 
   await mkdir(join(workspace, 'src'), { recursive: true });
   await mkdir(join(workspace, 'packages', 'a'), { recursive: true });
@@ -148,6 +150,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   delete process.env.AGENDEX_JUNIE_PLAN_DIRS;
+  if (originalConfigDir === undefined) delete process.env.AGENDEX_CONFIG_DIR;
+  else process.env.AGENDEX_CONFIG_DIR = originalConfigDir;
   await rm(workspace, { recursive: true, force: true });
   await rm(outside, { recursive: true, force: true });
 });
@@ -349,5 +353,58 @@ describe('plan receipts', () => {
     const subset = await plans.request(`/receipts?ids=${encodeURIComponent(ledgerPlanId)}`);
     const subsetBody = (await subset.json()) as { receipts: Record<string, PlanReceiptSummary> };
     expect(Object.keys(subsetBody.receipts)).toEqual([ledgerPlanId]);
+  });
+});
+
+describe('read-content baselines', () => {
+  async function currentPlan() {
+    const response = await plans.request(`/plans/${planId}`);
+    return (await response.json()) as { title: string; content: string; updatedAt: string };
+  }
+  test('records the displayed revision and returns the actual prior content after a scan', async () => {
+    const first = await currentPlan();
+    const read = await postJson(`/plans/${planId}/read`, first);
+    expect(read.status).toBe(200);
+    expect(await read.json()).toEqual({ baseline: null, reason: 'first-read' });
+    try {
+      await writeFile(
+        planFilePath,
+        PLAN_CONTENT + '\n## Follow-up\n\n1. Add a retry when the cache is cold.\n',
+      );
+      await scan();
+      const next = await currentPlan();
+      const nextRead = await postJson(`/plans/${planId}/read`, next);
+      expect(nextRead.status).toBe(200);
+      expect(await nextRead.json()).toMatchObject({
+        reason: 'available',
+        baseline: { content: first.content },
+      });
+      const cleared = await plans.request(`/plans/${planId}/read`, { method: 'DELETE' });
+      expect(cleared.status).toBe(200);
+      expect(await (await postJson(`/plans/${planId}/read`, next)).json()).toMatchObject({
+        baseline: null,
+        reason: 'first-read',
+      });
+    } finally {
+      await writeFile(planFilePath, PLAN_CONTENT);
+      await scan();
+    }
+  });
+  test('rejects stale/unloaded content without changing the remembered baseline', async () => {
+    const current = await currentPlan();
+    for (const body of [null, [], 'text', 1, {}]) {
+      const malformed = await postJson(`/plans/${planId}/read`, body);
+      expect(malformed.status).toBe(400);
+    }
+    for (const changed of [
+      { content: '' },
+      { title: 'stale title' },
+      { updatedAt: '2000-01-01' },
+    ]) {
+      const response = await postJson(`/plans/${planId}/read`, { ...current, ...changed });
+      expect(response.status).toBe(409);
+    }
+    expect((await postJson('/plans/unknown/read', current)).status).toBe(404);
+    expect((await plans.request('/plans/unknown/read', { method: 'DELETE' })).status).toBe(404);
   });
 });

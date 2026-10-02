@@ -10,6 +10,7 @@ import { api } from '@convex/_generated/api';
 import { useMutation } from 'convex/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
+import { publishedCloudPlan } from '../lib/owned-plan-read-source.ts';
 
 interface UploadFile {
   name: string;
@@ -45,21 +46,6 @@ function getAgentOptions(agents: AgentStats[]) {
   return Array.from(new Set([...agents.map((agent) => agent.agent), ...AGENT_IDS]));
 }
 
-function makeCloudPlan(id: string, agent: string, title: string, content: string): Plan {
-  const now = new Date().toISOString();
-  return {
-    id,
-    agent,
-    title,
-    content,
-    format: 'md',
-    filePath: '',
-    createdAt: now,
-    updatedAt: now,
-    metadata: {},
-  };
-}
-
 export function CloudPlanUploader({
   agents,
   onClose,
@@ -70,6 +56,7 @@ export function CloudPlanUploader({
   onCreated: (plan: Plan) => void;
 }) {
   const publishPlan = useMutation(api.plans.publishPlan);
+  const publishPlanWithSnapshot = useMutation(api.plans.publishPlanWithSnapshot);
   const agentOptions = useMemo(() => getAgentOptions(agents), [agents]);
   const [step, setStep] = useState<Step>('pick');
   const [agent, setAgent] = useState(() => agentOptions[0] ?? '');
@@ -139,16 +126,18 @@ export function CloudPlanUploader({
         const file = valid[i]!;
         const trimmedTitle = file.title.trim();
         const trimmedContent = file.content.trim();
-        const planId = await publishPlan({
+        const args = {
           localPlanId: `cloud-${crypto.randomUUID()}`,
           agent,
           title: trimmedTitle,
           content: trimmedContent,
           format: 'md',
-          metadata: { uploaded: true, userCreated: true, planValueOverride: 'manual' },
-        });
+          metadata: { uploaded: true, userCreated: true, planValueOverride: 'manual' as const },
+        };
         if (i === 0) {
-          firstPlan = makeCloudPlan(planId, agent, trimmedTitle, trimmedContent);
+          firstPlan = publishedCloudPlan(await publishPlanWithSnapshot(args));
+        } else {
+          await publishPlan(args);
         }
         setUploadProgress(() => i + 1);
       }

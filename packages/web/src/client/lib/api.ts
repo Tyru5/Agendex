@@ -1,3 +1,4 @@
+import type { PlanReadResult } from '@agendex/shared/plan-read';
 import type { ApprovalDecision, ApprovalSession } from '@agendex/shared/approval-gates';
 import type { PlanChecklistSummary } from '@agendex/shared/plan-checklist';
 import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
@@ -128,6 +129,8 @@ export interface Plan {
   metadata: Record<string, unknown>;
   /** Checklist progress for rows shipped without content (cloud lists). */
   checklist?: PlanChecklistSummary;
+  /** False for cloud list stubs; only hydrated bodies may advance the read boundary. */
+  contentLoaded?: boolean;
 }
 
 export interface PlansResponse {
@@ -249,6 +252,14 @@ export const api = {
     get<PlansResponse>(plansPath(params)),
 
   getPlan: (id: string) => request<Plan>(`/plans/${id}`),
+
+  openPlanRead: (plan: Plan) =>
+    request<PlanReadResult>(`/plans/${encodeURIComponent(plan.id)}/read`, {
+      method: 'POST',
+      body: JSON.stringify({ updatedAt: plan.updatedAt, title: plan.title, content: plan.content }),
+    }),
+  clearPlanRead: (plan: Plan) =>
+    request<{ ok: boolean }>(`/plans/${encodeURIComponent(plan.id)}/read`, { method: 'DELETE' }),
 
   getAgents: () => get<AgentStats[]>('/agents'),
 

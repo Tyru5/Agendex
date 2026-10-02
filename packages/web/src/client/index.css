@@ -10034,6 +10034,10 @@ body:has(> * > * > .landing-page) {
   }
 }
 
+.plan-read-section { margin-top: 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); }
+.plan-read-section > summary { cursor: pointer; padding: 10px 12px; font-size: 13px; }
+.plan-read-section-body { padding: 0 12px 12px; color: var(--secondary); font-size: 13px; }
+.plan-read-section-body > button { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; cursor: pointer; color: var(--text); background: transparent; }
 .agendex-approval-dialog::backdrop {
   background: color-mix(in oklch, var(--text) 35%, transparent);
 }
