@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.9.0
+
+### Minor Changes
+
+- dc6e09d: T3.codes plan sync support
+
 ## 5.8.0
 
 ### Minor Changes
