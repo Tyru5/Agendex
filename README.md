@@ -42,6 +42,7 @@ Agendex is a Bun workspaces monorepo:
 - Shareable plan links with optional password and expiry, comment threads, tags, collections with their own reorderable plan order, and plan history
 - Activity brief with recent plan updates and checklist progress; git landing evidence is available when a matching local plan and authenticated local API are reachable
 - Workspace members, daemon status/cleanup, and collaboration features
+- [Team review requests](docs/team-review-requests.md) with assigned workspace reviewers, revision-bound decisions, and an in-app inbox
 - Dashboard plan creation, uploads, and editing
 - Pro Plannotator sync and daemon-mediated request-changes write-back
 - Trial and subscription flows

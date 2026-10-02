@@ -302,6 +302,7 @@ const planDeletionPhaseValidator = v.union(
   v.literal('planLinks'),
   v.literal('collectionPlans'),
   v.literal('planPreferences'),
+  v.literal('planReviewRequests'),
   v.literal('filePlanMentions'),
 );
 
@@ -661,6 +662,19 @@ export const runAccountDeletionBatch = internalMutation({
         .query('planPreferences')
         .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
         .take(ACCOUNT_DELETION_BATCH_SIZE);
+      for (const row of rows) await ctx.db.delete(row._id);
+      deleted = rows.length;
+    } else if (job.phase === 'reviewRequestsSent' || job.phase === 'reviewRequestsAssigned') {
+      const rows =
+        job.phase === 'reviewRequestsSent'
+          ? await ctx.db
+              .query('planReviewRequests')
+              .withIndex('by_requester', (q) => q.eq('requesterId', ownerId))
+              .take(ACCOUNT_DELETION_BATCH_SIZE)
+          : await ctx.db
+              .query('planReviewRequests')
+              .withIndex('by_reviewer', (q) => q.eq('reviewerId', ownerId))
+              .take(ACCOUNT_DELETION_BATCH_SIZE);
       for (const row of rows) await ctx.db.delete(row._id);
       deleted = rows.length;
     } else if (job.phase === 'collectionPlans') {

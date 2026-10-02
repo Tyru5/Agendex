@@ -1164,7 +1164,7 @@ export const upsertPlan = internalMutation({
       if (!existing || existing.ownerId !== args.ownerId) throw new ConvexError('Plan not found');
       const contentChanged = planContentChanged(existing, args);
 
-      // Non-content field updates (format/path/workspace/identity) still patch the
+      // Non-content field updates (path/workspace/identity) still patch the
       // live row, but must not create empty "CLI sync" history entries.
       if (!contentChanged) {
         await ctx.db.patch(args.existingId, {
