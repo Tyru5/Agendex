@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -349,6 +349,10 @@ test('T3 Code prefers an existing thread worktree over the project root', async 
   const worktreeDir = join(tempRoot, '.t3', 'worktrees', 'agendex', 'abc');
   await mkdir(stateDir, { recursive: true });
   await mkdir(worktreeDir, { recursive: true });
+  await writeFile(join(worktreeDir, '.git'), 'gitdir: /workspace/agendex/.git/worktrees/abc\n');
+  // Exists on disk but is not a checkout (no .git entry): must not be preferred.
+  const bareDir = join(tempRoot, '.t3', 'worktrees', 'agendex', 'bare');
+  await mkdir(bareDir, { recursive: true });
   const databasePath = join(stateDir, 'state.sqlite');
   const database = new Database(databasePath);
   database.exec(SCHEMA);
@@ -357,10 +361,12 @@ test('T3 Code prefers an existing thread worktree over the project root', async 
       ('proj-1', 'Agendex', '/workspace/agendex', '[]', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', NULL);
     INSERT INTO projection_threads VALUES
       ('thread-live-wt', 'proj-1', 'Live worktree', 't3code/abc', '${worktreeDir}', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', NULL, NULL),
-      ('thread-gone-wt', 'proj-1', 'Removed worktree', 't3code/xyz', '${join(tempRoot, 'missing')}', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', NULL, NULL);
+      ('thread-gone-wt', 'proj-1', 'Removed worktree', 't3code/xyz', '${join(tempRoot, 'missing')}', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', NULL, NULL),
+      ('thread-bare-wt', 'proj-1', 'Bare directory', 't3code/bare', '${bareDir}', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', NULL, NULL);
     INSERT INTO projection_thread_proposed_plans VALUES
       ('plan:live', 'thread-live-wt', 'turn-1', '# Live', '2026-01-01T10:00:00.000Z', '2026-01-01T10:00:00.000Z', NULL, NULL),
-      ('plan:gone', 'thread-gone-wt', 'turn-2', '# Gone', '2026-01-01T11:00:00.000Z', '2026-01-01T11:00:00.000Z', NULL, NULL);
+      ('plan:gone', 'thread-gone-wt', 'turn-2', '# Gone', '2026-01-01T11:00:00.000Z', '2026-01-01T11:00:00.000Z', NULL, NULL),
+      ('plan:bare', 'thread-bare-wt', 'turn-3', '# Bare', '2026-01-01T12:00:00.000Z', '2026-01-01T12:00:00.000Z', NULL, NULL);
   `);
   database.close(true);
 
@@ -368,7 +374,9 @@ test('T3 Code prefers an existing thread worktree over the project root', async 
   expect(plans.map((plan) => [plan.title, plan.workspace])).toEqual([
     ['Live', worktreeDir],
     ['Gone', '/workspace/agendex'],
+    ['Bare', '/workspace/agendex'],
   ]);
+  expect(plans[2]?.metadata.worktreePath).toBe(bareDir);
   expect(plans[1]?.metadata.worktreePath).toBe(join(tempRoot, 'missing'));
 });
 

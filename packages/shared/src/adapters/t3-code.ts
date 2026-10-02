@@ -100,6 +100,14 @@ function resolveT3CodeSourcePath(filePath: string): string {
   return resolved;
 }
 
+/**
+ * A usable worktree has a `.git` entry: a directory for the main checkout or a
+ * gitdir pointer file for linked worktrees. A bare leftover directory is not.
+ */
+function isGitWorktree(path: string): boolean {
+  return existsSync(join(path, '.git'));
+}
+
 function toDate(value: string | null | undefined): Date | undefined {
   if (!value) return undefined;
   const date = new Date(value);
@@ -228,12 +236,12 @@ async function decodeT3CodeDatabase(filePath: string): Promise<StructuredPlanCan
 
     const threadTitle = nonEmpty(thread?.title);
     const title = extractMarkdownTitle(row.plan_markdown) ?? threadTitle ?? 'T3 Code Plan';
-    // Prefer the thread's worktree while it exists so file receipts resolve
+    // Prefer the thread's worktree while it is a real checkout so file receipts resolve
     // against the branch the plan was written for. T3 removes worktrees when a
     // thread is cleaned up, so fall back to the durable project root after that.
     const worktreePath = nonEmpty(thread?.worktree_path);
     const workspace =
-      worktreePath && existsSync(worktreePath)
+      worktreePath && isGitWorktree(worktreePath)
         ? worktreePath
         : (nonEmpty(project?.workspace_root) ?? worktreePath);
 
