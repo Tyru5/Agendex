@@ -51,6 +51,12 @@ test('legacy command-code adapter id resolves to commandcode', () => {
   ]);
 });
 
+test('T3 Code is an implemented, default-enabled sqlite adapter', () => {
+  expect(getCatalog().find((entry) => entry.id === 't3-code')?.implemented).toBe(true);
+  expect(getDefaultAdapterIds()).toContain('t3-code');
+  expect(resolveAdapters(['t3-code']).map((adapter) => adapter.agent)).toEqual(['t3-code']);
+});
+
 test('stock OpenCode and Oh My OpenCode are distinct supported adapters', () => {
   expect(resolveAdapters(['opencode', 'oh-my-opencode']).map((adapter) => adapter.agent)).toEqual([
     'opencode',

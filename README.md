@@ -58,7 +58,7 @@ For usage instructions, see the in-app **Docs** entries for **Plan search**, **P
 
 ## Adapter Status
 
-Agendex currently has **22 implemented adapters**. Twenty-one use durable plan artifacts or
+Agendex currently has **23 implemented adapters**. Twenty-two use durable plan artifacts or
 explicit Plan-mode session state; Continue is retained as an experimental session adapter:
 
 - `antigravity`
@@ -81,6 +81,7 @@ explicit Plan-mode session state; Continue is retained as an experimental sessio
 - `oh-my-opencode`
 - `plannotator`
 - `qwen-code`
+- `t3-code`
 - `windsurf`
 - `continue` (experimental; requires explicit Plan-mode evidence)
 
@@ -89,6 +90,12 @@ explicit Plan-mode session state; Continue is retained as an experimental sessio
 Unsupported catalog entries are retained for ecosystem tracking but are hidden from adapter selection
 and cannot be enabled. Stock OpenCode session plans and Oh My OpenCode Markdown plans are separate
 adapters.
+
+The `t3-code` adapter indexes [T3 Code](https://github.com/pingdotgg/t3code) proposed plans. T3 Code
+keeps no plan files; plans are rows in its local SQLite projection database
+(`~/.t3/userdata/state.sqlite`, or `~/.t3/dev/state.sqlite` for dev servers). The adapter reads that
+database read-only, honoring `T3CODE_HOME`, and attributes each plan to the T3 project workspace,
+branch, and worktree.
 
 The `omp` adapter indexes [omp (oh-my-pi)](https://omp.sh/docs/plan) Plan-mode draft artifacts stored
 inside omp session directories (`~/.omp/agent/sessions/**/local/*-plan.md`), honoring omp's

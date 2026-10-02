@@ -36,7 +36,7 @@ export function getConfigDir(): string {
 }
 
 /** Current on-disk config schema version. Bump when applying one-shot migrations. */
-export const CURRENT_CONFIG_VERSION = 7;
+export const CURRENT_CONFIG_VERSION = 8;
 
 /**
  * One-shot adapter enable migrations.
@@ -73,6 +73,9 @@ const ADAPTER_ENABLE_MIGRATIONS: Array<{ toVersion: number; enable: AdapterId[] 
   // v7: omp (oh-my-pi) plan-mode drafts under ~/.omp/agent/sessions become a
   // real adapter.
   { toVersion: 7, enable: ['omp'] },
+  // v8: T3 Code proposed plans read from ~/.t3/{userdata,dev}/state.sqlite
+  // become a real adapter.
+  { toVersion: 8, enable: ['t3-code'] },
 ];
 
 /** Last successful `agendex download` run, shown by `agendex status`. */
