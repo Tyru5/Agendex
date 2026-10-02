@@ -228,7 +228,14 @@ async function decodeT3CodeDatabase(filePath: string): Promise<StructuredPlanCan
 
     const threadTitle = nonEmpty(thread?.title);
     const title = extractMarkdownTitle(row.plan_markdown) ?? threadTitle ?? 'T3 Code Plan';
-    const workspace = nonEmpty(project?.workspace_root) ?? nonEmpty(thread?.worktree_path);
+    // Prefer the thread's worktree while it exists so file receipts resolve
+    // against the branch the plan was written for. T3 removes worktrees when a
+    // thread is cleaned up, so fall back to the durable project root after that.
+    const worktreePath = nonEmpty(thread?.worktree_path);
+    const workspace =
+      worktreePath && existsSync(worktreePath)
+        ? worktreePath
+        : (nonEmpty(project?.workspace_root) ?? worktreePath);
 
     candidates.push({
       key: row.plan_id,

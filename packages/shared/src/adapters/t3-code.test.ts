@@ -260,6 +260,7 @@ test('T3 Code indexes proposed plans from the projection database', async () => 
   expect(v2.format).toBe('sqlite');
   expect(v2.filePath).toBe(databasePath);
   expect(v2.content).toBe('# Plan v2\n\n- [ ] Ship');
+  // Worktree path does not exist on disk, so the durable project root wins.
   expect(v2.workspace).toBe('/workspace/agendex');
   expect(v2.createdAt.toISOString()).toBe('2026-01-01T11:00:00.000Z');
   expect(v2.updatedAt.toISOString()).toBe('2026-01-01T11:30:00.000Z');
@@ -338,6 +339,37 @@ test('T3 Code falls back to core columns when optional metadata columns are miss
   });
   expect(plans[0]?.metadata.providerName).toBeUndefined();
   expect(plans[0]?.metadata.implementedAt).toBeUndefined();
+});
+
+test('T3 Code prefers an existing thread worktree over the project root', async () => {
+  tempRoot = await mkdtemp(join(tmpdir(), 'agendex-t3-code-worktree-'));
+  process.env.HOME = tempRoot;
+  delete process.env.T3CODE_HOME;
+  const stateDir = join(tempRoot, '.t3', 'userdata');
+  const worktreeDir = join(tempRoot, '.t3', 'worktrees', 'agendex', 'abc');
+  await mkdir(stateDir, { recursive: true });
+  await mkdir(worktreeDir, { recursive: true });
+  const databasePath = join(stateDir, 'state.sqlite');
+  const database = new Database(databasePath);
+  database.exec(SCHEMA);
+  database.exec(`
+    INSERT INTO projection_projects VALUES
+      ('proj-1', 'Agendex', '/workspace/agendex', '[]', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', NULL);
+    INSERT INTO projection_threads VALUES
+      ('thread-live-wt', 'proj-1', 'Live worktree', 't3code/abc', '${worktreeDir}', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', NULL, NULL),
+      ('thread-gone-wt', 'proj-1', 'Removed worktree', 't3code/xyz', '${join(tempRoot, 'missing')}', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', NULL, NULL);
+    INSERT INTO projection_thread_proposed_plans VALUES
+      ('plan:live', 'thread-live-wt', 'turn-1', '# Live', '2026-01-01T10:00:00.000Z', '2026-01-01T10:00:00.000Z', NULL, NULL),
+      ('plan:gone', 'thread-gone-wt', 'turn-2', '# Gone', '2026-01-01T11:00:00.000Z', '2026-01-01T11:00:00.000Z', NULL, NULL);
+  `);
+  database.close(true);
+
+  const plans = await t3CodeAdapter.parse(databasePath);
+  expect(plans.map((plan) => [plan.title, plan.workspace])).toEqual([
+    ['Live', worktreeDir],
+    ['Gone', '/workspace/agendex'],
+  ]);
+  expect(plans[1]?.metadata.worktreePath).toBe(join(tempRoot, 'missing'));
 });
 
 test('T3 Code refuses to index when deletion state cannot be read', async () => {
