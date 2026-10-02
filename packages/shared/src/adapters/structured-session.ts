@@ -17,6 +17,8 @@ export interface StructuredSessionAdapterOptions {
   agent: string;
   format: 'json' | 'jsonl' | 'sqlite';
   getSearchPaths: () => string[];
+  /** Defaults to getSearchPaths. Override to watch a narrower or existence-filtered set. */
+  getWatchPaths?: () => string[];
   matches: (filePath: string) => boolean;
   resolveSourcePath?: (filePath: string) => string;
   decode: (filePath: string) => Promise<StructuredPlanCandidate[]>;
@@ -34,7 +36,7 @@ export function createStructuredSessionAdapter(
     },
 
     getWatchPaths() {
-      return Array.from(new Set(options.getSearchPaths()));
+      return Array.from(new Set((options.getWatchPaths ?? options.getSearchPaths)()));
     },
 
     getSourcePath(filePath: string) {

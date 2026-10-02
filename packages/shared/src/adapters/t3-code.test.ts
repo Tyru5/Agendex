@@ -7,6 +7,7 @@ import {
   extractMarkdownTitle,
   getT3CodeDatabasePaths,
   getT3CodeStateDirs,
+  getT3CodeWatchDirs,
   t3CodeAdapter,
 } from './t3-code.ts';
 
@@ -78,6 +79,15 @@ async function seedDatabase(stateDir: string): Promise<string> {
     '2026-01-02T00:00:00.000Z',
     null,
   );
+  insertProject.run(
+    'proj-deleted',
+    'Old project',
+    '/workspace/old',
+    '[]',
+    '2026-01-01T00:00:00.000Z',
+    '2026-01-02T00:00:00.000Z',
+    '2026-01-05T00:00:00.000Z',
+  );
 
   const insertThread = database.prepare(
     'INSERT INTO projection_threads VALUES (?,?,?,?,?,?,?,?,?)',
@@ -114,6 +124,17 @@ async function seedDatabase(stateDir: string): Promise<string> {
     '2026-01-02T00:00:00.000Z',
     null,
     '2026-01-03T00:00:00.000Z',
+  );
+  insertThread.run(
+    'thread-in-deleted-project',
+    'proj-deleted',
+    'Live thread, dead project',
+    null,
+    null,
+    '2026-01-01T00:00:00.000Z',
+    '2026-01-02T00:00:00.000Z',
+    null,
+    null,
   );
 
   const insertSession = database.prepare('INSERT INTO projection_thread_sessions VALUES (?,?,?,?)');
@@ -172,6 +193,16 @@ async function seedDatabase(stateDir: string): Promise<string> {
     null,
     null,
   );
+  insertPlan.run(
+    'plan:thread-in-deleted-project:turn:f',
+    'thread-in-deleted-project',
+    'turn-f',
+    '# Should be hidden too',
+    '2026-01-01T16:00:00.000Z',
+    '2026-01-01T16:00:00.000Z',
+    null,
+    null,
+  );
 
   insertProject.finalize();
   insertThread.finalize();
@@ -189,6 +220,7 @@ test('T3 Code resolves state dirs under ~/.t3 and honors T3CODE_HOME', () => {
     join('/home/example', '.t3', 'dev'),
   ]);
   process.env.T3CODE_HOME = '/custom/t3';
+  expect(getT3CodeWatchDirs()).toEqual([]);
   expect(getT3CodeDatabasePaths()).toEqual([
     join('/custom/t3', 'userdata', 'state.sqlite'),
     join('/custom/t3', 'dev', 'state.sqlite'),
@@ -220,6 +252,8 @@ test('T3 Code indexes proposed plans from the projection database', async () => 
   const plans = await t3CodeAdapter.parse(databasePath);
   expect(plans.map((plan) => plan.title)).toEqual(['Plan v1', 'Plan v2', 'Archived thread']);
   expect(new Set(plans.map((plan) => plan.id)).size).toBe(3);
+  expect(plans.map((plan) => plan.content).join('\n')).not.toContain('Should be hidden');
+  expect(getT3CodeWatchDirs()).toEqual([stateDir]);
 
   const v2 = plans[1]!;
   expect(v2.agent).toBe('t3-code');
@@ -250,10 +284,67 @@ test('T3 Code indexes proposed plans from the projection database', async () => 
   expect(archived.metadata.branch).toBeUndefined();
 });
 
-test('T3 Code falls back to the minimal query when joined projections are missing', async () => {
+test('T3 Code falls back to core columns when optional metadata columns are missing', async () => {
   tempRoot = await mkdtemp(join(tmpdir(), 'agendex-t3-code-minimal-'));
   process.env.T3CODE_HOME = join(tempRoot, 't3home');
   const stateDir = join(tempRoot, 't3home', 'dev');
+  await mkdir(stateDir, { recursive: true });
+  const databasePath = join(stateDir, 'state.sqlite');
+  const database = new Database(databasePath);
+  // Older/renamed schema: no implemented_at, branch, worktree_path, archived_at,
+  // workspace_root, and no sessions table. Deletion flags must still apply.
+  database.exec(`
+    CREATE TABLE projection_projects (project_id TEXT PRIMARY KEY, title TEXT, deleted_at TEXT);
+    CREATE TABLE projection_threads (
+      thread_id TEXT PRIMARY KEY,
+      project_id TEXT,
+      title TEXT,
+      deleted_at TEXT
+    );
+    CREATE TABLE projection_thread_proposed_plans (
+      plan_id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      turn_id TEXT,
+      plan_markdown TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    INSERT INTO projection_projects VALUES
+      ('p-live', 'Live', NULL),
+      ('p-dead', 'Dead', '2026-02-02T00:00:00.000Z');
+    INSERT INTO projection_threads VALUES
+      ('t-live', 'p-live', 'Live thread', NULL),
+      ('t-deleted', 'p-live', 'Deleted thread', '2026-02-03T00:00:00.000Z'),
+      ('t-dead-project', 'p-dead', 'Thread in dead project', NULL);
+    INSERT INTO projection_thread_proposed_plans VALUES
+      ('plan:x', 't-live', 'turn-x', 'Untitled body', '2026-02-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z'),
+      ('plan:y', 't-deleted', 'turn-y', '# Hidden deleted thread', '2026-02-01T01:00:00.000Z', '2026-02-01T01:00:00.000Z'),
+      ('plan:z', 't-dead-project', 'turn-z', '# Hidden deleted project', '2026-02-01T02:00:00.000Z', '2026-02-01T02:00:00.000Z');
+  `);
+  database.close(true);
+
+  expect(t3CodeAdapter.matches(databasePath)).toBe(true);
+  expect(getT3CodeWatchDirs()).toEqual([stateDir]);
+  const plans = await t3CodeAdapter.parse(databasePath);
+  expect(plans).toHaveLength(1);
+  expect(plans[0]?.title).toBe('Live thread');
+  expect(plans[0]?.content).toBe('Untitled body');
+  expect(plans[0]?.workspace).toBeUndefined();
+  expect(plans[0]?.metadata).toMatchObject({
+    threadId: 't-live',
+    projectId: 'p-live',
+    projectTitle: 'Live',
+    archived: false,
+  });
+  expect(plans[0]?.metadata.providerName).toBeUndefined();
+  expect(plans[0]?.metadata.implementedAt).toBeUndefined();
+});
+
+test('T3 Code refuses to index when deletion state cannot be read', async () => {
+  tempRoot = await mkdtemp(join(tmpdir(), 'agendex-t3-code-no-threads-'));
+  process.env.HOME = tempRoot;
+  delete process.env.T3CODE_HOME;
+  const stateDir = join(tempRoot, '.t3', 'userdata');
   await mkdir(stateDir, { recursive: true });
   const databasePath = join(stateDir, 'state.sqlite');
   const database = new Database(databasePath);
@@ -266,27 +357,12 @@ test('T3 Code falls back to the minimal query when joined projections are missin
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    INSERT INTO projection_thread_proposed_plans VALUES
+      ('plan:x', 't-1', 'turn-x', '# Unknown deletion state', '2026-02-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z');
   `);
-  const insert = database.prepare(
-    'INSERT INTO projection_thread_proposed_plans VALUES (?,?,?,?,?,?)',
-  );
-  insert.run(
-    'plan:x',
-    'thread-x',
-    'turn-x',
-    'Untitled body',
-    '2026-02-01T00:00:00.000Z',
-    '2026-02-01T00:00:00.000Z',
-  );
-  insert.finalize();
   database.close(true);
 
-  expect(t3CodeAdapter.matches(databasePath)).toBe(true);
-  const plans = await t3CodeAdapter.parse(databasePath);
-  expect(plans).toHaveLength(1);
-  expect(plans[0]?.title).toBe('T3 Code Plan');
-  expect(plans[0]?.workspace).toBeUndefined();
-  expect(plans[0]?.metadata.threadId).toBe('thread-x');
+  expect(await t3CodeAdapter.parse(databasePath)).toEqual([]);
 });
 
 test('T3 Code returns no plans for a database without the plan table', async () => {
