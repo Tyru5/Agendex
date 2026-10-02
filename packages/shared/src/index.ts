@@ -49,7 +49,7 @@ export {
 } from './desktop-auth-callback.ts';
 export { hashPath } from './hash.ts';
 export type { OpenInApp, OpenInAppKind } from './open-in-apps.ts';
-export { buildLaunchCommand, detectOpenInApps } from './open-in-apps.ts';
+export { buildLaunchCommand, detectOpenInApps, detectHandoffClis } from './open-in-apps.ts';
 export type { PathExistsResult, PathExistsStatus } from './services/path-resolve.ts';
 export {
   clearPathResolveCache,

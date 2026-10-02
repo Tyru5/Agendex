@@ -21,6 +21,7 @@ Agendex is a Bun workspaces monorepo:
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
+- Cross-agent [comparison and handoff](docs/cross-agent-handoff.md): workspace-scoped suggestions with matching evidence, Markdown context export, and reviewable commands for installed Codex and Claude Code CLIs
 - [Changes since last read](docs/changes-since-last-read.md): compare a plan's title and body with the exact revision previously opened, independently of unread badges
 - [Live plan approval](docs/plan-approval-gates.md): review Claude Code ExitPlanMode snapshots or manually submitted files through the local Reviews queue
 - Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, stalled, or unavailable status
@@ -385,6 +386,7 @@ Key endpoints:
   status, confidence, changed/mentioned file counts, commit count, and landing time for every
   indexed plan (or just the listed ids).
 - `GET /api/v1/agents`
+- `GET /api/v1/open-in/agent-clis` -> `{ apps: [{ id, label }] }`: installed Codex and Claude Code CLIs available for preparing handoff commands; returns an empty list on Windows. Detection does not launch a CLI.
 - `GET /api/v1/review-sessions` lists live and retained review snapshots; `POST /api/v1/review-sessions` creates a request.
 - `POST /api/v1/review-sessions/:id/decision` submits the snapshot revision and decision; feedback is required for changes or rejection.
 - `POST /api/v1/review-sessions/:id/heartbeat`, `/ack`, and `/cancel` coordinate the waiting client and review lifecycle. See [plan approval gates](docs/plan-approval-gates.md) for input requirements and limits.

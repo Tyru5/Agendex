@@ -7,7 +7,9 @@ import {
   EmptyStateView,
   applyPlanFilters,
   collectionMoveIndex,
+  type CrossAgentOptions,
   focusPlanSearchField,
+  planLinkWorkReferences,
   getAppShortcuts,
   hasMorningBriefUpdates,
   hasToken,
@@ -899,6 +901,7 @@ function CloudPlanReviewWorkspace({
   allPlans,
   onSelectRelatedPlan,
   onComparePlan,
+  crossAgent,
   onEdit,
   onHistory,
   onShare,
@@ -915,6 +918,7 @@ function CloudPlanReviewWorkspace({
   outlineHidden?: boolean;
   chartHidden?: boolean;
   allPlans?: readonly Plan[];
+  crossAgent?: CrossAgentOptions;
   onSelectRelatedPlan?: (plan: Plan) => void;
   onComparePlan?: (plan: Plan) => void;
   onEdit: () => void;
@@ -1034,6 +1038,7 @@ function CloudPlanReviewWorkspace({
             plan={plan}
             allPlans={allPlans}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            crossAgent={crossAgent}
             onComparePlan={onComparePlan}
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
@@ -1192,6 +1197,7 @@ function useDashboardMain({
   compareBodiesLoading,
   compareBodiesMissing,
   onComparePlan,
+  onComparePlanPair,
   onCloseCompare,
   onSwapCompare,
   onMarkBriefRead,
@@ -1216,6 +1222,7 @@ function useDashboardMain({
   onShowSelectedInFilters,
   planViewMode,
   receipts,
+  plansComplete = true,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -1246,6 +1253,8 @@ function useDashboardMain({
   /** True when either compare pane's cloud body is inaccessible. */
   compareBodiesMissing?: boolean;
   onComparePlan?: (plan: Plan) => void;
+  /** Leaves split view and compares `base` against `other`. */
+  onComparePlanPair?: (base: Plan, other: Plan) => void;
   onCloseCompare?: () => void;
   onSwapCompare?: () => void;
   onMarkBriefRead: () => void;
@@ -1271,10 +1280,57 @@ function useDashboardMain({
   planViewMode: PlanViewMode;
   /** Local receipt summaries keyed by local plan id, for the brief. */
   receipts?: BriefReceipts;
+  /** False while cloud plans are still paging in. */
+  plansComplete?: boolean;
 }) {
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const convex = useConvex();
+  const loadRelatedPlanContent = useCallback(
+    async (plan: Plan) => {
+      if (mode !== 'cloud') return plan.content || null;
+      const result = await convex.query(api.plans.getMyPlanContent, { planId: plan.id });
+      return result?.content ?? null;
+    },
+    [convex, mode],
+  );
+  const loadRelatedPlanLinks = useCallback(
+    async (plan: Plan) =>
+      planLinkWorkReferences(
+        await convex.query(api.planLinks.getLinks, { planId: plan.id as Id<'plans'> }),
+      ),
+    [convex],
+  );
+  const watchRelatedPlanLinks = useCallback(
+    (planId: string, onChange: (references: readonly string[]) => void) => {
+      const watch = convex.watchQuery(api.planLinks.getLinks, { planId: planId as Id<'plans'> });
+      return watch.onUpdate(() => {
+        try {
+          const links = watch.localQueryResult();
+          if (links) onChange(planLinkWorkReferences(links));
+        } catch {
+          /* Link access was lost; keep the last suggestions until the next search. */
+        }
+      });
+    },
+    [convex],
+  );
+  const crossAgent = useMemo<CrossAgentOptions>(() => {
+    const linksEnabled = mode === 'cloud' && isPro;
+    return {
+      loadContent: loadRelatedPlanContent,
+      loadLinkReferences: linksEnabled ? loadRelatedPlanLinks : undefined,
+      watchLinkReferences: linksEnabled ? watchRelatedPlanLinks : undefined,
+      plansComplete,
+    };
+  }, [
+    isPro,
+    loadRelatedPlanContent,
+    loadRelatedPlanLinks,
+    mode,
+    plansComplete,
+    watchRelatedPlanLinks,
+  ]);
   const cloudUsage = useQuery(api.cli.getUsage, mode === 'cloud' ? { days: 30 } : 'skip') as
     | UsageSummary
     | null
@@ -1422,7 +1478,11 @@ function useDashboardMain({
           <LazyPlanViewer
             plan={selectedPlan}
             allPlans={allPlans}
+            crossAgent={crossAgent}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            onComparePlan={
+              onComparePlanPair ? (other) => onComparePlanPair(selectedPlan, other) : undefined
+            }
             mode="split"
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
@@ -1458,7 +1518,11 @@ function useDashboardMain({
           <LazyPlanViewer
             plan={splitPlan}
             allPlans={allPlans}
+            crossAgent={crossAgent}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            onComparePlan={
+              onComparePlanPair ? (other) => onComparePlanPair(splitPlan, other) : undefined
+            }
             mode="split"
             onChartWideChange={onChartWideChange}
             onToggleChart={onToggleChart}
@@ -1631,6 +1695,7 @@ function useDashboardMain({
                 outlineHidden={outlineHidden}
                 chartHidden={chartHidden}
                 allPlans={allPlans}
+                crossAgent={crossAgent}
                 onSelectRelatedPlan={onSelectRelatedPlan}
                 onComparePlan={onComparePlan}
                 onEdit={onEdit}
@@ -1644,6 +1709,7 @@ function useDashboardMain({
               <LazyPlanViewer
                 plan={selectedPlan}
                 allPlans={allPlans}
+                crossAgent={crossAgent}
                 onSelectRelatedPlan={onSelectRelatedPlan}
                 onComparePlan={onComparePlan}
                 onEdit={onEdit}
@@ -2434,6 +2500,17 @@ function useDashboard({
     [setComparePlanId],
   );
 
+  const comparePlanPair = useCallback(
+    (base: Plan, other: Plan) => {
+      setActivePanel(null);
+      setOptimisticSelectedPlan(base);
+      setSelectedPlanId(base.id);
+      setSplitPlanId(null);
+      setComparePlanId(other.id);
+    },
+    [setActivePanel, setComparePlanId, setSelectedPlanId, setSplitPlanId],
+  );
+
   const closeCompare = useCallback(() => {
     setComparePlanId(null);
   }, [setComparePlanId]);
@@ -3017,6 +3094,7 @@ function useDashboard({
           compareBodiesLoading={compareBodiesLoading}
           compareBodiesMissing={compareBodiesMissing}
           onComparePlan={startCompare}
+          onComparePlanPair={comparePlanPair}
           onCloseCompare={closeCompare}
           onSwapCompare={swapCompare}
           outlineHidden={outlineHidden}
@@ -3026,6 +3104,7 @@ function useDashboard({
           onShowSelectedInFilters={clearFilters}
           planViewMode={planViewMode}
           receipts={receipts}
+          plansComplete={plansComplete}
         />
       </PlanReadProvider>
 
