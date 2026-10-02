@@ -1,8 +1,10 @@
+import { FilePlanCountsContext } from './FilePlanLookupContext.tsx';
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type RefObject,
   useCallback,
+  useContext,
   useEffect,
   useEffectEvent,
   useId,
@@ -38,18 +40,49 @@ export function PlanPathCode({
   children?: ReactNode;
 }) {
   const context = usePlanPathContext();
+  const filePlans = useContext(FilePlanCountsContext);
   const text = String(children);
-  const parsed = context ? parseCodePath(text) : null;
+  const parsed = context || filePlans ? parseCodePath(text, { allowSpaces: true }) : null;
   const result = context && parsed ? context.results[parsed.path] : undefined;
   const remote = context && parsed ? context.remoteTargets[planPathTargetKey(parsed)] : undefined;
 
   const hasLocalTarget = result?.status === 'found' || result?.status === 'ambiguous';
+  const count = parsed ? filePlans?.counts[parsed.path] : undefined;
+  if (parsed && filePlans && !hasLocalTarget && !remote) {
+    return (
+      <span className="plan-path">
+        <button
+          type="button"
+          className="plan-path-open"
+          onClick={() => filePlans.navigate(parsed.path)}
+          title="Find plans for this file"
+        >
+          <code>{children}</code>
+          {count && (
+            <span
+              className="plan-path-badge"
+              aria-label={`${count.count}${count.exact ? '' : '+'} related plans`}
+            >
+              {count.count}
+              {!count.exact && '+'}
+            </span>
+          )}
+        </button>
+      </span>
+    );
+  }
   if (!context || !parsed || (!hasLocalTarget && !remote)) {
     return <code className={className}>{children}</code>;
   }
 
   return (
-    <PlanPathLink context={context} parsed={parsed} result={result} remote={remote} display={text}>
+    <PlanPathLink
+      context={context}
+      parsed={parsed}
+      result={result?.status === 'found' || result?.status === 'ambiguous' ? result : undefined}
+      remote={remote}
+      display={text}
+    >
       {children}
     </PlanPathLink>
   );
@@ -70,6 +103,8 @@ function PlanPathLink({
   display: string;
   children?: ReactNode;
 }) {
+  const filePlans = useContext(FilePlanCountsContext);
+  const count = filePlans?.counts[parsed.path];
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const menuRef = useRef<HTMLSpanElement | null>(null);
   const primaryRef = useRef<HTMLButtonElement | null>(null);
@@ -300,6 +335,18 @@ function PlanPathLink({
           onClick={() => toggleMenuFrom(moreRef.current)}
         >
           <ChevronIcon />
+        </button>
+      )}
+      {filePlans && count && (
+        <button
+          type="button"
+          className="plan-path-count"
+          title="Find related plans"
+          aria-label={`${count.count}${count.exact ? '' : '+'} related plans for ${parsed.path}`}
+          onClick={() => filePlans.navigate(parsed.path)}
+        >
+          {count.count}
+          {!count.exact && '+'}
         </button>
       )}
       {menuOpen && (

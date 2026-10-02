@@ -1,3 +1,4 @@
+import { refreshFilePlanMentionDuplicates, refreshFilePlanMentions } from './filePlanMentionIndex';
 import { computePlanSyncIdentity, exactDuplicateKey } from '@agendex/shared/plan-sync-identity';
 import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
@@ -156,7 +157,7 @@ export const cleanupLowValuePlans = internalMutation({
 
     const result = await ctx.db.query('plans').paginate({
       cursor: args.cursor ?? null,
-      numItems: batchSize(args.limit),
+      numItems: Math.min(batchSize(args.limit), 3),
     });
 
     const summary = emptySummary();
@@ -246,7 +247,8 @@ export const backfillPlanValueMetadata = internalMutation({
 
     const result = await ctx.db.query('plans').paginate({
       cursor: args.cursor ?? null,
-      numItems: batchSize(args.limit),
+      // Reindexing can rewrite 512 mention rows per plan; bound the write fanout.
+      numItems: Math.min(batchSize(args.limit), 3),
     });
 
     let updated = 0;
@@ -258,6 +260,7 @@ export const backfillPlanValueMetadata = internalMutation({
       if (lowValueVerdictChanged(plan.metadata, nextMetadata)) {
         // `metadata` is optional; patching `undefined` clears a now-stale flag.
         await ctx.db.patch(plan._id, { metadata: nextMetadata });
+        await refreshFilePlanMentions(ctx, plan._id);
         updated++;
       }
     }
@@ -344,6 +347,7 @@ export const backfillPlanSyncIdentity = internalMutation({
         continue;
       }
       await ctx.db.patch(plan._id, patch);
+      await refreshFilePlanMentionDuplicates(ctx, plan._id);
       updated++;
     }
 
@@ -738,6 +742,7 @@ export const cleanupCodexSubagentPlans = internalMutation({
       await deletePlanRelatedData(ctx, { planId: plan._id, ownerId: plan.ownerId });
       await ctx.db.delete(plan._id);
       deleted++;
+      if (deleted >= 3) break;
     }
 
     // Deleting shifts pagination; only advance when nothing was deleted.

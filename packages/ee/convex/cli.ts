@@ -1,3 +1,4 @@
+import { refreshFilePlanMentions } from './filePlanMentionIndex';
 import {
   canonicalPlanAgent,
   dedupePlanBrowseCandidates,
@@ -1124,6 +1125,7 @@ export const patchPlanSyncIdentity = internalMutation({
       ...(args.workspace !== undefined ? { workspace: args.workspace } : {}),
       ...(args.updatedAt !== undefined ? { updatedAt: args.updatedAt } : {}),
     });
+    await refreshFilePlanMentions(ctx, args.planId);
     return true;
   },
 });
@@ -1159,7 +1161,8 @@ export const upsertPlan = internalMutation({
 
     if (args.existingId && args.existingVersion !== undefined) {
       const existing = await ctx.db.get(args.existingId);
-      const contentChanged = existing ? planContentChanged(existing, args) : true;
+      if (!existing || existing.ownerId !== args.ownerId) throw new ConvexError('Plan not found');
+      const contentChanged = planContentChanged(existing, args);
 
       // Non-content field updates (format/path/workspace/identity) still patch the
       // live row, but must not create empty "CLI sync" history entries.
@@ -1189,6 +1192,7 @@ export const upsertPlan = internalMutation({
           filePath: args.filePath,
           now,
         });
+        await refreshFilePlanMentions(ctx, args.existingId);
         return args.existingId;
       }
 
@@ -1196,7 +1200,7 @@ export const upsertPlan = internalMutation({
         await ensureBaselinePlanVersion(ctx, {
           ownerId: args.ownerId,
           planId: args.existingId,
-          version: args.existingVersion,
+          version: existing.version,
           snapshot: {
             title: existing.title,
             content: existing.content,
@@ -1209,7 +1213,7 @@ export const upsertPlan = internalMutation({
         });
       }
 
-      const newVersion = args.existingVersion + 1;
+      const newVersion = existing.version + 1;
       const snapshot = {
         title: args.title,
         content: args.content,
@@ -1247,6 +1251,7 @@ export const upsertPlan = internalMutation({
         filePath: args.filePath,
         now,
       });
+      await refreshFilePlanMentions(ctx, args.existingId);
       return args.existingId;
     }
 
@@ -1298,6 +1303,7 @@ export const upsertPlan = internalMutation({
       now,
     });
 
+    await refreshFilePlanMentions(ctx, planId);
     return planId;
   },
 });

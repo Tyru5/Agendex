@@ -1,4 +1,5 @@
 import { getAppShortcuts, GitHubIcon, GoogleIcon, shortcutDisplayKeys } from '@agendex/web';
+import { UserAvatar } from '../UserAvatar.tsx';
 import { PRIMARY_RGB_FALLBACK } from './constants';
 
 interface SidebarProps {
@@ -57,17 +58,12 @@ export function SettingsSidebar({
           background: `radial-gradient(ellipse 80% 50% at 50% 0%, rgba(var(--primary-rgb, ${PRIMARY_RGB_FALLBACK}), 0.08), transparent 60%), var(--surface)`,
         }}
       >
-        {user.image ? (
-          <img
-            src={user.image}
-            alt=""
-            className="size-24 rounded-full object-cover ring-2 ring-border"
-          />
-        ) : (
-          <div className="size-24 rounded-full bg-hover flex items-center justify-center text-[28px] font-semibold text-secondary ring-2 ring-border">
-            {initial}
-          </div>
-        )}
+        <UserAvatar
+          src={user.image}
+          initial={initial}
+          className="size-24 rounded-full object-cover ring-2 ring-border"
+          fallbackClassName="size-24 rounded-full bg-hover flex items-center justify-center text-[28px] font-semibold text-secondary ring-2 ring-border"
+        />
 
         <div className="mt-4 text-[17px] font-semibold text-text">{user.name}</div>
         <div className="mt-1 text-[13px] text-secondary truncate max-w-full">{user.email}</div>

@@ -144,13 +144,35 @@ function hasCodeExtension(basename: string): boolean {
   return CODE_FILE_EXTENSIONS.has(lower.slice(dot + 1));
 }
 
+const COMMAND_PREFIX_RE =
+  /^(?:bunx|bun|bash|sh|zsh|fish|pwsh|powershell|npm|npx|pnpm|yarn|git|node|python(?:3)?|ruby|go|cargo|make|cat|echo|cd|ls|rm|mv|cp|touch|sed|rg|grep|find|chmod|chown|sudo|env|export|curl|wget)\s/;
+
+/**
+ * Spaced text is a command snippet when it starts with a known command, carries
+ * a flag, or passes a path argument: a later word has a `/` the first word
+ * lacks (`tsc src/a.ts`), or the first word is already a complete file
+ * (`./scripts/run.sh src/a.ts`). Spaced basenames (`my file.ts`) and spaced
+ * directories (`src/my file.ts`, `C:/Program Files/x.ts`) stay paths.
+ */
+function looksLikeCommand(value: string): boolean {
+  if (COMMAND_PREFIX_RE.test(value)) return true;
+  const words = value.replace(/\\/g, '/').split(/\s+/);
+  if (words.some((word) => word.startsWith('-'))) return true;
+  const first = words[0] ?? '';
+  if (!first.includes('/')) return words.slice(1).some((word) => word.includes('/'));
+  return hasCodeExtension(basenameOf(first.replace(/[.,;)\]]+$/, '')));
+}
+
 /**
  * Parse a raw mention into a clean path plus optional line range.
  * Handles `path:12`, `path:12-30`, and `path#L12` / `path#L12-L30`;
  * other `#anchor` suffixes are stripped. Returns null when the token is
  * not a plausible code-file path.
  */
-export function parseCodePath(raw: string): ParsedCodePath | null {
+export function parseCodePath(
+  raw: string,
+  options: { allowSpaces?: boolean } = {},
+): ParsedCodePath | null {
   let value = raw.trim();
   if (!value || value.length > 1024) return null;
   if (value.includes('://')) return null;
@@ -180,6 +202,9 @@ export function parseCodePath(raw: string): ParsedCodePath | null {
     [line, lineEnd] = [lineEnd, line];
   }
 
+  // Explicit inline-code paths may contain spaces; shell snippets must remain code.
+  if (options.allowSpaces && /\s/.test(value) && looksLikeCommand(value)) return null;
+
   // Trailing punctuation from prose ("see foo/bar.ts.", "(foo/bar.ts)").
   value = value.replace(/[.,;)\]]+$/, '');
 
@@ -188,7 +213,11 @@ export function parseCodePath(raw: string): ParsedCodePath | null {
   // on Windows and it also gives validation results a stable lookup key.
   value = value.replace(/\\/g, '/');
 
-  if (!value || IMPLAUSIBLE_CHARS.test(value)) return null;
+  if (
+    !value ||
+    (options.allowSpaces ? /[{}*?<>|"`\t\r\n]/.test(value) : IMPLAUSIBLE_CHARS.test(value))
+  )
+    return null;
   if (!hasCodeExtension(basenameOf(value))) return null;
 
   const result: ParsedCodePath = { raw, path: value };
@@ -217,7 +246,9 @@ function stripFencedBlocksAndComments(markdown: string): string {
 const INLINE_CODE_RE = /`([^`\n]+)`/g;
 // Bare-prose tokens: path-ish runs containing at least one slash, optionally
 // followed by :line/:range or a #anchor. Leading ./ and ../ allowed.
-const BARE_PATH_PATTERN = String.raw`(?:[A-Za-z]:[\\/]|\.{1,2}[\\/])?[\w@~][\w.@+-]*(?:[\\/][\w.@+-]+)+(?::\d+(?:-\d+)?|#[\w.-]+)?`;
+// A leading `/` is kept only at a token boundary so absolute mentions keep
+// their root while URL segments (`https://host/a.ts`) never gain one.
+const BARE_PATH_PATTERN = String.raw`(?:(?<![^\s(])\/|[A-Za-z]:[\\/]|\.{1,2}[\\/])?[\w@~][\w.@+-]*(?:[\\/][\w.@+-]+)+(?::\d+(?:-\d+)?|#[\w.-]+)?`;
 
 export interface CodePathTextPart {
   value: string;
@@ -270,7 +301,7 @@ export function extractCandidateCodePaths(markdown: string): ParsedCodePath[] {
   let lastIndex = 0;
   for (const match of source.matchAll(INLINE_CODE_RE)) {
     const content = match[1] ?? '';
-    push(parseCodePath(content));
+    push(parseCodePath(content, { allowSpaces: true }));
     withoutInline += source.slice(lastIndex, match.index);
     lastIndex = match.index + match[0].length;
   }

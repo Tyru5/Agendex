@@ -48,7 +48,7 @@ export function useHydratedCloudPlan(
     if (!plan) return undefined;
     if (mode !== 'cloud' || plan.content) return plan;
     // Viewer/editor tolerate an empty stub; compare gates on contentMissing.
-    return { ...plan, content: content ?? '' };
+    return { ...plan, content: content ?? '', contentLoaded: typeof content === 'string' };
   }, [plan, mode, content]);
 
   return {

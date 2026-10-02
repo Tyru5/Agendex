@@ -162,3 +162,57 @@ describe('splitBareCodePathText', () => {
     ]);
   });
 });
+
+test('explicit inline code supports filenames with spaces without treating prose as a path', () => {
+  expect(parseCodePath('src/my auth.ts')).toBeNull();
+  expect(parseCodePath('src/my auth.ts', { allowSpaces: true })?.path).toBe('src/my auth.ts');
+  expect(
+    extractCandidateCodePaths('Update `src/my auth.ts` before tests.').map((path) => path.path),
+  ).toEqual(['src/my auth.ts']);
+  expect(parseCodePath('src/unsafe\nname.ts', { allowSpaces: true })).toBeNull();
+});
+
+test('space-aware inline paths never interpret shell commands or URLs as filenames', () => {
+  for (const value of [
+    'bun test src/a.ts',
+    'bunx tsc src/a.ts',
+    'bash scripts/check.ts',
+    'cat src/a.ts',
+    'git diff src/a.ts',
+    'https://example.com/my file.ts',
+    'npm run test',
+    '/foo/*.ts',
+  ]) {
+    expect(parseCodePath(value, { allowSpaces: true })).toBeNull();
+  }
+});
+
+test('spaced inline code needs a path-like first word, not a command or script call', () => {
+  for (const value of [
+    'tsc src/foo.ts',
+    'vitest run src/a.ts',
+    './scripts/run.sh src/a.ts',
+    './bin/x --watch src/a.ts',
+  ]) {
+    expect(parseCodePath(value, { allowSpaces: true })).toBeNull();
+  }
+  expect(parseCodePath('C:\\Program Files\\app\\main.ts', { allowSpaces: true })?.path).toBe(
+    'C:/Program Files/app/main.ts',
+  );
+  expect(parseCodePath('my file.ts', { allowSpaces: true })?.path).toBe('my file.ts');
+  expect(extractCandidateCodePaths('Rename `my file.ts`.').map((path) => path.path)).toEqual([
+    'my file.ts',
+  ]);
+});
+
+test('bare absolute prose paths keep their root; URL segments never gain one', () => {
+  expect(
+    extractCandidateCodePaths(
+      'Edit /repo/src/auth.ts and (/repo/src/b.ts). See https://x.dev/a/b.ts',
+    ).map((path) => path.path),
+  ).toEqual(['/repo/src/auth.ts', '/repo/src/b.ts']);
+  expect(splitBareCodePathText('see /repo/src/auth.ts')).toEqual([
+    { value: 'see ', isPath: false },
+    { value: '/repo/src/auth.ts', isPath: true },
+  ]);
+});

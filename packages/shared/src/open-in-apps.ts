@@ -3,7 +3,7 @@
  * build argv launch commands. Launching is always argv-based — no shell
  * string interpolation.
  */
-import { existsSync } from 'node:fs';
+import { accessSync, constants, existsSync, statSync } from 'node:fs';
 import { delimiter, dirname, join } from 'node:path';
 
 export type OpenInAppKind = 'editor' | 'file-manager';
@@ -65,7 +65,13 @@ function findExecutable(name: string): string | null {
     if (!dir) continue;
     for (const ext of extensions) {
       const candidate = join(dir, name + ext);
-      if (existsSync(candidate)) return candidate;
+      try {
+        if (!statSync(candidate).isFile()) continue;
+        accessSync(candidate, process.platform === 'win32' ? constants.F_OK : constants.X_OK);
+        return candidate;
+      } catch {
+        /* Not an executable available to this process. */
+      }
     }
   }
   return null;
@@ -137,4 +143,12 @@ export function buildLaunchCommand(
   }
 
   return null;
+}
+
+/** CLI targets with verified positional-prompt contracts; never launched by Agendex. */
+export function detectHandoffClis(): { id: 'codex' | 'claude'; label: string }[] {
+  if (process.platform === 'win32') return [];
+  return (['codex', 'claude'] as const)
+    .filter((id) => Boolean(findExecutable(id)))
+    .map((id) => ({ id, label: id === 'codex' ? 'Codex' : 'Claude Code' }));
 }

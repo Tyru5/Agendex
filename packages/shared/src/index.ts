@@ -49,7 +49,7 @@ export {
 } from './desktop-auth-callback.ts';
 export { hashPath } from './hash.ts';
 export type { OpenInApp, OpenInAppKind } from './open-in-apps.ts';
-export { buildLaunchCommand, detectOpenInApps } from './open-in-apps.ts';
+export { buildLaunchCommand, detectOpenInApps, detectHandoffClis } from './open-in-apps.ts';
 export type { PathExistsResult, PathExistsStatus } from './services/path-resolve.ts';
 export {
   clearPathResolveCache,
@@ -123,9 +123,12 @@ export {
   rescanFile,
   scan,
   setOnPlansChanged,
+  setPlanValueOverride,
   update,
 } from './services/plan-service.ts';
 export { searchPlans } from './services/plan-search.ts';
+export { getFilePlanHistory, getFilePlanCounts } from './services/file-plan-history.ts';
+export { getPlanCheck } from './services/plan-check.ts';
 export type { PlanFileMatch } from './receipts/service.ts';
 export {
   clearPlanReceiptCache,
@@ -133,7 +136,7 @@ export {
   getPlanReceipt,
   getPlanReceipts,
 } from './receipts/service.ts';
-export { isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
+export { assessPlanValue, isIndexablePlan, isLowValuePlan } from './services/plan-value.ts';
 export type {
   PlanBrowseDedupeResult,
   PlanDownloadLookupCandidate,
@@ -195,3 +198,4 @@ export type {
 export { ProFeature } from './types.ts';
 
 export { getPlanSessionCost } from './services/plan-session-cost.ts';
+export { openPlanRead, clearPlanRead } from './services/plan-read-store';

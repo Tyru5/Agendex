@@ -1,6 +1,11 @@
 import type { PlanSessionCost } from '@agendex/shared/session-cost';
+import type { PlanReadResult } from '@agendex/shared/plan-read';
+import type { ApprovalDecision, ApprovalSession } from '@agendex/shared/approval-gates';
 import type { PlanChecklistSummary } from '@agendex/shared/plan-checklist';
 import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
+import type { FilePlanHistory } from '@agendex/shared/file-plan-history';
+
+import type { HiddenPlanSummary, PlanCheck } from '@agendex/shared/plan-check';
 
 const BASE = '/api/v1';
 
@@ -44,7 +49,11 @@ async function getErrorMessage(res: Response): Promise<string> {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options: { expireSessionOnUnauthorized?: boolean } = {},
+): Promise<T> {
   const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -55,6 +64,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (res.status === 401) {
+    if (options.expireSessionOnUnauthorized === false) {
+      throw new Error('Local Agendex authentication is required.');
+    }
     clearToken();
     sessionStorage.setItem('agendex_session_expired', '1');
     window.location.reload();
@@ -128,6 +140,8 @@ export interface Plan {
   metadata: Record<string, unknown>;
   /** Checklist progress for rows shipped without content (cloud lists). */
   checklist?: PlanChecklistSummary;
+  /** False for cloud list stubs; only hydrated bodies may advance the read boundary. */
+  contentLoaded?: boolean;
 }
 
 export interface PlansResponse {
@@ -237,10 +251,26 @@ export interface OpenInAppInfo {
 }
 
 export const api = {
+  getReviewSessions: () => request<{ sessions: ApprovalSession[] }>('/review-sessions'),
+  decideReview: (id: string, revision: string, decision: ApprovalDecision, feedback?: string) =>
+    request<ApprovalSession>(`/review-sessions/${id}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ revision, decision, feedback }),
+    }),
+  cancelReview: (id: string) =>
+    request<ApprovalSession>(`/review-sessions/${id}/cancel`, { method: 'POST', body: '{}' }),
   getPlans: (params?: { agent?: string; q?: string; sort?: string }) =>
     get<PlansResponse>(plansPath(params)),
 
   getPlan: (id: string) => request<Plan>(`/plans/${id}`),
+
+  openPlanRead: (plan: Plan) =>
+    request<PlanReadResult>(`/plans/${encodeURIComponent(plan.id)}/read`, {
+      method: 'POST',
+      body: JSON.stringify({ updatedAt: plan.updatedAt, title: plan.title, content: plan.content }),
+    }),
+  clearPlanRead: (plan: Plan) =>
+    request<{ ok: boolean }>(`/plans/${encodeURIComponent(plan.id)}/read`, { method: 'DELETE' }),
 
   getAgents: () => get<AgentStats[]>('/agents'),
 
@@ -252,6 +282,24 @@ export const api = {
     return request<UsageSummary>(`/usage${query ? `?${query}` : ''}`);
   },
 
+  getHiddenPlans: (cursor?: string) =>
+    get<{
+      plans: HiddenPlanSummary[];
+      total: number;
+      hiddenCount: number;
+      limit: number;
+      offset: number;
+      nextCursor?: string;
+    }>(`/hidden-plans${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
+  getHiddenPlan: (id: string) =>
+    get<{ plan: Plan; assessment: HiddenPlanSummary['assessment']; check: PlanCheck }>(
+      `/hidden-plans/${encodeURIComponent(id)}`,
+    ),
+  setHiddenPlanOverride: (id: string, restore: boolean) =>
+    request<{ ok: boolean; hidden: boolean; restored: boolean }>(
+      `/hidden-plans/${encodeURIComponent(id)}/override`,
+      { method: 'PUT', body: JSON.stringify({ restore }) },
+    ),
   rescan: () => request<{ ok: boolean }>('/rescan', { method: 'POST' }),
 
   createPlan: (agent: string, title: string, content: string) =>
@@ -312,6 +360,38 @@ export const api = {
 
   getPlanReceiptSummaries: () =>
     request<{ receipts: Record<string, PlanReceiptSummary> }>('/receipts'),
+
+  getFilePlanHistory: (
+    path: string,
+    options: {
+      workspace?: string;
+      allWorkspaces?: boolean;
+      offset?: number;
+      signal?: AbortSignal;
+    } = {},
+  ) => {
+    const query = new URLSearchParams({ path, limit: '100', offset: String(options.offset ?? 0) });
+    if (options.workspace) query.set('workspace', options.workspace);
+    if (options.allWorkspaces) query.set('allWorkspaces', 'true');
+    return request<FilePlanHistory>(`/file-plans?${query}`, { signal: options.signal });
+  },
+
+  getFilePlanCounts: (paths: string[], workspace?: string, signal?: AbortSignal) =>
+    request<{ counts: Array<{ path: string; count: number; exact: boolean }> }>(
+      '/file-plan-counts',
+      {
+        method: 'POST',
+        body: JSON.stringify({ paths, workspace, allWorkspaces: !workspace }),
+        signal,
+      },
+    ),
+
+  getHandoffClis: () =>
+    request<{ apps: { id: 'codex' | 'claude'; label: string }[] }>(
+      '/open-in/agent-clis',
+      undefined,
+      { expireSessionOnUnauthorized: false },
+    ),
 
   getOpenInApps: () => request<{ available: boolean; apps: OpenInAppInfo[] }>('/open-in/apps'),
 

@@ -1,12 +1,13 @@
 import { ProFeature } from '@agendex/shared/types';
 import { canonicalPlanAgent, normalizePlanLookupText } from '@agendex/shared/plan-download-lookup';
 import { paginationOptsValidator } from 'convex/server';
-import { ConvexError, v } from 'convex/values';
-import type { Id } from './_generated/dataModel';
-import { type QueryCtx, mutation, query } from './_generated/server';
+import { ConvexError, v, type Infer } from 'convex/values';
+import type { Doc, Id } from './_generated/dataModel';
+import { type MutationCtx, type QueryCtx, mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
+import { refreshFilePlanMentions } from './filePlanMentionIndex';
 import { normalizePlanSourcePath, planMatchesSource } from './planSourcePath';
 import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
 import {
@@ -27,90 +28,101 @@ import {
 } from './validators';
 import { sharedPlanDtoValidator, toSharedPlanDto } from './sharedPlanDto';
 
-export const publishPlan = mutation({
-  args: {
-    localPlanId: v.string(),
-    agent: v.string(),
-    title: v.string(),
-    content: v.string(),
-    format: v.string(),
-    filePath: v.optional(v.string()),
-    workspace: v.optional(v.string()),
-    metadata: v.optional(planMetadataValidator),
-  },
-  returns: v.id('plans'),
-  handler: async (ctx, args) => {
-    const user = await authComponent.getAuthUser(ctx);
-    if (!user) {
-      throw new ConvexError('Unauthenticated');
-    }
+const publishPlanArgs = {
+  localPlanId: v.string(),
+  agent: v.string(),
+  title: v.string(),
+  content: v.string(),
+  format: v.string(),
+  filePath: v.optional(v.string()),
+  workspace: v.optional(v.string()),
+  metadata: v.optional(planMetadataValidator),
+};
 
-    await requireFeature(ctx, ProFeature.CLOUD_SYNC);
+type PublishPlanArgs = {
+  localPlanId: string;
+  agent: string;
+  title: string;
+  content: string;
+  format: string;
+  filePath?: string;
+  workspace?: string;
+  metadata?: Infer<typeof planMetadataValidator>;
+};
 
-    const ownerId = user._id;
-    const now = Date.now();
+async function publishPlanDocument(ctx: MutationCtx, args: PublishPlanArgs): Promise<Doc<'plans'>> {
+  const user = await authComponent.getAuthUser(ctx);
+  if (!user) throw new ConvexError('Unauthenticated');
 
-    const metadata = metadataWithPlanValueAssessment(args.metadata, {
-      title: args.title,
-      content: args.content,
+  await requireFeature(ctx, ProFeature.CLOUD_SYNC);
+
+  const ownerId = user._id;
+  const now = Date.now();
+  const metadata = metadataWithPlanValueAssessment(args.metadata, {
+    title: args.title,
+    content: args.content,
+  });
+  const existing = await ctx.db
+    .query('plans')
+    .withIndex('by_owner_localPlanId', (q) =>
+      q.eq('ownerId', ownerId).eq('localPlanId', args.localPlanId),
+    )
+    .first();
+
+  let planId: Id<'plans'>;
+  if (existing && !planContentChanged(existing, args)) {
+    // Identity-only republish: omitted optional fields (e.g. a retry without
+    // metadata) keep their stored values so source-scoped cleanup still matches.
+    await ctx.db.patch(existing._id, {
+      ...(args.workspace !== undefined && { workspace: args.workspace }),
+      ...(args.filePath !== undefined && { filePath: args.filePath }),
+      ...(args.metadata !== undefined && { metadata }),
+    });
+    planId = existing._id;
+  } else if (existing) {
+    await ensureBaselinePlanVersion(ctx, {
+      ownerId,
+      planId: existing._id,
+      version: existing.version,
+      snapshot: {
+        title: existing.title,
+        content: existing.content,
+        format: existing.format,
+        filePath: existing.filePath,
+        workspace: existing.workspace,
+        metadata: existing.metadata,
+      },
+      createdAt: existing.updatedAt,
     });
 
-    const existing = await ctx.db
-      .query('plans')
-      .withIndex('by_owner_localPlanId', (q) =>
-        q.eq('ownerId', ownerId).eq('localPlanId', args.localPlanId),
-      )
-      .first();
-
-    if (existing) {
-      if (!planContentChanged(existing, args)) {
-        return existing._id;
-      }
-
-      await ensureBaselinePlanVersion(ctx, {
-        ownerId,
-        planId: existing._id,
-        version: existing.version,
-        snapshot: {
-          title: existing.title,
-          content: existing.content,
-          format: existing.format,
-          filePath: existing.filePath,
-          workspace: existing.workspace,
-          metadata: existing.metadata,
-        },
-        createdAt: existing.updatedAt,
-      });
-
-      const newVersion = existing.version + 1;
-      const snapshot = {
-        title: args.title,
-        content: args.content,
-        format: args.format,
-        filePath: args.filePath,
-        workspace: args.workspace,
-        metadata,
-      };
-      await ctx.db.patch(existing._id, {
-        agent: args.agent,
-        titleNormalized: normalizePlanLookupText(args.title),
-        agentNormalized: canonicalPlanAgent(args.agent),
-        ...snapshot,
-        version: newVersion,
-        updatedAt: now,
-      });
-      await recordPlanVersion(ctx, {
-        ownerId,
-        planId: existing._id,
-        version: newVersion,
-        snapshot,
-        source: 'editor',
-        createdAt: now,
-      });
-      return existing._id;
-    }
-
-    const planId = await ctx.db.insert('plans', {
+    const newVersion = existing.version + 1;
+    const snapshot = {
+      title: args.title,
+      content: args.content,
+      format: args.format,
+      filePath: args.filePath,
+      workspace: args.workspace,
+      metadata,
+    };
+    await ctx.db.patch(existing._id, {
+      agent: args.agent,
+      titleNormalized: normalizePlanLookupText(args.title),
+      agentNormalized: canonicalPlanAgent(args.agent),
+      ...snapshot,
+      version: newVersion,
+      updatedAt: now,
+    });
+    await recordPlanVersion(ctx, {
+      ownerId,
+      planId: existing._id,
+      version: newVersion,
+      snapshot,
+      source: 'editor',
+      createdAt: now,
+    });
+    planId = existing._id;
+  } else {
+    planId = await ctx.db.insert('plans', {
       ownerId,
       localPlanId: args.localPlanId,
       agent: args.agent,
@@ -126,7 +138,6 @@ export const publishPlan = mutation({
       createdAt: now,
       updatedAt: now,
     });
-
     await recordPlanVersion(ctx, {
       ownerId,
       planId,
@@ -142,9 +153,24 @@ export const publishPlan = mutation({
       source: 'editor',
       createdAt: now,
     });
+  }
 
-    return planId;
-  },
+  await refreshFilePlanMentions(ctx, planId);
+  const published = await ctx.db.get(planId);
+  if (!published) throw new ConvexError('Plan not found');
+  return published;
+}
+
+export const publishPlan = mutation({
+  args: publishPlanArgs,
+  returns: v.id('plans'),
+  handler: async (ctx, args) => (await publishPlanDocument(ctx, args))._id,
+});
+
+export const publishPlanWithSnapshot = mutation({
+  args: publishPlanArgs,
+  returns: planValidator,
+  handler: async (ctx, args) => toPlanDto(await publishPlanDocument(ctx, args)),
 });
 
 // Resolves whose plans `getMyPublishedPlans` returns: your own, unless you lack
@@ -373,12 +399,32 @@ export const renamePlan = mutation({
       return null;
     }
 
+    await ensureBaselinePlanVersion(ctx, {
+      ownerId: user._id,
+      planId: args.planId,
+      version: plan.version,
+      snapshot: plan,
+      createdAt: plan.updatedAt,
+    });
+    const version = plan.version + 1;
+    const now = Date.now();
+    const snapshot = { ...plan, title };
     await ctx.db.patch(args.planId, {
       title,
       titleNormalized: normalizePlanLookupText(title),
       agentNormalized: canonicalPlanAgent(plan.agent),
-      updatedAt: Date.now(),
+      version,
+      updatedAt: now,
     });
+    await recordPlanVersion(ctx, {
+      ownerId: user._id,
+      planId: args.planId,
+      version,
+      snapshot,
+      source: 'editor',
+      createdAt: now,
+    });
+    await refreshFilePlanMentions(ctx, args.planId);
     return null;
   },
 });
@@ -459,6 +505,7 @@ export const updatePlanContent = mutation({
       source: 'editor',
       createdAt: now,
     });
+    await refreshFilePlanMentions(ctx, args.planId);
     return null;
   },
 });
@@ -493,7 +540,8 @@ export const deletePlan = mutation({
  * Related-data cleanup fans out several deletes per plan, so keep each
  * transaction well within Convex write limits.
  */
-const DELETE_SOURCE_BATCH_SIZE = 25;
+// At most 512 indexed file mentions accompany each deleted plan.
+const DELETE_SOURCE_BATCH_SIZE = 3;
 
 /**
  * Deletes a bounded batch of the caller's plans synced from one custom source

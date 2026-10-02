@@ -43,6 +43,7 @@ import { runBrowse } from './browse.ts';
 import { runDownload } from './download.ts';
 import { runUpgrade } from './upgrade.ts';
 import { runUpload } from './upload.ts';
+import { runWhyCommand } from './why.ts';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
 import { openAgendexWeb, openSharedPlan } from './web.ts';
 
@@ -96,6 +97,7 @@ async function main(): Promise<number> {
     'download',
     'browse',
     'mcp',
+    'why',
     'upgrade',
     'help',
     '--help',
@@ -434,6 +436,10 @@ async function main(): Promise<number> {
 
     case 'mcp': {
       return runMcpServer(args);
+    }
+
+    case 'why': {
+      return runWhyCommand(args.slice(args.indexOf(command) + 1));
     }
 
     default: {
