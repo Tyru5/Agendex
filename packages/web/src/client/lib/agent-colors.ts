@@ -5,6 +5,7 @@ import droidIcon from '../assets/agent-icons/icon-droid.png';
 import geminiIcon from '../assets/agent-icons/icon-gemini.png';
 import ompIcon from '../assets/agent-icons/icon-omp.svg';
 import plannotatorIcon from '../assets/agent-icons/icon-plannotator.png';
+import t3CodeIcon from '../assets/agent-icons/icon-t3-code.svg';
 
 interface AgentIconPath {
   d: string;
@@ -98,6 +99,11 @@ const GEMINI_ICON: AgentIcon = {
 const OMP_ICON: AgentIcon = {
   hex: '9B4DFF',
   imageSrc: ompIcon,
+};
+// Official T3 Code mark (MIT, pingdotgg/t3code assets/prod/logo.svg).
+const T3_CODE_ICON: AgentIcon = {
+  hex: '000000',
+  imageSrc: t3CodeIcon,
 };
 const PLANNOTATOR_ICON: AgentIcon = {
   hex: 'F5822A',
@@ -393,6 +399,11 @@ const AGENT_BRANDING: Record<string, AgentBranding> = {
     label: 'Plannotator',
     color: '#f5822a',
     icon: PLANNOTATOR_ICON,
+  },
+  't3-code': {
+    label: 'T3 Code',
+    color: '#131010',
+    icon: T3_CODE_ICON,
   },
   pi: {
     label: 'Pi',

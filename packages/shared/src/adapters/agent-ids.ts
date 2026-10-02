@@ -30,6 +30,7 @@ export type SkillsAdapterId =
   | 'openhands'
   | 'pi'
   | 'plannotator'
+  | 't3-code'
   | 'qoder'
   | 'qwen-code'
   | 'replit'
@@ -76,6 +77,7 @@ export const ADAPTER_AGENT_ALIASES: Record<AdapterId, string> = {
   openhands: 'openhands',
   pi: 'pi',
   plannotator: 'plannotator',
+  't3-code': 't3-code',
   qoder: 'qoder',
   'qwen-code': 'qwen-code',
   replit: 'replit',

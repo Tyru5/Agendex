@@ -163,6 +163,7 @@ const SUPPORTED_AGENTS = [
   { agent: 'oh-my-opencode', label: 'Oh My OpenCode' },
   { agent: 'plannotator', label: 'Plannotator' },
   { agent: 'qwen-code', label: 'Qwen Code' },
+  { agent: 't3-code', label: 'T3 Code' },
   { agent: 'windsurf', label: 'Windsurf / Devin Desktop' },
 ] as const;
 

@@ -163,6 +163,15 @@ test('v6 migration enables Command Code without re-enabling earlier adapters', (
   );
 });
 
+test('v8 migration enables T3 Code without re-enabling earlier adapters', () => {
+  const migrated = applyAdapterEnableMigrations(7, ['claude-code', 'cursor'] as never);
+  expect(migrated.version).toBe(CURRENT_CONFIG_VERSION);
+  expect(migrated.adapters).toContain('t3-code');
+  expect(migrated.adapters).not.toContain('grok');
+  expect(migrated.adapters).not.toContain('omp');
+  expect(migrated.adapters).toEqual(expect.arrayContaining(['claude-code', 'cursor', 't3-code']));
+});
+
 test('v4 migration leaves empty adapter lists empty so defaults can apply', () => {
   // Login and other writers may persist [] with an older configVersion.
   // Freezing that to ['grok'] would skip catalog defaults and break indexing.

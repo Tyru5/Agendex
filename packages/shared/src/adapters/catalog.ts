@@ -26,6 +26,7 @@ import { ompAdapter } from './omp.ts';
 import { openCodeAdapter } from './opencode.ts';
 import { plannotatorAdapter } from './plannotator.ts';
 import { createStubAdapter } from './stub.ts';
+import { t3CodeAdapter } from './t3-code.ts';
 import type { AdapterId } from './agent-ids.ts';
 
 export type { AdapterId, SkillsAdapterId } from './agent-ids.ts';
@@ -315,6 +316,14 @@ const CATALOG: AdapterCatalogEntry[] = [
     implemented: true,
     defaultEnabled: false,
     createAdapter: () => plannotatorAdapter,
+  },
+  {
+    id: 't3-code',
+    displayName: 'T3 Code',
+    group: 'universal',
+    implemented: true,
+    defaultEnabled: true,
+    createAdapter: () => t3CodeAdapter,
   },
   {
     id: 'qoder',
