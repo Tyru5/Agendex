@@ -21,6 +21,8 @@ Agendex is a Bun workspaces monorepo:
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
+- [Changes since last read](docs/changes-since-last-read.md): compare a plan's title and body with the exact revision previously opened, independently of unread badges
+- [Live plan approval](docs/plan-approval-gates.md): review Claude Code ExitPlanMode snapshots or manually submitted files through the local Reviews queue
 - Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, stalled, or unavailable status
 - Advisory plan checks in the viewer for missing or ambiguous file references, verification steps, and acceptance criteria
 - Read-only [MCP server](packages/cli/README.md#use-agendex-from-your-agents-mcp) for coding agents to search local plans and inspect receipts, without a cloud account or daemon
@@ -211,9 +213,9 @@ bun run cli:view https://app.agendex.dev/shared/<token>
 bun run cli:logout          # clear stored cloud token
 bun run cli:configure       # select which agents/adapters to index
 bun run cli:hooks -- status            # show Claude Code, Codex, and Pi hook status (flags preview-only hooks)
-bun run cli:hooks -- install <agent|all>   # install hook integration (claude-code and codex require --preview: review is not implemented yet)
+bun run cli:hooks -- install <agent|all>   # install Claude approval gate or Pi extension (Codex Stop remains unsupported --preview)
 bun run cli:hooks -- uninstall <agent|all> # remove managed Agendex hook entries
-bun run cli:review-plan --hook --agent <agent>  # hook-native plan review entrypoint
+bun run cli:review-plan --file ./plan.md  # wait for review in the authenticated local Reviews queue
 bun run cli -- capture-plan --agent <agent> < hook-payload.json
 bun run cli:sync            # one-shot cloud sync
 bun run cli:sync --force    # re-sync all plans, ignoring cache
@@ -251,6 +253,8 @@ bun run ci:local            # host checks plus the safe act workflow; never publ
 bun run ci:local:quick      # quick host checks plus the quick act workflow
 bun run ci:local -- --release 1.2.3  # also validate desktop release readiness
 ```
+
+Live Claude approvals, cross-device access, revision checks, timeouts, and agent limitations are documented in [plan approval gates](docs/plan-approval-gates.md).
 
 ## Local CI/CD
 
@@ -332,6 +336,8 @@ See [`docs/desktop-release.md`](./docs/desktop-release.md) for the release runbo
 
 The published CLI is Node-compatible and can be installed with `curl -fsSL https://agendex.dev/install.sh | bash` or directly with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://app.agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev ...` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
 
+For saved read comparisons, see [Changes since last read](docs/changes-since-last-read.md).
+
 ## Local API (OSS)
 
 Server routes are under `/api/v1` and require `Authorization: Bearer <token>`.
@@ -357,6 +363,7 @@ Key endpoints:
 - `PUT /api/v1/hidden-plans/:id/override` — `{ "restore": true }` restores visibility via the existing
   manual value override; `{ "restore": false }` reclassifies automatically. The override persists in
   local config across scans without editing source files. Unknown or stale sources return `404`.
+- `POST /api/v1/plans/:id/read` verifies the displayed revision, returns its previous `{ baseline, reason }`, and remembers the current revision; stale content returns `409`. `DELETE /api/v1/plans/:id/read` forgets the baseline. See [read comparisons](docs/changes-since-last-read.md) for request fields and retention limits.
 - `GET /api/v1/plans/:id/receipt` -> `{ receipt }`: commits attributed to the plan, file groups
   (changed, untouched, missing, ambiguous, unplanned, uncommitted), status (`planned`,
   `in-progress`, `landed`, `stalled`, `unavailable`), confidence, and reasons. Computed locally
@@ -378,6 +385,9 @@ Key endpoints:
   status, confidence, changed/mentioned file counts, commit count, and landing time for every
   indexed plan (or just the listed ids).
 - `GET /api/v1/agents`
+- `GET /api/v1/review-sessions` lists live and retained review snapshots; `POST /api/v1/review-sessions` creates a request.
+- `POST /api/v1/review-sessions/:id/decision` submits the snapshot revision and decision; feedback is required for changes or rejection.
+- `POST /api/v1/review-sessions/:id/heartbeat`, `/ack`, and `/cancel` coordinate the waiting client and review lifecycle. See [plan approval gates](docs/plan-approval-gates.md) for input requirements and limits.
 - `POST /api/v1/rescan`
 - `GET /api/v1/plan-sources`
 - `POST /api/v1/plan-sources` with `{ "path": "/path/to/plans" }`
@@ -397,7 +407,7 @@ Local config (from `@agendex/shared`, used by the OSS API and the CLI):
 - **Dev:** `~/.agendex-dev/config.json` when `AGENDEX_DEV=1` is set in the process environment (the CLI also accepts a `--dev` flag; see [`packages/cli/README.md`](./packages/cli/README.md))
 - **Override:** `AGENDEX_CONFIG_DIR=/custom/path`
 
-The same config directory also contains CLI/runtime files such as `daemon.pid`, `sync-cache.json`, `plannotator-writebacks-delivered.json`, and the `plans/` fallback directory.
+The same config directory also contains CLI/runtime files such as `daemon.pid`, `sync-cache.json`, `plannotator-writebacks-delivered.json`, `plan-read-snapshots.json`, and the `plans/` fallback directory.
 
 Config fields:
 
@@ -422,6 +432,7 @@ Common environment variables:
   - `AGENDEX_SITE_URL` - override login and `agendex open` site URL
   - `AGENDEX_DISABLE_BROWSER=1` - skip launching the browser for `login` and `open` (URL is still printed)
   - `AGENDEX_TOKEN` - override local token read from config
+  - `AGENDEX_REVIEW_URL` - existing HTTP(S) server origin for waiting plan-review commands (default `http://127.0.0.1:4890`; overridden by `--server`)
   - `AGENDEX_PLANNOTATOR_SYNC=0|1` - disable or force Plannotator sync/write-back polling
   - `AGENDEX_LIVE_SESSION_POLL_MS` - Plannotator live-session poll interval (daemon; `0` disables)
   - `AGENDEX_SYNC_RESCAN_INTERVAL_MS` - safety-net rescan interval (daemon; `0` disables)

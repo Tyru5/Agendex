@@ -7,6 +7,8 @@ import {
   getById,
   isLowValuePlan,
   setPlanValueOverride,
+  openPlanRead,
+  clearPlanRead,
   getAgentStats,
   createPlanAnnotation,
   deletePlanAnnotation,
@@ -165,6 +167,41 @@ plans.get('/plans/:id', (c) => {
   const plan = getIndexableById(c.req.param('id'));
   if (!plan) return c.json({ error: 'not found' }, 404);
   return c.json(plan);
+});
+
+plans.post('/plans/:id/read', async (c) => {
+  const plan = getIndexableById(c.req.param('id'));
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  let body: { updatedAt?: unknown; content?: unknown; title?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'invalid JSON' }, 400);
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body))
+    return c.json({ error: 'updatedAt, title and content are required' }, 400);
+  if (
+    typeof body.updatedAt !== 'string' ||
+    typeof body.content !== 'string' ||
+    typeof body.title !== 'string'
+  )
+    return c.json({ error: 'updatedAt, title and content are required' }, 400);
+  if (
+    body.updatedAt !== plan.updatedAt.toISOString() ||
+    body.content !== plan.content ||
+    body.title !== plan.title
+  )
+    return c.json(
+      { error: 'The displayed revision is stale. Reload the plan to record it as read.' },
+      409,
+    );
+  return c.json(await openPlanRead({ ...plan, updatedAt: plan.updatedAt.toISOString() }));
+});
+plans.delete('/plans/:id/read', async (c) => {
+  const plan = getIndexableById(c.req.param('id'));
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  await clearPlanRead(plan);
+  return c.json({ ok: true });
 });
 
 plans.get('/plans/:id/raw', (c) => {

@@ -223,7 +223,7 @@ const CLI_COMMANDS: ReadonlyArray<
       ],
       [
         'agendex hooks install <agent|all>',
-        'Install hook integration for claude-code, codex, or pi. claude-code and codex need --preview until hook-native review ships.',
+        'Install the Claude Code approval gate or manual Pi extension. Codex Stop remains unsupported and requires --preview.',
       ],
       ['agendex hooks uninstall <agent|all>', 'Remove managed Agendex hook entries.'],
     ],
@@ -749,16 +749,19 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
 
           <SubpageSection id="agent-hooks" title="Agent hooks">
             <Body>
-              Review hooks will let supported agents hand a plan to Agendex for review before they
-              run it. Hook-native review isn&rsquo;t implemented yet, so the{' '}
-              <InlineCode>claude-code</InlineCode> and <InlineCode>codex</InlineCode> hooks install
-              only with <InlineCode>--preview</InlineCode>. Until review ships, the Claude Code hook
-              denies ExitPlanMode and the Codex hook fails every time Codex stops. The{' '}
-              <InlineCode>pi</InlineCode> extension installs without it.
+              <InlineCode>claude-code</InlineCode> waits for decisions in the local dashboard’s
+              Reviews queue before allowing ExitPlanMode. Read the snapshot, then approve, request
+              changes, reject, or cancel. Approval applies only to that exact revision; source
+              edits, timeout and disconnection invalidate it. <InlineCode>codex</InlineCode> Stop
+              remains an unsupported preview integration, and Pi commands are manual. The queue uses
+              the existing local API token and is available from another device that can reach this
+              app.
             </Body>
             <div className="max-w-[560px]">
               <CodeBlock>
-                {'agendex hooks status\nagendex hooks install pi\nagendex hooks uninstall all'}
+                {
+                  'agendex hooks status\nagendex hooks install claude-code\nagendex review-plan --file ./plan.md\nagendex hooks uninstall all'
+                }
               </CodeBlock>
             </div>
             <Body>

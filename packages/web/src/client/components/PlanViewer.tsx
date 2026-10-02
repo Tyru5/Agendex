@@ -46,6 +46,7 @@ import { PlanActionButton } from './PlanActionButton.tsx';
 import { PlanDownloadButton } from './PlanDownloadButton.tsx';
 import { PlanOutline } from './PlanOutline.tsx';
 import { PlanPathContext } from './PlanPathContext.tsx';
+import { PlanReadSection } from './PlanReadSection.tsx';
 import { PlanReceiptSection } from './PlanReceiptSection.tsx';
 import { PlanCheckSection } from './PlanCheckSection.tsx';
 
@@ -919,6 +920,8 @@ export function PlanViewer({
                 onComparePlan={onComparePlan}
               />
             )}
+
+            <PlanReadSection key={`read-changes:${plan.id}`} plan={plan} />
 
             <PlanReceiptSection
               key={plan.id}
