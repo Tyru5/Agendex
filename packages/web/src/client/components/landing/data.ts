@@ -9,7 +9,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: 'Which agents are supported?',
-    a: 'Agendex has 21 automatic plan integrations, including Claude Code, Codex, Command Code, Cursor, Gemini CLI, GitHub Copilot, Kiro, omp (oh-my-pi), OpenCode, and Plannotator. Continue is experimental and only imports output with explicit Plan-mode evidence. Unsupported catalog entries are hidden.',
+    a: 'Agendex has 22 automatic plan integrations, including Claude Code, Codex, Command Code, Cursor, Gemini CLI, GitHub Copilot, Kiro, omp (oh-my-pi), OpenCode, Plannotator, and T3 Code. Continue is experimental and only imports output with explicit Plan-mode evidence. Unsupported catalog entries are hidden.',
   },
   {
     q: 'Is my data private?',
@@ -50,10 +50,12 @@ export const AGENTS = [
   'Kimi Code',
   'Kiro',
   'Mux',
+  'omp (oh-my-pi)',
   'OpenCode',
   'Oh My OpenCode',
   'Plannotator',
   'Qwen Code',
+  'T3 Code',
   'Windsurf / Devin Desktop',
 ];
 

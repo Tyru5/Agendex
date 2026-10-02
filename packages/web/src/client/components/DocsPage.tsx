@@ -115,6 +115,7 @@ const IMPLEMENTED_ADAPTERS = [
   'Oh My OpenCode',
   'Plannotator',
   'Qwen Code',
+  'T3 Code',
   'Windsurf / Devin Desktop',
 ] as const;
 
@@ -430,7 +431,7 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
           <SubpageSection id="plan-sources" title="Plan sources">
             <Body>
               Adapters teach Agendex where each agent keeps its plans and how to parse them. Agendex
-              has 21 automatic integrations backed by durable artifacts or explicit plan-session
+              has 22 automatic integrations backed by durable artifacts or explicit plan-session
               evidence, plus the experimental Continue adapter:
             </Body>
             <div className="landing-list">
@@ -448,6 +449,15 @@ export function DocsPage({ onBack, homeHref = '/' }: DocsPageProps) {
                 ))}
               </ul>
             </div>
+            <Body>
+              T3 Code stores proposed plans in a local SQLite database rather than Markdown files.
+              The <InlineCode>t3-code</InlineCode> adapter reads{' '}
+              <InlineCode>~/.t3/userdata/state.sqlite</InlineCode> and{' '}
+              <InlineCode>~/.t3/dev/state.sqlite</InlineCode> read-only. Set{' '}
+              <InlineCode>T3CODE_HOME</InlineCode> in the environment running Agendex if your T3
+              data lives elsewhere. It is enabled by default; use{' '}
+              <InlineCode>agendex configure</InlineCode> to change your selection.
+            </Body>
             <Body>
               Unsupported catalog entries — {CATALOG_ADAPTERS} — stay hidden from selection until
               they have a stable, testable ingestion contract. Custom directories and the hook
