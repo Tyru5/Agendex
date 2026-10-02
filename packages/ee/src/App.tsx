@@ -1,4 +1,6 @@
 import { TeamReviewPlanPanel } from './components/TeamReviews';
+import { useCloudFilePlanSearch } from './hooks/useCloudFilePlanSearch.ts';
+import { PlanReadProvider } from './components/PlanReadProvider.tsx';
 import {
   AgentAvatarProvider,
   type AgentStats,
@@ -6,8 +8,11 @@ import {
   api as localApi,
   EmptyStateView,
   applyPlanFilters,
+  useFilePlanSearch,
   collectionMoveIndex,
+  type CrossAgentOptions,
   focusPlanSearchField,
+  planLinkWorkReferences,
   getAppShortcuts,
   hasMorningBriefUpdates,
   hasToken,
@@ -21,10 +26,15 @@ import {
   PlanList,
   PlanActionButton,
   PlanSourcesDialog,
+  HiddenPlansRecoveryButton,
   type PlanReceiptState,
   type PlanSortBy,
   type PlanState,
   LazyPlanViewer,
+  FilePlanLookupContext,
+  localFilePlanCounts,
+  filePlanSearchQuery,
+  parseFilePlanQuery,
   SidebarResizeHandle,
   SkeletonBlock,
   sortForCollectionFilter,
@@ -38,6 +48,8 @@ import {
   usePlanFolders,
   usePlanState,
   usePlanReceipt,
+  usePlanSessionCost,
+  type PlanSessionCostState,
   usePlanReceiptSummaries,
   usePlans,
   useProductTour,
@@ -399,6 +411,9 @@ function useDashboardData(
           refresh: async () => {},
         }
       : localPlans;
+  const localFileSearch = useFilePlanSearch(plans, search, workspaceFilter, mode === 'local');
+  const cloudFileSearch = useCloudFilePlanSearch(search, workspaceFilter, mode === 'cloud');
+  const fileSearch = mode === 'cloud' ? cloudFileSearch : localFileSearch;
   // Cloud list renders after the first page (`loading`), but toast baselines
   // must wait until pagination is exhausted so later pages aren't treated as
   // fresh arrivals.
@@ -437,7 +452,9 @@ function useDashboardData(
 
   // Cloud list items ship without `content`, so content matching runs
   // server-side; the returned ids union into applyPlanFilters' metadata matches.
-  const cloudContentMatchIds = useCloudPlanSearch(mode === 'cloud' ? search : '');
+  const cloudContentMatchIds = useCloudPlanSearch(
+    mode === 'cloud' ? parseFilePlanQuery(search).text : '',
+  );
 
   const filteredPlans = useMemo(() => {
     let result = applyPlanFilters(plans, {
@@ -448,6 +465,7 @@ function useDashboardData(
       tagIds: selectedTags,
       collectionId: selectedCollection,
       contentMatchIds: mode === 'cloud' ? cloudContentMatchIds : undefined,
+      fileMatchIds: fileSearch.ids,
       planTagsById: planTagsMap,
       collectionMemberIds: collectionPlanIdSet ?? undefined,
     });
@@ -475,6 +493,7 @@ function useDashboardData(
     selectedTags,
     planTagsMap,
     cloudContentMatchIds,
+    fileSearch.ids,
   ]);
 
   const refreshLocalPlans = localPlans.refresh;
@@ -515,6 +534,10 @@ function useDashboardData(
     backendStatus,
     plans,
     loading,
+    fileSearchLoading: fileSearch.loading,
+    fileSearchError: fileSearch.error,
+    fileSearchIndexComplete: cloudFileSearch.indexingComplete,
+    fileSearchNotice: mode === 'cloud' ? cloudFileSearch.notice : undefined,
     plansComplete,
     error,
     refresh,
@@ -908,12 +931,14 @@ function CloudPlanReviewWorkspace({
   allPlans,
   onSelectRelatedPlan,
   onComparePlan,
+  crossAgent,
   onEdit,
   onHistory,
   onShare,
   onChartWideChange,
   onToggleChart,
   receipt,
+  sessionCost,
 }: {
   plan: Plan;
   planContext: { mode: DashboardMode; isPro: boolean };
@@ -924,6 +949,7 @@ function CloudPlanReviewWorkspace({
   outlineHidden?: boolean;
   chartHidden?: boolean;
   allPlans?: readonly Plan[];
+  crossAgent?: CrossAgentOptions;
   onSelectRelatedPlan?: (plan: Plan) => void;
   onComparePlan?: (plan: Plan) => void;
   onEdit: () => void;
@@ -932,6 +958,7 @@ function CloudPlanReviewWorkspace({
   onChartWideChange?: (wide: boolean) => void;
   onToggleChart?: () => void;
   receipt: PlanReceiptState;
+  sessionCost: PlanSessionCostState;
 }) {
   const { mode, isPro } = planContext;
   const {
@@ -1044,6 +1071,7 @@ function CloudPlanReviewWorkspace({
             plan={plan}
             allPlans={allPlans}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            crossAgent={crossAgent}
             onComparePlan={onComparePlan}
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
@@ -1064,6 +1092,8 @@ function CloudPlanReviewWorkspace({
             onSelectAnnotation={annotationState.setSelectedAnnotationId}
             receipt={receipt.receipt}
             receiptLoading={receipt.loading}
+            sessionCost={sessionCost.sessionCost}
+            sessionCostLoading={sessionCost.loading}
           />
         </div>
 
@@ -1202,6 +1232,7 @@ function useDashboardMain({
   compareBodiesLoading,
   compareBodiesMissing,
   onComparePlan,
+  onComparePlanPair,
   onCloseCompare,
   onSwapCompare,
   onMarkBriefRead,
@@ -1226,6 +1257,7 @@ function useDashboardMain({
   onShowSelectedInFilters,
   planViewMode,
   receipts,
+  plansComplete = true,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -1256,6 +1288,8 @@ function useDashboardMain({
   /** True when either compare pane's cloud body is inaccessible. */
   compareBodiesMissing?: boolean;
   onComparePlan?: (plan: Plan) => void;
+  /** Leaves split view and compares `base` against `other`. */
+  onComparePlanPair?: (base: Plan, other: Plan) => void;
   onCloseCompare?: () => void;
   onSwapCompare?: () => void;
   onMarkBriefRead: () => void;
@@ -1281,10 +1315,57 @@ function useDashboardMain({
   planViewMode: PlanViewMode;
   /** Local receipt summaries keyed by local plan id, for the brief. */
   receipts?: BriefReceipts;
+  /** False while cloud plans are still paging in. */
+  plansComplete?: boolean;
 }) {
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const convex = useConvex();
+  const loadRelatedPlanContent = useCallback(
+    async (plan: Plan) => {
+      if (mode !== 'cloud') return plan.content || null;
+      const result = await convex.query(api.plans.getMyPlanContent, { planId: plan.id });
+      return result?.content ?? null;
+    },
+    [convex, mode],
+  );
+  const loadRelatedPlanLinks = useCallback(
+    async (plan: Plan) =>
+      planLinkWorkReferences(
+        await convex.query(api.planLinks.getLinks, { planId: plan.id as Id<'plans'> }),
+      ),
+    [convex],
+  );
+  const watchRelatedPlanLinks = useCallback(
+    (planId: string, onChange: (references: readonly string[]) => void) => {
+      const watch = convex.watchQuery(api.planLinks.getLinks, { planId: planId as Id<'plans'> });
+      return watch.onUpdate(() => {
+        try {
+          const links = watch.localQueryResult();
+          if (links) onChange(planLinkWorkReferences(links));
+        } catch {
+          /* Link access was lost; keep the last suggestions until the next search. */
+        }
+      });
+    },
+    [convex],
+  );
+  const crossAgent = useMemo<CrossAgentOptions>(() => {
+    const linksEnabled = mode === 'cloud' && isPro;
+    return {
+      loadContent: loadRelatedPlanContent,
+      loadLinkReferences: linksEnabled ? loadRelatedPlanLinks : undefined,
+      watchLinkReferences: linksEnabled ? watchRelatedPlanLinks : undefined,
+      plansComplete,
+    };
+  }, [
+    isPro,
+    loadRelatedPlanContent,
+    loadRelatedPlanLinks,
+    mode,
+    plansComplete,
+    watchRelatedPlanLinks,
+  ]);
   const cloudUsage = useQuery(api.cli.getUsage, mode === 'cloud' ? { days: 30 } : 'skip') as
     | UsageSummary
     | null
@@ -1313,6 +1394,30 @@ function useDashboardMain({
     splitPlan,
     mode === 'local' || Boolean(splitPlan?.localPlanId),
   );
+  const selectedLocalSessionCost = usePlanSessionCost(selectedPlan, mode === 'local');
+  const splitLocalSessionCost = usePlanSessionCost(splitPlan, mode === 'local');
+  const selectedCloudSessionCost = useQuery(
+    api.planSessionCost.get,
+    mode === 'cloud' && selectedPlan ? { planId: selectedPlan.id as Id<'plans'> } : 'skip',
+  );
+  const splitCloudSessionCost = useQuery(
+    api.planSessionCost.get,
+    mode === 'cloud' && splitPlan ? { planId: splitPlan.id as Id<'plans'> } : 'skip',
+  );
+  const selectedSessionCost: PlanSessionCostState =
+    mode === 'local'
+      ? selectedLocalSessionCost
+      : {
+          sessionCost: selectedCloudSessionCost ?? null,
+          loading: Boolean(selectedPlan) && selectedCloudSessionCost === undefined,
+        };
+  const splitSessionCost: PlanSessionCostState =
+    mode === 'local'
+      ? splitLocalSessionCost
+      : {
+          sessionCost: splitCloudSessionCost ?? null,
+          loading: Boolean(splitPlan) && splitCloudSessionCost === undefined,
+        };
   const { user } = useAuth();
   const currentUserId = user?.id ? String(user.id) : undefined;
   const canWriteSelectedAnnotations =
@@ -1435,7 +1540,11 @@ function useDashboardMain({
           <LazyPlanViewer
             plan={selectedPlan}
             allPlans={allPlans}
+            crossAgent={crossAgent}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            onComparePlan={
+              onComparePlanPair ? (other) => onComparePlanPair(selectedPlan, other) : undefined
+            }
             mode="split"
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
@@ -1455,6 +1564,8 @@ function useDashboardMain({
             onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
             receipt={selectedReceipt.receipt}
             receiptLoading={selectedReceipt.loading}
+            sessionCost={selectedSessionCost.sessionCost}
+            sessionCostLoading={selectedSessionCost.loading}
           />
           {isCloudReview && (
             <CloudToolbarOptionStack
@@ -1471,7 +1582,11 @@ function useDashboardMain({
           <LazyPlanViewer
             plan={splitPlan}
             allPlans={allPlans}
+            crossAgent={crossAgent}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            onComparePlan={
+              onComparePlanPair ? (other) => onComparePlanPair(splitPlan, other) : undefined
+            }
             mode="split"
             onChartWideChange={onChartWideChange}
             onToggleChart={onToggleChart}
@@ -1490,6 +1605,8 @@ function useDashboardMain({
             onSelectAnnotation={splitAnnotationState.setSelectedAnnotationId}
             receipt={splitReceipt.receipt}
             receiptLoading={splitReceipt.loading}
+            sessionCost={splitSessionCost.sessionCost}
+            sessionCostLoading={splitSessionCost.loading}
           />
           {isCloudReview && (
             <CloudToolbarOptionStack
@@ -1644,6 +1761,7 @@ function useDashboardMain({
                 outlineHidden={outlineHidden}
                 chartHidden={chartHidden}
                 allPlans={allPlans}
+                crossAgent={crossAgent}
                 onSelectRelatedPlan={onSelectRelatedPlan}
                 onComparePlan={onComparePlan}
                 onEdit={onEdit}
@@ -1652,11 +1770,13 @@ function useDashboardMain({
                 onChartWideChange={onChartWideChange}
                 onToggleChart={onToggleChart}
                 receipt={selectedReceipt}
+                sessionCost={selectedSessionCost}
               />
             ) : (
               <LazyPlanViewer
                 plan={selectedPlan}
                 allPlans={allPlans}
+                crossAgent={crossAgent}
                 onSelectRelatedPlan={onSelectRelatedPlan}
                 onComparePlan={onComparePlan}
                 onEdit={onEdit}
@@ -1678,6 +1798,8 @@ function useDashboardMain({
                 onSelectAnnotation={selectedAnnotationState.setSelectedAnnotationId}
                 receipt={selectedReceipt.receipt}
                 receiptLoading={selectedReceipt.loading}
+                sessionCost={selectedSessionCost.sessionCost}
+                sessionCostLoading={selectedSessionCost.loading}
               />
             )}
             {sharing && isCloudReview && (
@@ -1750,6 +1872,7 @@ function useDashboardSidebar({
   isPro,
   loading,
   error,
+  notice,
   search,
   sortBy,
   dateBucket,
@@ -1784,6 +1907,7 @@ function useDashboardSidebar({
   isPro: boolean;
   loading: boolean;
   error: string | null | undefined;
+  notice?: string;
   search: string;
   sortBy: PlanSortBy;
   dateBucket: 'all' | 'today' | '7d' | '30d';
@@ -1867,6 +1991,7 @@ function useDashboardSidebar({
       }}
     >
       {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
+      {mode === 'local' && <HiddenPlansRecoveryButton />}
       <div
         ref={scrollViewportRef}
         className="flex-1 overflow-auto sidebar-scroll sidebar-content-list"
@@ -1883,12 +2008,17 @@ function useDashboardSidebar({
             : { transition: 'opacity 0.3s, filter 0.3s' }
         }
       >
+        {notice && (
+          <div role="status" className="p-4 text-[13px] text-secondary">
+            {notice}
+          </div>
+        )}
         {loading ? (
           <div className="p-4">
             <SkeletonBlock lines={5} />
           </div>
         ) : error ? (
-          <div className="p-4 text-[13px] text-red-500">Failed to load plans.</div>
+          <div className="p-4 text-[13px] text-red-500">{error}</div>
         ) : mode === 'cloud' && filteredPlans.length === 0 && !hasActiveFilters ? (
           <div className="p-4 text-[12.5px] text-tertiary text-center">
             {cloudSyncPaused
@@ -2030,8 +2160,9 @@ function useDashboard({
   /** Route is still settling the cloud session; see `useProductTourState`. */
   authPending: boolean;
 }) {
+  const convex = useConvex();
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const planViewPreference = useQuery(
     api.account.getMyPlanViewPreference,
     isAuthenticated ? {} : 'skip',
@@ -2200,6 +2331,10 @@ function useDashboard({
     backendStatus,
     plans,
     loading,
+    fileSearchLoading,
+    fileSearchError,
+    fileSearchNotice,
+    fileSearchIndexComplete,
     plansComplete,
     error,
     refresh,
@@ -2449,6 +2584,17 @@ function useDashboard({
       setComparePlanId(plan.id);
     },
     [setComparePlanId],
+  );
+
+  const comparePlanPair = useCallback(
+    (base: Plan, other: Plan) => {
+      setActivePanel(null);
+      setOptimisticSelectedPlan(base);
+      setSelectedPlanId(base.id);
+      setSplitPlanId(null);
+      setComparePlanId(other.id);
+    },
+    [setActivePanel, setComparePlanId, setSelectedPlanId, setSplitPlanId],
   );
 
   const closeCompare = useCallback(() => {
@@ -2802,251 +2948,302 @@ function useDashboard({
     },
   });
 
+  const fileLookup = useMemo(
+    () => ({
+      revision: JSON.stringify([
+        plans.map((plan) => [plan.id, plan.updatedAt]),
+        fileSearchIndexComplete,
+      ]),
+      counts:
+        mode === 'local'
+          ? localFilePlanCounts
+          : async (paths: string[], workspace: string | undefined, signal: AbortSignal) => {
+              if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+              const counts = await convex.query(api.filePlanMentions.counts, { paths, workspace });
+              if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+              return counts;
+            },
+      navigate: (path: string, workspace?: string) => {
+        void setSearch(filePlanSearchQuery(path));
+        void setFilters({
+          agents: [],
+          agent: null,
+          workspace: workspace ?? null,
+          date: 'all',
+          sort: 'updatedAt',
+          tags: [],
+          collection: null,
+        });
+        setActivePanel(null);
+        setWorkspaceView(null);
+        setSidebarHidden(false);
+      },
+    }),
+    [
+      convex,
+      mode,
+      fileSearchIndexComplete,
+      plans,
+      setActivePanel,
+      setFilters,
+      setSearch,
+      setSidebarHidden,
+      setWorkspaceView,
+    ],
+  );
+
   return (
-    <div
-      className="agendex-app-shell h-screen grid overflow-clip relative"
-      data-plan-open={selectedPlan ? 'true' : undefined}
-      data-brief-open={briefOpen ? 'true' : undefined}
-      style={{
-        gridTemplateColumns: `${sidebarWidth}px 1fr`,
-        gridTemplateRows: `${TOPBAR_HEIGHT}px 1fr`,
-      }}
-    >
-      <DashboardTopbar
-        sidebarPinnedOpen={sidebarPinnedOpen}
-        sidebarVisible={sidebarVisible}
-        sidebarHidden={sidebarHidden}
-        isPro={isPro}
-        mode={mode}
-        backendStatus={backendStatus}
-        backendIndicator={backendIndicator}
-        totalPlans={totalPlans}
-        activeAgents={activeAgents}
-        search={search}
-        plans={plans}
-        filteredPlans={filteredPlans}
-        filters={{
-          sortBy,
-          onSortChange: setSortBy,
-          dateBucket,
-          onDateBucketChange: setDateBucket,
-          agents,
-          selectedAgents,
-          onAgentsChange: setSelectedAgents,
-          workspace: workspaceFilter,
-          onWorkspaceChange: setWorkspaceFilter,
-          workspaces,
-          tags: allTags ?? undefined,
-          selectedTags,
-          onTagSelect: setSelectedTags,
-          collections: allCollections ?? undefined,
-          selectedCollection,
-          onCollectionSelect: setSelectedCollection,
-          onClearAll: clearFilters,
+    <FilePlanLookupContext.Provider value={fileLookup}>
+      <div
+        className="agendex-app-shell h-screen grid overflow-clip relative"
+        data-plan-open={selectedPlan ? 'true' : undefined}
+        data-brief-open={briefOpen ? 'true' : undefined}
+        style={{
+          gridTemplateColumns: `${sidebarWidth}px 1fr`,
+          gridTemplateRows: `${TOPBAR_HEIGHT}px 1fr`,
         }}
-        selectedPlan={selectedPlan}
-        height={TOPBAR_HEIGHT}
-        onToggleSidebar={toggleSidebar}
-        onSetSearch={setSearch}
-        onSelectPlan={setSelectedPlan}
-        onNewPlan={handleNewPlan}
-        onUpload={handleUpload}
-        onHistory={() => startViewTransition(() => setActivePanel('history'))}
-        onNavigate={(path: string) =>
-          startViewTransition(() => {
-            setActivePanel(null);
-            navigate(path);
-          })
-        }
-        daemonDevices={daemonDevices}
-        daemonAggregateStatus={daemonStatus}
-        onShowPricing={() => setShowPricingModal(true)}
-        splitPlanId={splitPlanId ?? undefined}
-        onOpenInSplitView={openPlanInSplitView}
-        onCloseSplit={splitPlanId ? closeSplitView : undefined}
-        planState={planState}
-        onToggleOutline={toggleOutline}
-        onToggleChart={techChartEnabled ? toggleChart : undefined}
-        onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
-        onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
-        onSwitchMode={canSwitchMode ? switchMode : undefined}
-        sidebarWidth={expandedWidth}
-        hasUnseenPlans={hasUnseenPlans}
-        actions={
-          <>
-            <button
-              type="button"
-              onClick={toggleBrief}
-              aria-label={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
-              aria-pressed={briefOpen}
-              title={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
-              data-tour={TOUR_TARGET.activityBrief}
-              className="agendex-topbar-button agendex-brief-trigger shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
-              data-active={briefOpen ? 'true' : undefined}
-            >
-              <MorningBriefIcon size={14} />
-              <span>Brief</span>
-              {briefHasUpdates && !briefOpen && (
-                <span className="agendex-brief-unread" aria-hidden="true" />
-              )}
-            </button>
-            {canShowPlanSourcesAction && (
+      >
+        <DashboardTopbar
+          sidebarPinnedOpen={sidebarPinnedOpen}
+          sidebarVisible={sidebarVisible}
+          sidebarHidden={sidebarHidden}
+          isPro={isPro}
+          mode={mode}
+          backendStatus={backendStatus}
+          backendIndicator={backendIndicator}
+          totalPlans={totalPlans}
+          activeAgents={activeAgents}
+          search={search}
+          plans={plans}
+          filteredPlans={filteredPlans}
+          filters={{
+            sortBy,
+            onSortChange: setSortBy,
+            dateBucket,
+            onDateBucketChange: setDateBucket,
+            agents,
+            selectedAgents,
+            onAgentsChange: setSelectedAgents,
+            workspace: workspaceFilter,
+            onWorkspaceChange: setWorkspaceFilter,
+            workspaces,
+            tags: allTags ?? undefined,
+            selectedTags,
+            onTagSelect: setSelectedTags,
+            collections: allCollections ?? undefined,
+            selectedCollection,
+            onCollectionSelect: setSelectedCollection,
+            onClearAll: clearFilters,
+          }}
+          selectedPlan={selectedPlan}
+          height={TOPBAR_HEIGHT}
+          onToggleSidebar={toggleSidebar}
+          onSetSearch={setSearch}
+          onSelectPlan={setSelectedPlan}
+          onNewPlan={handleNewPlan}
+          onUpload={handleUpload}
+          onHistory={() => startViewTransition(() => setActivePanel('history'))}
+          onNavigate={(path: string) =>
+            startViewTransition(() => {
+              setActivePanel(null);
+              navigate(path);
+            })
+          }
+          daemonDevices={daemonDevices}
+          daemonAggregateStatus={daemonStatus}
+          onShowPricing={() => setShowPricingModal(true)}
+          splitPlanId={splitPlanId ?? undefined}
+          onOpenInSplitView={openPlanInSplitView}
+          onCloseSplit={splitPlanId ? closeSplitView : undefined}
+          planState={planState}
+          onToggleOutline={toggleOutline}
+          onToggleChart={techChartEnabled ? toggleChart : undefined}
+          onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
+          onShowChangelog={() => startViewTransition(() => navigate('/changelog'))}
+          onSwitchMode={canSwitchMode ? switchMode : undefined}
+          sidebarWidth={expandedWidth}
+          hasUnseenPlans={hasUnseenPlans}
+          actions={
+            <>
               <button
                 type="button"
-                onClick={() => setSourcesOpen(true)}
-                aria-label="Manage plan sources"
-                title="Manage plan sources"
-                data-tour={TOUR_TARGET.planSources}
-                className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+                onClick={toggleBrief}
+                aria-label={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
+                aria-pressed={briefOpen}
+                title={`${briefOpen ? 'Close' : 'Open'} activity brief (${briefShortcutLabel})`}
+                data-tour={TOUR_TARGET.activityBrief}
+                className="agendex-topbar-button agendex-brief-trigger shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+                data-active={briefOpen ? 'true' : undefined}
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                </svg>
+                <MorningBriefIcon size={14} />
+                <span>Brief</span>
+                {briefHasUpdates && !briefOpen && (
+                  <span className="agendex-brief-unread" aria-hidden="true" />
+                )}
               </button>
-            )}
-          </>
-        }
-      />
-
-      {canManageLocalPlanSources && (
-        <PlanSourcesDialog
-          open={sourcesOpen}
-          onClose={() => setSourcesOpen(false)}
-          onSourcesChanged={handleSourcesChanged}
+              {canShowPlanSourcesAction && (
+                <button
+                  type="button"
+                  onClick={() => setSourcesOpen(true)}
+                  aria-label="Manage plan sources"
+                  title="Manage plan sources"
+                  data-tour={TOUR_TARGET.planSources}
+                  className="agendex-topbar-button w-[30px] h-[30px] shrink-0 rounded-lg border border-border bg-transparent text-tertiary cursor-pointer flex items-center justify-center"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+              )}
+            </>
+          }
         />
-      )}
 
-      {canManageCloudPlanSources && (
-        <CloudPlanSourcesDialog
-          open={sourcesOpen}
-          plans={plans}
-          onClose={() => setSourcesOpen(false)}
-          onDeletePlan={handleDeletePlan}
+        {canManageLocalPlanSources && (
+          <PlanSourcesDialog
+            open={sourcesOpen}
+            onClose={() => setSourcesOpen(false)}
+            onSourcesChanged={handleSourcesChanged}
+          />
+        )}
+
+        {canManageCloudPlanSources && (
+          <CloudPlanSourcesDialog
+            open={sourcesOpen}
+            plans={plans}
+            onClose={() => setSourcesOpen(false)}
+            onDeletePlan={handleDeletePlan}
+          />
+        )}
+
+        {sidebarHidden && (
+          <div
+            className="absolute left-0 z-40"
+            onMouseEnter={peek.reveal}
+            onMouseLeave={peek.scheduleClose}
+            style={{
+              top: `${TOPBAR_HEIGHT}px`,
+              height: `calc(100% - ${TOPBAR_HEIGHT}px)`,
+              width: `${SIDEBAR_HOVER_ZONE_WIDTH}px`,
+            }}
+            aria-hidden="true"
+          />
+        )}
+
+        <DashboardSidebarView
+          sidebarHidden={sidebarHidden}
+          sidebarVisible={sidebarVisible}
+          sidebarPeekOpen={sidebarPeekOpen}
+          mode={mode}
+          backendStatus={backendStatus}
+          cloudSyncPaused={cloudSyncPaused}
+          isPro={isPro}
+          loading={loading || fileSearchLoading}
+          error={error ?? fileSearchError}
+          notice={fileSearchNotice}
+          search={search}
+          sortBy={sortBy}
+          dateBucket={dateBucket}
+          selectedAgents={selectedAgents}
+          workspace={workspaceFilter}
+          selectedTags={selectedTags}
+          selectedCollection={selectedCollection}
+          filteredPlans={filteredPlans}
+          selectedPlan={selectedPlan}
+          onRevealHover={peek.reveal}
+          onScheduleClose={peek.scheduleClose}
+          onClearFilters={clearFilters}
+          onSelectPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
+          splitPlanId={splitPlanId ?? undefined}
+          onOpenInSplitView={(plan: Plan) => startViewTransition(() => openPlanInSplitView(plan))}
+          planState={planState}
+          onRenamePlan={mode === 'cloud' && isPro ? handleRenamePlan : undefined}
+          onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
+          onMovePlan={collectionOrder ? handleMoveCollectionPlan : undefined}
+          onRemoveCustomDir={canManageLocalPlanSources ? handleRemoveCustomDir : undefined}
+          customPlanDirs={canManageLocalPlanSources ? customPlanDirs : undefined}
+          width={expandedWidth}
+          onResize={setExpandedWidth}
+          receipts={receipts}
         />
-      )}
 
-      {sidebarHidden && (
-        <div
-          className="absolute left-0 z-40"
-          onMouseEnter={peek.reveal}
-          onMouseLeave={peek.scheduleClose}
-          style={{
-            top: `${TOPBAR_HEIGHT}px`,
-            height: `calc(100% - ${TOPBAR_HEIGHT}px)`,
-            width: `${SIDEBAR_HOVER_ZONE_WIDTH}px`,
-          }}
-          aria-hidden="true"
-        />
-      )}
+        <PlanReadProvider mode={mode} userId={user?.id ? String(user.id) : undefined}>
+          <DashboardMainView
+            mode={mode}
+            isPro={isPro}
+            isWorkspaceAccessLoading={isWorkspaceAccessLoading}
+            backendStatus={backendStatus}
+            cloudSyncPaused={cloudSyncPaused}
+            briefOpen={briefOpen}
+            briefSince={briefSince}
+            briefUntil={briefUntil}
+            briefMarkedRead={briefMarkedRead}
+            briefLoading={loading}
+            briefReceiptsLoading={!receiptsSettled}
+            briefError={error}
+            uploading={uploading}
+            creating={creating}
+            editing={editing}
+            showHistory={showHistory}
+            sharing={sharing}
+            agents={agents}
+            totalPlans={totalPlans}
+            selectedPlan={selectedPlan}
+            allPlans={plans}
+            onSelectRelatedPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
+            onMarkBriefRead={markBriefRead}
+            onRetryBrief={() => void refresh()}
+            onClose={() => startViewTransition(() => setActivePanel(null))}
+            onSaved={handleSaved}
+            onCreated={(plan) => {
+              startViewTransition(() => {
+                setActivePanel(null);
+                refresh();
+                setSelectedPlan(plan);
+              });
+            }}
+            onEdit={() => startViewTransition(() => setActivePanel('editing'))}
+            onHistory={() => startViewTransition(() => setActivePanel('history'))}
+            onShare={() => setActivePanel('sharing')}
+            onCloseShare={() => setActivePanel(null)}
+            onChartWideChange={techChartEnabled ? handleChartWideChange : undefined}
+            onToggleChart={techChartEnabled ? toggleChart : undefined}
+            onSearch={focusPlanSearchField}
+            isSplitView={isSplitView}
+            splitPlan={splitPlan}
+            onCloseSplit={closeSplitView}
+            comparePlan={comparePlan}
+            compareBodiesLoading={compareBodiesLoading}
+            compareBodiesMissing={compareBodiesMissing}
+            onComparePlan={startCompare}
+            onComparePlanPair={comparePlanPair}
+            onCloseCompare={closeCompare}
+            onSwapCompare={swapCompare}
+            outlineHidden={outlineHidden}
+            chartHidden={effectiveChartHidden}
+            selectedPlanOutsideFilters={selectedPlanOutsideFilters}
+            selectionFilterNoticeKey={selectionFilterNoticeKey}
+            onShowSelectedInFilters={clearFilters}
+            planViewMode={planViewMode}
+            receipts={receipts}
+            plansComplete={plansComplete}
+          />
+        </PlanReadProvider>
 
-      <DashboardSidebarView
-        sidebarHidden={sidebarHidden}
-        sidebarVisible={sidebarVisible}
-        sidebarPeekOpen={sidebarPeekOpen}
-        mode={mode}
-        backendStatus={backendStatus}
-        cloudSyncPaused={cloudSyncPaused}
-        isPro={isPro}
-        loading={loading}
-        error={error}
-        search={search}
-        sortBy={sortBy}
-        dateBucket={dateBucket}
-        selectedAgents={selectedAgents}
-        workspace={workspaceFilter}
-        selectedTags={selectedTags}
-        selectedCollection={selectedCollection}
-        filteredPlans={filteredPlans}
-        selectedPlan={selectedPlan}
-        onRevealHover={peek.reveal}
-        onScheduleClose={peek.scheduleClose}
-        onClearFilters={clearFilters}
-        onSelectPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
-        splitPlanId={splitPlanId ?? undefined}
-        onOpenInSplitView={(plan: Plan) => startViewTransition(() => openPlanInSplitView(plan))}
-        planState={planState}
-        onRenamePlan={mode === 'cloud' && isPro ? handleRenamePlan : undefined}
-        onDeletePlan={mode === 'cloud' && isPro ? handleDeletePlan : undefined}
-        onMovePlan={collectionOrder ? handleMoveCollectionPlan : undefined}
-        onRemoveCustomDir={canManageLocalPlanSources ? handleRemoveCustomDir : undefined}
-        customPlanDirs={canManageLocalPlanSources ? customPlanDirs : undefined}
-        width={expandedWidth}
-        onResize={setExpandedWidth}
-        receipts={receipts}
-      />
-
-      <DashboardMainView
-        mode={mode}
-        isPro={isPro}
-        isWorkspaceAccessLoading={isWorkspaceAccessLoading}
-        backendStatus={backendStatus}
-        cloudSyncPaused={cloudSyncPaused}
-        briefOpen={briefOpen}
-        briefSince={briefSince}
-        briefUntil={briefUntil}
-        briefMarkedRead={briefMarkedRead}
-        briefLoading={loading}
-        briefReceiptsLoading={!receiptsSettled}
-        briefError={error}
-        uploading={uploading}
-        creating={creating}
-        editing={editing}
-        showHistory={showHistory}
-        sharing={sharing}
-        agents={agents}
-        totalPlans={totalPlans}
-        selectedPlan={selectedPlan}
-        allPlans={plans}
-        onSelectRelatedPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
-        onMarkBriefRead={markBriefRead}
-        onRetryBrief={() => void refresh()}
-        onClose={() => startViewTransition(() => setActivePanel(null))}
-        onSaved={handleSaved}
-        onCreated={(plan) => {
-          startViewTransition(() => {
-            setActivePanel(null);
-            refresh();
-            setSelectedPlan(plan);
-          });
-        }}
-        onEdit={() => startViewTransition(() => setActivePanel('editing'))}
-        onHistory={() => startViewTransition(() => setActivePanel('history'))}
-        onShare={() => setActivePanel('sharing')}
-        onCloseShare={() => setActivePanel(null)}
-        onChartWideChange={techChartEnabled ? handleChartWideChange : undefined}
-        onToggleChart={techChartEnabled ? toggleChart : undefined}
-        onSearch={focusPlanSearchField}
-        isSplitView={isSplitView}
-        splitPlan={splitPlan}
-        onCloseSplit={closeSplitView}
-        comparePlan={comparePlan}
-        compareBodiesLoading={compareBodiesLoading}
-        compareBodiesMissing={compareBodiesMissing}
-        onComparePlan={startCompare}
-        onCloseCompare={closeCompare}
-        onSwapCompare={swapCompare}
-        outlineHidden={outlineHidden}
-        chartHidden={effectiveChartHidden}
-        selectedPlanOutsideFilters={selectedPlanOutsideFilters}
-        selectionFilterNoticeKey={selectionFilterNoticeKey}
-        onShowSelectedInFilters={clearFilters}
-        planViewMode={planViewMode}
-        receipts={receipts}
-      />
-
-      {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
-      <LocalIpDisclosureNotice enabled={mode === 'cloud' && isPro && !isWorkspaceAccessLoading} />
-    </div>
+        {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
+        <LocalIpDisclosureNotice enabled={mode === 'cloud' && isPro && !isWorkspaceAccessLoading} />
+      </div>
+    </FilePlanLookupContext.Provider>
   );
 }
 

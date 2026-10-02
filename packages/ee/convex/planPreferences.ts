@@ -47,7 +47,7 @@ export const setPinned = mutation({
 
     if (!args.pinned) {
       if (!existing) return null;
-      if (existing.lastSeenUpdatedAt === undefined) {
+      if (existing.lastSeenUpdatedAt === undefined && existing.lastReadVersion === undefined) {
         await ctx.db.delete(existing._id);
         return null;
       }
@@ -134,7 +134,7 @@ export const markUnseen = mutation({
     }
 
     if (existing.lastSeenUpdatedAt === undefined) return null;
-    if (!existing.pinned) {
+    if (!existing.pinned && existing.lastReadVersion === undefined) {
       await ctx.db.delete(existing._id);
       return null;
     }

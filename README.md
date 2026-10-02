@@ -21,7 +21,13 @@ Agendex is a Bun workspaces monorepo:
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
+- Session cost: observed USD API-equivalent usage estimates for verified Claude Code, Codex CLI, and Grok sessions, with shared-session and unknown-price disclosures
+- Cross-agent [comparison and handoff](docs/cross-agent-handoff.md): workspace-scoped suggestions with matching evidence, Markdown context export, and reviewable commands for installed Codex and Claude Code CLIs
+- [Changes since last read](docs/changes-since-last-read.md): compare a plan's title and body with the exact revision previously opened, independently of unread badges
+- [Live plan approval](docs/plan-approval-gates.md): review Claude Code ExitPlanMode snapshots or manually submitted files through the local Reviews queue
 - Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, stalled, or unavailable status
+- File provenance: search `file:src/auth.ts` in the dashboard or run `agendex why src/auth.ts` to find plans that mentioned or changed a file; cloud lookup uses synced mentions, and source links show related-plan counts
+- Advisory plan checks in the viewer for missing or ambiguous file references, verification steps, and acceptance criteria
 - Read-only [MCP server](packages/cli/README.md#use-agendex-from-your-agents-mcp) for coding agents to search local plans and inspect receipts, without a cloud account or daemon
 - Local API with token-based auth
 - Adapter selection, rescanning, and custom plan source directories
@@ -47,7 +53,7 @@ CLI daemon is already running. The worker uses the encrypted desktop session, re
 separate CLI login, and stops with the Electron application. Existing CLI daemons remain
 independently owned and are never stopped by desktop logout or shutdown.
 
-For usage instructions, see the in-app **Docs** entries for **Plan search**, **Plan receipts**,
+For usage instructions, see the in-app **Docs** entries for **Plan search**, **Plan receipts**, **Session cost**,
 **Activity brief**, **Sharing & collaboration**, and **MCP server**.
 
 ## Adapter Status
@@ -211,9 +217,9 @@ bun run cli:view https://app.agendex.dev/shared/<token>
 bun run cli:logout          # clear stored cloud token
 bun run cli:configure       # select which agents/adapters to index
 bun run cli:hooks -- status            # show Claude Code, Codex, and Pi hook status (flags preview-only hooks)
-bun run cli:hooks -- install <agent|all>   # install hook integration (claude-code and codex require --preview: review is not implemented yet)
+bun run cli:hooks -- install <agent|all>   # install Claude approval gate or Pi extension (Codex Stop remains unsupported --preview)
 bun run cli:hooks -- uninstall <agent|all> # remove managed Agendex hook entries
-bun run cli:review-plan --hook --agent <agent>  # hook-native plan review entrypoint
+bun run cli:review-plan --file ./plan.md  # wait for review in the authenticated local Reviews queue
 bun run cli -- capture-plan --agent <agent> < hook-payload.json
 bun run cli:sync            # one-shot cloud sync
 bun run cli:sync --force    # re-sync all plans, ignoring cache
@@ -251,6 +257,8 @@ bun run ci:local            # host checks plus the safe act workflow; never publ
 bun run ci:local:quick      # quick host checks plus the quick act workflow
 bun run ci:local -- --release 1.2.3  # also validate desktop release readiness
 ```
+
+Live Claude approvals, cross-device access, revision checks, timeouts, and agent limitations are documented in [plan approval gates](docs/plan-approval-gates.md).
 
 ## Local CI/CD
 
@@ -332,6 +340,8 @@ See [`docs/desktop-release.md`](./docs/desktop-release.md) for the release runbo
 
 The published CLI is Node-compatible and can be installed with `curl -fsSL https://agendex.dev/install.sh | bash` or directly with `npm`, `pnpm`, `yarn`, or `bun`. The default `agendex login` target is `https://app.agendex.dev`. For self-hosted logins, use `agendex login --url <site>` or `bun run cli:login -- --url <site>`. For a separate dev config directory and dev default login URL, use `agendex --dev ...` or `AGENDEX_DEV=1` (documented in [`packages/cli/README.md`](./packages/cli/README.md)).
 
+For saved read comparisons, see [Changes since last read](docs/changes-since-last-read.md).
+
 ## Local API (OSS)
 
 Server routes are under `/api/v1` and require `Authorization: Bearer <token>`.
@@ -345,6 +355,31 @@ Key endpoints:
   relevance order unless `sort=updatedAt|createdAt|title` is set.
 - `GET /api/v1/plans/:id`
 - `GET /api/v1/plans/:id/raw`
+- `GET /api/v1/plans/:id/session-cost` -> `{ sessionCost }`: observed session usage for the last
+  90 days, joined only by a verified native session ID. `status: unavailable` explains missing,
+  conflicting, or unverified identity and missing usage. `costUsd` is `null` when every record has
+  unknown pricing; `pricing: partial` means the amount excludes unpriced records. This whole-session
+  USD API-equivalent estimate is not individual plan spend or an invoice. Multiple plans may show
+  the same session amount; never add those amounts together.
+- `GET /api/v1/file-plans` (`path` required; `workspace` or `allWorkspaces=true`, `limit=1..100`, `offset` optional)
+  returns newest-first plan summaries that mention a file or have attributed commits that changed
+  it. Relative paths resolve from the workspace or server directory; `allWorkspaces=true` searches
+  relative paths across indexed repositories and cannot be combined with `workspace`.
+- `POST /api/v1/file-plan-counts` (up to 20 `paths`; optional `workspace` or `allWorkspaces`)
+  returns `{ counts: [{ path, count, exact }] }` using the same file attribution and workspace rules.
+- `GET /api/v1/plans/:id/check` returns advisory findings for missing or ambiguous file references,
+  verification steps, acceptance criteria, and file counts. Missing paths may be intended new files;
+  checks do not approve a plan. `404` for unknown or hidden plans.
+- `GET /api/v1/hidden-plans` — authenticated local recovery summaries (no content), paginated with
+  `limit=1..100` and nonnegative `offset`; includes classifier reasons/signals and manually restored
+  plans. `hiddenCount` counts only currently hidden plans.
+- `GET /api/v1/hidden-plans/:id` — intentional authenticated inspection of a hidden or locally restored
+  plan, including content and advisory checks. Plans that remain hidden are excluded from normal
+  list/search/raw/MCP endpoints; restored plans become visible there.
+- `PUT /api/v1/hidden-plans/:id/override` — `{ "restore": true }` restores visibility via the existing
+  manual value override; `{ "restore": false }` reclassifies automatically. The override persists in
+  local config across scans without editing source files. Unknown or stale sources return `404`.
+- `POST /api/v1/plans/:id/read` verifies the displayed revision, returns its previous `{ baseline, reason }`, and remembers the current revision; stale content returns `409`. `DELETE /api/v1/plans/:id/read` forgets the baseline. See [read comparisons](docs/changes-since-last-read.md) for request fields and retention limits.
 - `GET /api/v1/plans/:id/receipt` -> `{ receipt }`: commits attributed to the plan, file groups
   (changed, untouched, missing, ambiguous, unplanned, uncommitted), status (`planned`,
   `in-progress`, `landed`, `stalled`, `unavailable`), confidence, and reasons. Computed locally
@@ -366,6 +401,10 @@ Key endpoints:
   status, confidence, changed/mentioned file counts, commit count, and landing time for every
   indexed plan (or just the listed ids).
 - `GET /api/v1/agents`
+- `GET /api/v1/open-in/agent-clis` -> `{ apps: [{ id, label }] }`: installed Codex and Claude Code CLIs available for preparing handoff commands; returns an empty list on Windows. Detection does not launch a CLI.
+- `GET /api/v1/review-sessions` lists live and retained review snapshots; `POST /api/v1/review-sessions` creates a request.
+- `POST /api/v1/review-sessions/:id/decision` submits the snapshot revision and decision; feedback is required for changes or rejection.
+- `POST /api/v1/review-sessions/:id/heartbeat`, `/ack`, and `/cancel` coordinate the waiting client and review lifecycle. See [plan approval gates](docs/plan-approval-gates.md) for input requirements and limits.
 - `POST /api/v1/rescan`
 - `GET /api/v1/plan-sources`
 - `POST /api/v1/plan-sources` with `{ "path": "/path/to/plans" }`
@@ -385,7 +424,7 @@ Local config (from `@agendex/shared`, used by the OSS API and the CLI):
 - **Dev:** `~/.agendex-dev/config.json` when `AGENDEX_DEV=1` is set in the process environment (the CLI also accepts a `--dev` flag; see [`packages/cli/README.md`](./packages/cli/README.md))
 - **Override:** `AGENDEX_CONFIG_DIR=/custom/path`
 
-The same config directory also contains CLI/runtime files such as `daemon.pid`, `sync-cache.json`, `plannotator-writebacks-delivered.json`, and the `plans/` fallback directory.
+The same config directory also contains CLI/runtime files such as `daemon.pid`, `sync-cache.json`, `plannotator-writebacks-delivered.json`, `plan-read-snapshots.json`, and the `plans/` fallback directory.
 
 Config fields:
 
@@ -394,6 +433,7 @@ Config fields:
 - `deviceId` (cloud daemon identity)
 - `enabledAdapters`
 - `customPlanDirs`
+- `planValueOverrides` (local plan IDs explicitly restored through the recovery UI)
 
 Common environment variables:
 
@@ -409,6 +449,7 @@ Common environment variables:
   - `AGENDEX_SITE_URL` - override login and `agendex open` site URL
   - `AGENDEX_DISABLE_BROWSER=1` - skip launching the browser for `login` and `open` (URL is still printed)
   - `AGENDEX_TOKEN` - override local token read from config
+  - `AGENDEX_REVIEW_URL` - existing HTTP(S) server origin for waiting plan-review commands (default `http://127.0.0.1:4890`; overridden by `--server`)
   - `AGENDEX_PLANNOTATOR_SYNC=0|1` - disable or force Plannotator sync/write-back polling
   - `AGENDEX_LIVE_SESSION_POLL_MS` - Plannotator live-session poll interval (daemon; `0` disables)
   - `AGENDEX_SYNC_RESCAN_INTERVAL_MS` - safety-net rescan interval (daemon; `0` disables)
@@ -491,3 +532,12 @@ This repo is available under the [AGPL-3.0](./LICENSE) license, except for the `
 - Code in `packages/ee/` may be copied and modified freely for development and testing purposes without a subscription.
 - Production use of `packages/ee/` — any deployment that serves end users, whether internal or external — requires a valid Agendex Cloud Pro subscription under the [Agendex Enterprise License](./packages/ee/LICENSE).
 - Contributions are subject to the [Contributor License Agreement](./CLA.md).
+
+### Recover classifier-filtered plans
+
+Open **Hidden plans** in the local dashboard sidebar, even when no visible plans remain. Select a
+summary to inspect content, classifier reasons/signals, and advisory checks, then restore it or undo a
+previous restore. The same recovery panel is available under **Plan sources and recovery**. Visibility
+and counts update after recovery. Undo uses the current automatic assessment; an improved plan can
+remain visible. Cloud sync prunes low-value content, so cloud recovery requires the source device and a
+subsequent sync. Existing published copies are not revoked by changing local visibility.

@@ -1,3 +1,4 @@
+import { deleteFilePlanMentions } from './filePlanMentionIndex';
 import type { Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import type { MutationCtx } from './_generated/server';
@@ -18,6 +19,7 @@ export const PLAN_DELETION_PHASES = [
   'collectionPlans',
   'planPreferences',
   'planReviewRequests',
+  'filePlanMentions',
 ] as const;
 
 export type PlanDeletionPhase = (typeof PLAN_DELETION_PHASES)[number];
@@ -48,7 +50,14 @@ export async function deletePlanRelatedDataBatch(
 ): Promise<{ deleted: number; nextPhase: PlanDeletionPhase | null }> {
   let deleted = 0;
 
-  if (phase === 'shareLinks') {
+  if (phase === 'filePlanMentions') {
+    const rows = await ctx.db
+      .query('filePlanMentions')
+      .withIndex('by_plan', (q) => q.eq('planId', planId))
+      .take(batchSize);
+    for (const row of rows) await ctx.db.delete(row._id);
+    deleted = rows.length;
+  } else if (phase === 'shareLinks') {
     const rows = await ctx.db
       .query('shareLinks')
       .withIndex('by_plan', (q) => q.eq('planId', planId))
@@ -157,6 +166,7 @@ export async function deletePlanRelatedData(
   await Promise.all(reviews.map((row) => ctx.db.delete(row._id)));
   if (reviews.length === 100)
     await ctx.scheduler.runAfter(0, internal.teamReviews.deleteForPlan, { planId });
+  await deleteFilePlanMentions(ctx, planId);
   const shareLinks = await ctx.db
     .query('shareLinks')
     .withIndex('by_plan', (q) => q.eq('planId', planId))

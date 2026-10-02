@@ -11,9 +11,11 @@ import {
   setActiveAdapters,
 } from '@agendex/shared';
 import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
+import type { FilePlanHistory } from '@agendex/shared/file-plan-history';
 import { junieAdapter } from '../../../../shared/src/adapters/file-artifact-adapters.ts';
 import { plans } from './plans.ts';
 
+const originalConfigDir = process.env.AGENDEX_CONFIG_DIR;
 let workspace: string;
 let outside: string;
 let planId: string;
@@ -101,6 +103,7 @@ beforeAll(async () => {
   clearPathResolveCache();
   workspace = await mkdtemp(join(tmpdir(), 'agendex-plans-route-ws-'));
   outside = await mkdtemp(join(tmpdir(), 'agendex-plans-route-out-'));
+  process.env.AGENDEX_CONFIG_DIR = join(outside, 'config');
 
   await mkdir(join(workspace, 'src'), { recursive: true });
   await mkdir(join(workspace, 'packages', 'a'), { recursive: true });
@@ -148,6 +151,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   delete process.env.AGENDEX_JUNIE_PLAN_DIRS;
+  if (originalConfigDir === undefined) delete process.env.AGENDEX_CONFIG_DIR;
+  else process.env.AGENDEX_CONFIG_DIR = originalConfigDir;
   await rm(workspace, { recursive: true, force: true });
   await rm(outside, { recursive: true, force: true });
 });
@@ -159,6 +164,91 @@ async function postJson(path: string, body: unknown) {
     body: JSON.stringify(body),
   });
 }
+
+describe('GET /file-plans', () => {
+  test('searches all indexed repositories without asking the browser for local directories', async () => {
+    const response = await plans.request('/file-plans?path=src%2Fmain.ts&allWorkspaces=true');
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as FilePlanHistory).total).toBe(3);
+    expect((await plans.request('/file-plans?path=a.ts&allWorkspaces=yes')).status).toBe(400);
+    expect(
+      (
+        await plans.request(
+          `/file-plans?${new URLSearchParams({ path: 'a.ts', workspace, allWorkspaces: 'true' })}`,
+        )
+      ).status,
+    ).toBe(400);
+  });
+  test('finds plans for a source file without returning their content', async () => {
+    const query = new URLSearchParams({ path: 'src/main.ts', workspace });
+    const response = await plans.request(`/file-plans?${query}`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as FilePlanHistory;
+    expect(body.total).toBe(3);
+    expect(body.plans.some((plan) => plan.id === planId && plan.mentioned)).toBe(true);
+    expect(body.plans.every((plan) => plan.receipt !== null && !('content' in plan))).toBe(true);
+  });
+
+  test('absolute paths and pagination preserve the total', async () => {
+    const query = new URLSearchParams({
+      path: join(workspace, 'src/main.ts'),
+      limit: '1',
+      offset: '1',
+    });
+    const response = await plans.request(`/file-plans?${query}`);
+    const body = (await response.json()) as FilePlanHistory;
+    expect(response.status).toBe(200);
+    expect(body.total).toBe(3);
+    expect(body.plans).toHaveLength(1);
+    expect(body.limit).toBe(1);
+    expect(body.offset).toBe(1);
+  });
+
+  test('returns a successful empty result for an unrelated file', async () => {
+    const query = new URLSearchParams({ path: 'src/unrelated.ts', workspace });
+    const response = await plans.request(`/file-plans?${query}`);
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as FilePlanHistory).plans).toEqual([]);
+  });
+
+  test('rejects invalid paths, workspaces and pagination', async () => {
+    for (const query of [
+      new URLSearchParams(),
+      new URLSearchParams({ path: ' ' }),
+      new URLSearchParams({ path: 'a\0.ts' }),
+      new URLSearchParams({ path: 'a'.repeat(4097) }),
+      new URLSearchParams({ path: 'a.ts', workspace: join(workspace, 'absent') }),
+      new URLSearchParams({ path: 'a.ts', workspace: join(workspace, 'src/main.ts') }),
+      ...['0', '101', '1.5', '2foo', ''].map(
+        (limit) => new URLSearchParams({ path: 'a.ts', limit }),
+      ),
+      ...['-1', '1.5', '9007199254740992'].map(
+        (offset) => new URLSearchParams({ path: 'a.ts', offset }),
+      ),
+    ]) {
+      expect((await plans.request(`/file-plans?${query}`)).status).toBe(400);
+    }
+  });
+});
+
+describe('GET /plans/:id/check', () => {
+  test('shares the viewer checks with API consumers', async () => {
+    const response = await plans.request(`/plans/${planId}/check`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      check: {
+        fileCount: number;
+        verificationDetected: boolean;
+        findings: Array<{ code: string }>;
+      };
+    };
+    expect(body.check.fileCount).toBe(2);
+    expect(body.check.verificationDetected).toBe(true);
+    expect(body.check.findings.map((finding) => finding.code)).toContain('acceptance-criteria');
+    expect(body.check.findings.map((finding) => finding.code)).not.toContain('missing-files');
+    expect((await plans.request('/plans/no-such-plan/check')).status).toBe(404);
+  });
+});
 
 describe('GET /plans?q=', () => {
   async function searchTitles(query: string) {
@@ -349,5 +439,112 @@ describe('plan receipts', () => {
     const subset = await plans.request(`/receipts?ids=${encodeURIComponent(ledgerPlanId)}`);
     const subsetBody = (await subset.json()) as { receipts: Record<string, PlanReceiptSummary> };
     expect(Object.keys(subsetBody.receipts)).toEqual([ledgerPlanId]);
+  });
+});
+
+describe('session cost route', () => {
+  test('returns explicit unavailable for unsupported agents without scanning usage', async () => {
+    const res = await plans.request(`/plans/${planId}/session-cost`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      sessionCost: { status: 'unavailable', reason: 'unsupported-agent', costUsd: null },
+    });
+  });
+  test('unknown plans cannot nominate an arbitrary session', async () => {
+    expect((await plans.request('/plans/nope/session-cost')).status).toBe(404);
+  });
+});
+
+describe('POST /file-plan-counts', () => {
+  test('batches unique path counts without full plan or receipt payloads', async () => {
+    const response = await postJson('/file-plan-counts', {
+      paths: ['src/main.ts', 'src/main.ts', 'src/missing.ts'],
+      workspace,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      counts: [
+        { path: 'src/main.ts', count: 3, exact: true },
+        { path: 'src/missing.ts', count: 0, exact: true },
+      ],
+    });
+  });
+  test('rejects invalid scopes and oversized batches before lookup', async () => {
+    for (const body of [
+      null,
+      { paths: 'src/main.ts' },
+      { paths: Array(21).fill('src/main.ts') },
+      { paths: [''] },
+      { paths: ['a\0.ts'] },
+      { paths: ['src/main.ts'], workspace: 5 },
+      { paths: ['src/main.ts'], workspace, allWorkspaces: true },
+      { paths: ['src/main.ts'], workspace: '/does-not-exist' },
+    ]) {
+      expect((await postJson('/file-plan-counts', body)).status).toBe(400);
+    }
+  });
+});
+
+test('handoff CLI catalog contains only supported target IDs and labels', async () => {
+  const res = await plans.request('/open-in/agent-clis');
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as { apps: { id: string; label: string }[] };
+  expect(Array.isArray(body.apps)).toBe(true);
+  for (const app of body.apps) {
+    expect(['codex', 'claude']).toContain(app.id);
+    expect(typeof app.label).toBe('string');
+  }
+});
+
+describe('read-content baselines', () => {
+  async function currentPlan() {
+    const response = await plans.request(`/plans/${planId}`);
+    return (await response.json()) as { title: string; content: string; updatedAt: string };
+  }
+  test('records the displayed revision and returns the actual prior content after a scan', async () => {
+    const first = await currentPlan();
+    const read = await postJson(`/plans/${planId}/read`, first);
+    expect(read.status).toBe(200);
+    expect(await read.json()).toEqual({ baseline: null, reason: 'first-read' });
+    try {
+      await writeFile(
+        planFilePath,
+        PLAN_CONTENT + '\n## Follow-up\n\n1. Add a retry when the cache is cold.\n',
+      );
+      await scan();
+      const next = await currentPlan();
+      const nextRead = await postJson(`/plans/${planId}/read`, next);
+      expect(nextRead.status).toBe(200);
+      expect(await nextRead.json()).toMatchObject({
+        reason: 'available',
+        baseline: { content: first.content },
+      });
+      const cleared = await plans.request(`/plans/${planId}/read`, { method: 'DELETE' });
+      expect(cleared.status).toBe(200);
+      expect(await (await postJson(`/plans/${planId}/read`, next)).json()).toMatchObject({
+        baseline: null,
+        reason: 'first-read',
+      });
+    } finally {
+      await writeFile(planFilePath, PLAN_CONTENT);
+      await scan();
+    }
+  });
+  test('rejects stale/unloaded content without changing the remembered baseline', async () => {
+    const current = await currentPlan();
+    for (const body of [null, [], 'text', 1, {}]) {
+      const malformed = await postJson(`/plans/${planId}/read`, body);
+      expect(malformed.status).toBe(400);
+    }
+    for (const changed of [
+      { content: '' },
+      { title: 'stale title' },
+      { updatedAt: '2000-01-01' },
+    ]) {
+      const response = await postJson(`/plans/${planId}/read`, { ...current, ...changed });
+      expect(response.status).toBe(409);
+    }
+    expect((await postJson('/plans/unknown/read', current)).status).toBe(404);
+    expect((await plans.request('/plans/unknown/read', { method: 'DELETE' })).status).toBe(404);
   });
 });

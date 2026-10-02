@@ -303,6 +303,7 @@ const planDeletionPhaseValidator = v.union(
   v.literal('collectionPlans'),
   v.literal('planPreferences'),
   v.literal('planReviewRequests'),
+  v.literal('filePlanMentions'),
 );
 
 const accountDeletionJobValidator = v.object({
@@ -625,6 +626,13 @@ export const runAccountDeletionBatch = internalMutation({
       const rows = await ctx.db
         .query('planVersions')
         .withIndex('by_owner_createdAt', (q) => q.eq('ownerId', ownerId))
+        .take(ACCOUNT_DELETION_BATCH_SIZE);
+      for (const row of rows) await ctx.db.delete(row._id);
+      deleted = rows.length;
+    } else if (job.phase === 'filePlanMentions') {
+      const rows = await ctx.db
+        .query('filePlanMentions')
+        .withIndex('by_owner', (q) => q.eq('ownerId', ownerId))
         .take(ACCOUNT_DELETION_BATCH_SIZE);
       for (const row of rows) await ctx.db.delete(row._id);
       deleted = rows.length;

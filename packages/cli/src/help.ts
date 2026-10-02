@@ -121,17 +121,25 @@ const HELP_GROUPS: HelpGroup[] = [
     title: 'Hooks & review',
     commands: [
       {
+        command: 'why <file>',
+        description: 'Find local plans mentioning a file or with attributed changes',
+        examples: ['agendex why src/auth.ts', 'agendex why src/auth.ts --workspace ~/repo --json'],
+      },
+      {
         command: 'capture-plan --agent <agent>',
         description: 'Capture a plan from a hook JSON payload on stdin',
       },
       { command: 'hooks status', description: 'Show Claude Code, Codex, and Pi hook status' },
       {
         command: 'hooks install <agent|all>',
-        description: 'Install hook integration (claude-code and codex require --preview)',
-        examples: ['agendex hooks install claude-code --preview'],
+        description: 'Install hook integration (codex requires --preview)',
+        examples: ['agendex hooks install claude-code'],
       },
       { command: 'hooks uninstall <agent|all>', description: 'Remove managed hook entries' },
-      { command: 'review-plan --hook --agent <agent>', description: 'Run hook-native plan review' },
+      {
+        command: 'review-plan --file <plan.md>',
+        description: 'Wait for an authenticated plan review',
+      },
       {
         command: 'mcp [--workspace <dir>]',
         description: 'Serve local plans and receipts to coding agents (MCP over stdio)',

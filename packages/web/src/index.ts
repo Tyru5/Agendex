@@ -1,4 +1,6 @@
 export { AgentFilter } from './client/components/AgentFilter.tsx';
+export { useFilePlanSearch } from './client/hooks/useFilePlanSearch.ts';
+
 export {
   AgentAvatarProvider,
   useAgentAvatarMap,
@@ -71,6 +73,8 @@ export {
 } from './client/components/PlanSearchField.tsx';
 export { PlanUploader } from './client/components/PlanUploader.tsx';
 export type { PlanAnnotationCreateDraft } from './client/components/PlanViewer.tsx';
+export type { CrossAgentOptions } from './client/lib/cross-agent-plans.ts';
+export { planLinkWorkReferences } from './client/lib/cross-agent-plans.ts';
 export { PlanActionButton, PlanViewer } from './client/components/PlanViewer.tsx';
 export { LazyPlanViewer, preloadPlanViewer } from './client/components/LazyPlanViewer.tsx';
 export type { PlanCompareViewProps } from './client/components/PlanCompareView.tsx';
@@ -223,3 +227,18 @@ export { buildAdjacencyMap, buildTechGraph, CATEGORY_COLORS } from './client/lib
 export { startViewTransition } from './client/lib/view-transition.ts';
 export type { PreloadableComponent } from './client/lib/lazy-with-preload.ts';
 export { lazyWithPreload, preloadComponents, whenIdle } from './client/lib/lazy-with-preload.ts';
+
+export {
+  usePlanSessionCost,
+  type PlanSessionCostState,
+} from './client/hooks/usePlanSessionCost.ts';
+export {
+  FilePlanLookupContext,
+  localFilePlanCounts,
+  type FilePlanLookup,
+} from './client/components/FilePlanLookupContext.tsx';
+export { filePlanSearchQuery, parseFilePlanQuery } from './client/lib/file-plan-query.ts';
+export { HiddenPlansRecoveryButton } from './client/components/HiddenPlansRecoveryButton.tsx';
+export { PlanReadContext, localPlanReadSource } from './client/lib/plan-read-context.tsx';
+export type { PlanReadSource } from './client/lib/plan-read-context.tsx';
+export { ApprovalQueue } from './client/components/ApprovalQueue.tsx';

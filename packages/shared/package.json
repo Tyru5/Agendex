@@ -10,12 +10,17 @@
     "./daemon-status": "./src/daemon-status.ts",
     "./desktop-auth-callback": "./src/desktop-auth-callback.ts",
     "./plan-checklist": "./src/plan-checklist.ts",
+    "./file-plan-history": "./src/file-plan-history.ts",
     "./plan-paths": "./src/plan-paths.ts",
     "./plan-value": "./src/services/plan-value.ts",
     "./plan-sync-identity": "./src/services/plan-sync-identity.ts",
     "./plan-download-lookup": "./src/services/plan-download-lookup.ts",
+    "./plan-read": "./src/plan-read.ts",
     "./receipts": "./src/receipts/types.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./session-cost": "./src/usage/session-cost.ts",
+    "./plan-check": "./src/plan-check.ts",
+    "./approval-gates": "./src/approval-gates.ts"
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",

@@ -2,13 +2,25 @@ import { existsSync, realpathSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import {
   CURRENT_CONFIG_VERSION,
+  assessPlanValue,
+  getAll,
+  getById,
+  isLowValuePlan,
+  setPlanValueOverride,
+  openPlanRead,
+  clearPlanRead,
   getAgentStats,
+  getFilePlanHistory,
+  getFilePlanCounts,
   createPlanAnnotation,
   deletePlanAnnotation,
   detectOpenInApps,
+  detectHandoffClis,
   getIndexableById,
   getIndexablePlans,
   getPlanReceipt,
+  getPlanSessionCost,
+  getPlanCheck,
   getPlanReceipts,
   isWithinWorkspace,
   listPlanAnnotations,
@@ -31,6 +43,189 @@ import { Hono } from 'hono';
 import { launchOpenIn } from '../open-in.ts';
 
 const plans = new Hono();
+
+plans.get('/file-plans', async (c) => {
+  const path = c.req.query('path');
+  if (!path?.trim()) return c.json({ error: 'path is required' }, 400);
+  const workspace = c.req.query('workspace');
+  const allWorkspaces = c.req.query('allWorkspaces');
+  if (allWorkspaces !== undefined && allWorkspaces !== 'true' && allWorkspaces !== 'false') {
+    return c.json({ error: 'allWorkspaces must be true or false' }, 400);
+  }
+  if (allWorkspaces === 'true' && workspace !== undefined) {
+    return c.json({ error: 'Use workspace or allWorkspaces, not both' }, 400);
+  }
+  if (workspace !== undefined) {
+    try {
+      if (!workspace.trim() || !statSync(workspace).isDirectory()) {
+        return c.json({ error: 'workspace must be an existing directory' }, 400);
+      }
+    } catch {
+      return c.json({ error: 'workspace must be an existing directory' }, 400);
+    }
+  }
+  const limit = c.req.query('limit');
+  const offset = c.req.query('offset');
+  // Validate inputs before the service touches git or the plan index.
+  if (path.includes('\0') || path.length > 4096) {
+    return c.json({ error: 'path must be at most 4096 characters and contain no NUL' }, 400);
+  }
+  if (limit !== undefined && (!/^\d+$/.test(limit) || Number(limit) < 1 || Number(limit) > 100)) {
+    return c.json({ error: 'limit must be an integer from 1 to 100' }, 400);
+  }
+  if (offset !== undefined && (!/^\d+$/.test(offset) || !Number.isSafeInteger(Number(offset)))) {
+    return c.json({ error: 'offset must be a non-negative integer' }, 400);
+  }
+  return c.json(
+    await getFilePlanHistory(path, {
+      cwd: workspace,
+      limit: limit === undefined ? undefined : Number(limit),
+      offset: offset === undefined ? undefined : Number(offset),
+      allWorkspaces: allWorkspaces === 'true',
+    }),
+  );
+});
+
+plans.post('/file-plan-counts', async (c) => {
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'Invalid JSON' }, 400);
+  }
+  if (!body || typeof body !== 'object') return c.json({ error: 'paths are required' }, 400);
+  const { paths, workspace, allWorkspaces } = body as {
+    paths?: unknown;
+    workspace?: unknown;
+    allWorkspaces?: unknown;
+  };
+  if (
+    !Array.isArray(paths) ||
+    paths.length > 20 ||
+    paths.some(
+      (path) =>
+        typeof path !== 'string' || !path.trim() || path.length > 4096 || path.includes('\0'),
+    )
+  ) {
+    return c.json({ error: 'Provide at most 20 non-empty file paths' }, 400);
+  }
+  if (
+    (workspace !== undefined && typeof workspace !== 'string') ||
+    (allWorkspaces !== undefined && typeof allWorkspaces !== 'boolean') ||
+    (workspace !== undefined && allWorkspaces === true)
+  ) {
+    return c.json({ error: 'Invalid workspace scope' }, 400);
+  }
+  if (typeof workspace === 'string') {
+    try {
+      if (!workspace.trim() || !statSync(workspace).isDirectory())
+        return c.json({ error: 'workspace must be an existing directory' }, 400);
+    } catch {
+      return c.json({ error: 'workspace must be an existing directory' }, 400);
+    }
+  }
+  return c.json({
+    counts: await getFilePlanCounts(paths as string[], {
+      cwd: workspace as string | undefined,
+      allWorkspaces: allWorkspaces === true,
+    }),
+  });
+});
+
+function recoveryAssessment(plan: NonNullable<ReturnType<typeof getById>>) {
+  const metadata = { ...plan.metadata };
+  // Explain what automatic classification would do, even after a local restore.
+  if (metadata.localPlanValueOverride === true) delete metadata.planValueOverride;
+  return assessPlanValue({ ...plan, metadata });
+}
+type RecoveryKey = { time: number; id: string };
+function recoveryKey(plan: NonNullable<ReturnType<typeof getById>>): RecoveryKey {
+  return { time: plan.updatedAt.getTime(), id: plan.id };
+}
+/** Newest first, then id; shared by sorting and cursor paging. */
+function compareRecoveryOrder(a: RecoveryKey, b: RecoveryKey): number {
+  return b.time - a.time || a.id.localeCompare(b.id);
+}
+function isRecoveryPlan(plan: NonNullable<ReturnType<typeof getById>>) {
+  return isLowValuePlan(plan) || plan.metadata.localPlanValueOverride === true;
+}
+
+// Authenticated local-only recovery surface. Never used by normal browse, MCP, or shares.
+plans.get('/hidden-plans', (c) => {
+  const rawLimit = c.req.query('limit') ?? '50';
+  const rawOffset = c.req.query('offset') ?? '0';
+  if (!/^\d+$/.test(rawLimit) || !/^\d+$/.test(rawOffset))
+    return c.json({ error: 'invalid pagination' }, 400);
+  const limit = Number(rawLimit);
+  const offset = Number(rawOffset);
+  if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+    return c.json({ error: 'invalid pagination' }, 400);
+  // `cursor` (from `nextCursor`) pages by sort key, so rows vanishing between requests
+  // cannot shift later plans past the client the way a numeric offset would.
+  const rawCursor = c.req.query('cursor');
+  const cursor = rawCursor === undefined ? undefined : /^(\d{1,15}):(.+)$/.exec(rawCursor);
+  if (cursor === null) return c.json({ error: 'invalid cursor' }, 400);
+  const candidates = getAll()
+    .filter(isRecoveryPlan)
+    .sort((a, b) => compareRecoveryOrder(recoveryKey(a), recoveryKey(b)));
+  let start = offset;
+  if (cursor) {
+    const after = { time: Number(cursor[1]), id: cursor[2] ?? '' };
+    const index = candidates.findIndex(
+      (plan) => compareRecoveryOrder(after, recoveryKey(plan)) < 0,
+    );
+    start = index === -1 ? candidates.length : index;
+  }
+  const page = candidates.slice(start, start + limit);
+  const last = page.at(-1);
+  return c.json({
+    nextCursor:
+      last && start + limit < candidates.length
+        ? `${last.updatedAt.getTime()}:${last.id}`
+        : undefined,
+    plans: page.map((plan) => ({
+      id: plan.id,
+      title: plan.title,
+      agent: plan.agent,
+      workspace: plan.workspace,
+      filePath: plan.filePath,
+      updatedAt: plan.updatedAt.toISOString(),
+      restored: plan.metadata.localPlanValueOverride === true,
+      assessment: recoveryAssessment(plan),
+    })),
+    total: candidates.length,
+    hiddenCount: candidates.filter(isLowValuePlan).length,
+    limit,
+    offset,
+  });
+});
+
+plans.get('/hidden-plans/:id', async (c) => {
+  const plan = getById(c.req.param('id'));
+  if (!plan || !isRecoveryPlan(plan)) return c.json({ error: 'not found' }, 404);
+  return c.json({ plan, assessment: recoveryAssessment(plan), check: await getPlanCheck(plan) });
+});
+
+plans.put('/hidden-plans/:id/override', async (c) => {
+  const plan = getById(c.req.param('id'));
+  if (!plan || !isRecoveryPlan(plan)) return c.json({ error: 'not found' }, 404);
+  let body: { restore?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'invalid JSON' }, 400);
+  }
+  if (typeof body?.restore !== 'boolean')
+    return c.json({ error: 'restore must be a boolean' }, 400);
+  const updated = await setPlanValueOverride(plan.id, body.restore);
+  if (!updated) return c.json({ error: 'plan source no longer indexed' }, 404);
+  watcherOnChange?.(getIndexablePlans());
+  return c.json({
+    ok: true,
+    hidden: isLowValuePlan(updated),
+    restored: updated.metadata.localPlanValueOverride === true,
+  });
+});
 
 plans.get('/plans', (c) => {
   const agent = c.req.query('agent');
@@ -66,16 +261,63 @@ plans.get('/plans/:id', (c) => {
   return c.json(plan);
 });
 
+plans.post('/plans/:id/read', async (c) => {
+  const plan = getIndexableById(c.req.param('id'));
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  let body: { updatedAt?: unknown; content?: unknown; title?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'invalid JSON' }, 400);
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body))
+    return c.json({ error: 'updatedAt, title and content are required' }, 400);
+  if (
+    typeof body.updatedAt !== 'string' ||
+    typeof body.content !== 'string' ||
+    typeof body.title !== 'string'
+  )
+    return c.json({ error: 'updatedAt, title and content are required' }, 400);
+  if (
+    body.updatedAt !== plan.updatedAt.toISOString() ||
+    body.content !== plan.content ||
+    body.title !== plan.title
+  )
+    return c.json(
+      { error: 'The displayed revision is stale. Reload the plan to record it as read.' },
+      409,
+    );
+  return c.json(await openPlanRead({ ...plan, updatedAt: plan.updatedAt.toISOString() }));
+});
+plans.delete('/plans/:id/read', async (c) => {
+  const plan = getIndexableById(c.req.param('id'));
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  await clearPlanRead(plan);
+  return c.json({ ok: true });
+});
+
 plans.get('/plans/:id/raw', (c) => {
   const plan = getIndexableById(c.req.param('id'));
   if (!plan) return c.json({ error: 'not found' }, 404);
   return c.text(plan.content);
 });
 
+plans.get('/plans/:id/session-cost', async (c) => {
+  const plan = getIndexableById(c.req.param('id'));
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  return c.json({ sessionCost: await getPlanSessionCost(plan, getIndexablePlans()) });
+});
+
 plans.get('/plans/:id/receipt', async (c) => {
   const plan = getIndexableById(c.req.param('id'));
   if (!plan) return c.json({ error: 'not found' }, 404);
   return c.json({ receipt: await getPlanReceipt(plan) });
+});
+
+plans.get('/plans/:id/check', async (c) => {
+  const plan = getIndexableById(c.req.param('id'));
+  if (!plan) return c.json({ error: 'not found' }, 404);
+  return c.json({ check: await getPlanCheck(plan) });
 });
 
 /** Receipt summaries for list rows and the brief, keyed by plan id. `?ids=a,b` narrows the set. */
@@ -148,6 +390,8 @@ plans.post('/plans/:id/paths/exists', async (c) => {
   const results = await resolveCodeFileBatch(paths, plan.workspace, planBaseDir(plan));
   return c.json({ results });
 });
+
+plans.get('/open-in/agent-clis', (c) => c.json({ apps: detectHandoffClis() }));
 
 plans.get('/open-in/apps', (c) => {
   return c.json({ available: true, apps: detectOpenInApps() });

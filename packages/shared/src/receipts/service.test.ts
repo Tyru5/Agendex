@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, unlinkSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { clearPathResolveCache } from '../services/path-resolve.ts';
+import { getFilePlanHistory } from '../services/file-plan-history.ts';
 import type { Plan } from '../types.ts';
 import {
   clearPlanReceiptCache,
@@ -486,5 +487,69 @@ describe('findPlansForFile', () => {
   test('files outside any repository match nothing', async () => {
     const plans = await setupTwoPlans();
     expect(await findPlansForFile(join(baseDir, 'elsewhere.ts'), { plans })).toEqual([]);
+  });
+
+  test('file history pages across agents with receipt summaries and no plan content', async () => {
+    const plans = await setupTwoPlans();
+    const newer = plans[1];
+    if (!newer) throw new Error('Missing fixture plan');
+    newer.agent = 'codex';
+    const first = await getFilePlanHistory('src/a.ts', { cwd: repo, plans, limit: 1 });
+    const second = await getFilePlanHistory('src/a.ts', { cwd: repo, plans, limit: 1, offset: 1 });
+    expect(first.total).toBe(2);
+    expect(first.plans.map((plan) => [plan.id, plan.agent])).toEqual([['newer', 'codex']]);
+    expect(second.plans.map((plan) => plan.id)).toEqual(['older']);
+    expect(first.plans[0]?.mentioned).toBe(true);
+    expect(second.plans[0]?.receipt?.status).toBe('landed');
+    expect(Object.hasOwn(first.plans[0] ?? {}, 'content')).toBe(false);
+    expect((await getFilePlanHistory('src/a.ts', { cwd: repo, plans, offset: 2 })).plans).toEqual(
+      [],
+    );
+  });
+
+  test('file history preserves commit-only evidence', async () => {
+    const plans = await setupTwoPlans();
+    const result = await getFilePlanHistory('docs/x.md', { cwd: repo, plans });
+    expect(
+      result.plans.map((plan) => [plan.id, plan.mentioned, plan.changedByPlanCommits]),
+    ).toEqual([['older', false, true]]);
+  });
+
+  test('file history searches across repositories only when explicitly requested', async () => {
+    const plans = await setupTwoPlans();
+    const otherRepo = join(baseDir, 'other-repo');
+    mkdirSync(join(otherRepo, 'src'), { recursive: true });
+    git(otherRepo, ['init', '-q', '-b', 'main']);
+    writeFileSync(join(otherRepo, 'src/a.ts'), 'export const other = true;');
+    git(otherRepo, ['add', '-A']);
+    git(otherRepo, ['commit', '-q', '-m', 'initial']);
+    plans.push(makePlan('other', 'Update `src/a.ts`.', Date.now(), otherRepo));
+    const scoped = await getFilePlanHistory('src/a.ts', { cwd: repo, plans });
+    expect(scoped.plans.map((plan) => plan.id)).toEqual(['newer', 'older']);
+    const all = await getFilePlanHistory('src/a.ts', { cwd: baseDir, plans, allWorkspaces: true });
+    expect(all.plans.map((plan) => plan.id)).toEqual(['other', 'newer', 'older']);
+    expect(all.allWorkspaces).toBe(true);
+    const absolute = await getFilePlanHistory(join(otherRepo, 'src/a.ts'), {
+      plans,
+      allWorkspaces: true,
+    });
+    expect(absolute.plans.map((plan) => plan.id)).toEqual(['other']);
+  });
+
+  test('file history validates paths and pagination before lookup', async () => {
+    for (const path of ['', ' ', 'a\0.ts', 'a'.repeat(4097)]) {
+      const error = await getFilePlanHistory(path).catch((error: unknown) => error);
+      expect(error instanceof Error).toBe(true);
+    }
+    for (const options of [
+      { limit: 0 },
+      { limit: 101 },
+      { limit: 1.5 },
+      { offset: -1 },
+      { offset: Number.MAX_SAFE_INTEGER + 1 },
+    ]) {
+      const error = await getFilePlanHistory('src/a.ts', options).catch((error: unknown) => error);
+      expect(error instanceof Error).toBe(true);
+    }
   });
 });

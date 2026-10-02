@@ -2,7 +2,7 @@ import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { lstat, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { getActiveAdapters } from '../adapters/registry.ts';
-import { getConfigDir, loadConfig } from '../config.ts';
+import { CURRENT_CONFIG_VERSION, getConfigDir, loadConfig, updateConfig } from '../config.ts';
 import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import { resolvePlanRepoRoot } from '../git.ts';
@@ -188,7 +188,65 @@ async function walkDir(dir: string, depth = 0, seen = new Set<string>()): Promis
   return files;
 }
 
+let localValueOverrides: Record<string, string> = {};
+
+/**
+ * A restored source must stay missing this long before its override is dropped, so an
+ * atomic save or a briefly unavailable mount does not undo the restore, while a plan
+ * created at the same path after a real deletion still starts hidden.
+ */
+const DEFAULT_OVERRIDE_DELETE_GRACE_MS = 5 * 60_000;
+const overrideSourceMissingSince = new Map<string, number>();
+
+function overrideDeleteGraceMs(): number {
+  const raw = process.env.AGENDEX_OVERRIDE_DELETE_GRACE_MS;
+  const parsed = raw === undefined || raw === '' ? Number.NaN : Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_OVERRIDE_DELETE_GRACE_MS;
+}
+
+/**
+ * Forget restores whose plan left the index and whose source stayed deleted past the
+ * grace period. An indexed plan keeps its restore even when its recorded path is not a
+ * file on disk (for example a live session reporting an unavailable source path).
+ */
+function pruneDeletedValueOverrides(ids: Iterable<string>, now = Date.now()): void {
+  const graceMs = overrideDeleteGraceMs();
+  const stale: string[] = [];
+  for (const id of ids) {
+    const sourcePath = localValueOverrides[id];
+    if (sourcePath === undefined) continue;
+    if (store.has(id) || existsSync(sourcePath)) {
+      overrideSourceMissingSince.delete(id);
+      continue;
+    }
+    const since = overrideSourceMissingSince.get(id) ?? now;
+    overrideSourceMissingSince.set(id, since);
+    if (now - since >= graceMs) stale.push(id);
+  }
+  if (stale.length === 0) return;
+  updateConfig((config) => {
+    if (!config?.planValueOverrides) return null;
+    const planValueOverrides = { ...config.planValueOverrides };
+    for (const id of stale) delete planValueOverrides[id];
+    return { ...config, planValueOverrides };
+  });
+  for (const id of stale) {
+    delete localValueOverrides[id];
+    overrideSourceMissingSince.delete(id);
+  }
+}
+
 function preparePlanForIndex(plan: Plan): Plan {
+  const metadata = { ...plan.metadata };
+  if (metadata.localPlanValueOverride === true) {
+    delete metadata.planValueOverride;
+    delete metadata.localPlanValueOverride;
+  }
+  if (localValueOverrides[plan.id] !== undefined) {
+    metadata.planValueOverride = 'manual';
+    metadata.localPlanValueOverride = true;
+  }
+  plan = { ...plan, metadata };
   const workspace = plan.workspace ?? resolvePlanRepoRoot(plan) ?? undefined;
   return annotatePlanValueMetadata(workspace ? { ...plan, workspace } : plan);
 }
@@ -338,6 +396,7 @@ export interface ScanOptions {
 }
 
 async function scanOnce(): Promise<void> {
+  localValueOverrides = loadConfig()?.planValueOverrides ?? {};
   const adapters = getActiveAdapters();
   const next = new Map<string, Plan>();
 
@@ -386,6 +445,7 @@ async function scanOnce(): Promise<void> {
   await scanCustomPlanDirs(coveredPaths, next);
 
   store = next;
+  pruneDeletedValueOverrides(Object.keys(localValueOverrides));
   notifyPlansChanged();
   const indexableCount = getIndexablePlans().length;
   const hiddenCount = store.size - indexableCount;
@@ -438,6 +498,32 @@ export function getById(id: string): Plan | undefined {
 export function getIndexableById(id: string): Plan | undefined {
   const plan = store.get(id);
   return plan && isIndexablePlan(plan) ? plan : undefined;
+}
+
+/** Restore or return a locally indexed plan to automatic classification. Never modifies its source. */
+export async function setPlanValueOverride(
+  id: string,
+  restore: boolean,
+): Promise<Plan | undefined> {
+  const plan = store.get(id);
+  if (!plan) return undefined;
+  overrideSourceMissingSince.delete(id);
+  updateConfig((config) => {
+    const planValueOverrides = { ...config?.planValueOverrides };
+    if (restore) planValueOverrides[id] = resolve(plan.filePath);
+    else delete planValueOverrides[id];
+    return {
+      ...(config ?? {
+        configVersion: CURRENT_CONFIG_VERSION,
+        enabledAdapters: [],
+        customPlanDirs: [],
+      }),
+      planValueOverrides,
+    };
+  });
+  // Queuing a fresh scan also prevents an already-running traversal from overwriting recovery.
+  await scan();
+  return store.get(id);
 }
 
 function isUserPlan(plan: Plan): boolean {
@@ -625,8 +711,12 @@ function removePlansForPath(filePath: string, adapter?: AgentAdapter): Plan[] {
 }
 
 export async function rescanFile(filePath: string) {
+  localValueOverrides = loadConfig()?.planValueOverrides ?? {};
   const adapters = getActiveAdapters();
   const normalized = resolve(filePath);
+  pruneDeletedValueOverrides(
+    Object.keys(localValueOverrides).filter((id) => localValueOverrides[id] === normalized),
+  );
   const removedPlans: Plan[] = [];
   const discoveredPlanDirs = discoverProjectPlanDirs();
 
@@ -662,6 +752,7 @@ export async function rescanFile(filePath: string) {
   }
 
   if (removedPlans.length > 0) {
+    pruneDeletedValueOverrides(removedPlans.map((plan) => plan.id));
     notifyPlansChanged();
     return removedPlans;
   }

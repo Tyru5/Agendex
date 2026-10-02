@@ -1,3 +1,4 @@
+import { FilePlanCountsContext } from './FilePlanLookupContext.tsx';
 import { describe, expect, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PlanPathContext, type PlanPathContextValue } from './PlanPathContext.tsx';
@@ -75,5 +76,49 @@ describe('PlanPathCode', () => {
     expect(html).toContain('data-agendex-path="src/cloud.ts"');
     expect(html).toContain('data-path-status="remote"');
     expect(html).toContain('title="Open on GitHub"');
+  });
+});
+
+describe('file provenance path action', () => {
+  test('new or deleted source paths still offer related-plan lookup', () => {
+    const html = renderToStaticMarkup(
+      <FilePlanCountsContext.Provider
+        value={{
+          counts: { 'src/new.ts': { path: 'src/new.ts', count: 3, exact: true } },
+          navigate: () => {},
+        }}
+      >
+        <PlanPathCode>src/new.ts</PlanPathCode>
+      </FilePlanCountsContext.Provider>,
+    );
+    expect(html).toContain('title="Find plans for this file"');
+    expect(html).toContain('aria-label="3 related plans"');
+    expect(html).toContain('<code>src/new.ts</code>');
+  });
+  test('capped cloud counts identify their lower bound', () => {
+    const html = renderToStaticMarkup(
+      <FilePlanCountsContext.Provider
+        value={{
+          counts: { 'src/new.ts': { path: 'src/new.ts', count: 100, exact: false } },
+          navigate: () => {},
+        }}
+      >
+        <PlanPathCode>src/new.ts</PlanPathCode>
+      </FilePlanCountsContext.Provider>,
+    );
+    expect(html).toContain('100+ related plans');
+  });
+  test('public read-only rendering without an authorized lookup has no private count', () => {
+    const html = renderToStaticMarkup(<PlanPathCode>src/new.ts</PlanPathCode>);
+    expect(html).toBe('<code>src/new.ts</code>');
+  });
+  test('loading or failed counts retain an actionable file lookup without false zero', () => {
+    const html = renderToStaticMarkup(
+      <FilePlanCountsContext.Provider value={{ counts: {}, navigate: () => {} }}>
+        <PlanPathCode>src/new.ts</PlanPathCode>
+      </FilePlanCountsContext.Provider>,
+    );
+    expect(html).toContain('Find plans for this file');
+    expect(html).not.toContain('0 related plans');
   });
 });

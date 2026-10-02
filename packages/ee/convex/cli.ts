@@ -1,3 +1,4 @@
+import { refreshFilePlanMentions } from './filePlanMentionIndex';
 import {
   canonicalPlanAgent,
   dedupePlanBrowseCandidates,
@@ -486,6 +487,7 @@ function stripUsageMergeMetadata(summary: Record<string, unknown>): Record<strin
   delete clean.cloudFormatVersion;
   delete clean.dedupeKeys;
   delete clean.events;
+  delete clean.failedFiles;
   return clean;
 }
 
@@ -1123,6 +1125,7 @@ export const patchPlanSyncIdentity = internalMutation({
       ...(args.workspace !== undefined ? { workspace: args.workspace } : {}),
       ...(args.updatedAt !== undefined ? { updatedAt: args.updatedAt } : {}),
     });
+    await refreshFilePlanMentions(ctx, args.planId);
     return true;
   },
 });
@@ -1189,6 +1192,7 @@ export const upsertPlan = internalMutation({
           filePath: args.filePath,
           now,
         });
+        await refreshFilePlanMentions(ctx, args.existingId);
         return args.existingId;
       }
 
@@ -1247,6 +1251,7 @@ export const upsertPlan = internalMutation({
         filePath: args.filePath,
         now,
       });
+      await refreshFilePlanMentions(ctx, args.existingId);
       return args.existingId;
     }
 
@@ -1298,6 +1303,7 @@ export const upsertPlan = internalMutation({
       now,
     });
 
+    await refreshFilePlanMentions(ctx, planId);
     return planId;
   },
 });

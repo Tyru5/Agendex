@@ -89,6 +89,8 @@ export interface UsageSourceStatus {
   path: string;
   status: 'scanned' | 'missing' | 'error';
   files: number;
+  /** Discovered files that could not be read; their records are missing. */
+  failedFiles?: number;
   message?: string;
 }
 

@@ -61,6 +61,11 @@ export function usePlans(
     if (enabled) refresh();
   }, [refresh, enabled]);
 
+  useEffect(() => {
+    if (!enabled) return;
+    window.addEventListener('agendex:visibility-changed', refreshFromRealtime);
+    return () => window.removeEventListener('agendex:visibility-changed', refreshFromRealtime);
+  }, [enabled, refreshFromRealtime]);
   useSocketEvent('plan:updated', refreshFromRealtime, enabled && realtime);
   useSocketEvent('connection', refreshFromRealtime, enabled && realtime);
 
@@ -79,6 +84,11 @@ export function useAgents(enabled = true, realtime = true) {
     if (enabled) refresh();
   }, [refresh, enabled]);
 
+  useEffect(() => {
+    if (!enabled) return;
+    window.addEventListener('agendex:visibility-changed', refresh);
+    return () => window.removeEventListener('agendex:visibility-changed', refresh);
+  }, [enabled, refresh]);
   useSocketEvent('plan:updated', refresh, enabled && realtime);
   useSocketEvent('connection', refresh, enabled && realtime);
 

@@ -2,7 +2,7 @@ import { useConvex } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { TeamReviewInbox } from './TeamReviews';
-import { type Plan, type PlanState, TOUR_TARGET } from '@agendex/web';
+import { ApprovalQueue, type Plan, type PlanState, TOUR_TARGET } from '@agendex/web';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import type { DaemonDeviceInfo } from '../hooks/useDaemonStatus';
@@ -231,6 +231,7 @@ export function DashboardTopbar({
 
         {actions}
 
+        {mode === 'local' && <ApprovalQueue />}
         <DesktopPageZoomIndicator />
 
         <SystemStatusMenu
