@@ -1,4 +1,5 @@
 import {
+  ApprovalQueue,
   EmptyStateView,
   FilePlanLookupContext,
   localFilePlanCounts,
@@ -13,6 +14,8 @@ import {
   type PlanSortBy,
   PlanSourcesDialog,
   LazyPlanViewer,
+  PlanReadContext,
+  localPlanReadSource,
   Sidebar,
   TOUR_TARGET,
   Topbar,
@@ -363,6 +366,7 @@ export function Dashboard() {
           sidebarWidth={expandedWidth}
           actions={
             <>
+              <ApprovalQueue />
               {IS_LOCAL_WORKSPACE_SHELL && (
                 <button
                   type="button"
@@ -439,6 +443,7 @@ export function Dashboard() {
         )}
 
         <Sidebar
+          localRecovery={IS_LOCAL_WORKSPACE_SHELL}
           sidebarHidden={sidebarHidden}
           sidebarVisible={sidebarVisible}
           sidebarPeekOpen={sidebarPeekOpen}
@@ -499,23 +504,25 @@ export function Dashboard() {
             </div>
           ) : selectedPlan ? (
             <div className="overflow-auto main-scroll" style={{ height: '100%' }}>
-              <LazyPlanViewer
-                plan={selectedPlan}
-                allPlans={plans}
-                onSelectRelatedPlan={setSelectedPlan}
-                onComparePlan={startCompare}
-                outlineHidden={outlineHidden}
-                receipt={selectedReceipt.receipt}
-                receiptLoading={selectedReceipt.loading}
-                headerExtra={
-                  showFilterMismatchBanner ? (
-                    <PlanFilterMismatchBanner
-                      onShowInFilters={clearFilters}
-                      onKeepViewing={() => setDismissedFilterMismatchKey(filterMismatchKey)}
-                    />
-                  ) : undefined
-                }
-              />
+              <PlanReadContext.Provider value={localPlanReadSource}>
+                <LazyPlanViewer
+                  plan={selectedPlan}
+                  allPlans={plans}
+                  onSelectRelatedPlan={setSelectedPlan}
+                  onComparePlan={startCompare}
+                  outlineHidden={outlineHidden}
+                  receipt={selectedReceipt.receipt}
+                  receiptLoading={selectedReceipt.loading}
+                  headerExtra={
+                    showFilterMismatchBanner ? (
+                      <PlanFilterMismatchBanner
+                        onShowInFilters={clearFilters}
+                        onKeepViewing={() => setDismissedFilterMismatchKey(filterMismatchKey)}
+                      />
+                    ) : undefined
+                  }
+                />
+              </PlanReadContext.Provider>
             </div>
           ) : (
             <div className="overflow-auto main-scroll" style={{ height: '100%' }}>

@@ -2,7 +2,13 @@ import { expect, test } from 'bun:test';
 import { deleteAccount, getMyPrivacyPreferences } from './account';
 import { getCurrentUser } from './auth';
 import { toPlanMetadataDto } from './planMetadata';
-import { getMyPublishedPlans, getPlan, getPlanByShareToken, publishPlan } from './plans';
+import {
+  getMyPublishedPlans,
+  getPlan,
+  getPlanByShareToken,
+  publishPlan,
+  publishPlanWithSnapshot,
+} from './plans';
 import { createShareLink, getShareLinks, getSharedPlanWithPassword } from './sharing';
 import {
   createCheckoutSession,
@@ -66,6 +72,12 @@ test('plan functions validate metadata and expose bounded plan DTOs', () => {
   expect(JSON.stringify(publish.args)).toContain('metadata');
   expect(containsValidatorType(publish.args, 'record')).toBe(true);
   expect(publish.returns).toEqual({ type: 'id', tableName: 'plans' });
+
+  const publishSnapshot = expectExplicitContract(publishPlanWithSnapshot);
+  expect(publishSnapshot.args).toEqual(publish.args);
+  expect(JSON.stringify(publishSnapshot.returns)).toContain('ownerId');
+  expect(JSON.stringify(publishSnapshot.returns)).toContain('updatedAt');
+  expect(JSON.stringify(publishSnapshot.returns)).toContain('content');
 
   const list = expectExplicitContract(getMyPublishedPlans);
   expect(JSON.stringify(list.returns)).toContain('continueCursor');

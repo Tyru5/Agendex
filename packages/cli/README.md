@@ -62,7 +62,9 @@ agendex mcp --workspace <dir>  # Same, scoped to <dir> when the client doesn't s
 agendex why src/auth.ts        # Find local plans mentioning or changing a file
 agendex why src/auth.ts --workspace /path/to/repo --limit 10 --json
 agendex hooks status           # Inspect installed agent review hooks
-agendex hooks install pi       # Install the pi extension
+agendex hooks install pi       # Install the manual Pi extension
+agendex hooks install claude-code # Install the ExitPlanMode approval gate
+agendex review-plan --file ./plan.md # Wait for approval in the local Reviews queue
 agendex hooks uninstall all    # Remove Agendex-managed hooks
 agendex capture-plan --agent antigravity < hook-payload.json  # Capture an explicit plan
 agendex cleanup                # Interactively remove cloud daemons
@@ -159,10 +161,9 @@ doesn't start servers in the project directory). Stdout carries only JSON-RPC; l
 
 ## Agent hooks
 
-Review hooks for Claude Code and Codex require `--preview`: hook-native review is not implemented,
-so the Claude Code hook denies ExitPlanMode and the Codex hook fails at Stop. The pi extension
-installs without that flag. Plan capture is separate: it accepts explicit plan fields or known
-plan artifacts and preserves a session ID when the hook payload supplies one.
+Claude Code review hooks now wait for decisions in the authenticated local app’s **Reviews** queue. Approval is bound to the exact plan snapshot and disk revision. Request changes, rejection, cancellation, timeout and source edits return explicit denial. The installer uses Claude settings files and preserves unrelated settings/hooks.
+
+Codex Stop remains an unsupported preview integration: it is a continuation hook rather than a plan-permission gate. Pi commands are manual. Use `agendex review-plan --file <plan.md>` for explicit review workflows. See [live plan approval documentation](../../docs/plan-approval-gates.md) for cross-device access and lifecycle limits.
 
 ## Dev vs prod (config directory)
 
@@ -211,6 +212,11 @@ Agendex uses a shared plan-value classifier (`@agendex/shared`) to keep non-plan
 - Sync output includes counts such as `N low-value skipped/pruned (M deleted)` when pruning runs.
 
 Low-value tagging happens during scan/rescan. If you edit a file into a real plan, the next scan clears the tag and sync uploads it again. Version restore in the cloud rejects low-value snapshots; browse history on a hidden plan to find and restore a good snapshot.
+
+To recover a locally hidden plan without editing its source, use **Hidden plans** in the local
+dashboard sidebar or **Plan sources and recovery**. Inspect the classifier reasons, restore the
+plan, then sync again from that device. The override is stored in the shared local config and
+persists across scans; undoing it returns the plan to automatic classification.
 
 ## Sync Provenance
 

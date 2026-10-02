@@ -1,4 +1,5 @@
 import { useCloudFilePlanSearch } from './hooks/useCloudFilePlanSearch.ts';
+import { PlanReadProvider } from './components/PlanReadProvider.tsx';
 import {
   AgentAvatarProvider,
   type AgentStats,
@@ -8,7 +9,9 @@ import {
   applyPlanFilters,
   useFilePlanSearch,
   collectionMoveIndex,
+  type CrossAgentOptions,
   focusPlanSearchField,
+  planLinkWorkReferences,
   getAppShortcuts,
   hasMorningBriefUpdates,
   hasToken,
@@ -22,6 +25,7 @@ import {
   PlanList,
   PlanActionButton,
   PlanSourcesDialog,
+  HiddenPlansRecoveryButton,
   type PlanReceiptState,
   type PlanSortBy,
   type PlanState,
@@ -914,6 +918,7 @@ function CloudPlanReviewWorkspace({
   allPlans,
   onSelectRelatedPlan,
   onComparePlan,
+  crossAgent,
   onEdit,
   onHistory,
   onShare,
@@ -930,6 +935,7 @@ function CloudPlanReviewWorkspace({
   outlineHidden?: boolean;
   chartHidden?: boolean;
   allPlans?: readonly Plan[];
+  crossAgent?: CrossAgentOptions;
   onSelectRelatedPlan?: (plan: Plan) => void;
   onComparePlan?: (plan: Plan) => void;
   onEdit: () => void;
@@ -1049,6 +1055,7 @@ function CloudPlanReviewWorkspace({
             plan={plan}
             allPlans={allPlans}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            crossAgent={crossAgent}
             onComparePlan={onComparePlan}
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
@@ -1207,6 +1214,7 @@ function useDashboardMain({
   compareBodiesLoading,
   compareBodiesMissing,
   onComparePlan,
+  onComparePlanPair,
   onCloseCompare,
   onSwapCompare,
   onMarkBriefRead,
@@ -1231,6 +1239,7 @@ function useDashboardMain({
   onShowSelectedInFilters,
   planViewMode,
   receipts,
+  plansComplete = true,
 }: {
   mode: DashboardMode;
   isPro: boolean;
@@ -1261,6 +1270,8 @@ function useDashboardMain({
   /** True when either compare pane's cloud body is inaccessible. */
   compareBodiesMissing?: boolean;
   onComparePlan?: (plan: Plan) => void;
+  /** Leaves split view and compares `base` against `other`. */
+  onComparePlanPair?: (base: Plan, other: Plan) => void;
   onCloseCompare?: () => void;
   onSwapCompare?: () => void;
   onMarkBriefRead: () => void;
@@ -1286,10 +1297,57 @@ function useDashboardMain({
   planViewMode: PlanViewMode;
   /** Local receipt summaries keyed by local plan id, for the brief. */
   receipts?: BriefReceipts;
+  /** False while cloud plans are still paging in. */
+  plansComplete?: boolean;
 }) {
   const [showPlannotatorTools, setShowPlannotatorTools] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const convex = useConvex();
+  const loadRelatedPlanContent = useCallback(
+    async (plan: Plan) => {
+      if (mode !== 'cloud') return plan.content || null;
+      const result = await convex.query(api.plans.getMyPlanContent, { planId: plan.id });
+      return result?.content ?? null;
+    },
+    [convex, mode],
+  );
+  const loadRelatedPlanLinks = useCallback(
+    async (plan: Plan) =>
+      planLinkWorkReferences(
+        await convex.query(api.planLinks.getLinks, { planId: plan.id as Id<'plans'> }),
+      ),
+    [convex],
+  );
+  const watchRelatedPlanLinks = useCallback(
+    (planId: string, onChange: (references: readonly string[]) => void) => {
+      const watch = convex.watchQuery(api.planLinks.getLinks, { planId: planId as Id<'plans'> });
+      return watch.onUpdate(() => {
+        try {
+          const links = watch.localQueryResult();
+          if (links) onChange(planLinkWorkReferences(links));
+        } catch {
+          /* Link access was lost; keep the last suggestions until the next search. */
+        }
+      });
+    },
+    [convex],
+  );
+  const crossAgent = useMemo<CrossAgentOptions>(() => {
+    const linksEnabled = mode === 'cloud' && isPro;
+    return {
+      loadContent: loadRelatedPlanContent,
+      loadLinkReferences: linksEnabled ? loadRelatedPlanLinks : undefined,
+      watchLinkReferences: linksEnabled ? watchRelatedPlanLinks : undefined,
+      plansComplete,
+    };
+  }, [
+    isPro,
+    loadRelatedPlanContent,
+    loadRelatedPlanLinks,
+    mode,
+    plansComplete,
+    watchRelatedPlanLinks,
+  ]);
   const cloudUsage = useQuery(api.cli.getUsage, mode === 'cloud' ? { days: 30 } : 'skip') as
     | UsageSummary
     | null
@@ -1437,7 +1495,11 @@ function useDashboardMain({
           <LazyPlanViewer
             plan={selectedPlan}
             allPlans={allPlans}
+            crossAgent={crossAgent}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            onComparePlan={
+              onComparePlanPair ? (other) => onComparePlanPair(selectedPlan, other) : undefined
+            }
             mode="split"
             onEdit={onEdit}
             onChartWideChange={onChartWideChange}
@@ -1473,7 +1535,11 @@ function useDashboardMain({
           <LazyPlanViewer
             plan={splitPlan}
             allPlans={allPlans}
+            crossAgent={crossAgent}
             onSelectRelatedPlan={onSelectRelatedPlan}
+            onComparePlan={
+              onComparePlanPair ? (other) => onComparePlanPair(splitPlan, other) : undefined
+            }
             mode="split"
             onChartWideChange={onChartWideChange}
             onToggleChart={onToggleChart}
@@ -1646,6 +1712,7 @@ function useDashboardMain({
                 outlineHidden={outlineHidden}
                 chartHidden={chartHidden}
                 allPlans={allPlans}
+                crossAgent={crossAgent}
                 onSelectRelatedPlan={onSelectRelatedPlan}
                 onComparePlan={onComparePlan}
                 onEdit={onEdit}
@@ -1659,6 +1726,7 @@ function useDashboardMain({
               <LazyPlanViewer
                 plan={selectedPlan}
                 allPlans={allPlans}
+                crossAgent={crossAgent}
                 onSelectRelatedPlan={onSelectRelatedPlan}
                 onComparePlan={onComparePlan}
                 onEdit={onEdit}
@@ -1871,6 +1939,7 @@ function useDashboardSidebar({
       }}
     >
       {onResize && !sidebarHidden && <SidebarResizeHandle onResize={onResize} />}
+      {mode === 'local' && <HiddenPlansRecoveryButton />}
       <div
         ref={scrollViewportRef}
         className="flex-1 overflow-auto sidebar-scroll sidebar-content-list"
@@ -2041,7 +2110,7 @@ function useDashboard({
 }) {
   const convex = useConvex();
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const planViewPreference = useQuery(
     api.account.getMyPlanViewPreference,
     isAuthenticated ? {} : 'skip',
@@ -2458,6 +2527,17 @@ function useDashboard({
       setComparePlanId(plan.id);
     },
     [setComparePlanId],
+  );
+
+  const comparePlanPair = useCallback(
+    (base: Plan, other: Plan) => {
+      setActivePanel(null);
+      setOptimisticSelectedPlan(base);
+      setSelectedPlanId(base.id);
+      setSplitPlanId(null);
+      setComparePlanId(other.id);
+    },
+    [setActivePanel, setComparePlanId, setSelectedPlanId, setSplitPlanId],
   );
 
   const closeCompare = useCallback(() => {
@@ -3040,64 +3120,68 @@ function useDashboard({
           receipts={receipts}
         />
 
-        <DashboardMainView
-          mode={mode}
-          isPro={isPro}
-          isWorkspaceAccessLoading={isWorkspaceAccessLoading}
-          backendStatus={backendStatus}
-          cloudSyncPaused={cloudSyncPaused}
-          briefOpen={briefOpen}
-          briefSince={briefSince}
-          briefUntil={briefUntil}
-          briefMarkedRead={briefMarkedRead}
-          briefLoading={loading}
-          briefReceiptsLoading={!receiptsSettled}
-          briefError={error}
-          uploading={uploading}
-          creating={creating}
-          editing={editing}
-          showHistory={showHistory}
-          sharing={sharing}
-          agents={agents}
-          totalPlans={totalPlans}
-          selectedPlan={selectedPlan}
-          allPlans={plans}
-          onSelectRelatedPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
-          onMarkBriefRead={markBriefRead}
-          onRetryBrief={() => void refresh()}
-          onClose={() => startViewTransition(() => setActivePanel(null))}
-          onSaved={handleSaved}
-          onCreated={(plan) => {
-            startViewTransition(() => {
-              setActivePanel(null);
-              refresh();
-              setSelectedPlan(plan);
-            });
-          }}
-          onEdit={() => startViewTransition(() => setActivePanel('editing'))}
-          onHistory={() => startViewTransition(() => setActivePanel('history'))}
-          onShare={() => setActivePanel('sharing')}
-          onCloseShare={() => setActivePanel(null)}
-          onChartWideChange={techChartEnabled ? handleChartWideChange : undefined}
-          onToggleChart={techChartEnabled ? toggleChart : undefined}
-          onSearch={focusPlanSearchField}
-          isSplitView={isSplitView}
-          splitPlan={splitPlan}
-          onCloseSplit={closeSplitView}
-          comparePlan={comparePlan}
-          compareBodiesLoading={compareBodiesLoading}
-          compareBodiesMissing={compareBodiesMissing}
-          onComparePlan={startCompare}
-          onCloseCompare={closeCompare}
-          onSwapCompare={swapCompare}
-          outlineHidden={outlineHidden}
-          chartHidden={effectiveChartHidden}
-          selectedPlanOutsideFilters={selectedPlanOutsideFilters}
-          selectionFilterNoticeKey={selectionFilterNoticeKey}
-          onShowSelectedInFilters={clearFilters}
-          planViewMode={planViewMode}
-          receipts={receipts}
-        />
+        <PlanReadProvider mode={mode} userId={user?.id ? String(user.id) : undefined}>
+          <DashboardMainView
+            mode={mode}
+            isPro={isPro}
+            isWorkspaceAccessLoading={isWorkspaceAccessLoading}
+            backendStatus={backendStatus}
+            cloudSyncPaused={cloudSyncPaused}
+            briefOpen={briefOpen}
+            briefSince={briefSince}
+            briefUntil={briefUntil}
+            briefMarkedRead={briefMarkedRead}
+            briefLoading={loading}
+            briefReceiptsLoading={!receiptsSettled}
+            briefError={error}
+            uploading={uploading}
+            creating={creating}
+            editing={editing}
+            showHistory={showHistory}
+            sharing={sharing}
+            agents={agents}
+            totalPlans={totalPlans}
+            selectedPlan={selectedPlan}
+            allPlans={plans}
+            onSelectRelatedPlan={(plan) => startViewTransition(() => setSelectedPlan(plan))}
+            onMarkBriefRead={markBriefRead}
+            onRetryBrief={() => void refresh()}
+            onClose={() => startViewTransition(() => setActivePanel(null))}
+            onSaved={handleSaved}
+            onCreated={(plan) => {
+              startViewTransition(() => {
+                setActivePanel(null);
+                refresh();
+                setSelectedPlan(plan);
+              });
+            }}
+            onEdit={() => startViewTransition(() => setActivePanel('editing'))}
+            onHistory={() => startViewTransition(() => setActivePanel('history'))}
+            onShare={() => setActivePanel('sharing')}
+            onCloseShare={() => setActivePanel(null)}
+            onChartWideChange={techChartEnabled ? handleChartWideChange : undefined}
+            onToggleChart={techChartEnabled ? toggleChart : undefined}
+            onSearch={focusPlanSearchField}
+            isSplitView={isSplitView}
+            splitPlan={splitPlan}
+            onCloseSplit={closeSplitView}
+            comparePlan={comparePlan}
+            compareBodiesLoading={compareBodiesLoading}
+            compareBodiesMissing={compareBodiesMissing}
+            onComparePlan={startCompare}
+            onComparePlanPair={comparePlanPair}
+            onCloseCompare={closeCompare}
+            onSwapCompare={swapCompare}
+            outlineHidden={outlineHidden}
+            chartHidden={effectiveChartHidden}
+            selectedPlanOutsideFilters={selectedPlanOutsideFilters}
+            selectionFilterNoticeKey={selectionFilterNoticeKey}
+            onShowSelectedInFilters={clearFilters}
+            planViewMode={planViewMode}
+            receipts={receipts}
+            plansComplete={plansComplete}
+          />
+        </PlanReadProvider>
 
         {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
         <LocalIpDisclosureNotice enabled={mode === 'cloud' && isPro && !isWorkspaceAccessLoading} />

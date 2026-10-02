@@ -30,6 +30,7 @@ import type * as planDeletion from "../planDeletion.js";
 import type * as planLinks from "../planLinks.js";
 import type * as planMetadata from "../planMetadata.js";
 import type * as planPreferences from "../planPreferences.js";
+import type * as planReads from "../planReads.js";
 import type * as planSourcePath from "../planSourcePath.js";
 import type * as planTags from "../planTags.js";
 import type * as planVersioning from "../planVersioning.js";
@@ -78,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   planLinks: typeof planLinks;
   planMetadata: typeof planMetadata;
   planPreferences: typeof planPreferences;
+  planReads: typeof planReads;
   planSourcePath: typeof planSourcePath;
   planTags: typeof planTags;
   planVersioning: typeof planVersioning;

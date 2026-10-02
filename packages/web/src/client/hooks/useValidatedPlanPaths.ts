@@ -143,13 +143,20 @@ export function useValidatedPlanPaths(
     [candidates, plan.metadata, plan.workspace],
   );
   const localPlanId = plan.localPlanId ?? plan.id;
+  const validationKey = JSON.stringify([
+    plan.id,
+    localPlanId,
+    plan.workspace,
+    plan.filePath,
+    paths,
+  ]);
 
   // Drop prior-plan results immediately on switch so overlapping path strings
   // cannot briefly render/open with the previous workspace resolution.
   const currentState: typeof resultsState =
-    resultsState.planId === plan.id
+    resultsState.planId === validationKey
       ? resultsState
-      : { planId: plan.id, results: EMPTY_PATH_RESULTS, status: 'loading' };
+      : { planId: validationKey, results: EMPTY_PATH_RESULTS, status: 'loading' };
   const results = currentState.results;
 
   const hasLocalCandidates = Boolean(plan.workspace) && paths.length > 0;
@@ -160,20 +167,20 @@ export function useValidatedPlanPaths(
   useEffect(() => {
     if (!hasLocalCandidates) {
       if (hasRemoteTargets) {
-        dispatchValidation({ type: 'ready', planId: plan.id, results: EMPTY_PATH_RESULTS });
+        dispatchValidation({ type: 'ready', planId: validationKey, results: EMPTY_PATH_RESULTS });
       } else {
-        dispatchValidation({ type: 'loading', planId: plan.id });
+        dispatchValidation({ type: 'loading', planId: validationKey });
       }
       return;
     }
     if (!localEnabled) {
       if (hasRemoteTargets) {
-        dispatchValidation({ type: 'ready', planId: plan.id, results: EMPTY_PATH_RESULTS });
+        dispatchValidation({ type: 'ready', planId: validationKey, results: EMPTY_PATH_RESULTS });
         return;
       }
       dispatchValidation({
         type: 'unavailable',
-        planId: plan.id,
+        planId: validationKey,
         message: 'Connect the local Agendex server to open source files.',
       });
       return;
@@ -186,25 +193,29 @@ export function useValidatedPlanPaths(
     const validate = (clearFirst: boolean) => {
       const id = ++requestId;
       if (clearFirst) {
-        dispatchValidation({ type: 'loading', planId: plan.id });
+        dispatchValidation({ type: 'loading', planId: validationKey });
       }
       void checkPlanPathsBatched(localPlanId, plan.filePath, paths)
         .then((nextResults) => {
           if (cancelled || id !== requestId) return;
           hasLoaded = true;
-          dispatchValidation({ type: 'ready', planId: plan.id, results: nextResults });
+          dispatchValidation({ type: 'ready', planId: validationKey, results: nextResults });
         })
         .catch((error: unknown) => {
           if (cancelled || id !== requestId) return;
           if (hasRemoteTargets) {
             if (clearFirst) {
-              dispatchValidation({ type: 'ready', planId: plan.id, results: EMPTY_PATH_RESULTS });
+              dispatchValidation({
+                type: 'ready',
+                planId: validationKey,
+                results: EMPTY_PATH_RESULTS,
+              });
             }
             return;
           }
           dispatchValidation({
             type: 'unavailable',
-            planId: plan.id,
+            planId: validationKey,
             message:
               error instanceof Error && error.message === 'local plan source not found'
                 ? 'This cloud plan is not indexed by the local Agendex server.'
@@ -239,6 +250,7 @@ export function useValidatedPlanPaths(
     hasRemoteTargets,
     localEnabled,
     localPlanId,
+    validationKey,
     plan.filePath,
     plan.id,
     paths,

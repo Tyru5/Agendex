@@ -15,6 +15,36 @@ export function parseEnvMs(name: string, defaultMs: number): number {
   return parsed;
 }
 
+/**
+ * Build order for sync payloads. Metadata-only changes, such as restoring a hidden
+ * plan, keep the source updatedAt, so equal timestamps fall back to build order.
+ */
+export function createSyncPayloadOrder() {
+  let next = 0;
+  const sequences = new WeakMap<SyncPlanPayload, number>();
+  const sequenceOf = (payload: SyncPlanPayload): number => {
+    let sequence = sequences.get(payload);
+    if (sequence === undefined) {
+      sequence = ++next;
+      sequences.set(payload, sequence);
+    }
+    return sequence;
+  };
+  return {
+    sequenceOf,
+    /** True when `payload` is not newer than `reference` (an already queued or synced payload). */
+    isSuperseded(
+      payload: SyncPlanPayload,
+      reference: { updatedAt?: number; sequence: number } | undefined,
+    ): boolean {
+      if (!reference || payload.updatedAt === undefined || reference.updatedAt === undefined)
+        return false;
+      if (reference.updatedAt !== payload.updatedAt) return reference.updatedAt > payload.updatedAt;
+      return reference.sequence >= sequenceOf(payload);
+    },
+  };
+}
+
 /** Keep the latest payload per localPlanId (last write wins). */
 export function dedupeSyncPayloads(payloads: SyncPlanPayload[]): SyncPlanPayload[] {
   const byId = new Map<string, SyncPlanPayload>();
