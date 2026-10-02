@@ -226,3 +226,4 @@ export { lazyWithPreload, preloadComponents, whenIdle } from './client/lib/lazy-
 
 export { PlanReadContext, localPlanReadSource } from './client/lib/plan-read-context.tsx';
 export type { PlanReadSource } from './client/lib/plan-read-context.tsx';
+export { ApprovalQueue } from './client/components/ApprovalQueue.tsx';

@@ -1,4 +1,5 @@
 import type { PlanReadResult } from '@agendex/shared/plan-read';
+import type { ApprovalDecision, ApprovalSession } from '@agendex/shared/approval-gates';
 import type { PlanChecklistSummary } from '@agendex/shared/plan-checklist';
 import type { PlanReceipt, PlanReceiptSummary } from '@agendex/shared/receipts';
 
@@ -239,6 +240,14 @@ export interface OpenInAppInfo {
 }
 
 export const api = {
+  getReviewSessions: () => request<{ sessions: ApprovalSession[] }>('/review-sessions'),
+  decideReview: (id: string, revision: string, decision: ApprovalDecision, feedback?: string) =>
+    request<ApprovalSession>(`/review-sessions/${id}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ revision, decision, feedback }),
+    }),
+  cancelReview: (id: string) =>
+    request<ApprovalSession>(`/review-sessions/${id}/cancel`, { method: 'POST', body: '{}' }),
   getPlans: (params?: { agent?: string; q?: string; sort?: string }) =>
     get<PlansResponse>(plansPath(params)),
 
