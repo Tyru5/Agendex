@@ -21,6 +21,7 @@ Agendex is a Bun workspaces monorepo:
 - Live file watching, polling fallback, and WebSocket updates
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
+- [Live plan approval](docs/plan-approval-gates.md): review Claude Code ExitPlanMode snapshots or manually submitted files through the local Reviews queue
 - Plan receipts: what happened in git after each plan (attributed commits, planned vs. unplanned file changes, whether it landed on the default branch) with a planned, in progress, landed, stalled, or unavailable status
 - Read-only [MCP server](packages/cli/README.md#use-agendex-from-your-agents-mcp) for coding agents to search local plans and inspect receipts, without a cloud account or daemon
 - Local API with token-based auth
@@ -210,9 +211,9 @@ bun run cli:view https://app.agendex.dev/shared/<token>
 bun run cli:logout          # clear stored cloud token
 bun run cli:configure       # select which agents/adapters to index
 bun run cli:hooks -- status            # show Claude Code, Codex, and Pi hook status (flags preview-only hooks)
-bun run cli:hooks -- install <agent|all>   # install hook integration (claude-code and codex require --preview: review is not implemented yet)
+bun run cli:hooks -- install <agent|all>   # install Claude approval gate or Pi extension (Codex Stop remains unsupported --preview)
 bun run cli:hooks -- uninstall <agent|all> # remove managed Agendex hook entries
-bun run cli:review-plan --hook --agent <agent>  # hook-native plan review entrypoint
+bun run cli:review-plan --file ./plan.md  # wait for review in the authenticated local Reviews queue
 bun run cli -- capture-plan --agent <agent> < hook-payload.json
 bun run cli:sync            # one-shot cloud sync
 bun run cli:sync --force    # re-sync all plans, ignoring cache
@@ -250,6 +251,8 @@ bun run ci:local            # host checks plus the safe act workflow; never publ
 bun run ci:local:quick      # quick host checks plus the quick act workflow
 bun run ci:local -- --release 1.2.3  # also validate desktop release readiness
 ```
+
+Live Claude approvals, cross-device access, revision checks, timeouts, and agent limitations are documented in [plan approval gates](docs/plan-approval-gates.md).
 
 ## Local CI/CD
 
@@ -365,6 +368,9 @@ Key endpoints:
   status, confidence, changed/mentioned file counts, commit count, and landing time for every
   indexed plan (or just the listed ids).
 - `GET /api/v1/agents`
+- `GET /api/v1/review-sessions` lists live and retained review snapshots; `POST /api/v1/review-sessions` creates a request.
+- `POST /api/v1/review-sessions/:id/decision` submits the snapshot revision and decision; feedback is required for changes or rejection.
+- `POST /api/v1/review-sessions/:id/heartbeat`, `/ack`, and `/cancel` coordinate the waiting client and review lifecycle. See [plan approval gates](docs/plan-approval-gates.md) for input requirements and limits.
 - `POST /api/v1/rescan`
 - `GET /api/v1/plan-sources`
 - `POST /api/v1/plan-sources` with `{ "path": "/path/to/plans" }`
@@ -408,6 +414,7 @@ Common environment variables:
   - `AGENDEX_SITE_URL` - override login and `agendex open` site URL
   - `AGENDEX_DISABLE_BROWSER=1` - skip launching the browser for `login` and `open` (URL is still printed)
   - `AGENDEX_TOKEN` - override local token read from config
+  - `AGENDEX_REVIEW_URL` - existing HTTP(S) server origin for waiting plan-review commands (default `http://127.0.0.1:4890`; overridden by `--server`)
   - `AGENDEX_PLANNOTATOR_SYNC=0|1` - disable or force Plannotator sync/write-back polling
   - `AGENDEX_LIVE_SESSION_POLL_MS` - Plannotator live-session poll interval (daemon; `0` disables)
   - `AGENDEX_SYNC_RESCAN_INTERVAL_MS` - safety-net rescan interval (daemon; `0` disables)

@@ -1,4 +1,5 @@
 import {
+  ApprovalQueue,
   EmptyStateView,
   applyPlanFilters,
   focusPlanSearchField,
@@ -337,6 +338,7 @@ export function Dashboard() {
         sidebarWidth={expandedWidth}
         actions={
           <>
+            <ApprovalQueue />
             {IS_LOCAL_WORKSPACE_SHELL && (
               <button
                 type="button"
