@@ -1,5 +1,31 @@
 # agendex-cli
 
+## 5.8.0
+
+### Minor Changes
+
+- f7ff140: Add `agendex mcp`, a read-only MCP server that lets coding agents search local plans across agents, list plans that touched a file, and see each plan's receipt.
+- 096b59d: Show changes since the last revision opened in the local or cloud plan viewer. Remember bounded local content snapshots and exact cloud history versions, preserve the earlier baseline before advancing it, and report first reads, unavailable history, and oversized plans explicitly.
+- 91d267c: Suggest related plans from different agents using explainable workspace-scoped content and reference matches. Add a Markdown handoff export and reviewable new-session commands for locally detected Codex and Claude Code CLIs.
+- 103eab0: Add `agendex why <file>`, paged local file history, and dashboard `file:` filters. File links show batched related-plan counts and open workspace-scoped file searches, including planned files not created yet. Cloud file lookup indexes authorized synced mentions with pagination and bounded migration of old plans. Local results distinguish mentions from attributed Git changes.
+- 10d420b: Add an authenticated live plan review queue and Claude Code ExitPlanMode permission hook. Review exact snapshots across devices, approve or return feedback, and invalidate disconnected, expired, cancelled or changed reviews. Add manual file review and preserve legacy Plannotator integration.
+- 26f7e4c: Add advisory plan checks in the viewer and local API for missing or ambiguous file references, verification steps, acceptance criteria, and file counts.
+
+  Add authenticated local hidden-plan recovery with classifier explanations, intentional content
+  inspection, and persistent reversible manual visibility overrides. Local sidebar recovery remains
+  available when all plans are hidden; cloud recovery points to the source device because low-value
+  sync content is pruned.
+
+- f7ff140: Add plan receipts: plans with trackable file mentions in a readable git repository get a planned, in-progress, landed, or stalled status from git evidence, with changed, untouched, and unplanned files. Other plans return an unavailable receipt. Expand Receipt in the plan viewer to inspect the evidence; active status tags also appear on plan rows, and the EE activity brief includes landings when local receipts are available. The local API serves receipts at `GET /api/v1/plans/:id/receipt` and `GET /api/v1/receipts`.
+- df3abb8: Show observed session cost in the plan viewer for verified Claude Code, Codex CLI, and Grok session IDs. The local API filters native transcripts to the matched session; Cloud reads complete, deduplicated owner-only usage events. Amounts are USD API-equivalent estimates for the last 90 days, shared by every plan from that session, with unknown prices and incomplete usage explicitly disclosed.
+- d7e8d93: Add cloud team review requests: owners assign workspace members to an exact plan revision, reviewers approve or request changes from an in-app inbox, and both sides track unread updates and cancellation. Editing or removing access invalidates earlier decisions; team reviews do not resume an agent.
+
+### Patch Changes
+
+- f7ff140: Show checklist progress, next steps, and closed loops for synced plans in the cloud Morning Brief.
+- f7ff140: Hook-captured plans now keep their session id for lineage, and `agendex hooks install codex` requires `--preview` like claude-code because hook-native review is not implemented yet.
+- f7ff140: Local plan search now finds terms anywhere in a plan, requires every term to match, and ranks results by relevance.
+
 ## 5.7.4
 
 ### Patch Changes
