@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.10.0
+
+### Minor Changes
+
+- 2c05f2a: `agendex status` lists other running daemons grouped by machine, with platform and launcher
+
 ## 5.9.0
 
 ### Minor Changes
