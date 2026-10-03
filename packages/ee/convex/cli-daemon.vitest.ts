@@ -61,3 +61,41 @@ test('legacy device-ID deletion remains supported and owner-scoped', async () =>
   expect(await t.query(internal.cli.getDaemonHeartbeats, { ownerId: 'alice' })).toEqual([]);
   expect(await t.query(internal.cli.getDaemonHeartbeats, { ownerId: 'bob' })).toHaveLength(1);
 });
+
+test('heartbeats persist launcher and platform for multi-machine status', async () => {
+  const t = convexTest(schema, modules);
+  await t.mutation(internal.cli.upsertHeartbeat, {
+    ownerId: 'alice',
+    deviceId: 'windows-device',
+    hostname: 'yeet',
+    launcher: 'desktop',
+    platform: 'win32',
+  });
+  await t.mutation(internal.cli.upsertHeartbeat, {
+    ownerId: 'alice',
+    deviceId: 'legacy-device',
+    hostname: 'oldbox',
+  });
+
+  const devices = await t.query(internal.cli.getDaemonHeartbeats, { ownerId: 'alice' });
+  expect(devices.find((device) => device.deviceId === 'windows-device')).toMatchObject({
+    hostname: 'yeet',
+    launcher: 'desktop',
+    platform: 'win32',
+  });
+  expect(devices.find((device) => device.deviceId === 'legacy-device')).toMatchObject({
+    launcher: null,
+    platform: null,
+  });
+
+  await t.mutation(internal.cli.upsertHeartbeat, {
+    ownerId: 'alice',
+    deviceId: 'windows-device',
+    launcher: 'cli',
+  });
+  const updated = await t.query(internal.cli.getDaemonHeartbeats, { ownerId: 'alice' });
+  expect(updated.find((device) => device.deviceId === 'windows-device')).toMatchObject({
+    launcher: 'cli',
+    platform: 'win32',
+  });
+});

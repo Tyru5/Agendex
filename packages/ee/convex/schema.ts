@@ -500,6 +500,8 @@ export default defineSchema({
     ipAddress: v.optional(v.string()),
     startedAtMs: v.optional(v.number()),
     pid: v.optional(v.number()),
+    launcher: v.optional(v.union(v.literal('cli'), v.literal('desktop'))),
+    platform: v.optional(v.string()),
     usageSnapshots: v.optional(v.any()),
     usageUpdatedAt: v.optional(v.number()),
   })

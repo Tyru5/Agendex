@@ -547,6 +547,17 @@ export async function refreshCurrentDaemonToken(): Promise<boolean> {
   return refreshed.kind === 'refreshed';
 }
 
+/** Reports WSL distinctly so status can tell a WSL daemon from a Windows one on the same host. */
+export function daemonPlatform(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  if (platform === 'linux' && (env.WSL_DISTRO_NAME?.trim() || env.WSL_INTEROP?.trim())) {
+    return 'wsl';
+  }
+  return platform;
+}
+
 export async function sendHeartbeat(
   ipAddress?: string,
   usageSnapshots?: Readonly<Record<string, UsageSummary>>,
@@ -562,6 +573,8 @@ export async function sendHeartbeat(
       hostname: pidInfo?.hostname ?? osHostname(),
       startedAtMs: pidInfo?.startedAtMs,
       pid: pidInfo?.pid,
+      launcher: pidInfo?.launcher,
+      platform: daemonPlatform(),
       ipAddress: ipAddress ?? null,
       ...(usageSnapshots && { usageSnapshots }),
     });
@@ -877,6 +890,8 @@ export interface DeviceInfo {
   pid: number | null;
   startedAtMs: number | null;
   lastSeenAt: number | null;
+  launcher?: 'cli' | 'desktop' | null;
+  platform?: string | null;
 }
 
 export async function fetchDevices(): Promise<DeviceInfo[]> {

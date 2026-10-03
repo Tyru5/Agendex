@@ -17,6 +17,8 @@ export interface RenderStatusOptions {
   cliVersion: string;
   devices?: DeviceInfo[] | null;
   cloudDaemonError?: CloudDaemonStatusError | null;
+  /** OS hostname of this machine; used to flag other daemons sharing it (e.g. WSL + Windows). */
+  localHostname?: string | null;
   now?: number;
   color?: boolean;
 }
@@ -129,7 +131,13 @@ function formatLauncherOrigin(launcher: DaemonPidInfo['launcher']): string | nul
 }
 
 function localDaemonDetail(options: RenderStatusOptions, now: number): string {
-  if (!options.running) return 'run `agendex start` to begin background sync';
+  if (!options.running) {
+    const elsewhere = otherDevices(options.devices ?? [], options.config?.deviceId).filter(
+      (device) => isDeviceAlive(device, now),
+    );
+    if (elsewhere.length === 0) return 'run `agendex start` to begin background sync';
+    return `alive elsewhere: ${summarizeList(elsewhere.map(deviceSummary), 3)}`;
+  }
 
   const parts: string[] = [];
   if (isPresent(options.pidInfo?.pid)) parts.push(`PID ${options.pidInfo.pid}`);
@@ -173,32 +181,81 @@ function isDeviceAlive(device: DeviceInfo, now: number): boolean {
   return now - device.lastSeenAt < CLI_DAEMON_STALE_AFTER_MS;
 }
 
-function sortDevices(devices: DeviceInfo[], localDeviceId: string | undefined, now: number) {
-  return [...devices].sort((a, b) => {
-    const localDiff = Number(b.deviceId === localDeviceId) - Number(a.deviceId === localDeviceId);
-    if (localDiff !== 0) return localDiff;
+const PLATFORM_LABELS: Record<string, string> = {
+  darwin: 'macOS',
+  win32: 'Windows',
+  linux: 'Linux',
+  wsl: 'WSL',
+  freebsd: 'FreeBSD',
+};
 
+function platformLabel(platform: string | null | undefined): string | null {
+  if (!platform) return null;
+  return PLATFORM_LABELS[platform] ?? sanitizeTerminalText(platform);
+}
+
+function launcherLabel(launcher: DeviceInfo['launcher']): string | null {
+  if (launcher === 'desktop') return 'desktop app';
+  if (launcher === 'cli') return 'CLI';
+  return null;
+}
+
+/** Blank hostnames are treated as unknown so they never match or count as a machine. */
+function hostKey(hostname: string | null | undefined): string | null {
+  return hostname?.trim() || null;
+}
+
+function deviceHostname(device: DeviceInfo): string {
+  const hostname = hostKey(device.hostname);
+  return hostname ? sanitizeTerminalText(hostname) : 'unknown host';
+}
+
+/** `host (Platform launcher)`, e.g. `yeet (Windows desktop app)`. */
+function deviceSummary(device: DeviceInfo): string {
+  const runtime = [platformLabel(device.platform), launcherLabel(device.launcher)]
+    .filter(isPresent)
+    .join(' ');
+  return runtime ? `${deviceHostname(device)} (${runtime})` : deviceHostname(device);
+}
+
+function isLocalDevice(device: DeviceInfo, localDeviceId: string | undefined): boolean {
+  return localDeviceId !== undefined && device.deviceId === localDeviceId;
+}
+
+function otherDevices(devices: DeviceInfo[], localDeviceId: string | undefined): DeviceInfo[] {
+  return devices.filter((device) => !isLocalDevice(device, localDeviceId));
+}
+
+function countMachines(devices: DeviceInfo[]): number {
+  const hosts = devices.map((device) => hostKey(device.hostname));
+  return new Set(hosts.filter(isPresent)).size + hosts.filter((host) => host === null).length;
+}
+
+function sortDevices(devices: DeviceInfo[], now: number) {
+  return [...devices].sort((a, b) => {
     const aliveDiff = Number(isDeviceAlive(b, now)) - Number(isDeviceAlive(a, now));
     if (aliveDiff !== 0) return aliveDiff;
 
-    return (a.hostname ?? '').localeCompare(b.hostname ?? '');
+    const hostDiff = (hostKey(a.hostname) ?? '').localeCompare(hostKey(b.hostname) ?? '');
+    if (hostDiff !== 0) return hostDiff;
+
+    return (b.lastSeenAt ?? 0) - (a.lastSeenAt ?? 0);
   });
 }
 
 interface DeviceLineOptions {
   styles: StatusStyles;
   device: DeviceInfo;
-  localDeviceId: string | undefined;
+  localHostname: string | null;
   now: number;
 }
 
-function deviceLines({ styles, device, localDeviceId, now }: DeviceLineOptions): string[] {
+function deviceLines({ styles, device, localHostname, now }: DeviceLineOptions): string[] {
   const alive = isDeviceAlive(device, now);
   const statusText = alive ? '✓ alive' : '! stale';
   const statusCell = styles.status(alive ? 'success' : 'warning', statusText.padEnd(12));
-  const hostname = device.hostname ?? 'unknown host';
-  const isLocalDevice = localDeviceId !== undefined && device.deviceId === localDeviceId;
-  const localMarker = isLocalDevice ? ' (this machine)' : '';
+  const sameHost = localHostname !== null && hostKey(device.hostname) === localHostname;
+  const hostMarker = sameHost ? ' (same host)' : '';
   const pid = isPresent(device.pid) ? `PID ${device.pid}` : 'PID unknown';
   const uptime = isPresent(device.startedAtMs)
     ? `up ${formatDuration(now - device.startedAtMs)}`
@@ -206,11 +263,11 @@ function deviceLines({ styles, device, localDeviceId, now }: DeviceLineOptions):
   const seen = isPresent(device.lastSeenAt)
     ? `seen ${formatDuration(now - device.lastSeenAt)} ago`
     : 'last seen unknown';
-  const ip = device.ipAddress ?? 'IP unknown';
+  const ip = device.ipAddress ? sanitizeTerminalText(device.ipAddress) : 'IP unknown';
 
   return [
-    `  ${statusCell}${styles.value(hostname)}${styles.muted(localMarker)}`,
-    `              ${styles.muted([pid, uptime, seen, ip].join(' • '))}`,
+    `    ${statusCell}${styles.value(deviceSummary(device))}${styles.muted(hostMarker)}`,
+    `                ${styles.muted([pid, uptime, seen, ip].join(' • '))}`,
   ];
 }
 
@@ -264,18 +321,42 @@ function addCloudDaemonLines({ lines, styles, options, cloudReady, now }: CloudD
 
   const aliveCount = devices.filter((device) => isDeviceAlive(device, now)).length;
   const staleCount = devices.length - aliveCount;
+  const machineCount = countMachines(devices);
   lines.push(
     row(
       styles,
       'Daemon registry',
-      badge(styles, 'success', `${devices.length} device${devices.length === 1 ? '' : 's'}`),
+      badge(
+        styles,
+        'success',
+        `${devices.length} daemon${devices.length === 1 ? '' : 's'} on ${machineCount} machine${machineCount === 1 ? '' : 's'}`,
+      ),
       `${aliveCount} alive • ${staleCount} stale`,
     ),
   );
 
   const localDeviceId = options.config?.deviceId;
-  for (const device of sortDevices(devices, localDeviceId, now)) {
-    lines.push(...deviceLines({ styles, device, localDeviceId, now }));
+  const local = devices.filter((device) => isLocalDevice(device, localDeviceId));
+  const others = otherDevices(devices, localDeviceId);
+  const localHostname =
+    hostKey(local[0]?.hostname) ??
+    hostKey(options.localHostname) ??
+    hostKey(options.pidInfo?.hostname);
+
+  lines.push(`  ${styles.muted('This machine:')}`);
+  if (local.length === 0) {
+    lines.push(`    ${styles.muted('not registered — no heartbeat from this device yet')}`);
+  }
+  for (const device of sortDevices(local, now)) {
+    lines.push(...deviceLines({ styles, device, localHostname: null, now }));
+  }
+
+  lines.push(`  ${styles.muted('Other daemons:')}`);
+  if (others.length === 0) {
+    lines.push(`    ${styles.muted('none')}`);
+  }
+  for (const device of sortDevices(others, now)) {
+    lines.push(...deviceLines({ styles, device, localHostname, now }));
   }
 }
 

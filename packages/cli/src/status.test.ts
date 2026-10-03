@@ -64,10 +64,10 @@ test('renders grouped status with daemon, cloud, and source summaries', () => {
   expect(output).toContain('Plan sources:');
   expect(output).toContain('✓ running');
   expect(output).toContain('PID 123 • up 1m 30s • host workstation • via CLI');
-  expect(output).toContain('✓ 2 devices');
+  expect(output).toContain('✓ 2 daemons on 2 machines');
   expect(output).toContain('1 alive • 1 stale');
-  expect(output).toContain('workstation (this machine)');
-  expect(output).toContain('oldbox');
+  expect(output).toMatch(/This machine:\n {4}✓ alive {5}workstation\n/);
+  expect(output).toMatch(/Other daemons:\n {4}! stale {5}oldbox\n/);
   expect(output).toContain('! stale');
   expect(output).toContain('✓ 2 enabled');
   expect(output).toContain('claude-code, codex');
@@ -76,6 +76,139 @@ test('renders grouped status with daemon, cloud, and source summaries', () => {
   expect(output).toContain('Plan download');
   expect(output).toContain('• never used');
   expect(output).toContain('agendex download <query>');
+});
+
+test('lists other daemons with their machine, platform, and launcher', () => {
+  const devices: DeviceInfo[] = [
+    {
+      deviceId: 'mac-device',
+      hostname: 'macbook',
+      ipAddress: '10.0.0.9',
+      pid: 77,
+      startedAtMs: NOW - 3_900_000,
+      lastSeenAt: NOW - 20_000,
+      launcher: 'cli',
+      platform: 'darwin',
+    },
+    {
+      deviceId: 'windows-device',
+      hostname: 'yeet',
+      ipAddress: '10.0.0.207',
+      pid: 30788,
+      startedAtMs: NOW - 90_000,
+      lastSeenAt: NOW - 5_000,
+      launcher: 'desktop',
+      platform: 'win32',
+    },
+    {
+      deviceId: 'local-device',
+      hostname: 'yeet',
+      ipAddress: '10.0.0.207',
+      pid: 123,
+      startedAtMs: NOW - 90_000,
+      lastSeenAt: NOW - 5_000,
+      launcher: 'cli',
+      platform: 'wsl',
+    },
+  ];
+
+  const output = renderStatus({
+    config: config(),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: { pid: 123, startedAtMs: NOW - 90_000, hostname: 'yeet', launcher: 'cli' },
+    running: true,
+    cliVersion: '2.0.0',
+    devices,
+    now: NOW,
+    color: false,
+  });
+
+  expect(output).toContain('✓ 3 daemons on 2 machines');
+  expect(output).toContain('3 alive • 0 stale');
+  expect(output).toMatch(/This machine:\n {4}✓ alive {5}yeet \(WSL CLI\)\n/);
+  expect(output).toContain('Other daemons:');
+  expect(output).toContain('✓ alive     macbook (macOS CLI)\n');
+  expect(output).toContain('✓ alive     yeet (Windows desktop app) (same host)');
+  expect(output).toContain('PID 30788 • up 1m 30s • seen 5s ago • 10.0.0.207');
+  expect(output.indexOf('macbook')).toBeLessThan(output.indexOf('yeet (Windows'));
+});
+
+test('points at daemons alive elsewhere when the local daemon is not running', () => {
+  const devices: DeviceInfo[] = [
+    {
+      deviceId: 'windows-device',
+      hostname: 'yeet',
+      ipAddress: null,
+      pid: 30788,
+      startedAtMs: NOW - 90_000,
+      lastSeenAt: NOW - 5_000,
+      launcher: 'desktop',
+      platform: 'win32',
+    },
+    {
+      deviceId: 'old-device',
+      hostname: 'oldbox',
+      ipAddress: null,
+      pid: null,
+      startedAtMs: null,
+      lastSeenAt: NOW - 10_000_000,
+    },
+  ];
+
+  const output = renderStatus({
+    config: config(),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: null,
+    running: false,
+    cliVersion: '2.0.0',
+    devices,
+    localHostname: 'yeet',
+    now: NOW,
+    color: false,
+  });
+
+  expect(output).toContain('! not running  alive elsewhere: yeet (Windows desktop app)');
+  expect(output).not.toContain('alive elsewhere: yeet (Windows desktop app), oldbox');
+  expect(output).toMatch(/This machine:\n {4}not registered/);
+  expect(output).toContain('yeet (Windows desktop app) (same host)');
+  expect(output).toContain('agendex start');
+});
+
+test('treats blank hostnames as unknown machines instead of counting them twice', () => {
+  const devices: DeviceInfo[] = [
+    {
+      deviceId: 'blank-device',
+      hostname: '  ',
+      ipAddress: null,
+      pid: 9,
+      startedAtMs: NOW - 90_000,
+      lastSeenAt: NOW - 5_000,
+    },
+    {
+      deviceId: 'empty-device',
+      hostname: '',
+      ipAddress: null,
+      pid: 10,
+      startedAtMs: NOW - 90_000,
+      lastSeenAt: NOW - 5_000,
+    },
+  ];
+
+  const output = renderStatus({
+    config: config(),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: null,
+    running: false,
+    cliVersion: '2.0.0',
+    devices,
+    localHostname: '',
+    now: NOW,
+    color: false,
+  });
+
+  expect(output).toContain('✓ 2 daemons on 2 machines');
+  expect(output).toContain('✓ alive     unknown host\n');
+  expect(output).not.toContain('(same host)');
 });
 
 test('renders the last plan download when the CLI download command was used', () => {
