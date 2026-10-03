@@ -12,6 +12,7 @@ import {
   resetDaemonCredentialStore,
   type PlannotatorWritebackJob,
   reportPlannotatorWriteback,
+  daemonPlatform,
   sendHeartbeat,
   setDaemonCredentialStore,
   syncPlan,
@@ -243,6 +244,24 @@ test('sends local IP address in heartbeat payload', async () => {
 
   expect(cloud.heartbeats).toHaveLength(1);
   expect(cloud.heartbeats[0]).toMatchObject({ ipAddress: '192.168.4.30' });
+});
+
+test('sends daemon platform in heartbeat payload', async () => {
+  await useTempHome();
+  const cloud = await startCloudApi([]);
+  saveCloudConfig(cloud.url);
+
+  await sendHeartbeat();
+
+  expect(cloud.heartbeats[0]).toMatchObject({ platform: daemonPlatform() });
+});
+
+test('reports WSL separately from plain Linux', () => {
+  expect(daemonPlatform('linux', { WSL_DISTRO_NAME: 'Ubuntu' })).toBe('wsl');
+  expect(daemonPlatform('linux', { WSL_INTEROP: '/run/WSL/1_interop' })).toBe('wsl');
+  expect(daemonPlatform('linux', {})).toBe('linux');
+  expect(daemonPlatform('win32', { WSL_DISTRO_NAME: 'Ubuntu' })).toBe('win32');
+  expect(daemonPlatform('darwin', {})).toBe('darwin');
 });
 
 test('sends sanitized usage snapshots in the heartbeat payload', async () => {

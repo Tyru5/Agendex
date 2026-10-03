@@ -116,7 +116,11 @@ const heartbeatDeviceValidator = v.object({
   ipAddress: v.union(v.string(), v.null()),
   startedAtMs: v.union(v.number(), v.null()),
   pid: v.union(v.number(), v.null()),
+  launcher: v.union(v.literal('cli'), v.literal('desktop'), v.null()),
+  platform: v.union(v.string(), v.null()),
 });
+const daemonLauncherValidator = v.union(v.literal('cli'), v.literal('desktop'));
+const MAX_DAEMON_PLATFORM_LENGTH = 32;
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1013,6 +1017,8 @@ interface HeartbeatDevice {
   ipAddress: string | null;
   startedAtMs: number | null;
   pid: number | null;
+  launcher: 'cli' | 'desktop' | null;
+  platform: string | null;
 }
 
 function collectDevices(
@@ -1024,6 +1030,8 @@ function collectDevices(
     ipAddress?: string;
     startedAtMs?: number;
     pid?: number;
+    launcher?: 'cli' | 'desktop';
+    platform?: string;
   }>,
 ): HeartbeatDevice[] {
   const cutoff = Date.now() - DAEMON_HEARTBEAT_RETENTION_MS;
@@ -1037,6 +1045,8 @@ function collectDevices(
       ipAddress: hb.ipAddress ?? null,
       startedAtMs: hb.startedAtMs ?? null,
       pid: hb.pid ?? null,
+      launcher: hb.launcher ?? null,
+      platform: hb.platform ?? null,
     }));
 }
 
@@ -1577,6 +1587,8 @@ export const upsertHeartbeat = internalMutation({
     ipAddress: v.optional(v.union(v.string(), v.null())),
     startedAtMs: v.optional(v.number()),
     pid: v.optional(v.number()),
+    launcher: v.optional(daemonLauncherValidator),
+    platform: v.optional(v.string()),
     usageSnapshots: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
@@ -1633,6 +1645,8 @@ export const upsertHeartbeat = internalMutation({
     if (args.ipAddress !== undefined) patch.ipAddress = args.ipAddress ?? undefined;
     if (args.startedAtMs !== undefined) patch.startedAtMs = args.startedAtMs;
     if (args.pid !== undefined) patch.pid = args.pid;
+    if (args.launcher !== undefined) patch.launcher = args.launcher;
+    if (args.platform !== undefined) patch.platform = args.platform;
     if (args.usageSnapshots !== undefined) {
       patch.usageSnapshots = args.usageSnapshots;
       patch.usageUpdatedAt = now;
@@ -1650,6 +1664,8 @@ export const upsertHeartbeat = internalMutation({
         ...(args.ipAddress ? { ipAddress: args.ipAddress } : {}),
         ...(args.startedAtMs !== undefined && { startedAtMs: args.startedAtMs }),
         ...(args.pid !== undefined && { pid: args.pid }),
+        ...(args.launcher !== undefined && { launcher: args.launcher }),
+        ...(args.platform !== undefined && { platform: args.platform }),
         ...(args.usageSnapshots !== undefined && {
           usageSnapshots: args.usageSnapshots,
           usageUpdatedAt: now,
@@ -1817,6 +1833,12 @@ export const heartbeat = httpAction(async (ctx, request) => {
   const ipAddress = privacyPreferences.collectLocalIpAddress === false ? null : rawIpAddress;
   const startedAtMs = typeof body.startedAtMs === 'number' ? body.startedAtMs : undefined;
   const pid = typeof body.pid === 'number' ? body.pid : undefined;
+  const launcher =
+    body.launcher === 'cli' || body.launcher === 'desktop' ? body.launcher : undefined;
+  const platform =
+    typeof body.platform === 'string' && body.platform.trim()
+      ? body.platform.trim().slice(0, MAX_DAEMON_PLATFORM_LENGTH)
+      : undefined;
   const usageSnapshots =
     body.usageSnapshots === undefined ? undefined : normalizeUsageSnapshots(body.usageSnapshots);
 
@@ -1835,6 +1857,8 @@ export const heartbeat = httpAction(async (ctx, request) => {
     ipAddress,
     startedAtMs,
     pid,
+    launcher,
+    platform,
     usageSnapshots,
   });
 

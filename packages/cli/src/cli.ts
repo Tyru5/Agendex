@@ -2,6 +2,7 @@
 
 import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
+import { hostname as osHostname } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -425,6 +426,7 @@ async function main(): Promise<number> {
           cliVersion: CLI_VERSION,
           devices,
           cloudDaemonError,
+          localHostname: osHostname(),
         }),
       );
       return 0;
