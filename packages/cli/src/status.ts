@@ -200,8 +200,14 @@ function launcherLabel(launcher: DeviceInfo['launcher']): string | null {
   return null;
 }
 
+/** Blank hostnames are treated as unknown so they never match or count as a machine. */
+function hostKey(hostname: string | null | undefined): string | null {
+  return hostname?.trim() || null;
+}
+
 function deviceHostname(device: DeviceInfo): string {
-  return device.hostname ? sanitizeTerminalText(device.hostname) : 'unknown host';
+  const hostname = hostKey(device.hostname);
+  return hostname ? sanitizeTerminalText(hostname) : 'unknown host';
 }
 
 /** `host (Platform launcher)`, e.g. `yeet (Windows desktop app)`. */
@@ -221,8 +227,8 @@ function otherDevices(devices: DeviceInfo[], localDeviceId: string | undefined):
 }
 
 function countMachines(devices: DeviceInfo[]): number {
-  const named = new Set(devices.map((device) => device.hostname).filter(isPresent));
-  return named.size + devices.filter((device) => !device.hostname).length;
+  const hosts = devices.map((device) => hostKey(device.hostname));
+  return new Set(hosts.filter(isPresent)).size + hosts.filter((host) => host === null).length;
 }
 
 function sortDevices(devices: DeviceInfo[], now: number) {
@@ -230,7 +236,7 @@ function sortDevices(devices: DeviceInfo[], now: number) {
     const aliveDiff = Number(isDeviceAlive(b, now)) - Number(isDeviceAlive(a, now));
     if (aliveDiff !== 0) return aliveDiff;
 
-    const hostDiff = (a.hostname ?? '').localeCompare(b.hostname ?? '');
+    const hostDiff = (hostKey(a.hostname) ?? '').localeCompare(hostKey(b.hostname) ?? '');
     if (hostDiff !== 0) return hostDiff;
 
     return (b.lastSeenAt ?? 0) - (a.lastSeenAt ?? 0);
@@ -248,7 +254,7 @@ function deviceLines({ styles, device, localHostname, now }: DeviceLineOptions):
   const alive = isDeviceAlive(device, now);
   const statusText = alive ? '✓ alive' : '! stale';
   const statusCell = styles.status(alive ? 'success' : 'warning', statusText.padEnd(12));
-  const sameHost = localHostname !== null && device.hostname === localHostname;
+  const sameHost = localHostname !== null && hostKey(device.hostname) === localHostname;
   const hostMarker = sameHost ? ' (same host)' : '';
   const pid = isPresent(device.pid) ? `PID ${device.pid}` : 'PID unknown';
   const uptime = isPresent(device.startedAtMs)
@@ -333,7 +339,9 @@ function addCloudDaemonLines({ lines, styles, options, cloudReady, now }: CloudD
   const local = devices.filter((device) => isLocalDevice(device, localDeviceId));
   const others = otherDevices(devices, localDeviceId);
   const localHostname =
-    local[0]?.hostname ?? options.localHostname ?? options.pidInfo?.hostname ?? null;
+    hostKey(local[0]?.hostname) ??
+    hostKey(options.localHostname) ??
+    hostKey(options.pidInfo?.hostname);
 
   lines.push(`  ${styles.muted('This machine:')}`);
   if (local.length === 0) {

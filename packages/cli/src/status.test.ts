@@ -174,6 +174,43 @@ test('points at daemons alive elsewhere when the local daemon is not running', (
   expect(output).toContain('agendex start');
 });
 
+test('treats blank hostnames as unknown machines instead of counting them twice', () => {
+  const devices: DeviceInfo[] = [
+    {
+      deviceId: 'blank-device',
+      hostname: '  ',
+      ipAddress: null,
+      pid: 9,
+      startedAtMs: NOW - 90_000,
+      lastSeenAt: NOW - 5_000,
+    },
+    {
+      deviceId: 'empty-device',
+      hostname: '',
+      ipAddress: null,
+      pid: 10,
+      startedAtMs: NOW - 90_000,
+      lastSeenAt: NOW - 5_000,
+    },
+  ];
+
+  const output = renderStatus({
+    config: config(),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: null,
+    running: false,
+    cliVersion: '2.0.0',
+    devices,
+    localHostname: '',
+    now: NOW,
+    color: false,
+  });
+
+  expect(output).toContain('✓ 2 daemons on 2 machines');
+  expect(output).toContain('✓ alive     unknown host\n');
+  expect(output).not.toContain('(same host)');
+});
+
 test('renders the last plan download when the CLI download command was used', () => {
   const output = renderStatus({
     config: config({
