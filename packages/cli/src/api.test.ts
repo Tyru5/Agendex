@@ -257,11 +257,15 @@ test('sends daemon platform in heartbeat payload', async () => {
 });
 
 test('reports WSL separately from plain Linux', () => {
-  expect(daemonPlatform('linux', { WSL_DISTRO_NAME: 'Ubuntu' })).toBe('wsl');
-  expect(daemonPlatform('linux', { WSL_INTEROP: '/run/WSL/1_interop' })).toBe('wsl');
-  expect(daemonPlatform('linux', {})).toBe('linux');
-  expect(daemonPlatform('win32', { WSL_DISTRO_NAME: 'Ubuntu' })).toBe('win32');
-  expect(daemonPlatform('darwin', {})).toBe('darwin');
+  const plainKernel = () => 'Linux version 6.8.0-45-generic (buildd@lcy02)';
+  const wslKernel = () => 'Linux version 6.6.87.2-microsoft-standard-WSL2 (root@439a258ad544)';
+  expect(daemonPlatform('linux', { WSL_DISTRO_NAME: 'Ubuntu' }, plainKernel)).toBe('wsl');
+  expect(daemonPlatform('linux', { WSL_INTEROP: '/run/WSL/1_interop' }, plainKernel)).toBe('wsl');
+  expect(daemonPlatform('linux', {}, plainKernel)).toBe('linux');
+  // Daemons launched from tmux/systemd shells lose WSL_* env; the kernel string still tells.
+  expect(daemonPlatform('linux', {}, wslKernel)).toBe('wsl');
+  expect(daemonPlatform('win32', { WSL_DISTRO_NAME: 'Ubuntu' }, wslKernel)).toBe('win32');
+  expect(daemonPlatform('darwin', {}, wslKernel)).toBe('darwin');
 });
 
 test('sends sanitized usage snapshots in the heartbeat payload', async () => {

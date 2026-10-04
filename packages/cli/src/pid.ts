@@ -411,22 +411,53 @@ try {
 $result | ConvertTo-Json -Compress -Depth 4
 `;
 
+// tmux, systemd --user, and cron shells often lack the Windows interop dirs on PATH.
+const WINDOWS_POWERSHELL_FALLBACK = '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
+
 function probeWindowsDesktopDaemon(configDirName: string): string | null {
+  const args = [
+    '-NoLogo',
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    WINDOWS_DESKTOP_DAEMON_PROBE.replace('__AGENDEX_CONFIG_DIR_NAME__', configDirName),
+  ];
+  const commands = ['powershell.exe'];
+  if (existsSync(WINDOWS_POWERSHELL_FALLBACK)) commands.push(WINDOWS_POWERSHELL_FALLBACK);
+  for (const command of commands) {
+    try {
+      return execFileSync(command, args, {
+        encoding: 'utf8',
+        timeout: 5_000,
+        windowsHide: true,
+      }).trim();
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') return null;
+    }
+  }
+  return null;
+}
+
+function readLinuxProcVersion(): string | null {
   try {
-    return execFileSync(
-      'powershell.exe',
-      [
-        '-NoLogo',
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        WINDOWS_DESKTOP_DAEMON_PROBE.replace('__AGENDEX_CONFIG_DIR_NAME__', configDirName),
-      ],
-      { encoding: 'utf8', timeout: 5_000, windowsHide: true },
-    ).trim();
+    return readFileSync('/proc/version', 'utf8');
   } catch {
     return null;
   }
+}
+
+/**
+ * WSL detection that survives shells without `WSL_*` env vars (tmux, systemd --user,
+ * cron): falls back to the Microsoft kernel signature in /proc/version.
+ */
+export function isWslEnvironment(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+  readProcVersion: () => string | null = readLinuxProcVersion,
+): boolean {
+  if (platform !== 'linux') return false;
+  if (env.WSL_DISTRO_NAME?.trim() || env.WSL_INTEROP?.trim()) return true;
+  return /microsoft/i.test(readProcVersion() ?? '');
 }
 
 export function readWindowsDesktopDaemonInfoFromWsl(
@@ -435,11 +466,10 @@ export function readWindowsDesktopDaemonInfoFromWsl(
     env?: NodeJS.ProcessEnv;
     dev?: boolean;
     runProbe?: (configDirName: string) => string | null;
+    readProcVersion?: () => string | null;
   } = {},
 ): DaemonPidInfo | null {
-  const platform = options.platform ?? process.platform;
-  const env = options.env ?? process.env;
-  if (platform !== 'linux' || !(env.WSL_DISTRO_NAME?.trim() || env.WSL_INTEROP?.trim())) {
+  if (!isWslEnvironment(options.platform, options.env, options.readProcVersion)) {
     return null;
   }
 
