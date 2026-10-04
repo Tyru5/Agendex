@@ -2,12 +2,14 @@ import { spawn, spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CLI_VERSION, checkForUpdate } from './version.ts';
+import { CLI_VERSION, checkForUpdate, isNewer } from './version.ts';
 
 type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno';
 
 const PACKAGE_NAME = 'agendex-cli';
 const JSR_PACKAGE_NAME = '@agendex/cli';
+const JSR_META_URL =
+  process.env.AGENDEX_JSR_META_URL ?? `https://jsr.io/${JSR_PACKAGE_NAME}/meta.json`;
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 
@@ -104,14 +106,19 @@ function parseMajorVersion(version: string): number | null {
   return Number.isFinite(major) ? major : null;
 }
 
-export function buildGlobalInstallCommand(pm: PackageManager): UpgradeCommandResult {
+export function buildGlobalInstallCommand(
+  pm: PackageManager,
+  jsrVersion?: string,
+): UpgradeCommandResult {
   const pkgSpec = `${PACKAGE_NAME}@latest`;
   switch (pm) {
     case 'deno': {
-      // Unpinned: npm's latest can briefly lead JSR, so take JSR's newest
-      // version, reloading its metadata instead of reusing Deno's cache.
+      // Pinned to JSR's own latest when known (npm's latest can briefly lead
+      // JSR); otherwise unpinned with JSR metadata reloaded, not Deno's cache.
       const jsrSpec = `jsr:${JSR_PACKAGE_NAME}`;
-      const args = ['install', '-g', '-A', '-f', `--reload=${jsrSpec}`, '-n', 'agendex', jsrSpec];
+      const args = jsrVersion
+        ? ['install', '-g', '-A', '-f', '-n', 'agendex', `${jsrSpec}@${jsrVersion}`]
+        : ['install', '-g', '-A', '-f', `--reload=${jsrSpec}`, '-n', 'agendex', jsrSpec];
       return {
         supported: true,
         command: { bin: 'deno', args, display: `deno ${args.join(' ')}` },
@@ -196,6 +203,22 @@ export function isLikelyGlobalInstall(
   return [packageRoot, ...installPathHints].some(pathLooksGlobal);
 }
 
+/** Latest version published to JSR, or null when JSR can't be reached. */
+async function fetchJsrLatest(): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(JSR_META_URL, { signal: controller.signal }).finally(() =>
+      clearTimeout(timeout),
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { latest?: unknown };
+    return typeof data.latest === 'string' ? data.latest : null;
+  } catch {
+    return null;
+  }
+}
+
 interface RunUpgradeOptions {
   force: boolean;
 }
@@ -233,7 +256,28 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
     );
   }
 
-  const commandResult = buildGlobalInstallCommand(pm);
+  // Deno installs come from JSR, which publishes after npm and can trail it.
+  let targetVersion = checked && updateAvailable ? latest : undefined;
+  let jsrVersion: string | undefined;
+  if (pm === 'deno') {
+    const jsrLatest = await fetchJsrLatest();
+    if (jsrLatest) {
+      if (!isNewer(jsrLatest, current) && !opts.force) {
+        if (checked && updateAvailable) {
+          process.stderr.write(
+            `[agendex] v${latest} is not on JSR yet (JSR has v${jsrLatest}); try again shortly.\n`,
+          );
+          return 1;
+        }
+        process.stdout.write(`[agendex] already up to date (v${current})\n`);
+        return 0;
+      }
+      jsrVersion = jsrLatest;
+      targetVersion = isNewer(jsrLatest, current) ? jsrLatest : undefined;
+    }
+  }
+
+  const commandResult = buildGlobalInstallCommand(pm, jsrVersion);
   if (!commandResult.supported) {
     process.stderr.write(`[agendex] ${commandResult.reason}\n`);
     process.stderr.write(
@@ -243,8 +287,8 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
   }
   const cmd = commandResult.command;
 
-  if (checked && updateAvailable) {
-    process.stdout.write(`[agendex] upgrading: v${current} → v${latest}\n`);
+  if (targetVersion) {
+    process.stdout.write(`[agendex] upgrading: v${current} → v${targetVersion}\n`);
   } else if (opts.force) {
     process.stdout.write(`[agendex] reinstalling v${CLI_VERSION} (forced)\n`);
   }

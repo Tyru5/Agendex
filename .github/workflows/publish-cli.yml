@@ -81,9 +81,21 @@ jobs:
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Idempotent: a retry after a later step failed can see stale npm metadata
+      # and land here for an already-published version; let it fall through to JSR.
       - name: Publish package
         if: steps.version.outputs.publish == 'true'
-        run: npm publish ./packages/cli/.release --access public --provenance
+        run: |
+          set -o pipefail
+          NPM_PUBLISH_LOG=$(mktemp)
+          if npm publish ./packages/cli/.release --access public --provenance 2>&1 | tee "$NPM_PUBLISH_LOG"; then
+            exit 0
+          fi
+          if grep -Eq 'EPUBLISHCONFLICT|cannot publish over the previously published version' "$NPM_PUBLISH_LOG"; then
+            echo "agendex-cli@${{ steps.version.outputs.local }} already on npm; continuing."
+            exit 0
+          fi
+          exit 1
 
       # Checked against JSR itself, after npm, so a JSR outage never blocks the
       # npm release and a JSR failure is retried on the next push (no tag yet).
