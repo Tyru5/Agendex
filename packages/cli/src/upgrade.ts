@@ -10,6 +10,8 @@ const PACKAGE_NAME = 'agendex-cli';
 const JSR_PACKAGE_NAME = '@agendex/cli';
 const JSR_META_URL =
   process.env.AGENDEX_JSR_META_URL ?? `https://jsr.io/${JSR_PACKAGE_NAME}/meta.json`;
+// Deno (2.9+) refuses npm/JSR versions younger than this by default.
+const DENO_MIN_DEPENDENCY_AGE_MS = 24 * 60 * 60 * 1000;
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 
@@ -203,21 +205,51 @@ export function isLikelyGlobalInstall(
   return [packageRoot, ...installPathHints].some(pathLooksGlobal);
 }
 
-/** Latest version published to JSR, or null when JSR can't be reached. */
-async function fetchJsrLatest(): Promise<string | null> {
+export interface JsrMeta {
+  latest: string;
+  versions: Record<string, { createdAt?: string; yanked?: boolean }>;
+}
+
+/** JSR package metadata, or null when JSR can't be reached. */
+async function fetchJsrMeta(): Promise<JsrMeta | null> {
   // The timeout stays armed through the body read so a stalled body aborts too.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
     const res = await fetch(JSR_META_URL, { signal: controller.signal });
     if (!res.ok) return null;
-    const data = (await res.json()) as { latest?: unknown };
-    return typeof data.latest === 'string' ? data.latest : null;
+    const data = (await res.json()) as { latest?: unknown; versions?: unknown };
+    if (typeof data.latest !== 'string') return null;
+    const versions =
+      data.versions && typeof data.versions === 'object'
+        ? (data.versions as JsrMeta['versions'])
+        : {};
+    return { latest: data.latest, versions };
   } catch {
     return null;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * Newest JSR version Deno's default minimum dependency age allows, newer than
+ * `current` (or equal to it when `includeCurrent`, for forced reinstalls).
+ */
+export function pickJsrInstallVersion(
+  meta: JsrMeta,
+  current: string,
+  { includeCurrent = false, now = Date.now() }: { includeCurrent?: boolean; now?: number } = {},
+): string | undefined {
+  let best: string | undefined;
+  for (const [version, info] of Object.entries(meta.versions)) {
+    if (info.yanked) continue;
+    const createdAt = info.createdAt ? Date.parse(info.createdAt) : NaN;
+    if (!Number.isFinite(createdAt) || now - createdAt < DENO_MIN_DEPENDENCY_AGE_MS) continue;
+    const eligible = includeCurrent ? !isNewer(current, version) : isNewer(version, current);
+    if (eligible && (!best || isNewer(version, best))) best = version;
+  }
+  return best;
 }
 
 interface RunUpgradeOptions {
@@ -247,23 +279,34 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
   });
 
   // Deno installs come from JSR, which publishes after npm and can trail it,
-  // so JSR decides for Deno; npm's answer is only the fallback.
+  // so JSR decides for Deno; npm's answer is only the fallback. Deno also
+  // blocks versions younger than its minimum dependency age, so pick the
+  // newest version it will accept rather than JSR's latest.
   let targetVersion = checked && updateAvailable ? latest : undefined;
   let jsrVersion: string | undefined;
-  const jsrLatest = pm === 'deno' ? await fetchJsrLatest() : null;
-  if (jsrLatest) {
-    if (!isNewer(jsrLatest, current) && !opts.force) {
+  const jsrMeta = pm === 'deno' ? await fetchJsrMeta() : null;
+  if (jsrMeta) {
+    jsrVersion = pickJsrInstallVersion(jsrMeta, current, { includeCurrent: opts.force });
+    if (!jsrVersion) {
+      const freshCreatedAt = Date.parse(jsrMeta.versions[jsrMeta.latest]?.createdAt ?? '');
+      if (isNewer(jsrMeta.latest, current) && Number.isFinite(freshCreatedAt)) {
+        const availableAt = new Date(freshCreatedAt + DENO_MIN_DEPENDENCY_AGE_MS);
+        process.stderr.write(
+          `[agendex] v${jsrMeta.latest} is on JSR but Deno's default minimum dependency age (24h) blocks it until ${availableAt.toISOString()}.\n` +
+            `[agendex] to install it now: deno install -g -A -f --minimum-dependency-age=0 -n agendex jsr:${JSR_PACKAGE_NAME}@${jsrMeta.latest}\n`,
+        );
+        return 1;
+      }
       if (checked && updateAvailable) {
         process.stderr.write(
-          `[agendex] v${latest} is not on JSR yet (JSR has v${jsrLatest}); try again shortly.\n`,
+          `[agendex] v${latest} is not on JSR yet (JSR has v${jsrMeta.latest}); try again shortly.\n`,
         );
         return 1;
       }
       process.stdout.write(`[agendex] already up to date (v${current})\n`);
       return 0;
     }
-    jsrVersion = jsrLatest;
-    targetVersion = isNewer(jsrLatest, current) ? jsrLatest : undefined;
+    targetVersion = isNewer(jsrVersion, current) ? jsrVersion : undefined;
   } else {
     if (checked && !updateAvailable && !opts.force) {
       process.stdout.write(`[agendex] already up to date (v${current})\n`);

@@ -3,6 +3,7 @@ import {
   buildGlobalInstallCommand,
   detectPackageManager,
   isLikelyGlobalInstall,
+  pickJsrInstallVersion,
 } from './upgrade.ts';
 
 test('recognizes existing global package layouts', () => {
@@ -68,5 +69,24 @@ test('upgrades Deno installs from JSR, pinned to JSR latest when known', () => {
   const unpinned = buildGlobalInstallCommand('deno');
   expect(unpinned.supported && unpinned.command.display).toBe(
     'deno install -g -A -f --reload=jsr:@agendex/cli -n agendex jsr:@agendex/cli',
+  );
+});
+
+test("picks the newest JSR version Deno's 24h minimum dependency age allows", () => {
+  const now = Date.parse('2026-10-05T12:00:00Z');
+  const meta = {
+    latest: '5.10.3',
+    versions: {
+      '5.10.0': { createdAt: '2026-10-01T00:00:00Z' },
+      '5.10.1': { createdAt: '2026-10-02T00:00:00Z' },
+      '5.10.2': { createdAt: '2026-10-03T00:00:00Z', yanked: true },
+      '5.10.3': { createdAt: '2026-10-05T06:00:00Z' },
+    },
+  };
+  expect(pickJsrInstallVersion(meta, '5.10.0', { now })).toBe('5.10.1');
+  expect(pickJsrInstallVersion(meta, '5.10.1', { now })).toBeUndefined();
+  expect(pickJsrInstallVersion(meta, '5.10.1', { now, includeCurrent: true })).toBe('5.10.1');
+  expect(pickJsrInstallVersion(meta, '5.10.1', { now: Date.parse('2026-10-06T07:00:00Z') })).toBe(
+    '5.10.3',
   );
 });
