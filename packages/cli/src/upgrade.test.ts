@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test';
-import { detectPackageManager, isLikelyGlobalInstall } from './upgrade.ts';
+import {
+  buildGlobalInstallCommand,
+  detectPackageManager,
+  isLikelyGlobalInstall,
+} from './upgrade.ts';
 
 test('recognizes existing global package layouts', () => {
   const cases: Array<[string, ReturnType<typeof detectPackageManager>]> = [
@@ -34,4 +38,35 @@ test('still rejects directly invoked local checkout builds', () => {
       '/Users/test/project/Agendex/packages/cli/.release/dist/cli.js',
     ]),
   ).toBe(false);
+});
+
+test('recognizes Deno installs from the JSR package', () => {
+  const globals = globalThis as { Deno?: unknown };
+  globals.Deno = {};
+  try {
+    for (const packageRoot of [
+      '/home/test/.cache/deno/npm/registry.npmjs.org/agendex-cli/5.10.1',
+      'C:\\Users\\test\\AppData\\Local\\deno\\npm\\registry.npmjs.org\\agendex-cli\\5.10.1',
+    ]) {
+      expect(isLikelyGlobalInstall(packageRoot, [])).toBe(true);
+      expect(detectPackageManager(packageRoot, [])).toBe('deno');
+    }
+  } finally {
+    delete globals.Deno;
+  }
+});
+
+test('upgrades Deno installs from JSR, pinned to JSR latest when known', () => {
+  expect(buildGlobalInstallCommand('deno', '5.10.2')).toEqual({
+    supported: true,
+    command: {
+      bin: 'deno',
+      args: ['install', '-g', '-A', '-f', '-n', 'agendex', 'jsr:@agendex/cli@5.10.2'],
+      display: 'deno install -g -A -f -n agendex jsr:@agendex/cli@5.10.2',
+    },
+  });
+  const unpinned = buildGlobalInstallCommand('deno');
+  expect(unpinned.supported && unpinned.command.display).toBe(
+    'deno install -g -A -f --reload=jsr:@agendex/cli -n agendex jsr:@agendex/cli',
+  );
 });

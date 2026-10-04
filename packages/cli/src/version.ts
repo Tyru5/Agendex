@@ -90,7 +90,7 @@ function normalizeResult(result: Partial<UpdateResult>, current: string): Update
   };
 }
 
-function isNewer(latest: string, current: string): boolean {
+export function isNewer(latest: string, current: string): boolean {
   const l = latest.split('.').map(Number);
   const c = current.split('.').map(Number);
   for (let i = 0; i < Math.max(l.length, c.length); i++) {

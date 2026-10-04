@@ -25,6 +25,14 @@ yarn global add agendex-cli
 bun install -g agendex-cli
 ```
 
+Deno (from [JSR](https://jsr.io/@agendex/cli)):
+
+```bash
+deno install -g -A -n agendex jsr:@agendex/cli
+```
+
+Under Deno, the OpenCode and T3 Code adapters can't read their databases: `better-sqlite3`'s native build doesn't run in a global Deno install.
+
 Installer options:
 
 ```bash

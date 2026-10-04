@@ -11,6 +11,7 @@ const distFile = join(distDir, 'cli.js');
 const releaseDir = join(packageDir, '.release');
 const releaseDistDir = join(releaseDir, 'dist');
 const distOnly = process.argv.includes('--dist-only');
+const JSR_PACKAGE_NAME = '@agendex/cli';
 
 await buildDist();
 
@@ -102,10 +103,26 @@ async function buildRelease() {
     ...(Object.keys(dependencies).length > 0 ? { dependencies } : {}),
   };
 
-  await writeFile(
-    join(releaseDir, 'package.json'),
-    `${JSON.stringify(releaseManifest, null, 2)}\n`,
-  );
+  // The JSR package is a shim over the same-version npm package. Deno serves JSR
+  // modules from https: URLs, and the bundle's createRequire(import.meta.url)
+  // needs a file: URL, which Deno's npm cache provides. Publish npm first,
+  // and publish JSR from outside the repo (see publish-cli.yml).
+  const jsrManifest = {
+    name: JSR_PACKAGE_NAME,
+    version: cliManifest.version,
+    license: cliManifest.license,
+    exports: './cli.ts',
+    publish: {
+      include: ['cli.ts', 'README.md', 'LICENSE'],
+    },
+  };
+  const jsrEntry = `import 'npm:${cliManifest.name}@${cliManifest.version}/dist/cli.js';\n`;
+
+  await Promise.all([
+    writeFile(join(releaseDir, 'package.json'), `${JSON.stringify(releaseManifest, null, 2)}\n`),
+    writeFile(join(releaseDir, 'jsr.json'), `${JSON.stringify(jsrManifest, null, 2)}\n`),
+    writeFile(join(releaseDir, 'cli.ts'), jsrEntry),
+  ]);
 }
 
 async function emptyDirectory(directory) {
