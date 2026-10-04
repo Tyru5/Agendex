@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.10.2
+
+### Patch Changes
+
+- 854dce1: The CLI is now also published to JSR as `@agendex/cli`, installable with `deno install -g -A -n agendex jsr:@agendex/cli`. `agendex upgrade` recognizes Deno installs and reinstalls from JSR.
+
 ## 5.10.1
 
 ### Patch Changes
