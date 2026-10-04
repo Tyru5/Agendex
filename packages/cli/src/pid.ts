@@ -411,8 +411,28 @@ try {
 $result | ConvertTo-Json -Compress -Depth 4
 `;
 
-// tmux, systemd --user, and cron shells often lack the Windows interop dirs on PATH.
-const WINDOWS_POWERSHELL_FALLBACK = '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
+const WINDOWS_POWERSHELL_PATH = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+const DEFAULT_AUTOMOUNT_POWERSHELL = '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
+
+/**
+ * tmux, systemd --user, and cron shells often lack the Windows interop dirs on PATH.
+ * Translate through `wslpath` so a customized automount root still resolves; the
+ * default `/mnt/c` location is the last resort when `wslpath` is unavailable.
+ */
+function windowsPowerShellFallbacks(): string[] {
+  const candidates: string[] = [];
+  try {
+    const translated = execFileSync('wslpath', ['-u', WINDOWS_POWERSHELL_PATH], {
+      encoding: 'utf8',
+      timeout: 1_000,
+    }).trim();
+    if (translated) candidates.push(translated);
+  } catch {}
+  if (!candidates.includes(DEFAULT_AUTOMOUNT_POWERSHELL)) {
+    candidates.push(DEFAULT_AUTOMOUNT_POWERSHELL);
+  }
+  return candidates.filter((candidate) => existsSync(candidate));
+}
 
 function probeWindowsDesktopDaemon(configDirName: string): string | null {
   const args = [
@@ -422,8 +442,7 @@ function probeWindowsDesktopDaemon(configDirName: string): string | null {
     '-Command',
     WINDOWS_DESKTOP_DAEMON_PROBE.replace('__AGENDEX_CONFIG_DIR_NAME__', configDirName),
   ];
-  const commands = ['powershell.exe'];
-  if (existsSync(WINDOWS_POWERSHELL_FALLBACK)) commands.push(WINDOWS_POWERSHELL_FALLBACK);
+  const commands = ['powershell.exe', ...windowsPowerShellFallbacks()];
   for (const command of commands) {
     try {
       return execFileSync(command, args, {
