@@ -103,23 +103,25 @@ async function buildRelease() {
     ...(Object.keys(dependencies).length > 0 ? { dependencies } : {}),
   };
 
-  // JSR needs a scoped name and resolves the bundle's bare npm imports via `imports`.
+  // The JSR package is a shim over the same-version npm package. Deno serves JSR
+  // modules from https: URLs, and the bundle's createRequire(import.meta.url)
+  // needs a file: URL, which Deno's npm cache provides. Publish npm first,
+  // and publish JSR from outside the repo (see publish-cli.yml).
   const jsrManifest = {
     name: JSR_PACKAGE_NAME,
     version: cliManifest.version,
     license: cliManifest.license,
-    exports: './dist/cli.js',
-    imports: Object.fromEntries(
-      Object.entries(dependencies).map(([name, version]) => [name, `npm:${name}@${version}`]),
-    ),
+    exports: './cli.ts',
     publish: {
-      include: ['dist', 'README.md', 'LICENSE'],
+      include: ['cli.ts', 'README.md', 'LICENSE'],
     },
   };
+  const jsrEntry = `import 'npm:${cliManifest.name}@${cliManifest.version}/dist/cli.js';\n`;
 
   await Promise.all([
     writeFile(join(releaseDir, 'package.json'), `${JSON.stringify(releaseManifest, null, 2)}\n`),
     writeFile(join(releaseDir, 'jsr.json'), `${JSON.stringify(jsrManifest, null, 2)}\n`),
+    writeFile(join(releaseDir, 'cli.ts'), jsrEntry),
   ]);
 }
 

@@ -48,12 +48,6 @@ jobs:
       - name: Smoke test packed CLI
         run: bun run smoke:cli:release
 
-      # The bundle is plain JS, so type-checking it only trips over the
-      # monorepo's node_modules; --no-check keeps the JSR publish to packaging.
-      - name: Dry-run JSR publish
-        working-directory: packages/cli/.release
-        run: deno publish --dry-run --allow-dirty --no-check
-
       - name: Check published version
         id: version
         run: |
@@ -65,6 +59,7 @@ jobs:
           if [ -n "$RELEASE_TAG" ]; then
             echo "Release v$LOCAL_VERSION already tagged, skipping publish."
             echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "jsr_publish=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           NPM_VIEW_ERR=$(mktemp)
@@ -84,18 +79,48 @@ jobs:
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
+          # Checked against JSR itself, not npm, so a JSR failure after a
+          # successful npm publish is retried on the next push.
+          JSR_STATUS=$(curl -sS -o jsr-meta.json -w '%{http_code}' https://jsr.io/@agendex/cli/meta.json)
+          if [ "$JSR_STATUS" = "404" ]; then
+            JSR_HAS_VERSION=false
+          elif [ "$JSR_STATUS" = "200" ]; then
+            JSR_HAS_VERSION=$(node -p "Object.hasOwn(JSON.parse(require('node:fs').readFileSync('jsr-meta.json', 'utf8')).versions ?? {}, process.argv[1])" "$LOCAL_VERSION")
+          else
+            echo "Unexpected JSR meta status $JSR_STATUS" >&2
+            exit 1
+          fi
+          rm -f jsr-meta.json
+          if [ "$JSR_HAS_VERSION" = "true" ]; then
+            echo "jsr_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "jsr_publish=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Publish package
         if: steps.version.outputs.publish == 'true'
         run: npm publish ./packages/cli/.release --access public --provenance
 
+      # cli.ts imports the same-version npm package, so this runs after npm
+      # publish and retries while the registry propagates. Published from
+      # outside the repo: in-tree, Deno resolves npm:agendex-cli to the local
+      # workspace package instead of the registry.
       - name: Publish to JSR
-        if: steps.version.outputs.publish == 'true'
-        working-directory: packages/cli/.release
-        run: deno publish --allow-dirty --no-check
+        if: steps.version.outputs.jsr_publish == 'true'
+        run: |
+          JSR_DIR="$RUNNER_TEMP/jsr-cli"
+          mkdir -p "$JSR_DIR"
+          cp packages/cli/.release/{cli.ts,jsr.json,README.md,LICENSE} "$JSR_DIR/"
+          cd "$JSR_DIR"
+          for attempt in 1 2 3 4 5; do
+            deno publish --allow-dirty && exit 0
+            echo "JSR publish attempt $attempt failed; retrying in 30s." >&2
+            sleep 30
+          done
+          exit 1
 
       - name: Tag release
-        if: steps.version.outputs.publish == 'true'
+        if: steps.version.outputs.publish == 'true' || steps.version.outputs.jsr_publish == 'true'
         run: |
           TAG="v${{ steps.version.outputs.local }}"
           if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then

@@ -4,9 +4,10 @@ import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CLI_VERSION, checkForUpdate } from './version.ts';
 
-type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
+type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno';
 
 const PACKAGE_NAME = 'agendex-cli';
+const JSR_PACKAGE_NAME = '@agendex/cli';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 
@@ -40,6 +41,10 @@ export function detectPackageManager(
   packageRoot: string,
   installPathHints: string[] = getInstallPathHints(),
 ): PackageManager {
+  // Layer 0: Deno runtime. The JSR package re-imports the npm bundle, so
+  // the npm-style signals below can point at Deno's npm cache instead.
+  if (typeof (globalThis as { Deno?: unknown }).Deno !== 'undefined') return 'deno';
+
   const userAgent = process.env.npm_config_user_agent ?? '';
   const execpath = process.env.npm_execpath ?? '';
 
@@ -99,9 +104,21 @@ function parseMajorVersion(version: string): number | null {
   return Number.isFinite(major) ? major : null;
 }
 
-function buildGlobalInstallCommand(pm: PackageManager): UpgradeCommandResult {
+export function buildGlobalInstallCommand(
+  pm: PackageManager,
+  latest?: string,
+): UpgradeCommandResult {
   const pkgSpec = `${PACKAGE_NAME}@latest`;
   switch (pm) {
+    case 'deno': {
+      // Pin the version when known so Deno doesn't reuse cached JSR metadata.
+      const jsrSpec = `jsr:${JSR_PACKAGE_NAME}${latest ? `@${latest}` : ''}`;
+      const args = ['install', '-g', '-A', '-f', '-n', 'agendex', jsrSpec];
+      return {
+        supported: true,
+        command: { bin: 'deno', args, display: `deno ${args.join(' ')}` },
+      };
+    }
     case 'bun':
       return {
         supported: true,
@@ -159,6 +176,8 @@ function pathLooksGlobal(path: string): boolean {
     '/appdata/roaming/npm/',
     '/appdata/local/yarn/',
     '/appdata/local/pnpm/',
+    // Deno's npm cache, where the JSR package's npm import resolves.
+    '/deno/npm/',
   ];
   if (globalMarkers.some((marker) => normalized.includes(marker))) return true;
 
@@ -216,7 +235,10 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
     );
   }
 
-  const commandResult = buildGlobalInstallCommand(pm);
+  const commandResult = buildGlobalInstallCommand(
+    pm,
+    checked && updateAvailable ? latest : undefined,
+  );
   if (!commandResult.supported) {
     process.stderr.write(`[agendex] ${commandResult.reason}\n`);
     process.stderr.write(
