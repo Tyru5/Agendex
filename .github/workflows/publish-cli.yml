@@ -59,9 +59,10 @@ jobs:
           if [ -n "$RELEASE_TAG" ]; then
             echo "Release v$LOCAL_VERSION already tagged, skipping publish."
             echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "jsr_publish=false" >> "$GITHUB_OUTPUT"
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "tagged=false" >> "$GITHUB_OUTPUT"
           NPM_VIEW_ERR=$(mktemp)
           if PUBLISHED_VERSION=$(npm view agendex-cli version 2>"$NPM_VIEW_ERR"); then
             :
@@ -79,8 +80,18 @@ jobs:
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
-          # Checked against JSR itself, not npm, so a JSR failure after a
-          # successful npm publish is retried on the next push.
+
+      - name: Publish package
+        if: steps.version.outputs.publish == 'true'
+        run: npm publish ./packages/cli/.release --access public --provenance
+
+      # Checked against JSR itself, after npm, so a JSR outage never blocks the
+      # npm release and a JSR failure is retried on the next push (no tag yet).
+      - name: Check JSR version
+        id: jsr
+        if: steps.version.outputs.tagged == 'false'
+        run: |
+          LOCAL_VERSION="${{ steps.version.outputs.local }}"
           JSR_STATUS=$(curl -sS -o jsr-meta.json -w '%{http_code}' https://jsr.io/@agendex/cli/meta.json)
           if [ "$JSR_STATUS" = "404" ]; then
             JSR_HAS_VERSION=false
@@ -92,21 +103,17 @@ jobs:
           fi
           rm -f jsr-meta.json
           if [ "$JSR_HAS_VERSION" = "true" ]; then
-            echo "jsr_publish=false" >> "$GITHUB_OUTPUT"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
           else
-            echo "jsr_publish=true" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Publish package
-        if: steps.version.outputs.publish == 'true'
-        run: npm publish ./packages/cli/.release --access public --provenance
 
       # cli.ts imports the same-version npm package, so this runs after npm
       # publish and retries while the registry propagates. Published from
       # outside the repo: in-tree, Deno resolves npm:agendex-cli to the local
       # workspace package instead of the registry.
       - name: Publish to JSR
-        if: steps.version.outputs.jsr_publish == 'true'
+        if: steps.jsr.outputs.publish == 'true'
         run: |
           JSR_DIR="$RUNNER_TEMP/jsr-cli"
           mkdir -p "$JSR_DIR"
@@ -120,7 +127,8 @@ jobs:
           exit 1
 
       - name: Tag release
-        if: steps.version.outputs.publish == 'true' || steps.version.outputs.jsr_publish == 'true'
+        # Untagged and every prior step succeeded: npm and JSR both have it.
+        if: steps.version.outputs.tagged == 'false'
         run: |
           TAG="v${{ steps.version.outputs.local }}"
           if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then

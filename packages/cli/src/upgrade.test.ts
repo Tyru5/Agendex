@@ -56,15 +56,22 @@ test('recognizes Deno installs from the JSR package', () => {
   }
 });
 
-test('upgrades Deno installs from JSR, pinned when the latest version is known', () => {
-  expect(buildGlobalInstallCommand('deno', '5.10.2')).toEqual({
+test('upgrades Deno installs from JSR with fresh metadata', () => {
+  expect(buildGlobalInstallCommand('deno')).toEqual({
     supported: true,
     command: {
       bin: 'deno',
-      args: ['install', '-g', '-A', '-f', '-n', 'agendex', 'jsr:@agendex/cli@5.10.2'],
-      display: 'deno install -g -A -f -n agendex jsr:@agendex/cli@5.10.2',
+      args: [
+        'install',
+        '-g',
+        '-A',
+        '-f',
+        '--reload=jsr:@agendex/cli',
+        '-n',
+        'agendex',
+        'jsr:@agendex/cli',
+      ],
+      display: 'deno install -g -A -f --reload=jsr:@agendex/cli -n agendex jsr:@agendex/cli',
     },
   });
-  const unpinned = buildGlobalInstallCommand('deno');
-  expect(unpinned.supported && unpinned.command.args.at(-1)).toBe('jsr:@agendex/cli');
 });

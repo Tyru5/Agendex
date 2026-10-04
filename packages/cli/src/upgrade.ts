@@ -104,16 +104,14 @@ function parseMajorVersion(version: string): number | null {
   return Number.isFinite(major) ? major : null;
 }
 
-export function buildGlobalInstallCommand(
-  pm: PackageManager,
-  latest?: string,
-): UpgradeCommandResult {
+export function buildGlobalInstallCommand(pm: PackageManager): UpgradeCommandResult {
   const pkgSpec = `${PACKAGE_NAME}@latest`;
   switch (pm) {
     case 'deno': {
-      // Pin the version when known so Deno doesn't reuse cached JSR metadata.
-      const jsrSpec = `jsr:${JSR_PACKAGE_NAME}${latest ? `@${latest}` : ''}`;
-      const args = ['install', '-g', '-A', '-f', '-n', 'agendex', jsrSpec];
+      // Unpinned: npm's latest can briefly lead JSR, so take JSR's newest
+      // version, reloading its metadata instead of reusing Deno's cache.
+      const jsrSpec = `jsr:${JSR_PACKAGE_NAME}`;
+      const args = ['install', '-g', '-A', '-f', `--reload=${jsrSpec}`, '-n', 'agendex', jsrSpec];
       return {
         supported: true,
         command: { bin: 'deno', args, display: `deno ${args.join(' ')}` },
@@ -235,10 +233,7 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
     );
   }
 
-  const commandResult = buildGlobalInstallCommand(
-    pm,
-    checked && updateAvailable ? latest : undefined,
-  );
+  const commandResult = buildGlobalInstallCommand(pm);
   if (!commandResult.supported) {
     process.stderr.write(`[agendex] ${commandResult.reason}\n`);
     process.stderr.write(
