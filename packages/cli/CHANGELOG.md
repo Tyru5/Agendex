@@ -1,5 +1,11 @@
 # agendex-cli
 
+## 5.10.3
+
+### Patch Changes
+
+- 7e2084b: `agendex upgrade` on Deno installs the newest JSR release that Deno's default 24-hour minimum dependency age allows, and explains when a fresher release becomes installable instead of failing.
+
 ## 5.10.2
 
 ### Patch Changes
