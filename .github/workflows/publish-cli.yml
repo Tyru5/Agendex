@@ -31,6 +31,11 @@ jobs:
       - name: Setup npm for trusted publishing
         run: npm install --global npm@11
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.x
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -42,6 +47,12 @@ jobs:
 
       - name: Smoke test packed CLI
         run: bun run smoke:cli:release
+
+      # The bundle is plain JS, so type-checking it only trips over the
+      # monorepo's node_modules; --no-check keeps the JSR publish to packaging.
+      - name: Dry-run JSR publish
+        working-directory: packages/cli/.release
+        run: deno publish --dry-run --allow-dirty --no-check
 
       - name: Check published version
         id: version
@@ -77,6 +88,11 @@ jobs:
       - name: Publish package
         if: steps.version.outputs.publish == 'true'
         run: npm publish ./packages/cli/.release --access public --provenance
+
+      - name: Publish to JSR
+        if: steps.version.outputs.publish == 'true'
+        working-directory: packages/cli/.release
+        run: deno publish --allow-dirty --no-check
 
       - name: Tag release
         if: steps.version.outputs.publish == 'true'

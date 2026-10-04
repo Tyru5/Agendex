@@ -11,6 +11,7 @@ const distFile = join(distDir, 'cli.js');
 const releaseDir = join(packageDir, '.release');
 const releaseDistDir = join(releaseDir, 'dist');
 const distOnly = process.argv.includes('--dist-only');
+const JSR_PACKAGE_NAME = '@agendex/cli';
 
 await buildDist();
 
@@ -102,10 +103,24 @@ async function buildRelease() {
     ...(Object.keys(dependencies).length > 0 ? { dependencies } : {}),
   };
 
-  await writeFile(
-    join(releaseDir, 'package.json'),
-    `${JSON.stringify(releaseManifest, null, 2)}\n`,
-  );
+  // JSR needs a scoped name and resolves the bundle's bare npm imports via `imports`.
+  const jsrManifest = {
+    name: JSR_PACKAGE_NAME,
+    version: cliManifest.version,
+    license: cliManifest.license,
+    exports: './dist/cli.js',
+    imports: Object.fromEntries(
+      Object.entries(dependencies).map(([name, version]) => [name, `npm:${name}@${version}`]),
+    ),
+    publish: {
+      include: ['dist', 'README.md', 'LICENSE'],
+    },
+  };
+
+  await Promise.all([
+    writeFile(join(releaseDir, 'package.json'), `${JSON.stringify(releaseManifest, null, 2)}\n`),
+    writeFile(join(releaseDir, 'jsr.json'), `${JSON.stringify(jsrManifest, null, 2)}\n`),
+  ]);
 }
 
 async function emptyDirectory(directory) {
