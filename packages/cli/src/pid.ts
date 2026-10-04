@@ -412,7 +412,8 @@ $result | ConvertTo-Json -Compress -Depth 4
 `;
 
 const WINDOWS_POWERSHELL_PATH = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
-const DEFAULT_AUTOMOUNT_POWERSHELL = '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
+const DEFAULT_AUTOMOUNT_POWERSHELL =
+  '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
 
 /**
  * tmux, systemd --user, and cron shells often lack the Windows interop dirs on PATH.
