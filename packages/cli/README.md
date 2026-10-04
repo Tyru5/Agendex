@@ -31,6 +31,8 @@ Deno (from [JSR](https://jsr.io/@agendex/cli)):
 deno install -g -A -n agendex jsr:@agendex/cli
 ```
 
+Deno installs a new release only after it is 24 hours old (Deno's default minimum dependency age), and `agendex upgrade` follows the same rule.
+
 Under Deno, the OpenCode and T3 Code adapters can't read their databases: `better-sqlite3`'s native build doesn't run in a global Deno install.
 
 Installer options:

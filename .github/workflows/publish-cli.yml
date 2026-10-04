@@ -121,9 +121,12 @@ jobs:
           fi
 
       # cli.ts imports the same-version npm package, so this runs after npm
-      # publish and retries while the registry propagates. Published from
-      # outside the repo: in-tree, Deno resolves npm:agendex-cli to the local
-      # workspace package instead of the registry.
+      # publish and retries while registry metadata catches up (it can trail a
+      # publish by minutes). Runs outside the repo because in-tree, Deno
+      # resolves npm:agendex-cli to the local workspace package. The .npmrc
+      # disables Deno 2.9+'s 24h minimum dependency age, which otherwise
+      # refuses the npm version just published; publish.include keeps it out
+      # of the package.
       - name: Publish to JSR
         if: steps.jsr.outputs.publish == 'true'
         run: |
@@ -131,7 +134,8 @@ jobs:
           mkdir -p "$JSR_DIR"
           cp packages/cli/.release/{cli.ts,jsr.json,README.md,LICENSE} "$JSR_DIR/"
           cd "$JSR_DIR"
-          for attempt in 1 2 3 4 5; do
+          echo "min-release-age=0" > .npmrc
+          for attempt in $(seq 1 20); do
             deno publish --allow-dirty && exit 0
             echo "JSR publish attempt $attempt failed; retrying in 30s." >&2
             sleep 30
