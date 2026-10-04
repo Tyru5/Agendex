@@ -760,7 +760,7 @@ function CloudSyncPausedNotice({ cloudSyncPaused }: { cloudSyncPaused: boolean }
 
   return (
     <div className="sticky top-0 z-30 border-b border-[color-mix(in_oklch,var(--warning)_35%,var(--border))] bg-[color-mix(in_oklch,var(--warning)_9%,var(--surface))] px-4 py-2.5 text-[12.5px] text-secondary backdrop-blur">
-      <div className="mx-auto flex max-w-[960px] flex-wrap items-center justify-between gap-2">
+      <div className="mx-auto flex max-w-[960px] flex-wrap items-center justify-center gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <CloudSyncPausedBadge label={label} />
           <span>{detail}</span>
