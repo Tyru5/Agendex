@@ -205,17 +205,18 @@ export function isLikelyGlobalInstall(
 
 /** Latest version published to JSR, or null when JSR can't be reached. */
 async function fetchJsrLatest(): Promise<string | null> {
+  // The timeout stays armed through the body read so a stalled body aborts too.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(JSR_META_URL, { signal: controller.signal }).finally(() =>
-      clearTimeout(timeout),
-    );
+    const res = await fetch(JSR_META_URL, { signal: controller.signal });
     if (!res.ok) return null;
     const data = (await res.json()) as { latest?: unknown };
     return typeof data.latest === 'string' ? data.latest : null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -245,35 +246,34 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
     forceRefresh: true,
   });
 
-  if (checked && !updateAvailable && !opts.force) {
-    process.stdout.write(`[agendex] already up to date (v${current})\n`);
-    return 0;
-  }
-
-  if (!checked) {
-    process.stderr.write(
-      `[agendex] could not verify the latest version; attempting upgrade anyway...\n`,
-    );
-  }
-
-  // Deno installs come from JSR, which publishes after npm and can trail it.
+  // Deno installs come from JSR, which publishes after npm and can trail it,
+  // so JSR decides for Deno; npm's answer is only the fallback.
   let targetVersion = checked && updateAvailable ? latest : undefined;
   let jsrVersion: string | undefined;
-  if (pm === 'deno') {
-    const jsrLatest = await fetchJsrLatest();
-    if (jsrLatest) {
-      if (!isNewer(jsrLatest, current) && !opts.force) {
-        if (checked && updateAvailable) {
-          process.stderr.write(
-            `[agendex] v${latest} is not on JSR yet (JSR has v${jsrLatest}); try again shortly.\n`,
-          );
-          return 1;
-        }
-        process.stdout.write(`[agendex] already up to date (v${current})\n`);
-        return 0;
+  const jsrLatest = pm === 'deno' ? await fetchJsrLatest() : null;
+  if (jsrLatest) {
+    if (!isNewer(jsrLatest, current) && !opts.force) {
+      if (checked && updateAvailable) {
+        process.stderr.write(
+          `[agendex] v${latest} is not on JSR yet (JSR has v${jsrLatest}); try again shortly.\n`,
+        );
+        return 1;
       }
-      jsrVersion = jsrLatest;
-      targetVersion = isNewer(jsrLatest, current) ? jsrLatest : undefined;
+      process.stdout.write(`[agendex] already up to date (v${current})\n`);
+      return 0;
+    }
+    jsrVersion = jsrLatest;
+    targetVersion = isNewer(jsrLatest, current) ? jsrLatest : undefined;
+  } else {
+    if (checked && !updateAvailable && !opts.force) {
+      process.stdout.write(`[agendex] already up to date (v${current})\n`);
+      return 0;
+    }
+
+    if (!checked) {
+      process.stderr.write(
+        `[agendex] could not verify the latest version; attempting upgrade anyway...\n`,
+      );
     }
   }
 
