@@ -20,6 +20,7 @@ import {
   isDaemonPidInfoRunning,
   readPidInfo,
   readDarwinBootIdentities,
+  isWslEnvironment,
   readWindowsDesktopDaemonInfoFromWsl,
 } from './pid.ts';
 
@@ -508,6 +509,7 @@ test('Windows desktop daemon fallback is disabled outside WSL', () => {
     readWindowsDesktopDaemonInfoFromWsl({
       platform: 'linux',
       env: {},
+      readProcVersion: () => 'Linux version 6.8.0-45-generic (buildd@lcy02) (gcc 13.2.0)',
       runProbe: () => {
         probed = true;
         return '{}';
@@ -515,6 +517,33 @@ test('Windows desktop daemon fallback is disabled outside WSL', () => {
     }),
   ).toBeNull();
   expect(probed).toBe(false);
+});
+
+test('detects WSL from /proc/version when the shell lacks WSL env vars', () => {
+  const wslKernel = 'Linux version 6.6.87.2-microsoft-standard-WSL2 (root@439a258ad544)';
+  const plainKernel = 'Linux version 6.8.0-45-generic (buildd@lcy02)';
+
+  expect(isWslEnvironment('linux', { WSL_DISTRO_NAME: 'Ubuntu' }, () => plainKernel)).toBe(true);
+  expect(isWslEnvironment('linux', { WSL_INTEROP: '/run/WSL/1_interop' }, () => null)).toBe(true);
+  expect(isWslEnvironment('linux', {}, () => wslKernel)).toBe(true);
+  expect(isWslEnvironment('linux', {}, () => plainKernel)).toBe(false);
+  expect(isWslEnvironment('linux', {}, () => null)).toBe(false);
+  expect(isWslEnvironment('win32', { WSL_DISTRO_NAME: 'Ubuntu' }, () => wslKernel)).toBe(false);
+  expect(isWslEnvironment('darwin', {}, () => wslKernel)).toBe(false);
+
+  let probedDir: string | null = null;
+  expect(
+    readWindowsDesktopDaemonInfoFromWsl({
+      platform: 'linux',
+      env: {},
+      readProcVersion: () => wslKernel,
+      runProbe: (configDirName) => {
+        probedDir = configDirName;
+        return null;
+      },
+    }),
+  ).toBeNull();
+  expect(probedDir).toBe('.agendex');
 });
 
 test('legacy PID files retain metadata and require daemon process ownership', () => {

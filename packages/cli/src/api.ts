@@ -10,7 +10,7 @@ import {
   type UsageSummary,
   updateConfig,
 } from '@agendex/shared';
-import { readPidInfo } from './pid.ts';
+import { isWslEnvironment, readPidInfo } from './pid.ts';
 
 export class AuthExpiredError extends Error {
   constructor() {
@@ -551,11 +551,9 @@ export async function refreshCurrentDaemonToken(): Promise<boolean> {
 export function daemonPlatform(
   platform: NodeJS.Platform = process.platform,
   env: NodeJS.ProcessEnv = process.env,
+  readProcVersion?: () => string | null,
 ): string {
-  if (platform === 'linux' && (env.WSL_DISTRO_NAME?.trim() || env.WSL_INTEROP?.trim())) {
-    return 'wsl';
-  }
-  return platform;
+  return isWslEnvironment(platform, env, readProcVersion) ? 'wsl' : platform;
 }
 
 export async function sendHeartbeat(

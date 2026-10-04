@@ -283,6 +283,56 @@ test('renders desktop spawn origin for Electron-launched daemons', () => {
   expect(output).toContain('PID 456 • up 30s • host workstation • via desktop app');
 });
 
+test('lists a Windows desktop daemon beside a running WSL CLI daemon', () => {
+  const output = renderStatus({
+    config: config(),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: {
+      pid: 64913,
+      startedAtMs: NOW - 180_000,
+      hostname: 'yeet',
+      launcher: 'cli',
+      workerPid: 64925,
+    },
+    running: true,
+    desktopPidInfo: {
+      pid: 30788,
+      startedAtMs: NOW - 109_800_000,
+      hostname: 'yeet',
+      launcher: 'desktop',
+      parentPid: 15348,
+    },
+    cliVersion: '2.0.0',
+    devices: [],
+    now: NOW,
+    color: false,
+  });
+
+  const lines = output.split('\n');
+  const daemonLine = lines.find((line) => line.trimStart().startsWith('Daemon '));
+  const desktopLine = lines.find((line) => line.trimStart().startsWith('Desktop daemon'));
+  expect(daemonLine).toContain('✓ running  PID 64913 • up 3m 0s • host yeet • via CLI');
+  expect(desktopLine).toContain('✓ running  PID 30788 • up 1d 6h • host yeet • via desktop app');
+  expect(lines.indexOf(desktopLine!)).toBe(lines.indexOf(daemonLine!) + 1);
+  expect(output).not.toContain('agendex start');
+});
+
+test('omits the desktop daemon row when none is detected', () => {
+  const output = renderStatus({
+    config: config(),
+    configPath: '/tmp/agendex/config.json',
+    pidInfo: { pid: 1, startedAtMs: NOW - 1_000, hostname: 'yeet', launcher: 'cli' },
+    running: true,
+    desktopPidInfo: null,
+    cliVersion: '2.0.0',
+    devices: [],
+    now: NOW,
+    color: false,
+  });
+
+  expect(output).not.toContain('Desktop daemon');
+});
+
 test('renders detected CLI and desktop origins despite macOS boot timestamp drift', () => {
   for (const launcher of ['cli', 'desktop'] as const) {
     const pidInfo = {

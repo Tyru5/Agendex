@@ -28,6 +28,7 @@ import { writeStderr, writeStdout } from './stdio.ts';
 import { runMcpServer } from './mcp.ts';
 import {
   acquireDaemonStartLock,
+  type DaemonPidInfo,
   isAgendexDaemonProcess,
   isDaemonPidInfoCurrent,
   isDaemonPidInfoRunning,
@@ -392,9 +393,14 @@ async function main(): Promise<number> {
       const config = loadConfig();
       let pidInfo = readPidInfo();
       let running = pidInfo ? isDaemonPidInfoRunning(pidInfo) : false;
-      if (!running) {
-        const windowsDesktopPidInfo = readWindowsDesktopDaemonInfoFromWsl({ dev: devFlag });
-        if (windowsDesktopPidInfo) {
+      // The Windows desktop app keeps its own daemon beside a WSL CLI daemon; surface
+      // both instead of hiding the desktop one whenever the CLI daemon is up.
+      let desktopPidInfo: DaemonPidInfo | null = null;
+      const windowsDesktopPidInfo = readWindowsDesktopDaemonInfoFromWsl({ dev: devFlag });
+      if (windowsDesktopPidInfo) {
+        if (running) {
+          desktopPidInfo = windowsDesktopPidInfo;
+        } else {
           pidInfo = windowsDesktopPidInfo;
           running = true;
         }
@@ -423,6 +429,7 @@ async function main(): Promise<number> {
           configPath: getConfigPath(),
           pidInfo,
           running,
+          desktopPidInfo,
           cliVersion: CLI_VERSION,
           devices,
           cloudDaemonError,

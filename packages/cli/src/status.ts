@@ -14,6 +14,8 @@ export interface RenderStatusOptions {
   configPath: string;
   pidInfo: DaemonPidInfo | null;
   running: boolean;
+  /** Windows desktop-app daemon seen from WSL while a CLI daemon is also running. */
+  desktopPidInfo?: DaemonPidInfo | null;
   cliVersion: string;
   devices?: DeviceInfo[] | null;
   cloudDaemonError?: CloudDaemonStatusError | null;
@@ -139,16 +141,20 @@ function localDaemonDetail(options: RenderStatusOptions, now: number): string {
     return `alive elsewhere: ${summarizeList(elsewhere.map(deviceSummary), 3)}`;
   }
 
+  return pidInfoDetail(options.pidInfo, now);
+}
+
+function pidInfoDetail(pidInfo: DaemonPidInfo | null | undefined, now: number): string {
   const parts: string[] = [];
-  if (isPresent(options.pidInfo?.pid)) parts.push(`PID ${options.pidInfo.pid}`);
-  if (isPresent(options.pidInfo?.startedAtMs)) {
-    parts.push(`up ${formatDuration(now - options.pidInfo.startedAtMs)}`);
+  if (isPresent(pidInfo?.pid)) parts.push(`PID ${pidInfo.pid}`);
+  if (isPresent(pidInfo?.startedAtMs)) {
+    parts.push(`up ${formatDuration(now - pidInfo.startedAtMs)}`);
   } else {
     parts.push('uptime unknown');
   }
-  if (options.pidInfo?.hostname) parts.push(`host ${options.pidInfo.hostname}`);
+  if (pidInfo?.hostname) parts.push(`host ${pidInfo.hostname}`);
   else parts.push('host unknown');
-  const origin = formatLauncherOrigin(options.pidInfo?.launcher);
+  const origin = formatLauncherOrigin(pidInfo?.launcher);
   if (origin) parts.push(origin);
   return parts.join(' • ');
 }
@@ -436,6 +442,16 @@ export function renderStatus(options: RenderStatusOptions): string {
       localDaemonDetail(options, now),
     ),
   );
+  if (options.desktopPidInfo) {
+    lines.push(
+      row(
+        styles,
+        'Desktop daemon',
+        badge(styles, 'success', 'running'),
+        pidInfoDetail(options.desktopPidInfo, now),
+      ),
+    );
+  }
   lines.push(
     row(
       styles,
