@@ -175,6 +175,32 @@ export function MoveToFolderMenu({
   onClose: () => void;
 }) {
   const currentFolderId = folderState.getFolderForPlan(planId);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuItems = () =>
+    Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('button') ?? []);
+
+  // Opened from the keyboard row menu too, so take focus and support arrow keys.
+  useEffect(() => {
+    (menuItems()[0] ?? menuRef.current)?.focus({ preventScroll: true });
+  }, []);
+
+  function handleMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const list = menuItems();
+    const index = list.indexOf(document.activeElement as HTMLButtonElement);
+    let next: HTMLButtonElement | undefined;
+    if (e.key === 'ArrowDown') next = list[(index + 1) % list.length];
+    else if (e.key === 'ArrowUp') next = list[(index - 1 + list.length) % list.length];
+    else if (e.key === 'Home') next = list[0];
+    else if (e.key === 'End') next = list[list.length - 1];
+    else if (e.key === 'Tab') {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    if (!next) return;
+    e.preventDefault();
+    next.focus({ preventScroll: true });
+  }
 
   useEffect(() => {
     function handleClose() {
@@ -246,6 +272,11 @@ export function MoveToFolderMenu({
 
   return createPortal(
     <div
+      ref={menuRef}
+      role="menu"
+      tabIndex={-1}
+      aria-label="Move to folder"
+      onKeyDown={handleMenuKeyDown}
       style={{
         position: 'fixed',
         top: y,

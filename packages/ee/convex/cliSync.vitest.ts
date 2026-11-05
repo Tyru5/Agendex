@@ -65,6 +65,28 @@ test('concurrent first syncs of one local plan converge on a single row', async 
   expect(plans[0]).toMatchObject({ content: '# Second', version: 2 });
 });
 
+test('an older first sync that loses the race does not overwrite newer content', async () => {
+  const t = await subscribedT();
+  const base = { ownerId: 'owner', localPlanId: 'local-2', agent: 'claude', format: 'markdown' };
+
+  const newer = await t.mutation(internal.cli.upsertPlan, {
+    ...base,
+    title: 'Plan',
+    content: '# Newer',
+    updatedAt: 2_000,
+  });
+  const older = await t.mutation(internal.cli.upsertPlan, {
+    ...base,
+    title: 'Plan',
+    content: '# Older',
+    updatedAt: 1_000,
+  });
+
+  expect(older).toBe(newer);
+  const plan = await t.run((ctx) => ctx.db.get(newer));
+  expect(plan).toMatchObject({ content: '# Newer', updatedAt: 2_000, version: 1 });
+});
+
 test('sync payload size limits measure bytes and name the offending field', () => {
   expect(cliSyncPayloadSizeError({ title: 'ok', content: '# ok', metadata: { a: 1 } })).toBeNull();
   expect(

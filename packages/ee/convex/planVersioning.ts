@@ -1,5 +1,5 @@
-import type { Id } from './_generated/dataModel';
-import type { MutationCtx } from './_generated/server';
+import type { Doc, Id } from './_generated/dataModel';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 
 export type PlanVersionSource = 'cli_sync' | 'editor' | 'restore' | 'backfill';
 
@@ -24,6 +24,69 @@ export function planContentChanged(
     previous.content !== next.content ||
     (next.format !== undefined && previous.format !== next.format)
   );
+}
+
+/**
+ * Version rows hold a full content snapshot (up to ~900 KB each), while a Convex
+ * transaction may read only ~16 MiB. Readers of many versions therefore stop at a
+ * byte budget instead of a fixed row count. Each budget can overshoot by one row.
+ */
+export const PLAN_VERSION_LIST_BUDGET_BYTES = 8 * 1024 * 1024;
+export const PLAN_VERSION_DELETE_BUDGET_BYTES = 4 * 1024 * 1024;
+export const PLAN_VERSION_PRUNE_BUDGET_BYTES = 2 * 1024 * 1024;
+
+const versionByteEncoder = new TextEncoder();
+
+/** Approximate stored size of a version row, dominated by its snapshot. */
+export function approxPlanVersionBytes(row: Doc<'planVersions'>): number {
+  return (
+    versionByteEncoder.encode(row.content).byteLength +
+    versionByteEncoder.encode(row.title).byteLength +
+    (row.metadata === undefined ? 0 : JSON.stringify(row.metadata).length) +
+    512
+  );
+}
+
+/**
+ * Read a plan's versions in `order`, one indexed row at a time, until `maxRows`
+ * or `budgetBytes` is reached. `mayHaveMore` is true when either limit stopped
+ * the read early.
+ */
+export async function readPlanVersionsWithinBudget(
+  ctx: Pick<QueryCtx, 'db'>,
+  args: {
+    planId: Id<'plans'>;
+    order: 'asc' | 'desc';
+    maxRows: number;
+    budgetBytes: number;
+    /** Only versions at or below this number. */
+    maxVersion?: number;
+  },
+): Promise<{ rows: Doc<'planVersions'>[]; mayHaveMore: boolean }> {
+  const rows: Doc<'planVersions'>[] = [];
+  let bytes = 0;
+  let cursor: number | undefined;
+  while (rows.length < args.maxRows && bytes < args.budgetBytes) {
+    const row = await ctx.db
+      .query('planVersions')
+      .withIndex('by_plan_version', (q) => {
+        const plan = q.eq('planId', args.planId);
+        if (args.order === 'asc') {
+          const lower = cursor === undefined ? plan : plan.gt('version', cursor);
+          return args.maxVersion === undefined ? lower : lower.lte('version', args.maxVersion);
+        }
+        // Below the cursor is already at or below maxVersion.
+        if (cursor !== undefined) return plan.lt('version', cursor);
+        return args.maxVersion === undefined ? plan : plan.lte('version', args.maxVersion);
+      })
+      .order(args.order)
+      .first();
+    if (!row) return { rows, mayHaveMore: false };
+    rows.push(row);
+    bytes += approxPlanVersionBytes(row);
+    cursor = row.version;
+  }
+  return { rows, mayHaveMore: true };
 }
 
 /**
@@ -54,11 +117,13 @@ export async function prunePlanVersions(
     .first();
   const protectedVersion = preferences?.lastReadVersion;
 
-  const candidates = await ctx.db
-    .query('planVersions')
-    .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).lte('version', cutoff))
-    .order('asc')
-    .take(PLAN_VERSION_PRUNE_BATCH + 1);
+  const { rows: candidates } = await readPlanVersionsWithinBudget(ctx, {
+    planId: args.planId,
+    order: 'asc',
+    maxRows: PLAN_VERSION_PRUNE_BATCH + 1,
+    budgetBytes: PLAN_VERSION_PRUNE_BUDGET_BYTES,
+    maxVersion: cutoff,
+  });
 
   let deleted = 0;
   for (const row of candidates) {

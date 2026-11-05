@@ -4,6 +4,7 @@ import type { Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 import { internalMutation, type MutationCtx } from './_generated/server';
 import { deleteCommentWithAttachments, deletePendingUploadRecord } from './comments';
+import { PLAN_VERSION_DELETE_BUDGET_BYTES, readPlanVersionsWithinBudget } from './planVersioning';
 
 type PlanDeletionCtx = Pick<MutationCtx, 'db' | 'storage' | 'scheduler'>;
 
@@ -87,10 +88,13 @@ export async function deletePlanRelatedDataBatch(
     for (const row of rows) await ctx.db.delete(row._id);
     deleted = rows.length;
   } else if (phase === 'planVersions') {
-    const rows = await ctx.db
-      .query('planVersions')
-      .withIndex('by_plan', (q) => q.eq('planId', planId))
-      .take(batchSize);
+    // Each version holds a full snapshot, so bound the batch by bytes as well as rows.
+    const { rows } = await readPlanVersionsWithinBudget(ctx, {
+      planId,
+      order: 'asc',
+      maxRows: batchSize,
+      budgetBytes: PLAN_VERSION_DELETE_BUDGET_BYTES,
+    });
     for (const row of rows) await ctx.db.delete(row._id);
     deleted = rows.length;
   } else if (phase === 'planAnnotations') {
@@ -174,6 +178,12 @@ export async function deletePlanRelatedData(
 
   let continueFrom: PlanDeletionPhase | null = null;
   for (const phase of PLAN_DELETION_PHASES) {
+    // Version rows can be ~900 KB each and callers delete many plans in one
+    // transaction, so history is always drained by the scheduled continuation.
+    if (phase === 'planVersions') {
+      continueFrom ??= phase;
+      continue;
+    }
     const { deleted } = await deletePlanRelatedDataBatch(ctx, {
       planId,
       phase,

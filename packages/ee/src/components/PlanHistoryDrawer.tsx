@@ -29,6 +29,15 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
   const [compareTo, setCompareTo] = useState<number | null>(null);
   const [restoring, setRestoring] = useState(false);
 
+  // History retention can prune a selected version while the drawer is open;
+  // drop selections that left the list so the defaults below pick new ones.
+  useEffect(() => {
+    if (!versions) return;
+    const listed = new Set(versions.map((ver) => ver.version));
+    if (compareFrom !== null && !listed.has(compareFrom)) setCompareFrom(null);
+    if (compareTo !== null && !listed.has(compareTo)) setCompareTo(null);
+  }, [versions, compareFrom, compareTo]);
+
   useEffect(() => {
     if (versions && versions.length >= 2 && compareFrom === null && compareTo === null) {
       setCompareFrom(versions[1]!.version);
@@ -207,7 +216,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
           )}
 
           {compareFrom != null && compareTo != null ? (
-            fromSnapshot === undefined || toSnapshot === undefined ? (
+            !fromSnapshot || !toSnapshot ? (
               <SkeletonBlock lines={6} />
             ) : (
               <PlanDiffViewer
@@ -220,7 +229,7 @@ export function PlanHistoryDrawer({ planId, onClose }: { planId: string; onClose
               />
             )
           ) : compareTo != null && versions.length === 1 ? (
-            toSnapshot === undefined ? (
+            !toSnapshot ? (
               <SkeletonBlock lines={6} />
             ) : (
               <div className="p-4 text-[12.5px] text-tertiary text-center border border-border rounded-lg">

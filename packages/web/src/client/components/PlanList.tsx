@@ -1,5 +1,14 @@
 import type { PlanReceiptSummary } from '@agendex/shared/receipts';
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { usePlanState } from '../hooks/usePlanState.ts';
 import { getAgentLabel } from '../lib/agent-colors.ts';
@@ -18,8 +27,8 @@ import { CustomDirTree } from './CustomDirTree.tsx';
 import { FolderTree, MoveToFolderMenu } from './FolderTree.tsx';
 import { ReceiptStatusIcon } from './ReceiptStatusIcon.tsx';
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+function timeAgo(dateStr: string, now: number): string {
+  const diff = now - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m`;
@@ -27,6 +36,39 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs}h`;
   const days = Math.floor(hrs / 24);
   return `${days}d`;
+}
+
+// One shared clock that ticks each minute, so memoized rows keep their relative
+// timestamps current without re-rendering the whole row.
+const minuteClockListeners = new Set<() => void>();
+let minuteClockTimer: ReturnType<typeof setInterval> | undefined;
+let minuteClockNow = Date.now();
+
+function subscribeMinuteClock(listener: () => void): () => void {
+  minuteClockListeners.add(listener);
+  if (!minuteClockTimer) {
+    minuteClockNow = Date.now();
+    minuteClockTimer = setInterval(() => {
+      minuteClockNow = Date.now();
+      for (const notify of minuteClockListeners) notify();
+    }, 60_000);
+  }
+  return () => {
+    minuteClockListeners.delete(listener);
+    if (minuteClockListeners.size === 0 && minuteClockTimer) {
+      clearInterval(minuteClockTimer);
+      minuteClockTimer = undefined;
+    }
+  };
+}
+
+function RelativeTime({ date }: { date: string }) {
+  const now = useSyncExternalStore(
+    subscribeMinuteClock,
+    () => minuteClockNow,
+    () => minuteClockNow,
+  );
+  return <span>{timeAgo(date, now)}</span>;
 }
 
 type PlanRowProps = {
@@ -97,7 +139,7 @@ const PlanRow = memo(function PlanRow({
       <AgentIcon agent={plan.agent} size={10} />
       <span className="sidebar-plan-meta-label">{getAgentLabel(plan.agent)}</span>
       <span aria-hidden="true">·</span>
-      <span>{timeAgo(plan.updatedAt)}</span>
+      <RelativeTime date={plan.updatedAt} />
       {hasSessionSiblings && (
         <>
           <span aria-hidden="true">·</span>
@@ -442,6 +484,26 @@ export function PlanList(props: PlanListProps) {
     const trigger = menuTriggerRef.current;
     menuTriggerRef.current = null;
     if (restoreFocus && trigger?.isConnected) trigger.focus({ preventScroll: true });
+  }, []);
+
+  /** Row that opened the folder submenu, focused again when the submenu closes. */
+  const moveMenuTriggerRef = useRef<HTMLElement | null>(null);
+
+  /** Hand focus from the row menu to the folder submenu instead of back to the row. */
+  const openMoveToFolderMenu = useCallback(
+    (menu: { plan: Plan; x: number; y: number }) => {
+      moveMenuTriggerRef.current = menuTriggerRef.current;
+      setMoveToFolderMenu({ planId: menu.plan.id, x: menu.x + 196, y: menu.y });
+      closeContextMenu(false);
+    },
+    [closeContextMenu],
+  );
+
+  const closeMoveToFolderMenu = useCallback(() => {
+    setMoveToFolderMenu(null);
+    const trigger = moveMenuTriggerRef.current;
+    moveMenuTriggerRef.current = null;
+    if (trigger?.isConnected) trigger.focus({ preventScroll: true });
   }, []);
 
   const selectedPlan = useMemo(
@@ -869,12 +931,7 @@ export function PlanList(props: PlanListProps) {
             <MenuButton
               label="Move to folder…"
               onClick={() => {
-                setMoveToFolderMenu({
-                  planId: contextMenu.plan.id,
-                  x: contextMenu.x + 196,
-                  y: contextMenu.y,
-                });
-                closeContextMenu();
+                openMoveToFolderMenu(contextMenu);
               }}
             >
               <svg
@@ -976,12 +1033,7 @@ export function PlanList(props: PlanListProps) {
           <MenuButton
             label="Move to folder…"
             onClick={() => {
-              setMoveToFolderMenu({
-                planId: contextMenu.plan.id,
-                x: contextMenu.x + 196,
-                y: contextMenu.y,
-              });
-              closeContextMenu();
+              openMoveToFolderMenu(contextMenu);
             }}
           >
             <svg
@@ -1007,7 +1059,7 @@ export function PlanList(props: PlanListProps) {
           x={Math.min(moveToFolderMenu.x, window.innerWidth - 220)}
           y={Math.min(moveToFolderMenu.y, window.innerHeight - 320)}
           folderState={folderState}
-          onClose={() => setMoveToFolderMenu(null)}
+          onClose={closeMoveToFolderMenu}
         />
       )}
     </div>

@@ -1188,6 +1188,11 @@ export const upsertPlan = internalMutation({
           q.eq('ownerId', args.ownerId).eq('localPlanId', args.localPlanId),
         )
         .first();
+      // The racing request already wrote newer content: keep it, like the
+      // `sync` action's stale check does for rows it found up front.
+      if (raced && args.updatedAt !== undefined && args.updatedAt < raced.updatedAt) {
+        return raced._id;
+      }
       existingId = raced?._id;
     }
 

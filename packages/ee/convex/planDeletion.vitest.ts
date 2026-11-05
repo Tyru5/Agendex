@@ -96,8 +96,8 @@ test('plan deletion stays bounded and drains large related data in scheduled bat
   const afterDelete = await relatedCounts(t, planId);
   expect(afterDelete.plan).toBeNull();
   expect(afterDelete.shareLinks).toBe(0);
-  expect(afterDelete.planVersions).toBeGreaterThan(0);
-  expect(afterDelete.planVersions).toBeLessThan(VERSION_COUNT);
+  // History rows can be ~900 KB each, so they are left to the scheduled continuation.
+  expect(afterDelete.planVersions).toBe(VERSION_COUNT);
 
   await t.finishAllScheduledFunctions(vi.runAllTimers);
 
@@ -117,4 +117,27 @@ test('the scheduled continuation never strips data from a plan that still exists
   expect(counts.plan).not.toBeNull();
   expect(counts.shareLinks).toBe(3);
   expect(counts.planVersions).toBe(VERSION_COUNT);
+});
+
+test('a continuation batch of large versions stops at its byte budget', async () => {
+  const { t, planId } = await setup();
+  await t.run(async (ctx) => {
+    for (const row of await ctx.db
+      .query('planVersions')
+      .withIndex('by_plan', (q) => q.eq('planId', planId))
+      .collect()) {
+      await ctx.db.patch(row._id, { content: 'x'.repeat(800_000) });
+    }
+    await ctx.db.delete(planId);
+  });
+
+  await t.mutation(internal.planDeletion.continuePlanRelatedDataCleanup, {
+    planId,
+    phase: 'planVersions',
+  });
+
+  // 4 MiB budget / ~800 KB rows: about 6 rows, far below the 100-row batch size.
+  const remaining = (await relatedCounts(t, planId)).planVersions;
+  expect(VERSION_COUNT - remaining).toBeGreaterThan(0);
+  expect(VERSION_COUNT - remaining).toBeLessThanOrEqual(6);
 });

@@ -263,10 +263,10 @@ export function Dashboard() {
   }, [comparePlan, selectedPlan, setComparePlanId, setSelectedPlanId]);
 
   useEffect(() => {
-    if (isStalePlanSelection(selectedPlanId, loading, plansById)) {
+    if (isStalePlanSelection(selectedPlanId, !loading && !error, plansById)) {
       setSelectedPlanId(null);
     }
-  }, [loading, selectedPlanId, plansById, setSelectedPlanId]);
+  }, [loading, error, selectedPlanId, plansById, setSelectedPlanId]);
 
   useEffect(() => {
     if (comparePlanId && plans.length > 0 && !plansById.has(comparePlanId)) {
