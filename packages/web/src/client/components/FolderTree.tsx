@@ -199,23 +199,31 @@ export function MoveToFolderMenu({
     }
     if (!next) return;
     e.preventDefault();
+    // preventScroll keeps the page still; scroll only the menu's own list.
     next.focus({ preventScroll: true });
+    next.scrollIntoView({ block: 'nearest' });
   }
 
   useEffect(() => {
     function handleClose() {
       onClose();
     }
+    // The list scrolls itself once it is taller than its max height; only
+    // scrolling elsewhere on the page should close the menu.
+    function handleScroll(e: Event) {
+      if (e.target instanceof Node && menuRef.current?.contains(e.target)) return;
+      onClose();
+    }
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') handleClose();
     }
     window.addEventListener('pointerdown', handleClose);
-    window.addEventListener('scroll', handleClose, true);
+    window.addEventListener('scroll', handleScroll, true);
     window.addEventListener('resize', handleClose);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('pointerdown', handleClose);
-      window.removeEventListener('scroll', handleClose, true);
+      window.removeEventListener('scroll', handleScroll, true);
       window.removeEventListener('resize', handleClose);
       window.removeEventListener('keydown', handleKeyDown);
     };
