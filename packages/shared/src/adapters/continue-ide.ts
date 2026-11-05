@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { basename, join, resolve, sep } from 'node:path';
 import { getHomeDir } from '../home-dir.ts';
+import { isRecord } from './adapter-utils.ts';
 import {
   createStructuredSessionAdapter,
   type StructuredPlanCandidate,
@@ -22,10 +23,6 @@ interface SessionFile {
 
 function continueDir(): string {
   return join(getHomeDir(), '.continue', 'sessions');
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function nestedString(record: Record<string, unknown>, keys: string[]): string | undefined {

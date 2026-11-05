@@ -50,9 +50,7 @@ export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTabId>('account');
   const [showRuntimeTab, setShowRuntimeTab] = useState(false);
 
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const deleteAccountAction = useAction((api as any).account.deleteAccount);
+  const deleteAccountAction = useAction(api.account.deleteAccount);
   const removeDaemonMutation = useMutation(api.cli.removeDaemon);
 
   const subView = useSubscriptionView(subscription, isActive, isTrialing, trialDaysLeft);

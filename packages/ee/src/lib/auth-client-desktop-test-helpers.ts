@@ -32,6 +32,11 @@ export function installDesktopWindow(bridge: Partial<AgendexDesktopBridge> = {})
     setModePref: bridge.setModePref ?? (async () => true),
     refreshCloudSession: bridge.refreshCloudSession ?? (async () => null),
     getConvexAuthToken: bridge.getConvexAuthToken ?? (async () => null),
+    checkForUpdates: bridge.checkForUpdates ?? (async () => {}),
+    installUpdate: bridge.installUpdate ?? (async () => {}),
+    getUpdateState: bridge.getUpdateState ?? (async () => ({ status: 'idle' })),
+    getAppVersion: bridge.getAppVersion ?? (async () => '0.0.0'),
+    getBuildInfo: bridge.getBuildInfo ?? (async () => ({ platform: 'test', codeSigned: null })),
     authFetch:
       bridge.authFetch ??
       (async (url, init) => {

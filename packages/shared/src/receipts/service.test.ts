@@ -216,7 +216,7 @@ describe('getPlanReceipt on a real repository', () => {
         'packages/shared/util.ts',
         'change workspace sibling',
       ],
-    ]) {
+    ] as [string, string, string][]) {
       const plan = makePlan('p', `Update \`${mention}\`.`, start, join(repo, 'packages/a'));
       plan.filePath = join(repo, 'packages/a/plans/p.md');
       const receipt = await getPlanReceipt(plan);

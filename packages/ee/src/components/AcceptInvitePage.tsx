@@ -14,18 +14,9 @@ export function AcceptInvitePage({ token }: { token: string }) {
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const invite = useQuery(
-    // Convex component API not in generated types
-    // oxlint-disable-next-line typescript/no-explicit-any
-    (api as any).workspaceMembers.getWorkspaceInviteByToken,
-    { token },
-  );
+  const invite = useQuery(api.workspaceMembers.getWorkspaceInviteByToken, { token });
 
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const acceptInvite = useMutation((api as any).workspaceMembers.acceptWorkspaceInvite);
+  const acceptInvite = useMutation(api.workspaceMembers.acceptWorkspaceInvite);
 
   async function handleAccept() {
     setAccepting(true);

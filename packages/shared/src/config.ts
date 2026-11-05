@@ -1,10 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
   realpathSync,
   renameSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -151,9 +153,39 @@ function normalizePlanDownloadRecord(raw: unknown): PlanDownloadRecord | undefin
   return { at: r.at, title: r.title, agent: r.agent, format: r.format, destination };
 }
 
+/** config.json holds the local API token and cloud session token: owner-only access. */
+const CONFIG_DIR_MODE = 0o700;
+const CONFIG_FILE_MODE = 0o600;
+
+function errorCode(error: unknown): unknown {
+  return error instanceof Error && 'code' in error ? Reflect.get(error, 'code') : undefined;
+}
+
 function ensureConfigDir() {
   const dir = getConfigDir();
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: CONFIG_DIR_MODE });
+  else restrictConfigPermissions();
+}
+
+const permissionWarnings = new Set<string>();
+
+/**
+ * Strips group/other permission bits from an existing config dir and file
+ * (installs before owner-only modes were written were created 0755/0644).
+ * POSIX only: Windows ACLs are not modelled by chmod.
+ */
+function restrictConfigPermissions(): void {
+  if (process.platform === 'win32') return;
+  for (const path of [getConfigDir(), getConfigPath()]) {
+    try {
+      const mode = statSync(path).mode & 0o777;
+      if (mode & 0o077) chmodSync(path, mode & 0o700);
+    } catch (error) {
+      if (errorCode(error) === 'ENOENT' || permissionWarnings.has(path)) continue;
+      permissionWarnings.add(path);
+      console.warn(`[agendex] could not restrict permissions on ${path}:`, error);
+    }
+  }
 }
 
 function withConfigLock<T>(operation: () => T): T {
@@ -169,9 +201,7 @@ function withConfigLock<T>(operation: () => T): T {
         update: 5_000,
       });
     } catch (error) {
-      const code =
-        error instanceof Error && 'code' in error ? Reflect.get(error, 'code') : undefined;
-      if (code !== 'ELOCKED' || Date.now() >= deadline) throw error;
+      if (errorCode(error) !== 'ELOCKED' || Date.now() >= deadline) throw error;
       Atomics.wait(sleepSignal, 0, 0, 10);
     }
   }
@@ -182,18 +212,86 @@ function withConfigLock<T>(operation: () => T): T {
   }
 }
 
-function readStoredConfig(): StoredConfig | null {
+type StoredConfigState =
+  | { kind: 'missing' }
+  | { kind: 'ok'; raw: StoredConfig }
+  /** Not a JSON object. Writers must back it up before replacing it. */
+  | { kind: 'corrupt'; error: unknown }
+  /** Exists but could not be read (permissions, EISDIR, ...). Never overwritten. */
+  | { kind: 'unreadable'; error: unknown };
+
+function readStoredConfigState(): StoredConfigState {
   const cfgPath = getConfigPath();
-  if (!existsSync(cfgPath)) return null;
+  if (!existsSync(cfgPath)) return { kind: 'missing' };
+  restrictConfigPermissions();
 
+  let text: string;
   try {
-    const raw = JSON.parse(readFileSync(cfgPath, 'utf-8')) as StoredConfig;
-    if (!raw || typeof raw !== 'object') return null;
-
-    return raw;
-  } catch {
-    return null;
+    text = readFileSync(cfgPath, 'utf-8');
+  } catch (error) {
+    return { kind: 'unreadable', error };
   }
+  try {
+    const raw: unknown = JSON.parse(text);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return { kind: 'corrupt', error: new Error('config root is not a JSON object') };
+    }
+    return { kind: 'ok', raw: raw as StoredConfig };
+  } catch (error) {
+    return { kind: 'corrupt', error };
+  }
+}
+
+const readWarnings = new Set<string>();
+
+/** Read-only view: an invalid file reads as "no config" with a one-time warning. */
+function readStoredConfig(): StoredConfig | null {
+  const state = readStoredConfigState();
+  if (state.kind === 'ok') return state.raw;
+  if (state.kind !== 'missing') {
+    const cfgPath = getConfigPath();
+    if (!readWarnings.has(cfgPath)) {
+      readWarnings.add(cfgPath);
+      const consequence =
+        state.kind === 'corrupt'
+          ? 'the next config write moves it aside to a .corrupt-<timestamp> backup and fails'
+          : 'config writes are refused until it is readable';
+      console.warn(
+        `[agendex] ignoring ${state.kind} config at ${cfgPath} (${consequence}):`,
+        state.error instanceof Error ? state.error.message : state.error,
+      );
+    }
+  }
+  return null;
+}
+
+/**
+ * For writers, under the config lock. A corrupt file may still hold the local
+ * API token and cloud session, so it is moved to `config.json.corrupt-<ts>` and
+ * the write is refused instead of being replaced by regenerated defaults. The
+ * next write starts from a fresh config, with the backup on disk.
+ */
+function readStoredConfigForWrite(): StoredConfig | null {
+  const state = readStoredConfigState();
+  if (state.kind === 'ok') return state.raw;
+  if (state.kind === 'missing') return null;
+
+  const cfgPath = getConfigPath();
+  const detail = state.error instanceof Error ? state.error.message : String(state.error);
+  if (state.kind === 'unreadable') {
+    throw new Error(
+      `Cannot read Agendex config at ${cfgPath} (${detail}); refusing to overwrite it.`,
+    );
+  }
+  const backupPath = `${cfgPath}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  renameSync(cfgPath, backupPath);
+  readWarnings.delete(cfgPath);
+  const message =
+    `Agendex config at ${cfgPath} is not valid JSON (${detail}). Moved it to ${backupPath} ` +
+    'and refused to overwrite it with defaults, because it may hold your local API token and ' +
+    'cloud session. Restore values from the backup, or rerun to start with a fresh config.';
+  console.warn(`[agendex] ${message}`);
+  throw new Error(message);
 }
 
 function normalizeAdapterIds(input: unknown): AdapterId[] {
@@ -368,6 +466,11 @@ export function loadConfig(): AgendexConfig | null {
   return normalizeStoredConfig(readStoredConfig());
 }
 
+/** Like {@link loadConfig}, but quarantines a corrupt file and throws (lock must be held). */
+function loadConfigForWrite(): AgendexConfig | null {
+  return normalizeStoredConfig(readStoredConfigForWrite());
+}
+
 function normalizedConfigForWrite(config: AgendexConfig): AgendexConfig {
   const fromVersion = normalizeConfigVersion(config.configVersion);
   // If the caller is still on an older schema version, apply enable migrations
@@ -403,18 +506,28 @@ function writeConfigUnlocked(config: AgendexConfig): void {
   try {
     writeFileSync(candidatePath, JSON.stringify(normalizedConfigForWrite(config), null, 2), {
       flag: 'wx',
+      mode: CONFIG_FILE_MODE,
     });
     renameSync(candidatePath, path);
   } finally {
-    // Best-effort cleanup: never let unlink errors mask the original write/rename failure.
+    // After a successful rename the candidate is gone, so ENOENT is the normal case.
+    // Other failures only leave a stray candidate file; never let them mask the
+    // original write/rename error.
     try {
       unlinkSync(candidatePath);
-    } catch {}
+    } catch (error) {
+      if (errorCode(error) !== 'ENOENT') {
+        console.warn(`[agendex] could not remove temporary config ${candidatePath}:`, error);
+      }
+    }
   }
 }
 
 export function saveConfig(config: AgendexConfig): void {
-  withConfigLock(() => writeConfigUnlocked(config));
+  withConfigLock(() => {
+    readStoredConfigForWrite();
+    writeConfigUnlocked(config);
+  });
 }
 
 /** Atomically reads, conditionally updates, and writes config across processes. */
@@ -422,7 +535,7 @@ export function updateConfig(
   update: (current: AgendexConfig | null) => AgendexConfig | null,
 ): boolean {
   return withConfigLock(() => {
-    const next = update(loadConfig());
+    const next = update(loadConfigForWrite());
     if (!next) return false;
     writeConfigUnlocked(next);
     return true;

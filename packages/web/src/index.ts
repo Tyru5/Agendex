@@ -109,7 +109,7 @@ export { useFullscreen } from './client/hooks/useFullscreen.ts';
 export { usePinnedPlans } from './client/hooks/usePinnedPlans.ts';
 export { usePlanState } from './client/hooks/usePlanState.ts';
 export { usePlanFolders } from './client/hooks/usePlanFolders.ts';
-export { useAgents, usePlans } from './client/hooks/usePlans.ts';
+export { useAgentStats, useAgents, usePlans } from './client/hooks/usePlans.ts';
 export type {
   PlanReceiptState,
   PlanReceiptSummariesState,

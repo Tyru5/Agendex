@@ -11,7 +11,7 @@ import {
 } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
-import { requireSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
+import { requireSharedPlanAccess, shareAccessProofValidator } from './shareAccess';
 
 const MAX_COMMENT_IMAGE_COUNT = 4;
 const MAX_COMMENT_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -72,7 +72,7 @@ async function validateCommentAccess(
   ctx: QueryCtx,
   planId: Id<'plans'>,
   token: string | undefined,
-  accessProof: Id<'shareAccessProofs'> | undefined,
+  accessProof: string | undefined,
   authenticatedUserId?: string,
 ): Promise<void> {
   const plan = await ctx.db.get(planId);
@@ -224,21 +224,27 @@ export async function deleteCommentWithAttachments(
   await ctx.db.delete(comment._id);
 }
 
+export const MAX_COMMENTS_PER_PLAN_QUERY = 500;
+
 export const getComments = query({
   args: {
     planId: v.id('plans'),
     token: v.optional(v.string()),
-    accessProof: v.optional(shareAccessProofIdValidator),
+    accessProof: v.optional(shareAccessProofValidator),
   },
   returns: v.array(commentWithAttachmentUrlsValidator),
   handler: async (ctx, args) => {
     await validateCommentAccess(ctx, args.planId, args.token, args.accessProof);
 
-    const comments = await ctx.db
-      .query('comments')
-      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
-      .order('asc')
-      .collect();
+    // Bounded to the newest comments (returned oldest-first, as before) so a
+    // very long thread cannot blow up the query's read and URL-signing cost.
+    const comments = (
+      await ctx.db
+        .query('comments')
+        .withIndex('by_plan', (q) => q.eq('planId', args.planId))
+        .order('desc')
+        .take(MAX_COMMENTS_PER_PLAN_QUERY)
+    ).reverse();
 
     return await Promise.all(
       comments.map(async (comment) => ({
@@ -275,7 +281,7 @@ export const generateCommentImageUploadUrl = mutation({
   args: {
     planId: v.id('plans'),
     token: v.optional(v.string()),
-    accessProof: v.optional(shareAccessProofIdValidator),
+    accessProof: v.optional(shareAccessProofValidator),
     clientUploadId: v.optional(v.string()),
   },
   returns: v.string(),
@@ -300,7 +306,7 @@ export const trackPendingUpload = mutation({
     storageId: v.id('_storage'),
     planId: v.id('plans'),
     token: v.optional(v.string()),
-    accessProof: v.optional(shareAccessProofIdValidator),
+    accessProof: v.optional(shareAccessProofValidator),
     clientUploadId: v.optional(v.string()),
   },
   returns: trackPendingUploadResultValidator,
@@ -384,7 +390,7 @@ export const addComment = mutation({
       ),
     ),
     token: v.optional(v.string()),
-    accessProof: v.optional(shareAccessProofIdValidator),
+    accessProof: v.optional(shareAccessProofValidator),
   },
   returns: v.id('comments'),
   handler: async (ctx, args) => {
@@ -498,7 +504,7 @@ export const editComment = mutation({
     commentId: v.id('comments'),
     body: v.string(),
     token: v.optional(v.string()),
-    accessProof: v.optional(shareAccessProofIdValidator),
+    accessProof: v.optional(shareAccessProofValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -535,7 +541,7 @@ export const deleteComment = mutation({
   args: {
     commentId: v.id('comments'),
     token: v.optional(v.string()),
-    accessProof: v.optional(shareAccessProofIdValidator),
+    accessProof: v.optional(shareAccessProofValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {

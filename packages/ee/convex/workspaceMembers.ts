@@ -1,12 +1,29 @@
 import { ProFeature } from '@agendex/shared/types';
 import { ConvexError, v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { hasActiveSubscriptionForUserId } from './subscriptions';
 import { workspaceInviteValidator, workspaceMemberValidator } from './validators';
 
 const SEAT_LIMIT = 5;
+
+/**
+ * Pending (neither accepted nor revoked) invites for a workspace, read from an
+ * index so historical invites never count toward the scan. Seat enforcement
+ * keeps pending invites below SEAT_LIMIT, so the cap never truncates real data.
+ */
+async function pendingWorkspaceInvites(ctx: Pick<QueryCtx, 'db'>, workspaceOwnerId: string) {
+  return await ctx.db
+    .query('workspaceInvites')
+    .withIndex('by_workspace_acceptedAt_revokedAt', (q) =>
+      q
+        .eq('workspaceOwnerId', workspaceOwnerId)
+        .eq('acceptedAt', undefined)
+        .eq('revokedAt', undefined),
+    )
+    .take(SEAT_LIMIT);
+}
 
 export const listWorkspaceMembers = query({
   args: {},
@@ -28,12 +45,7 @@ export const listWorkspaceMembers = query({
       .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', user._id))
       .collect();
 
-    const pendingInvites = (
-      await ctx.db
-        .query('workspaceInvites')
-        .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', user._id))
-        .collect()
-    ).filter((inv) => !inv.acceptedAt && !inv.revokedAt);
+    const pendingInvites = await pendingWorkspaceInvites(ctx, user._id);
 
     const usedSeats = 1 + members.length + pendingInvites.length;
 
@@ -91,12 +103,7 @@ export const inviteWorkspaceMember = mutation({
       .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', user._id))
       .collect();
 
-    const pendingInvites = (
-      await ctx.db
-        .query('workspaceInvites')
-        .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', user._id))
-        .collect()
-    ).filter((inv) => !inv.acceptedAt && !inv.revokedAt);
+    const pendingInvites = await pendingWorkspaceInvites(ctx, user._id);
 
     if (members.length + pendingInvites.length >= SEAT_LIMIT - 1) {
       throw new ConvexError('Workspace seat limit reached');
@@ -239,12 +246,9 @@ export const acceptWorkspaceInvite = mutation({
       .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', invite.workspaceOwnerId))
       .collect();
 
-    const pendingInvites = (
-      await ctx.db
-        .query('workspaceInvites')
-        .withIndex('by_workspace', (q) => q.eq('workspaceOwnerId', invite.workspaceOwnerId))
-        .collect()
-    ).filter((inv) => !inv.acceptedAt && !inv.revokedAt && inv._id !== invite._id);
+    const pendingInvites = (await pendingWorkspaceInvites(ctx, invite.workspaceOwnerId)).filter(
+      (inv) => inv._id !== invite._id,
+    );
 
     if (1 + members.length + pendingInvites.length >= SEAT_LIMIT) {
       throw new ConvexError('Workspace is full');

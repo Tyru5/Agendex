@@ -1,5 +1,6 @@
 import { join, resolve } from 'node:path';
 import { getHomeDir } from '../home-dir.ts';
+import { withReadonlySqlite } from './adapter-utils.ts';
 import {
   createStructuredSessionAdapter,
   type StructuredPlanCandidate,
@@ -70,24 +71,7 @@ async function decodeOpenCodeDatabase(filePath: string): Promise<StructuredPlanC
         JOIN message m ON m.session_id = s.id
         JOIN part p ON p.message_id = m.id
         ORDER BY s.time_updated ASC, m.time_created ASC, m.id ASC, p.id ASC`;
-  let rows: OpenCodeRow[];
-  if (typeof Bun !== 'undefined') {
-    const { Database } = await import('bun:sqlite');
-    const database = new Database(filePath, { readonly: true, create: false });
-    try {
-      rows = database.query(query).all() as OpenCodeRow[];
-    } finally {
-      database.close();
-    }
-  } else {
-    const { default: Database } = await import('better-sqlite3');
-    const database = new Database(filePath, { readonly: true, fileMustExist: true });
-    try {
-      rows = database.prepare(query).all() as OpenCodeRow[];
-    } finally {
-      database.close();
-    }
-  }
+  const rows = await withReadonlySqlite(filePath, (run) => run<OpenCodeRow>(query));
 
   {
     const sessions = new Map<

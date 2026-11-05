@@ -1,5 +1,3 @@
-import type { ElectronAPI } from '@electron-toolkit/preload';
-
 type DesktopAuthProvider = 'github' | 'google';
 
 type DesktopAuthFetchInit = {
@@ -70,7 +68,6 @@ interface AgendexDesktopBridge {
 
 declare global {
   interface Window {
-    electron: ElectronAPI;
     agendexDesktop: AgendexDesktopBridge;
   }
 }

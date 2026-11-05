@@ -43,6 +43,11 @@ const DAEMON_HEARTBEAT_CLEANUP_INTERVAL_MS = 6 * 3_600_000;
 const MAX_USAGE_SNAPSHOT_BYTES = 512_000;
 const USAGE_WINDOW_KEYS = new Set(['1', '7', '30', '90']);
 const MAX_SUPERSEDE_SCAN = 2_000;
+// Convex documents are capped at 1 MiB; plans and their version snapshots
+// store content + title + metadata together, so keep the sum well under it.
+export const MAX_SYNC_CONTENT_BYTES = 900_000;
+export const MAX_SYNC_TITLE_LENGTH = 1_000;
+export const MAX_SYNC_METADATA_BYTES = 64_000;
 
 const usageAgentValidator = v.union(
   v.literal('claude-code'),
@@ -327,10 +332,10 @@ function addUsageTokenTotals(into: Record<string, number>, from: Record<string, 
 
 function tokenTotalOf(totals: Record<string, number>): number {
   return (
-    totals.uncachedInputTokens +
-    totals.cachedInputTokens +
-    totals.cacheCreationTokens +
-    totals.outputTokens
+    (totals.uncachedInputTokens ?? 0) +
+    (totals.cachedInputTokens ?? 0) +
+    (totals.cacheCreationTokens ?? 0) +
+    (totals.outputTokens ?? 0)
   );
 }
 
@@ -973,10 +978,12 @@ async function markSupersededPlannotatorSessions(
     if (plan.localPlanId && plan.localPlanId !== canonicalLocalPlanId) {
       const pending = await ctx.db
         .query('plannotatorWritebacks')
-        .withIndex('by_owner_localPlanId', (q) =>
-          q.eq('ownerId', ownerId).eq('localPlanId', plan.localPlanId as string),
+        .withIndex('by_owner_localPlanId_status', (q) =>
+          q
+            .eq('ownerId', ownerId)
+            .eq('localPlanId', plan.localPlanId as string)
+            .eq('status', 'pending'),
         )
-        .filter((q) => q.eq(q.field('status'), 'pending'))
         .collect();
       for (const row of pending) {
         await ctx.db.patch(row._id, {
@@ -1169,15 +1176,30 @@ export const upsertPlan = internalMutation({
     const continuityKey = plannotatorContinuityKey(args.metadata, args.filePath);
     const updatedAt = args.updatedAt ?? now;
 
-    if (args.existingId && args.existingVersion !== undefined) {
-      const existing = await ctx.db.get(args.existingId);
+    // The sync httpAction looks up existing plans in separate queries, so two
+    // concurrent syncs of the same local plan can both arrive here without an
+    // existingId. Re-check inside this transaction so the second one updates
+    // the row the first inserted instead of creating a duplicate.
+    let existingId = args.existingId;
+    if (!existingId) {
+      const raced = await ctx.db
+        .query('plans')
+        .withIndex('by_owner_localPlanId', (q) =>
+          q.eq('ownerId', args.ownerId).eq('localPlanId', args.localPlanId),
+        )
+        .first();
+      existingId = raced?._id;
+    }
+
+    if (existingId) {
+      const existing = await ctx.db.get(existingId);
       if (!existing || existing.ownerId !== args.ownerId) throw new ConvexError('Plan not found');
       const contentChanged = planContentChanged(existing, args);
 
       // Non-content field updates (path/workspace/identity) still patch the
       // live row, but must not create empty "CLI sync" history entries.
       if (!contentChanged) {
-        await ctx.db.patch(args.existingId, {
+        await ctx.db.patch(existingId, {
           agent: args.agent,
           titleNormalized: normalizePlanLookupText(args.title),
           agentNormalized: canonicalPlanAgent(args.agent),
@@ -1196,20 +1218,20 @@ export const upsertPlan = internalMutation({
         });
         await markSupersededPlannotatorSessions(ctx, {
           ownerId: args.ownerId,
-          canonicalPlanId: args.existingId,
+          canonicalPlanId: existingId,
           canonicalLocalPlanId: args.localPlanId,
           metadata: args.metadata,
           filePath: args.filePath,
           now,
         });
-        await refreshFilePlanMentions(ctx, args.existingId);
-        return args.existingId;
+        await refreshFilePlanMentions(ctx, existingId);
+        return existingId;
       }
 
       if (existing) {
         await ensureBaselinePlanVersion(ctx, {
           ownerId: args.ownerId,
-          planId: args.existingId,
+          planId: existingId,
           version: existing.version,
           snapshot: {
             title: existing.title,
@@ -1232,7 +1254,7 @@ export const upsertPlan = internalMutation({
         workspace: args.workspace,
         metadata: args.metadata,
       };
-      await ctx.db.patch(args.existingId, {
+      await ctx.db.patch(existingId, {
         agent: args.agent,
         titleNormalized: normalizePlanLookupText(args.title),
         agentNormalized: canonicalPlanAgent(args.agent),
@@ -1247,7 +1269,7 @@ export const upsertPlan = internalMutation({
       });
       await recordPlanVersion(ctx, {
         ownerId: args.ownerId,
-        planId: args.existingId,
+        planId: existingId,
         version: newVersion,
         snapshot,
         source: 'cli_sync',
@@ -1255,14 +1277,14 @@ export const upsertPlan = internalMutation({
       });
       await markSupersededPlannotatorSessions(ctx, {
         ownerId: args.ownerId,
-        canonicalPlanId: args.existingId,
+        canonicalPlanId: existingId,
         canonicalLocalPlanId: args.localPlanId,
         metadata: args.metadata,
         filePath: args.filePath,
         now,
       });
-      await refreshFilePlanMentions(ctx, args.existingId);
-      return args.existingId;
+      await refreshFilePlanMentions(ctx, existingId);
+      return existingId;
     }
 
     const createdAt = args.createdAt ?? now;
@@ -1331,7 +1353,7 @@ export const deleteSyncedPlan = internalMutation({
     const plan = await ctx.db.get(args.planId);
     if (!plan || plan.ownerId !== args.ownerId) return false;
 
-    await deletePlanRelatedData(ctx, { planId: args.planId, ownerId: args.ownerId });
+    await deletePlanRelatedData(ctx, { planId: args.planId });
     await ctx.db.delete(args.planId);
     return true;
   },
@@ -1344,6 +1366,49 @@ export const hasUserSubscription = internalQuery({
     return hasActiveSubscriptionForUserId(ctx, args.userId);
   },
 });
+
+/**
+ * Returns a client-facing error when a sync payload would not fit in a Convex
+ * document, or null when it is within limits. Content and metadata are
+ * measured in UTF-8 bytes because that is how Convex sizes documents.
+ */
+export function cliSyncPayloadSizeError(body: {
+  title: string;
+  content: string;
+  metadata?: unknown;
+}): { error: string; field: 'content' | 'title' | 'metadata'; limit: number } | null {
+  const encoder = new TextEncoder();
+  if (encoder.encode(body.content).byteLength > MAX_SYNC_CONTENT_BYTES) {
+    return {
+      error: `Plan content exceeds the ${MAX_SYNC_CONTENT_BYTES}-byte sync limit`,
+      field: 'content',
+      limit: MAX_SYNC_CONTENT_BYTES,
+    };
+  }
+  if (body.title.length > MAX_SYNC_TITLE_LENGTH) {
+    return {
+      error: `Plan title exceeds the ${MAX_SYNC_TITLE_LENGTH}-character sync limit`,
+      field: 'title',
+      limit: MAX_SYNC_TITLE_LENGTH,
+    };
+  }
+  if (body.metadata !== undefined) {
+    let metadataBytes: number;
+    try {
+      metadataBytes = encoder.encode(JSON.stringify(body.metadata) ?? '').byteLength;
+    } catch {
+      metadataBytes = Number.POSITIVE_INFINITY;
+    }
+    if (metadataBytes > MAX_SYNC_METADATA_BYTES) {
+      return {
+        error: `Plan metadata exceeds the ${MAX_SYNC_METADATA_BYTES}-byte sync limit`,
+        field: 'metadata',
+        limit: MAX_SYNC_METADATA_BYTES,
+      };
+    }
+  }
+  return null;
+}
 
 export const sync = httpAction(async (ctx, request) => {
   if (request.method !== 'POST') {
@@ -1392,6 +1457,11 @@ export const sync = httpAction(async (ctx, request) => {
         validIdentityStrength(body.identityStrength) === undefined)
     ) {
       return jsonResponse({ error: 'Invalid optional field types' }, 400);
+    }
+
+    const sizeError = cliSyncPayloadSizeError(body);
+    if (sizeError) {
+      return jsonResponse({ ...sizeError, code: 'payload_too_large' }, 413);
     }
 
     const incomingMetadata =

@@ -8,6 +8,7 @@ import {
 import { type ReactNode, Suspense, useEffect, useState } from 'react';
 import { Redirect, Route, Switch, useLocation } from 'wouter';
 import { BootLoadingView } from './components/BootLoadingView.tsx';
+import { RouteErrorBoundary } from './components/RouteErrorBoundary.tsx';
 import { parseCliAuthCallback } from './lib/cli-auth-callback.ts';
 import { isDesktop, signalDesktopUiReady } from './lib/desktop.ts';
 import { parseDesktopAuthRequest } from './lib/desktop-auth-flow.ts';
@@ -296,90 +297,93 @@ function AuthCallbackError({ title }: { readonly title: string }) {
 
 export default function AppRoutes() {
   usePrefetchNextRoutes();
+  const [location] = useLocation();
   return (
     <>
-      <Suspense fallback={null}>
-        <Switch>
-          <Route path="/auth/check">
-            {() => (
-              <Authed fallback={<BootLoadingView />}>
-                <AuthCheckRoute />
-              </Authed>
-            )}
-          </Route>
-          <Route path="/auth/cli">
-            {() => (
+      <RouteErrorBoundary resetKey={location}>
+        <Suspense fallback={null}>
+          <Switch>
+            <Route path="/auth/check">
+              {() => (
+                <Authed fallback={<BootLoadingView />}>
+                  <AuthCheckRoute />
+                </Authed>
+              )}
+            </Route>
+            <Route path="/auth/cli">
+              {() => (
+                <Authed>
+                  <CliAuthRoute />
+                </Authed>
+              )}
+            </Route>
+            <Route path="/auth/desktop">
+              {() => (
+                <Authed>
+                  <DesktopAuthRoute />
+                </Authed>
+              )}
+            </Route>
+            <Route path="/login">
+              {() => (
+                <Authed>
+                  <AuthPage mode="login" />
+                </Authed>
+              )}
+            </Route>
+            <Route path="/signup">
+              {() => (
+                <Authed>
+                  <AuthPage mode="signup" />
+                </Authed>
+              )}
+            </Route>
+            <Route path="/shared/:token">
+              {({ token }) => (
+                <Authed>
+                  <SharedPlanView token={token} />
+                </Authed>
+              )}
+            </Route>
+            <Route path="/about-me" component={AboutMePage} />
+            <Route path="/changelog" component={ChangelogRoute} />
+            <Route path="/docs" component={DocsRoute} />
+            <Route path="/download" component={DownloadRoute} />
+            <Route path="/tools" component={ToolsUsedRoute} />
+            <Route path="/terms" component={TermsRoute} />
+            <Route path="/privacy" component={PrivacyRoute} />
+            <Route path="/welcome">
               <Authed>
-                <CliAuthRoute />
+                <OnboardingRoute>
+                  <WelcomeScreen />
+                </OnboardingRoute>
               </Authed>
-            )}
-          </Route>
-          <Route path="/auth/desktop">
-            {() => (
-              <Authed>
-                <DesktopAuthRoute />
-              </Authed>
-            )}
-          </Route>
-          <Route path="/login">
-            {() => (
-              <Authed>
-                <AuthPage mode="login" />
-              </Authed>
-            )}
-          </Route>
-          <Route path="/signup">
-            {() => (
-              <Authed>
-                <AuthPage mode="signup" />
-              </Authed>
-            )}
-          </Route>
-          <Route path="/shared/:token">
-            {({ token }) => (
-              <Authed>
-                <SharedPlanView token={token} />
-              </Authed>
-            )}
-          </Route>
-          <Route path="/about-me" component={AboutMePage} />
-          <Route path="/changelog" component={ChangelogRoute} />
-          <Route path="/docs" component={DocsRoute} />
-          <Route path="/download" component={DownloadRoute} />
-          <Route path="/tools" component={ToolsUsedRoute} />
-          <Route path="/terms" component={TermsRoute} />
-          <Route path="/privacy" component={PrivacyRoute} />
-          <Route path="/welcome">
-            <Authed>
-              <OnboardingRoute>
-                <WelcomeScreen />
-              </OnboardingRoute>
-            </Authed>
-          </Route>
-          <Route path="/invite/:token">
-            {({ token }) => (
-              <Authed>
-                <AcceptInvitePage token={token} />
-              </Authed>
-            )}
-          </Route>
-          <Route path="/settings">
-            {() => (
-              <Authed>
-                <SettingsPage />
-              </Authed>
-            )}
-          </Route>
-          <Route path="/dashboard">
-            {() => (
-              <Authed fallback={<BootLoadingView />}>
-                <DashboardRoute />
-              </Authed>
-            )}
-          </Route>
-          <Route path="/" component={LandingRoute} />
-        </Switch>
-      </Suspense>
+            </Route>
+            <Route path="/invite/:token">
+              {({ token }) => (
+                <Authed>
+                  <AcceptInvitePage token={token} />
+                </Authed>
+              )}
+            </Route>
+            <Route path="/settings">
+              {() => (
+                <Authed>
+                  <SettingsPage />
+                </Authed>
+              )}
+            </Route>
+            <Route path="/dashboard">
+              {() => (
+                <Authed fallback={<BootLoadingView />}>
+                  <DashboardRoute />
+                </Authed>
+              )}
+            </Route>
+            <Route path="/" component={LandingRoute} />
+          </Switch>
+        </Suspense>
+      </RouteErrorBoundary>
       <PlanToasterHost />
     </>
   );

@@ -49,7 +49,14 @@ async function syncCanonicalStripeSubscription(
 const http = httpRouter();
 
 authComponent.registerRoutes(http, createAuth, {
-  cors: { allowedOrigins: resolveAuthTrustedOrigins(process.env) },
+  cors: {
+    allowedOrigins: resolveAuthTrustedOrigins({
+      APP_URL: process.env.APP_URL,
+      BETTER_AUTH_ENVIRONMENT: process.env.BETTER_AUTH_ENVIRONMENT,
+      BETTER_AUTH_TRUSTED_ORIGINS: process.env.BETTER_AUTH_TRUSTED_ORIGINS,
+      SITE_URL: process.env.SITE_URL,
+    }),
+  },
 });
 
 registerRoutes(http, stripeComponent, {

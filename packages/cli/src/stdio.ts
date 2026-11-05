@@ -22,7 +22,7 @@ export function writeStderr(message: string): void {
   writeLine(process.stderr, message);
 }
 
-export function writeLine(stream: NodeJS.WriteStream, message: string): void {
+export function writeLine(stream: NodeJS.WriteStream & { fd: number }, message: string): void {
   const data = `${message}\n`;
   if (shouldUseUnicodeConsoleWrite(stream)) {
     stream.write(data);

@@ -4,6 +4,7 @@ import {
   detectPackageManager,
   isLikelyGlobalInstall,
   pickJsrInstallVersion,
+  resolveSpawnCommand,
 } from './upgrade.ts';
 
 test('recognizes existing global package layouts', () => {
@@ -89,4 +90,25 @@ test("picks the newest JSR version Deno's 24h minimum dependency age allows", ()
   expect(pickJsrInstallVersion(meta, '5.10.1', { now: Date.parse('2026-10-06T07:00:00Z') })).toBe(
     '5.10.3',
   );
+});
+
+test('pins npm/pnpm/bun installs to the target version, falling back to latest', () => {
+  const npm = buildGlobalInstallCommand('npm', '5.11.0');
+  expect(npm.supported && npm.command.args).toEqual(['install', '-g', 'agendex-cli@5.11.0']);
+  const pnpm = buildGlobalInstallCommand('pnpm', '5.11.0-beta.1');
+  expect(pnpm.supported && pnpm.command.display).toBe('pnpm add -g agendex-cli@5.11.0-beta.1');
+  const bun = buildGlobalInstallCommand('bun');
+  expect(bun.supported && bun.command.display).toBe('bun add -g agendex-cli@latest');
+  const unsafe = buildGlobalInstallCommand('npm', '5.11.0 & calc');
+  expect(unsafe.supported && unsafe.command.args).toEqual(['install', '-g', 'agendex-cli@latest']);
+});
+
+test('spawns Windows package-manager .cmd shims through the shell', () => {
+  expect(resolveSpawnCommand('npm', 'win32')).toEqual({ command: 'npm.cmd', shell: true });
+  expect(resolveSpawnCommand('pnpm', 'win32')).toEqual({ command: 'pnpm.cmd', shell: true });
+  expect(resolveSpawnCommand('yarn', 'win32')).toEqual({ command: 'yarn.cmd', shell: true });
+  expect(resolveSpawnCommand('bun', 'win32')).toEqual({ command: 'bun', shell: false });
+  expect(resolveSpawnCommand('deno', 'win32')).toEqual({ command: 'deno', shell: false });
+  expect(resolveSpawnCommand('npm', 'linux')).toEqual({ command: 'npm', shell: false });
+  expect(resolveSpawnCommand('npm', 'darwin')).toEqual({ command: 'npm', shell: false });
 });

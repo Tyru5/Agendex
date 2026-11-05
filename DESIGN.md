@@ -17,7 +17,7 @@ colors:
   ink-muted: '#494d55' # --landing-muted, oklch(42% 0.014 265)
   ink-faint: '#60636a' # --landing-faint, oklch(50% 0.012 265)
   column-divider: '#d1d4d9' # --landing-border, oklch(87% 0.007 260)
-  control-edge: '#adb1b8' # --landing-border-strong, oklch(76% 0.01 260)
+  control-edge: '#86898f' # --landing-border-strong, oklch(63% 0.01 260)
   row-divider: '#e2e5e9' # --landing-border-subtle, oklch(92% 0.006 260)
   ultramarine-violet: '#5532c7' # --landing-accent AND --landing-index-bg (light), oklch(46% 0.215 285)
   ultramarine-pressed: '#4b2fb0' # primary hover: color-mix(in oklch, index-bg 88%, text)
@@ -229,7 +229,7 @@ A cool, low-chroma neutral scale (hue 255-265) with a single saturated violet th
 - **Column Surface** (`#fcfdff`): every column, listing body, toolbar and secondary button.
 - **Header Surface** (`#edf0f4`): column heads, listing heads, path bar, status bar, hover fill on links and buttons, callouts. The one tonal step that tells a bar from a body.
 - **Ink** (`#0c0f16`), **Ink Muted** (`#494d55`), **Ink Faint** (`#60636a`): row names and headings; ledes, body copy, nav labels; dates, counts, glyphs and metadata. Faint is tuned to hold 4.5:1 on ground and surface; do not lighten it.
-- **Column Divider** (`#d1d4d9`), **Control Edge** (`#adb1b8`), **Row Divider** (`#e2e5e9`): column and section hairlines; the border on buttons and inputs; the hairline between rows inside one listing.
+- **Column Divider** (`#d1d4d9`), **Control Edge** (`#86898f`), **Row Divider** (`#e2e5e9`): column and section hairlines; the border on buttons and inputs; the hairline between rows inside one listing.
 - **Error Red** (`#be2517` light, `#f66e5c` dark): `--landing-error`, used in exactly one place, the token-error line of the connect modal. It is a status voice, not an accent, and must not appear elsewhere.
 
 ### Named Rules

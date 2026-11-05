@@ -842,7 +842,6 @@ function ToolbarOptionSurface({
 function ToolbarOptionRail({
   side,
   active,
-  onExitComplete,
   children,
 }: {
   side: 'left' | 'right';
@@ -1826,11 +1825,11 @@ function useDashboardMain({
   );
 }
 
-function DashboardMainView(props: Parameters<typeof renderDashboardMain>[0]) {
+function DashboardMainView(props: Parameters<typeof useDashboardMain>[0]) {
   return useDashboardMain(props);
 }
 
-function DashboardSidebarView(props: Parameters<typeof renderDashboardSidebar>[0]) {
+function DashboardSidebarView(props: Parameters<typeof useDashboardSidebar>[0]) {
   return useDashboardSidebar(props);
 }
 

@@ -43,6 +43,7 @@ import {
 } from 'nuqs';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sortOptions } from './dashboardSort.ts';
+import { isStalePlanSelection } from './planSelection.ts';
 import { buildLocalWorkspaceTourSteps } from './tour.ts';
 
 const SIDEBAR_PREF_KEY = 'agendex_sidebar_hidden';
@@ -262,10 +263,10 @@ export function Dashboard() {
   }, [comparePlan, selectedPlan, setComparePlanId, setSelectedPlanId]);
 
   useEffect(() => {
-    if (selectedPlanId && !plansById.has(selectedPlanId)) {
+    if (isStalePlanSelection(selectedPlanId, loading, plansById)) {
       setSelectedPlanId(null);
     }
-  }, [selectedPlanId, plansById, setSelectedPlanId]);
+  }, [loading, selectedPlanId, plansById, setSelectedPlanId]);
 
   useEffect(() => {
     if (comparePlanId && plans.length > 0 && !plansById.has(comparePlanId)) {

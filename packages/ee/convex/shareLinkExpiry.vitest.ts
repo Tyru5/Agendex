@@ -83,7 +83,10 @@ test('a link past expiresAt is rejected even before the scheduled deletion runs'
 
   await expect(resolve('stale-token')).rejects.toThrow(NOT_FOUND);
   await expect(
-    t.mutation(internal.sharing.issueShareAccessProofInternal, { shareLinkId }),
+    t.mutation(internal.sharing.issueShareAccessProofInternal, {
+      shareLinkId,
+      secretHash: 'unused',
+    }),
   ).rejects.toThrow(NOT_FOUND);
 });
 

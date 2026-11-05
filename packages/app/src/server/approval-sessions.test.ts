@@ -13,7 +13,7 @@ const input = {
   timeoutMs: 120000,
 };
 test('pending decisions are immutable, authenticated by owner at delivery, and ack idempotent', () => {
-  for (const decision of ['approved', 'changes_requested', 'rejected']) {
+  for (const decision of ['approved', 'changes_requested', 'rejected'] as const) {
     const store = new ApprovalSessions();
     const row = store.create(input);
     expect(row.status).toBe('pending');

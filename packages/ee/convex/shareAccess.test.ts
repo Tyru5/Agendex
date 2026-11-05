@@ -1,13 +1,22 @@
 import { describe, expect, test } from 'bun:test';
 import type { Doc, Id } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
-import { evaluateShareAccessPolicy, requireSharedPlanAccess } from './shareAccess';
+import {
+  evaluateShareAccessPolicy,
+  findSharedPlanAccess,
+  formatShareAccessProof,
+  hashShareAccessProofSecret,
+  requireSharedPlanAccess,
+} from './shareAccess';
 
 const shareLinkId = 'share-link-a' as Id<'shareLinks'>;
 const otherShareLinkId = 'share-link-b' as Id<'shareLinks'>;
 
 const planId = 'plan-a' as Id<'plans'>;
 const proofId = 'proof-a' as Id<'shareAccessProofs'>;
+const proofSecret = 'proof-secret-a';
+const proofCredential = formatShareAccessProof(proofId, proofSecret);
+const proofSecretHash = await hashShareAccessProofSecret(proofSecret);
 
 const plan = {
   _id: planId,
@@ -46,6 +55,7 @@ function createShareAccessCtx({
 
   return {
     db: {
+      normalizeId: (_table: string, id: string) => id,
       query: () => ({
         withIndex: () => ({
           first: async () => shareLink,
@@ -147,13 +157,14 @@ describe('central shared-resource authorization', () => {
       _id: proofId,
       _creationTime: 1,
       shareLinkId,
+      secretHash: proofSecretHash,
       createdAt: 1,
       expiresAt: Number.MAX_SAFE_INTEGER,
     } satisfies Doc<'shareAccessProofs'>;
 
     const result = await requireSharedPlanAccess(
       createShareAccessCtx({ protectedLink: true, proof }),
-      { token: 'raw-token', planId, accessProof: proofId },
+      { token: 'raw-token', planId, accessProof: proofCredential },
     );
     expect(result.shareLink._id).toBe(shareLinkId);
   });
@@ -163,6 +174,7 @@ describe('central shared-resource authorization', () => {
       _id: proofId,
       _creationTime: 1,
       shareLinkId,
+      secretHash: proofSecretHash,
       createdAt: 1,
       expiresAt: 0,
     } satisfies Doc<'shareAccessProofs'>;
@@ -171,7 +183,7 @@ describe('central shared-resource authorization', () => {
       requireSharedPlanAccess(createShareAccessCtx({ protectedLink: true, proof }), {
         token: 'raw-token',
         planId,
-        accessProof: proofId,
+        accessProof: proofCredential,
       }),
     ).rejects.toThrow('Share access proof expired');
   });
@@ -181,6 +193,7 @@ describe('central shared-resource authorization', () => {
       _id: proofId,
       _creationTime: 1,
       shareLinkId,
+      secretHash: proofSecretHash,
       createdAt: 1,
       expiresAt: Number.MAX_SAFE_INTEGER,
     } satisfies Doc<'shareAccessProofs'>;
@@ -189,8 +202,56 @@ describe('central shared-resource authorization', () => {
       requireSharedPlanAccess(createShareAccessCtx({ protectedLink: true, revoked: true, proof }), {
         token: 'raw-token',
         planId,
-        accessProof: proofId,
+        accessProof: proofCredential,
       }),
     ).rejects.toThrow('Invalid or revoked share link');
+  });
+
+  test('a proof id without its secret, or with a wrong secret, is rejected', async () => {
+    const proof = {
+      _id: proofId,
+      _creationTime: 1,
+      shareLinkId,
+      secretHash: proofSecretHash,
+      createdAt: 1,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    } satisfies Doc<'shareAccessProofs'>;
+    const ctx = createShareAccessCtx({ protectedLink: true, proof });
+
+    for (const accessProof of [
+      proofId,
+      `${proofId}.`,
+      formatShareAccessProof(proofId, 'guessed'),
+    ]) {
+      await expect(
+        requireSharedPlanAccess(ctx, { token: 'raw-token', planId, accessProof }),
+      ).rejects.toThrow('Invalid share access proof');
+    }
+  });
+
+  test('proofs issued before secrets existed no longer authorize', async () => {
+    const legacyProof = {
+      _id: proofId,
+      _creationTime: 1,
+      shareLinkId,
+      createdAt: 1,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    } satisfies Doc<'shareAccessProofs'>;
+
+    await expect(
+      requireSharedPlanAccess(createShareAccessCtx({ protectedLink: true, proof: legacyProof }), {
+        token: 'raw-token',
+        planId,
+        accessProof: proofCredential,
+      }),
+    ).rejects.toThrow('Invalid share access proof');
+  });
+
+  test('read-only share pages get an explicit unavailable result for revoked links', async () => {
+    expect(
+      await findSharedPlanAccess(createShareAccessCtx({ protectedLink: false, revoked: true }), {
+        token: 'raw-token',
+      }),
+    ).toEqual({ kind: 'unavailable', reason: 'revoked' });
   });
 });

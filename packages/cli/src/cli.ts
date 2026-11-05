@@ -63,6 +63,20 @@ function firstCommandToken(argv: string[]): string | undefined {
 }
 
 const command = firstCommandToken(args) ?? 'start';
+
+/**
+ * Value of `--url <value>`: undefined when absent; null (after printing an error)
+ * when the flag has no value or is followed by another flag such as `--dev`.
+ */
+function urlFlagValue(commandName: string): string | undefined | null {
+  const idx = args.indexOf('--url');
+  if (idx === -1) return undefined;
+  const value = args[idx + 1];
+  if (value !== undefined && !value.startsWith('--')) return value;
+  writeStderr(`[agendex] --url requires a value, e.g. \`agendex ${commandName} --url <url>\``);
+  return null;
+}
+
 const cliEntry = resolve(process.argv[1] ?? fileURLToPath(import.meta.url));
 const DAEMON_START_TIMEOUT_MS = 30_000;
 const DAEMON_ORPHAN_DRAIN_TIMEOUT_MS = 3_000;
@@ -118,8 +132,8 @@ async function main(): Promise<number> {
 
   switch (command) {
     case 'open': {
-      const urlIdx = args.indexOf('--url');
-      const siteUrl = urlIdx !== -1 ? args[urlIdx + 1] : undefined;
+      const siteUrl = urlFlagValue('open');
+      if (siteUrl === null) return 1;
       await openAgendexWeb(siteUrl);
       return 0;
     }
@@ -217,8 +231,8 @@ async function main(): Promise<number> {
           windowsHide: true,
           env: { ...process.env, ...(devFlag ? { AGENDEX_DEV: '1' } : {}) },
         });
-        const pid = await waitForSpawnedDaemon(child, DAEMON_START_TIMEOUT_MS);
-        if (!pid) {
+        const spawned = await waitForSpawnedDaemon(child, DAEMON_START_TIMEOUT_MS);
+        if (!spawned.ok) {
           const stopped = await stopFailedDaemonStart(child);
           if (child.pid && stopped) {
             removePid(child.pid);
@@ -240,10 +254,14 @@ async function main(): Promise<number> {
               ? '[agendex] daemon failed to start'
               : '[agendex] daemon failed to start and could not be terminated',
           );
+          writeStderr(`[agendex] reason: ${spawned.reason}`);
+          writeStderr(
+            '[agendex] run `agendex start --daemon` to run the daemon in the foreground and see its output',
+          );
           return 1;
         }
         child.unref();
-        writeStdout(`[agendex] daemon started (PID ${pid})`);
+        writeStdout(`[agendex] daemon started (PID ${spawned.pid})`);
         return 0;
       } finally {
         releaseStartLock();
@@ -314,8 +332,8 @@ async function main(): Promise<number> {
     }
 
     case 'login': {
-      const urlIdx = args.indexOf('--url');
-      const siteUrl = urlIdx !== -1 ? args[urlIdx + 1] : undefined;
+      const siteUrl = urlFlagValue('login');
+      if (siteUrl === null) return 1;
       await login(siteUrl);
       return 0;
     }
@@ -529,33 +547,49 @@ async function waitForDaemonStartLock(timeoutMs: number): Promise<(() => void) |
   return null;
 }
 
+type SpawnedDaemonResult = { ok: true; pid: number } | { ok: false; reason: string };
+
 async function waitForSpawnedDaemon(
   child: ChildProcess,
   timeoutMs: number,
-): Promise<number | null> {
+): Promise<SpawnedDaemonResult> {
   let spawnError: Error | null = null;
   child.once('error', (error) => {
     spawnError = error;
   });
 
   const deadline = Date.now() + timeoutMs;
+  let unrecognizedReadyDaemon = false;
   while (Date.now() < deadline) {
-    if (spawnError || child.exitCode !== null || child.signalCode !== null) return null;
+    if (spawnError) {
+      return { ok: false, reason: `could not spawn the daemon: ${(spawnError as Error).message}` };
+    }
+    if (child.exitCode !== null || child.signalCode !== null) {
+      const exit =
+        child.signalCode !== null ? `signal ${child.signalCode}` : `code ${child.exitCode}`;
+      return { ok: false, reason: `the daemon process exited during startup (${exit})` };
+    }
     const pidInfo = readPidInfo();
-    if (
-      pidInfo &&
-      pidInfo.pid === child.pid &&
-      pidInfo.ready === true &&
-      isDaemonPidInfoRunning(pidInfo) &&
-      Number.isInteger(pidInfo.workerPid) &&
-      (pidInfo.workerPid as number) > 0 &&
-      isAgendexDaemonProcess(pidInfo.workerPid as number)
-    ) {
-      return pidInfo.pid;
+    if (pidInfo && pidInfo.pid === child.pid && pidInfo.ready === true) {
+      if (
+        isDaemonPidInfoRunning(pidInfo) &&
+        Number.isInteger(pidInfo.workerPid) &&
+        (pidInfo.workerPid as number) > 0 &&
+        isAgendexDaemonProcess(pidInfo.workerPid as number)
+      ) {
+        return { ok: true, pid: pidInfo.pid };
+      }
+      unrecognizedReadyDaemon = true;
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 50));
   }
-  return null;
+  const seconds = Math.round(timeoutMs / 1000);
+  return {
+    ok: false,
+    reason: unrecognizedReadyDaemon
+      ? `the daemon reported ready, but its supervisor/worker process command line was not recognized as an Agendex daemon (it must contain "agendex", e.g. the CLI's install path)`
+      : `timed out after ${seconds}s waiting for the daemon to report ready`,
+  };
 }
 
 async function runCleanupCommand(commandArgs: string[]): Promise<number> {

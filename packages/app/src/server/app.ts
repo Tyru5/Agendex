@@ -10,7 +10,12 @@ import {
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { UpgradeWebSocket } from 'hono/ws';
-import { AUTH_TOKEN, authMiddleware } from './auth.ts';
+import { AUTH_TOKEN, authMiddleware, isAuthToken } from './auth.ts';
+import {
+  createCorsOriginResolver,
+  createStaticSecurityHeaders,
+  handleAppError,
+} from './http-security.ts';
 import { plans, setPlanSourcesWatcherCallback } from './routes/plans.ts';
 import { approvals } from './routes/approvals.ts';
 import { usage } from './routes/usage.ts';
@@ -67,7 +72,8 @@ export function buildAgendexApp(options: BuildAgendexAppOptions): BuiltAgendexAp
       .join('|');
   }
 
-  app.use('/api/*', cors());
+  app.onError(handleAppError);
+  app.use('/api/*', cors({ origin: createCorsOriginResolver() }));
 
   const ready = loadOrInitConfig({ configureAdapters })
     .then((config) => {
@@ -108,7 +114,7 @@ export function buildAgendexApp(options: BuildAgendexAppOptions): BuiltAgendexAp
     '/api/v1/ws',
     (c, next) => {
       const token = new URL(c.req.url).searchParams.get('token');
-      if (token !== AUTH_TOKEN) return c.json({ error: 'unauthorized' }, 401);
+      if (!isAuthToken(token)) return c.json({ error: 'unauthorized' }, 401);
       return next();
     },
     upgradeWebSocket(() => ({
@@ -127,7 +133,11 @@ export function buildAgendexApp(options: BuildAgendexAppOptions): BuiltAgendexAp
   app.route('/api/v1', usage);
   app.route('/api/v1', approvals);
 
-  if (mountStatic) mountStatic(app);
+  if (mountStatic) {
+    // Registered after the API routes, so it only wraps the static catch-all.
+    app.use('*', createStaticSecurityHeaders());
+    mountStatic(app);
+  }
 
   return { app, ready: ready.then(() => undefined), broadcast, token: AUTH_TOKEN };
 }

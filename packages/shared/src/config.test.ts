@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
@@ -16,6 +16,7 @@ import {
   removeCustomPlanDir,
   resolveCustomPlanDirPath,
   saveConfig,
+  updateConfig,
 } from './config.ts';
 
 const originalEnv: Record<string, string | undefined> = {
@@ -27,6 +28,12 @@ const originalEnv: Record<string, string | undefined> = {
 };
 
 let tempRoot: string | undefined;
+
+/** Order-insensitive subset check (the local `bun:test` typings omit `expect.arrayContaining`). */
+function expectToContainAll(actual: readonly unknown[] | undefined, expected: readonly unknown[]) {
+  expect(Array.isArray(actual)).toBe(true);
+  for (const item of expected) expect(actual).toContain(item);
+}
 
 function restoreEnv(name: keyof typeof originalEnv) {
   const value = originalEnv[name];
@@ -96,16 +103,16 @@ test('loadOrCreateToken preserves existing cloud session fields', async () => {
     cloudAccountId: 'account-1',
     convexUrl: 'http://127.0.0.1:3210',
     deviceId: 'device-1',
-    // v3→v4 migration auto-enables grok for pre-existing installs.
-    enabledAdapters: expect.arrayContaining([
-      'cursor',
-      'grok',
-      'antigravity',
-      'gemini-cli',
-      'kiro-cli',
-    ]),
     customPlanDirs: [customPlanDir],
   });
+  // v3→v4 migration auto-enables grok for pre-existing installs.
+  expectToContainAll(config?.enabledAdapters, [
+    'cursor',
+    'grok',
+    'antigravity',
+    'gemini-cli',
+    'kiro-cli',
+  ]);
   expect(config?.configVersion).toBe(CURRENT_CONFIG_VERSION);
 });
 
@@ -138,18 +145,20 @@ test('v4 migration auto-enables grok on pre-existing enabledAdapters lists', () 
   const migrated = applyAdapterEnableMigrations(3, ['claude-code', 'codex', 'cursor'] as never);
   expect(migrated.version).toBe(CURRENT_CONFIG_VERSION);
   expect(migrated.adapters).toContain('grok');
-  expect(migrated.adapters).toEqual(
-    expect.arrayContaining(['claude-code', 'codex', 'cursor', 'grok']),
-  );
+  expectToContainAll(migrated.adapters, ['claude-code', 'codex', 'cursor', 'grok']);
 });
 
 test('v5 migration adds file adapters without re-enabling grok', () => {
   const migrated = applyAdapterEnableMigrations(4, ['claude-code', 'cursor'] as never);
   expect(migrated.version).toBe(CURRENT_CONFIG_VERSION);
   expect(migrated.adapters).not.toContain('grok');
-  expect(migrated.adapters).toEqual(
-    expect.arrayContaining(['claude-code', 'cursor', 'antigravity', 'kiro-cli', 'windsurf']),
-  );
+  expectToContainAll(migrated.adapters, [
+    'claude-code',
+    'cursor',
+    'antigravity',
+    'kiro-cli',
+    'windsurf',
+  ]);
 });
 
 test('v6 migration enables Command Code without re-enabling earlier adapters', () => {
@@ -158,9 +167,7 @@ test('v6 migration enables Command Code without re-enabling earlier adapters', (
   expect(migrated.adapters).toContain('commandcode');
   expect(migrated.adapters).not.toContain('grok');
   expect(migrated.adapters).not.toContain('antigravity');
-  expect(migrated.adapters).toEqual(
-    expect.arrayContaining(['claude-code', 'cursor', 'commandcode']),
-  );
+  expectToContainAll(migrated.adapters, ['claude-code', 'cursor', 'commandcode']);
 });
 
 test('v8 migration enables T3 Code without re-enabling earlier adapters', () => {
@@ -169,7 +176,7 @@ test('v8 migration enables T3 Code without re-enabling earlier adapters', () => 
   expect(migrated.adapters).toContain('t3-code');
   expect(migrated.adapters).not.toContain('grok');
   expect(migrated.adapters).not.toContain('omp');
-  expect(migrated.adapters).toEqual(expect.arrayContaining(['claude-code', 'cursor', 't3-code']));
+  expectToContainAll(migrated.adapters, ['claude-code', 'cursor', 't3-code']);
 });
 
 test('v4 migration leaves empty adapter lists empty so defaults can apply', () => {
@@ -345,4 +352,64 @@ test('lastPlanDownload round-trips through save/load and drops malformed entries
     }),
   );
   expect(loadConfig()?.lastPlanDownload).toBeUndefined();
+});
+
+// chmod is a no-op for Windows ACLs, so the mode assertions only hold on POSIX.
+const posixOnly = test.skipIf(process.platform === 'win32');
+
+posixOnly('config dir and file are written owner-only', async () => {
+  const configDir = await useTempConfigDir();
+  saveConfig({ configVersion: CURRENT_CONFIG_VERSION, enabledAdapters: [], customPlanDirs: [] });
+
+  expect(statSync(configDir).mode & 0o777).toBe(0o700);
+  expect(statSync(getConfigPath()).mode & 0o777).toBe(0o600);
+});
+
+posixOnly('loading tightens permissions of an existing world-readable config', async () => {
+  const configDir = await useTempConfigDir();
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(getConfigPath(), JSON.stringify({ configVersion: 8, token: 'kept' }));
+  chmodSync(configDir, 0o755);
+  chmodSync(getConfigPath(), 0o644);
+
+  expect(loadConfig()?.token).toBe('kept');
+  expect(statSync(configDir).mode & 0o777).toBe(0o700);
+  expect(statSync(getConfigPath()).mode & 0o777).toBe(0o600);
+});
+
+test('a corrupt config is backed up and never silently replaced', async () => {
+  const configDir = await useTempConfigDir();
+  mkdirSync(configDir, { recursive: true });
+  const corrupt = '{"token": "local-secret", "cloudToken": "cloud-secret",';
+  writeFileSync(getConfigPath(), corrupt);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    // Read-only callers see no config but nothing is touched.
+    expect(loadConfig()).toBeNull();
+    expect(readFileSync(getConfigPath(), 'utf-8')).toBe(corrupt);
+
+    let updaterCalled = false;
+    expect(() =>
+      updateConfig((current) => {
+        updaterCalled = true;
+        return current;
+      }),
+    ).toThrow('not valid JSON');
+    expect(updaterCalled).toBe(false);
+
+    // The original bytes survive in a timestamped backup; config.json is gone, not rewritten.
+    const backups = readdirSync(configDir).filter((name) =>
+      name.startsWith('config.json.corrupt-'),
+    );
+    expect(backups).toHaveLength(1);
+    expect(readFileSync(join(configDir, backups[0] as string), 'utf-8')).toBe(corrupt);
+    expect(loadConfig()).toBeNull();
+
+    // With the backup on disk, the next writer starts a fresh config.
+    const token = loadOrCreateToken();
+    expect(loadConfig()?.token).toBe(token);
+  } finally {
+    console.warn = warn;
+  }
 });

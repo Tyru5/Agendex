@@ -266,13 +266,10 @@ export function parseGrokLine(
   // - nested: `{ update: { type: 'turn_completed', usage } }`
   // - native ACP: `{ params: { sessionId, update: { sessionUpdate: 'turn_completed', usage } } }`
   const params = isRecord(row.params) ? row.params : undefined;
-  const update = isGrokTurnCompleted(row)
-    ? row
-    : isGrokTurnCompleted(row.update)
-      ? row.update
-      : params && isGrokTurnCompleted(params.update)
-        ? params.update
-        : null;
+  // `row` is already a record, so a type-guard ternary would narrow its false branch to
+  // `never`; `find` keeps the same first-match order without that narrowing.
+  const envelopes: unknown[] = [row, row.update, params?.update];
+  const update = envelopes.find(isGrokTurnCompleted);
   if (!update) return [];
 
   const usage = isRecord(update.usage) ? update.usage : undefined;

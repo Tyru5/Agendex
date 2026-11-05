@@ -183,61 +183,68 @@ For a self-hosted Agendex instance, use:
 '@
 }
 
-$Arch = if ($env:PROCESSOR_ARCHITECTURE) { $env:PROCESSOR_ARCHITECTURE } else { 'unknown' }
-$OsLabel = if ($OnWindows) { 'Windows' } else { [string][System.Environment]::OSVersion.Platform }
+# Everything runs from Invoke-AgendexInstall, called on the last line, so a
+# truncated download (e.g. a dropped `irm | iex` connection) cannot run a
+# partial script.
+function Invoke-AgendexInstall {
+    $Arch = if ($env:PROCESSOR_ARCHITECTURE) { $env:PROCESSOR_ARCHITECTURE } else { 'unknown' }
+    $OsLabel = if ($OnWindows) { 'Windows' } else { [string][System.Environment]::OSVersion.Platform }
 
-Assert-Node
-$Manager = Resolve-PackageManager
-Assert-PackageManager $Manager
-$NormalizedVersion = Get-NormalizedVersion $Version
-$PkgSpec = "$PackageName@$NormalizedVersion"
+    Assert-Node
+    $Manager = Resolve-PackageManager
+    Assert-PackageManager $Manager
+    $NormalizedVersion = Get-NormalizedVersion $Version
+    $PkgSpec = "$PackageName@$NormalizedVersion"
 
-Write-Info "Installing Agendex CLI ($PkgSpec) on $OsLabel/$Arch"
-if (-not (Install-Package $Manager $PkgSpec)) {
-    Write-Warn 'installation failed.'
-    if ($Manager -eq 'npm') {
-        Write-Host @'
+    Write-Info "Installing Agendex CLI ($PkgSpec) on $OsLabel/$Arch"
+    if (-not (Install-Package $Manager $PkgSpec)) {
+        Write-Warn 'installation failed.'
+        if ($Manager -eq 'npm') {
+            Write-Host @'
 If this was a permissions error, try rerunning PowerShell as Administrator,
 or configure a user-writable npm prefix and rerun:
 
   npm config set prefix "$env:LOCALAPPDATA\npm"
   $env:Path = "$env:LOCALAPPDATA\npm;$env:Path"
 '@
-    }
-    exit 1
-}
-
-$BinPath = Resolve-AgendexBin $Manager
-if (-not $SkipVerify) {
-    if (-not $BinPath) {
-        $binDir = Get-ManagerBinDir $Manager
-        Write-Success "Agendex CLI was installed, but '$BinName' is not on PATH yet."
-        if ($binDir) {
-            Write-Host "Add it for this session with:"
-            Write-Host "  `$env:Path = `"$binDir;`$env:Path`""
         }
-        Show-NextSteps
-        exit 0
+        exit 1
     }
 
-    $installedVersion = ''
-    try { $installedVersion = (& $BinPath --version) 2>$null } catch { }
-    if (-not $installedVersion) {
-        Fail "installed $BinName, but '$BinPath --version' failed."
+    $BinPath = Resolve-AgendexBin $Manager
+    if (-not $SkipVerify) {
+        if (-not $BinPath) {
+            $binDir = Get-ManagerBinDir $Manager
+            Write-Success "Agendex CLI was installed, but '$BinName' is not on PATH yet."
+            if ($binDir) {
+                Write-Host "Add it for this session with:"
+                Write-Host "  `$env:Path = `"$binDir;`$env:Path`""
+            }
+            Show-NextSteps
+            exit 0
+        }
+
+        $installedVersion = ''
+        try { $installedVersion = (& $BinPath --version) 2>$null } catch { }
+        if (-not $installedVersion) {
+            Fail "installed $BinName, but '$BinPath --version' failed."
+        }
+        Write-Success "Agendex CLI installed successfully ($BinName $installedVersion)."
+    } else {
+        Write-Success 'Agendex CLI installed successfully.'
     }
-    Write-Success "Agendex CLI installed successfully ($BinName $installedVersion)."
-} else {
-    Write-Success 'Agendex CLI installed successfully.'
+
+    if (-not (Test-Command $BinName) -and $BinPath) {
+        $binDir = Split-Path $BinPath -Parent
+        Write-Host ""
+        Write-Host "$BinName is installed at:"
+        Write-Host "  $BinPath"
+        Write-Host ""
+        Write-Host "Add it for this session with:"
+        Write-Host "  `$env:Path = `"$binDir;`$env:Path`""
+    }
+
+    Show-NextSteps
 }
 
-if (-not (Test-Command $BinName) -and $BinPath) {
-    $binDir = Split-Path $BinPath -Parent
-    Write-Host ""
-    Write-Host "$BinName is installed at:"
-    Write-Host "  $BinPath"
-    Write-Host ""
-    Write-Host "Add it for this session with:"
-    Write-Host "  `$env:Path = `"$binDir;`$env:Path`""
-}
-
-Show-NextSteps
+Invoke-AgendexInstall

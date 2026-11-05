@@ -7,10 +7,12 @@ import { authComponent } from './auth';
 import { requireFeature, requireFeatureForUserId } from './entitlements';
 import { isVisiblePlan } from './planVisibility';
 import {
+  formatShareAccessProof,
+  generateShareAccessProofSecret,
   isShareLinkLive,
   resolveSharedPlanAccess,
   SHARE_ACCESS_PROOF_TTL_MS,
-  shareAccessProofIdValidator,
+  shareAccessProofValidator,
   shareLinkExpiresAt,
   shareLinkExpiryValidator,
 } from './shareAccess';
@@ -348,13 +350,10 @@ export const getShareLinkAndPlanInternal = internalQuery({
 export const getSharedPlanWithPassword = action({
   args: { token: v.string(), password: v.string() },
   returns: v.object({
-    accessProof: shareAccessProofIdValidator,
+    accessProof: shareAccessProofValidator,
     expiresAt: v.number(),
   }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ accessProof: Id<'shareAccessProofs'>; expiresAt: number }> => {
+  handler: async (ctx, args): Promise<{ accessProof: string; expiresAt: number }> => {
     const result = await ctx.runQuery(internal.sharing.getShareLinkAndPlanInternal, {
       token: args.token,
     });
@@ -369,22 +368,27 @@ export const getSharedPlanWithPassword = action({
       throw new ConvexError('Incorrect password');
     }
 
-    return await ctx.runMutation(internal.sharing.issueShareAccessProofInternal, {
+    // The secret is generated here (actions have real randomness) and only its
+    // hash is persisted; the client receives the only copy inside the credential.
+    const { secret, secretHash } = await generateShareAccessProofSecret();
+    const issued = await ctx.runMutation(internal.sharing.issueShareAccessProofInternal, {
       shareLinkId,
+      secretHash,
     });
+    return {
+      accessProof: formatShareAccessProof(issued.proofId, secret),
+      expiresAt: issued.expiresAt,
+    };
   },
 });
 
 export const issueShareAccessProofInternal = internalMutation({
-  args: { shareLinkId: v.id('shareLinks') },
+  args: { shareLinkId: v.id('shareLinks'), secretHash: v.string() },
   returns: v.object({
-    accessProof: shareAccessProofIdValidator,
+    proofId: v.id('shareAccessProofs'),
     expiresAt: v.number(),
   }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ accessProof: Id<'shareAccessProofs'>; expiresAt: number }> => {
+  handler: async (ctx, args): Promise<{ proofId: Id<'shareAccessProofs'>; expiresAt: number }> => {
     const shareLink = await ctx.db.get(args.shareLinkId);
     if (!shareLink || !isShareLinkLive(shareLink, Date.now())) {
       throw new ConvexError('Invalid or revoked share link');
@@ -395,20 +399,21 @@ export const issueShareAccessProofInternal = internalMutation({
 
     const createdAt = Date.now();
     const expiresAt = createdAt + SHARE_ACCESS_PROOF_TTL_MS;
-    const accessProof = await ctx.db.insert('shareAccessProofs', {
+    const proofId = await ctx.db.insert('shareAccessProofs', {
       shareLinkId: shareLink._id,
+      secretHash: args.secretHash,
       createdAt,
       expiresAt,
     });
     await ctx.scheduler.runAt(expiresAt, internal.sharing.expireShareAccessProofInternal, {
-      accessProof,
+      accessProof: proofId,
     });
-    return { accessProof, expiresAt };
+    return { proofId, expiresAt };
   },
 });
 
 export const expireShareAccessProofInternal = internalMutation({
-  args: { accessProof: shareAccessProofIdValidator },
+  args: { accessProof: v.id('shareAccessProofs') },
   returns: v.null(),
   handler: async (ctx, args) => {
     const accessProof = await ctx.db.get(args.accessProof);

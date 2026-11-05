@@ -1,11 +1,13 @@
 import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { lstat, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve, sep } from 'node:path';
+import { errorCode, isMissingSourceError } from '../adapters/adapter-utils.ts';
+import { getParseCacheDependencies } from '../adapters/parse-cache.ts';
 import { getActiveAdapters } from '../adapters/registry.ts';
 import { CURRENT_CONFIG_VERSION, getConfigDir, loadConfig, updateConfig } from '../config.ts';
 import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
-import { resolvePlanRepoRoot } from '../git.ts';
+import { clearPlanRepoRootCache, resolvePlanRepoRootCached } from '../git.ts';
 import type { AgentAdapter, Plan, PlannotatorWritebackPayload } from '../types.ts';
 import { annotatePlanValueMetadata, isIndexablePlan } from './plan-value.ts';
 
@@ -73,7 +75,30 @@ export interface DiscoveredPlanDir {
   agent: string;
 }
 
-export function discoverProjectPlanDirs(): DiscoveredPlanDir[] {
+let discoveredPlanDirsCache: { key: string; dirs: DiscoveredPlanDir[] } | undefined;
+
+export interface DiscoverProjectPlanDirsOptions {
+  /**
+   * Reuse the dirs found by the last walk (for the same home and working
+   * directory) instead of walking `$HOME` again. Full scans and watcher setup
+   * walk; per-file rescans and watch-path diffing reuse their result.
+   */
+  useCache?: boolean;
+}
+
+export function discoverProjectPlanDirs(
+  options: DiscoverProjectPlanDirsOptions = {},
+): DiscoveredPlanDir[] {
+  const cacheKey = `${getHomeDir()}\0${process.cwd()}`;
+  if (options.useCache && discoveredPlanDirsCache?.key === cacheKey) {
+    return [...discoveredPlanDirsCache.dirs];
+  }
+  const dirs = walkForProjectPlanDirs();
+  discoveredPlanDirsCache = { key: cacheKey, dirs };
+  return [...dirs];
+}
+
+function walkForProjectPlanDirs(): DiscoveredPlanDir[] {
   const home = canonicalPath(getHomeDir());
   const results: DiscoveredPlanDir[] = [];
   const seen = new Set<string>();
@@ -236,21 +261,134 @@ function pruneDeletedValueOverrides(ids: Iterable<string>, now = Date.now()): vo
   }
 }
 
-function preparePlanForIndex(plan: Plan): Plan {
+function loadValueOverrides(): Record<string, string> {
+  return loadConfig()?.planValueOverrides ?? {};
+}
+
+/**
+ * `overrides` is the snapshot the caller loaded: a full scan builds its whole
+ * index from one snapshot even if a concurrent rescan reloads the config.
+ */
+function preparePlanForIndex(plan: Plan, overrides = localValueOverrides): Plan {
   const metadata = { ...plan.metadata };
   if (metadata.localPlanValueOverride === true) {
     delete metadata.planValueOverride;
     delete metadata.localPlanValueOverride;
   }
-  if (localValueOverrides[plan.id] !== undefined) {
+  if (overrides[plan.id] !== undefined) {
     metadata.planValueOverride = 'manual';
     metadata.localPlanValueOverride = true;
   }
   plan = { ...plan, metadata };
-  const workspace = plan.workspace ?? resolvePlanRepoRoot(plan) ?? undefined;
+  const workspace = plan.workspace ?? resolvePlanRepoRootCached(plan) ?? undefined;
   return annotatePlanValueMetadata(workspace ? { ...plan, workspace } : plan);
 }
 
+/**
+ * Sources whose last read failed, with the error code already logged, so a
+ * persistently unreadable source warns once instead of on every poll.
+ */
+const reportedSourceFailures = new Map<string, string>();
+
+function reportSourceFailure(sourcePath: string, err: unknown): void {
+  const key = resolve(sourcePath);
+  const code = errorCode(err) ?? (err instanceof Error ? err.name : 'unknown');
+  if (reportedSourceFailures.get(key) === code) return;
+  reportedSourceFailures.set(key, code);
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn(
+    `[agendex] could not read plan source ${sourcePath} (${code}); keeping its previous plans: ${message}`,
+  );
+}
+
+function clearSourceFailure(sourcePath: string): void {
+  reportedSourceFailures.delete(resolve(sourcePath));
+}
+
+/**
+ * Raw (pre-`preparePlanForIndex`) parse results from the last full scan, keyed
+ * by resolved source path, then by parse scope (adapter + scan root, or the
+ * generic markdown metadata). A full scan reuses an entry while the stat
+ * fingerprint of the source's dependencies is unchanged.
+ */
+type ParseCache = Map<string, Map<string, { fingerprint: string; plans: Plan[] }>>;
+let parseCache: ParseCache = new Map();
+let parseCacheAdapterKey = '';
+
+async function statFingerprint(paths: string[]): Promise<string | undefined> {
+  const parts: string[] = [];
+  for (const path of paths) {
+    try {
+      const stats = await stat(path);
+      parts.push(`${stats.size}:${stats.mtimeMs}`);
+    } catch (err) {
+      if (!isMissingSourceError(err)) return undefined;
+      parts.push('-');
+    }
+  }
+  return parts.join('|');
+}
+
+/**
+ * Parse one source during a full scan, reusing the previous result when its
+ * fingerprint is unchanged. `dependencies` undefined disables caching. Returns
+ * undefined when the read failed; the failure is logged and callers keep the
+ * source's previous plans instead of treating it as empty.
+ */
+async function parseSourceForScan(
+  sourcePath: string,
+  scope: string,
+  dependencies: string[] | undefined,
+  parse: () => Promise<Plan[]>,
+  nextCache: ParseCache,
+): Promise<Plan[] | undefined> {
+  const sourceKey = resolve(sourcePath);
+  const fingerprint = dependencies ? await statFingerprint(dependencies) : undefined;
+  const remember = (plans: Plan[]) => {
+    if (fingerprint === undefined) return;
+    let scopes = nextCache.get(sourceKey);
+    if (!scopes) nextCache.set(sourceKey, (scopes = new Map()));
+    scopes.set(scope, { fingerprint, plans });
+  };
+  const cached = fingerprint === undefined ? undefined : parseCache.get(sourceKey)?.get(scope);
+  if (cached && cached.fingerprint === fingerprint) {
+    remember(cached.plans);
+    return cached.plans;
+  }
+  try {
+    const plans = await parse();
+    clearSourceFailure(sourcePath);
+    remember(plans);
+    return plans;
+  } catch (err) {
+    reportSourceFailure(sourcePath, err);
+    return undefined;
+  }
+}
+
+function userPlanMetadata(): Record<string, unknown> {
+  return { userCreated: true, userPlansDir: getUserPlansDir() };
+}
+
+function isUserPlanEntry(plan: Plan): boolean {
+  return plan.metadata.userCreated === true;
+}
+
+/** One helper so full scans and per-file rescans attribute custom-dir plans identically. */
+function customDirPlanMetadata(dir: string): Record<string, unknown> {
+  const dirBasename =
+    dir
+      .replace(/[\\/]+$/, '')
+      .split(/[\\/]/)
+      .pop() ?? 'custom';
+  return { source: 'custom-dir', customDir: dir, agentHint: dirBasename };
+}
+
+function isCustomDirPlanEntry(plan: Plan): boolean {
+  return plan.metadata.source === 'custom-dir';
+}
+
+/** Parse a generic markdown plan. Null when the file is gone; other read errors throw. */
 async function parseGenericMarkdownPlan(
   filePath: string,
   extraMetadata: Record<string, unknown>,
@@ -291,19 +429,60 @@ async function parseGenericMarkdownPlan(
       updatedAt: stats.mtime,
       metadata,
     };
-  } catch {
-    return null;
+  } catch (err) {
+    if (isMissingSourceError(err)) return null;
+    throw err;
   }
 }
 
-async function scanUserPlans(into: Map<string, Plan>) {
+/** Shared state for one full scan: what it builds and what it falls back to. */
+interface ScanContext {
+  previous: Map<string, Plan>;
+  next: Map<string, Plan>;
+  nextCache: ParseCache;
+  overrides: Record<string, string>;
+}
+
+/** Add a source's freshly parsed plans, or its previous plans when the read failed. */
+function indexSourcePlans(
+  context: ScanContext,
+  sourcePath: string,
+  plans: Plan[] | undefined,
+  belongs: (plan: Plan) => boolean,
+): number {
+  const indexed = plans
+    ? plans.map((plan) => preparePlanForIndex(plan, context.overrides))
+    : plansForPath(context.previous, sourcePath, belongs);
+  for (const plan of indexed) context.next.set(plan.id, plan);
+  return indexed.length;
+}
+
+async function scanGenericMarkdownFile(
+  context: ScanContext,
+  file: string,
+  metadata: Record<string, unknown>,
+  belongs: (plan: Plan) => boolean,
+): Promise<number> {
+  const plans = await parseSourceForScan(
+    file,
+    `generic\0${JSON.stringify(metadata)}`,
+    [file],
+    async () => {
+      const plan = await parseGenericMarkdownPlan(file, metadata);
+      return plan ? [plan] : [];
+    },
+    context.nextCache,
+  );
+  return indexSourcePlans(context, file, plans, belongs);
+}
+
+async function scanUserPlans(context: ScanContext) {
   const userPlansDir = getUserPlansDir();
   if (!existsSync(userPlansDir)) return;
   const files = await walkDir(userPlansDir);
   for (const file of files) {
     if (!file.endsWith('.md')) continue;
-    const plan = await parseGenericMarkdownPlan(file, { userCreated: true, userPlansDir });
-    if (plan) into.set(plan.id, preparePlanForIndex(plan));
+    await scanGenericMarkdownFile(context, file, userPlanMetadata(), isUserPlanEntry);
   }
 }
 
@@ -338,7 +517,7 @@ function overlapsAnyRoot(candidate: string, roots: Iterable<string>): boolean {
   return false;
 }
 
-async function scanCustomPlanDirs(coveredPaths: Set<string>, into: Map<string, Plan>) {
+async function scanCustomPlanDirs(coveredPaths: Set<string>, context: ScanContext) {
   const dirs = getCustomPlanDirs();
   const userPlansDir = canonicalPath(getUserPlansDir());
   for (const dir of dirs) {
@@ -365,23 +544,11 @@ async function scanCustomPlanDirs(coveredPaths: Set<string>, into: Map<string, P
       continue;
     }
     const files = await walkDir(dir);
-    const dirBasename =
-      dir
-        .replace(/[\\/]+$/, '')
-        .split(/[\\/]/)
-        .pop() ?? 'custom';
+    const metadata = customDirPlanMetadata(dir);
     let count = 0;
     for (const file of files) {
       if (!file.endsWith('.md')) continue;
-      const plan = await parseGenericMarkdownPlan(file, {
-        source: 'custom-dir',
-        customDir: dir,
-        agentHint: dirBasename,
-      });
-      if (plan) {
-        into.set(plan.id, preparePlanForIndex(plan));
-        count++;
-      }
+      count += await scanGenericMarkdownFile(context, file, metadata, isCustomDirPlanEntry);
     }
     console.log(`[agendex] custom dir: ${dir} (${count} plans)`);
   }
@@ -395,63 +562,108 @@ export interface ScanOptions {
   queueIfBusy?: boolean;
 }
 
-async function scanOnce(): Promise<void> {
-  localValueOverrides = loadConfig()?.planValueOverrides ?? {};
-  const adapters = getActiveAdapters();
-  const next = new Map<string, Plan>();
+/**
+ * True while `scanOnce` builds its replacement index. Rescans during that
+ * window update the live (old) index so readers see them at once, and are
+ * recorded so they can be replayed onto the new index after the swap instead
+ * of being lost to a traversal that read the file before it changed.
+ */
+let scanInFlight = false;
+const rescannedDuringScan = new Set<string>();
 
-  const coveredPaths = new Set<string>();
-  for (const adapter of adapters) {
-    const seenSources = new Set<string>();
-    for (const searchPath of adapter.getSearchPaths()) {
-      coveredPaths.add(canonicalPath(searchPath));
-      const files = await walkDir(searchPath);
-      for (const file of files) {
-        if (!adapter.matches(file, searchPath)) continue;
-        const sourcePath = adapter.getSourcePath?.(file) ?? file;
-        const sourceKey = resolve(sourcePath);
-        if (seenSources.has(sourceKey)) continue;
-        seenSources.add(sourceKey);
-        const plans = await adapter.parse(sourcePath, searchPath);
-        for (const plan of plans) {
-          const annotated = preparePlanForIndex(plan);
-          next.set(annotated.id, annotated);
+async function scanAdapterSource(
+  context: ScanContext,
+  adapter: AgentAdapter,
+  sourcePath: string,
+  scanRoot: string,
+): Promise<void> {
+  const plans = await parseSourceForScan(
+    sourcePath,
+    `adapter\0${adapter.agent}\0${scanRoot}`,
+    getParseCacheDependencies(adapter, sourcePath),
+    () => adapter.parse(sourcePath, scanRoot),
+    context.nextCache,
+  );
+  indexSourcePlans(context, sourcePath, plans, (plan) => planBelongsToAdapter(plan, adapter));
+}
+
+async function scanOnce(): Promise<void> {
+  scanInFlight = true;
+  rescannedDuringScan.clear();
+  let replay: string[];
+  let adapterCount: number;
+  try {
+    clearPlanRepoRootCache();
+    const adapters = getActiveAdapters();
+    adapterCount = adapters.length;
+    const adapterKey = adapters.map((adapter) => adapter.agent).join('\0');
+    if (adapterKey !== parseCacheAdapterKey) {
+      // Enabling or disabling adapters changes which adapter owns a source.
+      parseCache = new Map();
+      parseCacheAdapterKey = adapterKey;
+    }
+    const context: ScanContext = {
+      previous: store,
+      next: new Map(),
+      nextCache: new Map(),
+      overrides: loadValueOverrides(),
+    };
+
+    const coveredPaths = new Set<string>();
+    for (const adapter of adapters) {
+      const seenSources = new Set<string>();
+      for (const searchPath of adapter.getSearchPaths()) {
+        coveredPaths.add(canonicalPath(searchPath));
+        const files = await walkDir(searchPath);
+        for (const file of files) {
+          if (!adapter.matches(file, searchPath)) continue;
+          const sourcePath = adapter.getSourcePath?.(file) ?? file;
+          const sourceKey = resolve(sourcePath);
+          if (seenSources.has(sourceKey)) continue;
+          seenSources.add(sourceKey);
+          await scanAdapterSource(context, adapter, sourcePath, searchPath);
         }
       }
     }
-  }
 
-  const discovered = discoverProjectPlanDirs();
-  for (const { dir, agent } of discovered) {
-    const resolvedDir = canonicalPath(dir);
-    if (coveredPaths.has(resolvedDir)) continue;
-    const adapter = adapters.find((a) => a.agent === agent);
-    if (!adapter) continue;
-    const files = await walkDir(dir);
-    for (const file of files) {
-      if (!adapter.matches(file, dir)) continue;
-      const sourcePath = adapter.getSourcePath?.(file) ?? file;
-      const plans = await adapter.parse(sourcePath, dir);
-      for (const plan of plans) {
-        const annotated = preparePlanForIndex(plan);
-        next.set(annotated.id, annotated);
+    const discovered = discoverProjectPlanDirs();
+    for (const { dir, agent } of discovered) {
+      const resolvedDir = canonicalPath(dir);
+      if (coveredPaths.has(resolvedDir)) continue;
+      const adapter = adapters.find((a) => a.agent === agent);
+      if (!adapter) continue;
+      const files = await walkDir(dir);
+      for (const file of files) {
+        if (!adapter.matches(file, dir)) continue;
+        const sourcePath = adapter.getSourcePath?.(file) ?? file;
+        await scanAdapterSource(context, adapter, sourcePath, dir);
       }
+      coveredPaths.add(resolvedDir);
+      console.log(`[agendex] discovered project plans: ${dir}`);
     }
-    coveredPaths.add(resolvedDir);
-    console.log(`[agendex] discovered project plans: ${dir}`);
+
+    await scanUserPlans(context);
+    await scanCustomPlanDirs(coveredPaths, context);
+
+    store = context.next;
+    parseCache = context.nextCache;
+    localValueOverrides = context.overrides;
+    replay = [...rescannedDuringScan];
+  } finally {
+    scanInFlight = false;
+    rescannedDuringScan.clear();
   }
 
-  await scanUserPlans(next);
-  await scanCustomPlanDirs(coveredPaths, next);
-
-  store = next;
+  // Files that changed while the traversal ran may have been read before the
+  // change; re-apply them to the new index (each reloads the overrides).
+  for (const filePath of replay) await rescanFile(filePath);
   pruneDeletedValueOverrides(Object.keys(localValueOverrides));
   notifyPlansChanged();
   const indexableCount = getIndexablePlans().length;
   const hiddenCount = store.size - indexableCount;
   const hiddenSuffix = hiddenCount > 0 ? ` (${hiddenCount} hidden as low-value)` : '';
   console.log(
-    `[agendex] indexed ${indexableCount} plans${hiddenSuffix} from ${adapters.length} adapters`,
+    `[agendex] indexed ${indexableCount} plans${hiddenSuffix} from ${adapterCount} adapters`,
   );
 }
 
@@ -685,40 +897,76 @@ function planBelongsToAdapter(plan: Plan, adapter: AgentAdapter): boolean {
   );
 }
 
-function removePlansForPath(filePath: string, adapter?: AgentAdapter): Plan[] {
+/** True when `plan` was derived from the file at the resolved path `normalized`. */
+function planComesFromPath(plan: Plan, normalized: string): boolean {
+  if (resolve(plan.filePath) === normalized) return true;
+  const sessionPath =
+    typeof plan.metadata.plannotator === 'object' && plan.metadata.plannotator !== null
+      ? (plan.metadata.plannotator as Record<string, unknown>).sessionPath
+      : undefined;
+  if (sessionPath === normalized) return true;
+  const sourcePaths = Array.isArray(plan.metadata.sourcePaths)
+    ? plan.metadata.sourcePaths.filter((path): path is string => typeof path === 'string')
+    : [];
+  return sourcePaths.some((path) => resolve(path) === normalized);
+}
+
+function plansForPath(
+  from: Map<string, Plan>,
+  filePath: string,
+  belongs: (plan: Plan) => boolean,
+): Plan[] {
   const normalized = resolve(filePath);
-  const removed: Plan[] = [];
-  for (const [id, plan] of store.entries()) {
-    const planPath = resolve(plan.filePath);
-    const sessionPath =
-      typeof plan.metadata.plannotator === 'object' && plan.metadata.plannotator !== null
-        ? (plan.metadata.plannotator as Record<string, unknown>).sessionPath
-        : undefined;
-    const sourcePaths = Array.isArray(plan.metadata.sourcePaths)
-      ? plan.metadata.sourcePaths.filter((path): path is string => typeof path === 'string')
-      : [];
-    if (
-      (planPath === normalized ||
-        sessionPath === normalized ||
-        sourcePaths.some((path) => resolve(path) === normalized)) &&
-      (!adapter || planBelongsToAdapter(plan, adapter))
-    ) {
-      removed.push(plan);
-      store.delete(id);
-    }
-  }
+  return [...from.values()].filter((plan) => planComesFromPath(plan, normalized) && belongs(plan));
+}
+
+function removePlansForPath(
+  filePath: string,
+  belongs: (plan: Plan) => boolean = () => true,
+): Plan[] {
+  const removed = plansForPath(store, filePath, belongs);
+  for (const plan of removed) store.delete(plan.id);
   return removed;
 }
 
+/** Re-read one generic markdown plan (user plans dir or custom dir), removing it when deleted. */
+async function rescanGenericMarkdownPlan(
+  filePath: string,
+  metadata: Record<string, unknown>,
+  belongs: (plan: Plan) => boolean,
+): Promise<Plan[]> {
+  let plan: Plan | null;
+  try {
+    plan = await parseGenericMarkdownPlan(filePath, metadata);
+    clearSourceFailure(filePath);
+  } catch (err) {
+    reportSourceFailure(filePath, err);
+    return [];
+  }
+  if (!plan) {
+    const removed = removePlansForPath(filePath, belongs);
+    if (removed.length > 0) {
+      pruneDeletedValueOverrides(removed.map((entry) => entry.id));
+      notifyPlansChanged();
+    }
+    return removed;
+  }
+  const annotated = preparePlanForIndex(plan);
+  store.set(annotated.id, annotated);
+  notifyPlansChanged();
+  return [annotated];
+}
+
 export async function rescanFile(filePath: string) {
-  localValueOverrides = loadConfig()?.planValueOverrides ?? {};
+  if (scanInFlight) rescannedDuringScan.add(filePath);
+  localValueOverrides = loadValueOverrides();
   const adapters = getActiveAdapters();
   const normalized = resolve(filePath);
   pruneDeletedValueOverrides(
     Object.keys(localValueOverrides).filter((id) => localValueOverrides[id] === normalized),
   );
   const removedPlans: Plan[] = [];
-  const discoveredPlanDirs = discoverProjectPlanDirs();
+  const discoveredPlanDirs = discoverProjectPlanDirs({ useCache: true });
 
   for (const adapter of adapters) {
     const discoveredDirs = discoveredPlanDirs
@@ -737,13 +985,23 @@ export async function rescanFile(filePath: string) {
     if (!scanRoot || !adapter.matches(filePath, scanRoot)) continue;
 
     const sourcePath = adapter.getSourcePath?.(filePath) ?? filePath;
-    const rawPlans = await adapter.parse(sourcePath, scanRoot);
+    const belongs = (plan: Plan) => planBelongsToAdapter(plan, adapter);
+    parseCache.delete(resolve(sourcePath));
+    let rawPlans: Plan[];
+    try {
+      rawPlans = await adapter.parse(sourcePath, scanRoot);
+      clearSourceFailure(sourcePath);
+    } catch (err) {
+      // The owning adapter could not read the source: keep what it had.
+      reportSourceFailure(sourcePath, err);
+      return [];
+    }
     if (rawPlans.length === 0) {
-      removedPlans.push(...removePlansForPath(sourcePath, adapter));
+      removedPlans.push(...removePlansForPath(sourcePath, belongs));
       continue;
     }
-    removePlansForPath(sourcePath, adapter);
-    const plans = rawPlans.map(preparePlanForIndex);
+    removePlansForPath(sourcePath, belongs);
+    const plans = rawPlans.map((plan) => preparePlanForIndex(plan));
     for (const plan of plans) {
       store.set(plan.id, plan);
     }
@@ -757,38 +1015,20 @@ export async function rescanFile(filePath: string) {
     return removedPlans;
   }
 
+  if (!normalized.endsWith('.md')) return [];
+  parseCache.delete(normalized);
+
   // Check user plans dir
   const userPlansDir = resolve(getUserPlansDir());
-  if (
-    normalized.endsWith('.md') &&
-    (normalized.startsWith(userPlansDir + sep) || normalized === userPlansDir)
-  ) {
-    const plan = await parseGenericMarkdownPlan(filePath, { userCreated: true, userPlansDir });
-    if (plan) {
-      const annotated = preparePlanForIndex(plan);
-      store.set(annotated.id, annotated);
-      notifyPlansChanged();
-      return [annotated];
-    }
+  if (normalized.startsWith(userPlansDir + sep)) {
+    return rescanGenericMarkdownPlan(filePath, userPlanMetadata(), isUserPlanEntry);
   }
 
   // Check custom plan dirs
-  if (normalized.endsWith('.md')) {
-    const customDirs = getCustomPlanDirs();
-    for (const dir of customDirs) {
-      const resolvedDir = resolve(dir);
-      if (normalized.startsWith(resolvedDir + sep) || normalized === resolvedDir) {
-        const plan = await parseGenericMarkdownPlan(filePath, {
-          source: 'custom-dir',
-          customDir: dir,
-        });
-        if (plan) {
-          const annotated = preparePlanForIndex(plan);
-          store.set(annotated.id, annotated);
-          notifyPlansChanged();
-          return [annotated];
-        }
-      }
+  for (const dir of getCustomPlanDirs()) {
+    const resolvedDir = resolve(dir);
+    if (normalized.startsWith(resolvedDir + sep)) {
+      return rescanGenericMarkdownPlan(filePath, customDirPlanMetadata(dir), isCustomDirPlanEntry);
     }
   }
 

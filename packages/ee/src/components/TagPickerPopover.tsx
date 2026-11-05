@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 
 export function TagPickerPopover({ planId, onClose }: { planId: string; onClose: () => void }) {
   const allTags = useQuery(api.tags.listMyTags);
-  const planTagsMap = useQuery(api.planTags.getTagsForPlans, { planIds: [planId as Id<'plans'>] });
+  const planDocId = planId as Id<'plans'>;
+  const planTagsMap = useQuery(api.planTags.getTagsForPlans, { planIds: [planDocId] });
   const addTag = useMutation(api.planTags.addTag);
   const removeTag = useMutation(api.planTags.removeTag);
   const createTag = useMutation(api.tags.createTag);
@@ -14,7 +15,7 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
   const [creating, setCreating] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const assignedIds = new Set((planTagsMap?.[planId] ?? []).map((t: any) => t._id));
+  const assignedIds = new Set((planTagsMap?.[planDocId] ?? []).map((t) => t._id));
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -32,18 +33,18 @@ export function TagPickerPopover({ planId, onClose }: { planId: string; onClose:
     setCreating(true);
     try {
       const tagId = await createTag({ name: trimmed });
-      await addTag({ planId: planId as Id<'plans'>, tagId });
+      await addTag({ planId: planDocId, tagId });
       setNewName('');
     } finally {
       setCreating(false);
     }
   }
 
-  async function handleToggle(tagId: string) {
+  async function handleToggle(tagId: Id<'tags'>) {
     if (assignedIds.has(tagId)) {
-      await removeTag({ planId: planId as Id<'plans'>, tagId: tagId as Id<'tags'> });
+      await removeTag({ planId: planDocId, tagId });
     } else {
-      await addTag({ planId: planId as Id<'plans'>, tagId: tagId as Id<'tags'> });
+      await addTag({ planId: planDocId, tagId });
     }
   }
 

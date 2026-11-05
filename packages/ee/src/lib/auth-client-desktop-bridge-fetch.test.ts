@@ -25,6 +25,11 @@ function installDesktopWindow() {
     setModePref: async () => true,
     refreshCloudSession: async () => null,
     getConvexAuthToken: async () => null,
+    checkForUpdates: async () => {},
+    installUpdate: async () => {},
+    getUpdateState: async () => ({ status: 'idle' }),
+    getAppVersion: async () => '0.0.0',
+    getBuildInfo: async () => ({ platform: 'test', codeSigned: null }),
     authFetch: async (url, init) => {
       authFetchCalls.push({ url, init });
       return {
@@ -110,6 +115,11 @@ test('desktopAuthFetch preserves POST bodies when the desktop bridge disappears 
     setModePref: async () => true,
     refreshCloudSession: async () => null,
     getConvexAuthToken: async () => null,
+    checkForUpdates: async () => {},
+    installUpdate: async () => {},
+    getUpdateState: async () => ({ status: 'idle' }),
+    getAppVersion: async () => '0.0.0',
+    getBuildInfo: async () => ({ platform: 'test', codeSigned: null }),
     authFetch: async (url, init) => {
       authFetchCalls.push({ url, init });
       return {

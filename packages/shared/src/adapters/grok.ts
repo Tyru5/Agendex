@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve, sep } from 'node:path';
 import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
+import { isRecord, noPlansIfMissing } from './adapter-utils.ts';
 
 function getSessionsDir(): string {
   return join(getHomeDir(), '.grok', 'sessions');
@@ -17,10 +18,6 @@ interface GrokSummary {
   branch?: string;
   commit?: string;
   model?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function asString(value: unknown): string | undefined {
@@ -129,8 +126,8 @@ export const grokAdapter: AgentAdapter = {
           metadata,
         },
       ];
-    } catch {
-      return [];
+    } catch (err) {
+      return noPlansIfMissing(err, []);
     }
   },
 

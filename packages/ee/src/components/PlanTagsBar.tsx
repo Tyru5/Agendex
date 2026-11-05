@@ -7,13 +7,14 @@ import { TagChip } from './TagChip.tsx';
 import { TagPickerPopover } from './TagPickerPopover.tsx';
 
 export function PlanTagsBar({ planId }: { planId: string }) {
-  const planTagsMap = useQuery(api.planTags.getTagsForPlans, { planIds: [planId as Id<'plans'>] });
+  const planDocId = planId as Id<'plans'>;
+  const planTagsMap = useQuery(api.planTags.getTagsForPlans, { planIds: [planDocId] });
   const removeTag = useMutation(api.planTags.removeTag);
 
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
 
-  const tags = (planTagsMap?.[planId] ?? []) as Doc<'tags'>[];
+  const tags: Doc<'tags'>[] = planTagsMap?.[planDocId] ?? [];
 
   return (
     <div className="plan-tags-bar">
@@ -22,7 +23,7 @@ export function PlanTagsBar({ planId }: { planId: string }) {
           key={tag._id}
           name={tag.name}
           color={tag.color}
-          onRemove={() => removeTag({ planId: planId as Id<'plans'>, tagId: tag._id })}
+          onRemove={() => removeTag({ planId: planDocId, tagId: tag._id })}
         />
       ))}
 

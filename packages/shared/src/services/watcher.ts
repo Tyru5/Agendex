@@ -51,20 +51,41 @@ function clearPendingRescan() {
  * Only close a watcher when the process keeps running and would otherwise leak
  * it. On shutdown, drop the handle instead and let the kernel reclaim it.
  */
-function closeWatcher(watcher: FSWatcher) {
+function closeWatcher(watcher: FSWatcher, dir: string) {
   try {
     watcher.close();
-  } catch {}
+  } catch (err) {
+    warnWatcherFailure('close watcher for', dir, err);
+  }
 }
 
-function abandonWatcher(watcher: FSWatcher) {
+function abandonWatcher(watcher: FSWatcher, dir: string) {
   try {
     watcher.removeAllListeners('change');
     // A watcher with no 'error' listener throws on the next filesystem hiccup.
     watcher.removeAllListeners('error');
     watcher.on('error', () => {});
     watcher.unref();
-  } catch {}
+  } catch (err) {
+    warnWatcherFailure('release watcher for', dir, err);
+  }
+}
+
+/** (action, dir, code) triples already logged, so a failing dir warns once rather than per refresh. */
+const warnedWatcherFailures = new Set<string>();
+
+function warnWatcherFailure(action: string, dir: string, err: unknown) {
+  const code =
+    typeof err === 'object' && err !== null && typeof Reflect.get(err, 'code') === 'string'
+      ? (Reflect.get(err, 'code') as string)
+      : 'unknown';
+  const key = `${action}\0${resolve(dir)}\0${code}`;
+  if (warnedWatcherFailures.has(key)) return;
+  warnedWatcherFailures.add(key);
+  // ENOSPC / EMFILE here mean the OS watch limit is exhausted: changes in this
+  // dir are only picked up by the periodic rescan.
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn(`[agendex] could not ${action} ${dir} (${code}): ${message}`);
 }
 
 function flushPendingRescan() {
@@ -102,19 +123,26 @@ function startWatcher(target: WatchTarget) {
     // never recovers. Forget it so the next refresh can attach a fresh one.
     // Abandon rather than close: the handle is already dead, and close() would
     // block the Electron main thread on macOS the same way shutdown used to.
-    watcher.on('error', () => {
+    watcher.on('error', (err) => {
       if (activeWatchers.get(target.key) !== watcher) return;
+      warnWatcherFailure('keep watching', target.dir, err);
       activeWatchers.delete(target.key);
       activeTargets.delete(target.key);
-      abandonWatcher(watcher);
+      abandonWatcher(watcher, target.dir);
     });
     activeWatchers.set(target.key, watcher);
     activeTargets.set(target.key, target);
     console.log(`[agendex] watching ${target.dir}`);
-  } catch {}
+  } catch (err) {
+    warnWatcherFailure('watch', target.dir, err);
+  }
 }
 
-function collectWatchTargets(): WatchTarget[] {
+/**
+ * `refreshDiscovered` walks `$HOME` for project plan dirs again; otherwise the
+ * dirs found by the last full scan or watcher setup are reused.
+ */
+function collectWatchTargets(refreshDiscovered: boolean): WatchTarget[] {
   const adapters = getActiveAdapters();
   const targets: WatchTarget[] = [];
   const watchedPaths = new Set<string>();
@@ -131,7 +159,7 @@ function collectWatchTargets(): WatchTarget[] {
     }
   }
 
-  for (const { dir, agent } of discoverProjectPlanDirs()) {
+  for (const { dir, agent } of discoverProjectPlanDirs({ useCache: !refreshDiscovered })) {
     if (watchedPaths.has(resolve(dir))) continue;
     const adapter = adapters.find((a) => a.agent === agent);
     if (!adapter) continue;
@@ -173,14 +201,15 @@ function collectWatchTargets(): WatchTarget[] {
  */
 export function startWatching(onChange?: ChangeCallback) {
   notifyPlansChanged = onChange;
-  const targets = collectWatchTargets();
+  const targets = collectWatchTargets(true);
   const desired = new Map(targets.map((target) => [target.key, target]));
 
   for (const [key, watcher] of activeWatchers) {
     if (desired.has(key)) continue;
     activeWatchers.delete(key);
+    const dir = activeTargets.get(key)?.dir ?? key;
     activeTargets.delete(key);
-    closeWatcher(watcher);
+    closeWatcher(watcher, dir);
   }
 
   for (const target of targets) {
@@ -202,13 +231,15 @@ export function startWatching(onChange?: ChangeCallback) {
 export function stopWatchingForShutdown() {
   clearPendingRescan();
   notifyPlansChanged = undefined;
-  for (const watcher of activeWatchers.values()) abandonWatcher(watcher);
+  for (const [key, watcher] of activeWatchers) {
+    abandonWatcher(watcher, activeTargets.get(key)?.dir ?? key);
+  }
   activeWatchers.clear();
   activeTargets.clear();
 }
 
 /** Resolved filesystem paths the watcher would attach to (for refresh diffing). */
 export function collectWatchPaths(): string[] {
-  const paths = new Set(collectWatchTargets().map((target) => resolve(target.dir)));
+  const paths = new Set(collectWatchTargets(false).map((target) => resolve(target.dir)));
   return [...paths].sort();
 }

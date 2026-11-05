@@ -26,6 +26,50 @@ export function planContentChanged(
   );
 }
 
+/**
+ * Plan history retention: each plan keeps its newest `PLAN_VERSION_RETENTION`
+ * versions (the history UI lists at most this many), plus the owner's
+ * "changes since last read" baseline. Older versions are pruned as new ones are
+ * written, so every plan's history is bounded no matter how often it syncs.
+ */
+export const PLAN_VERSION_RETENTION = 100;
+
+/**
+ * Most pruned per write. Steady state prunes one row per insert; the slack drains
+ * plans that already exceeded the cap without reading many full snapshots at once.
+ */
+export const PLAN_VERSION_PRUNE_BATCH = 5;
+
+/** Delete versions that fell out of the retention window for `planId`. */
+export async function prunePlanVersions(
+  ctx: PlanVersionWriteCtx,
+  args: { ownerId: string; planId: Id<'plans'>; latestVersion: number },
+): Promise<number> {
+  const cutoff = args.latestVersion - PLAN_VERSION_RETENTION;
+  if (cutoff < 0) return 0;
+
+  const preferences = await ctx.db
+    .query('planPreferences')
+    .withIndex('by_owner_plan', (q) => q.eq('ownerId', args.ownerId).eq('planId', args.planId))
+    .first();
+  const protectedVersion = preferences?.lastReadVersion;
+
+  const candidates = await ctx.db
+    .query('planVersions')
+    .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).lte('version', cutoff))
+    .order('asc')
+    .take(PLAN_VERSION_PRUNE_BATCH + 1);
+
+  let deleted = 0;
+  for (const row of candidates) {
+    if (deleted >= PLAN_VERSION_PRUNE_BATCH) break;
+    if (row.version === protectedVersion) continue;
+    await ctx.db.delete(row._id);
+    deleted++;
+  }
+  return deleted;
+}
+
 /** Insert an immutable planVersions row for the given plan version number. */
 export async function recordPlanVersion(
   ctx: PlanVersionWriteCtx,
@@ -38,7 +82,7 @@ export async function recordPlanVersion(
     createdAt?: number;
   },
 ): Promise<Id<'planVersions'>> {
-  return await ctx.db.insert('planVersions', {
+  const id = await ctx.db.insert('planVersions', {
     ownerId: args.ownerId,
     planId: args.planId,
     version: args.version,
@@ -51,6 +95,12 @@ export async function recordPlanVersion(
     ...(args.source ? { source: args.source } : {}),
     createdAt: args.createdAt ?? Date.now(),
   });
+  await prunePlanVersions(ctx, {
+    ownerId: args.ownerId,
+    planId: args.planId,
+    latestVersion: args.version,
+  });
+  return id;
 }
 
 /**

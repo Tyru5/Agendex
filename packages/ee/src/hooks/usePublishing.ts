@@ -21,10 +21,10 @@ export function usePublishing() {
         agent: plan.agent,
         title: plan.title,
         content: plan.content,
+        format: plan.format,
         metadata: toPlanMetadataDto(plan.metadata),
         filePath: plan.filePath,
         workspace: plan.workspace,
-        metadata: plan.metadata,
       });
     },
   };

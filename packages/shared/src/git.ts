@@ -62,6 +62,35 @@ export function resolvePlanRepoRoot(plan: {
   return null;
 }
 
+const PLAN_REPO_ROOT_CACHE_MAX_ENTRIES = 10_000;
+const planRepoRootCache = new Map<string, { at: number; root: string | null }>();
+
+/**
+ * `resolvePlanRepoRoot` memoized per (workspace, artifact directory) for
+ * `GIT_CONTEXT_CACHE_TTL_MS`. Indexing resolves every plan on every scan and
+ * most plans share a handful of directories, so this avoids walking the
+ * filesystem to the root once per plan. The plan index clears it on each full
+ * scan; the entry cap bounds memory for long-lived processes in between.
+ */
+export function resolvePlanRepoRootCached(plan: {
+  workspace?: string;
+  filePath?: string;
+}): string | null {
+  const key = `${plan.workspace ?? ''}\0${plan.filePath ? dirname(plan.filePath) : ''}`;
+  const now = Date.now();
+  const cached = planRepoRootCache.get(key);
+  if (cached && now - cached.at < GIT_CONTEXT_CACHE_TTL_MS) return cached.root;
+  const root = resolvePlanRepoRoot(plan);
+  if (planRepoRootCache.size >= PLAN_REPO_ROOT_CACHE_MAX_ENTRIES) planRepoRootCache.clear();
+  planRepoRootCache.set(key, { at: now, root });
+  return root;
+}
+
+/** Drop memoized plan repo roots (see `resolvePlanRepoRootCached`). */
+export function clearPlanRepoRootCache(): void {
+  planRepoRootCache.clear();
+}
+
 /** Capture the current branch, HEAD commit, and origin remote of a repo. */
 export function captureGitContext(repoRoot: string): PlanGitContext | null {
   const commit = runGit(repoRoot, ['rev-parse', 'HEAD']) ?? undefined;
@@ -95,6 +124,7 @@ const gitContextCache = new Map<string, GitContextCacheEntry>();
 export function clearGitContextCache(): void {
   repoRootCache.clear();
   gitContextCache.clear();
+  planRepoRootCache.clear();
 }
 
 /**

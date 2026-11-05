@@ -4,6 +4,7 @@ import { basename, join, resolve } from 'node:path';
 import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
+import { isRecord, noPlansIfMissing } from './adapter-utils.ts';
 
 function opencodeSessionDir(): string {
   const dataHome = process.env.XDG_DATA_HOME || join(getHomeDir(), '.local', 'share');
@@ -19,10 +20,6 @@ interface SessionMeta {
 
 function normalizePath(filePath: string): string {
   return filePath.replace(/\\/g, '/');
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function isPlanMarkdown(filePath: string, scanRoot?: string): boolean {
@@ -137,8 +134,8 @@ async function parsePlanFile(
         metadata,
       },
     ];
-  } catch {
-    return [];
+  } catch (err) {
+    return noPlansIfMissing(err, []);
   }
 }
 
@@ -166,8 +163,8 @@ async function parseSessionFile(filePath: string): Promise<Plan[]> {
     }
 
     return plans;
-  } catch {
-    return [];
+  } catch (err) {
+    return noPlansIfMissing(err, []);
   }
 }
 

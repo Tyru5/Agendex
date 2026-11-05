@@ -9,6 +9,14 @@ import { assessPlanForVisibility, metadataWithPlanValueAssessment } from './plan
 import { recordPlanVersion } from './planVersioning';
 import { planVersionValidator, toPlanVersionDto } from './validators';
 
+/**
+ * Newest versions returned by `listForPlan`. Convex reads whole documents, so
+ * every listed version costs its full snapshot in read bandwidth even though
+ * only summary fields are returned; the cap keeps that bounded for plans with
+ * long CLI-sync histories.
+ */
+export const MAX_LISTED_PLAN_VERSIONS = 100;
+
 export const listForPlan = query({
   args: { planId: v.id('plans') },
   returns: v.array(
@@ -51,7 +59,7 @@ export const listForPlan = query({
       .query('planVersions')
       .withIndex('by_plan', (q) => q.eq('planId', args.planId))
       .order('desc')
-      .collect();
+      .take(MAX_LISTED_PLAN_VERSIONS);
 
     return versions.map((ver) => ({
       _id: ver._id,

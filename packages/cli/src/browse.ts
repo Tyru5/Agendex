@@ -15,7 +15,11 @@ import {
 } from './browse-prompt.ts';
 import { createPlanMarkdownContent, type PlanDownloadFormat } from './download-format.ts';
 import { sanitizeTerminalText } from './download-prompt.ts';
-import { resolveDownloadFormat, writeDownloadedPlan } from './download-write.ts';
+import {
+  resolveDownloadFormat,
+  type WriteDownloadedPlanDeps,
+  writeDownloadedPlan,
+} from './download-write.ts';
 import {
   isLocalFileOpenDisabled,
   openLocalFile as defaultOpenLocalFile,
@@ -35,7 +39,7 @@ export interface BrowseDeps {
   writeStdout: (content: string) => void;
   writeFile: (path: string, content: string) => Promise<void>;
   mkdir: (path: string) => Promise<void>;
-  stat: typeof stat;
+  stat: WriteDownloadedPlanDeps['stat'];
   canPrompt: () => boolean;
   promptSelectPlan: (matches: CloudPlanDownloadMatch[]) => Promise<string | null>;
   promptSelectAction: () => Promise<BrowseAction | null>;
@@ -184,7 +188,7 @@ function writeDeps(deps: {
   writeStdout: (content: string) => void;
   writeFile: (path: string, content: string) => Promise<void>;
   mkdir: (path: string) => Promise<void>;
-  stat: typeof stat;
+  stat: WriteDownloadedPlanDeps['stat'];
 }) {
   return {
     log: deps.log,

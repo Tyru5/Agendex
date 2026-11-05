@@ -1,6 +1,7 @@
-import { stopWatchingForShutdown } from '@agendex/shared';
+import { getConfigPath, stopWatchingForShutdown } from '@agendex/shared';
 import { createBunWebSocket, serveStatic } from 'hono/bun';
 import { buildAgendexApp } from './app.ts';
+import { resolveListenHost } from './http-security.ts';
 import { cacheControlFor } from './static-cache.ts';
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
@@ -13,7 +14,7 @@ if (configureAdapters && !(process.stdin.isTTY && process.stdout.isTTY)) {
   process.exit(1);
 }
 
-const { app, ready, token } = buildAgendexApp({
+const { app, ready } = buildAgendexApp({
   upgradeWebSocket,
   configureAdapters,
   mountStatic: (app) => {
@@ -48,6 +49,7 @@ ready.catch((err) => {
 });
 
 const PORT = parseInt(process.env.PORT ?? '4890', 10);
+const HOST = resolveListenHost();
 
 function shutdown() {
   stopWatchingForShutdown();
@@ -56,11 +58,17 @@ function shutdown() {
 process.once('SIGINT', shutdown);
 process.once('SIGTERM', shutdown);
 
-console.log(`[agendex] http://localhost:${PORT}`);
-console.log(`[agendex] token: ${token}`);
-
-Bun.serve({
+const server = Bun.serve({
+  hostname: HOST,
   port: PORT,
   fetch: app.fetch,
   websocket,
 });
+
+console.log(`[agendex] listening on ${server.url.href}`);
+// A newly generated token is printed once by loadOrCreateToken; never echo it on every start.
+console.log(
+  process.env.AGENDEX_TOKEN
+    ? '[agendex] auth token: from AGENDEX_TOKEN'
+    : `[agendex] auth token: saved as "token" in ${getConfigPath()}`,
+);

@@ -3,6 +3,7 @@ import { FilePlanCountsContext, useFilePlanCounts } from './FilePlanLookupContex
 import {
   type CSSProperties,
   type FormEvent,
+  memo,
   type ReactNode,
   Suspense,
   useCallback,
@@ -293,6 +294,34 @@ type PlanViewerProps = {
   sessionCostLoading?: boolean;
 };
 
+/**
+ * The markdown pipeline (parse, sanitize, slug, render) is the viewer's most expensive work, so
+ * it only re-runs when the content or the path contexts it reads actually change.
+ */
+const PlanMarkdownBody = memo(function PlanMarkdownBody({
+  content,
+  filePlanCounts,
+  planPaths,
+}: {
+  content: string;
+  filePlanCounts: ReturnType<typeof useFilePlanCounts>;
+  planPaths: ReturnType<typeof useValidatedPlanPaths>;
+}) {
+  return (
+    <FilePlanCountsContext.Provider value={filePlanCounts}>
+      <PlanPathContext.Provider value={planPaths}>
+        <Markdown
+          remarkPlugins={planMarkdownRemarkPlugins}
+          rehypePlugins={planMarkdownRehypePlugins}
+          components={planMarkdownComponents}
+        >
+          {content}
+        </Markdown>
+      </PlanPathContext.Provider>
+    </FilePlanCountsContext.Provider>
+  );
+});
+
 export function PlanViewer({
   plan,
   allPlans,
@@ -575,7 +604,7 @@ export function PlanViewer({
       const toolbarRect = actionToolbarRef.current?.getBoundingClientRect();
       const toolbarWidth = toolbarRect?.width ?? 38;
       const scrollParentRect =
-        scrollParent === window ? null : scrollParent.getBoundingClientRect();
+        scrollParent instanceof HTMLElement ? scrollParent.getBoundingClientRect() : null;
       const viewportTop = scrollParentRect?.top ?? 0;
       const viewportLeft = scrollParentRect?.left ?? 0;
       const shouldDock = !isSplit && frameRect.top < viewportTop - 118;
@@ -1079,17 +1108,11 @@ export function PlanViewer({
               onKeyUp={updateSelectionToolbar}
             >
               <div id="plan-top" aria-hidden="true" />
-              <FilePlanCountsContext.Provider value={filePlanCounts}>
-                <PlanPathContext.Provider value={planPaths}>
-                  <Markdown
-                    remarkPlugins={planMarkdownRemarkPlugins}
-                    rehypePlugins={planMarkdownRehypePlugins}
-                    components={planMarkdownComponents}
-                  >
-                    {renderContent}
-                  </Markdown>
-                </PlanPathContext.Provider>
-              </FilePlanCountsContext.Provider>
+              <PlanMarkdownBody
+                content={renderContent}
+                filePlanCounts={filePlanCounts}
+                planPaths={planPaths}
+              />
             </article>
           ) : (
             <>

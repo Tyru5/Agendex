@@ -13,7 +13,7 @@ import {
   validateAvatarStorageClaim,
 } from './avatarUploadPolicy';
 import { authComponent } from './auth';
-import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
+import { findSharedPlanAccess, shareAccessProofValidator } from './shareAccess';
 import { hasAnyStorageReference, inspectStorageReferences } from './storageReferences';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2MB
@@ -142,15 +142,15 @@ export const listMyAgentAvatars = query({
 export const listAgentAvatarsForShare = query({
   args: {
     token: v.string(),
-    accessProof: v.optional(shareAccessProofIdValidator),
+    accessProof: v.optional(shareAccessProofValidator),
   },
   returns: v.record(v.string(), v.string()),
   handler: async (ctx, args) => {
-    const access = await resolveSharedPlanAccess(ctx, {
+    const access = await findSharedPlanAccess(ctx, {
       token: args.token,
       ...(args.accessProof ? { accessProof: args.accessProof } : {}),
     });
-    if (access.kind === 'password_required') {
+    if (access.kind !== 'authorized') {
       return {};
     }
     return await buildAvatarUrlMap(ctx, access.plan.ownerId);

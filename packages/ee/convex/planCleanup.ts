@@ -167,7 +167,7 @@ export const cleanupLowValuePlans = internalMutation({
       addToSummary(summary, plan, report);
       if (!report.lowValue) continue;
 
-      await deletePlanRelatedData(ctx, { planId: plan._id, ownerId: plan.ownerId });
+      await deletePlanRelatedData(ctx, { planId: plan._id });
       await ctx.db.delete(plan._id);
       deleted++;
     }
@@ -739,7 +739,7 @@ export const cleanupCodexSubagentPlans = internalMutation({
     for (const { plan, reasons } of toDelete.values()) {
       if (keepPlanId && String(plan._id) === keepPlanId) continue;
       addCodexSubagentExample(summary, plan, reasons);
-      await deletePlanRelatedData(ctx, { planId: plan._id, ownerId: plan.ownerId });
+      await deletePlanRelatedData(ctx, { planId: plan._id });
       await ctx.db.delete(plan._id);
       deleted++;
       if (deleted >= 3) break;

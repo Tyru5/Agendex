@@ -19,7 +19,11 @@ import {
   promptForPlanDownload,
   sanitizeTerminalText,
 } from './download-prompt.ts';
-import { resolveDownloadFormat, writeDownloadedPlan } from './download-write.ts';
+import {
+  resolveDownloadFormat,
+  type WriteDownloadedPlanDeps,
+  writeDownloadedPlan,
+} from './download-write.ts';
 
 export { isUsableLaunchPath } from './download-write.ts';
 
@@ -33,7 +37,7 @@ export interface DownloadDeps {
   writeStdout: (content: string) => void;
   writeFile: (path: string, content: string) => Promise<void>;
   mkdir: (path: string) => Promise<void>;
-  stat: typeof stat;
+  stat: WriteDownloadedPlanDeps['stat'];
   canPrompt: () => boolean;
   promptSelect: (matches: CloudPlanDownloadMatch[], message: string) => Promise<string | null>;
   now: () => number;

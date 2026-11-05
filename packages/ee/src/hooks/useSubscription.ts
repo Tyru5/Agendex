@@ -29,45 +29,14 @@ type UseSubscriptionOptions = {
 export function useSubscription(options: UseSubscriptionOptions = {}) {
   const enabled = options.enabled ?? true;
 
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const subscription = useQuery(
-    // Convex component API not in generated types
-    // oxlint-disable-next-line typescript/no-explicit-any
-    (api as any).subscriptions.getMySubscriptionQuery,
-    enabled ? {} : 'skip',
-  );
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const isProUser = useQuery(
-    // Convex component API not in generated types
-    // oxlint-disable-next-line typescript/no-explicit-any
-    (api as any).subscriptions.isProUser,
-    enabled ? {} : 'skip',
-  );
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const onboardingDone = useQuery(
-    // Convex component API not in generated types
-    // oxlint-disable-next-line typescript/no-explicit-any
-    (api as any).subscriptions.hasCompletedOnboarding,
-    enabled ? {} : 'skip',
-  );
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const createCheckout = useAction((api as any).subscriptions.createCheckoutSession);
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const createPortal = useAction((api as any).subscriptions.createPortalSession);
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const reactivate = useAction((api as any).subscriptions.reactivateSubscription);
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const startTrialFn = useAction((api as any).subscriptions.startTrialAction);
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const skipTrialFn = useAction((api as any).subscriptions.skipTrialAction);
+  const subscription = useQuery(api.subscriptions.getMySubscriptionQuery, enabled ? {} : 'skip');
+  const isProUser = useQuery(api.subscriptions.isProUser, enabled ? {} : 'skip');
+  const onboardingDone = useQuery(api.subscriptions.hasCompletedOnboarding, enabled ? {} : 'skip');
+  const createCheckout = useAction(api.subscriptions.createCheckoutSession);
+  const createPortal = useAction(api.subscriptions.createPortalSession);
+  const reactivate = useAction(api.subscriptions.reactivateSubscription);
+  const startTrialFn = useAction(api.subscriptions.startTrialAction);
+  const skipTrialFn = useAction(api.subscriptions.skipTrialAction);
 
   const sub = subscription as Subscription | null | undefined;
   const isTrialing = sub?.status === 'trialing' && (sub?.currentPeriodEnd ?? 0) > Date.now();

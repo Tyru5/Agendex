@@ -3,6 +3,7 @@ import { basename, join, resolve, sep } from 'node:path';
 import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
+import { noPlansIfMissing } from './adapter-utils.ts';
 
 function plansDir(): string {
   const configDir = process.env.CLAUDE_CONFIG_DIR?.trim();
@@ -116,8 +117,8 @@ export const claudeCodeAdapter: AgentAdapter = {
           metadata: extractMetadata(content, filePath),
         },
       ];
-    } catch {
-      return [];
+    } catch (err) {
+      return noPlansIfMissing(err, []);
     }
   },
 

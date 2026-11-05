@@ -122,7 +122,7 @@ test('creates omp plans at a path that remains discoverable after a full scan', 
 
   const created = await create('omp', 'Persist this plan', '- [ ] Keep it indexed');
   expect(ompAdapter.matches(created.filePath)).toBe(true);
-  expect(created.filePath).toEndWith('local/persist-this-plan.md');
+  expect(created.filePath.endsWith('local/persist-this-plan.md')).toBe(true);
 
   await scan();
   expect(getById(created.id)?.title).toBe('Persist this plan');

@@ -36,6 +36,17 @@ export function requireOwnedDocuments<T extends { ownerId: string }>(
   return ownedDocuments;
 }
 
+export function requireOwnedDocument<T extends { ownerId: string }>(
+  document: T | null,
+  ownerId: string,
+  resourceName: 'Plan' | 'Tag',
+): T {
+  if (!document || document.ownerId !== ownerId) {
+    throw new ConvexError(`${resourceName} not found`);
+  }
+  return document;
+}
+
 export const getTagsForPlans = query({
   args: { planIds: v.array(v.id('plans')) },
   returns: v.record(v.id('plans'), v.array(tagValidator)),
@@ -112,7 +123,7 @@ export const addTag = mutation({
       ctx.db.get(args.planId),
       ctx.db.get(args.tagId),
     ]);
-    const plan = requireOwnedDocuments([planDocument], user._id, 'Plan')[0];
+    const plan = requireOwnedDocument(planDocument, user._id, 'Plan');
     requireOwnedDocuments([tagDocument], plan.ownerId, 'Tag');
 
     const existing = await ctx.db
@@ -149,7 +160,7 @@ export const removeTag = mutation({
 
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
 
-    const plan = requireOwnedDocuments([await ctx.db.get(args.planId)], user._id, 'Plan')[0];
+    const plan = requireOwnedDocument(await ctx.db.get(args.planId), user._id, 'Plan');
     requireOwnedDocuments([await ctx.db.get(args.tagId)], plan.ownerId, 'Tag');
 
     const row = await ctx.db
@@ -176,7 +187,7 @@ export const setTagsForPlan = mutation({
     await requireFeature(ctx, ProFeature.TAGS_COLLECTIONS);
 
     const tagIds = normalizeBoundedIds(args.tagIds, MAX_TAGS_PER_PLAN, 'tags for a plan');
-    const plan = requireOwnedDocuments([await ctx.db.get(args.planId)], user._id, 'Plan')[0];
+    const plan = requireOwnedDocument(await ctx.db.get(args.planId), user._id, 'Plan');
     requireOwnedDocuments(
       await Promise.all(tagIds.map((tagId) => ctx.db.get(tagId))),
       plan.ownerId,

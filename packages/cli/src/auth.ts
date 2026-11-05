@@ -1,6 +1,9 @@
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { CURRENT_CONFIG_VERSION, isDevMode, loadConfig, updateConfig } from '@agendex/shared';
+import { normalizeConvexSiteUrl } from '@agendex/shared/convex-url';
+import { validateDesktopAuthCallbackState } from '@agendex/shared/desktop-auth-callback';
 import { refreshToken } from './api.ts';
 
 const PROD_SITE_URL = 'https://app.agendex.dev';
@@ -36,10 +39,14 @@ export function launchBrowser(url: string, label: string): void {
 }
 
 export async function login(siteUrlOverride?: string): Promise<void> {
-  const { port, result } = await startCallbackServer();
-  const callbackUrl = `http://127.0.0.1:${port}/callback`;
+  // The nonce rides inside the callback URL: the web /auth/cli page keeps the
+  // callback's existing query params and only adds token/convexUrl, so a local
+  // request that doesn't echo it back can't complete (or forge) this login.
+  const state = randomBytes(32).toString('base64url');
   const existing = loadConfig();
   const siteUrl = siteUrlOverride ?? existing?.siteUrl ?? getDefaultSiteUrl();
+  const { port, result } = await startCallbackServer({ state, siteUrl });
+  const callbackUrl = `http://127.0.0.1:${port}/callback?state=${encodeURIComponent(state)}`;
 
   const authUrl = `${siteUrl}/auth/cli?callback=${encodeURIComponent(callbackUrl)}`;
 
@@ -84,12 +91,72 @@ export function logout(): void {
   console.log('[agendex] Logged out. Cloud token removed.');
 }
 
-interface CallbackResult {
+export interface CallbackResult {
   token: string;
   convexUrl: string;
 }
 
-async function startCallbackServer(): Promise<{ port: number; result: Promise<CallbackResult> }> {
+export interface CallbackServerOptions {
+  /** Nonce the callback must echo back as `state`. */
+  state: string;
+  /** Web app the user chose to log in to; a Convex URL on its origin is trusted too. */
+  siteUrl?: string;
+  timeoutMs?: number;
+}
+
+function originOf(value: string): string | null {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Convex site URLs the CLI will persist: hosted (`https://*.convex.site`), the
+ * local dev backend, or the same origin as the chosen site URL (self-hosted).
+ */
+function trustedConvexUrl(rawConvexUrl: string, siteUrl: string | undefined): string | null {
+  const normalized = normalizeConvexSiteUrl(rawConvexUrl);
+  if (normalized) return normalized;
+  const origin = originOf(rawConvexUrl);
+  const siteOrigin = siteUrl ? originOf(siteUrl) : null;
+  return origin && origin !== 'null' && origin === siteOrigin ? origin : null;
+}
+
+/** Validates a login callback request: exact state match and a trusted Convex site URL. */
+export function parseLoginCallback(
+  searchParams: URLSearchParams,
+  expectedState: string,
+  siteUrl?: string,
+): CallbackResult | Error {
+  const stateResult = validateDesktopAuthCallbackState(searchParams.get('state'), {
+    state: expectedState,
+  });
+  if (!stateResult.ok) {
+    return new Error(
+      stateResult.error.code === 'missing-state'
+        ? 'Login callback is missing its state parameter; ignoring it. Run `agendex login` again.'
+        : 'Login callback state does not match this login attempt. Run `agendex login` again.',
+    );
+  }
+
+  const token = searchParams.get('token');
+  const rawConvexUrl = searchParams.get('convexUrl');
+  if (!token || !rawConvexUrl) return new Error('Missing token or convexUrl in callback');
+
+  const convexUrl = trustedConvexUrl(rawConvexUrl, siteUrl);
+  if (!convexUrl) {
+    return new Error(
+      `Login callback supplied an untrusted Convex URL (${rawConvexUrl}); expected an https://*.convex.site URL, the local http://127.0.0.1:3211 backend, or the site URL's own origin.`,
+    );
+  }
+  return { token, convexUrl };
+}
+
+export async function startCallbackServer(
+  options: CallbackServerOptions,
+): Promise<{ port: number; result: Promise<CallbackResult> }> {
   const server = createServer();
   const sockets = new Set<import('node:net').Socket>();
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -130,21 +197,25 @@ async function startCallbackServer(): Promise<{ port: number; result: Promise<Ca
       return;
     }
 
-    const token = requestUrl.searchParams.get('token');
-    const convexUrl = requestUrl.searchParams.get('convexUrl');
-    const success = Boolean(token && convexUrl);
+    const callbackValue = parseLoginCallback(
+      requestUrl.searchParams,
+      options.state,
+      options.siteUrl,
+    );
+    const success = !(callbackValue instanceof Error);
 
     res.writeHead(success ? 200 : 400, {
       Connection: 'close',
       'Content-Type': 'text/html; charset=utf-8',
     });
     res.end(callbackPage(success));
-    const callbackValue = success
-      ? {
-          token: token ?? '',
-          convexUrl: convexUrl ?? '',
-        }
-      : new Error('Missing token or convexUrl in callback');
+
+    // A request without this attempt's state didn't come from our login page:
+    // reject it but keep waiting, so a stray or forged request can't abort the login.
+    const stateMatches = validateDesktopAuthCallbackState(requestUrl.searchParams.get('state'), {
+      state: options.state,
+    }).ok;
+    if (!stateMatches) return;
 
     res.once('finish', () => {
       finish(callbackValue);
@@ -174,7 +245,7 @@ async function startCallbackServer(): Promise<{ port: number; result: Promise<Ca
     () => {
       finish(new Error('Login timed out after 5 minutes'));
     },
-    5 * 60 * 1000,
+    options.timeoutMs ?? 5 * 60 * 1000,
   );
 
   const address = server.address();

@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
+import type { Stats } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
+import { noPlansIfMissing } from './adapter-utils.ts';
 
 export interface StructuredPlanCandidate {
   key: string;
@@ -49,35 +51,38 @@ export function createStructuredSessionAdapter(
 
     async parse(filePath: string): Promise<Plan[]> {
       if (!options.matches(filePath)) return [];
+      const sourcePath = options.resolveSourcePath?.(filePath) ?? filePath;
+      let stats: Stats;
       try {
-        const sourcePath = options.resolveSourcePath?.(filePath) ?? filePath;
-        const [stats, candidates] = await Promise.all([
-          stat(sourcePath),
-          options.decode(sourcePath),
-        ]);
-        return candidates
-          .filter((candidate) => candidate.content.trim())
-          .map((candidate) => ({
-            id: hashPath(`${sourcePath}#${candidate.key}`),
-            agent: options.agent,
-            title: candidate.title,
-            content: candidate.content.trim(),
-            filePath: sourcePath,
-            format: options.format,
-            createdAt: candidate.createdAt ?? stats.birthtime,
-            updatedAt: candidate.updatedAt ?? stats.mtime,
-            workspace: candidate.workspace,
-            metadata: {
-              source: 'structured-session',
-              sourcePaths: [sourcePath],
-              evidence: 'explicit-plan-state',
-              revision: createHash('sha256').update(candidate.content.trim()).digest('hex'),
-              ...candidate.metadata,
-            },
-          }));
-      } catch {
-        return [];
+        // Stat first: a deleted source has no plans, whereas a decode failure on
+        // a present source (locked database, half-written JSON) must propagate.
+        stats = await stat(sourcePath);
+      } catch (err) {
+        return noPlansIfMissing(err, []);
       }
+      const candidates = await options
+        .decode(sourcePath)
+        .catch((err: unknown) => noPlansIfMissing(err, []));
+      return candidates
+        .filter((candidate) => candidate.content.trim())
+        .map((candidate) => ({
+          id: hashPath(`${sourcePath}#${candidate.key}`),
+          agent: options.agent,
+          title: candidate.title,
+          content: candidate.content.trim(),
+          filePath: sourcePath,
+          format: options.format,
+          createdAt: candidate.createdAt ?? stats.birthtime,
+          updatedAt: candidate.updatedAt ?? stats.mtime,
+          workspace: candidate.workspace,
+          metadata: {
+            source: 'structured-session',
+            sourcePaths: [sourcePath],
+            evidence: 'explicit-plan-state',
+            revision: createHash('sha256').update(candidate.content.trim()).digest('hex'),
+            ...candidate.metadata,
+          },
+        }));
     },
 
     async write(): Promise<boolean> {

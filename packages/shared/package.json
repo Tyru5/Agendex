@@ -28,7 +28,7 @@
     "proper-lockfile": "^4.1.2"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.9",
+    "@types/bun": "^1.4.4",
     "@types/proper-lockfile": "^4.1.4"
   }
 }

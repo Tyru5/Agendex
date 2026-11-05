@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type AgentStats, api, type Plan } from '../lib/api.ts';
+import { createOrderedRefresh } from '../lib/ordered-refresh.ts';
 import { seedSeen } from './useSeenPlans.ts';
 import { useSocketEvent } from './useSocket.ts';
 
@@ -26,6 +27,22 @@ export function usePlans(
   const [error, setError] = useState<string | null>(null);
   const initialLoadDone = useRef(false);
   const { agent, q, sort } = filters;
+  const loadRef = useRef<() => ReturnType<typeof api.getPlans>>(() => api.getPlans({}));
+  // One queue for the hook's lifetime: a slow response for stale filters must not
+  // overwrite the list fetched for the current ones.
+  const [orderedLoad] = useState(() =>
+    createOrderedRefresh(
+      () => loadRef.current(),
+      (res) => {
+        seedSeen(res.plans);
+        setPlans(res.plans);
+      },
+      (e) => {
+        console.error('failed to fetch plans', e);
+        setError(e instanceof Error ? e.message : 'unknown error');
+      },
+    ),
+  );
 
   const refreshPlans = useCallback(
     async (reason: PlanRefreshReason) => {
@@ -34,13 +51,9 @@ export function usePlans(
       if (presentation.refreshing) setRefreshing(true);
       if (presentation.loading) setLoading(true);
       setError(null);
+      loadRef.current = () => api.getPlans({ agent, q, sort });
       try {
-        const res = await api.getPlans({ agent, q, sort });
-        seedSeen(res.plans);
-        setPlans(res.plans);
-      } catch (e) {
-        console.error('failed to fetch plans', e);
-        setError(e instanceof Error ? e.message : 'unknown error');
+        await orderedLoad.refresh();
       } finally {
         if (presentation.refreshing) setRefreshing(false);
         if (presentation.loading) {
@@ -49,7 +62,7 @@ export function usePlans(
         }
       }
     },
-    [agent, enabled, q, sort],
+    [agent, enabled, orderedLoad, q, sort],
   );
 
   const refresh = useCallback(() => refreshPlans('manual'), [refreshPlans]);
@@ -72,13 +85,28 @@ export function usePlans(
   return { plans, loading, refreshing, error, refresh };
 }
 
-export function useAgents(enabled = true, realtime = true) {
+/** Agent stats plus the last fetch error, so callers can surface failures. */
+export function useAgentStats(enabled = true, realtime = true) {
   const [agents, setAgents] = useState<AgentStats[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [orderedLoad] = useState(() =>
+    createOrderedRefresh(
+      () => api.getAgents(),
+      (next) => {
+        setAgents(next);
+        setError(null);
+      },
+      (e) => {
+        console.error('failed to fetch agents', e);
+        setError(e instanceof Error ? e.message : 'unknown error');
+      },
+    ),
+  );
 
   const refresh = useCallback(() => {
     if (!enabled) return;
-    api.getAgents().then(setAgents).catch(console.error);
-  }, [enabled]);
+    void orderedLoad.refresh();
+  }, [enabled, orderedLoad]);
 
   useEffect(() => {
     if (enabled) refresh();
@@ -92,5 +120,9 @@ export function useAgents(enabled = true, realtime = true) {
   useSocketEvent('plan:updated', refresh, enabled && realtime);
   useSocketEvent('connection', refresh, enabled && realtime);
 
-  return agents;
+  return { agents, error, refresh };
+}
+
+export function useAgents(enabled = true, realtime = true) {
+  return useAgentStats(enabled, realtime).agents;
 }
