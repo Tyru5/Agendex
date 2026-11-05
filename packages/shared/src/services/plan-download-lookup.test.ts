@@ -114,11 +114,11 @@ test('selectPlanDownloadMatches prefers an exact id or localPlanId', () => {
 
   expect(selectPlanDownloadMatches(plans, 'cloud-1')).toEqual({
     kind: 'one',
-    plan: plans[0],
+    plan: plans[0]!,
   });
   expect(selectPlanDownloadMatches(plans, 'local-1')).toEqual({
     kind: 'one',
-    plan: plans[0],
+    plan: plans[0]!,
   });
   expect(selectPlanDownloadMatches(plans, 'cloud-1', 'cursor')).toEqual({ kind: 'none' });
   expect(selectPlanDownloadMatches(plans, 'local-1', 'cursor')).toEqual({ kind: 'none' });
@@ -160,7 +160,7 @@ test('planBrowseDedupeKeys exposes every identity a row answers to', () => {
   const keys = planBrowseDedupeKeys(synced);
   expect(keys).toHaveLength(2);
   expect(keys[0]).toBe('sync:sync-1');
-  expect(keys[1]).toStartWith('exact:');
+  expect(keys[1]?.startsWith('exact:')).toBe(true);
 
   const unsynced = plan({ id: 'p2', title: 'Add auth', contentHash: 'hash-1' });
   const unsyncedKeys = planBrowseDedupeKeys(unsynced);
@@ -187,9 +187,9 @@ test('dedupePlanBrowseCandidates keeps identity keys from discarded duplicates',
   const result = dedupePlanBrowseCandidates([winner, loser]);
   expect(result).toHaveLength(1);
   expect(result[0]?.plan).toEqual(winner);
-  expect(result[0]?.dedupeKeys).toEqual(
-    expect.arrayContaining([...planBrowseDedupeKeys(winner), ...planBrowseDedupeKeys(loser)]),
-  );
+  for (const key of [...planBrowseDedupeKeys(winner), ...planBrowseDedupeKeys(loser)]) {
+    expect(result[0]?.dedupeKeys).toContain(key);
+  }
 });
 
 test('dedupePlanBrowseCandidates can source keys from rows removed by filtering', () => {
@@ -210,7 +210,7 @@ test('dedupePlanBrowseCandidates can source keys from rows removed by filtering'
   const result = dedupePlanBrowseCandidates([kept], [kept, filteredOut]);
   expect(result).toHaveLength(1);
   expect(result[0]?.plan).toEqual(kept);
-  expect(result[0]?.dedupeKeys).toEqual(expect.arrayContaining(planBrowseDedupeKeys(filteredOut)));
+  for (const key of planBrowseDedupeKeys(filteredOut)) expect(result[0]?.dedupeKeys).toContain(key);
 });
 
 test('isExactPlanDownloadIdHit is only true for id or localPlanId', () => {
@@ -228,7 +228,7 @@ test('selectPlanDownloadMatches finds an ID-shaped title substring', () => {
   const plans = [plan({ id: '1', title: 'ImplementAuthenticationFlow' })];
   expect(selectPlanDownloadMatches(plans, 'AuthenticationFlow')).toEqual({
     kind: 'one',
-    plan: plans[0],
+    plan: plans[0]!,
   });
 });
 
@@ -237,7 +237,7 @@ test('selectPlanDownloadMatches finds a unique title case-insensitively', () => 
 
   expect(selectPlanDownloadMatches(plans, 'add auth flow')).toEqual({
     kind: 'one',
-    plan: plans[0],
+    plan: plans[0]!,
   });
 });
 
@@ -249,11 +249,11 @@ test('selectPlanDownloadMatches uses a unique prefix or substring', () => {
 
   expect(selectPlanDownloadMatches(plans, 'Download')).toEqual({
     kind: 'one',
-    plan: plans[0],
+    plan: plans[0]!,
   });
   expect(selectPlanDownloadMatches(plans, 'cloud plans')).toEqual({
     kind: 'one',
-    plan: plans[0],
+    plan: plans[0]!,
   });
 });
 
@@ -265,11 +265,11 @@ test('selectPlanDownloadMatches uses agent to disambiguate the same title', () =
 
   expect(selectPlanDownloadMatches(plans, 'Add auth')).toEqual({
     kind: 'many',
-    plans: [plans[1], plans[0]],
+    plans: [plans[1]!, plans[0]!],
   });
   expect(selectPlanDownloadMatches(plans, 'Add auth', 'codex')).toEqual({
     kind: 'one',
-    plan: plans[1],
+    plan: plans[1]!,
   });
 });
 

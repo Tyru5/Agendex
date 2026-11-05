@@ -333,6 +333,17 @@ export async function runWorker(options: RunWorkerOptions = {}): Promise<void> {
             retryQueue.length = 0;
             break;
           }
+          if (result.status === 413) {
+            // Too large for the cloud: retrying the same content can never succeed.
+            // Remember its hash so only a changed version is queued again.
+            syncCache[payload.localPlanId] = computePayloadHash(payload);
+            retryAttemptByPlanId.delete(payload.localPlanId);
+            failedCount++;
+            console.error(
+              `[agendex] skipped "${payload.title}": too large to sync (${result.error})`,
+            );
+            continue;
+          }
           failedCount++;
           failedPayloads.push(payload);
           console.error(`[agendex] sync failed for "${payload.title}": ${result.error}`);

@@ -110,19 +110,9 @@ interface TeamTabProps {
 export function TeamTab({ isActive }: TeamTabProps) {
   const [showInvite, setShowInvite] = useState(false);
 
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const workspace = useQuery(
-    // oxlint-disable-next-line typescript/no-explicit-any
-    (api as any).workspaceMembers.listWorkspaceMembers,
-    isActive ? {} : 'skip',
-  );
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const removeMember = useMutation((api as any).workspaceMembers.removeWorkspaceMember);
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const revokeInvite = useMutation((api as any).workspaceMembers.revokeWorkspaceInvite);
+  const workspace = useQuery(api.workspaceMembers.listWorkspaceMembers, isActive ? {} : 'skip');
+  const removeMember = useMutation(api.workspaceMembers.removeWorkspaceMember);
+  const revokeInvite = useMutation(api.workspaceMembers.revokeWorkspaceInvite);
 
   if (!isActive) {
     return (

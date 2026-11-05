@@ -15,10 +15,17 @@ export function shouldOpenWindowExternally(url: string): boolean {
   return Boolean(parsed && isHttpUrl(parsed));
 }
 
-export function shouldOpenNavigationExternally(appUrl: string, navigationUrl: string): boolean {
-  const app = parseUrl(appUrl);
+export type NavigationAction = 'allow' | 'open-externally' | 'block';
+
+/**
+ * Decides what to do with a main-window navigation or redirect: stay in the app
+ * only for same-origin http(s) URLs, hand other http(s) URLs to the system
+ * browser, and block everything else (file:, javascript:, data:, custom schemes).
+ */
+export function resolveNavigationAction(appUrl: string, navigationUrl: string): NavigationAction {
   const next = parseUrl(navigationUrl);
-  if (!next || !isHttpUrl(next)) return false;
-  if (!app || !isHttpUrl(app)) return true;
-  return next.origin !== app.origin;
+  if (!next || !isHttpUrl(next)) return 'block';
+  const app = parseUrl(appUrl);
+  if (app && isHttpUrl(app) && next.origin === app.origin) return 'allow';
+  return 'open-externally';
 }

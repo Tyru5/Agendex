@@ -1,4 +1,3 @@
-import { electronAPI } from '@electron-toolkit/preload';
 import { contextBridge, ipcRenderer, webFrame } from 'electron';
 
 interface Bootstrap {
@@ -253,16 +252,17 @@ const agendexDesktop = {
   },
 };
 
+// Only the purpose-built bridge is exposed: a generic ipcRenderer passthrough
+// (window.electron) would let any page script call every IPC channel.
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI);
     contextBridge.exposeInMainWorld('agendexDesktop', agendexDesktop);
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     console.error(error);
   }
 } else {
-  Object.assign(window, { electron: electronAPI, agendexDesktop });
+  Object.assign(window, { agendexDesktop });
 }
 
 injectDesktopPrefs();

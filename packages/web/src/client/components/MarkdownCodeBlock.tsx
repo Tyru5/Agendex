@@ -1,6 +1,9 @@
 import type { LanguageFn } from 'highlight.js';
 import hljs from 'highlight.js/lib/core';
 import { useEffect, useMemo, useState } from 'react';
+// highlight.js's `exports` map hides SUPPORTED_LANGUAGES.md and Vite globs cannot take bare
+// specifiers, so both reach the package through this package's own `node_modules/highlight.js`
+// link (always present: highlight.js is a direct dependency of @agendex/web).
 import supportedLanguagesTable from '../../../node_modules/highlight.js/SUPPORTED_LANGUAGES.md?raw';
 import { MermaidDiagram } from './MermaidDiagram.tsx';
 

@@ -3,6 +3,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
+import { noPlansIfMissing } from './adapter-utils.ts';
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -119,8 +120,8 @@ export function createMarkdownArtifactAdapter(
             },
           },
         ];
-      } catch {
-        return [];
+      } catch (err) {
+        return noPlansIfMissing(err, []);
       }
     },
 
@@ -180,8 +181,9 @@ export function createMarkdownBundleAdapter(options: MarkdownBundleAdapterOption
             });
             loadedDocument = true;
             break;
-          } catch {
-            // Optional bundle members may not exist yet.
+          } catch (err) {
+            // Optional bundle members may not exist yet; other read failures propagate.
+            noPlansIfMissing(err, undefined);
           }
         }
         if (!loadedDocument) continue;

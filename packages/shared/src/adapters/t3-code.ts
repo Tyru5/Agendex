@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { getHomeDir } from '../home-dir.ts';
+import { type SqliteQuery, withReadonlySqlite } from './adapter-utils.ts';
 import {
   createStructuredSessionAdapter,
   type StructuredPlanCandidate,
@@ -52,7 +53,7 @@ interface SessionRow {
   provider_name: string | null;
 }
 
-type Query = <Row>(sql: string) => Row[];
+type Query = SqliteQuery;
 
 export function getT3CodeBaseDir(): string {
   const envHome = process.env.T3CODE_HOME?.trim();
@@ -170,11 +171,17 @@ function firstSuccessful<Row>(query: Query, statements: readonly string[]): Row[
   for (const sql of statements) {
     try {
       return query<Row>(sql);
-    } catch {
-      // Try the next, more conservative shape.
+    } catch (err) {
+      // Only a schema mismatch means "try the next, more conservative shape";
+      // a busy or corrupt database must fail the read so existing plans stay.
+      if (!isSchemaMismatch(err)) throw err;
     }
   }
   return undefined;
+}
+
+function isSchemaMismatch(err: unknown): boolean {
+  return err instanceof Error && /no such (?:table|column)/i.test(err.message);
 }
 
 interface Snapshot {
@@ -201,27 +208,8 @@ function readSnapshot(query: Query): Snapshot | undefined {
   };
 }
 
-async function openAndRead(filePath: string): Promise<Snapshot | undefined> {
-  if (typeof Bun !== 'undefined') {
-    const { Database } = await import('bun:sqlite');
-    const database = new Database(filePath, { readonly: true, create: false });
-    try {
-      return readSnapshot(<Row>(sql: string) => database.query(sql).all() as Row[]);
-    } finally {
-      database.close();
-    }
-  }
-  const { default: Database } = await import('better-sqlite3');
-  const database = new Database(filePath, { readonly: true, fileMustExist: true });
-  try {
-    return readSnapshot(<Row>(sql: string) => database.prepare(sql).all() as Row[]);
-  } finally {
-    database.close();
-  }
-}
-
 async function decodeT3CodeDatabase(filePath: string): Promise<StructuredPlanCandidate[]> {
-  const snapshot = await openAndRead(filePath);
+  const snapshot = await withReadonlySqlite(filePath, readSnapshot);
   if (!snapshot) return [];
   const candidates: StructuredPlanCandidate[] = [];
 

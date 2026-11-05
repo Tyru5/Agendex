@@ -531,7 +531,7 @@ test('detects WSL from /proc/version when the shell lacks WSL env vars', () => {
   expect(isWslEnvironment('win32', { WSL_DISTRO_NAME: 'Ubuntu' }, () => wslKernel)).toBe(false);
   expect(isWslEnvironment('darwin', {}, () => wslKernel)).toBe(false);
 
-  let probedDir: string | null = null;
+  let probedDir = null as string | null;
   expect(
     readWindowsDesktopDaemonInfoFromWsl({
       platform: 'linux',

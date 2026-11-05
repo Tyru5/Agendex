@@ -88,14 +88,31 @@ type UpgradeCommandResult =
   | { supported: true; command: UpgradeCommand }
   | { supported: false; reason: string; manualCommand: string };
 
-function executableName(bin: string): string {
-  if (process.platform !== 'win32') return bin;
-  return bin === 'npm' || bin === 'pnpm' || bin === 'yarn' ? `${bin}.cmd` : bin;
+// Plain npm-style versions only: on Windows the spec reaches a cmd.exe command line.
+const SAFE_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+/**
+ * How to spawn a package-manager binary. On Windows npm/pnpm/yarn are `.cmd`
+ * shims, which Node (>=18.20.2 / >=20.12.2, CVE-2024-27980) refuses to spawn
+ * without a shell (EINVAL). Running them through the shell is safe here because
+ * every argument is a fixed literal or a version checked against
+ * SAFE_VERSION_PATTERN, so none contain spaces or cmd.exe metacharacters.
+ */
+export function resolveSpawnCommand(
+  bin: string,
+  platform: NodeJS.Platform = process.platform,
+): { command: string; shell: boolean } {
+  if (platform === 'win32' && (bin === 'npm' || bin === 'pnpm' || bin === 'yarn')) {
+    return { command: `${bin}.cmd`, shell: true };
+  }
+  return { command: bin, shell: false };
 }
 
 function readYarnVersion(): string | null {
-  const result = spawnSync(executableName('yarn'), ['--version'], {
+  const { command, shell } = resolveSpawnCommand('yarn');
+  const result = spawnSync(command, ['--version'], {
     encoding: 'utf8',
+    shell,
   });
   if (result.error || result.status !== 0) return null;
   return result.stdout.trim() || null;
@@ -108,18 +125,23 @@ function parseMajorVersion(version: string): number | null {
   return Number.isFinite(major) ? major : null;
 }
 
+/**
+ * `version` pins the install: the JSR version for Deno, the npm version otherwise
+ * (falls back to `@latest` when unknown or not a plain semver string).
+ */
 export function buildGlobalInstallCommand(
   pm: PackageManager,
-  jsrVersion?: string,
+  version?: string,
 ): UpgradeCommandResult {
-  const pkgSpec = `${PACKAGE_NAME}@latest`;
+  const npmVersion = version && SAFE_VERSION_PATTERN.test(version) ? version : 'latest';
+  const pkgSpec = `${PACKAGE_NAME}@${npmVersion}`;
   switch (pm) {
     case 'deno': {
       // Pinned to JSR's own latest when known (npm's latest can briefly lead
       // JSR); otherwise unpinned with JSR metadata reloaded, not Deno's cache.
       const jsrSpec = `jsr:${JSR_PACKAGE_NAME}`;
-      const args = jsrVersion
-        ? ['install', '-g', '-A', '-f', '-n', 'agendex', `${jsrSpec}@${jsrVersion}`]
+      const args = version
+        ? ['install', '-g', '-A', '-f', '-n', 'agendex', `${jsrSpec}@${version}`]
         : ['install', '-g', '-A', '-f', `--reload=${jsrSpec}`, '-n', 'agendex', jsrSpec];
       return {
         supported: true,
@@ -320,7 +342,7 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
     }
   }
 
-  const commandResult = buildGlobalInstallCommand(pm, jsrVersion);
+  const commandResult = buildGlobalInstallCommand(pm, pm === 'deno' ? jsrVersion : targetVersion);
   if (!commandResult.supported) {
     process.stderr.write(`[agendex] ${commandResult.reason}\n`);
     process.stderr.write(
@@ -338,9 +360,11 @@ export async function runUpgrade(opts: RunUpgradeOptions): Promise<number> {
   process.stdout.write(`[agendex] running: ${cmd.display}\n`);
 
   return new Promise<number>((resolveExit) => {
-    const child = spawn(executableName(cmd.bin), cmd.args, {
+    const { command: spawnCommand, shell } = resolveSpawnCommand(cmd.bin);
+    const child = spawn(spawnCommand, cmd.args, {
       stdio: 'inherit',
       env: process.env,
+      shell,
     });
     let didError = false;
     child.on('error', (err) => {

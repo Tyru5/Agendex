@@ -1,10 +1,7 @@
 import { join } from 'node:path';
 import { is } from '@electron-toolkit/utils';
 import { BrowserWindow, shell } from 'electron';
-import {
-  shouldOpenNavigationExternally,
-  shouldOpenWindowExternally,
-} from './desktop-navigation.ts';
+import { resolveNavigationAction, shouldOpenWindowExternally } from './desktop-navigation.ts';
 import { installDesktopForceReloadShortcut } from './desktop-reload.ts';
 import { installDesktopPageZoomShortcuts } from './desktop-zoom.ts';
 import { loadWithRetry } from './window-loader.ts';
@@ -24,7 +21,8 @@ export function createDesktopWindow(targetUrl: string, onClosed: () => void): Br
     ...(isMac ? { frame: false } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      // The preload only uses sandbox-safe modules (contextBridge, ipcRenderer, webFrame).
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -42,11 +40,15 @@ export function createDesktopWindow(targetUrl: string, onClosed: () => void): Br
     return { action: 'deny' };
   });
 
-  window.webContents.on('will-navigate', (event, url) => {
-    if (!shouldOpenNavigationExternally(targetUrl, url)) return;
+  const guardNavigation = (event: Electron.Event, url: string) => {
+    const action = resolveNavigationAction(targetUrl, url);
+    if (action === 'allow') return;
     event.preventDefault();
-    void shell.openExternal(url);
-  });
+    if (action === 'open-externally') void shell.openExternal(url);
+  };
+  window.webContents.on('will-navigate', guardNavigation);
+  // Server-side redirects skip will-navigate; apply the same policy to them.
+  window.webContents.on('will-redirect', guardNavigation);
 
   // View-menu accelerators are not reliable across platforms and keyboard
   // layouts. Handle the actual key input at the window boundary as a fallback.

@@ -887,6 +887,24 @@
     transform 130ms ease;
 }
 
+/* Off-screen rows skip layout and paint; `auto` remembers each row's last rendered height so
+   scrollbars and scrollIntoView stay accurate. Rows remain focusable and in the a11y tree. */
+.sidebar-content-list .sidebar-plan-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
+}
+
+.plan-context-menu-item {
+  background: transparent;
+}
+
+.plan-context-menu-item:not(:disabled):hover,
+.plan-context-menu-item:focus-visible,
+.plan-context-menu-item:focus {
+  background: var(--hover);
+  outline: none;
+}
+
 .sidebar-plan-row:not(.plan-row--selected):hover {
   background: var(--sidebar-soft-surface) !important;
   border-color: var(--border);
@@ -4143,10 +4161,20 @@ body {
   position: relative;
   width: min(560px, calc(100vw - 32px));
   margin-top: 12vh;
+  /* Native <dialog> resets: centered horizontally, pinned 12vh from the top. */
+  max-width: none;
+  margin-inline: auto;
+  margin-bottom: auto;
+  padding: 0;
+  color: var(--text);
   display: flex;
   flex-direction: column;
   max-height: min(430px, 70vh);
   overflow: hidden;
+}
+
+.plan-compare-picker::backdrop {
+  background: color-mix(in oklch, var(--bg) 62%, transparent);
 }
 
 .plan-compare-picker-search {
@@ -5123,7 +5151,8 @@ a.plan-git-chip-link:focus-visible {
   --landing-muted: oklch(42% 0.014 265);
   --landing-faint: oklch(50% 0.012 265);
   --landing-border: oklch(87% 0.007 260);
-  --landing-border-strong: oklch(76% 0.01 260);
+  /* Control edge: 3.3:1 on --landing-bg, 3.4:1 on -surface (WCAG 1.4.11 non-text). */
+  --landing-border-strong: oklch(63% 0.01 260);
   --landing-border-subtle: oklch(92% 0.006 260);
   --landing-accent: oklch(46% 0.215 285);
   --landing-accent-ink: oklch(99% 0.008 285);
@@ -9192,398 +9221,9 @@ body:has(> * > * > .landing-page) {
   flex-direction: column;
 }
 
-.empty-state-panel--trivia {
-  min-height: 420px;
-  animation: empty-state-trivia-shell-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.empty-state-trivia {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto auto;
-  gap: 10px;
-  min-height: 388px;
-  padding: 18px;
-  color: var(--text);
-  outline: none;
-  animation: empty-state-trivia-panel-in 320ms cubic-bezier(0.16, 1, 0.3, 1) 40ms both;
-}
-
-.empty-state-trivia-header,
-.empty-state-trivia-meta,
-.empty-state-trivia-timer,
-.empty-state-trivia-question,
-.empty-state-trivia-feedback,
-.empty-state-trivia-footer {
-  animation: empty-state-trivia-rise-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.empty-state-trivia-header {
-  animation-delay: 70ms;
-}
-
-.empty-state-trivia-meta {
-  animation-delay: 110ms;
-}
-
-.empty-state-trivia-timer {
-  animation-delay: 130ms;
-}
-
-.empty-state-trivia-question {
-  animation-delay: 150ms;
-}
-
-.empty-state-trivia-feedback {
-  animation-delay: 210ms;
-}
-
-.empty-state-trivia-footer {
-  animation-delay: 230ms;
-}
-
-.empty-state-trivia-live {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  clip-path: inset(50%);
-}
-
-.empty-state-trivia-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.empty-state-trivia-label {
-  margin: 0;
-  color: var(--secondary);
-  font-size: 11.5px;
-  font-weight: 650;
-  line-height: 1.2;
-}
-
-.empty-state-trivia-title {
-  margin: 2px 0 0;
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 720;
-  line-height: 1.2;
-  letter-spacing: 0;
-}
-
-.empty-state-trivia-close {
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--surface) 84%, transparent);
-  color: var(--secondary);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.empty-state-trivia-close:hover {
-  background: var(--hover);
-  color: var(--text);
-}
-
-.empty-state-trivia-close:focus-visible,
-.empty-state-trivia-choice:focus-visible,
-.empty-state-trivia-next:focus-visible,
-.empty-state-trivia-primary:focus-visible,
-.empty-state-trivia-secondary:focus-visible {
-  outline: 2px solid color-mix(in oklch, var(--accent) 44%, transparent);
-  outline-offset: 2px;
-}
-
-.empty-state-trivia-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--secondary);
-  font-size: 11px;
-  font-weight: 650;
-  line-height: 1.2;
-}
-
-.empty-state-trivia-timer {
-  height: 5px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--text) 9%, transparent);
-}
-
-.empty-state-trivia-timer-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent), var(--warning));
-  transform: scaleX(1);
-  transform-origin: 0 50%;
-  animation: empty-state-trivia-timer-drain var(--empty-trivia-timer-duration, 10s) linear forwards;
-  animation-play-state: var(--empty-trivia-timer-state, running);
-}
-
-.empty-state-trivia-question {
-  margin: 0;
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1.35;
-}
-
-.empty-state-trivia-choices {
-  display: grid;
-  gap: 7px;
-  align-content: start;
-}
-
-.empty-state-trivia-choice {
-  --empty-trivia-choice-index: 0;
-
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-  min-height: 34px;
-  width: 100%;
-  padding: 7px 9px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--surface) 86%, transparent);
-  color: var(--text);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 590;
-  line-height: 1.25;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
-  animation: empty-state-trivia-choice-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: calc(165ms + var(--empty-trivia-choice-index) * 34ms);
-}
-
-.empty-state-trivia-choice:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: var(--hover);
-  border-color: var(--border-strong);
-}
-
-.empty-state-trivia-choice:disabled {
-  cursor: default;
-  opacity: 1;
-}
-
-.empty-state-trivia-choice-key {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  background: color-mix(in oklch, var(--text) 7%, transparent);
-  color: var(--secondary);
-  font-size: 11px;
-  font-weight: 760;
-}
-
-.empty-state-trivia-choice--correct {
-  border-color: color-mix(in oklch, var(--success) 58%, var(--border));
-  background: color-mix(in oklch, var(--success) 16%, var(--surface));
-  box-shadow: 0 0 0 1px color-mix(in oklch, var(--success) 12%, transparent);
-  animation: empty-state-trivia-answer-settle 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.empty-state-trivia-choice--correct .empty-state-trivia-choice-key {
-  background: var(--success);
-  color: var(--accent-contrast);
-}
-
-.empty-state-trivia-choice--incorrect {
-  border-color: color-mix(in oklch, var(--danger) 58%, var(--border));
-  background: color-mix(in oklch, var(--danger) 12%, var(--surface));
-  animation: empty-state-trivia-answer-settle 180ms cubic-bezier(0.25, 1, 0.5, 1) both;
-}
-
-.empty-state-trivia-choice--incorrect .empty-state-trivia-choice-key {
-  background: var(--danger);
-  color: white;
-}
-
-.empty-state-trivia-feedback {
-  min-height: 48px;
-  display: grid;
-  gap: 3px;
-  align-content: center;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--surface-raised) 36%, transparent);
-  color: var(--secondary);
-  font-size: 11.5px;
-  line-height: 1.35;
-}
-
-.empty-state-trivia-feedback strong {
-  color: var(--text);
-  font-size: 11.5px;
-}
-
-.empty-state-trivia-feedback--correct {
-  border-color: color-mix(in oklch, var(--success) 42%, var(--border));
-  animation: empty-state-trivia-feedback-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.empty-state-trivia-feedback--incorrect {
-  border-color: color-mix(in oklch, var(--danger) 36%, var(--border));
-  animation: empty-state-trivia-feedback-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.empty-state-trivia-footer {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--secondary);
-  font-size: 11.5px;
-  font-weight: 650;
-}
-
-.empty-state-trivia-footer span {
-  white-space: nowrap;
-}
-
-.empty-state-trivia-next {
-  min-height: 30px;
-  margin-left: auto;
-  padding: 6px 10px;
-  border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--border));
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    background 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.empty-state-trivia-next:not(:disabled):hover {
-  transform: translateY(-1px);
-}
-
-.empty-state-trivia-next:disabled {
-  cursor: not-allowed;
-  opacity: 0.46;
-}
-
-.empty-state-trivia-complete {
-  display: grid;
-  gap: 14px;
-  align-content: center;
-  min-height: 290px;
-  animation: empty-state-trivia-complete-in 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.empty-state-trivia-score {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.empty-state-trivia-score-value {
-  color: var(--text);
-  font-family: var(--font-sans);
-  font-size: 54px;
-  font-weight: 760;
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.empty-state-trivia-score-label {
-  color: var(--secondary);
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.empty-state-trivia-complete-copy {
-  margin: 0;
-  max-width: 28ch;
-  color: var(--secondary);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.empty-state-trivia-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.empty-state-trivia-primary,
-.empty-state-trivia-secondary {
-  min-height: 32px;
-  padding: 7px 11px;
-  border-radius: 8px;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    background 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.empty-state-trivia-primary:hover,
-.empty-state-trivia-secondary:hover {
-  transform: translateY(-1px);
-}
-
-.empty-state-trivia-primary {
-  border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--border));
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.empty-state-trivia-secondary {
-  border: 1px solid var(--border);
-  background: color-mix(in oklch, var(--surface) 80%, transparent);
-  color: var(--text);
-}
-
 @container (max-width: 560px) {
   .empty-state-status {
     padding-block: 10px;
-  }
-
-  .empty-state-panel--trivia,
-  .empty-state-trivia {
-    min-height: 400px;
-  }
-
-  .empty-state-trivia {
-    padding: 16px;
   }
 }
 
@@ -9605,117 +9245,13 @@ body:has(> * > * > .landing-page) {
   .empty-state-command-group,
   .empty-state-actions,
   .empty-state-ledger,
-  .empty-state-foot,
-  .empty-state-panel--trivia,
-  .empty-state-trivia,
-  .empty-state-trivia-header,
-  .empty-state-trivia-meta,
-  .empty-state-trivia-timer,
-  .empty-state-trivia-timer-fill,
-  .empty-state-trivia-question,
-  .empty-state-trivia-choice,
-  .empty-state-trivia-feedback,
-  .empty-state-trivia-footer,
-  .empty-state-trivia-complete {
+  .empty-state-foot {
     animation: none !important;
   }
 
   .empty-state-primary,
-  .empty-state-command-copy,
-  .empty-state-trivia-choice,
-  .empty-state-trivia-timer-fill,
-  .empty-state-trivia-next,
-  .empty-state-trivia-primary,
-  .empty-state-trivia-secondary {
+  .empty-state-command-copy {
     transition: none !important;
-  }
-}
-
-@keyframes empty-state-trivia-shell-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 8px, 0) scale(0.985);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-@keyframes empty-state-trivia-panel-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 6px, 0);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes empty-state-trivia-rise-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 7px, 0);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes empty-state-trivia-choice-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 8px, 0);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes empty-state-trivia-timer-drain {
-  to {
-    transform: scaleX(0);
-  }
-}
-
-@keyframes empty-state-trivia-answer-settle {
-  from {
-    transform: translate3d(0, -1px, 0) scale(0.992);
-  }
-
-  to {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-@keyframes empty-state-trivia-feedback-in {
-  from {
-    opacity: 0.72;
-    transform: translate3d(0, 4px, 0);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes empty-state-trivia-complete-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 10px, 0) scale(0.99);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
@@ -9906,7 +9442,6 @@ body:has(> * > * > .landing-page) {
   .offline-view *,
   .offline-view *::before,
   .offline-view *::after,
-  .empty-state-trivia *,
   .wip-marquee-track,
   .status-pulse,
   .unseen-dot {
@@ -10113,6 +9648,22 @@ body:has(> * > * > .landing-page) {
 .hidden-plan-content { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; border: 1px solid var(--border); padding: 8px; }
 
 .hidden-plans-recovery-button { margin: 8px 10px; padding: 6px 8px; border: 1px solid var(--border); background: var(--surface); color: var(--secondary); border-radius: 6px; text-align: left; cursor: pointer; font-size: 12px; }
+.plan-mermaid-dialog {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 24px;
+  border: 0;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  overflow: hidden;
+}
+.plan-mermaid-dialog::backdrop { background: transparent; }
 .hidden-plans-dialog { width: min(680px, calc(100vw - 32px)); max-height: 80vh; overflow: auto; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); }
 .hidden-plans-dialog::backdrop { background: rgb(0 0 0 / .5); }
 .hidden-plans-close { background: var(--hover); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; cursor: pointer; }

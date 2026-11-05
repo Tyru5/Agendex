@@ -43,8 +43,9 @@ function containsValidatorType(value: ValidatorJson, type: string): boolean {
   return Object.values(value).some((entry) => containsValidatorType(entry, type));
 }
 
-function expectExplicitContract(fn: RegisteredPublicFunction) {
-  const contract = exportedContract(fn);
+function expectExplicitContract(registered: unknown) {
+  // Registered Convex functions expose exportArgs/exportReturns at runtime but not in their types.
+  const contract = exportedContract(registered as RegisteredPublicFunction);
   expect(contract.args).not.toBeNull();
   expect(containsValidatorType(contract.args, 'any')).toBe(false);
   expect(contract.returns).not.toBeNull();
@@ -140,6 +141,9 @@ test('sharing functions expose public link DTOs without password hashes', () => 
   const sharedPlan = expectExplicitContract(getPlanByShareToken);
   expect(JSON.stringify(sharedPlan.args)).toContain('accessProof');
   expect(JSON.stringify(sharedPlan.returns)).toContain('content');
+  expect(JSON.stringify(sharedPlan.returns)).toContain('passwordRequired');
+  expect(JSON.stringify(sharedPlan.returns)).toContain('unavailable');
+  expect(JSON.stringify(sharedPlan.returns)).toContain('revoked');
   expect(JSON.stringify(sharedPlan.returns)).not.toContain('metadata');
   expect(JSON.stringify(sharedPlan.returns)).not.toContain('passwordHash');
 });

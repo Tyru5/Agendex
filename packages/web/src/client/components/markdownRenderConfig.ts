@@ -3,6 +3,7 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeSlug from 'rehype-slug';
 import remarkGfm from 'remark-gfm';
+import type { PluggableList } from 'unified';
 import { splitBareCodePathText } from '@agendex/shared/plan-paths';
 import { sanitizeSchema } from '../lib/sanitize-schema.ts';
 import { PlanMarkdownCode, PlanMarkdownPre } from './PlanMarkdownRenderers.tsx';
@@ -57,6 +58,10 @@ function remarkPlanPathMentions() {
   };
 }
 
-export const planMarkdownRemarkPlugins = [remarkGfm, remarkPlanPathMentions];
+export const planMarkdownRemarkPlugins: PluggableList = [remarkGfm, remarkPlanPathMentions];
 
-export const planMarkdownRehypePlugins = [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeSlug];
+export const planMarkdownRehypePlugins: PluggableList = [
+  rehypeRaw,
+  [rehypeSanitize, sanitizeSchema],
+  rehypeSlug,
+];

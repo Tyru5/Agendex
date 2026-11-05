@@ -136,8 +136,7 @@ function jsonObjectOfArraysStream(fields: Array<[string, JsonPageFetcher]>): Rea
   return Readable.from(
     (async function* () {
       yield '{\n';
-      for (let index = 0; index < fields.length; index += 1) {
-        const [name, fetchPage] = fields[index];
+      for (const [index, [name, fetchPage]] of fields.entries()) {
         if (index > 0) yield ',\n';
         yield `${JSON.stringify(name)}: `;
         for await (const chunk of jsonArrayStream(fetchPage)) yield chunk;
@@ -152,7 +151,12 @@ function storedBlobStream(ctx: ActionCtx, storageId: Id<'_storage'>): Readable {
     (async function* () {
       const blob = await ctx.storage.get(storageId);
       if (!blob) return;
-      for await (const chunk of blob.stream()) yield chunk;
+      const reader = blob.stream().getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        yield value;
+      }
     })(),
   );
 }
@@ -348,7 +352,7 @@ export const buildDataExport = internalAction({
         });
         return {
           rowsJson: JSON.stringify(
-            page.page.map((account) =>
+            page.page.map((account: unknown) =>
               redactConnectedAccount(
                 account && typeof account === 'object' ? (account as Record<string, unknown>) : {},
               ),
@@ -471,7 +475,11 @@ export const buildDataExport = internalAction({
       let plansCursor: string | null = null;
       let plansDone = false;
       while (!plansDone) {
-        const plansPage = await ctx.runQuery(internal.dataExport.listOwnedPlansPage, {
+        const plansPage: {
+          planIds: Array<Id<'plans'>>;
+          isDone: boolean;
+          continueCursor: string;
+        } = await ctx.runQuery(internal.dataExport.listOwnedPlansPage, {
           ownerId,
           cursor: plansCursor,
         });

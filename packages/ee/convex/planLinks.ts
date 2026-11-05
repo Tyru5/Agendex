@@ -9,7 +9,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { mutation, type QueryCtx, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature, requireFeatureForUserId } from './entitlements';
-import { requireSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
+import { requireSharedPlanAccess, shareAccessProofValidator } from './shareAccess';
 
 const MAX_LINKS_PER_PLAN = 20;
 
@@ -36,7 +36,7 @@ async function validatePlanLinkReadAccess(
   ctx: QueryCtx,
   planId: Id<'plans'>,
   token: string | undefined,
-  accessProof: Id<'shareAccessProofs'> | undefined,
+  accessProof: string | undefined,
 ): Promise<void> {
   const plan = await ctx.db.get(planId);
   if (!plan) throw new ConvexError('Plan not found');
@@ -89,7 +89,7 @@ export const getLinks = query({
   args: {
     planId: v.id('plans'),
     token: v.optional(v.string()),
-    accessProof: v.optional(shareAccessProofIdValidator),
+    accessProof: v.optional(shareAccessProofValidator),
   },
   returns: v.array(planGitLinkDoc),
   handler: async (ctx, args) => {

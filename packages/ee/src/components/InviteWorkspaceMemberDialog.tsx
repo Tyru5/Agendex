@@ -19,9 +19,7 @@ export function InviteWorkspaceMemberDialog({ onClose }: InviteWorkspaceMemberDi
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Convex component API not in generated types
-  // oxlint-disable-next-line typescript/no-explicit-any
-  const invite = useMutation((api as any).workspaceMembers.inviteWorkspaceMember);
+  const invite = useMutation(api.workspaceMembers.inviteWorkspaceMember);
 
   async function handleInvite() {
     if (!email.trim()) return;

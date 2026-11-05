@@ -1,4 +1,3 @@
-import { autocompleteMultiselect, cancel, isCancel } from '@clack/prompts';
 import type { AdapterId } from '../adapters/catalog.ts';
 import {
   getCatalog,
@@ -33,6 +32,10 @@ export async function promptForAdapterSelection(
   if (!isInteractiveTTY()) {
     throw new Error('Cannot prompt for adapter selection without an interactive TTY.');
   }
+
+  // Lazy: config.ts (loaded by the server and Electron) imports this module, but only
+  // an interactive terminal session needs the TUI library.
+  const { autocompleteMultiselect, cancel, isCancel } = await import('@clack/prompts');
 
   const catalog = getCatalog().filter((entry) => entry.implemented);
   const lockedIds = catalog.filter((entry) => entry.locked).map((entry) => entry.id);

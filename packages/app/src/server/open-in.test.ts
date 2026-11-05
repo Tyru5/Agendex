@@ -54,9 +54,10 @@ describe('resolveSpawnInvocation', () => {
   // User story: native Windows editor executables launch without an unnecessary shell.
   test('leaves non-script binaries unchanged on Windows', () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
-    const argv = ['C:\\Editors\\code.exe', '-g', 'C:\\file.ts:1'];
+    const executable = 'C:\\Editors\\code.exe';
+    const argv = [executable, '-g', 'C:\\file.ts:1'];
     const result = resolveSpawnInvocation(argv);
-    expect(result.command).toBe(argv[0]);
+    expect(result.command).toBe(executable);
     expect(result.args).toEqual(argv.slice(1));
     expect(result.options.windowsVerbatimArguments).toBeUndefined();
     expect(result.options.env).toBeUndefined();

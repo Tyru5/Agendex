@@ -14,7 +14,6 @@ import {
   useFullscreen,
 } from '@agendex/web';
 import { api } from '@convex/_generated/api';
-import type { Id } from '@convex/_generated/dataModel';
 import { useAction, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -50,7 +49,7 @@ function SharedPlanGitLinks({
 }: {
   planId: SharedPlanDto['_id'];
   token: string;
-  accessProof?: Id<'shareAccessProofs'>;
+  accessProof?: string;
 }) {
   const links = useQuery(api.planLinks.getLinks, {
     planId,
@@ -79,7 +78,7 @@ function PasswordGate({
   onUnlock,
 }: {
   token: string;
-  onUnlock: (accessProof: Id<'shareAccessProofs'>) => void;
+  onUnlock: (accessProof: string) => void;
 }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -193,7 +192,7 @@ function PasswordGate({
 }
 
 export function SharedPlanView({ token }: { token: string }) {
-  const [accessProof, setAccessProof] = useState<Id<'shareAccessProofs'> | null>(null);
+  const [accessProof, setAccessProof] = useState<string | null>(null);
   const sharedAvatars = useQuery(api.agentAvatars.listAgentAvatarsForShare, {
     token,
     ...(accessProof ? { accessProof } : {}),
@@ -215,8 +214,8 @@ function SharedPlanViewInner({
   onAccessProofChange,
 }: {
   token: string;
-  accessProof: Id<'shareAccessProofs'> | null;
-  onAccessProofChange: (accessProof: Id<'shareAccessProofs'> | null) => void;
+  accessProof: string | null;
+  onAccessProofChange: (accessProof: string | null) => void;
 }) {
   const queryResult = useQuery(api.plans.getPlanByShareToken, {
     token,
@@ -255,7 +254,11 @@ function SharedPlanViewInner({
 
   const needsPassword =
     queryResult && 'passwordRequired' in queryResult && queryResult.passwordRequired;
-  const plan = queryResult && !('passwordRequired' in queryResult) ? queryResult : null;
+  const unavailable = queryResult && 'unavailable' in queryResult ? queryResult : null;
+  const plan =
+    queryResult && !('passwordRequired' in queryResult) && !('unavailable' in queryResult)
+      ? queryResult
+      : null;
 
   const outline = useMemo(
     () =>
@@ -284,6 +287,19 @@ function SharedPlanViewInner({
     );
   } else if (needsPassword) {
     body = <PasswordGate token={token} onUnlock={onAccessProofChange} />;
+  } else if (unavailable?.reason === 'revoked') {
+    body = (
+      <div className="min-h-screen flex items-center justify-center bg-bg p-4">
+        <div className="share-surface-in w-full max-w-[400px] rounded-2xl border border-border bg-surface px-8 py-9 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.25)] text-left">
+          <h1 className="text-[17px] font-semibold text-text tracking-[0] mb-2">
+            Link expired or revoked
+          </h1>
+          <p className="text-[13px] text-tertiary leading-[1.5]">
+            This share link is no longer active. Ask the person who shared it for a new link.
+          </p>
+        </div>
+      </div>
+    );
   } else if (!plan || !outline) {
     body = (
       <div className="min-h-screen flex items-center justify-center bg-bg p-4">
@@ -312,7 +328,7 @@ function SharedPlanViewInner({
           className={`min-h-screen bg-bg text-text${fullscreen.isFullscreen ? '' : ' main-scroll'}`}
         >
           {entries.filter((e) => e.source !== 'fallback_root').length >= 2 && (
-            <PlanOutline entries={entries} pinned={!outlineHidden} />
+            <PlanOutline entries={entries} hidden={outlineHidden} />
           )}
           <div
             key={plan._id}

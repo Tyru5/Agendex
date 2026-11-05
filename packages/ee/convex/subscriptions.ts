@@ -404,7 +404,11 @@ export const reactivateSubscription = action({
     const sub = await ctx.runQuery(api.subscriptions.getMySubscriptionQuery);
     if (!sub?.stripeSubscriptionId) throw new ConvexError('No subscription found');
 
-    const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    if (!stripeSecretKey) {
+      throw new ConvexError('Stripe is not configured: STRIPE_SECRET_KEY is missing');
+    }
+    const stripeClient = new Stripe(stripeSecretKey);
     const updated = await stripeClient.subscriptions.update(sub.stripeSubscriptionId, {
       cancel_at_period_end: false,
     });
@@ -488,7 +492,16 @@ export const syncCanonicalSubscription = internalMutation({
         .withIndex('by_user', (q) => q.eq('userId', userId))
         .first();
 
-      if (existingByUser && existingByUser.stripeCustomerId !== args.stripeCustomerId) {
+      // Internal trial/skip rows are created before the user has a Stripe customer, so
+      // they carry empty Stripe ids. Adopt those placeholders; only refuse rows that
+      // already belong to a different real Stripe customer.
+      const isInternalPlaceholder =
+        existingByUser?.stripeCustomerId === '' && existingByUser.stripeSubscriptionId === '';
+      if (
+        existingByUser &&
+        !isInternalPlaceholder &&
+        existingByUser.stripeCustomerId !== args.stripeCustomerId
+      ) {
         console.error(
           `[stripe webhook] refusing to replace subscription for user ${userId} with a different Stripe customer`,
         );

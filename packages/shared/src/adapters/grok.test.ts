@@ -148,6 +148,6 @@ test('parses without summary.json using stats and heading', async () => {
   expect(plan?.title).toBe('Build it');
   expect(plan?.workspace).toBeUndefined();
   expect(plan?.metadata.sessionId).toBe('sess-4');
-  expect(plan?.createdAt).toBeInstanceOf(Date);
-  expect(plan?.updatedAt).toBeInstanceOf(Date);
+  expect(plan?.createdAt instanceof Date).toBe(true);
+  expect(plan?.updatedAt instanceof Date).toBe(true);
 });

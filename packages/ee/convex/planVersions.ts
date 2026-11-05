@@ -6,8 +6,20 @@ import { mutation, query } from './_generated/server';
 import { authComponent } from './auth';
 import { requireFeature } from './entitlements';
 import { assessPlanForVisibility, metadataWithPlanValueAssessment } from './planVisibility';
-import { recordPlanVersion } from './planVersioning';
+import {
+  PLAN_VERSION_LIST_BUDGET_BYTES,
+  readPlanVersionsWithinBudget,
+  recordPlanVersion,
+} from './planVersioning';
 import { planVersionValidator, toPlanVersionDto } from './validators';
+
+/**
+ * Newest versions returned by `listForPlan`. Convex reads whole documents, so
+ * every listed version costs its full snapshot in read bandwidth even though
+ * only summary fields are returned; the cap keeps that bounded for plans with
+ * long CLI-sync histories.
+ */
+export const MAX_LISTED_PLAN_VERSIONS = 100;
 
 export const listForPlan = query({
   args: { planId: v.id('plans') },
@@ -47,11 +59,12 @@ export const listForPlan = query({
     // Intentionally does not gate on `isVisiblePlan(plan)`: the owner needs to
     // see version history for a plan hidden by the low-value classifier in
     // order to find a good snapshot to restore.
-    const versions = await ctx.db
-      .query('planVersions')
-      .withIndex('by_plan', (q) => q.eq('planId', args.planId))
-      .order('desc')
-      .collect();
+    const { rows: versions } = await readPlanVersionsWithinBudget(ctx, {
+      planId: args.planId,
+      order: 'desc',
+      maxRows: MAX_LISTED_PLAN_VERSIONS,
+      budgetBytes: PLAN_VERSION_LIST_BUDGET_BYTES,
+    });
 
     return versions.map((ver) => ({
       _id: ver._id,
@@ -65,7 +78,8 @@ export const listForPlan = query({
 
 export const getVersion = query({
   args: { planId: v.id('plans'), version: v.number() },
-  returns: planVersionValidator,
+  // Null when the version was pruned by history retention while a view had it selected.
+  returns: v.union(planVersionValidator, v.null()),
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
     if (!user) {
@@ -89,9 +103,7 @@ export const getVersion = query({
       .withIndex('by_plan_version', (q) => q.eq('planId', args.planId).eq('version', args.version))
       .first();
 
-    if (!snapshot) {
-      throw new ConvexError('Version not found');
-    }
+    if (!snapshot) return null;
 
     return toPlanVersionDto(snapshot);
   },

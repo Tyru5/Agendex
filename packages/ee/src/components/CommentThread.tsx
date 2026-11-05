@@ -34,7 +34,7 @@ export function CommentThread({
   planId: string;
   isOwner?: boolean;
   shareToken?: string;
-  shareAccessProof?: Id<'shareAccessProofs'>;
+  shareAccessProof?: string;
   className?: string;
 }) {
   const { user, isAuthenticated, signIn } = useAuth();

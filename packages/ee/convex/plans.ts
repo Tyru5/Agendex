@@ -9,7 +9,7 @@ import { requireFeature } from './entitlements';
 import { deletePlanRelatedData } from './planDeletion';
 import { refreshFilePlanMentions } from './filePlanMentionIndex';
 import { normalizePlanSourcePath, planMatchesSource } from './planSourcePath';
-import { resolveSharedPlanAccess, shareAccessProofIdValidator } from './shareAccess';
+import { findSharedPlanAccess, shareAccessProofValidator } from './shareAccess';
 import {
   dedupeVisiblePlans,
   dedupeSearchPlans,
@@ -345,19 +345,29 @@ export const getPlan = query({
 export const getPlanByShareToken = query({
   args: {
     token: v.string(),
-    accessProof: v.optional(shareAccessProofIdValidator),
+    accessProof: v.optional(shareAccessProofValidator),
   },
   returns: v.union(
     sharedPlanDtoValidator,
     v.object({
       passwordRequired: v.literal(true),
     }),
+    // Revoked/expired links and deleted plans are an expected state for a
+    // public page, so they return a variant instead of throwing during render.
+    v.object({
+      unavailable: v.literal(true),
+      reason: v.union(v.literal('revoked'), v.literal('plan_not_found')),
+    }),
   ),
   handler: async (ctx, args) => {
-    const access = await resolveSharedPlanAccess(ctx, {
+    const access = await findSharedPlanAccess(ctx, {
       token: args.token,
       ...(args.accessProof ? { accessProof: args.accessProof } : {}),
     });
+
+    if (access.kind === 'unavailable') {
+      return { unavailable: true as const, reason: access.reason };
+    }
 
     if (access.kind === 'password_required') {
       return { passwordRequired: true as const };
@@ -529,7 +539,7 @@ export const deletePlan = mutation({
       throw new ConvexError('Access denied');
     }
 
-    await deletePlanRelatedData(ctx, { planId: args.planId, ownerId: user._id });
+    await deletePlanRelatedData(ctx, { planId: args.planId });
 
     await ctx.db.delete(args.planId);
     return null;
@@ -579,7 +589,7 @@ export const deleteMyPlansBySource = mutation({
     }
 
     for (const planId of matches) {
-      await deletePlanRelatedData(ctx, { planId, ownerId: user._id });
+      await deletePlanRelatedData(ctx, { planId });
       await ctx.db.delete(planId);
     }
 

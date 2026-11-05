@@ -6,6 +6,7 @@
 
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { devNull } from 'node:os';
 import { promisify } from 'node:util';
 import type { CommitRecord, RepoHistory } from './attribution.ts';
 
@@ -14,9 +15,14 @@ const GIT_MAX_BUFFER = 256 * 1024 * 1024;
 const DEFAULT_BRANCH_CANDIDATES = ['main', 'master', 'trunk'];
 const ORIGIN_HEAD_REF = 'refs/remotes/origin/HEAD';
 const execFileAsync = promisify(execFile);
+/**
+ * Workspaces come from agent metadata, so the repository is untrusted: never let
+ * its config launch an fsmonitor daemon or hooks while we only read state.
+ */
+const GIT_HARDENING_ARGS = ['-c', 'core.fsmonitor=false', '-c', `core.hooksPath=${devNull}`];
 
 async function runGit(repoRoot: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('git', args, {
+  const { stdout } = await execFileAsync('git', [...GIT_HARDENING_ARGS, ...args], {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: GIT_TIMEOUT_MS,

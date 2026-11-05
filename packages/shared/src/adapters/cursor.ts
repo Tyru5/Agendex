@@ -5,6 +5,7 @@ import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import { normalizeSyncPath } from '../services/plan-sync-identity.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
+import { noPlansIfMissing } from './adapter-utils.ts';
 
 function getCursorProjectsDir(): string {
   return join(getHomeDir(), '.cursor', 'projects');
@@ -154,8 +155,8 @@ export const cursorAdapter: AgentAdapter = {
             : metadata,
         },
       ];
-    } catch {
-      return [];
+    } catch (err) {
+      return noPlansIfMissing(err, []);
     }
   },
 

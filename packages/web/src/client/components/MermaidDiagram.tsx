@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from '../hooks/useTheme.ts';
 import type { ResolvedTheme } from './ThemeProvider.tsx';
@@ -302,6 +302,8 @@ function MermaidExpandedModal({
   const [open, setOpen] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
   const closeRequestedRef = useRef(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleClose = useCallback(() => {
     if (closeRequestedRef.current) return;
@@ -326,23 +328,32 @@ function MermaidExpandedModal({
     };
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') handleClose();
-    }
-
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [handleClose, open]);
+  // Native modal dialog: traps focus and makes the page inert; Escape arrives as `cancel`,
+  // which runs the exit animation. Focus returns to the opener on unmount.
+  useLayoutEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    closeButtonRef.current?.focus();
+    return () => {
+      if (dialog?.open) dialog.close();
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, []);
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      ref={dialogRef}
       aria-label="Expanded diagram"
-      className="fixed inset-0 z-[130] flex items-center justify-center p-6"
+      className="plan-mermaid-dialog"
+      onCancel={(e) => {
+        e.preventDefault();
+        handleClose();
+      }}
+      onClose={() => {
+        // The browser can force-close on a repeated Escape without a cancel event.
+        if (!closeRequestedRef.current) onClose();
+      }}
       style={{
         background: 'rgba(0,0,0,0.55)',
         opacity: open ? 1 : 0,
@@ -365,10 +376,12 @@ function MermaidExpandedModal({
         <div className="sticky top-0 right-0 z-10 flex justify-end p-3 gap-2">
           <MermaidDownloadControls svg={svg} resolvedTheme={resolvedTheme} />
           <button
+            ref={closeButtonRef}
             type="button"
             className="plan-mermaid-toolbar-btn"
             onClick={handleClose}
             title="Close"
+            aria-label="Close expanded diagram"
           >
             <CloseIcon />
           </button>
@@ -380,7 +393,7 @@ function MermaidExpandedModal({
           {/* oxlint-enable react/no-danger */}
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
 

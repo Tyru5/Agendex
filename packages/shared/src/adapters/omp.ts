@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve, sep } from 'node:path';
 import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
+import { isRecord, noPlansIfMissing } from './adapter-utils.ts';
 
 /**
  * omp (oh-my-pi) plan-mode adapter.
@@ -38,10 +39,6 @@ interface OmpSessionMeta {
   workspace?: string;
   title?: string;
   createdAt?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function asString(value: unknown): string | undefined {
@@ -81,8 +78,8 @@ async function planFilesForSource(filePath: string): Promise<string[]> {
   try {
     const names = await readdir(localDir);
     return names.filter(isPlanArtifactName).map((name) => join(localDir, name));
-  } catch {
-    return [];
+  } catch (err) {
+    return noPlansIfMissing(err, []);
   }
 }
 
@@ -184,8 +181,8 @@ async function parsePlanArtifact(filePath: string): Promise<Plan | null> {
       workspace: meta.workspace,
       metadata,
     };
-  } catch {
-    return null;
+  } catch (err) {
+    return noPlansIfMissing(err, null);
   }
 }
 

@@ -43,7 +43,9 @@ function makeDeps(
     | ((query: string, agent?: string) => FetchCloudPlanResult | Promise<FetchCloudPlanResult>),
   cap: Capture,
   existingDirs: string[] = [],
-  extras: Partial<Pick<Parameters<typeof runDownload>[1], 'canPrompt' | 'promptSelect'>> = {},
+  extras: Partial<
+    Pick<NonNullable<Parameters<typeof runDownload>[1]>, 'canPrompt' | 'promptSelect'>
+  > = {},
   existingFiles: string[] = [],
 ) {
   return {

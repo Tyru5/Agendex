@@ -462,7 +462,7 @@ test('duplicate sync identities expose only the listed winner mentions', async (
     (await owner.query(api.filePlanMentions.lookup, lookupArgs(['src/auth.ts']))).page,
   ).toEqual([String(newer)]);
   await t.run(async (ctx) => {
-    await deletePlanRelatedData(ctx, { planId: newer, ownerId: 'owner' });
+    await deletePlanRelatedData(ctx, { planId: newer });
     await ctx.db.delete(newer);
   });
   expect(await count('src/old.ts')).toBe(1);

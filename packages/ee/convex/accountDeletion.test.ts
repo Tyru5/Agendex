@@ -22,10 +22,10 @@ test('every account deletion phase is restart-safe and advances only after it dr
       continue;
     }
 
-    const interrupted = accountDeletionPhaseAfterBatch(phase, ACCOUNT_DELETION_BATCH_SIZE);
+    const interrupted = accountDeletionPhaseAfterBatch(phase, ACCOUNT_DELETION_BATCH_SIZE)!;
     expect(interrupted).toBe(phase);
 
-    const retriedWithRemainingRows = accountDeletionPhaseAfterBatch(interrupted, 1);
+    const retriedWithRemainingRows = accountDeletionPhaseAfterBatch(interrupted, 1)!;
     expect(retriedWithRemainingRows).toBe(phase);
 
     const drained = accountDeletionPhaseAfterBatch(retriedWithRemainingRows, 0);
@@ -35,12 +35,12 @@ test('every account deletion phase is restart-safe and advances only after it dr
 
 test('every per-plan phase resumes after interruption before the plan can be deleted', () => {
   for (const phase of PLAN_DELETION_PHASES) {
-    const interrupted = planDeletionPhaseAfterBatch(phase, ACCOUNT_DELETION_BATCH_SIZE);
+    const interrupted = planDeletionPhaseAfterBatch(phase, ACCOUNT_DELETION_BATCH_SIZE)!;
     expect(interrupted).toBe(phase);
     expect(planDeletionPhaseAfterBatch(interrupted, 1)).toBe(phase);
     expect(planDeletionPhaseAfterBatch(interrupted, 0)).toBe(nextPlanDeletionPhase(phase));
   }
-  expect(nextPlanDeletionPhase(PLAN_DELETION_PHASES.at(-1)!)).toBeNull();
+  expect(nextPlanDeletionPhase(PLAN_DELETION_PHASES[PLAN_DELETION_PHASES.length - 1]!)).toBeNull();
 });
 
 test('Stripe cancellation treats already-gone subscriptions as retry success only', () => {
@@ -74,7 +74,7 @@ test('deletion marks state before Stripe and leaves Better Auth until product da
   const productEnd = ACCOUNT_DELETION_PHASES.indexOf('accountPreferences');
   expect(ACCOUNT_DELETION_PHASES.indexOf('authSessions')).toBeGreaterThan(productEnd);
   expect(ACCOUNT_DELETION_PHASES.indexOf('authAccounts')).toBeGreaterThan(productEnd);
-  expect(ACCOUNT_DELETION_PHASES.at(-1)).toBe('authUser');
+  expect(ACCOUNT_DELETION_PHASES[ACCOUNT_DELETION_PHASES.length - 1]).toBe('authUser');
 });
 
 test('account deletion batches all owned storage-backed and relational data', () => {

@@ -6,20 +6,25 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -40,11 +45,14 @@ jobs:
         if: github.event_name == 'pull_request' && steps.cli-changes.outputs.changed == 'true' && !startsWith(github.head_ref, 'changeset-release/')
         run: bunx changeset status --since=origin/main
 
-      - name: Run Convex regression tests
-        run: bun run --cwd packages/ee test:convex
+      - name: Format and lint
+        run: bun run check
 
-      - name: Check CLI release surfaces
-        run: bun run check:cli:release
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test (Bun suite + Convex vitest)
+        run: bun run test
 
       - name: Build CLI release artifact
         run: bun run build:cli:release

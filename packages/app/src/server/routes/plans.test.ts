@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, utimes, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { join, parse } from 'node:path';
 import {
   clearPathResolveCache,
   clearPlanReceiptCache,
@@ -546,5 +546,41 @@ describe('read-content baselines', () => {
     }
     expect((await postJson('/plans/unknown/read', current)).status).toBe(404);
     expect((await plans.request('/plans/unknown/read', { method: 'DELETE' })).status).toBe(404);
+  });
+});
+
+describe('request hardening', () => {
+  // User story: a null or non-object body is a client error, not a 500.
+  test('rejects null JSON bodies and non-string writeback ids', async () => {
+    expect((await postJson(`/plans/${planId}/paths/exists`, null)).status).toBe(400);
+    expect((await postJson(`/plans/${planId}/open-in`, null)).status).toBe(400);
+    expect((await postJson(`/plans/${planId}/annotations`, null)).status).toBe(400);
+    expect((await postJson('/plan-sources', null)).status).toBe(400);
+    const patched = await plans.request(`/plans/${planId}/annotations/any`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ writebackId: 42 }),
+    });
+    expect(patched.status).toBe(400);
+  });
+
+  // User story: garbage pagination falls back to defaults instead of an empty NaN page.
+  test('ignores non-numeric plan list pagination', async () => {
+    const body = (await (await plans.request('/plans?limit=abc&offset=xyz')).json()) as {
+      limit: number;
+      offset: number;
+      plans: unknown[];
+    };
+    expect(body.limit).toBe(50);
+    expect(body.offset).toBe(0);
+    expect(body.plans.length).toBeGreaterThan(0);
+  });
+
+  // User story: a mistyped plan source cannot make Agendex watch the whole disk or home.
+  test('refuses filesystem roots and the home directory as plan sources', async () => {
+    for (const path of [parse(workspace).root, homedir()]) {
+      const res = await postJson('/plan-sources', { path });
+      expect(res.status).toBe(400);
+    }
   });
 });

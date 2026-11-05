@@ -199,6 +199,10 @@ export default defineSchema({
 
   shareAccessProofs: defineTable({
     shareLinkId: v.id('shareLinks'),
+    // SHA-256 (hex) of the bearer secret handed to the client. Optional only so
+    // proofs issued before this field existed still validate the schema; they
+    // can no longer authorize and expire within SHARE_ACCESS_PROOF_TTL_MS.
+    secretHash: v.optional(v.string()),
     expiresAt: v.number(),
     createdAt: v.number(),
   }),
@@ -341,7 +345,9 @@ export default defineSchema({
     .index('by_workspace', ['workspaceOwnerId'])
     .index('by_emailLc', ['emailLc'])
     .index('by_token', ['token'])
-    .index('by_workspace_emailLc', ['workspaceOwnerId', 'emailLc']),
+    .index('by_workspace_emailLc', ['workspaceOwnerId', 'emailLc'])
+    // Pending invites are the rows with neither timestamp set.
+    .index('by_workspace_acceptedAt_revokedAt', ['workspaceOwnerId', 'acceptedAt', 'revokedAt']),
 
   planVersions: defineTable({
     ownerId: v.string(),
@@ -533,6 +539,7 @@ export default defineSchema({
   })
     .index('by_owner_status', ['ownerId', 'status'])
     .index('by_owner_localPlanId', ['ownerId', 'localPlanId'])
+    .index('by_owner_localPlanId_status', ['ownerId', 'localPlanId', 'status'])
     .index('by_owner_device_status', ['ownerId', 'deviceId', 'status'])
     .index('by_plan', ['planId']),
 

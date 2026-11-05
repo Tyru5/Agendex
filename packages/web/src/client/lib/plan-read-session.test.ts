@@ -33,6 +33,7 @@ test('stalled reads expire and a later opening retries rather than reusing a stu
 test('a slow successful read still delivers its comparison after coalescing expires', async () => {
   let finish!: (value: PlanReadResult) => void;
   const source: PlanReadSource = {
+    scope: 'test',
     open: () =>
       new Promise((resolve) => {
         finish = resolve;
@@ -52,6 +53,7 @@ test('a slow successful read still delivers its comparison after coalescing expi
 test('an expired request settling cannot evict a newer pending read', async () => {
   const finishes: Array<(value: PlanReadResult) => void> = [];
   const source: PlanReadSource = {
+    scope: 'test',
     open: () =>
       new Promise((resolve) => {
         finishes.push(resolve);

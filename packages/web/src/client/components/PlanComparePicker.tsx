@@ -1,6 +1,8 @@
 import {
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -40,7 +42,13 @@ export type PlanComparePickerProps = {
   onPick: (plan: Plan) => void;
 };
 
-export function PlanComparePicker({
+export function PlanComparePicker(props: PlanComparePickerProps) {
+  // Mounting per opening resets the query and selection, and lets the dialog own focus.
+  if (!props.open) return null;
+  return <PlanComparePickerDialog {...props} />;
+}
+
+function PlanComparePickerDialog({
   open,
   onClose,
   currentPlan,
@@ -50,16 +58,22 @@ export function PlanComparePicker({
 }: PlanComparePickerProps) {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    setQuery('');
-    setActiveIndex(0);
-    const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
-    return () => window.cancelAnimationFrame(frame);
-  }, [open]);
+  // Native modal dialog: the rest of the page goes inert (focus trap), and focus returns to
+  // the control that opened the picker when it unmounts.
+  useLayoutEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    inputRef.current?.focus();
+    return () => {
+      if (dialog?.open) dialog.close();
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, []);
 
   const groups = useMemo((): PickerGroup[] => {
     if (!open) return [];
@@ -94,7 +108,16 @@ export function PlanComparePicker({
     active?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex, open]);
 
-  if (!open) return null;
+  function handleBackdropClick(event: ReactMouseEvent<HTMLDialogElement>) {
+    if (event.target !== event.currentTarget) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const inside =
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom;
+    if (!inside) onClose();
+  }
 
   function handleKeyDown(event: ReactKeyboardEvent) {
     if (event.key === 'Escape') {
@@ -122,75 +145,66 @@ export function PlanComparePicker({
   let flatIndex = -1;
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-start justify-center"
-      role="presentation"
+    <dialog
+      ref={dialogRef}
+      className="plan-compare-picker rounded-xl border border-border bg-surface shadow-lg"
+      aria-label="Choose a plan to compare"
       onKeyDown={handleKeyDown}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={handleBackdropClick}
     >
-      <div
-        className="absolute inset-0"
-        style={{ background: 'color-mix(in oklch, var(--bg) 62%, transparent)' }}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div
-        className="plan-compare-picker rounded-xl border border-border bg-surface shadow-lg"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Choose a plan to compare"
-      >
-        <div className="plan-compare-picker-search">
-          <SearchIcon />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(event) => setQuery(event.currentTarget.value)}
-            placeholder="Compare with…"
-            aria-label="Search plans to compare"
-          />
-          <kbd>Esc</kbd>
-        </div>
-
-        <div className="plan-compare-picker-list" ref={listRef}>
-          {flatPlans.length === 0 && (
-            <p className="plan-compare-picker-empty">No matching plans.</p>
-          )}
-          {groups.map((group) => (
-            <div key={group.label} className="plan-compare-picker-group">
-              <span className="plan-compare-picker-group-label">{group.label}</span>
-              {group.plans.map((plan) => {
-                flatIndex++;
-                const isActive = flatIndex === activeIndex;
-                const index = flatIndex;
-                return (
-                  <button
-                    key={plan.id}
-                    type="button"
-                    className="plan-compare-picker-item"
-                    data-active={isActive ? 'true' : undefined}
-                    onMouseEnter={() => setActiveIndex(index)}
-                    onClick={() => onPick(plan)}
-                  >
-                    <AgentIcon agent={plan.agent} size={13} />
-                    <span className="plan-compare-picker-item-title" title={plan.title}>
-                      {plan.title}
-                    </span>
-                    <span className="plan-compare-picker-item-meta">
-                      {plan.workspace && (
-                        <span className="plan-compare-picker-item-workspace">{plan.workspace}</span>
-                      )}
-                      <span>{getAgentLabel(plan.agent)}</span>
-                      <span>{timeAgo(plan.updatedAt)}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+      <div className="plan-compare-picker-search">
+        <SearchIcon />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+          placeholder="Compare with…"
+          aria-label="Search plans to compare"
+        />
+        <kbd>Esc</kbd>
       </div>
-    </div>
+
+      <div className="plan-compare-picker-list" ref={listRef}>
+        {flatPlans.length === 0 && <p className="plan-compare-picker-empty">No matching plans.</p>}
+        {groups.map((group) => (
+          <div key={group.label} className="plan-compare-picker-group">
+            <span className="plan-compare-picker-group-label">{group.label}</span>
+            {group.plans.map((plan) => {
+              flatIndex++;
+              const isActive = flatIndex === activeIndex;
+              const index = flatIndex;
+              return (
+                <button
+                  key={plan.id}
+                  type="button"
+                  className="plan-compare-picker-item"
+                  data-active={isActive ? 'true' : undefined}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => onPick(plan)}
+                >
+                  <AgentIcon agent={plan.agent} size={13} />
+                  <span className="plan-compare-picker-item-title" title={plan.title}>
+                    {plan.title}
+                  </span>
+                  <span className="plan-compare-picker-item-meta">
+                    {plan.workspace && (
+                      <span className="plan-compare-picker-item-workspace">{plan.workspace}</span>
+                    )}
+                    <span>{getAgentLabel(plan.agent)}</span>
+                    <span>{timeAgo(plan.updatedAt)}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </dialog>
   );
 }
 

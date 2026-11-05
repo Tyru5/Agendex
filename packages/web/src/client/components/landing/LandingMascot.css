@@ -1,0 +1,10 @@
+/* Served as a stylesheet: the local server's CSP blocks inline <style>.
+   The end offset is DINO_RENDER_SIZE (84px) x DINO_FRAME_COUNT (4) in LandingMascot.tsx. */
+@keyframes landing-mascot-idle {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -336px 0;
+  }
+}

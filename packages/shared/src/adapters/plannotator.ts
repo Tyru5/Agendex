@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
+import { isRecord, noPlansIfMissing } from './adapter-utils.ts';
 import type {
   AgentAdapter,
   Plan,
@@ -50,10 +51,6 @@ interface PlanResponse {
   versionInfo?: {
     project?: string;
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function normalizeStatusFromFilename(filePath: string): PlannotatorStatus {
@@ -316,8 +313,8 @@ async function parseSnapshot(filePath: string): Promise<Plan[]> {
         metadata: metadataRecord(metadata),
       },
     ];
-  } catch {
-    return [];
+  } catch (err) {
+    return noPlansIfMissing(err, []);
   }
 }
 
@@ -364,8 +361,8 @@ async function parseProjectPlan(filePath: string): Promise<Plan[]> {
         metadata: metadataRecord(metadata),
       },
     ];
-  } catch {
-    return [];
+  } catch (err) {
+    return noPlansIfMissing(err, []);
   }
 }
 
@@ -441,8 +438,8 @@ async function parseLiveSession(filePath: string): Promise<Plan[]> {
         metadata: metadataRecord(metadata),
       },
     ];
-  } catch {
-    return [];
+  } catch (err) {
+    return noPlansIfMissing(err, []);
   }
 }
 

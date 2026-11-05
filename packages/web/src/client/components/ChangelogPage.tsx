@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import changelogMarkdown from '../../../../cli/CHANGELOG.md?raw';
+import './ChangelogPage.css';
 import { InlineCode, SubpageHeader, SubpageShell, TextLink } from './landing/SubpageShell.tsx';
 
 export interface ChangelogPageProps {
@@ -386,29 +387,6 @@ export function ChangelogPage({ onBack, homeHref = '/' }: ChangelogPageProps = {
         </TextLink>
         .
       </p>
-      <style>{`
-        .changelog-note-body p { margin: 0; }
-        .changelog-note-body p + p { margin-top: 4px; }
-        .changelog-note-body code {
-          font-family: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
-          font-size: 12.5px;
-          padding: 0 5px;
-          border-radius: 4px;
-          background: color-mix(in oklch, var(--landing-surface-raised) 72%, transparent);
-          border: 1px solid var(--landing-border);
-          color: var(--landing-text);
-        }
-        .changelog-note-body a {
-          color: var(--landing-text);
-          text-decoration: underline;
-          text-decoration-color: color-mix(in oklch, var(--landing-accent) 50%, transparent);
-          text-underline-offset: 3px;
-          transition: text-decoration-color 150ms ease-out;
-        }
-        .changelog-note-body a:hover { text-decoration-color: var(--landing-accent); }
-        .changelog-note-body ul,
-        .changelog-note-body ol { margin: 4px 0 0; padding-left: 18px; }
-      `}</style>
     </SubpageShell>
   );
 }

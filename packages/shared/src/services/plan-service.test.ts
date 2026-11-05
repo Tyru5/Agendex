@@ -14,6 +14,7 @@ import {
   getIndexablePlans,
   rescanFile,
   scan,
+  setOnPlansChanged,
   setPlanValueOverride,
 } from './plan-service.ts';
 
@@ -38,6 +39,7 @@ function restoreEnv(name: keyof typeof originalEnv) {
 
 afterEach(async () => {
   setActiveAdapters(originalAdapters);
+  setOnPlansChanged(() => {});
   process.chdir(originalCwd);
   restoreEnv('AGENDEX_CONFIG_DIR');
   restoreEnv('AGENDEX_DEV');
@@ -178,15 +180,20 @@ test('scan queue clears after a traversal failure', async () => {
     matches: (filePath) => filePath === planPath,
     parse: async () => {
       attempts += 1;
-      if (attempts === 1) {
-        await failureGate;
-        throw new Error('scan failed');
-      }
+      if (attempts === 1) await failureGate;
       return [];
     },
     write: async () => false,
   };
   setActiveAdapters([adapter]);
+  // A single unreadable source no longer fails a scan (its plans are kept), so
+  // fail the traversal from the change notification instead.
+  let failNotification = true;
+  setOnPlansChanged(() => {
+    if (!failNotification) return;
+    failNotification = false;
+    throw new Error('scan failed');
+  });
 
   const first = scan();
   while (attempts === 0) await Bun.sleep(1);
@@ -223,7 +230,11 @@ test('discovers documented project-local plan markers', async () => {
 
   const discovered = discoverProjectPlanDirs();
   for (const [marker, agent] of markers) {
-    expect(discovered).toContainEqual({ dir: await realpath(join(workspace, marker)), agent });
+    const dir = await realpath(join(workspace, marker));
+    expect(discovered.find((entry) => entry.agent === agent && entry.dir === dir)).toEqual({
+      dir,
+      agent,
+    });
   }
 });
 
@@ -813,6 +824,154 @@ test('rescanFile annotates user-created and custom markdown plans', async () => 
   expect(customPlans[0]?.metadata.lowValue).toBe(true);
   expect(customPlans[0]?.metadata.lowValueReasons).toContain('code-only');
   expect(getIndexablePlans()).toHaveLength(0);
+  // Rescans attribute custom-dir plans exactly like the full scan does.
+  expect(customPlans[0]?.agent).toBe('custom-plans');
+  expect(customPlans[0]?.metadata).toMatchObject({
+    source: 'custom-dir',
+    customDir,
+    agentHint: 'custom-plans',
+  });
+
+  await rm(userPlanPath);
+  await rm(customPlanPath);
+  expect((await rescanFile(userPlanPath)).map((plan) => plan.filePath)).toEqual([userPlanPath]);
+  expect((await rescanFile(customPlanPath)).map((plan) => plan.filePath)).toEqual([customPlanPath]);
+  expect(getAll()).toHaveLength(0);
+});
+
+test('a source that fails to parse keeps its previous plans in scans and rescans', async () => {
+  const home = await useTempHome('agendex-plan-service-parse-failure-');
+  const plansDir = join(home, 'plans');
+  const planPath = join(plansDir, 'p.md');
+  await mkdir(plansDir, { recursive: true });
+  await writeFile(planPath, '# Plan\n\n- [ ] Step one\n- [ ] Step two\n', 'utf-8');
+
+  const adapterPlan: Plan = {
+    id: hashPath(planPath),
+    agent: 'flaky-agent',
+    title: 'Plan',
+    content: '# Plan\n\n- [ ] Step one\n- [ ] Step two\n',
+    filePath: planPath,
+    format: 'md',
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    metadata: {},
+  };
+  let failure: Error | undefined;
+  const adapter: AgentAdapter = {
+    agent: 'flaky-agent',
+    writable: false,
+    getSearchPaths: () => [plansDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath === planPath,
+    parse: async () => {
+      if (failure) throw failure;
+      return [adapterPlan];
+    },
+    write: async () => false,
+  };
+  setActiveAdapters([adapter]);
+  await scan();
+  expect(getAll().map((plan) => plan.id)).toEqual([adapterPlan.id]);
+
+  failure = Object.assign(new Error('database is locked'), { code: 'SQLITE_BUSY' });
+  await scan();
+  expect(getAll().map((plan) => plan.id)).toEqual([adapterPlan.id]);
+  expect(await rescanFile(planPath)).toEqual([]);
+  expect(getAll().map((plan) => plan.id)).toEqual([adapterPlan.id]);
+
+  // Once the source reads cleanly and is genuinely empty, its plans go.
+  failure = undefined;
+  adapter.parse = async () => [];
+  await scan();
+  expect(getAll()).toHaveLength(0);
+});
+
+test('a rescan that lands while a full scan is in flight survives the index swap', async () => {
+  const home = await useTempHome('agendex-plan-service-scan-race-');
+  const firstDir = join(home, 'first');
+  const secondDir = join(home, 'second');
+  const changedPath = join(firstDir, 'changed.md');
+  const slowPath = join(secondDir, 'slow.md');
+  await mkdir(firstDir, { recursive: true });
+  await mkdir(secondDir, { recursive: true });
+  await writeFile(changedPath, 'v1', 'utf-8');
+  await writeFile(slowPath, 'slow', 'utf-8');
+
+  let version = 'v1';
+  let gate: Promise<void> | undefined;
+  let slowParseStarted = false;
+  const planFor = (filePath: string, content: string): Plan => ({
+    id: hashPath(filePath),
+    agent: 'race-agent',
+    title: content,
+    content: `# ${content}\n\n- [ ] Step one\n- [ ] Step two\n`,
+    filePath,
+    format: 'md',
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    metadata: {},
+  });
+  const adapter: AgentAdapter = {
+    agent: 'race-agent',
+    writable: false,
+    // Search paths are traversed in order, so `changed.md` is read before the scan blocks.
+    getSearchPaths: () => [firstDir, secondDir],
+    getWatchPaths: () => [],
+    matches: (filePath) => filePath.endsWith('.md'),
+    parse: async (filePath) => {
+      if (filePath === slowPath) {
+        slowParseStarted = true;
+        if (gate) await gate;
+        return [planFor(slowPath, 'slow')];
+      }
+      return [planFor(changedPath, version)];
+    },
+    write: async () => false,
+  };
+  setActiveAdapters([adapter]);
+  await scan();
+
+  let release: (() => void) | undefined;
+  gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  slowParseStarted = false;
+  const inFlight = scan();
+  while (!slowParseStarted) await Bun.sleep(1);
+
+  // The file changes after the traversal read it; the watcher rescans it.
+  version = 'v2';
+  await rescanFile(changedPath);
+  expect(getIndexableById(hashPath(changedPath))?.title).toBe('v2');
+
+  release?.();
+  await inFlight;
+  expect(getIndexableById(hashPath(changedPath))?.title).toBe('v2');
+  expect(getIndexableById(hashPath(slowPath))?.title).toBe('slow');
+});
+
+test('full scans reuse unchanged markdown parses and re-read changed files', async () => {
+  const home = await useTempHome('agendex-plan-service-parse-cache-');
+  const customDir = join(home, 'custom-plans');
+  const planPath = join(customDir, 'plan.md');
+  await mkdir(customDir, { recursive: true });
+  await writeFile(planPath, '# First title\n\n- [ ] Step one\n- [ ] Step two\n', 'utf-8');
+  saveConfig({ configVersion: 3, enabledAdapters: [], customPlanDirs: [customDir] });
+  setActiveAdapters([]);
+
+  await scan();
+  expect(getAll().map((plan) => plan.title)).toEqual(['First title']);
+  await scan();
+  expect(getAll().map((plan) => plan.title)).toEqual(['First title']);
+
+  await writeFile(planPath, '# A longer second title\n\n- [ ] Step one\n', 'utf-8');
+  await scan();
+  expect(getAll().map((plan) => plan.title)).toEqual(['A longer second title']);
+
+  await rm(planPath);
+  await scan();
+  expect(getAll()).toHaveLength(0);
 });
 
 test('an indexed plan keeps its restore when its reported source path is not on disk', async () => {

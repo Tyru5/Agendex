@@ -4,6 +4,7 @@ import { getHomeDir } from '../home-dir.ts';
 import { hashPath } from '../hash.ts';
 import { assessPlanValue } from '../services/plan-value.ts';
 import type { AgentAdapter, Plan } from '../types.ts';
+import { isRecord, noPlansIfMissing } from './adapter-utils.ts';
 
 function sessionsDir(): string {
   return join(getHomeDir(), '.codex', 'sessions');
@@ -62,10 +63,6 @@ function parseJsonLines(raw: string): unknown[] {
     }
   }
   return parsed;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 function extractTextFromContent(content: unknown): string {
@@ -461,8 +458,8 @@ export const codexCliAdapter: AgentAdapter = {
           metadata,
         },
       ];
-    } catch {
-      return [];
+    } catch (err) {
+      return noPlansIfMissing(err, []);
     }
   },
 

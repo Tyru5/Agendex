@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import './LandingMascot.css';
 import dinoShadow from './dino-shadow.png';
 import dinoVitaFrame from './dino-vita-frame.png';
 import dinoVitaIdleStrip from './dino-vita-idle-strip.png';
@@ -270,12 +271,6 @@ export function LandingMascot({ greetings, onActivate, triggerElementId }: Landi
 
   return (
     <>
-      <style>{`
-        @keyframes landing-mascot-idle {
-          from { background-position: 0 0; }
-          to { background-position: -${DINO_RENDER_SIZE * DINO_FRAME_COUNT}px 0; }
-        }
-      `}</style>
       <span
         aria-hidden={!isNearBottom}
         className="fixed bottom-4 left-0 z-[140]"

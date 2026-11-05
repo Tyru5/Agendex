@@ -1,4 +1,4 @@
-import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
+import { type AuthClient, ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { ConvexProviderWithAuth } from 'convex/react';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react';
 import { authClient } from '../lib/auth-client.ts';
@@ -9,6 +9,12 @@ import { getDesktopCloudToken, getDesktopConvexAuthToken, isDesktop } from '../l
  * Convex + Better Auth providers for routes that talk to the cloud backend.
  * Lives in its own module so public marketing pages never download them.
  */
+// @convex-dev/better-auth 0.12 types its `AuthClient` against a generic plugin
+// shape whose `useSession().data` resolves to `never` under better-auth 1.6.x,
+// so a real client never matches it structurally. Runtime shape is identical;
+// narrow the cast to this one boundary.
+const providerAuthClient = authClient as unknown as AuthClient;
+
 export function AuthRuntime({ children }: { children: ReactNode }) {
   if (isDesktop() && getDesktopCloudToken()) {
     return (
@@ -19,7 +25,7 @@ export function AuthRuntime({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    <ConvexBetterAuthProvider client={convex} authClient={providerAuthClient}>
       {children}
     </ConvexBetterAuthProvider>
   );

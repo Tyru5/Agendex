@@ -2,10 +2,27 @@ import { useCallback, useEffect, useRef } from 'react';
 
 type Listener = (data: unknown) => void;
 
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30_000;
+
 const listeners = new Map<string, Set<Listener>>();
 let socket: WebSocket | null = null;
 let refCount = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempt = 0;
+
+function debugLog(...args: unknown[]) {
+  if (import.meta.env.DEV) console.log(...args);
+}
+
+/**
+ * Full-jitter exponential backoff: a random delay in [0, min(cap, base * 2^attempt)],
+ * floored at the base so a flapping server is never hammered.
+ */
+export function reconnectDelay(attempt: number, random: () => number = Math.random): number {
+  const ceiling = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** Math.max(0, attempt));
+  return Math.max(RECONNECT_BASE_MS, Math.round(random() * ceiling));
+}
 
 function getWsUrl() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -16,24 +33,44 @@ function getWsUrl() {
   return `${base}/api/v1/ws?token=${encodeURIComponent(token ?? '')}`;
 }
 
+function detach(ws: WebSocket) {
+  ws.onopen = null;
+  ws.onmessage = null;
+  ws.onclose = null;
+  ws.onerror = null;
+}
+
+function scheduleReconnect() {
+  if (refCount === 0 || reconnectTimer) return;
+  const delay = reconnectDelay(reconnectAttempt);
+  reconnectAttempt++;
+  debugLog(`[ws] reconnecting in ${delay}ms`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connect();
+  }, delay);
+}
+
 function connect() {
   if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return;
 
   const url = getWsUrl();
-  console.log('[ws] connecting to', url.replace(/token=[^&]+/, 'token=***'));
-  socket = new WebSocket(url);
+  debugLog('[ws] connecting to', url.replace(/token=[^&]+/, 'token=***'));
+  const ws = new WebSocket(url);
+  socket = ws;
 
-  socket.onopen = () => {
-    console.log('[ws] connected');
+  ws.onopen = () => {
+    debugLog('[ws] connected');
+    reconnectAttempt = 0;
     const fns = listeners.get('connection');
     if (fns) for (const fn of fns) fn(undefined);
   };
 
-  socket.onmessage = (e) => {
+  ws.onmessage = (e) => {
     try {
       msgCount++;
       const msg = JSON.parse(e.data) as { event: string; data: unknown };
-      console.log('[ws] event:', msg.event);
+      debugLog('[ws] event:', msg.event);
       const fns = listeners.get(msg.event);
       if (fns) for (const fn of fns) fn(msg.data);
     } catch {
@@ -41,16 +78,16 @@ function connect() {
     }
   };
 
-  socket.onclose = () => {
-    console.log('[ws] disconnected');
-    if (refCount > 0) {
-      reconnectTimer = setTimeout(connect, 3000);
-    }
+  ws.onclose = () => {
+    debugLog('[ws] disconnected');
+    detach(ws);
+    if (socket === ws) socket = null;
+    scheduleReconnect();
   };
 
-  socket.onerror = () => {
-    console.log('[ws] error');
-    socket?.close();
+  ws.onerror = () => {
+    debugLog('[ws] error');
+    ws.close();
   };
 }
 
@@ -59,7 +96,12 @@ function disconnect() {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
-  socket?.close();
+  reconnectAttempt = 0;
+  if (socket) {
+    // Detach first so the stale socket's close event cannot schedule a reconnect.
+    detach(socket);
+    socket.close();
+  }
   socket = null;
 }
 
@@ -71,6 +113,7 @@ if (import.meta.env.DEV) {
     refCount,
     listeners: [...listeners.keys()],
     msgCount,
+    reconnectAttempt,
   });
 }
 

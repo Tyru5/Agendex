@@ -1,5 +1,6 @@
 import { existsSync, realpathSync, statSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, parse as parsePath, resolve as resolvePath } from 'node:path';
 import {
   CURRENT_CONFIG_VERSION,
   assessPlanValue,
@@ -12,6 +13,7 @@ import {
   getAgentStats,
   getFilePlanHistory,
   getFilePlanCounts,
+  getHomeDir,
   createPlanAnnotation,
   deletePlanAnnotation,
   detectOpenInApps,
@@ -39,10 +41,42 @@ import {
   validatePlanAnnotationInput,
 } from '@agendex/shared';
 import { type PlanReceiptSummary, summarizePlanReceipt } from '@agendex/shared/receipts';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { launchOpenIn } from '../open-in.ts';
 
 const plans = new Hono();
+
+/**
+ * JSON object body, or a 400 response. Malformed JSON throws a SyntaxError that
+ * the app-level error handler maps to 400; `null`, arrays, and primitives land here.
+ */
+async function readObjectBody<T extends object>(c: Context): Promise<Partial<T> | Response> {
+  const body: unknown = await c.req.json();
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return c.json({ error: 'request body must be a JSON object' }, 400);
+  }
+  return body as Partial<T>;
+}
+
+/** Non-negative integer query value, or `fallback` when absent/invalid. */
+function queryInt(value: string | undefined, fallback: number): number {
+  if (value === undefined || !/^\d+$/.test(value)) return fallback;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : fallback;
+}
+
+/** Filesystem roots (`/`, `C:\\`, UNC share roots) and the home directory itself. */
+function isTooBroadPlanSource(path: string): boolean {
+  const normalized = resolvePath(path);
+  if (parsePath(normalized).root === normalized) return true;
+  // AGENDEX_HOME may differ from the OS home (e.g. WSL); refuse both.
+  return [homedir(), getHomeDir()].some((home) => {
+    const resolvedHome = resolvePath(home);
+    return process.platform === 'win32'
+      ? normalized.toLowerCase() === resolvedHome.toLowerCase()
+      : normalized === resolvedHome;
+  });
+}
 
 plans.get('/file-plans', async (c) => {
   const path = c.req.query('path');
@@ -233,8 +267,9 @@ plans.get('/plans', (c) => {
   const workspace = c.req.query('workspace');
   // A search keeps relevance order unless the caller asks for another sort.
   const sort = c.req.query('sort') ?? (q ? 'relevance' : 'updatedAt');
-  const limit = parseInt(c.req.query('limit') ?? '50', 10);
-  const offset = parseInt(c.req.query('offset') ?? '0', 10);
+  // Lenient like before (bad values fall back to defaults), but never NaN.
+  const limit = queryInt(c.req.query('limit'), 50);
+  const offset = queryInt(c.req.query('offset'), 0);
 
   let results = q ? searchPlans(getIndexablePlans(), q) : getIndexablePlans();
 
@@ -374,7 +409,8 @@ function localPlanForPathAction(planId: string, sourceFilePath: unknown) {
 }
 
 plans.post('/plans/:id/paths/exists', async (c) => {
-  const body = await c.req.json<{ paths?: unknown; sourceFilePath?: unknown }>();
+  const body = await readObjectBody<{ paths: unknown; sourceFilePath: unknown }>(c);
+  if (body instanceof Response) return body;
   if (!Array.isArray(body.paths)) {
     return c.json({ error: 'paths must be an array' }, 400);
   }
@@ -398,12 +434,13 @@ plans.get('/open-in/apps', (c) => {
 });
 
 plans.post('/plans/:id/open-in', async (c) => {
-  const body = await c.req.json<{
-    path?: unknown;
-    line?: unknown;
-    appId?: unknown;
-    sourceFilePath?: unknown;
-  }>();
+  const body = await readObjectBody<{
+    path: unknown;
+    line: unknown;
+    appId: unknown;
+    sourceFilePath: unknown;
+  }>(c);
+  if (body instanceof Response) return body;
   const plan = localPlanForPathAction(c.req.param('id'), body.sourceFilePath);
   if (!plan) return c.json({ error: 'local plan source not found' }, 404);
   if (!plan.workspace) {
@@ -444,12 +481,12 @@ plans.post('/plans/:id/annotations', async (c) => {
   const plan = getIndexableById(planId);
   if (!plan) return c.json({ error: 'not found' }, 404);
 
-  const body = await c.req.json<{
-    type?: 'comment' | 'replacement' | 'deletion' | 'insertion' | 'global_comment';
-    status?: 'draft' | 'open' | 'submitted' | 'resolved';
-    body?: string;
-    replacementText?: string;
-    anchor?: {
+  const body = await readObjectBody<{
+    type: 'comment' | 'replacement' | 'deletion' | 'insertion' | 'global_comment';
+    status: 'draft' | 'open' | 'submitted' | 'resolved';
+    body: string;
+    replacementText: string;
+    anchor: {
       quote?: string;
       startOffset?: number;
       endOffset?: number;
@@ -458,7 +495,8 @@ plans.post('/plans/:id/annotations', async (c) => {
       suffix?: string;
       contentHash?: string;
     };
-  }>();
+  }>(c);
+  if (body instanceof Response) return body;
 
   if (
     body.type !== 'comment' &&
@@ -506,20 +544,27 @@ plans.patch('/plans/:id/annotations/:annotationId', async (c) => {
   const plan = getIndexableById(planId);
   if (!plan) return c.json({ error: 'not found' }, 404);
 
-  const body = await c.req.json<{
-    status?: 'draft' | 'open' | 'submitted' | 'resolved';
-    writebackId?: string;
-  }>();
+  const body = await readObjectBody<{
+    status: 'draft' | 'open' | 'submitted' | 'resolved';
+    writebackId: unknown;
+  }>(c);
+  if (body instanceof Response) return body;
   const VALID_STATUSES = new Set(['draft', 'open', 'submitted', 'resolved']);
   if (body.status !== undefined && !VALID_STATUSES.has(body.status)) {
     return c.json({ error: 'invalid annotation status' }, 400);
+  }
+  if (
+    body.writebackId !== undefined &&
+    (typeof body.writebackId !== 'string' || !body.writebackId || body.writebackId.length > 256)
+  ) {
+    return c.json({ error: 'writebackId must be a non-empty string' }, 400);
   }
 
   const annotation = await updatePlanAnnotationStatus({
     planId,
     annotationId: c.req.param('annotationId'),
     status: body.status,
-    writebackId: body.writebackId,
+    writebackId: body.writebackId as string | undefined,
   });
   if (!annotation) return c.json({ error: 'annotation not found' }, 404);
   return c.json(annotation);
@@ -564,7 +609,8 @@ plans.get('/plan-sources', (c) => {
 });
 
 plans.post('/plan-sources', async (c) => {
-  const body = await c.req.json<{ path?: string }>();
+  const body = await readObjectBody<{ path: unknown }>(c);
+  if (body instanceof Response) return body;
   if (typeof body.path !== 'string' || !body.path.trim()) {
     return c.json({ error: 'path is required' }, 400);
   }
@@ -575,6 +621,12 @@ plans.post('/plan-sources', async (c) => {
   }
   if (!statSync(resolved).isDirectory()) {
     return c.json({ error: `path is not a directory: ${resolved}` }, 400);
+  }
+  if (isTooBroadPlanSource(resolved) || isTooBroadPlanSource(realpathSync(resolved))) {
+    return c.json(
+      { error: `refusing to watch a filesystem root or your home directory: ${resolved}` },
+      400,
+    );
   }
   let updated: string[] = [];
   updateConfig((config) => {
@@ -590,7 +642,8 @@ plans.post('/plan-sources', async (c) => {
 });
 
 plans.delete('/plan-sources', async (c) => {
-  const body = await c.req.json<{ path?: string }>();
+  const body = await readObjectBody<{ path: unknown }>(c);
+  if (body instanceof Response) return body;
   if (typeof body.path !== 'string' || !body.path.trim()) {
     return c.json({ error: 'path is required' }, 400);
   }

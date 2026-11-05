@@ -286,3 +286,33 @@ test('cleanup --stale fails when an older backend deletes only part of the reque
     server.close();
   }
 });
+
+test.each<string[]>([
+  ['login', '--url', '--dev'],
+  ['open', '--url', '--dev'],
+  ['open', '--url'],
+])('%s %s rejects a missing --url value instead of consuming the next flag', async (...argv) => {
+  tempRoot = await mkdtemp(join(tmpdir(), 'agendex-cli-url-flag-'));
+
+  const proc = Bun.spawn({
+    cmd: ['bun', 'packages/cli/src/cli.ts', ...argv],
+    env: {
+      ...process.env,
+      HOME: tempRoot,
+      AGENDEX_CONFIG_DIR: join(tempRoot, '.agendex-test'),
+      AGENDEX_DISABLE_BROWSER: '1',
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+
+  const [exitCode, stdout, stderr] = await Promise.all([
+    proc.exited,
+    Bun.readableStreamToText(proc.stdout),
+    Bun.readableStreamToText(proc.stderr),
+  ]);
+
+  expect(exitCode).toBe(1);
+  expect(stderr).toContain('--url requires a value');
+  expect(stdout).not.toContain('Opening');
+});

@@ -229,10 +229,9 @@ async function remapPendingWritebacks(
   if (!fromLocalPlanId || fromLocalPlanId === toLocalPlanId) return;
   const pending = await ctx.db
     .query('plannotatorWritebacks')
-    .withIndex('by_owner_localPlanId', (q) =>
-      q.eq('ownerId', ownerId).eq('localPlanId', fromLocalPlanId),
+    .withIndex('by_owner_localPlanId_status', (q) =>
+      q.eq('ownerId', ownerId).eq('localPlanId', fromLocalPlanId).eq('status', 'pending'),
     )
-    .filter((q) => q.eq(q.field('status'), 'pending'))
     .collect();
   for (const row of pending) {
     await ctx.db.patch(row._id, { localPlanId: toLocalPlanId, planId: toPlanId, updatedAt: now });
@@ -354,10 +353,9 @@ export const enqueueWriteback = mutation({
     }
     const pendingWritebacks = await ctx.db
       .query('plannotatorWritebacks')
-      .withIndex('by_owner_localPlanId', (q) =>
-        q.eq('ownerId', user._id).eq('localPlanId', localPlanId),
+      .withIndex('by_owner_localPlanId_status', (q) =>
+        q.eq('ownerId', user._id).eq('localPlanId', localPlanId).eq('status', 'pending'),
       )
-      .filter((q) => q.eq(q.field('status'), 'pending'))
       .collect();
     let hasActivePendingWriteback = false;
     for (const pendingWriteback of pendingWritebacks) {
@@ -487,10 +485,9 @@ export const getCanonicalWritebackState = query({
     if (canonicalLocalPlanId) {
       const pendingRows = await ctx.db
         .query('plannotatorWritebacks')
-        .withIndex('by_owner_localPlanId', (q) =>
-          q.eq('ownerId', user._id).eq('localPlanId', canonicalLocalPlanId),
+        .withIndex('by_owner_localPlanId_status', (q) =>
+          q.eq('ownerId', user._id).eq('localPlanId', canonicalLocalPlanId).eq('status', 'pending'),
         )
-        .filter((q) => q.eq(q.field('status'), 'pending'))
         .collect();
       for (const row of pendingRows) {
         if (pendingWritebackExpiresAt === null || row.expiresAt > pendingWritebackExpiresAt) {

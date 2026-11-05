@@ -18,7 +18,7 @@ Agendex is a Bun workspaces monorepo:
 ### Free (Local OSS)
 
 - Local plan indexing, full-text search, and automatic low-value plan hiding (empty files, code dumps, logs, prompt-only artifacts, and other non-plans)
-- Live file watching, polling fallback, and WebSocket updates
+- Live file watching with a polling fallback that keeps the local index current; the OSS dashboard refreshes on load and on demand (live dashboard push updates are a Cloud Pro feature)
 - Offline-aware client that surfaces a backend-unreachable state and recovers automatically
 - Agent and workspace filtering with read-only plan viewing
 - Session cost: observed USD API-equivalent usage estimates for verified Claude Code, Codex CLI, and Grok sessions, with shared-session and unknown-price disclosures
@@ -39,7 +39,7 @@ Agendex is a Bun workspaces monorepo:
 - Convex-backed auth and cloud dashboard flows
 - Cloud sync via CLI or daemon, with hash-based skip for unchanged plans, real-time upload queue with retries, and automatic low-value pruning on the cloud side
 - Automatic Git repository, branch, and commit detection during CLI sync/upload, plus Pro-managed branch, commit, and pull-request links in dashboard and shared plan views
-- Shareable plan links with optional password and expiry, comment threads, tags, collections with their own reorderable plan order, and plan history
+- Shareable plan links with optional password and expiry, comment threads, tags, collections with their own reorderable plan order, and plan history (the newest 100 versions per plan, plus your last-read baseline)
 - Activity brief with recent plan updates and checklist progress; git landing evidence is available when a matching local plan and authenticated local API are reachable
 - Workspace members, daemon status/cleanup, and collaboration features
 - [Team review requests](docs/team-review-requests.md) with assigned workspace reviewers, revision-bound decisions, and an in-app inbox
@@ -353,6 +353,8 @@ For saved read comparisons, see [Changes since last read](docs/changes-since-las
 
 Server routes are under `/api/v1` and require `Authorization: Bearer <token>`.
 
+The OSS server listens on `127.0.0.1` only; set `AGENDEX_HOST` to bind another interface (for example a tailnet IP). Cross-origin browser calls are answered only for the same origin and the dev clients (`http://localhost:5173`, `http://agendex.localhost:5174`, `http://app.agendex.localhost:5174`); add more with `AGENDEX_CORS_ORIGINS` (comma-separated). The served client sends a Content-Security-Policy; add `connect-src` hosts such as a self-hosted Convex URL with `AGENDEX_CSP_CONNECT_SRC`. The token is printed only when first generated; afterwards read `token` from `~/.agendex/config.json`, which is written owner-only (`0600`). A config file that is not valid JSON is moved to `config.json.corrupt-<timestamp>` instead of being overwritten.
+
 Key endpoints:
 
 - `GET /api/v1/health`
@@ -419,7 +421,7 @@ Key endpoints:
 - `PUT /api/v1/plans/:id` -> returns `403` in OSS (Cloud Pro only)
 - `POST /api/v1/plans` -> returns `403` in OSS (Cloud Pro only)
 
-WebSocket updates:
+WebSocket updates (used by the desktop and Cloud Pro dashboards; the OSS dashboard does not subscribe):
 
 - `GET /api/v1/ws?token=<token>`
 
@@ -446,6 +448,9 @@ Common environment variables:
 
 - OSS app:
   - `PORT` (default `4890`)
+  - `AGENDEX_HOST` (bind address, default `127.0.0.1`)
+  - `AGENDEX_CORS_ORIGINS` (comma-separated extra allowed browser origins)
+  - `AGENDEX_CSP_CONNECT_SRC` (extra CSP `connect-src` sources for the served client)
   - `AGENDEX_TOKEN` (override generated local token)
   - `AGENDEX_DEV=1` (use `~/.agendex-dev/` for shared config; align with `agendex --dev` when running both server and CLI)
   - `AGENDEX_CONFIG_DIR` (override the config directory)

@@ -1,6 +1,12 @@
 import { expect, test } from 'bun:test';
 import type { UsageSummary } from '@agendex/shared';
-import { CLOUD_USAGE_WINDOWS, collectUsageSnapshots, createUsageSync } from './usage-sync.ts';
+import {
+  CLOUD_USAGE_WINDOWS,
+  type CloudUsageSnapshots,
+  type CloudUsageSummary,
+  collectUsageSnapshots,
+  createUsageSync,
+} from './usage-sync.ts';
 
 function summary(days: number): UsageSummary {
   return {
@@ -296,9 +302,13 @@ test('rejects usage summaries whose required fields exceed the cloud budget', as
   ).rejects.toThrow('Usage summaries exceed the cloud heartbeat byte budget');
 });
 
+function cloudSummary(days: number): CloudUsageSummary {
+  return { ...summary(days), cloudFormatVersion: 2 };
+}
+
 test('usage sync coalesces overlapping runs and permits a later run', async () => {
-  let resolveFirst!: (snapshots: Record<string, UsageSummary>) => void;
-  const firstSnapshots = new Promise<Record<string, UsageSummary>>((resolve) => {
+  let resolveFirst!: (snapshots: CloudUsageSnapshots) => void;
+  const firstSnapshots = new Promise<CloudUsageSnapshots>((resolve) => {
     resolveFirst = resolve;
   });
   let loads = 0;
@@ -307,7 +317,7 @@ test('usage sync coalesces overlapping runs and permits a later run', async () =
     async () => {
       loads += 1;
       if (loads === 1) return firstSnapshots;
-      return { '30': summary(30) };
+      return { '30': cloudSummary(30) };
     },
     async (ipAddress, snapshots) => {
       sent.push({ ipAddress, windows: Object.keys(snapshots ?? {}) });
@@ -320,7 +330,7 @@ test('usage sync coalesces overlapping runs and permits a later run', async () =
   expect(overlapping).toBe(first);
   expect(loads).toBe(1);
 
-  resolveFirst({ '30': summary(30) });
+  resolveFirst({ '30': cloudSummary(30) });
   await first;
   await sync('127.0.0.2');
 
@@ -337,7 +347,7 @@ test('usage sync clears its in-flight guard after a failed run', async () => {
     async () => {
       loads += 1;
       if (loads === 1) throw new Error('scan failed');
-      return { '30': summary(30) };
+      return { '30': cloudSummary(30) };
     },
     async () => {},
     () => true,
@@ -352,7 +362,7 @@ test('usage sync clears its in-flight guard after a failed run', async () => {
 test('usage sync propagates heartbeat rejection and permits a retry', async () => {
   let sends = 0;
   const sync = createUsageSync(
-    async () => ({ '30': summary(30) }),
+    async () => ({ '30': cloudSummary(30) }),
     async () => {
       sends += 1;
       if (sends === 1) throw new Error('heartbeat rejected');
@@ -372,7 +382,7 @@ test('usage sync skips snapshot collection without cloud credentials', async () 
   const sync = createUsageSync(
     async () => {
       loads += 1;
-      return { '30': summary(30) };
+      return { '30': cloudSummary(30) };
     },
     async () => {
       sends += 1;

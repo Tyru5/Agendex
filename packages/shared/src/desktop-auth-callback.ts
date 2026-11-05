@@ -89,6 +89,15 @@ export function createDesktopAuthCallbackUrl(input: DesktopAuthCallbackInput): s
   return url.toString();
 }
 
+/** String equality whose running time doesn't depend on where the inputs differ. */
+function constantTimeEqual(a: string, b: string): boolean {
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < b.length; i++) {
+    diff |= a.charCodeAt(i % Math.max(a.length, 1)) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 export function validateDesktopAuthCallbackState(
   receivedState: string | null,
   expectation: DesktopAuthStateExpectation,
@@ -97,7 +106,7 @@ export function validateDesktopAuthCallbackState(
     return { ok: false, error: { code: 'missing-state' } };
   }
 
-  if (receivedState !== expectation.state) {
+  if (!constantTimeEqual(receivedState, expectation.state)) {
     return {
       ok: false,
       error: {
