@@ -219,7 +219,7 @@ A cool, low-chroma neutral scale (hue 255-265) with a single saturated violet th
 
 ### Primary
 
-- **Ultramarine Violet** (`#5532c7`, oklch(46% 0.215 285)): the one committed color. As `--landing-accent` it is text on ground: the brand's period, current-nav label, doc-link text, preview headings, check glyphs, focus rings, text selection. As `--landing-index-bg` it is the fill: the entire index column, primary actions, the selected install tab and pricing/package-manager toggles. In light both tokens share this value; in dark they split into **Night Violet Text** (`#8a7dfa`, oklch(66% 0.18 285)) and **Night Violet Fill** (`#411ea0`, oklch(38% 0.19 285)) so text stays legible and the column stays deep.
+- **Ultramarine Violet** (`#5532c7`, oklch(46% 0.215 285)): the one committed color. As `--landing-accent` it is text on ground: the brand's index mark, current-nav label, doc-link text, preview headings, check glyphs, focus rings, text selection. As `--landing-index-bg` it is the fill: the entire index column, primary actions, the selected install tab and pricing/package-manager toggles. In light both tokens share this value; in dark they split into **Night Violet Text** (`#8a7dfa`, oklch(66% 0.18 285)) and **Night Violet Fill** (`#411ea0`, oklch(38% 0.19 285)) so text stays legible and the column stays deep.
 - **Selection Ink** (`#fbfbff`, oklch(99% 0.008 285)): text and glyphs on any violet fill. Inside the index column it is also the base for every translucent layer (`color-mix` of selection ink at 10-40% over the fill) that builds the column head, the install command well, row hover, and the workspace tag border.
 - **Selection Wash** (`#e8e8f9`, color-mix of the accent at 9% into ground): the hover-link tint on a source row and the current-page toolbar button. Weak on purpose; it says "this row is related", not "selected".
 
@@ -295,9 +295,13 @@ Rectilinear with barely-rounded corners; the radius is a hint that a thing is a 
 
 ## Components
 
+### Brand mark
+
+The Painter-designed A uses three staggered index-card strokes. Its transparent source is `packages/web/src/client/assets/agendex-mark.png`. `AgendexLogo` masks that image with the theme's accent and pairs it with live Schibsted Grotesk text. The symbol is decorative beside the accessible app name. Favicons and the desktop icon invert the mark to selection ink on a violet tile; the Apple touch icon has an opaque background. Both app public directories carry identical favicon exports. Stripe's local icon and wordmark assets use the same mark. Dex remains the path-bar mascot.
+
 ### Window toolbar
 
-A 52px sticky bar in column surface with a hairline below. Brand at left ("Agendex" 700/15px with a violet period), nav as toolbar buttons in the middle (500/13px muted ink, 30px tall, 6px radius, header-surface hover, selection-wash fill and violet text when current), theme switch and the host's auth slot at right. Below 860px the nav becomes a compact secondary button with an inline SVG menu glyph that toggles a stacked list.
+A 52px sticky bar in column surface with a hairline below. Brand at left (the index mark beside "Agendex" at 700/15px), nav as toolbar buttons in the middle (500/13px muted ink, 30px tall, 6px radius, header-surface hover, selection-wash fill and violet text when current), theme switch and the host's auth slot at right. Below 860px the nav becomes a compact secondary button with an inline SVG menu glyph that toggles a stacked list.
 
 ### Actions
 

@@ -1,4 +1,5 @@
 export { AgentFilter } from './client/components/AgentFilter.tsx';
+export { AgendexLogo } from './client/components/AgendexLogo.tsx';
 export { useFilePlanSearch } from './client/hooks/useFilePlanSearch.ts';
 
 export {

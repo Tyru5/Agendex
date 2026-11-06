@@ -1,4 +1,4 @@
-import { dinoShadow, dinoVitaIdleStrip, startViewTransition } from '@agendex/web';
+import { AgendexLogo, dinoShadow, dinoVitaIdleStrip, startViewTransition } from '@agendex/web';
 import { useEffect } from 'react';
 import { useLocation } from 'wouter';
 
@@ -253,8 +253,8 @@ export function AboutMePage() {
           text-decoration: none;
         }
 
-        .about-brand-dot {
-          color: var(--about-accent);
+        .about-brand .agendex-logo-symbol {
+          background: var(--about-accent);
         }
 
         .about-hero {
@@ -801,7 +801,7 @@ export function AboutMePage() {
           </button>
 
           <a className="about-brand" href="/">
-            Agendex<span className="about-brand-dot">.</span>
+            <AgendexLogo />
           </a>
         </nav>
 

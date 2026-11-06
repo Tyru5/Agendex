@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { SIDEBAR_DEFAULT_WIDTH } from '../hooks/useSidebarWidth.ts';
 import type { Plan } from '../lib/api.ts';
+import { AgendexLogo } from './AgendexLogo.tsx';
 import { SearchBar } from './SearchBar.tsx';
 import { ThemeToggle } from './ThemeToggle.tsx';
 import { WorkspaceStatus } from './WorkspaceStatus.tsx';
@@ -100,7 +101,7 @@ export function Topbar({
           onClick={() => onSelectPlan(undefined)}
           className="text-[14px] font-bold tracking-[-0.01em] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
         >
-          Agendex<span className="agendex-brand-mark">.</span>
+          <AgendexLogo />
         </button>
       </div>
 

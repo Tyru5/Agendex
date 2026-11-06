@@ -2326,8 +2326,22 @@ body {
   animation: agendex-topbar-control-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.agendex-brand-mark {
-  color: var(--accent);
+.agendex-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.agendex-logo-symbol {
+  width: 1.6em;
+  height: 1.6em;
+  flex: none;
+  background: var(--accent);
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
 }
 
 .subscription-pill {
@@ -5264,11 +5278,6 @@ body:has(> * > * > .landing-page) {
   font-weight: 700;
   letter-spacing: -0.01em;
   text-decoration: none;
-}
-
-.landing-toolbar-brand em {
-  color: var(--landing-accent);
-  font-style: normal;
 }
 
 .landing-toolbar-nav {

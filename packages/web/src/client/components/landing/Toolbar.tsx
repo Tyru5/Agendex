@@ -1,4 +1,5 @@
 import { useState, type MouseEvent, type ReactNode } from 'react';
+import { AgendexLogo } from '../AgendexLogo.tsx';
 import { ThemeToggleButton } from './ThemeToggleButton.tsx';
 
 export const LANDING_LINKS = [
@@ -77,7 +78,7 @@ export function LandingToolbar({
     <header className="landing-toolbar-shell">
       <div className="landing-toolbar">
         <a href={homeHref} onClick={onHome} className="landing-toolbar-brand">
-          Agendex<em>.</em>
+          <AgendexLogo />
         </a>
         <nav className="landing-toolbar-nav" aria-label="Site">
           {LANDING_LINKS.map((link) => (

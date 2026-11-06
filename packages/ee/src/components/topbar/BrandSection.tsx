@@ -1,3 +1,4 @@
+import { AgendexLogo } from '@agendex/web';
 import { SidebarToggleIcon, UploadIcon } from './TopbarIcons';
 
 export function BrandSection({
@@ -64,7 +65,7 @@ export function BrandSection({
         onClick={onLogoClick}
         className="text-[14px] font-bold tracking-[-0.01em] text-text whitespace-nowrap select-none bg-transparent border-none p-0 cursor-pointer"
       >
-        Agendex<span className="agendex-brand-mark">.</span>
+        <AgendexLogo />
       </button>
 
       {(mode === 'local' || (mode === 'cloud' && isPro)) && showTopbarActions && (
